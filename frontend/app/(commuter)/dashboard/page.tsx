@@ -4,7 +4,10 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 import { User } from "@/app/types/user.types";
 
-const CommuterMap = dynamic(() => import("@/components/commuter/commuter-map"), {
+import ShowQRModal from "@/components/commuter/modals/show-qr-modal";
+import FareCalcModal from "@/components/commuter/modals/fare-calc-modal";
+
+const CommuterMap = dynamic(() => import("@/components/commuter/commuter-map/commuter-map"), {
   ssr: false,
   loading: () => <div className="absolute inset-0 bg-[#050F1A]" />,
 });
@@ -18,6 +21,9 @@ const mockUser: User = {
 };
 
 export default function CommuterHome() {
+
+  const [showQR, setShowQR] = useState(false);
+  const [showFareCalc, setShowFareCalc] = useState(false);
   const [isHailing, setIsHailing] = useState(false);
   const [showSheet, setShowSheet] = useState(true);
 
@@ -112,7 +118,14 @@ export default function CommuterHome() {
               { label: "Share Ride", iconPath: "M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" },
               { label: "GCash", iconPath: "M21 12a2.25 2.25 0 0 0-2.25-2.25H15a3 3 0 1 1-6 0H5.25A2.25 2.25 0 0 0 3 12m18 0v6a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 9m18 0V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v3" }
             ].map((action) => (
-              <button key={action.label} className="flex flex-col items-center gap-1.5 group">
+              <button 
+                key={action.label} 
+                onClick={() => {
+                  if (action.label === "Show QR") return setShowQR(true);
+                  if (action.label === "Fare Calc") return setShowFareCalc(true);
+                }}
+                className="flex flex-col items-center gap-1.5 group"
+              >
                 <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-white/10 transition-colors">
                   <svg className="w-6 h-6 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d={action.iconPath} />
@@ -124,6 +137,10 @@ export default function CommuterHome() {
           </div>
         </div>
       </div>
+
+      {/* MODALS */}
+      {showQR && <ShowQRModal user={mockUser} onClose={() => setShowQR(false)} />}
+      {showFareCalc && <FareCalcModal onClose={() => setShowFareCalc(false)} />}
 
     </div>
   );
