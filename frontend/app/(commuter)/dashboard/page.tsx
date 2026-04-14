@@ -6,6 +6,9 @@ import { User } from "@/app/types/user.types";
 
 import ShowQRModal from "@/components/commuter/modals/show-qr-modal";
 import FareCalcModal from "@/components/commuter/modals/fare-calc-modal";
+import TopUpModal from "@/components/commuter/modals/top-up-modal";
+import PaymentHistoryModal from "@/components/commuter/modals/payment-history-modal";
+import ShareRideModal from "@/components/commuter/modals/share-ride-modal"; // <-- IMPORT ADDED
 
 const CommuterMap = dynamic(() => import("@/components/commuter/commuter-map/commuter-map"), {
   ssr: false,
@@ -24,6 +27,9 @@ export default function CommuterHome() {
 
   const [showQR, setShowQR] = useState(false);
   const [showFareCalc, setShowFareCalc] = useState(false);
+  const [showTopUp, setShowTopUp] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showShareRide, setShowShareRide] = useState(false); // <-- STATE ADDED
   const [isHailing, setIsHailing] = useState(false);
   const [showSheet, setShowSheet] = useState(true);
 
@@ -47,8 +53,6 @@ export default function CommuterHome() {
       <div className="absolute inset-0 z-0">
         <CommuterMap />
       </div>
-
-      
 
       {/* --- BOTTOM SHEET --- */}
       <div className={`absolute bottom-0 inset-x-0 z-20 bg-[#071A2E] rounded-t-3xl border-t border-white/10 transition-transform duration-300 ease-in-out ${
@@ -101,10 +105,16 @@ export default function CommuterHome() {
             <p className="text-white/70 text-xs font-medium mb-1">My Wallet Balance</p>
             <h2 className="text-white text-3xl font-extrabold tracking-tight">₱ {mockUser.balance.toLocaleString()}</h2>
             <div className="mt-4 flex gap-3">
-              <button className="flex-1 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white text-xs font-semibold py-2.5 rounded-lg transition-colors">
+              <button 
+                onClick={() => setShowTopUp(true)} 
+                className="flex-1 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white text-xs font-semibold py-2.5 rounded-lg transition-colors"
+              >
                 + Top Up
               </button>
-              <button className="flex-1 bg-white text-[#071A2E] text-xs font-semibold py-2.5 rounded-lg hover:bg-gray-100 transition-colors">
+              <button 
+                onClick={() => setShowHistory(true)}
+                className="flex-1 bg-white text-[#071A2E] text-xs font-semibold py-2.5 rounded-lg hover:bg-gray-100 transition-colors"
+              >
                 View History
               </button>
             </div>
@@ -123,6 +133,7 @@ export default function CommuterHome() {
                 onClick={() => {
                   if (action.label === "Show QR") return setShowQR(true);
                   if (action.label === "Fare Calc") return setShowFareCalc(true);
+                  if (action.label === "Share Ride") return setShowShareRide(true); // <-- ONCLICK ADDED HERE
                 }}
                 className="flex flex-col items-center gap-1.5 group"
               >
@@ -141,6 +152,11 @@ export default function CommuterHome() {
       {/* MODALS */}
       {showQR && <ShowQRModal user={mockUser} onClose={() => setShowQR(false)} />}
       {showFareCalc && <FareCalcModal onClose={() => setShowFareCalc(false)} />}
+      {showTopUp && <TopUpModal currentBalance={mockUser.balance} onClose={() => setShowTopUp(false)} />}
+      {showHistory && <PaymentHistoryModal onClose={() => setShowHistory(false)} />}
+      
+      {/* SHARE RIDE MODAL ADDED HERE */}
+      {showShareRide && <ShareRideModal commuterName={mockUser.firstName} onClose={() => setShowShareRide(false)} />}
 
     </div>
   );
