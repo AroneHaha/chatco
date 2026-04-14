@@ -1,4 +1,17 @@
-export default function Footer() {
+export default function Footer({ compact = false }: { compact?: boolean }) {
+  // --- COMPACT MODE (For Login / Signup pages) ---
+  if (compact) {
+    return (
+      <footer className="bg-[#071A2E] border-t border-white/5">
+        <div className="max-w-7xl mx-auto px-5 md:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-white/30">
+          <span>&copy; {new Date().getFullYear()} CHATCO. All rights reserved.</span>
+          <span>Built for Philippine jeepney transport</span>
+        </div>
+      </footer>
+    );
+  }
+
+  // --- FULL MODE (For Landing Page) ---
   return (
     <footer className="bg-[#071A2E] text-white/40">
       <div className="max-w-7xl mx-auto px-5 md:px-8 py-12">
@@ -19,9 +32,7 @@ export default function Footer() {
 
           {/* Platform */}
           <div>
-            <h4 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-4">
-              Platform
-            </h4>
+            <h4 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-4">Platform</h4>
             <ul className="space-y-2 text-sm">
               <li><a href="#features" className="hover:text-white transition-colors">Commuter App</a></li>
               <li><a href="#platform" className="hover:text-white transition-colors">Conductor App</a></li>
@@ -32,9 +43,7 @@ export default function Footer() {
 
           {/* Features */}
           <div>
-            <h4 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-4">
-              Features
-            </h4>
+            <h4 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-4">Features</h4>
             <ul className="space-y-2 text-sm">
               <li><a href="#features" className="hover:text-white transition-colors">Offline QR Pay</a></li>
               <li><a href="#safety" className="hover:text-white transition-colors">Share My Ride</a></li>
@@ -45,9 +54,7 @@ export default function Footer() {
 
           {/* Company */}
           <div>
-            <h4 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-4">
-              Company
-            </h4>
+            <h4 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-4">Company</h4>
             <ul className="space-y-2 text-sm">
               <li><a href="#" className="hover:text-white transition-colors">About CHATCO</a></li>
               <li><a href="#" className="hover:text-white transition-colors">Contact</a></li>

@@ -1,0 +1,68 @@
+frontend/
+│
+├── app/                                # NEXT.js APP ROUTER
+│   ├── layout.tsx                       # Root wrapper
+│   ├── page.tsx                         # Landing Page (/)
+│   │
+│   ├── (auth)/                          # AUTHENTICATION ROUTE GROUP
+│   │   ├── login/
+│   │   │   └── page.tsx                 # Login UI (/login)
+│   │   └── signup/
+│   │       └── page.tsx                 # Commuter Registration UI (/signup)
+│   │
+│   └── (commuter)/                      # COMMUTER DASHBOARD ROUTE GROUP
+│       └── dashboard/
+│           ├── layout.tsx               # Bottom Navigation Shell
+│           ├── page.tsx                 # Home/Map/Hail Me UI (/dashboard)
+│           ├── ride-pay/
+│           │   └── page.tsx             # (Future) QR Code & Fare Calc (/dashboard/ride-pay)
+│           ├── rewards/
+│           │   └── page.tsx             # (Future) Vouchers (/dashboard/rewards)
+│           ├── safety/
+│           │   └── page.tsx             # (Future) Panic & Lost & Found (/dashboard/safety)
+│           └── profile/
+│               └── page.tsx             # (Future) Settings (/dashboard/profile)
+│
+├── components/                          # ALL UI COMPONENTS
+│   ├── auth/                            # Auth-specific UI
+│   │   ├── login-form.tsx
+│   │   └── signup-form.tsx
+│   │
+│   ├── commuter/                        # Commuter Dashboard UI
+│   │   └── commuter-map.tsx             # Leaflet Map wrapper
+│   │
+│   ├── landing/                         # Landing Page Sections
+│   │   ├── Navbar.tsx
+│   │   ├── Hero.tsx
+│   │   ├── TrustBar.tsx
+│   │   ├── HowItWorks.tsx
+│   │   ├── CommuterFeatures.tsx
+│   │   ├── HeatmapShowcase.tsx
+│   │   ├── SafetySupport.tsx
+│   │   ├── LoyaltyPerks.tsx
+│   │   ├── PlatformFeatures.tsx
+│   │   ├── FinalCTA.tsx
+│   │   └── Footer.tsx
+│   │
+│   ├── ui/                              # Global Shared UI
+│   │   └── Section.tsx
+│   │
+│   └── icons.tsx                        # Centralized SVG Icons
+│
+├── lib/                                 # BACKEND INTEGRATION LAYER (For Backend Dev)
+│   ├── api.ts                           # (Future) Axios/Fetch base config (URL, headers)
+│   ├── auth.ts                          # (Future) loginUser(), registerUser()
+│   ├── validations/                      # (Future) Form validation rules (Zod)
+│   │   ├── auth.schema.ts
+│   │   └── commuter.schema.ts
+│   └── commuter/                        # (Future) Feature-based API calls
+│       ├── wallet.ts                    # getBalance(), topUp()
+│       ├── rides.ts                     # sendHailMe(), calculateFare()
+│       ├── rewards.ts                   # getVouchers()
+│       └── safety.ts                    # triggerPanic()
+│
+├── hooks/                               # CUSTOM REACT HOOKS
+│   └── useInView.ts                     # Intersection Observer for scroll animations
+│
+└── types/                               # TYPESCRIPT INTERFACES (Backend Contracts)
+    └── user.types.ts                    # Defines what a User object looks like

@@ -29,7 +29,7 @@ export default function SignupForm() {
     if (e.target.files && e.target.files.length > 0) {
       setFileName(e.target.files[0].name);
     } else {
-      setFileName(null); // Allow them to clear it
+      setFileName(null);
     }
   };
 
@@ -49,16 +49,18 @@ export default function SignupForm() {
 
   return (
     <div>
-      <div className="text-center mb-8">
+      {/* Tighter header spacing */}
+      <div className="text-center mb-6">
         <h2 className="text-2xl font-extrabold text-[#071A2E] tracking-tight">Create Commuter Account</h2>
-        <p className="mt-2 text-sm text-gray-500">Fill in your details below to get started</p>
+        <p className="mt-1.5 text-sm text-gray-500">Fill in your details below to get started</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-8">
+      {/* Reduced space between sections from space-y-8 to space-y-6 */}
+      <form onSubmit={handleSubmit} className="space-y-6">
         
         {/* SECTION 1: Personal Information */}
         <div>
-          <h3 className="text-xs font-semibold text-[#1A5FB4] uppercase tracking-widest mb-4">Personal Information</h3>
+          <h3 className="text-xs font-semibold text-[#1A5FB4] uppercase tracking-widest mb-3">Personal Information</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label htmlFor="firstName" className={labelClasses}>First Name *</label>
@@ -103,7 +105,7 @@ export default function SignupForm() {
 
         {/* SECTION 2: Contact & Verification */}
         <div>
-          <h3 className="text-xs font-semibold text-[#1A5FB4] uppercase tracking-widest mb-4">Contact & Verification</h3>
+          <h3 className="text-xs font-semibold text-[#1A5FB4] uppercase tracking-widest mb-3">Contact & Verification</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label htmlFor="email" className={labelClasses}>Email Address *</label>
@@ -115,12 +117,11 @@ export default function SignupForm() {
             </div>
           </div>
 
-          {/* DYNAMIC ID UPLOAD - Changes to green when file is added */}
           <div className="mt-4">
             <label className={labelClasses}>Valid ID Upload *</label>
             <label 
               htmlFor="validId" 
-              className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl transition-all duration-300 cursor-pointer ${
+              className={`flex flex-col items-center justify-center w-full h-28 border-2 border-dashed rounded-xl transition-all duration-300 cursor-pointer ${
                 fileName 
                   ? "border-green-400 bg-green-50 hover:bg-green-100" 
                   : "border-[#1A5FB4]/30 bg-[#F8FAFC] hover:bg-[#F0F7FF]"
@@ -129,18 +130,16 @@ export default function SignupForm() {
               <input id="validId" name="validId" type="file" accept="image/*,.pdf" required onChange={handleFileChange} className="hidden" />
               
               {fileName ? (
-                /* SUCCESS STATE (Green) */
                 <>
-                  <svg className="w-8 h-8 text-green-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="w-7 h-7 text-green-500 mb-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                   </svg>
                   <span className="text-sm font-medium text-green-700 max-w-xs truncate px-4 text-center">{fileName}</span>
-                  <span className="text-xs text-green-500 mt-1">Click to change file</span>
+                  <span className="text-xs text-green-500 mt-0.5">Click to change file</span>
                 </>
               ) : (
-                /* DEFAULT STATE (Blue/Gray) */
                 <>
-                  <svg className="w-8 h-8 text-[#1A5FB4]/50 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <svg className="w-7 h-7 text-[#1A5FB4]/50 mb-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
                   </svg>
                   <span className="text-sm text-gray-500">Click to upload ID (JPG, PNG, PDF)</span>
@@ -153,7 +152,7 @@ export default function SignupForm() {
 
         {/* SECTION 3: Account Credentials */}
         <div>
-          <h3 className="text-xs font-semibold text-[#1A5FB4] uppercase tracking-widest mb-4">Account Credentials</h3>
+          <h3 className="text-xs font-semibold text-[#1A5FB4] uppercase tracking-widest mb-3">Account Credentials</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="sm:col-span-1">
               <label htmlFor="username" className={labelClasses}>Username *</label>
@@ -187,7 +186,7 @@ export default function SignupForm() {
         </button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-gray-500">
+      <p className="mt-5 text-center text-sm text-gray-500">
         Already have an account?{" "}
         <Link href="/login" className="font-semibold text-[#1A5FB4] hover:text-[#164A8F]">
           Sign in instead
