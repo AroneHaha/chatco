@@ -16,7 +16,33 @@ const weeklyData = [
 const totalCash = weeklyData.reduce((sum, day) => sum + day.cash, 0);
 const totalEwallet = weeklyData.reduce((sum, day) => sum + day.ewallet, 0);
 
-export function PaymentMethodsChart() {
+// --- MOBILE VIEW: This is the compact version ---
+function CompactPaymentMethods() {
+  return (
+    <GlassCard className="p-4">
+      <h2 className="text-base font-semibold text-white mb-3">Payment Methods</h2>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex items-center space-x-2 p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+          <DollarSign className="text-green-400 flex-shrink-0" size={18} />
+          <div>
+            <p className="text-xs text-green-300">Cash</p>
+            <p className="text-sm font-bold text-white">₱{totalCash.toLocaleString()}</p>
+          </div>
+        </div>
+        <div className="flex items-center space-x-2 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+          <Smartphone className="text-blue-400 flex-shrink-0" size={18} />
+          <div>
+            <p className="text-xs text-blue-300">eWallet</p>
+            <p className="text-sm font-bold text-white">₱{totalEwallet.toLocaleString()}</p>
+          </div>
+        </div>
+      </div>
+    </GlassCard>
+  );
+}
+
+// --- DESKTOP VIEW: This is the full chart version ---
+function FullPaymentMethodsChart() {
   const maxValue = Math.max(...weeklyData.map(d => Math.max(d.cash, d.ewallet)));
 
   return (
@@ -61,5 +87,29 @@ export function PaymentMethodsChart() {
         <div className="flex items-center space-x-2"><div className="w-3 h-3 bg-blue-500 rounded-sm"></div><span className="text-xs text-gray-300">eWallet</span></div>
       </div>
     </GlassCard>
+  );
+}
+
+
+// --- MAIN COMPONENT: This decides which view to show ---
+export function PaymentMethodsChart() {
+  return (
+    <>
+      {/* 
+        This div is ONLY visible on screens SMALLER than 'lg' (1024px).
+        It will be hidden on desktop.
+      */}
+      <div className="block lg:hidden">
+        <CompactPaymentMethods />
+      </div>
+
+      {/* 
+        This div is ONLY visible on screens 'lg' (1024px) and LARGER.
+        It will be hidden on mobile.
+      */}
+      <div className="hidden lg:block">
+        <FullPaymentMethodsChart />
+      </div>
+    </>
   );
 }

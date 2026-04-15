@@ -1,16 +1,19 @@
 // components/admin/remittance/remittance-table.tsx
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
-import { GlassCard } from '@/components/admin/ui/glass-card'; 
 import { ReactNode } from 'react';
 
-export function RemittanceTable() {
-  const mockData = [
-    { id: 'S-101', conductor: 'Juan Dela Cruz', vehicle: 'ABC-123', status: 'Remitted', amount: '₱2,500.00' },
-    { id: 'S-102', conductor: 'Pedro Santos', vehicle: 'XYZ-789', status: 'Pending', amount: '₱2,450.00' },
-    { id: 'S-103', conductor: 'Maria Reyes', vehicle: 'DEF-456', status: 'Remitted', amount: '₱2,600.00' },
-  ];
+interface RemittanceTableProps {
+  searchQuery: string;
+}
 
+const mockData = [
+  { id: 'S-101', conductor: 'Juan Dela Cruz', vehicle: 'ABC-123', status: 'Remitted', amount: '₱2,500.00' },
+  { id: 'S-102', conductor: 'Pedro Santos', vehicle: 'XYZ-789', status: 'Pending', amount: '₱2,450.00' },
+  { id: 'S-103', conductor: 'Maria Reyes', vehicle: 'DEF-456', status: 'Remitted', amount: '₱2,600.00' },
+];
+
+export function RemittanceTable({ searchQuery }: RemittanceTableProps) {
   const columns = [
     { key: 'id', label: 'Shift ID' },
     { key: 'conductor', label: 'Conductor' },
@@ -25,9 +28,5 @@ export function RemittanceTable() {
     },
   ];
 
-  return (
-    <GlassCard className="p-4">
-      <DataTable data={mockData} columns={columns} />
-    </GlassCard>
-  );
+  return <DataTable data={mockData} columns={columns} searchQuery={searchQuery} />;
 }
