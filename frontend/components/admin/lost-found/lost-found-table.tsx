@@ -1,16 +1,19 @@
 // components/admin/lost-found/lost-found-table.tsx
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
-import { GlassCard } from '@/components/admin/ui/glass-card';
 import { ReactNode } from 'react';
 
-export function LostFoundTable() {
-  const mockData = [
-    { id: 'LF-01', item: 'Black Umbrella', reporter: 'Commuter John Doe', reporterRole: 'Commuter', status: 'Unmatched' },
-    { id: 'LF-02', item: 'Green Wallet', reporter: 'Conductor Juan', reporterRole: 'Conductor', status: 'Matched' },
-    { id: 'LF-03', item: 'Phone Charger', reporter: 'Commuter Jane Smith', reporterRole: 'Commuter', status: 'Returned' },
-  ];
+interface LostFoundTableProps {
+  searchQuery: string;
+}
 
+const mockData = [
+  { id: 'LF-01', item: 'Black Umbrella', reporter: 'Commuter John Doe', reporterRole: 'Commuter', status: 'Unmatched' },
+  { id: 'LF-02', item: 'Green Wallet', reporter: 'Conductor Juan', reporterRole: 'Conductor', status: 'Matched' },
+  { id: 'LF-03', item: 'Phone Charger', reporter: 'Commuter Jane Smith', reporterRole: 'Commuter', status: 'Returned' },
+];
+
+export function LostFoundTable({ searchQuery }: LostFoundTableProps) {
   const columns = [
     { key: 'id', label: 'Item ID' },
     { key: 'item', label: 'Description' },
@@ -29,9 +32,5 @@ export function LostFoundTable() {
     },
   ];
 
-  return (
-    <GlassCard className="p-4">
-      <DataTable data={mockData} columns={columns} />
-    </GlassCard>
-  );
+  return <DataTable data={mockData} columns={columns} searchQuery={searchQuery} />;
 }

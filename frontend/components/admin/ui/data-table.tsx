@@ -1,5 +1,5 @@
 // components/admin/ui/data-table.tsx
-import { ReactNode } from 'react';
+import { ReactNode, useState, useMemo } from 'react';
 
 interface Column<T> {
   key: string;
@@ -10,9 +10,23 @@ interface Column<T> {
 interface DataTableProps<T> {
   data: T[];
   columns: Column<T>[];
+  searchQuery: string;
 }
 
-export function DataTable<T extends Record<string, any>>({ data, columns }: DataTableProps<T>) {
+export function DataTable<T extends Record<string, any>>({ data, columns, searchQuery }: DataTableProps<T>) {
+  const filteredData = useMemo(() => {
+    if (!searchQuery) {
+      return data;
+    }
+
+    const lowerCaseQuery = searchQuery.toLowerCase();
+    return data.filter((item) => {
+      return Object.values(item).some((value) =>
+        String(value).toLowerCase().includes(lowerCaseQuery)
+      );
+    });
+  }, [data, searchQuery]);
+
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full divide-y divide-white/20">
@@ -30,7 +44,7 @@ export function DataTable<T extends Record<string, any>>({ data, columns }: Data
           </tr>
         </thead>
         <tbody className="divide-y divide-white/10">
-          {data.map((item, idx) => (
+          {filteredData.map((item, idx) => (
             <tr key={idx} className="hover:bg-white/5 transition-colors">
               {columns.map((col) => (
                 <td key={col.key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-200">

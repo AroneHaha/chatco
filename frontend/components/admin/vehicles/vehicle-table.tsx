@@ -2,7 +2,10 @@
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
 
-// Mock data for the vehicles
+interface VehicleTableProps {
+  searchQuery: string;
+}
+
 const mockVehicles = [
   { id: 1, plateNumber: 'DEF-5678', route: 'Cubao - Fairview', driver: 'Pedro Cruz', conductor: 'Juan Santos', status: 'Available', speed: 35 },
   { id: 2, plateNumber: 'GHI-9012', route: 'Monumento - Baclaran', driver: 'Carlos Reyes', conductor: 'Miguel Garcia', status: 'Full', speed: 15 },
@@ -10,7 +13,7 @@ const mockVehicles = [
   { id: 4, plateNumber: 'ABC-1234', route: 'Quiapo - Divisoria', driver: 'Juan Santos', conductor: 'Ana Lopez', status: 'Available', speed: 25 },
 ];
 
-export function VehicleTable() {
+export function VehicleTable({ searchQuery }: VehicleTableProps) {
   const columns = [
     { key: 'plateNumber', label: 'Plate' },
     { key: 'route', label: 'Route' },
@@ -30,5 +33,5 @@ export function VehicleTable() {
     { key: 'speed', label: 'Speed', render: (value: number) => `${value} km/h` },
   ];
 
-  return <DataTable data={mockVehicles} columns={columns} />;
+  return <DataTable data={mockVehicles} columns={columns} searchQuery={searchQuery} />;
 }
