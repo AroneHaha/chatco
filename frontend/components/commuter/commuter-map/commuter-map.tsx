@@ -47,12 +47,24 @@ const ROUTE_COORDS: [number, number][] = [
   [14.725646764905104, 120.9604838112117]
 ];
 
-const routeBounds = L.latLngBounds(ROUTE_COORDS).pad(0.015);
+// --- 1. SPLIT BOUNDARIES FOR BETTER SPACING ---
+const rawBounds = L.latLngBounds(ROUTE_COORDS);
+
+// Strict box: Used ONLY to check if user's GPS is actually near the route
+const routeBounds = rawBounds.pad(0.008); 
+
+// Wide box: The actual hard walls where dragging stops
+// Increased West/East to 0.10 (roughly 10-11km of extra space on sides so mobile dragging doesn't feel tight)
+const mapBounds = L.latLngBounds(
+  [rawBounds.getSouth() - 0.04, rawBounds.getWest() - 0.10],  // Super wide Left, Generous Bottom
+  [rawBounds.getNorth() + 0.015, rawBounds.getEast() + 0.10]   // Super wide Right, Small Top
+);
+
 const mapBoundsArray: [[number, number], [number, number]] = [
-  [routeBounds.getSouth(), routeBounds.getWest()],
-  [routeBounds.getNorth(), routeBounds.getEast()]
+  [mapBounds.getSouth(), mapBounds.getWest()],
+  [mapBounds.getNorth(), mapBounds.getEast()]
 ];
-const MAP_CENTER: L.LatLngTuple = [routeBounds.getCenter().lat, routeBounds.getCenter().lng];
+const MAP_CENTER: L.LatLngTuple = [rawBounds.getCenter().lat, rawBounds.getCenter().lng];
 
 function getBearing(start: [number, number], end: [number, number]): number {
   const startLat = start[0] * Math.PI / 180;
@@ -64,15 +76,16 @@ function getBearing(start: [number, number], end: [number, number]): number {
 }
 
 function LocationFinder({ 
+  isDesktop,
   userLocationRef,
   setUserActualLocation, 
   setShowMapPin,
   setArrowPos
 }: { 
+  isDesktop: boolean;
   userLocationRef: React.MutableRefObject<[number, number] | null>;
   setUserActualLocation: (loc: [number, number] | null) => void;
   setShowMapPin: (val: boolean) => void;
-  // <-- ADDED ANGLE TO TYPE
   setArrowPos: (pos: { x: number; y: number; angle: number } | null) => void;
 }) {
   const map = useMap();
@@ -87,7 +100,7 @@ function LocationFinder({
       const userLatLng = L.latLng(lat, lng);
       if (routeBounds.contains(userLatLng)) {
         setShowMapPin(true);
-        setArrowPos(null); // Hide arrow if they fly inside the box
+        setArrowPos(null); 
         map.flyTo([lat, lng], 16, { duration: 1.5 });
       } else {
         setShowMapPin(false);
@@ -127,15 +140,14 @@ function LocationFinder({
 
       const t = Math.min(tX, tY);
 
-      // <-- ADDED ANGLE TO SETTER
       setArrowPos({
         x: 50 + (t * dx),
         y: 50 + (t * dy),
-        angle: angle // Pass the exact degree to rotate the arrow
+        angle: angle
       });
     },
-    locationerror() {
-      console.log("Location access denied.");
+    dragstart() {
+      map.closePopup();
     }
   });
 
@@ -146,14 +158,11 @@ function LocationFinder({
   return null;
 }
 
-export default function CommuterMap() {
+export default function CommuterMap({ isDesktop = false }: { isDesktop?: boolean }) {
   const [isDomReady, setIsDomReady] = useState(false);
   const [userActualLocation, setUserActualLocation] = useState<[number, number] | null>(null);
   const [showMapPin, setShowMapPin] = useState(false);
-  
-  // <-- ADDED ANGLE TO STATE TYPE
   const [arrowPos, setArrowPos] = useState<{ x: number; y: number; angle: number } | null>(null);
-  
   const userLocationRef = useRef<[number, number] | null>(null);
 
   useEffect(() => {
@@ -184,7 +193,6 @@ export default function CommuterMap() {
 
   return (
     <>
-      {/* --- GAME-STYLE DIRECTIONAL ARROW --- */}
       {arrowPos && (
         <div 
           className="absolute z-[1000] flex flex-col items-center pointer-events-none select-none"
@@ -194,10 +202,9 @@ export default function CommuterMap() {
             transform: `translate(-50%, -50%)`
           }}
         >
-          {/* ARROW SVG POINTING EXACT DIRECTION */}
           <svg 
             className="w-8 h-8 text-[#62A0EA] drop-shadow-lg animate-pulse" 
-            style={{ transform: `rotate(${arrowPos.angle}deg)` }} // <-- ROTATES DYNAMICALLY
+            style={{ transform: `rotate(${arrowPos.angle}deg)` }} 
             fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}
           >
             <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
@@ -216,11 +223,12 @@ export default function CommuterMap() {
         attributionControl={false}
         className="w-full h-full"
         style={{ background: '#050F1A' }}
-        maxBounds={mapBoundsArray} 
+        maxBounds={mapBoundsArray}
         maxBoundsViscosity={1.0}
-        minZoom={11}
+        minZoom={isDesktop ? 13 : 11}
       >
         <LocationFinder 
+          isDesktop={isDesktop}
           userLocationRef={userLocationRef}
           setUserActualLocation={setUserActualLocation}
           setShowMapPin={setShowMapPin}
