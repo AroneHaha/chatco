@@ -9,8 +9,8 @@ const ReceiptIcon = ({ className }: { className?: string }) => (<svg className={
 const MenuIcon = ({ className }: { className?: string }) => (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>);
 
 const navItems = [
-  { href: "/dashboard", label: "Home", icon: HomeIcon },
-  { href: "/dashboard/passengers", label: "Passengers", icon: UsersIcon },
+  { href: "/conductor-dashboard", label: "Home", icon: HomeIcon },
+  { href: "/conductor-dashboard/passengers", label: "Passengers", icon: UsersIcon },
   { href: "/dashboard/expenses", label: "Expenses", icon: ReceiptIcon },
   { href: "/dashboard/menu", label: "Menu", icon: MenuIcon },
 ];
