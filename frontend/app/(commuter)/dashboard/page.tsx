@@ -8,7 +8,8 @@ import ShowQRModal from "@/components/commuter/modals/show-qr-modal";
 import FareCalcModal from "@/components/commuter/modals/fare-calc-modal";
 import TopUpModal from "@/components/commuter/modals/top-up-modal";
 import PaymentHistoryModal from "@/components/commuter/modals/payment-history-modal";
-import ShareRideModal from "@/components/commuter/modals/share-ride-modal"; // <-- IMPORT ADDED
+import ShareRideModal from "@/components/commuter/modals/share-ride-modal";
+import SosModal from "@/components/commuter/modals/sos-modal"; 
 
 const CommuterMap = dynamic(() => import("@/components/commuter/commuter-map/commuter-map"), {
   ssr: false,
@@ -29,7 +30,8 @@ export default function CommuterHome() {
   const [showFareCalc, setShowFareCalc] = useState(false);
   const [showTopUp, setShowTopUp] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [showShareRide, setShowShareRide] = useState(false); // <-- STATE ADDED
+  const [showShareRide, setShowShareRide] = useState(false);
+  const [showSOS, setShowSOS] = useState(false); 
   const [isHailing, setIsHailing] = useState(false);
   const [showSheet, setShowSheet] = useState(true);
 
@@ -126,23 +128,28 @@ export default function CommuterHome() {
               { label: "Show QR", iconPath: "M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" },
               { label: "Fare Calc", iconPath: "M15.75 15.75V18m-7.5-6.75h.008v.008H8.25v-.008Zm0 2.25h.008v.008H8.25v-.008Zm0 2.25h.008v.008H8.25v-.008Zm0 2.25h.008v.008H8.25v-.008Zm2.498-6.75h.007v.008h-.007v-.008Zm0 2.25h.007v.008h-.007v-.008Zm0 2.25h.007v.008h-.007v-.008Zm0 2.25h.007v.008h-.007v-.008Zm2.504-6.75h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008v-.008Zm2.498-6.75h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008v-.008ZM8.25 6h7.5v2.25h-7.5V6ZM12 2.25c-1.892 0-3.758.11-5.593.322C5.307 2.7 4.5 3.65 4.5 4.757V19.5a2.25 2.25 0 0 0 2.25 2.25h10.5a2.25 2.25 0 0 0 2.25-2.25V4.757c0-1.108-.806-2.057-1.907-2.185A48.507 48.507 0 0 0 12 2.25Z" },
               { label: "Share Ride", iconPath: "M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" },
-              { label: "GCash", iconPath: "M21 12a2.25 2.25 0 0 0-2.25-2.25H15a3 3 0 1 1-6 0H5.25A2.25 2.25 0 0 0 3 12m18 0v6a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 9m18 0V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v3" }
+              { label: "SOS", iconPath: "M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" }
             ].map((action) => (
               <button 
                 key={action.label} 
                 onClick={() => {
                   if (action.label === "Show QR") return setShowQR(true);
                   if (action.label === "Fare Calc") return setShowFareCalc(true);
-                  if (action.label === "Share Ride") return setShowShareRide(true); // <-- ONCLICK ADDED HERE
+                  if (action.label === "Share Ride") return setShowShareRide(true);
+                  if (action.label === "SOS") return setShowSOS(true);
                 }}
                 className="flex flex-col items-center gap-1.5 group"
               >
-                <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-white/10 transition-colors">
-                  <svg className="w-6 h-6 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <div className={`w-12 h-12 rounded-2xl border flex items-center justify-center transition-colors ${
+                  action.label === "SOS" 
+                    ? "bg-red-500/10 border-red-500/30 group-hover:bg-red-500/20" 
+                    : "bg-white/5 border-white/10 group-hover:bg-white/10"
+                }`}>
+                  <svg className={`w-6 h-6 transition-colors ${action.label === "SOS" ? "text-red-400" : "text-white/60"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d={action.iconPath} />
                   </svg>
                 </div>
-                <span className="text-[10px] text-white/40 font-medium">{action.label}</span>
+                <span className={`text-[10px] font-medium ${action.label === "SOS" ? "text-red-400" : "text-white/40"}`}>{action.label}</span>
               </button>
             ))}
           </div>
@@ -154,9 +161,9 @@ export default function CommuterHome() {
       {showFareCalc && <FareCalcModal onClose={() => setShowFareCalc(false)} />}
       {showTopUp && <TopUpModal currentBalance={mockUser.balance} onClose={() => setShowTopUp(false)} />}
       {showHistory && <PaymentHistoryModal onClose={() => setShowHistory(false)} />}
-      
-      {/* SHARE RIDE MODAL ADDED HERE */}
       {showShareRide && <ShareRideModal commuterName={mockUser.firstName} onClose={() => setShowShareRide(false)} />}
+      
+      {showSOS && <SosModal commuterId={mockUser.id} commuterName={mockUser.firstName} onClose={() => setShowSOS(false)} />}
 
     </div>
   );
