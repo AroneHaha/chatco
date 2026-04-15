@@ -1,5 +1,6 @@
 // components/admin/dashboard/financial-summary.tsx
-import { DollarSign, Smartphone, TrendingUp, TrendingDown } from 'lucide-react';
+import { GlassCard } from '@/components/admin/ui/glass-card';
+import { DollarSign, Smartphone } from 'lucide-react';
 
 export function FinancialSummary() {
   const todayRevenue = 15450.50;
@@ -7,49 +8,38 @@ export function FinancialSummary() {
   const todayCash = todayRevenue - todayEwallet;
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow">
-      <h2 className="text-lg font-semibold text-gray-800 mb-4">Profit & Loss Summary</h2>
+    <GlassCard className="p-6">
+      <h2 className="text-lg font-semibold text-white mb-4">Profit & Loss Summary</h2>
       
-      {/* Payment Breakdown for Today */}
-      <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-        <h3 className="text-sm font-medium text-gray-700 mb-3">Today's Revenue Breakdown</h3>
+      <div className="mb-6 p-4 bg-white/5 rounded-lg border border-white/10">
+        <h3 className="text-sm font-medium text-gray-300 mb-3">Today's Revenue Breakdown</h3>
         <div className="space-y-2">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-2">
-              <Smartphone className="text-blue-600" size={16} />
-              <span className="text-sm text-gray-600">eWallet Payments</span>
+              <Smartphone className="text-blue-400" size={16} />
+              <span className="text-sm text-gray-300">eWallet Payments</span>
             </div>
-            <span className="font-medium text-gray-900">₱{todayEwallet.toLocaleString()}</span>
+            <span className="font-medium text-white">₱{todayEwallet.toLocaleString()}</span>
           </div>
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-2">
-              <DollarSign className="text-green-600" size={16} />
-              <span className="text-sm text-gray-600">Cash Payments</span>
+              <DollarSign className="text-green-400" size={16} />
+              <span className="text-sm text-gray-300">Cash Payments</span>
             </div>
-            <span className="font-medium text-gray-900">₱{todayCash.toLocaleString()}</span>
+            <span className="font-medium text-white">₱{todayCash.toLocaleString()}</span>
           </div>
         </div>
       </div>
 
-      {/* Overall P&L */}
       <div className="space-y-3">
-        <div className="flex justify-between">
-          <span className="text-gray-600">Total Revenue</span>
-          <span className="font-medium text-gray-900">₱25,000.00</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-600">Total Expenses</span>
-          <span className="font-medium text-gray-900">₱8,500.00</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-600">Total Boundary</span>
-          <span className="font-medium text-gray-900">₱10,000.00</span>
-        </div>
-        <div className="border-t pt-3 flex justify-between">
-          <span className="text-lg font-semibold text-gray-800">Net Profit</span>
-          <span className="text-lg font-bold text-green-600">₱6,500.00</span>
+        <div className="flex justify-between"><span className="text-gray-300">Total Revenue</span><span className="font-medium text-white">₱25,000.00</span></div>
+        <div className="flex justify-between"><span className="text-gray-300">Total Expenses</span><span className="font-medium text-white">₱8,500.00</span></div>
+        <div className="flex justify-between"><span className="text-gray-300">Total Boundary</span><span className="font-medium text-white">₱10,000.00</span></div>
+        <div className="border-t border-white/20 pt-3 flex justify-between">
+          <span className="text-lg font-semibold text-white">Net Profit</span>
+          <span className="text-lg font-bold text-green-400">₱6,500.00</span>
         </div>
       </div>
-    </div>
+    </GlassCard>
   );
 }

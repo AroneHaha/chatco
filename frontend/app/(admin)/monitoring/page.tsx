@@ -6,7 +6,6 @@ import { GlassCard } from '@/components/admin/ui/glass-card';
 import { Gauge, Clock, MapPin } from 'lucide-react';
 
 export default function MonitoringPage() {
-  // Mock data for the metrics
   const metrics = [
     { title: 'Overspeeding', value: '0', icon: Gauge, color: 'text-red-400' },
     { title: 'Congestion', value: '0', icon: Clock, color: 'text-yellow-400' },
@@ -14,11 +13,9 @@ export default function MonitoringPage() {
   ];
 
   return (
-    // Main container with a dark background
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4 md:p-6 lg:p-8">
+    <>
       <h1 className="text-3xl font-bold text-white mb-6">Live Monitoring</h1>
       
-      {/* Metric Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         {metrics.map((item, index) => {
           const Icon = item.icon;
@@ -36,10 +33,9 @@ export default function MonitoringPage() {
         })}
       </div>
 
-      {/* Live Map */}
       <div className="h-[calc(100vh-280px)]">
         <LiveMap />
       </div>
-    </div>
+    </>
   );
 }

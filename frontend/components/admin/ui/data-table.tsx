@@ -2,7 +2,7 @@
 import { ReactNode } from 'react';
 
 interface Column<T> {
-  key: string; 
+  key: string;
   label: string;
   render?: (value: any, item: T) => ReactNode;
 }
@@ -15,25 +15,25 @@ interface DataTableProps<T> {
 export function DataTable<T extends Record<string, any>>({ data, columns }: DataTableProps<T>) {
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
+      <table className="min-w-full divide-y divide-white/20">
+        <thead className="bg-white/5">
           <tr>
             {columns.map((col) => (
               <th
                 key={col.key}
                 scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider"
               >
                 {col.label}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
+        <tbody className="divide-y divide-white/10">
           {data.map((item, idx) => (
-            <tr key={idx}>
+            <tr key={idx} className="hover:bg-white/5 transition-colors">
               {columns.map((col) => (
-                <td key={col.key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                <td key={col.key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-200">
                   {col.render ? col.render(item[col.key], item) : item[col.key]}
                 </td>
               ))}

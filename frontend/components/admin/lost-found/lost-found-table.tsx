@@ -1,7 +1,8 @@
 // components/admin/lost-found/lost-found-table.tsx
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
-import { ReactNode } from 'react'; 
+import { GlassCard } from '@/components/admin/ui/glass-card';
+import { ReactNode } from 'react';
 
 export function LostFoundTable() {
   const mockData = [
@@ -28,5 +29,9 @@ export function LostFoundTable() {
     },
   ];
 
-  return <DataTable data={mockData} columns={columns} />;
+  return (
+    <GlassCard className="p-4">
+      <DataTable data={mockData} columns={columns} />
+    </GlassCard>
+  );
 }

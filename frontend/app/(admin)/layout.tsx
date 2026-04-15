@@ -1,7 +1,7 @@
 // app/(admin)/layout.tsx
 'use client';
 
-import { ReactNode, useState, useRef, useEffect } from 'react';
+import { ReactNode, useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Receipt, Map, Package, BarChart3, Car } from 'lucide-react';
@@ -17,36 +17,87 @@ const navItems = [
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Refs for the mobile bottom nav animation
   const indicatorRef = useRef<HTMLDivElement>(null);
   const navItemRefs = useRef<(HTMLAnchorElement | null)[]>([]);
 
+  // Detect screen size
   useEffect(() => {
+    const checkScreenSize = () => {
+      setIsMobile(window.innerWidth < 768); // Tailwind's 'md' breakpoint
+    };
+
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
+
+  // Mobile: Animate the bottom nav indicator
+  useEffect(() => {
+    if (!isMobile) return;
     const currentIndex = navItems.findIndex(item => item.href === pathname);
     if (currentIndex !== -1) {
-      setActiveIndex(currentIndex);
+      const activeItem = navItemRefs.current[currentIndex];
+      if (indicatorRef.current && activeItem) {
+        const { offsetLeft, offsetWidth } = activeItem;
+        indicatorRef.current.style.width = `${offsetWidth}px`;
+        indicatorRef.current.style.left = `${offsetLeft}px`;
+      }
     }
-  }, [pathname]);
+  }, [pathname, isMobile]);
 
-  useEffect(() => {
-    const activeItem = navItemRefs.current[activeIndex];
-    if (indicatorRef.current && activeItem) {
-      const { offsetLeft, offsetWidth } = activeItem;
-      indicatorRef.current.style.width = `${offsetWidth}px`;
-      indicatorRef.current.style.left = `${offsetLeft}px`;
-    }
-  }, [activeIndex]);
+  // --- DESKTOP SIDE NAVIGATION ---
+  if (!isMobile) {
+    return (
+      <div className="flex h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+        {/* Side Navigation */}
+        <nav className="w-64 backdrop-blur-md bg-gray-900/95 border-r border-white/10 flex flex-col">
+          <div className="p-6">
+            <h2 className="text-xl font-bold text-white">Admin Panel</h2>
+          </div>
+          <div className="flex-1 px-4">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center space-x-3 px-4 py-3 my-1 rounded-lg transition-colors duration-200 ${
+                    isActive
+                      ? 'bg-blue-500/20 text-blue-400 border-l-4 border-blue-500'
+                      : 'text-gray-400 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <Icon size={20} />
+                  <span className="font-medium">{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
 
+        {/* Main Content */}
+        <main className="flex-1 overflow-y-auto p-6 lg:p-8 text-white">
+          {children}
+        </main>
+      </div>
+    );
+  }
+
+  // --- MOBILE BOTTOM NAVIGATION ---
   return (
-    // FIX: Apply dark gradient background here
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white flex flex-col">
       <main className="flex-1 p-4 md:p-6 lg:p-8 pb-24 overflow-y-auto">
         {children}
       </main>
 
-      {/* Bottom Navigation - Updated for dark theme */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-gray-900/80 backdrop-blur-md border-t border-white/10 z-50">
+      {/* Bottom Navigation */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-gray-900/80 backdrop-blur-md border-t border-white/10 z-50 md:hidden">
         <div className="relative flex justify-around items-center h-16 max-w-screen-xl mx-auto">
+          {/* Animated Circle Indicator */}
           <div
             ref={indicatorRef}
             className="absolute top-1/2 -translate-y-1/2 h-12 bg-blue-500 rounded-full transition-all duration-300 ease-in-out shadow-lg"
@@ -64,7 +115,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 }`}
               >
                 <Icon size={20} />
-                <span className="mt-1 hidden sm:block">{item.label}</span>
+                <span className="mt-1">{item.label}</span>
               </Link>
             );
           })}

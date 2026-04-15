@@ -1,7 +1,8 @@
 // components/admin/remittance/remittance-table.tsx
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
-import { ReactNode } from 'react'; // Added this import
+import { GlassCard } from '@/components/admin/ui/glass-card'; 
+import { ReactNode } from 'react';
 
 export function RemittanceTable() {
   const mockData = [
@@ -24,5 +25,9 @@ export function RemittanceTable() {
     },
   ];
 
-  return <DataTable data={mockData} columns={columns} />;
+  return (
+    <GlassCard className="p-4">
+      <DataTable data={mockData} columns={columns} />
+    </GlassCard>
+  );
 }
