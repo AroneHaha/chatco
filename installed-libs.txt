@@ -1,3 +1,4 @@
 npm install react-leaflet leaflet
 npm install qrcode.react
 npm install lucide-react
+npm
