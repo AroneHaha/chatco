@@ -1,8 +1,9 @@
-// app/(admin)/dashboard/page.tsx
+// app/admin/dashboard/page.tsx
 import { FinancialSummary } from '@/components/admin/dashboard/financial-summary';
 import { RecentAlerts } from '@/components/admin/dashboard/recent-alerts';
+import { PaymentMethodsChart } from '@/components/admin/dashboard/payment-methods-chart'; 
 import { MetricCard } from '@/components/admin/ui/metric-card';
-import { DollarSign, Users, AlertTriangle, Receipt } from 'lucide-react'; // Added Receipt here
+import { DollarSign, Users, AlertTriangle, Receipt } from 'lucide-react';
 
 export default function AdminDashboard() {
   return (
@@ -28,7 +29,7 @@ export default function AdminDashboard() {
         <MetricCard
           title="Pending Remittances"
           value="5"
-          icon={Receipt} // This icon is now correctly imported
+          icon={Receipt}
           trend="-3"
           trendUp={false}
         />
@@ -42,9 +43,14 @@ export default function AdminDashboard() {
       </div>
 
       {/* Charts and Tables */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <FinancialSummary />
-        <RecentAlerts />
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="xl:col-span-2 space-y-6">
+          <PaymentMethodsChart /> {/* <-- Add the new chart here */}
+        </div>
+        <div className="xl:col-span-1 space-y-6">
+          <FinancialSummary />
+          <RecentAlerts />
+        </div>
       </div>
     </div>
   );
