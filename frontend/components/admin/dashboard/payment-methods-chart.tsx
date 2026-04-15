@@ -16,7 +16,7 @@ const weeklyData = [
 const totalCash = weeklyData.reduce((sum, day) => sum + day.cash, 0);
 const totalEwallet = weeklyData.reduce((sum, day) => sum + day.ewallet, 0);
 
-// --- MOBILE VIEW: This is the compact version ---
+// --- MOBILE VIEW
 function CompactPaymentMethods() {
   return (
     <GlassCard className="p-4">
@@ -41,7 +41,7 @@ function CompactPaymentMethods() {
   );
 }
 
-// --- DESKTOP VIEW: This is the full chart version ---
+// --- DESKTOP VIEW
 function FullPaymentMethodsChart() {
   const maxValue = Math.max(...weeklyData.map(d => Math.max(d.cash, d.ewallet)));
 
@@ -91,22 +91,16 @@ function FullPaymentMethodsChart() {
 }
 
 
-// --- MAIN COMPONENT: This decides which view to show ---
+// --- MAIN COMPONENT
 export function PaymentMethodsChart() {
   return (
     <>
-      {/* 
-        This div is ONLY visible on screens SMALLER than 'lg' (1024px).
-        It will be hidden on desktop.
-      */}
+      
       <div className="block lg:hidden">
         <CompactPaymentMethods />
       </div>
 
-      {/* 
-        This div is ONLY visible on screens 'lg' (1024px) and LARGER.
-        It will be hidden on mobile.
-      */}
+     
       <div className="hidden lg:block">
         <FullPaymentMethodsChart />
       </div>

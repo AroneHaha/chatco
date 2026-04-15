@@ -5,7 +5,6 @@ interface SearchBarProps {
   placeholder: string;
   value: string;
   onChange: (value: string) => void;
-  // FIX: Add className to the props interface
   className?: string;
 }
 

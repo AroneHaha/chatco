@@ -4,7 +4,8 @@
 import { ReactNode, useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Receipt, Map, Package, BarChart3, Car } from 'lucide-react';
+import { Home, Receipt, Map, Package, BarChart3, Car, Sliders, Users } from 'lucide-react';
+import { icon } from 'leaflet';
 
 const navItems = [
   { href: '/admin-dashboard', label: 'Dashboard', icon: Home },
@@ -13,6 +14,8 @@ const navItems = [
   { href: '/vehicles', label: 'Vehicles', icon: Car },
   { href: '/lost-found', label: 'Lost & Found', icon: Package },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
+  {href: '/settings', label: 'Settings', icon: Sliders},
+   {href: '/users', label: 'User Management', icon: Users}
 ];
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
