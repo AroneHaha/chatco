@@ -121,7 +121,7 @@ const UserIcon = ({ className }: { className?: string }) => (<svg className={cla
 const navItems = [
   { href: "/dashboard", label: "Home", icon: HomeIcon },  
   { href: "/lost-and-found", label: "Lost & Found", icon: LostFoundIcon }, // Updated icon reference
-  { href: "/dashboard/rewards", label: "Rewards", icon: GiftIcon },
+  { href: "/rewards", label: "Rewards", icon: GiftIcon },
   { href: "/dashboard/safety", label: "Safety", icon: ShieldIcon },
   { href: "/dashboard/profile", label: "Profile", icon: UserIcon },
 ];

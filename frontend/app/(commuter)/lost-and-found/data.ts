@@ -1,0 +1,38 @@
+import { LostItem, ItemCategory } from "./types";
+
+export const MAX_PENDING_CLAIMS = 3;
+export const ITEMS_PER_PAGE = 15;
+
+export const categories: { label: string; value: ItemCategory }[] = [
+  { label: "All Items", value: "ALL" },
+  { label: "Accessories", value: "ACCESSORY" },
+  { label: "Bags", value: "BAG" },
+  { label: "Wallets", value: "WALLET" },
+  { label: "Gadgets", value: "GADGET" },
+  { label: "Clothing", value: "CLOTHING" },
+  { label: "Documents", value: "DOCUMENT" },
+  { label: "Other", value: "OTHER" },
+];
+
+export const mockDatabase: LostItem[] = [
+  { id: "lf_001", itemName: "Black Leather Wallet", description: "Found under the seat near the back door.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Wallet", plateNumber: "ABC 1234", driverName: "Juan Dela Cruz", conductorName: "Pedro Penduko", estimatedTimeLost: "Around 8:00 AM", category: "WALLET", datePosted: "2026-04-06T10:00:00Z" },
+  { id: "lf_002", itemName: "Red Jansport Backpack", description: "Left on the luggage rack.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Backpack", plateNumber: "XYZ 5678", driverName: "Mario Speedwagon", conductorName: "Luigi Mansion", estimatedTimeLost: "Around 5:30 PM", category: "BAG", datePosted: "2026-04-06T08:00:00Z" },
+  { id: "lf_003", itemName: "iPhone 15 Pro Max", description: "Found on the floor near the entrance.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=iPhone", plateNumber: "DEF 9012", driverName: "Crisostomo Ibarra", conductorName: "Sisa Doe", estimatedTimeLost: "Around 7:15 AM", category: "GADGET", datePosted: "2026-04-06T09:00:00Z" },
+  { id: "lf_004", itemName: "Blue Umbrella", description: "Generic blue folding umbrella left on the seat.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Umbrella", plateNumber: "ABC 1234", driverName: "Juan Dela Cruz", conductorName: "Pedro Penduko", estimatedTimeLost: "Around 2:00 PM", category: "ACCESSORY", datePosted: "2026-04-05T14:00:00Z" },
+  { id: "lf_005", itemName: "Official TOR", description: "Sealed envelope from PUP.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Document", plateNumber: "GHI 3456", driverName: "Jose Rizal", conductorName: "Andres Bonifacio", estimatedTimeLost: "Around 9:00 AM", category: "DOCUMENT", datePosted: "2026-04-05T10:00:00Z" },
+  { id: "lf_006", itemName: "Samsung Galaxy Buds", description: "White case, found under passenger seat.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Earbuds", plateNumber: "JKL 7890", driverName: "Apolinario Mabini", conductorName: "Antonio Luna", estimatedTimeLost: "Morning", category: "GADGET", datePosted: "2026-04-05T08:00:00Z" },
+  { id: "lf_007", itemName: "Gray Hoodie", description: "Left on the handrail near the door.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Hoodie", plateNumber: "MNO 1122", driverName: "Emilio Aguinaldo", conductorName: "Manuel Quezon", estimatedTimeLost: "Evening", category: "CLOTHING", datePosted: "2026-04-04T18:00:00Z" },
+  { id: "lf_008", itemName: "Laptop Charger", description: "Lenovo charger found near the driver area.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Charger", plateNumber: "PQR 3344", driverName: "Juan Dela Cruz", conductorName: "Pedro Penduko", estimatedTimeLost: "Afternoon", category: "ACCESSORY", datePosted: "2026-04-04T15:00:00Z" },
+  { id: "lf_009", itemName: "Prescription Glasses", description: "Black frame, found on the floor.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Glasses", plateNumber: "STU 5566", driverName: "Mario Speedwagon", conductorName: "Luigi Mansion", estimatedTimeLost: "Around 10:00 AM", category: "ACCESSORY", datePosted: "2026-04-04T09:00:00Z" },
+  { id: "lf_010", itemName: "ADT I.D.", description: "Unidentified ID found inside the jeep.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=ID", plateNumber: "VWX 7788", driverName: "Crisostomo Ibarra", conductorName: "Sisa Doe", estimatedTimeLost: "Morning", category: "DOCUMENT", datePosted: "2026-04-03T11:00:00Z" },
+  { id: "lf_011", itemName: "Reusable Water Bottle", description: "Steel bottle with stickers.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Bottle", plateNumber: "YZA 9900", driverName: "Jose Rizal", conductorName: "Andres Bonifacio", estimatedTimeLost: "Afternoon", category: "OTHER", datePosted: "2026-04-03T14:00:00Z" },
+  { id: "lf_012", itemName: "Canvas Tote Bag", description: "White tote bag with minimal dirt.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Tote", plateNumber: "BCD 1122", driverName: "Apolinario Mabini", conductorName: "Antonio Luna", estimatedTimeLost: "Around 6:00 PM", category: "BAG", datePosted: "2026-04-03T17:00:00Z" },
+  { id: "lf_013", itemName: "Power Bank", description: "Black 10,000 mAh power bank.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=PowerBank", plateNumber: "EFG 3344", driverName: "Emilio Aguinaldo", conductorName: "Manuel Quezon", estimatedTimeLost: "Morning", category: "GADGET", datePosted: "2026-04-02T08:00:00Z" },
+  { id: "lf_014", itemName: "Neck Pillow", description: "Gray memory foam neck pillow.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Pillow", plateNumber: "HIJ 5566", driverName: "Juan Dela Cruz", conductorName: "Pedro Penduko", estimatedTimeLost: "Around 4:00 PM", category: "OTHER", datePosted: "2026-04-02T16:00:00Z" },
+  { id: "lf_015", itemName: "Brown Purse", description: "Small leather purse with coin compartment.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Purse", plateNumber: "KLM 7788", driverName: "Mario Speedwagon", conductorName: "Luigi Mansion", estimatedTimeLost: "Afternoon", category: "WALLET", datePosted: "2026-04-02T13:00:00Z" },
+  { id: "lf_016", itemName: "Smart Watch", description: "Found near the entrance, screen locked.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Watch", plateNumber: "NOP 9900", driverName: "Crisostomo Ibarra", conductorName: "Sisa Doe", estimatedTimeLost: "Around 1:00 PM", category: "GADGET", datePosted: "2026-04-01T12:00:00Z" },
+  { id: "lf_017", itemName: "Ball Cap", description: "Black cap with no logo.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Cap", plateNumber: "QRS 1122", driverName: "Jose Rizal", conductorName: "Andres Bonifacio", estimatedTimeLost: "Morning", category: "CLOTHING", datePosted: "2026-04-01T09:00:00Z" },
+  { id: "lf_018", itemName: "Kids Lunchbox", description: "Blue lunchbox with superhero print.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Lunchbox", plateNumber: "TUV 3344", driverName: "Apolinario Mabini", conductorName: "Antonio Luna", estimatedTimeLost: "Around 11:00 AM", category: "OTHER", datePosted: "2026-03-31T11:00:00Z" },
+  { id: "lf_019", itemName: "Textbook", description: "Engineering textbook, no name written.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Book", plateNumber: "WXY 5566", driverName: "Emilio Aguinaldo", conductorName: "Manuel Quezon", estimatedTimeLost: "Afternoon", category: "DOCUMENT", datePosted: "2026-03-31T15:00:00Z" },
+  { id: "lf_020", itemName: "Yellow Sling Bag", description: "Small yellow bag left on the floor.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=SlingBag", plateNumber: "ZAB 7788", driverName: "Juan Dela Cruz", conductorName: "Pedro Penduko", estimatedTimeLost: "Evening", category: "BAG", datePosted: "2026-03-30T18:00:00Z" },
+];
