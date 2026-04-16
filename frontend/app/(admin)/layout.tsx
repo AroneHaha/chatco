@@ -11,7 +11,7 @@ const navItems = [
   { href: '/admin-dashboard', label: 'Dashboard', icon: Home },
   { href: '/remittance', label: 'Remittance', icon: Receipt },
   { href: '/monitoring', label: 'Monitoring', icon: Map },
-  { href: '/vehicles', label: 'Vehicles', icon: Car },
+  { href: '/vehicles', label: 'Fleet Management', icon: Car },
   { href: '/lost-found', label: 'Lost & Found', icon: Package },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   {href: '/settings', label: 'Settings', icon: Sliders},

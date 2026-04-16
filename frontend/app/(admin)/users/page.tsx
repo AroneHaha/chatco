@@ -4,44 +4,49 @@
 import { useState } from 'react';
 import { UsersTable } from '@/components/admin/users/users-table';
 import { AddUserModal } from '@/components/admin/users/add-user-modal';
+import { EditUserModal } from '@/components/admin/users/edit-user-modal';
 import { SearchBar } from '@/components/admin/ui/search-bar';
-import { Plus, Filter } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
-// Mock data for users
+// Mock data is now ONLY for Commuters
 const initialUsers = [
-  { id: 1, name: 'Juan Dela Cruz', email: 'juan.d@email.com', role: 'Commuter', status: 'Active', languagePreference: 'English' },
-  { id: 2, name: 'Pedro Santos', email: 'pedro.s@email.com', role: 'Conductor', status: 'Active', languagePreference: 'Filipino' },
-  { id: 3, name: 'Maria Reyes', email: 'maria.r@email.com', role: 'Driver', status: 'Inactive', languagePreference: 'English' },
-  { id: 4, name: 'Carlos Cruz', email: 'carlos.c@email.com', role: 'Commuter', status: 'Active', languagePreference: 'Filipino' },
-  { id: 5, name: 'Ana Lopez', email: 'ana.l@email.com', role: 'Driver', status: 'Active', languagePreference: 'English' },
+  { id: 1, name: 'Juan Dela Cruz', email: 'juan.d@email.com', status: 'Active', languagePreference: 'English' },
+  { id: 4, name: 'Carlos Cruz', email: 'carlos.c@email.com', status: 'Active', languagePreference: 'Filipino' },
+  { id: 5, name: 'Ana Lopez', email: 'ana.l@email.com', status: 'Active', languagePreference: 'English' },
 ];
 
 export default function UsersPage() {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [users, setUsers] = useState(initialUsers);
-  const [editingUser, setEditingUser] = useState<typeof initialUsers[0] | null>(null);
+  const [editingUser, setEditingUser] = useState<any>(null);
 
-  const handleOpenModal = (user?: typeof initialUsers[0]) => {
-    setEditingUser(user || null);
-    setIsModalOpen(true);
+  const handleOpenAddModal = () => setIsAddModalOpen(true);
+  const handleCloseAddModal = () => setIsAddModalOpen(false);
+
+  const handleOpenEditModal = (user: any) => {
+    setEditingUser(user);
+    setIsEditModalOpen(true);
   };
-
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
+  const handleCloseEditModal = () => {
     setEditingUser(null);
+    setIsEditModalOpen(false);
   };
 
   const handleSaveUser = (userData: any) => {
     if (editingUser) {
+      // Edit existing user
       setUsers(prevUsers => prevUsers.map(u => u.id === editingUser.id ? { ...u, ...userData } : u));
     } else {
-      const newUser = { id: users.length + 1, ...userData };
+      // Add new user
+      const newUser = { id: users.length + 1, ...userData, role: 'Commuter' }; // Role is hardcoded
       setUsers(prevUsers => [...prevUsers, newUser]);
     }
-    handleCloseModal();
+    handleCloseAddModal();
+    handleCloseEditModal();
   };
-  
+
   const handleDeactivateUser = (userId: number) => {
     setUsers(prevUsers => prevUsers.map(u => u.id === userId ? { ...u, status: u.status === 'Active' ? 'Inactive' : 'Active' } : u));
   };
@@ -49,34 +54,27 @@ export default function UsersPage() {
   return (
     <>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-        <h1 className="text-3xl font-bold text-white">User Management</h1>
-        <div className="flex items-center space-x-3 w-full sm:w-auto">
-          <SearchBar
-            placeholder="Search users..."
-            value={searchQuery}
-            onChange={setSearchQuery}
-            className="flex-1"
-          />
-          <button
-            onClick={() => handleOpenModal()}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 transition-colors flex-shrink-0"
-          >
-            <Plus size={20} />
-            <span>Add User</span>
-          </button>
-        </div>
+        <h1 className="text-3xl font-bold text-white">Commuter Management</h1>
+        <button
+          onClick={handleOpenAddModal}
+          className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 transition-colors flex-shrink-0"
+        >
+          <Plus size={20} />
+          <span>Add Commuter</span>
+        </button>
       </div>
 
-      <UsersTable 
-        users={users} 
-        searchQuery={searchQuery} 
-        onEdit={handleOpenModal} 
-        onDeactivate={handleDeactivateUser} 
+      <UsersTable
+        users={users}
+        searchQuery={searchQuery}
+        onEdit={handleOpenEditModal}
+        onDeactivate={handleDeactivateUser}
       />
 
-      <AddUserModal 
-        isOpen={isModalOpen} 
-        onClose={handleCloseModal} 
+      <AddUserModal isOpen={isAddModalOpen} onClose={handleCloseAddModal} onSave={handleSaveUser} />
+      <EditUserModal
+        isOpen={isEditModalOpen}
+        onClose={handleCloseEditModal}
         onSave={handleSaveUser}
         editingUser={editingUser}
       />

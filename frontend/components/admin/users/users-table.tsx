@@ -15,27 +15,12 @@ export function UsersTable({ users, searchQuery, onEdit, onDeactivate }: UsersTa
   const columns = [
     { key: 'name', label: 'Name' },
     { key: 'email', label: 'Email' },
-    {
-      key: 'role',
-      label: 'Role',
-      render: (value: string) => {
-        let variant: 'success' | 'warning' | 'danger' | 'info' = 'info';
-        if (value === 'Commuter') variant = 'info';
-        if (value === 'Conductor') variant = 'warning';
-        if (value === 'Driver') variant = 'success';
-        return <Badge variant={variant}>{value}</Badge>;
-      },
-    },
-    {
-      key: 'status',
-      label: 'Status',
-      render: (value: string) => <Badge variant={value === 'Active' ? 'success' : 'danger'}>{value}</Badge>,
-    },
+    { key: 'status', label: 'Status', render: (value: string) => <Badge variant={value === 'Active' ? 'success' : 'danger'}>{value}</Badge> },
     { key: 'languagePreference', label: 'Language' },
     {
       key: 'actions',
       label: 'Actions',
-      render: (_: any, item: any) => (
+      render: (_: unknown, item: any) => (
         <div className="flex space-x-2">
           <button onClick={() => onEdit(item)} className="text-blue-400 hover:text-blue-300"><Edit size={18} /></button>
           <button onClick={() => onDeactivate(item.id)} className="text-yellow-400 hover:text-yellow-300" title={item.status === 'Active' ? 'Deactivate' : 'Activate'}>
