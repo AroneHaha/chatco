@@ -11,7 +11,7 @@ const MenuIcon = ({ className }: { className?: string }) => (<svg className={cla
 const navItems = [
   { href: "/conductor-dashboard", label: "Home", icon: HomeIcon },
   { href: "/conductor-dashboard/passengers", label: "Passengers", icon: UsersIcon },
-  { href: "/dashboard/expenses", label: "Expenses", icon: ReceiptIcon },
+  { href: "/conductor-dashboard/expenses", label: "Expenses", icon: ReceiptIcon },
   { href: "/dashboard/menu", label: "Menu", icon: MenuIcon },
 ];
 
@@ -19,12 +19,12 @@ export default function ConductorBottomNav({ pathname }: { pathname: string }) {
   const activeIndex = navItems.findIndex((item) => item.href === pathname);
 
   return (
-    <nav className="absolute bottom-0 inset-x-0 z-50 bg-white/90 backdrop-blur-xl border-t border-blue-100 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+    <nav className="absolute bottom-0 inset-x-0 z-50 bg-[#050F1A]/95 backdrop-blur-xl border-t border-white/10">
       <div className="relative flex items-center justify-around h-20 px-2 max-w-lg mx-auto">
         
-        {/* Sliding Active Dot */}
+        {/* Sliding Active Dot - Changed to light blue to match sidebar accent */}
         <div 
-          className="absolute top-2 w-1.5 h-1.5 rounded-full bg-[#1A5FB4] transition-all duration-500 ease-in-out"
+          className="absolute top-2 w-1.5 h-1.5 rounded-full bg-[#62A0EA] transition-all duration-500 ease-in-out"
           style={{ left: `calc(${(activeIndex / (navItems.length - 1)) * 100}% - 4px)` }}
         />
 
@@ -39,14 +39,14 @@ export default function ConductorBottomNav({ pathname }: { pathname: string }) {
               <div 
                 className={`absolute top-1 w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 ease-out ${
                   isActive 
-                    ? "bg-[#1A5FB4] scale-100 shadow-lg shadow-blue-500/30" 
-                    : "bg-transparent scale-75 group-hover:scale-90"
+                    ? "bg-[#1A5FB4] scale-100 shadow-lg shadow-[#1A5FB4]/30" // Exact match from sidebar
+                    : "bg-transparent scale-75 group-hover:scale-90 group-hover:bg-white/5" // Added hover bg match
                 }`}
               >
-                <item.icon className={`w-5 h-5 transition-colors duration-300 ${isActive ? "text-white" : "text-gray-400 group-hover:text-gray-600"}`} />
+                <item.icon className={`w-5 h-5 transition-colors duration-300 ${isActive ? "text-white" : "text-white/50 group-hover:text-white"}`} />
               </div>
               
-              <span className={`absolute bottom-2 text-[10px] font-medium transition-colors duration-300 ${isActive ? "text-[#1A5FB4]" : "text-gray-400"}`}>
+              <span className={`absolute bottom-2 text-[10px] font-medium transition-colors duration-300 ${isActive ? "text-[#62A0EA]" : "text-white/40"}`}>
                 {item.label}
               </span>
             </Link>
@@ -56,4 +56,3 @@ export default function ConductorBottomNav({ pathname }: { pathname: string }) {
     </nav>
   );
 }
-
