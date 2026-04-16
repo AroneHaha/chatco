@@ -8,19 +8,26 @@ import { Upload, X } from 'lucide-react';
 interface AddLostFoundModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSave: (itemData: any) => void;
 }
 
-export function AddLostFoundModal({ isOpen, onClose }: AddLostFoundModalProps) {
-  const [formData, setFormData] = useState({
+export function AddLostFoundModal({ isOpen, onClose, onSave }: AddLostFoundModalProps) {
+  // FIX: Define explicit types for the state
+  const [formData, setFormData] = useState<{
+    description: string;
+    reporterName: string;
+    status: string;
+    imageFile: File | null;
+    imagePreview: string | null;
+  }>({
     description: '',
-    reporterName: '',
-    reporterRole: 'Commuter',
+    reporterName: 'Admin',
+    status: 'Unmatched',
+    imageFile: null,
+    imagePreview: null,
   });
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-  // FIX: Add HTMLTextAreaElement to the type union
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
@@ -28,27 +35,30 @@ export function AddLostFoundModal({ isOpen, onClose }: AddLostFoundModalProps) {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      setImageFile(file);
+      setFormData(prev => ({ ...prev, imageFile: file }));
       const reader = new FileReader();
       reader.onloadend = () => {
-        setImagePreview(reader.result as string);
+        setFormData(prev => ({ ...prev, imagePreview: reader.result as string }));
       };
       reader.readAsDataURL(file);
     }
   };
 
   const handleRemoveImage = () => {
-    setImageFile(null);
-    setImagePreview(null);
+    setFormData(prev => ({ ...prev, imageFile: null, imagePreview: null }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('New Lost & Found Item:', { ...formData, imageFile });
-    alert('Item added! (Check console for data)');
-    onClose();
-    setFormData({ description: '', reporterName: '', reporterRole: 'Commuter' });
-    handleRemoveImage();
+    onSave(formData);
+    // FIX: Explicitly reset the state to its initial values
+    setFormData({
+      description: '',
+      reporterName: 'Admin',
+      status: 'Unmatched',
+      imageFile: null,
+      imagePreview: null,
+    });
   };
 
   return (
@@ -68,7 +78,7 @@ export function AddLostFoundModal({ isOpen, onClose }: AddLostFoundModalProps) {
           />
         </div>
         <div>
-          <label htmlFor="reporterName" className="block text-sm font-medium text-gray-300">Reporter Name</label>
+          <label htmlFor="reporterName" className="block text-sm font-medium text-gray-300">Reported By</label>
           <input
             type="text"
             id="reporterName"
@@ -79,26 +89,13 @@ export function AddLostFoundModal({ isOpen, onClose }: AddLostFoundModalProps) {
             className="mt-1 block w-full px-3 py-2 bg-white/10 border border-white/20 rounded-md text-white placeholder-gray-400 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
-        <div>
-          <label htmlFor="reporterRole" className="block text-sm font-medium text-gray-300">Reporter Role</label>
-          <select
-            id="reporterRole"
-            name="reporterRole"
-            value={formData.reporterRole}
-            onChange={handleChange}
-            className="mt-1 block w-full px-3 py-2 bg-white/10 border border-white/20 rounded-md text-white shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="Commuter" className="bg-gray-800">Commuter</option>
-            <option value="Conductor" className="bg-gray-800">Conductor</option>
-          </select>
-        </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-300">Upload Image (Optional)</label>
+          <label className="block text-sm font-medium text-gray-300">Upload Image</label>
           <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-white/20 border-dashed rounded-md">
-            {imagePreview ? (
+            {formData.imagePreview ? (
               <div className="relative">
-                <img src={imagePreview} alt="Preview" className="h-32 w-32 object-cover rounded-md" />
+                <img src={formData.imagePreview} alt="Preview" className="h-32 w-32 object-cover rounded-md" />
                 <button
                   type="button"
                   onClick={handleRemoveImage}
@@ -127,13 +124,13 @@ export function AddLostFoundModal({ isOpen, onClose }: AddLostFoundModalProps) {
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 border border-gray-500 rounded-md text-gray-300 hover:bg-gray-700 transition-colors"
+            className="px-4 py-2 border border-gray-500 rounded-md text-gray-300 hover:bg-gray-700"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
           >
             Report Item
           </button>
