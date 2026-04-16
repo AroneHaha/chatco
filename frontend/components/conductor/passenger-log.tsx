@@ -39,6 +39,8 @@ export default function PassengerLog() {
     { total: 0, wallet: 0, gcash: 0 }
   );
 
+  const pendingCount = mockEntries.filter(e => e.status === "PENDING").length;
+
   const filteredEntries = activeFilter === "ALL" ? mockEntries : mockEntries.filter((e) => e.method === activeFilter);
 
   const getMethodStyles = (method: PaymentMethod) => {
@@ -47,6 +49,55 @@ export default function PassengerLog() {
       case "GCASH": return "bg-blue-50 text-blue-600 border-blue-100";
     }
   };
+
+  // --- Shared Shift Summary Component (Used in both Mobile & Desktop) ---
+  const ShiftSummaryCard = () => (
+    <div className="bg-white p-4 rounded-2xl border border-blue-100 shadow-sm">
+      <h3 className="font-bold text-gray-900 mb-3 text-sm">Shift Summary</h3>
+      
+      <div className="space-y-3">
+        <div className="flex justify-between items-center pb-3 border-b border-gray-100">
+          <span className="text-xs text-gray-500">Total Passengers</span>
+          <span className="text-lg font-extrabold text-gray-900">{mockEntries.length}</span>
+        </div>
+        
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-sm bg-purple-500" />
+            <span className="text-xs text-gray-600">Wallet</span>
+          </div>
+          <span className="text-base font-extrabold text-purple-600">₱{totals.wallet.toFixed(2)}</span>
+        </div>
+
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-sm bg-blue-500" />
+            <span className="text-xs text-gray-600">GCash</span>
+          </div>
+          <span className="text-base font-extrabold text-blue-600">₱{totals.gcash.toFixed(2)}</span>
+        </div>
+      </div>
+
+      <div className="mt-4 pt-3 border-t-2 border-gray-100 flex justify-between items-center">
+        <span className="text-sm font-bold text-gray-900">Grand Total</span>
+        <span className="text-xl font-extrabold text-[#1A5FB4]">₱{totals.total.toFixed(2)}</span>
+      </div>
+    </div>
+  );
+
+  const OfflineNotice = () => (
+    <div className="bg-yellow-50 p-3 rounded-2xl border border-yellow-100">
+      <div className="flex gap-3">
+        <svg className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+        </svg>
+        <div>
+          <p className="text-xs font-bold text-yellow-800">Offline Sync Pending</p>
+          <p className="text-[11px] text-yellow-600 mt-0.5">You have {pendingCount} transaction{pendingCount !== 1 ? 's' : ''} waiting for internet connection to sync to the server.</p>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <>
@@ -60,7 +111,7 @@ export default function PassengerLog() {
           <div className="sticky top-0 z-20 bg-white/90 backdrop-blur-xl border-b border-blue-100 p-4 shadow-sm">
             <h1 className="text-xl font-extrabold text-gray-900 mb-3">Shift Passengers</h1>
             
-            {/* Mini Stats Grid (Updated to 3 columns) */}
+            {/* Mini Stats Grid */}
             <div className="grid grid-cols-3 gap-2">
               <div className="bg-[#1A5FB4]/10 rounded-xl p-2 text-center">
                 <p className="text-sm font-extrabold text-[#1A5FB4]">₱{totals.total}</p>
@@ -76,7 +127,7 @@ export default function PassengerLog() {
               </div>
             </div>
 
-            {/* Filter Pills (Cash Removed) */}
+            {/* Filter Pills */}
             <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
               {["ALL", "WALLET", "GCASH"].map((filter) => (
                 <button
@@ -94,8 +145,13 @@ export default function PassengerLog() {
             </div>
           </div>
 
-          {/* LIST */}
+          {/* LIST CONTENT */}
           <div className="px-4 pb-24 pt-4 space-y-3">
+            
+            {/* --- ADDED SHIFT SUMMARY TO MOBILE --- */}
+            <ShiftSummaryCard />
+            {pendingCount > 0 && <OfflineNotice />}
+
             {filteredEntries.map((entry) => (
               <div key={entry.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -160,7 +216,7 @@ export default function PassengerLog() {
           
           {/* Left: Table List */}
           <div className="flex-1 bg-white rounded-2xl border border-blue-100 shadow-sm flex flex-col overflow-hidden">
-            {/* Filter Tabs (Cash Removed) */}
+            {/* Filter Tabs */}
             <div className="p-6 pb-4 border-b border-gray-100 flex gap-2 flex-shrink-0">
               {["ALL", "WALLET", "GCASH"].map((filter) => (
                 <button
@@ -227,51 +283,9 @@ export default function PassengerLog() {
 
           {/* Right: Summary Sidebar */}
           <div className="w-80 flex-shrink-0 space-y-6 overflow-y-auto">
-            <div className="bg-white p-6 rounded-2xl border border-blue-100 shadow-sm">
-              <h3 className="font-bold text-gray-900 mb-4 text-lg">Shift Summary</h3>
-              
-              <div className="space-y-4">
-                <div className="flex justify-between items-center pb-3 border-b border-gray-100">
-                  <span className="text-sm text-gray-500">Total Passengers</span>
-                  <span className="text-xl font-extrabold text-gray-900">{mockEntries.length}</span>
-                </div>
-                
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-sm bg-purple-500" />
-                    <span className="text-sm text-gray-600">Wallet</span>
-                  </div>
-                  <span className="text-lg font-extrabold text-purple-600">₱{totals.wallet.toFixed(2)}</span>
-                </div>
-
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-sm bg-blue-500" />
-                    <span className="text-sm text-gray-600">GCash</span>
-                  </div>
-                  <span className="text-lg font-extrabold text-blue-600">₱{totals.gcash.toFixed(2)}</span>
-                </div>
-
-              </div>
-
-              <div className="mt-6 pt-4 border-t-2 border-gray-100 flex justify-between items-center">
-                <span className="text-base font-bold text-gray-900">Grand Total</span>
-                <span className="text-2xl font-extrabold text-[#1A5FB4]">₱{totals.total.toFixed(2)}</span>
-              </div>
-            </div>
-
-            {/* Offline Notice */}
-            <div className="bg-yellow-50 p-4 rounded-2xl border border-yellow-100">
-              <div className="flex gap-3">
-                <svg className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-                </svg>
-                <div>
-                  <p className="text-sm font-bold text-yellow-800">Offline Sync Pending</p>
-                  <p className="text-xs text-yellow-600 mt-1">You have 2 transactions waiting for internet connection to sync to the server.</p>
-                </div>
-              </div>
-            </div>
+            {/* Reusing the exact same components as mobile for 100% parity */}
+            <ShiftSummaryCard />
+            {pendingCount > 0 && <OfflineNotice />}
           </div>
 
         </div>
