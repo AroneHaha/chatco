@@ -11,61 +11,61 @@ interface LostFoundGridProps {
 
 export function LostFoundGrid({ items, onViewClaims, onViewHistory }: LostFoundGridProps) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+    <>
       {items.map((item) => (
-        <GlassCard key={item.id} className="overflow-hidden group">
-          {/* Image Container */}
-          <div className="relative h-48 bg-gray-800">
-            <img
-              src={item.imageUrl}
-              alt={item.description}
-              className="w-full h-full object-cover"
-            />
-            {/* Status Badge Overlay */}
+        <GlassCard key={item.id} className="overflow-hidden group flex flex-col">
+          <div className="relative h-48 bg-gray-800 flex-shrink-0">
+            <img src={item.imageUrl} alt={item.itemName} className="w-full h-full object-cover" />
             <div className="absolute top-2 right-2">
-              <Badge variant={
-                item.status === 'Released' ? 'success' :
-                item.status === 'Returned' ? 'info' :
-                item.status === 'Rejected' ? 'danger' : 'warning'
-              }>
+              <Badge variant={item.status === 'Claimed' || item.status === 'Returned' ? 'info' : item.status === 'Rejected' ? 'danger' : 'warning'}>
                 {item.status}
               </Badge>
             </div>
-          </div>
-
-          {/* Content */}
-          <div className="p-4">
-            <h3 className="text-sm font-semibold text-white truncate mb-2" title={item.description}>
-              {item.description}
-            </h3>
-            <div className="space-y-1 text-xs text-gray-400">
-              <p>Reported by: <span className="text-gray-300">{item.reporterName}</span></p>
-              <p>Claimed by: <span className="text-gray-300">{item.claimedBy || 'N/A'}</span></p>
+            <div className="absolute top-2 left-2">
+              <div className="px-2 py-1 bg-black/60 backdrop-blur-sm rounded-full text-xs text-gray-200">
+                {item.category}
+              </div>
             </div>
           </div>
 
-          {/* Hover Actions */}
-          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center space-x-4">
-            <button className="p-2 bg-white/20 rounded-full text-white hover:bg-white/30" title="View Details">
-              <Eye size={20} />
-            </button>
-            <button
-              onClick={() => onViewClaims(item.id)}
-              className="p-2 bg-white/20 rounded-full text-white hover:bg-white/30"
-              title="View Claims"
-            >
-              <List size={20} />
-            </button>
-            <button
-              onClick={() => onViewHistory(item.id)}
-              className="p-2 bg-white/20 rounded-full text-white hover:bg-white/30"
-              title="View History"
-            >
-              <History size={20} />
-            </button>
+          <div className="p-4 flex flex-col flex-1">
+            <h3 className="text-sm font-semibold text-white mb-1">{item.itemName}</h3>
+            <p className="text-xs text-gray-400 line-clamp-2 mb-3">{item.description}</p>
+            
+            {/* Exact Commuter List Format */}
+            <div className="mt-auto space-y-1.5 text-xs border-t border-white/10 pt-3">
+              <div className="flex justify-between">
+                <span className="text-gray-400">Plate Number</span>
+                <span className="text-gray-200 font-medium">{item.plateNumber}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Est. Time</span>
+                <span className="text-gray-200 font-medium">{item.estimatedTimeLost}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Driver</span>
+                <span className="text-gray-200 font-medium">{item.driverName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Conductor</span>
+                <span className="text-gray-200 font-medium">{item.conductorName}</span>
+              </div>
+              {item.claimedBy && (
+                <div className="flex justify-between pt-1 border-t border-white/5">
+                  <span className="text-gray-400">Claimed By</span>
+                  <span className="text-blue-400 font-medium">{item.claimedBy}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center space-x-4 z-10">
+            <button className="p-2 bg-white/20 rounded-full text-white hover:bg-white/30" title="View Details"><Eye size={20} /></button>
+            <button onClick={() => onViewClaims(item.id)} className="p-2 bg-white/20 rounded-full text-white hover:bg-white/30" title="View Claims"><List size={20} /></button>
+            <button onClick={() => onViewHistory(item.id)} className="p-2 bg-white/20 rounded-full text-white hover:bg-white/30" title="View History"><History size={20} /></button>
           </div>
         </GlassCard>
       ))}
-    </div>
+    </>
   );
 }
