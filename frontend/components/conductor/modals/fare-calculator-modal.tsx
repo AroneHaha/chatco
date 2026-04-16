@@ -10,6 +10,7 @@ interface FareCalculatorModalProps {
   conductorName: string;
   unitNumber: string;
   driverName: string;
+  onRequestQrPayment: () => void; // Added this
 }
 
 const LOCATIONS = ["meycauayan", "marilao", "bocaue", "balagtas", "guiguinto", "tikay", "malolos", "calumpit"];
@@ -19,8 +20,9 @@ const BASE_KM = 1;
 const ADDITIONAL_RATE = 1.5;
 const DISCOUNT_PERCENT = 0.20;
 
-export default function FareCalculatorModal({ isOpen, onClose, conductorName, unitNumber, driverName }: FareCalculatorModalProps) {
-  const [step, setStep] = useState<'scanning' | 'details' | 'review' | 'success'>('scanning');
+export default function FareCalculatorModal({ isOpen, onClose, conductorName, unitNumber, driverName, onRequestQrPayment }: FareCalculatorModalProps) {
+  // Added 'hub' as the first step
+  const [step, setStep] = useState<'hub' | 'scanning' | 'details' | 'review' | 'success'>('hub');
   const [passenger, setPassenger] = useState<{ name: string; id: string; role: string } | null>(null);
   const [fromLocation, setFromLocation] = useState("");
   const [toLocation, setToLocation] = useState("");
@@ -29,7 +31,6 @@ export default function FareCalculatorModal({ isOpen, onClose, conductorName, un
   
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
-  // Scanner Logic
   useEffect(() => {
     if (isOpen && step === 'scanning') {
       const scanner = new Html5Qrcode("fare-scanner");
@@ -58,7 +59,6 @@ export default function FareCalculatorModal({ isOpen, onClose, conductorName, un
     };
   }, [isOpen, step]);
 
-  // Calculations
   const distance = fromLocation && toLocation && fromLocation !== toLocation ? Math.abs(DISTANCE_MAP[toLocation] - DISTANCE_MAP[fromLocation]) : 0;
   const succeedingKm = distance > BASE_KM ? distance - BASE_KM : 0;
   const succeedingFare = succeedingKm * ADDITIONAL_RATE;
@@ -70,16 +70,55 @@ export default function FareCalculatorModal({ isOpen, onClose, conductorName, un
   const handleConfirmPayment = () => {
     const txId = `TXN-${Date.now()}`;
     setReceiptId(txId);
-    // Removed Database Save Logic Here
     setStep('success');
   };
 
   const handleClose = () => {
-    setStep('scanning'); setPassenger(null); setFromLocation(""); setToLocation(""); setPaymentMethod('CHATCO Wallet');
+    setStep('hub'); setPassenger(null); setFromLocation(""); setToLocation(""); setPaymentMethod('CHATCO Wallet');
     onClose();
   };
 
-  // --- STEP RENDERERS ---
+  // --- NEW PAYMENT HUB STEP ---
+  const renderHub = () => (
+    <div className="space-y-6 p-2">
+      <div className="text-center">
+        <div className="w-14 h-14 rounded-2xl bg-[#1A5FB4]/20 flex items-center justify-center text-[#62A0EA] mx-auto mb-4">
+          <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" /></svg>
+        </div>
+        <h2 className="text-xl font-bold text-white">Process Payment</h2>
+        <p className="text-white/50 text-sm mt-1">Select how you want to collect</p>
+      </div>
+
+      <div className="space-y-3 pt-2">
+        <button 
+          onClick={() => setStep('scanning')}
+          className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors group"
+        >
+          <div className="w-12 h-12 rounded-xl bg-[#1A5FB4]/20 flex items-center justify-center text-[#62A0EA] group-hover:bg-[#1A5FB4]/30 transition-colors">
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" /></svg>
+          </div>
+          <div className="text-left">
+            <p className="text-white font-semibold text-sm">Calculate Fare</p>
+            <p className="text-white/40 text-xs">Scan passenger to compute trip</p>
+          </div>
+        </button>
+
+        <button 
+          onClick={() => { onRequestQrPayment(); handleClose(); }}
+          className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors group"
+        >
+          <div className="w-12 h-12 rounded-xl bg-[#1A5FB4]/20 flex items-center justify-center text-[#62A0EA] group-hover:bg-[#1A5FB4]/30 transition-colors">
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" /></svg>
+          </div>
+          <div className="text-left">
+            <p className="text-white font-semibold text-sm">Generate QR</p>
+            <p className="text-white/40 text-xs">Show QR for passenger to scan</p>
+          </div>
+        </button>
+      </div>
+    </div>
+  );
+
   const renderScanning = () => (
     <div className="space-y-4">
       <h2 className="text-xl font-bold text-white text-center">Scan Passenger QR</h2>
@@ -189,6 +228,7 @@ export default function FareCalculatorModal({ isOpen, onClose, conductorName, un
   return (
     <Modal isOpen={isOpen} onClose={handleClose}>
       <div className="p-2">
+        {step === 'hub' && renderHub()}
         {step === 'scanning' && renderScanning()}
         {step === 'details' && renderDetails()}
         {step === 'review' && renderReview()}
