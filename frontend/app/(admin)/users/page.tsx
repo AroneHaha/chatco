@@ -36,11 +36,9 @@ export default function UsersPage() {
 
   const handleSaveUser = (userData: any) => {
     if (editingUser) {
-      // Edit existing user
       setUsers(prevUsers => prevUsers.map(u => u.id === editingUser.id ? { ...u, ...userData } : u));
     } else {
-      // Add new user
-      const newUser = { id: users.length + 1, ...userData, role: 'Commuter' }; // Role is hardcoded
+      const newUser = { id: users.length + 1, ...userData, role: 'Commuter' };
       setUsers(prevUsers => [...prevUsers, newUser]);
     }
     handleCloseAddModal();
@@ -53,15 +51,25 @@ export default function UsersPage() {
 
   return (
     <>
+      {/* Header Section: Stacks on mobile, Side-by-Side on PC */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-        <h1 className="text-3xl font-bold text-white">Commuter Management</h1>
-        <button
-          onClick={handleOpenAddModal}
-          className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 transition-colors flex-shrink-0"
-        >
-          <Plus size={20} />
-          <span>Add Commuter</span>
-        </button>
+        <h1 className="text-3xl font-bold text-white flex-shrink-0">Commuter Management</h1>
+        
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+          <SearchBar 
+            placeholder="Search commuters..." 
+            value={searchQuery} 
+            onChange={setSearchQuery} 
+            className="w-full sm:w-64" 
+          />
+          <button
+            onClick={handleOpenAddModal}
+            className="flex items-center justify-center space-x-2 px-4 py-2 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 transition-colors w-full sm:w-auto flex-shrink-0"
+          >
+            <Plus size={20} />
+            <span>Add Commuter</span>
+          </button>
+        </div>
       </div>
 
       <UsersTable

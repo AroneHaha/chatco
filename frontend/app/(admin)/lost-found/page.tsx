@@ -6,6 +6,7 @@ import { LostFoundGrid } from '@/components/admin/lost-found/lost-found-grid';
 import { AddLostFoundModal } from '@/components/admin/lost-found/add-lost-found-modal';
 import { ClaimsListModal } from '@/components/admin/lost-found/claims-list-modal';
 import { HistoryModal } from '@/components/admin/lost-found/history-modal';
+import { SearchBar } from '@/components/admin/ui/search-bar';
 import { Plus } from 'lucide-react';
 
 interface LostFoundItem {
@@ -130,6 +131,8 @@ export default function LostFoundPage() {
   const [claims, setClaims] = useState<Claim[]>(initialClaims);
   const [history, setHistory] = useState<HistoryEntry[]>(initialHistory);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  
+  const [searchQuery, setSearchQuery] = useState('');
 
   const handleOpenAddModal = () => setIsAddModalOpen(true);
   const handleCloseAddModal = () => setIsAddModalOpen(false);
@@ -190,15 +193,25 @@ export default function LostFoundPage() {
 
   return (
     <>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-white">Lost & Found Management</h1>
-        <button
-          onClick={handleOpenAddModal}
-          className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 transition-colors"
-        >
-          <Plus size={20} />
-          <span>Add New Item</span>
-        </button>
+      {/* Header Section: Stacks on mobile, Side-by-Side on PC */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+        <h1 className="text-3xl font-bold text-white flex-shrink-0">Lost & Found Management</h1>
+        
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+          <SearchBar 
+            placeholder="Search items..." 
+            value={searchQuery} 
+            onChange={setSearchQuery} 
+            className="w-full sm:w-64" 
+          />
+          <button
+            onClick={handleOpenAddModal}
+            className="flex items-center justify-center space-x-2 px-4 py-2 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 transition-colors w-full sm:w-auto flex-shrink-0"
+          >
+            <Plus size={20} />
+            <span>Add New Item</span>
+          </button>
+        </div>
       </div>
 
       <LostFoundGrid
