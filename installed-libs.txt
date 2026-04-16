@@ -1,4 +1,6 @@
 npm install react-leaflet leaflet
 npm install qrcode.react
 npm install lucide-react
-npm
+npm install qrcode.react html5-qrcode
+npm install leaflet-geometryutil
+npm install -D @types/leaflet-geometryutil

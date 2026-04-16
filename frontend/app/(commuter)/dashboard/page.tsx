@@ -5,15 +5,19 @@ import dynamic from "next/dynamic";
 import { User } from "@/app/types/user.types";
 
 import ShowQRModal from "@/components/commuter/modals/show-qr-modal";
-import FareCalcModal from "@/components/commuter/modals/fare-calc-modal";
 import TopUpModal from "@/components/commuter/modals/top-up-modal";
 import PaymentHistoryModal from "@/components/commuter/modals/payment-history-modal";
 import ShareRideModal from "@/components/commuter/modals/share-ride-modal";
 import SosModal from "@/components/commuter/modals/sos-modal"; 
 
+
 const CommuterMap = dynamic(() => import("@/components/commuter/commuter-map/commuter-map"), {
   ssr: false,
   loading: () => <div className="absolute inset-0 bg-[#050F1A]" />,
+});
+
+const FareCalcModal = dynamic(() => import("@/components/commuter/modals/fare-calc-modal"), {
+  ssr: false,
 });
 
 const mockUser: User = {
