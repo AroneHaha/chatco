@@ -19,7 +19,7 @@ export default function ConductorBottomNav({ pathname }: { pathname: string }) {
   const activeIndex = navItems.findIndex((item) => item.href === pathname);
 
   return (
-    <nav className="absolute bottom-0 inset-x-0 z-50 bg-[#050F1A]/95 backdrop-blur-xl border-t border-white/10">
+    <nav className="absolute bottom-0 inset-x-0 z-50 bg-[#071A2E]/95 backdrop-blur-xl border-t border-white/10">
       <div className="relative flex items-center justify-around h-20 px-2 max-w-lg mx-auto">
         
         {/* Sliding Active Dot - Changed to light blue to match sidebar accent */}

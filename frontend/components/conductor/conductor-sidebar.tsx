@@ -11,7 +11,7 @@ const navItems = [
 
 export default function ConductorSidebar({ pathname }: { pathname: string }) {
   return (
-    <aside className="w-64 bg-[#050F1A] flex flex-col border-r border-white/10">
+    <aside className="w-64 bg-[#071A2E] flex flex-col border-r border-white/10">
       {/* Logo / Header */}
       <div className="h-20 flex items-center px-6 border-b border-white/10">
         <h1 className="text-white font-bold text-xl tracking-tight">CHATCO<span className="text-[#62A0EA]">.</span></h1>
