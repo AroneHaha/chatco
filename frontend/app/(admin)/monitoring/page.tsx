@@ -1,9 +1,14 @@
 // app/(admin)/monitoring/page.tsx
 'use client';
 
-import { LiveMap } from '@/components/admin/monitoring/live-map';
+import dynamic from 'next/dynamic';
 import { GlassCard } from '@/components/admin/ui/glass-card';
 import { Gauge, Clock, MapPin } from 'lucide-react';
+
+const AdminCommuterMap = dynamic(() => import('@/components/admin/admin-commuter-map'), { 
+  ssr: false,
+  loading: () => <p className="text-white text-center">Loading map...</p> 
+});
 
 export default function MonitoringPage() {
   const metrics = [
@@ -34,7 +39,7 @@ export default function MonitoringPage() {
       </div>
 
       <div className="h-[calc(100vh-280px)]">
-        <LiveMap />
+        <AdminCommuterMap isDesktop={true} />
       </div>
     </>
   );

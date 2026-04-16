@@ -1,12 +1,11 @@
 // components/admin/analytics/demand-heatmap.tsx
-import { GlassCard } from '@/components/admin/ui/glass-card'; 
+import dynamic from 'next/dynamic';
+
+const AdminCommuterMap = dynamic(() => import('@/components/admin/admin-commuter-map'), { 
+  ssr: false,
+  loading: () => <p className="text-white text-center">Loading map...</p> 
+});
+
 export function DemandHeatmap() {
-    return (
-        <GlassCard className="p-6">
-            <h2 className="text-lg font-semibold text-white mb-4">Commuter Demand Heatmap</h2>
-            <div className="h-64 flex items-center justify-center bg-white/5 rounded-lg border-2 border-dashed border-white/20">
-                <p className="text-gray-400">Heatmap visualization will be rendered here.</p>
-            </div>
-        </GlassCard>
-    );
+    return <AdminCommuterMap isDesktop={true} />;
 }

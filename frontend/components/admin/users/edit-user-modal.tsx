@@ -1,16 +1,17 @@
-// components/admin/users/add-user-modal.tsx
+// components/admin/users/edit-user-modal.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 
-interface AddUserModalProps {
+interface EditUserModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (userData: any) => void;
+  editingUser: any;
 }
 
-export function AddUserModal({ isOpen, onClose, onSave }: AddUserModalProps) {
+export function EditUserModal({ isOpen, onClose, onSave, editingUser }: EditUserModalProps) {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -19,23 +20,40 @@ export function AddUserModal({ isOpen, onClose, onSave }: AddUserModalProps) {
     languagePreference: 'English',
   });
 
+  useEffect(() => {
+    if (editingUser) {
+      setFormData({
+        name: editingUser.name || '',
+        email: editingUser.email || '',
+        password: '',
+        status: editingUser.status || 'Active',
+        languagePreference: editingUser.languagePreference || 'English',
+      });
+    } else {
+      setFormData({ name: '', email: '', password: '', status: 'Active', languagePreference: 'English' });
+    }
+  }, [editingUser, isOpen]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    if (name === 'email') return; // Don't allow changing email
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Add the hardcoded role when saving
-    const userDataToSave = { ...formData, role: 'Commuter' };
-    onSave(userDataToSave);
+    const dataToSave = {
+      ...formData,
+      ...(formData.password && { password: formData.password }),
+      role: 'Commuter', // Hardcode role on save
+    };
+    onSave(dataToSave);
     onClose();
-    setFormData({ name: '', email: '', password: '', status: 'Active', languagePreference: 'English' });
   };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
-      <h2 className="text-xl font-bold text-white mb-4">Add New Commuter</h2>
+      <h2 className="text-xl font-bold text-white mb-4">Edit Commuter</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label htmlFor="name" className="block text-sm font-medium text-gray-300">Name</label>
@@ -58,18 +76,18 @@ export function AddUserModal({ isOpen, onClose, onSave }: AddUserModalProps) {
             value={formData.email}
             onChange={handleChange}
             required
-            className="mt-1 block w-full px-3 py-2 bg-white/10 border border-white/20 rounded-md text-white placeholder-gray-400 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            disabled
+            className="mt-1 block w-full px-3 py-2 bg-white/10 border border-white/20 rounded-md text-white placeholder-gray-400 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
           />
         </div>
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-300">Password</label>
+          <label htmlFor="password" className="block text-sm font-medium text-gray-300">New Password (leave blank to keep current)</label>
           <input
             type="password"
             id="password"
             name="password"
             value={formData.password}
             onChange={handleChange}
-            required
             className="mt-1 block w-full px-3 py-2 bg-white/10 border border-white/20 rounded-md text-white placeholder-gray-400 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
@@ -102,7 +120,7 @@ export function AddUserModal({ isOpen, onClose, onSave }: AddUserModalProps) {
         </div>
         <div className="flex justify-end space-x-3 pt-4">
           <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-500 rounded-md text-gray-300 hover:bg-gray-700">Cancel</button>
-          <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">Add Commuter</button>
+          <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">Save Changes</button>
         </div>
       </form>
     </Modal>
