@@ -1,7 +1,7 @@
 // app/(admin)/settings/page.tsx
 import Link from 'next/link';
 import { GlassCard } from '@/components/admin/ui/glass-card';
-import { Calculator, MapPin, Wallet } from 'lucide-react';
+import { Calculator, MapPin, Wallet, PiggyBank, Ticket, Gauge, Shield, MessageCircleQuestion, Settings2 } from 'lucide-react';
 
 export default function SettingsPage() {
   const settingsModules = [
@@ -31,6 +31,60 @@ export default function SettingsPage() {
       color: 'text-purple-400',
       bgColor: 'bg-purple-500/20',
       borderColor: 'border-purple-500/30',
+    },
+    {
+      title: 'Financial Rules',
+      description: 'Manage wallet limits, commuter discounts, and loyalty rewards.',
+      icon: PiggyBank,
+      href: '/settings/financial-rules',
+      color: 'text-yellow-400',
+      bgColor: 'bg-yellow-500/20',
+      borderColor: 'border-yellow-500/30',
+    },
+    {
+      title: 'Voucher Generator',
+      description: 'Generate bulk promo codes for free rides or wallet credits.',
+      icon: Ticket,
+      href: '/settings/voucher-generator',
+      color: 'text-pink-400',
+      bgColor: 'bg-pink-500/20',
+      borderColor: 'border-pink-500/30',
+    },
+    {
+      title: 'Operations Rules',
+      description: 'Set speed limits, shift durations, and expense categories.',
+      icon: Gauge,
+      href: '/settings/operations-rules',
+      color: 'text-orange-400',
+      bgColor: 'bg-orange-500/20',
+      borderColor: 'border-orange-500/30',
+    },
+    {
+      title: 'Safety & Notifications',
+      description: 'Set emergency hotlines and customize push notification texts.',
+      icon: Shield,
+      href: '/settings/safety-notifications',
+      color: 'text-red-400',
+      bgColor: 'bg-red-500/20',
+      borderColor: 'border-red-500/30',
+    },
+    {
+      title: 'FAQ Management',
+      description: 'Manage questions and answers for the commuter AI assistant.',
+      icon: MessageCircleQuestion,
+      href: '/settings/faq-management',
+      color: 'text-cyan-400',
+      bgColor: 'bg-cyan-500/20',
+      borderColor: 'border-cyan-500/30',
+    },
+    {
+      title: 'App Configuration',
+      description: 'Toggle maintenance mode and set registration requirements.',
+      icon: Settings2,
+      href: '/settings/app-configuration',
+      color: 'text-gray-300',
+      bgColor: 'bg-white/10',
+      borderColor: 'border-white/20',
     },
   ];
 
