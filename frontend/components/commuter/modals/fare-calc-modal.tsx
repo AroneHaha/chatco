@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { MapContainer, TileLayer, Polyline, Marker, Popup, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -56,17 +56,16 @@ const DISCOUNT_PERCENTAGE = 0.20;
 const MAX_CLICK_DISTANCE_METERS = 500; 
 
 // --- 2. MOCK API FUNCTION (BACKEND PROOFING) ---
-// When backend is ready, you replace the logic inside this function with a fetch() call.
-// The input/output contract remains exactly the same.
 interface PaymentResponse {
   success: boolean;
   finalFare: number;
   transactionId: string;
+  unitId: string;
   message?: string;
 }
 
-const processPaymentApi = async (routeIndex: number, commuterType: string): Promise<PaymentResponse> => {
-  // Simulate network delay
+// ADDED unitId parameter. In the real world, the backend uses this to assign the fare to the correct driver.
+const processPaymentApi = async (routeIndex: number, commuterType: string, unitId: string): Promise<PaymentResponse> => {
   await new Promise(resolve => setTimeout(resolve, 800));
 
   // --- START: LOGIC THAT WILL BE REPLACED BY BACKEND API ---
@@ -92,7 +91,8 @@ const processPaymentApi = async (routeIndex: number, commuterType: string): Prom
   return {
     success: true,
     finalFare: finalFare,
-    transactionId: `TXN-${Date.now()}`
+    transactionId: `TXN-${Date.now()}`,
+    unitId: unitId // Return it to show on success
   };
 };
 
@@ -137,17 +137,15 @@ export default function FareCalcModal({ onClose }: { onClose: () => void }) {
   const [destination, setDestination] = useState<L.LatLng | null>(null);
   const [destRouteIndex, setDestRouteIndex] = useState<number>(0);
   
-  const [showConfirmation, setShowConfirmation] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false); // Added for API loading state
+  const [showScanner, setShowScanner] = useState(false); // New state for Scanner
+  const [isProcessing, setIsProcessing] = useState(false); 
   const [showSuccess, setShowSuccess] = useState(false);
   
-  // State to hold the final backend-validated fare
   const [validatedPayment, setValidatedPayment] = useState<PaymentResponse | null>(null);
 
   const commuterType = "STUDENT"; 
   const hasDiscount = commuterType === "STUDENT" || commuterType === "SENIOR_CITIZEN" || commuterType === "PWD";
 
-  // LOCAL ESTIMATION: For instant UI updates when clicking the map
   const localEstimation = useMemo(() => {
     let distanceInKm = BASE_DISTANCE_KM;
     if (destination && destRouteIndex > 0) {
@@ -173,25 +171,40 @@ export default function FareCalcModal({ onClose }: { onClose: () => void }) {
     setDestRouteIndex(index);
   };
 
-  // NEW: Handles the actual payment processing
-  const handleConfirmPay = async () => {
+  // Handles the actual payment processing after scan
+  const handleProcessPayment = async (scannedUnitId: string) => {
     setIsProcessing(true);
     try {
-      // Send RAW data (routeIndex) to the mock API, not the calculated price
-      const response = await processPaymentApi(destRouteIndex, commuterType);
+      const response = await processPaymentApi(destRouteIndex, commuterType, scannedUnitId);
       if (response.success) {
         setValidatedPayment(response);
-        setShowConfirmation(false);
+        setShowScanner(false);
         setShowSuccess(true);
       } else {
         alert(response.message || "Payment failed. Please try again.");
+        setShowScanner(false);
       }
     } catch (error) {
       alert("Network error. Please try again.");
+      setShowScanner(false);
     } finally {
       setIsProcessing(false);
     }
   };
+
+  // Mock Scanner Logic: Simulates finding a QR code after 3 seconds
+  useEffect(() => {
+    if (!showScanner) return;
+
+    const mockScannedUnitId = "UNIT-042"; // This would come from the real QR scanner library
+
+    const timer = setTimeout(() => {
+      handleProcessPayment(mockScannedUnitId);
+    }, 3000);
+
+    return () => clearTimeout(timer); // Cleanup if modal closes before 3s
+  }, [showScanner]);
+
 
   const destinationIcon = L.divIcon({
     className: "custom-dest-icon",
@@ -233,7 +246,7 @@ export default function FareCalcModal({ onClose }: { onClose: () => void }) {
           </MapContainer>
         </div>
 
-        {/* Breakdown Sheet (Uses Local Estimation for instant UI) */}
+        {/* Breakdown Sheet */}
         <div className="flex-shrink-0 bg-[#071A2E] border-t border-white/10 p-5 pb-6 shadow-2xl z-20">
           <h3 className="text-[10px] font-bold text-white/30 uppercase tracking-wider mb-3">
             {destination ? "Estimated Breakdown" : "Minimum Fare (Base)"}
@@ -280,63 +293,58 @@ export default function FareCalcModal({ onClose }: { onClose: () => void }) {
               {destination ? "Reset Pin" : "Cancel"}
             </button>
             <button 
-              onClick={() => setShowConfirmation(true)}
+              onClick={() => setShowScanner(true)} // Opens the scanner UI
               className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold bg-[#FF6D3A] text-white hover:bg-[#e55a2b] transition-colors shadow-lg shadow-[#FF6D3A]/30"
             >
-              Pay ₱{localEstimation.finalFare.toFixed(2)}
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75ZM6.75 16.5h.75v.75h-.75v-.75ZM16.5 6.75h.75v.75h-.75v-.75ZM13.5 13.5h.75v.75h-.75v-.75ZM13.5 19.5h.75v.75h-.75v-.75ZM19.5 13.5h.75v.75h-.75v-.75ZM19.5 19.5h.75v.75h-.75v-.75ZM16.5 16.5h.75v.75h-.75v-.75Z" /></svg>
+              Scan to Pay
             </button>
           </div>
         </div>
       </div>
 
-      {/* --- CONFIRMATION MODAL --- */}
-      {showConfirmation && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="bg-[#071A2E] w-full max-w-sm rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-hidden">
+      {/* --- QR SCANNER MODAL --- */}
+      {showScanner && (
+        <div className="fixed inset-0 z-[110] flex flex-col items-center justify-center bg-black/95 backdrop-blur-sm">
+          
+          {/* Fake Camera Viewfinder UI */}
+          <div className="relative w-64 h-64 border-2 border-white/30 rounded-2xl overflow-hidden shadow-2xl">
+            {/* Scanning Laser Line Animation */}
+            <div className="absolute left-0 right-0 h-0.5 bg-[#62A0EA] shadow-[0_0_10px_#62A0EA] animate-scan-line z-10" />
             
-            <div className="p-6 flex justify-center">
-              <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
-                <svg className="w-8 h-8 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
-              </div>
-            </div>
+            {/* Corner Cutouts */}
+            <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-[#62A0EA] rounded-tl-xl" />
+            <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-[#62A0EA] rounded-tr-xl" />
+            <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-[#62A0EA] rounded-bl-xl" />
+            <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-[#62A0EA] rounded-br-xl" />
             
-            <div className="px-6 pb-4 text-center">
-              <h2 className="text-white font-bold text-xl mb-2">Confirm Payment</h2>
-              <p className="text-white/50 text-sm">Are you sure about your destination and want to proceed with this fare?</p>
-              <div className="mt-4 bg-[#050F1A] rounded-xl p-4 border border-white/5">
-                <p className="text-[10px] text-white/40 uppercase font-semibold">Total Amount</p>
-                {/* Still shows local estimation here for context, but backend validates the real charge */}
-                <p className="text-3xl font-extrabold text-[#62A0EA] mt-1">₱ {localEstimation.finalFare.toFixed(2)}</p>
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-white/10 flex gap-3">
-              <button 
-                onClick={() => setShowConfirmation(false)}
-                disabled={isProcessing}
-                className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold border border-white/10 text-white/60 hover:bg-white/5 transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={handleConfirmPay}
-                disabled={isProcessing}
-                className="flex-1 px-4 py-3 rounded-xl text-sm font-bold bg-[#FF6D3A] text-white hover:bg-[#e55a2b] transition-colors shadow-lg shadow-[#FF6D3A]/30 disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {isProcessing ? (
-                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                ) : "Confirm & Pay"}
-              </button>
+            {/* Background Mock */}
+            <div className="absolute inset-0 bg-[#071A2E]/50 flex items-center justify-center">
+              <svg className="w-16 h-16 text-white/10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75ZM6.75 16.5h.75v.75h-.75v-.75ZM16.5 6.75h.75v.75h-.75v-.75ZM13.5 13.5h.75v.75h-.75v-.75ZM13.5 19.5h.75v.75h-.75v-.75ZM19.5 13.5h.75v.75h-.75v-.75ZM19.5 19.5h.75v.75h-.75v-.75ZM16.5 16.5h.75v.75h-.75v-.75Z" /></svg>
             </div>
           </div>
+
+          <p className="text-white font-bold text-lg mt-6">
+            {isProcessing ? "Processing Payment..." : "Scanning Unit QR..."}
+          </p>
+          <p className="text-white/40 text-sm mt-1">
+            Align the QR code inside the frame
+          </p>
+
+          <button 
+            onClick={() => { setShowScanner(false); setIsProcessing(false); }} 
+            className="mt-8 px-6 py-2.5 rounded-xl text-sm font-semibold border border-white/10 text-white/60 hover:bg-white/5 transition-colors"
+          >
+            Cancel Scan
+          </button>
         </div>
       )}
 
-      {/* --- SUCCESS MODAL OVERLAY (Now uses Backend Validated Data) --- */}
+      {/* --- SUCCESS MODAL OVERLAY --- */}
       {showSuccess && validatedPayment && (
         <SuccessPaymentModal 
           transactionId={validatedPayment.transactionId}
-          amount={validatedPayment.finalFare} // Uses the server's calculated fare, not the local one
+          amount={validatedPayment.finalFare}
           route={`Start to Drop-off`}
           onClose={() => {
             setShowSuccess(false);
@@ -352,6 +360,15 @@ export default function FareCalcModal({ onClose }: { onClose: () => void }) {
         .leaflet-popup-content { margin: 12px 16px !important; color: white !important; line-height: 1.4 !important; }
         .leaflet-popup-tip { background: #071A2E !important; }
         .leaflet-popup-close-button { color: white !important; }
+        
+        @keyframes scan-line {
+          0% { top: 0%; }
+          50% { top: 100%; }
+          100% { top: 0%; }
+        }
+        .animate-scan-line {
+          animation: scan-line 2s ease-in-out infinite;
+        }
       `}</style>
     </>
   );
