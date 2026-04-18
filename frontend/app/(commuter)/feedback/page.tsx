@@ -97,14 +97,14 @@ export default function FeedbackPage() {
                 stroke="#62A0EA" 
                 strokeWidth="6" 
                 strokeLinecap="round"
-                strokeDasharray="251.3" // 2 * π * 40
+                strokeDasharray="251.3"
                 className="countdown-ring"
               />
             </svg>
             {/* Number in the center */}
             <span className="text-3xl font-extrabold text-white">{countdown}</span>
           </div>
-          
+
           <p className="text-white/30 text-xs font-medium">Returning to Home...</p>
 
           <button onClick={handleScanAnother} className="mt-2 text-sm font-semibold text-[#62A0EA] hover:text-white transition-colors">
@@ -127,7 +127,6 @@ export default function FeedbackPage() {
   }
 
   // --- 3. FEEDBACK FORM STATE ---
-  // (This part remains exactly the same as your current working code)
   return (
     <div className="h-full w-full bg-[#050F1A] overflow-y-auto pb-28 lg:pb-8">
       <div className="max-w-2xl mx-auto p-6 lg:p-8 space-y-6">

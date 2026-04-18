@@ -1,5 +1,5 @@
 export type CommuterType = "REGULAR" | "STUDENT" | "SENIOR_CITIZEN" | "PWD";
-export type AccountStatus = "PENDING_VERIFICATION" | "ACTIVE" | "REJECTED";
+export type AccountStatus = "PENDING_VERIFICATION" | "ACTIVE" | "DISCOUNT_REJECTED"; // Changed REJECTED to DISCOUNT_REJECTED
 
 export interface CommuterProfile {
   id: string;
@@ -18,9 +18,11 @@ export interface CommuterProfile {
   verifiedAt: string | null;
   createdAt: string;
   balance: number;
+  appliedType?: CommuterType; // To show what they applied for if rejected
 }
 
 export interface PasswordPayload {
   oldPassword: string;
   newPassword: string;
+  confirmNewPassword: string; // Added
 }
