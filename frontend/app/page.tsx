@@ -18,10 +18,10 @@ export default function Home() {
       <TrustBar />
       <HowItWorks />
       <CommuterFeatures />
-      <HeatmapShowcase />
       <SafetySupport />
       <LoyaltyPerks />
       <PlatformFeatures />
+      <HeatmapShowcase />
       <FinalCTA />
       <Footer />
     </main>
