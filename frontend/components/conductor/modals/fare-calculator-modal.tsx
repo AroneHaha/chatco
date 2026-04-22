@@ -3,10 +3,13 @@
 import { useState, useEffect, useRef } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { Modal } from "@/components/admin/ui/modal";
+import { saveTransaction } from "@/lib/conductor-transactions";
 
+// >>> FIX 2a: Added shiftId to props <<<
 interface FareCalculatorModalProps {
   isOpen: boolean;
   onClose: () => void;
+  shiftId: string;
   conductorName: string;
   unitNumber: string;
   driverName: string;
@@ -19,7 +22,8 @@ const BASE_KM = 1;
 const ADDITIONAL_RATE = 1.5;
 const DISCOUNT_PERCENT = 0.20;
 
-export default function FareCalculatorModal({ isOpen, onClose, conductorName, unitNumber, driverName }: FareCalculatorModalProps) {
+// >>> FIX 2b: Destructure shiftId <<<
+export default function FareCalculatorModal({ isOpen, onClose, shiftId, conductorName, unitNumber, driverName }: FareCalculatorModalProps) {
   const [step, setStep] = useState<'scanning' | 'details' | 'review' | 'success'>('scanning');
   const [passenger, setPassenger] = useState<{ name: string; id: string; role: string } | null>(null);
   const [fromLocation, setFromLocation] = useState("");
@@ -94,6 +98,25 @@ export default function FareCalculatorModal({ isOpen, onClose, conductorName, un
   const handleConfirmPayment = () => {
     const txId = `TXN-${Date.now()}`;
     setReceiptId(txId);
+
+    // >>> FIX 2c: Use shiftId instead of unitNumber <<<
+    saveTransaction(shiftId, {
+      paymentMethod: "Wallet_Scanned" as const,
+      finalAmount: totalFare,
+      passengerName: passenger?.name || "Unknown",
+      passengerId: passenger?.id || "",
+      passengerRole: passenger?.role || "Regular",
+      from: fromLocation,
+      to: toLocation,
+      distance,
+      baseFare: BASE_FARE,
+      succeedingKm: succeedingKm,
+      discountAmount: discountAmount,
+      conductorName: conductorName,
+      unitNumber: unitNumber,
+      driverName: driverName,
+    });
+
     setStep('success');
   };
 

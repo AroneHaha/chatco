@@ -6,6 +6,7 @@ import FareCalculatorModal from "@/components/conductor/modals/fare-calculator-m
 import HistoryLogModal from "@/components/conductor/modals/history-log-modal";
 import { getActiveShift, getElapsed, formatTime } from "@/lib/conductor-shift";
 import type { ConductorShift } from "@/lib/conductor-shift";
+import { getShiftTransactions } from "@/lib/conductor-transactions";
 
 const ConductorMap = dynamic(() => import("@/components/conductor/conductor-map"), {
   ssr: false,
@@ -20,21 +21,50 @@ export default function ConductorDashboard() {
   const [showHistory, setShowHistory] = useState(false);
   const [mobileCardExpanded, setMobileCardExpanded] = useState(true);
 
-  const scannedCollected = 150.0;
-  const prepaidCollected = 88.5;
-  const totalCollected = scannedCollected + prepaidCollected;
+  const [liveTransactions, setLiveTransactions] = useState<{ scanned: number; prepaid: number; voucher: number; total: number }>({
+    scanned: 0,
+    prepaid: 0,
+    voucher: 0,
+    total: 0,
+  });
 
+  // Load shift and compute totals
   useEffect(() => {
     const load = () => {
       const s = getActiveShift();
       setShift(s);
-      if (s) setElapsed(getElapsed(s));
+      if (s) {
+        setElapsed(getElapsed(s));
+
+        const txns = getShiftTransactions(s.shiftId);
+        const scanned = txns.filter((t) => t.paymentMethod === "Wallet_Scanned").reduce((sum, t) => sum + t.finalAmount, 0);
+        const prepaid = txns.filter((t) => t.paymentMethod === "Wallet_Prepay").reduce((sum, t) => sum + t.finalAmount, 0);
+        const voucher = txns.filter((t) => t.paymentMethod === "Voucher").reduce((sum, t) => sum + t.finalAmount, 0);
+        setLiveTransactions({ scanned, prepaid, voucher, total: scanned + prepaid + voucher });
+      }
     };
     load();
-    const interval = setInterval(load, 15000);
+    const interval = setInterval(load, 3000);
     return () => clearInterval(interval);
   }, []);
 
+  // Re-fetch totals when a transaction is saved
+  useEffect(() => {
+    const handler = () => {
+      const s = getActiveShift();
+      if (s) {
+        const txns = getShiftTransactions(s.shiftId);
+        const scanned = txns.filter((t) => t.paymentMethod === "Wallet_Scanned").reduce((sum, t) => sum + t.finalAmount, 0);
+        const prepaid = txns.filter((t) => t.paymentMethod === "Wallet_Prepay").reduce((sum, t) => sum + t.finalAmount, 0);
+        const voucher = txns.filter((t) => t.paymentMethod === "Voucher").reduce((sum, t) => sum + t.finalAmount, 0);
+        setLiveTransactions({ scanned, prepaid, voucher, total: scanned + prepaid + voucher });
+      }
+    };
+    window.addEventListener("conductor:transaction-updated", handler);
+    return () => window.removeEventListener("conductor:transaction-updated", handler);
+  }, []);
+
+  // >>> FIX 1a: Listen for the scan button from bottom nav <<<
   useEffect(() => {
     const handler = () => setShowFareCalc(true);
     window.addEventListener("conductor:scan-qr", handler);
@@ -104,17 +134,17 @@ export default function ConductorDashboard() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-[8px] font-semibold text-[#62A0EA]/60 uppercase tracking-wider">Total Collected</p>
-                  <p className="text-lg font-extrabold text-[#62A0EA] leading-tight">₱{totalCollected.toFixed(2)}</p>
+                <p className="text-lg font-extrabold text-[#62A0EA]">₱{liveTransactions.total.toFixed(2)}</p>                
                 </div>
                 <div className="flex gap-2">
                   <div className="bg-white/5 rounded-lg px-2 py-1.5 border border-white/5">
                     <p className="text-[7px] font-semibold text-purple-400/60 uppercase tracking-wider">Scanned</p>
-                    <p className="text-xs font-extrabold text-purple-400 leading-tight">₱{scannedCollected.toFixed(2)}</p>
-                  </div>
+                    <p className="text-xs font-extrabold text-purple-400 leading-tight">₱{liveTransactions.scanned.toFixed(2)}</p>                  
+                    </div>
                   <div className="bg-white/5 rounded-lg px-2 py-1.5 border border-white/5">
                     <p className="text-[7px] font-semibold text-emerald-400/60 uppercase tracking-wider">Prepaid</p>
-                    <p className="text-xs font-extrabold text-emerald-400 leading-tight">₱{prepaidCollected.toFixed(2)}</p>
-                  </div>
+                    <p className="text-xs font-extrabold text-emerald-400 leading-tight">₱{liveTransactions.prepaid.toFixed(2)}</p>                  
+                    </div>
                 </div>
               </div>
             </div>
@@ -197,16 +227,16 @@ export default function ConductorDashboard() {
                 </div>
               )}
             </div>
-            <p className="text-3xl font-extrabold text-[#62A0EA] mt-1">₱{totalCollected.toFixed(2)}</p>
+            <p className="text-3xl font-extrabold text-[#62A0EA] mt-1">₱{liveTransactions.total.toFixed(2)}</p>                
             <div className="grid grid-cols-2 gap-3 mt-4">
               <div className="bg-white/5 rounded-xl p-3 border border-white/5">
                 <p className="text-[10px] font-semibold text-purple-400/60 uppercase tracking-wider">Scanned</p>
-                <p className="text-lg font-extrabold text-purple-400 mt-0.5">₱{scannedCollected.toFixed(2)}</p>
-              </div>
+                <p className="text-lg font-extrabold text-purple-400 mt-0.5">₱{liveTransactions.scanned.toFixed(2)}</p>              
+                </div>
               <div className="bg-white/5 rounded-xl p-3 border border-white/5">
                 <p className="text-[10px] font-semibold text-emerald-400/60 uppercase tracking-wider">Prepaid</p>
-                <p className="text-lg font-extrabold text-emerald-400 mt-0.5">₱{prepaidCollected.toFixed(2)}</p>
-              </div>
+                <p className="text-lg font-extrabold text-emerald-400 mt-0.5">₱{liveTransactions.prepaid.toFixed(2)}</p>              
+                </div>
             </div>
           </div>
 
@@ -235,11 +265,12 @@ export default function ConductorDashboard() {
       <FareCalculatorModal
         isOpen={showFareCalc}
         onClose={() => setShowFareCalc(false)}
+        shiftId={shift?.shiftId || ""}
         conductorName={conductorName}
         unitNumber={unitNumber}
         driverName={driverName}
       />
-      <HistoryLogModal isOpen={showHistory} onClose={() => setShowHistory(false)} />
+      <HistoryLogModal isOpen={showHistory} onClose={() => setShowHistory(false)} shiftId={shift?.shiftId || ""} />
     </div>
   );
 }

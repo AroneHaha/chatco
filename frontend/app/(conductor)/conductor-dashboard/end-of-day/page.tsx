@@ -4,38 +4,12 @@ import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import FareCalculatorModal from "@/components/conductor/modals/fare-calculator-modal";
 import { endShift, getActiveShift, formatTime } from "@/lib/conductor-shift";
-import {
-  saveRemittance,
-  getRemittanceHistory,
-  type RemittanceRecord,
-} from "@/lib/remittance-history";
+import {saveRemittance,getRemittanceHistory,type RemittanceRecord,} from "@/lib/remittance-history";
+import { getShiftTransactions, type Transaction } from "@/lib/conductor-transactions";
 
-/* ═════════════ Types ═══════════════ */
 
-interface CashlessTransaction {
-  transactionId: string;
-  paymentMethod: "Wallet_Prepay" | "Wallet_Scanned" | "Voucher";
-  finalAmount: number;
-}
 
-/* ═════════════ Mock Data ═══════════════ */
 
-const todayTransactions: CashlessTransaction[] = [
-  { transactionId: "TXN-001", paymentMethod: "Wallet_Scanned", finalAmount: 18.0 },
-  { transactionId: "TXN-002", paymentMethod: "Wallet_Scanned", finalAmount: 18.0 },
-  { transactionId: "TXN-003", paymentMethod: "Wallet_Scanned", finalAmount: 22.0 },
-  { transactionId: "TXN-004", paymentMethod: "Wallet_Scanned", finalAmount: 18.0 },
-  { transactionId: "TXN-005", paymentMethod: "Wallet_Scanned", finalAmount: 26.0 },
-  { transactionId: "TXN-006", paymentMethod: "Wallet_Scanned", finalAmount: 18.0 },
-  { transactionId: "TXN-007", paymentMethod: "Wallet_Scanned", finalAmount: 18.0 },
-  { transactionId: "TXN-008", paymentMethod: "Wallet_Scanned", finalAmount: 20.0 },
-  { transactionId: "TXN-009", paymentMethod: "Wallet_Prepay", finalAmount: 18.0 },
-  { transactionId: "TXN-010", paymentMethod: "Wallet_Prepay", finalAmount: 14.4 },
-  { transactionId: "TXN-011", paymentMethod: "Wallet_Prepay", finalAmount: 18.0 },
-  { transactionId: "TXN-012", paymentMethod: "Wallet_Prepay", finalAmount: 14.4 },
-  { transactionId: "TXN-015", paymentMethod: "Voucher", finalAmount: 0.0 },
-  { transactionId: "TXN-016", paymentMethod: "Voucher", finalAmount: 0.0 },
-];
 
 /* ═════════════ Helpers ═══════════════ */
 
@@ -88,11 +62,12 @@ export default function EndOfDayPage() {
     timeIn: new Date().toISOString(),
     timeOut: new Date().toISOString(),
   });
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
 
-  useEffect(() => {
+   useEffect(() => {
     const shift = getActiveShift();
     if (shift) {
-            setShiftInfo({
+      setShiftInfo({
         conductorName: shift.conductorName,
         driverName: shift.driverName,
         unitNumber: shift.unitNumber,
@@ -101,8 +76,21 @@ export default function EndOfDayPage() {
         timeIn: shift.timeIn,
         timeOut: shift.timeOut || new Date().toISOString(),
       });
+      setTransactions(getShiftTransactions(shift.shiftId));
     }
     setHistory(getRemittanceHistory());
+  }, []);
+
+  // >>> FIX: Refresh transactions when a new payment is saved <<<
+  useEffect(() => {
+    const handler = () => {
+      const shift = getActiveShift();
+      if (shift) {
+        setTransactions(getShiftTransactions(shift.shiftId));
+      }
+    };
+    window.addEventListener("conductor:transaction-updated", handler);
+    return () => window.removeEventListener("conductor:transaction-updated", handler);
   }, []);
 
   useEffect(() => {
@@ -111,11 +99,11 @@ export default function EndOfDayPage() {
     return () => window.removeEventListener("conductor:scan-qr", handler);
   }, []);
 
-  const summary = useMemo(() => {
+    const summary = useMemo(() => {
     const keys = ["Wallet_Scanned", "Wallet_Prepay", "Voucher"] as const;
     const breakdown: Record<string, { count: number; amount: number }> = {};
     for (const key of keys) {
-      const txns = todayTransactions.filter((t) => t.paymentMethod === key);
+      const txns = transactions.filter((t) => t.paymentMethod === key);
       breakdown[key] = {
         count: txns.length,
         amount: txns.reduce((s, t) => s + t.finalAmount, 0),
@@ -123,10 +111,10 @@ export default function EndOfDayPage() {
     }
     return {
       breakdown,
-      totalPassengers: todayTransactions.length,
-      totalCashless: todayTransactions.reduce((s, t) => s + t.finalAmount, 0),
+      totalPassengers: transactions.length,
+      totalCashless: transactions.reduce((s, t) => s + t.finalAmount, 0),
     };
-  }, []);
+  }, [transactions]);
 
   const cashAmount = parseFloat(cashDeclared) || 0;
   const grandTotal = summary.totalCashless + cashAmount;
@@ -822,10 +810,12 @@ export default function EndOfDayPage() {
       )}
 
       {/* ══════════ FARE CALCULATOR MODAL ══════════ */}
+      {/* >>> FIX: Added shiftId, fixed hardcoded conductorName <<< */}
       <FareCalculatorModal
         isOpen={showFareCalc}
         onClose={() => setShowFareCalc(false)}
-        conductorName="Mark"
+        shiftId={shiftInfo.shiftId}
+        conductorName={shiftInfo.conductorName}
         unitNumber={shiftInfo.unitNumber}
         driverName={shiftInfo.driverName}
       />

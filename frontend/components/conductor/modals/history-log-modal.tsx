@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { Modal } from "@/components/admin/ui/modal";
+import { getShiftTransactions, type Transaction } from "@/lib/conductor-transactions";
 
 interface HistoryLogModalProps {
   isOpen: boolean;
   onClose: () => void;
+  shiftId: string;
 }
 
 type PaymentMethod = "Wallet_Prepay" | "Wallet_Scanned" | "Voucher";
@@ -16,152 +18,7 @@ const PAYMENT_METHOD_DISPLAY: Record<PaymentMethod, { label: string; color: stri
   Voucher: { label: "Voucher", color: "text-pink-400" },
 };
 
-interface Transaction {
-  id: string;
-  passengerName: string;
-  passengerId: string;
-  passengerRole: string;
-  from: string;
-  to: string;
-  distance: number;
-  baseFare: number;
-  succeedingKm: number;
-  succeedingFare: number;
-  discountAmount: number;
-  totalAmount: number;
-  paymentMethod: PaymentMethod;
-  conductorName: string;
-  unitNumber: string;
-  driverName: string;
-  timestamp: number;
-}
-
-const MOCK_HISTORY: Transaction[] = [
-  {
-    id: "TXN-1714000000002",
-    passengerName: "Ana Santos",
-    passengerId: "USR-105",
-    passengerRole: "Regular",
-    from: "malolos",
-    to: "calumpit",
-    distance: 12,
-    baseFare: 13.0,
-    succeedingKm: 11,
-    succeedingFare: 16.5,
-    discountAmount: 0,
-    totalAmount: 29.5,
-    paymentMethod: "Wallet_Prepay",
-    conductorName: "Mark",
-    unitNumber: "RIZ 2024",
-    driverName: "Ramon",
-    timestamp: new Date().getTime() - 1800000,
-  },
-  {
-    id: "TXN-1714000000000",
-    passengerName: "Juan Dela Cruz",
-    passengerId: "USR-102",
-    passengerRole: "Student",
-    from: "meycauayan",
-    to: "malolos",
-    distance: 22,
-    baseFare: 13.0,
-    succeedingKm: 21,
-    succeedingFare: 31.5,
-    discountAmount: 8.9,
-    totalAmount: 35.6,
-    paymentMethod: "Wallet_Scanned",
-    conductorName: "Mark",
-    unitNumber: "RIZ 2024",
-    driverName: "Ramon",
-    timestamp: new Date().getTime() - 3600000,
-  },
-  {
-    id: "TXN-1713999999999",
-    passengerName: "Maria Clara",
-    passengerId: "USR-099",
-    passengerRole: "Regular",
-    from: "bocaue",
-    to: "balagtas",
-    distance: 4,
-    baseFare: 13.0,
-    succeedingKm: 3,
-    succeedingFare: 4.5,
-    discountAmount: 0,
-    totalAmount: 17.5,
-    paymentMethod: "Wallet_Scanned",
-    conductorName: "Mark",
-    unitNumber: "RIZ 2024",
-    driverName: "Ramon",
-    timestamp: new Date().getTime() - 7200000,
-  },
-  {
-    id: "TXN-1713999999998",
-    passengerName: "Pedro Reyes",
-    passengerId: "USR-110",
-    passengerRole: "Senior",
-    from: "marilao",
-    to: "guiguinto",
-    distance: 12,
-    baseFare: 13.0,
-    succeedingKm: 11,
-    succeedingFare: 16.5,
-    discountAmount: 5.9,
-    totalAmount: 23.6,
-    paymentMethod: "Wallet_Prepay",
-    conductorName: "Mark",
-    unitNumber: "RIZ 2024",
-    driverName: "Ramon",
-    timestamp: new Date().getTime() - 10800000,
-  },
-  {
-    id: "TXN-1713999999997",
-    passengerName: "Carlos Garcia",
-    passengerId: "USR-112",
-    passengerRole: "Regular",
-    from: "meycauayan",
-    to: "marilao",
-    distance: 4,
-    baseFare: 13.0,
-    succeedingKm: 3,
-    succeedingFare: 4.5,
-    discountAmount: 0,
-    totalAmount: 17.5,
-    paymentMethod: "Wallet_Scanned",
-    conductorName: "Mark",
-    unitNumber: "RIZ 2024",
-    driverName: "Ramon",
-    timestamp: new Date().getTime() - 86400000,
-  },
-  {
-    id: "TXN-1713999999996",
-    passengerName: "Sofia Lim",
-    passengerId: "USR-115",
-    passengerRole: "Student",
-    from: "bocaue",
-    to: "malolos",
-    distance: 13,
-    baseFare: 13.0,
-    succeedingKm: 12,
-    succeedingFare: 18.0,
-    discountAmount: 6.2,
-    totalAmount: 24.8,
-    paymentMethod: "Wallet_Prepay",
-    conductorName: "Mark",
-    unitNumber: "RIZ 2024",
-    driverName: "Ramon",
-    timestamp: new Date().getTime() - 172800000,
-  },
-];
-
-function toLocalDateString(timestamp: number): string {
-  const d = new Date(timestamp);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-export default function HistoryLogModal({ isOpen, onClose }: HistoryLogModalProps) {
+export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLogModalProps) {
   const [history, setHistory] = useState<Transaction[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filterMethod, setFilterMethod] = useState<PaymentMethod | "ALL">("ALL");
@@ -170,15 +27,15 @@ export default function HistoryLogModal({ isOpen, onClose }: HistoryLogModalProp
   const [showDateFilter, setShowDateFilter] = useState(false);
 
   useEffect(() => {
-    if (isOpen) {
-      setHistory(MOCK_HISTORY);
+    if (isOpen && shiftId) {
+      setHistory(getShiftTransactions(shiftId));
       setExpandedId(null);
       setDateFrom("");
       setDateTo("");
       setShowDateFilter(false);
       setFilterMethod("ALL");
     }
-  }, [isOpen]);
+  }, [isOpen, shiftId]);
 
   const toggleExpand = (id: string) => {
     setExpandedId(expandedId === id ? null : id);
@@ -187,16 +44,14 @@ export default function HistoryLogModal({ isOpen, onClose }: HistoryLogModalProp
   const hasDateFilter = dateFrom !== "" || dateTo !== "";
 
   const filteredHistory = history.filter((tx) => {
-    const txDate = toLocalDateString(tx.timestamp);
-
+    const txDate = new Date(tx.timestamp).toLocaleDateString("en-CA");
     if (filterMethod !== "ALL" && tx.paymentMethod !== filterMethod) return false;
     if (dateFrom !== "" && txDate < dateFrom) return false;
     if (dateTo !== "" && txDate > dateTo) return false;
-
     return true;
   });
 
-  const filteredTotal = filteredHistory.reduce((sum, tx) => sum + tx.totalAmount, 0);
+  const filteredTotal = filteredHistory.reduce((sum, tx) => sum + tx.finalAmount, 0);
 
   const prepaidCount = history.filter(tx => tx.paymentMethod === "Wallet_Prepay").length;
   const scannedCount = history.filter(tx => tx.paymentMethod === "Wallet_Scanned").length;
@@ -210,7 +65,7 @@ export default function HistoryLogModal({ isOpen, onClose }: HistoryLogModalProp
     <Modal isOpen={isOpen} onClose={onClose}>
       <div className="space-y-3 p-2 max-h-[80vh] flex flex-col">
 
-        {/* Header */}
+        {/* ── Header ─────────────────────────────────────────── */}
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-xl font-bold text-white">Transaction History</h2>
@@ -234,6 +89,7 @@ export default function HistoryLogModal({ isOpen, onClose }: HistoryLogModalProp
                   : "bg-transparent border-white/10 text-white/40 hover:bg-white/5"
             }`}
           >
+            {/* Calendar icon — fixed path */}
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
             </svg>
@@ -245,8 +101,9 @@ export default function HistoryLogModal({ isOpen, onClose }: HistoryLogModalProp
             )}
           </button>
         </div>
+        {/* ── End Header ─────────────────────────────────────── */}
 
-        {/* Date Filter Panel */}
+        {/* ── Date Filter Panel (outside header) ─────────────── */}
         {showDateFilter && (
           <div className="bg-white/5 rounded-xl p-3 border border-white/10 space-y-2">
             <div className="grid grid-cols-2 gap-2">
@@ -282,12 +139,12 @@ export default function HistoryLogModal({ isOpen, onClose }: HistoryLogModalProp
           </div>
         )}
 
-        {/* Filter Pills */}
+        {/* ── Filter Pills (outside header) ──────────────────── */}
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
           {(["ALL", "Wallet_Prepay", "Wallet_Scanned"] as const).map((method) => (
             <button
               key={method}
-              onClick={() => setFilterMethod(method)}
+              onClick={() => setFilterMethod(method as PaymentMethod)}
               className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
                 filterMethod === method
                   ? method === "Wallet_Prepay"
@@ -303,7 +160,7 @@ export default function HistoryLogModal({ isOpen, onClose }: HistoryLogModalProp
           ))}
         </div>
 
-        {/* Filtered Summary */}
+        {/* ── Filtered Summary (outside header) ──────────────── */}
         {hasDateFilter && (
           <div className="flex items-center justify-between bg-[#62A0EA]/10 border border-[#62A0EA]/20 rounded-xl px-3 py-2.5">
             <div>
@@ -314,7 +171,7 @@ export default function HistoryLogModal({ isOpen, onClose }: HistoryLogModalProp
           </div>
         )}
 
-        {/* List */}
+        {/* ── Transaction List (outside header) ──────────────── */}
         {filteredHistory.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-white/30 text-sm py-10 gap-2">
             <svg className="w-10 h-10 text-white/10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -330,17 +187,34 @@ export default function HistoryLogModal({ isOpen, onClose }: HistoryLogModalProp
         ) : (
           <div className="flex-1 overflow-y-auto space-y-2 pr-1">
             {filteredHistory.map((tx) => {
-              const methodDisplay = PAYMENT_METHOD_DISPLAY[tx.paymentMethod];
+              const methodDisplay = PAYMENT_METHOD_DISPLAY[tx.paymentMethod as PaymentMethod] || PAYMENT_METHOD_DISPLAY.Wallet_Scanned;
               const isPrepaid = tx.paymentMethod === "Wallet_Prepay";
               const isScanned = tx.paymentMethod === "Wallet_Scanned";
 
+              const displayDate = new Date(tx.timestamp).toLocaleDateString("en-CA", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              });
+
+              const displayTime = new Date(tx.timestamp).toLocaleTimeString("en-US", {
+                hour: "numeric",
+                minute: "2-digit",
+                hour12: true,
+              });
+
+              // Computed succeeding fare from the fields that actually exist on Transaction
+              const succeedingFare = tx.distance > 1
+                ? (tx.baseFare + (tx.succeedingKm * (tx.distance - 1))) - tx.baseFare
+                : 0;
+
               return (
-                <div key={tx.id} className={`border rounded-xl overflow-hidden transition-colors ${
+                <div key={tx.transactionId} className={`border rounded-xl overflow-hidden transition-colors ${
                   isPrepaid ? "border-emerald-500/20" : isScanned ? "border-purple-500/20" : "border-white/10"
                 }`}>
                   {/* Collapsed Row */}
                   <button
-                    onClick={() => toggleExpand(tx.id)}
+                    onClick={() => toggleExpand(tx.transactionId)}
                     className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors text-left"
                   >
                     <div className="min-w-0 flex-1 mr-3">
@@ -358,20 +232,20 @@ export default function HistoryLogModal({ isOpen, onClose }: HistoryLogModalProp
                         )}
                       </div>
                       <p className="text-white/40 text-xs mt-0.5 truncate">
-                        {new Date(tx.timestamp).toLocaleDateString()} • {tx.from} → {tx.to}
+                        {displayDate} • {tx.from} → {tx.to}
                       </p>
                     </div>
                     <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
-                      <p className="text-[#62A0EA] font-bold">₱{tx.totalAmount.toFixed(2)}</p>
-                      <svg className={`w-4 h-4 text-white/30 transition-transform ${expandedId === tx.id ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
+                      <p className={`font-bold ${methodDisplay.color}`}>₱{tx.finalAmount.toFixed(2)}</p>
+                      <svg className={`w-4 h-4 text-white/30 transition-transform ${expandedId === tx.transactionId ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
                     </div>
                   </button>
 
                   {/* Expanded Receipt */}
-                  {expandedId === tx.id && (
+                  {expandedId === tx.transactionId && (
                     <div className="bg-white/5 p-4 border-t border-dashed border-white/10 text-xs space-y-1.5 font-mono">
-                      <div className="flex justify-between"><span className="text-gray-400">Txn ID:</span><span className="text-white">{tx.id}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-400">Date:</span><span className="text-white">{new Date(tx.timestamp).toLocaleString()}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-400">Txn ID:</span><span className="text-white">{tx.transactionId}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-400">Date:</span><span className="text-white">{displayDate} {displayTime}</span></div>
 
                       <div className="border-t border-dashed border-white/10 pt-2 space-y-1">
                         <p className="text-white/50 font-bold uppercase text-[10px]">Passenger</p>
@@ -381,12 +255,13 @@ export default function HistoryLogModal({ isOpen, onClose }: HistoryLogModalProp
                       </div>
 
                       <div className="border-t border-dashed border-white/10 pt-2 space-y-1">
-                        <p className="text-white/50 font-bold uppercase text-[10px]">Route & Fare</p>
+                        <p className="text-white/50 font-bold uppercase text-[10px]">Route &amp; Fare</p>
                         <div className="flex justify-between"><span className="text-gray-400">Route:</span><span className="text-white capitalize">{tx.from} → {tx.to}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-400">Distance:</span><span className="text-white">{tx.distance} km</span></div>
                         <div className="flex justify-between"><span className="text-gray-400">First Km:</span><span className="text-white">₱{tx.baseFare.toFixed(2)}</span></div>
-                        <div className="flex justify-between"><span className="text-gray-400">Succeeding:</span><span className="text-white">₱{tx.succeedingFare.toFixed(2)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-400">Succeeding:</span><span className="text-white">₱{succeedingFare.toFixed(2)}</span></div>
                         {tx.discountAmount > 0 && <div className="flex justify-between text-green-400"><span>Discount:</span><span>-₱{tx.discountAmount.toFixed(2)}</span></div>}
-                        <div className="flex justify-between font-bold text-base text-[#62A0EA] border-t border-white/10 pt-2 mt-1"><span>Total:</span><span>₱{tx.totalAmount.toFixed(2)}</span></div>
+                        <div className="flex justify-between font-bold text-base text-[#62A0EA] border-t border-white/10 pt-2 mt-1"><span>Total:</span><span>₱{tx.finalAmount.toFixed(2)}</span></div>
                       </div>
 
                       <div className="border-t border-dashed border-white/10 pt-2 space-y-1">
@@ -405,7 +280,7 @@ export default function HistoryLogModal({ isOpen, onClose }: HistoryLogModalProp
                               <svg className="w-3.5 h-3.5 inline mr-1 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
                             )}
                             {isScanned && (
-                              <svg className="w-3.5 h-3.5 inline mr-1 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" /></svg>
+                              <svg className="w-3.5 h-3.5 inline mr-1 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5ZM13.5 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5Z" /></svg>
                             )}
                             {methodDisplay.label}
                           </span>
