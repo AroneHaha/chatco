@@ -123,5 +123,5 @@ const navItems = [
   { href: "/lost-and-found", label: "Lost & Found", icon: LostFoundIcon }, // Updated icon reference
   { href: "/rewards", label: "Rewards", icon: GiftIcon },
   { href: "/feedback", label: "Feedback", icon: ShieldIcon },
-  { href: "/dashboard/profile", label: "Profile", icon: UserIcon },
+  { href: "/profile", label: "Profile", icon: UserIcon },
 ];

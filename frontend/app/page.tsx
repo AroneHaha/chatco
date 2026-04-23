@@ -6,7 +6,6 @@ import CommuterFeatures from "@/components/landing/CommuterFeatures";
 import HeatmapShowcase from "@/components/landing/HeatmapShowcase";
 import SafetySupport from "@/components/landing/SafetySupport";
 import LoyaltyPerks from "@/components/landing/LoyaltyPerks";
-import PlatformFeatures from "@/components/landing/PlatformFeatures";
 import FinalCTA from "@/components/landing/FinalCTA";
 import Footer from "@/components/landing/Footer";
 
@@ -21,7 +20,6 @@ export default function Home() {
       <HeatmapShowcase />
       <SafetySupport />
       <LoyaltyPerks />
-      <PlatformFeatures />
       <FinalCTA />
       <Footer />
     </main>
