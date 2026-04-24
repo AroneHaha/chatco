@@ -5,6 +5,26 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents 
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
+// --- 1. BACKEND PROOFING: Types & Mock Data ---
+type VehicleCapacity = "AVAILABLE" | "STANDING" | "FULL"; // Green, Yellow, Red
+
+interface ActiveVehicle {
+  id: string;
+  plateNumber: string;
+  driverName: string;
+  conductorName: string;
+  routeIndex: number; // Index in ROUTE_COORDS array representing current location
+  capacity: VehicleCapacity;
+}
+
+// This array simulates a real-time API response: GET /api/vehicles/active
+const MOCK_ACTIVE_VEHICLES: ActiveVehicle[] = [
+  { id: "v_01", plateNumber: "ABC 1234", driverName: "Juan Dela Cruz", conductorName: "Pedro Penduko", routeIndex: 8, capacity: "AVAILABLE" },
+  { id: "v_02", plateNumber: "XYZ 5678", driverName: "Mario Speedwagon", conductorName: "Luigi Mansion", routeIndex: 42, capacity: "STANDING" },
+  { id: "v_03", plateNumber: "DEF 9012", driverName: "Crisostomo Ibarra", conductorName: "Sisa Doe", routeIndex: 68, capacity: "FULL" },
+];
+
+// --- 2. ROUTE DATA ---
 const ROUTE_COORDS: [number, number][] = [
   [14.925460996033356, 120.76512235423647], [14.92420402124189, 120.76528787872712],
   [14.920152600670095, 120.76571706129354], [14.915220582966443, 120.76619717003261],
@@ -47,25 +67,19 @@ const ROUTE_COORDS: [number, number][] = [
   [14.725646764905104, 120.9604838112117]
 ];
 
-// --- 1. SPLIT BOUNDARIES FOR BETTER SPACING ---
 const rawBounds = L.latLngBounds(ROUTE_COORDS);
-
-// Strict box: Used ONLY to check if user's GPS is actually near the route
 const routeBounds = rawBounds.pad(0.008); 
-
-// Wide box: The actual hard walls where dragging stops
-// Increased West/East to 0.10 (roughly 10-11km of extra space on sides so mobile dragging doesn't feel tight)
 const mapBounds = L.latLngBounds(
-  [rawBounds.getSouth() - 0.04, rawBounds.getWest() - 0.10],  // Super wide Left, Generous Bottom
-  [rawBounds.getNorth() + 0.015, rawBounds.getEast() + 0.10]   // Super wide Right, Small Top
+  [rawBounds.getSouth() - 0.04, rawBounds.getWest() - 0.10],
+  [rawBounds.getNorth() + 0.015, rawBounds.getEast() + 0.10]
 );
-
 const mapBoundsArray: [[number, number], [number, number]] = [
   [mapBounds.getSouth(), mapBounds.getWest()],
   [mapBounds.getNorth(), mapBounds.getEast()]
 ];
 const MAP_CENTER: L.LatLngTuple = [rawBounds.getCenter().lat, rawBounds.getCenter().lng];
 
+// --- 3. HELPER FUNCTIONS ---
 function getBearing(start: [number, number], end: [number, number]): number {
   const startLat = start[0] * Math.PI / 180;
   const endLat = end[0] * Math.PI / 180;
@@ -75,14 +89,17 @@ function getBearing(start: [number, number], end: [number, number]): number {
   return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
 
+const getCapacityConfig = (capacity: VehicleCapacity) => {
+  switch (capacity) {
+    case "AVAILABLE": return { color: "#22c55e", label: "Maluwag / Available", twBg: "bg-green-500/10", twText: "text-green-400", twBorder: "border-green-500/30" };
+    case "STANDING": return { color: "#eab308", label: "Standing Only", twBg: "bg-yellow-500/10", twText: "text-yellow-400", twBorder: "border-yellow-500/30" };
+    case "FULL": return { color: "#ef4444", label: "Full", twBg: "bg-red-500/10", twText: "text-red-400", twBorder: "border-red-500/30" };
+  }
+};
+
 function LocationFinder({ 
-  isDesktop,
-  userLocationRef,
-  setUserActualLocation, 
-  setShowMapPin,
-  setArrowPos
+  userLocationRef, setUserActualLocation, setShowMapPin, setArrowPos
 }: { 
-  isDesktop: boolean;
   userLocationRef: React.MutableRefObject<[number, number] | null>;
   setUserActualLocation: (loc: [number, number] | null) => void;
   setShowMapPin: (val: boolean) => void;
@@ -98,13 +115,25 @@ function LocationFinder({
       userLocationRef.current = userCoords;
       
       const userLatLng = L.latLng(lat, lng);
+      
+      // ALWAYS show the pin when location is found
+      setShowMapPin(true);
+
+      // Fly to user if they are near the route (smooth animation, high zoom)
       if (routeBounds.contains(userLatLng)) {
-        setShowMapPin(true);
         setArrowPos(null); 
         map.flyTo([lat, lng], 16, { duration: 1.5 });
-      } else {
-        setShowMapPin(false);
+      } 
+      // If in the general map area but not on the route, use setView. 
+      // setView forces the camera to move to you without getting blocked by maxBounds.
+      else if (mapBounds.contains(userLatLng)) {
+        setArrowPos(null);
+        map.setView([lat, lng], 13, { animate: true }); 
       }
+      // If completely outside map bounds, don't move camera. The arrow will point towards them.
+    },
+    locationerror(e) {
+      console.error("Location access denied:", e.message);
     },
     move() {
       const userCoords = userLocationRef.current;
@@ -124,40 +153,32 @@ function LocationFinder({
       const dx = Math.sin(angle * Math.PI / 180);
       const dy = -Math.cos(angle * Math.PI / 180);
 
-      const safeMinX = 5;
-      const safeMaxX = 95;
-      const safeMinY = 15;
-      const safeMaxY = 75;
+      const safeMinX = 5; const safeMaxX = 95;
+      const safeMinY = 15; const safeMaxY = 75;
 
-      let tX = Infinity;
-      let tY = Infinity;
+      let tX = Infinity; let tY = Infinity;
 
       if (dx > 0) tX = (safeMaxX - 50) / dx;
       else if (dx < 0) tX = (safeMinX - 50) / dx;
-
       if (dy > 0) tY = (safeMaxY - 50) / dy;
       else if (dy < 0) tY = (safeMinY - 50) / dy;
 
       const t = Math.min(tX, tY);
 
-      setArrowPos({
-        x: 50 + (t * dx),
-        y: 50 + (t * dy),
-        angle: angle
-      });
+      setArrowPos({ x: 50 + (t * dx), y: 50 + (t * dy), angle: angle });
     },
-    dragstart() {
-      map.closePopup();
-    }
+    dragstart() { map.closePopup(); }
   });
 
   useEffect(() => {
-    map.locate({ setView: false, maxZoom: 16, enableHighAccuracy: true, timeout: 10000 });
+    // watch: true makes it continuously track the user's location instead of just asking once
+    map.locate({ setView: false, maxZoom: 16, enableHighAccuracy: true, timeout: 10000, watch: true });
   }, [map]);
 
   return null;
 }
 
+// --- 4. MAIN COMPONENT ---
 export default function CommuterMap({ isDesktop = false }: { isDesktop?: boolean }) {
   const [isDomReady, setIsDomReady] = useState(false);
   const [userActualLocation, setUserActualLocation] = useState<[number, number] | null>(null);
@@ -179,15 +200,19 @@ export default function CommuterMap({ isDesktop = false }: { isDesktop?: boolean
     iconSize: [20, 20], iconAnchor: [10, 10],
   }), []);
 
-  const jeepneyIcon = useMemo(() => new L.DivIcon({
-    className: "custom-jeepney-icon",
-    html: `<div style="width: 44px; height: 44px; background: #071A2E; border-radius: 50%; border: 2px solid #62A0EA; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.4);">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#62A0EA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H18.75m-7.5-10.5H6.375c-.621 0-1.125.504-1.125 1.125v6.75m12-6.75h-3.375c-.621 0-1.125.504-1.125 1.125v6.75m0 0H5.625m12-6.75h-1.5m-1.5 0h-1.5" />
-              </svg>
-            </div>`,
-    iconSize: [44, 44], iconAnchor: [22, 22], popupAnchor: [0, -25],
-  }), []);
+  // Dynamic Jeepney Icon Generator based on Capacity
+  const getJeepneyIcon = useMemo(() => (capacity: VehicleCapacity) => {
+    const config = getCapacityConfig(capacity);
+    return new L.DivIcon({
+      className: "custom-jeepney-icon",
+      html: `<div style="width: 44px; height: 44px; background: #071A2E; border-radius: 50%; border: 2.5px solid ${config.color}; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 12px rgba(0,0,0,0.5), 0 0 8px ${config.color}40;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${config.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H18.75m-7.5-10.5H6.375c-.621 0-1.125.504-1.125 1.125v6.75m12-6.75h-3.375c-.621 0-1.125.504-1.125 1.125v6.75m0 0H5.625m12-6.75h-1.5m-1.5 0h-1.5" />
+                </svg>
+              </div>`,
+      iconSize: [44, 44], iconAnchor: [22, 22], popupAnchor: [0, -25],
+    });
+  }, []);
 
   if (!isDomReady) return <div className="absolute inset-0 bg-[#050F1A]" />;
 
@@ -196,45 +221,17 @@ export default function CommuterMap({ isDesktop = false }: { isDesktop?: boolean
       {arrowPos && (
         <div 
           className="absolute z-[1000] flex flex-col items-center pointer-events-none select-none"
-          style={{
-            left: `${arrowPos.x}%`,
-            top: `${arrowPos.y}%`,
-            transform: `translate(-50%, -50%)`
-          }}
+          style={{ left: `${arrowPos.x}%`, top: `${arrowPos.y}%`, transform: `translate(-50%, -50%)` }}
         >
-          <svg 
-            className="w-8 h-8 text-[#62A0EA] drop-shadow-lg animate-pulse" 
-            style={{ transform: `rotate(${arrowPos.angle}deg)` }} 
-            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}
-          >
+          <svg className="w-8 h-8 text-[#62A0EA] drop-shadow-lg animate-pulse" style={{ transform: `rotate(${arrowPos.angle}deg)` }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
           </svg>
-          
-          <span className="mt-1 text-[9px] font-bold text-white bg-[#071A2E]/90 backdrop-blur-sm px-1.5 py-0.5 rounded-md shadow-lg border border-white/20">
-            You
-          </span>
+          <span className="mt-1 text-[9px] font-bold text-white bg-[#071A2E]/90 backdrop-blur-sm px-1.5 py-0.5 rounded-md shadow-lg border border-white/20">You</span>
         </div>
       )}
 
-      <MapContainer
-        center={MAP_CENTER}
-        zoom={12}
-        zoomControl={false}
-        attributionControl={false}
-        className="w-full h-full"
-        style={{ background: '#050F1A' }}
-        maxBounds={mapBoundsArray}
-        maxBoundsViscosity={1.0}
-        minZoom={isDesktop ? 13 : 11}
-      >
-        <LocationFinder 
-          isDesktop={isDesktop}
-          userLocationRef={userLocationRef}
-          setUserActualLocation={setUserActualLocation}
-          setShowMapPin={setShowMapPin}
-          setArrowPos={setArrowPos}
-        />
-
+      <MapContainer center={MAP_CENTER} zoom={12} zoomControl={false} attributionControl={false} className="w-full h-full" style={{ background: '#050F1A' }} maxBounds={mapBoundsArray} maxBoundsViscosity={1.0} minZoom={isDesktop ? 13 : 11}>
+        <LocationFinder userLocationRef={userLocationRef} setUserActualLocation={setUserActualLocation} setShowMapPin={setShowMapPin} setArrowPos={setArrowPos} />
         <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
         
         <Polyline positions={ROUTE_COORDS} pathOptions={{ color: '#62A0EA', weight: 8, opacity: 0.2, lineCap: 'round', lineJoin: 'round' }} />
@@ -249,26 +246,31 @@ export default function CommuterMap({ isDesktop = false }: { isDesktop?: boolean
           </Marker>
         )}
 
-        <Marker position={ROUTE_COORDS[8]} icon={jeepneyIcon}>
-          <Popup>
-            <div className="font-bold text-[#071A2E]">Jeep 01 - Malolos</div>
-            <div className="text-xs text-gray-500">Available • Heading to Meycauayan</div>
-          </Popup>
-        </Marker>
-
-        <Marker position={ROUTE_COORDS[42]} icon={jeepneyIcon}>
-          <Popup>
-            <div className="font-bold text-[#071A2E]">Jeep 02 - Guiguinto</div>
-            <div className="text-xs text-gray-500">Available • Heading to Calumpit</div>
-          </Popup>
-        </Marker>
-        
-        <Marker position={ROUTE_COORDS[68]} icon={jeepneyIcon}>
-          <Popup>
-            <div className="font-bold text-[#071A2E]">Jeep 03 - Marilao</div>
-            <div className="text-xs text-gray-500">Available • Heading to Meycauayan</div>
-          </Popup>
-        </Marker>
+        {/* --- DYNAMIC JEEPNEY MARKERS --- */}
+        {MOCK_ACTIVE_VEHICLES.map((vehicle) => {
+          const config = getCapacityConfig(vehicle.capacity);
+          return (
+            <Marker key={vehicle.id} position={ROUTE_COORDS[vehicle.routeIndex]} icon={getJeepneyIcon(vehicle.capacity)}>
+              <Popup>
+                <div className="space-y-2 min-w-[180px]">
+                  <div className="flex items-center justify-between">
+                    <div className="font-bold text-[#071A2E]">{vehicle.plateNumber}</div>
+                    <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${config.twBg} ${config.twText} ${config.twBorder} border`}>{config.label}</span>
+                  </div>
+                  <div className="text-xs text-gray-500 space-y-0.5 pt-1 border-t border-gray-100">
+                    <p><span className="font-medium text-gray-700">Driver:</span> {vehicle.driverName}</p>
+                    <p><span className="font-medium text-gray-700">Conductor:</span> {vehicle.conductorName}</p>
+                  </div>
+                  {vehicle.capacity === "FULL" && (
+                    <div className="text-[10px] font-medium text-red-500 bg-red-50 p-1.5 rounded text-center border border-red-100">
+                      Not accepting passengers
+                    </div>
+                  )}
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
       </MapContainer>
 
       <style jsx global>{`

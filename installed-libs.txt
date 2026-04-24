@@ -3,3 +3,4 @@ npm install qrcode.react
 npm install lucide-react
 npm install qrcode.react html5-qrcode
 npm install leaflet-geometryutil
+npm install framer-motion

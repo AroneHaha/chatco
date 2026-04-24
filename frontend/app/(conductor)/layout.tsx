@@ -9,8 +9,8 @@ export default function ConductorLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
 
   return (
-    <div className="fixed inset-0 bg-gray-50 flex flex-col overflow-hidden font-sans md:flex-row">
-      
+<div className="fixed inset-0 bg-gray-50 flex flex-col font-sans md:flex-row">
+        
       {/* Desktop Sidebar (Hidden on Mobile) */}
       <div className="hidden md:flex md:flex-shrink-0">
         <ConductorSidebar pathname={pathname} />
