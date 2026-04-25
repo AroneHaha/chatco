@@ -15,11 +15,11 @@ interface RemittanceTableProps {
 
 // Mock data structured for backend integration
 const mockData = [
-  { id: 'S-101', conductor: 'Juan Dela Cruz', vehicle: 'ABC-123', status: 'Remitted', amount: '₱2,500.00', date: '2024-05-01' },
-  { id: 'S-102', conductor: 'Pedro Santos', vehicle: 'XYZ-789', status: 'Pending', amount: '₱2,450.00', date: '2024-05-01' },
-  { id: 'S-103', conductor: 'Maria Reyes', vehicle: 'DEF-456', status: 'Remitted', amount: '₱2,600.00', date: '2024-05-02' },
-  { id: 'S-104', conductor: 'Jose Rizal', vehicle: 'GHI-789', status: 'Remitted', amount: '₱2,550.00', date: '2024-05-03' },
-  { id: 'S-105', conductor: 'Andres Bonifacio', vehicle: 'JKL-012', status: 'Pending', amount: '₱2,400.00', date: '2024-05-04' },
+  { id: 'S-101', conductor: 'Jose Ngani', vehicle: 'XQJ 4728', status: 'Remitted', amount: '₱2,500.00', date: '2024-05-01' },
+  { id: 'S-102', conductor: 'Mark Pakak', vehicle: 'VMY 9183', status: 'Pending', amount: '₱2,450.00', date: '2024-05-01' },
+  { id: 'S-103', conductor: 'Ericks Son', vehicle: 'LKW 3579', status: 'Remitted', amount: '₱2,600.00', date: '2024-05-02' },
+  { id: 'S-104', conductor: 'Rinel Trinel', vehicle: 'TNB 8462', status: 'Remitted', amount: '₱2,550.00', date: '2024-05-03' },
+  { id: 'S-105', conductor: 'Leon Barbel', vehicle: 'PVR 6894', status: 'Pending', amount: '₱2,400.00', date: '2024-05-04' },
 ];
 
 const ROWS_PER_PAGE = 100;

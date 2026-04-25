@@ -29,13 +29,10 @@ export function UsersTable({ users, searchQuery, onDeactivate, onViewHistory, is
       key: 'actions',
       label: 'Actions',
       render: (_: unknown, item: any) => (
-        <div className="flex space-x-2">
+        <div className="flex space-x-1">
           {!isRejectedTab && (
             <>
-              <button onClick={() => onViewHistory(String(item.id))} className="text-gray-400 hover:text-white" title="View History"><Clock size={18} /></button>
-              <button onClick={() => onDeactivate(item.id)} className="text-yellow-400 hover:text-yellow-300" title={item.status === 'Active' ? 'Deactivate' : 'Activate'}>
-                {item.status === 'Active' ? <ToggleLeft size={18} /> : <ToggleRight size={18} />}
-              </button>
+              <button onClick={() => onViewHistory(String(item.id))} className="text-gray-400 hover:text-white" title="View History"><Clock size={20} /></button>
             </>
           )}
         </div>

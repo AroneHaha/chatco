@@ -1,14 +1,13 @@
 // components/admin/vehicles/personnel-table.tsx
 import { DataTable } from '@/components/admin/ui/data-table';
-import { Badge } from '@/components/admin/ui/badge';
 import { GlassCard } from '@/components/admin/ui/glass-card';
 import { Edit, Trash } from 'lucide-react';
 
 const mockPersonnel = [
-  { id: 1, name: 'Alex Rivera', role: 'Dispatcher', department: 'Operations', status: 'On Duty', contact: '0917-123-4567' },
-  { id: 2, name: 'Bianca Santos', role: 'Support Agent', department: 'Customer Service', status: 'Available', contact: '0918-234-5678' },
-  { id: 3, name: 'Carlos Pineda', role: 'Fleet Manager', department: 'Management', status: 'In Meeting', contact: '0919-345-6789' },
-  { id: 4, name: 'Diana Reyes', role: 'Dispatcher', department: 'Operations', status: 'On Duty', contact: '0920-456-7890' },
+  { id: 1, name: 'Alex Rivera', role: 'Dispatcher', department: 'Operations', contact: '0917-123-4567' },
+  { id: 2, name: 'Bianca Santos', role: 'Support Agent', department: 'Customer Service', contact: '0918-234-5678' },
+  { id: 3, name: 'Carlos Pineda', role: 'Fleet Manager', department: 'Management', contact: '0919-345-6789' },
+  { id: 4, name: 'Diana Reyes', role: 'Dispatcher', department: 'Operations', contact: '0920-456-7890' },
 ];
 
 export function PersonnelTable({ searchQuery }: { searchQuery: string }) {
@@ -17,16 +16,6 @@ export function PersonnelTable({ searchQuery }: { searchQuery: string }) {
     { key: 'role', label: 'Role' },
     { key: 'department', label: 'Department' },
     { key: 'contact', label: 'Contact' },
-    {
-      key: 'status',
-      label: 'Status',
-      render: (value: string) => {
-        let variant: 'success' | 'warning' | 'danger' | 'info' = 'info';
-        if (value === 'Available' || value === 'On Duty') variant = 'success';
-        if (value === 'In Meeting') variant = 'warning';
-        return <Badge variant={variant}>{value}</Badge>;
-      },
-    },
     {
       key: 'actions',
       label: 'Actions',

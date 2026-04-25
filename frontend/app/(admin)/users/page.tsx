@@ -11,13 +11,16 @@ import { SearchBar } from '@/components/admin/ui/search-bar';
 import { Plus, UserCheck, Users, XCircle } from 'lucide-react';
 
 const initialActiveUsers = [
-  { id: 1, name: 'Juan Dela Cruz', email: 'juan.d@email.com', phoneNumber: '0917-123-4567', status: 'Active', commuterType: 'Regular', languagePreference: 'English', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=ID' },
-  { id: 4, name: 'Carlos Cruz', email: 'carlos.c@email.com', phoneNumber: '0918-234-5678', status: 'Active', commuterType: 'Student', languagePreference: 'Filipino', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=ID' },
+  { id: 1, name: 'Mhaku Jose Manalili', email: 'mhak@gmail.com', phoneNumber: '0917-123-4567', status: 'Active', commuterType: 'Regular', languagePreference: 'English', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=ID' },
+  { id: 4, name: 'Mark Arone Dela Cruz', email: 'MArone.c@email.com', phoneNumber: '0918-234-5678', status: 'Active', commuterType: 'Student', languagePreference: 'Filipino', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=ID' },
+  { id: 1, name: 'Rod Dulalia', email: 'Rod@gmail.com', phoneNumber: '0923-324-4327', status: 'Active', commuterType: 'Regular', languagePreference: 'English', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=ID' },
+
+
 ];
 
 const initialPendingRequests = [
-  { id: 'REQ-101', name: 'Ana Lopez', email: 'ana.l@email.com', phoneNumber: '0919-345-6789', commuterType: 'PWD', languagePreference: 'English', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=PWD+ID', status: 'Pending Verification' },
-  { id: 'REQ-102', name: 'Pedro Santos', email: 'pedro.s@email.com', phoneNumber: '0920-456-7890', commuterType: 'Senior Citizen', languagePreference: 'Filipino', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=Senior+ID', status: 'Pending Verification' },
+  { id: 'REQ-101', name: 'Marinel Carbonel', email: 'Mari.C@email.com', phoneNumber: '0919-345-6789', commuterType: 'PWD', languagePreference: 'English', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=PWD+ID', status: 'Pending Verification' },
+  { id: 'REQ-102', name: 'Stephen Hawkin', email: 'Jeff.Stephen@email.com', phoneNumber: '0920-456-7890', commuterType: 'PWD', languagePreference: 'Filipino', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=Senior+ID', status: 'Pending Verification' },
 ];
 
 const initialRejectedUsers = [
@@ -135,7 +138,7 @@ export default function UsersPage() {
       </div>
 
       {/* Tab Content */}
-      {activeTab === 'active' && (
+     {activeTab === 'active' && (
         <UsersTable users={activeUsers} searchQuery={searchQuery} onDeactivate={handleDeactivateUser} onViewHistory={handleOpenHistoryModal} isRejectedTab={false} />
       )}
       {activeTab === 'pending' && (

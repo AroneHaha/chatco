@@ -32,15 +32,14 @@ const mapBoundsArray: [[number, number], [number, number]] = [
 ];
 const MAP_CENTER: L.LatLngTuple = [rawBounds.getCenter().lat, rawBounds.getCenter().lng];
 
-// --- NEW: Define a type for the hailer data for better type safety ---
 interface HailerData {
   id: number;
   name: string;
-  latlng: [number, number]; // Explicitly define as a tuple
+  latlng: [number, number]; 
   status: string;
 }
 
-// --- NEW: Mock data for hailing commuters with the correct type ---
+
 const HAILER_DATA: HailerData[] = [
   { id: 1, name: 'Ana', latlng: [14.9013, 120.7719], status: 'Waiting' },
   { id: 2, name: 'Ben', latlng: [14.8282, 120.8809], status: 'Waiting' },

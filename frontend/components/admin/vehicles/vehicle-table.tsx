@@ -1,15 +1,24 @@
 // components/admin/vehicles/vehicle-table.tsx
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
-import { Pencil } from 'lucide-react';
+
+const mockVehicles = [
+  { plateNumber: 'XQJ 4728', route: 'Malolos - Meycauayan - Calumpit', driver: 'Marco Reyes', conductor: 'Juan Dela Cruz', status: 'Operating' },
+  { plateNumber: 'VMY 9183', route: 'Malolos - Meycauayan - Calumpit', driver: 'Pedro Santos', conductor: 'Jose Rizal', status: 'Operating' },
+  { plateNumber: 'RZP 6041', route: 'Malolos - Meycauayan - Calumpit', driver: null, conductor: null, status: 'Under Maintenance' },
+  { plateNumber: 'LKW 3579', route: 'Malolos - Meycauayan - Calumpit', driver: 'Andres Bonifacio', conductor: 'Emilio Aguinaldo', status: 'Operating' },
+  { plateNumber: 'TNB 8462', route: 'Malolos - Meycauayan - Calumpit', driver: null, conductor: null, status: 'Out of Service / Damaged' },
+  { plateNumber: 'JHX 7905', route: 'Malolos - Meycauayan - Calumpit', driver: 'Carlos Garcia', conductor: 'Ramon Magsaysay', status: 'Operating' },
+  { plateNumber: 'QFD 2316', route: 'Malolos - Meycauayan - Calumpit', driver: 'Maria Clara', conductor: null, status: 'Operating' },
+  { plateNumber: 'PVR 6894', route: 'Malolos - Meycauayan - Calumpit', driver: null, conductor: null, status: 'Under Maintenance' },
+  { plateNumber: 'KSL 5043', route: 'Malolos - Meycauayan - Calumpit', driver: 'Antonio Luna', conductor: 'Graciano Lopez', status: 'Operating' },
+];
 
 interface VehicleTableProps {
-  vehicles: any[];
   searchQuery: string;
-  onEdit: (vehicle: any) => void;
 }
 
-export function VehicleTable({ vehicles, searchQuery, onEdit }: VehicleTableProps) {
+export function VehicleTable({ searchQuery }: VehicleTableProps) {
   const columns = [
     { key: 'plateNumber', label: 'Plate' },
     { key: 'route', label: 'Route' },
@@ -26,24 +35,7 @@ export function VehicleTable({ vehicles, searchQuery, onEdit }: VehicleTableProp
         return <Badge variant={variant}>{value}</Badge>;
       },
     },
-    { key: 'speed', label: 'Speed', render: (value: number) => `${value} km/h` },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (_: any, row: any) => (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onEdit(row);
-          }}
-          className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white transition-colors"
-          title="Edit Vehicle"
-        >
-          <Pencil size={16} />
-        </button>
-      ),
-    },
   ];
 
-  return <DataTable data={vehicles} columns={columns} searchQuery={searchQuery} />;
+  return <DataTable data={mockVehicles} columns={columns} searchQuery={searchQuery} />;
 }
