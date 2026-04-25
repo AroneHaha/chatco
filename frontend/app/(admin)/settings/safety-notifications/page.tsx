@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import { GlassCard } from '@/components/admin/ui/glass-card';
+import BackButton from '@/components/admin/ui/back-button';
 import { Save, PhoneCall, MessageSquare } from 'lucide-react';
 
 interface NotificationTemplate {
@@ -55,81 +56,100 @@ export default function SafetyNotificationsPage() {
   };
 
   return (
-    <>
-      <h1 className="text-3xl font-bold text-white mb-6">Safety & Notifications</h1>
-      
-      <form onSubmit={handleSave} className="space-y-6 max-w-4xl">
+    <div className="min-h-screen pb-12 px-4 sm:px-6">
+      <div className="mx-auto w-full max-w-4xl space-y-6">
         
-        {/* Emergency Contacts */}
-        <GlassCard className="p-6">
-          <h2 className="text-xl font-semibold text-white mb-4 flex items-center space-x-2">
-            <PhoneCall size={20} className="text-red-400" />
-            <span>Emergency Contacts</span>
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Emergency Hotline Number</label>
-              <p className="text-xs text-gray-500 mb-2">Displayed to conductors in case of severe emergencies.</p>
-              <input 
-                type="text" 
-                value={emergencyHotline} 
-                onChange={(e) => { setEmergencyHotline(e.target.value); setIsSaved(false); }} 
-                className="block w-full px-3 py-2 bg-white/10 border border-white/20 rounded-md text-white focus:outline-none focus:ring-blue-500" 
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Admin SOS Notification Email</label>
-              <p className="text-xs text-gray-500 mb-2">Receives a backup email when an SOS is triggered.</p>
-              <input 
-                type="email" 
-                value={adminSOSEmail} 
-                onChange={(e) => { setAdminSOSEmail(e.target.value); setIsSaved(false); }} 
-                className="block w-full px-3 py-2 bg-white/10 border border-white/20 rounded-md text-white focus:outline-none focus:ring-blue-500" 
-              />
-            </div>
-          </div>
-        </GlassCard>
+        {/* Centered Back Button */}
+        <div className="flex justify-center pt-2">
+          <BackButton href="/settings" />
+        </div>
 
-        {/* Notification Templates */}
-        <GlassCard className="p-6">
-          <h2 className="text-xl font-semibold text-white mb-4 flex items-center space-x-2">
-            <MessageSquare size={20} className="text-red-400" />
-            <span>Push Notification Templates</span>
-          </h2>
-          <p className="text-xs text-gray-500 mb-6">Use the variables in curly braces to inject dynamic data into the messages.</p>
+        {/* Centered Title */}
+        <div className="text-center">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">Safety & Notifications</h1>
+        </div>
+        
+        <form onSubmit={handleSave} className="space-y-6">
           
-          <div className="space-y-6">
-            {templates.map((template) => (
-              <div key={template.id} className="p-4 bg-white/5 rounded-lg border border-white/10">
-                <div className="mb-3">
-                  <h3 className="text-base font-semibold text-white">{template.title}</h3>
-                  <p className="text-xs text-gray-400 mt-1">{template.description}</p>
-                </div>
-                
-                <textarea 
-                  value={template.content}
-                  onChange={(e) => handleTemplateChange(template.id, e.target.value)}
-                  rows={4}
-                  className="w-full bg-black/30 border border-white/20 rounded-md text-white text-sm p-3 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none font-mono"
+          {/* Emergency Contacts */}
+          <GlassCard className="p-4 sm:p-6">
+            <h2 className="text-lg sm:text-xl font-semibold text-white mb-4 flex items-center gap-2">
+              <PhoneCall size={20} className="text-red-400 flex-shrink-0" />
+              <span>Emergency Contacts</span>
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1.5">Emergency Hotline Number</label>
+                <p className="text-xs text-gray-500 mb-2">Displayed to conductors in case of severe emergencies.</p>
+                <input 
+                  type="text" 
+                  value={emergencyHotline} 
+                  onChange={(e) => { setEmergencyHotline(e.target.value); setIsSaved(false); }} 
+                  className="block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" 
                 />
-                
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {template.variables.map((variable) => (
-                    <span key={variable} className="px-2 py-0.5 bg-blue-500/20 text-blue-300 text-xs rounded-full border border-blue-500/30 font-mono">
-                      {variable}
-                    </span>
-                  ))}
-                </div>
               </div>
-            ))}
-          </div>
-        </GlassCard>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1.5">Admin SOS Notification Email</label>
+                <p className="text-xs text-gray-500 mb-2">Receives a backup email when an SOS is triggered.</p>
+                <input 
+                  type="email" 
+                  value={adminSOSEmail} 
+                  onChange={(e) => { setAdminSOSEmail(e.target.value); setIsSaved(false); }} 
+                  className="block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" 
+                />
+              </div>
+            </div>
+          </GlassCard>
 
-        <button type="submit" className="flex items-center space-x-2 px-6 py-2.5 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 transition-colors">
-          <Save size={18} />
-          <span>{isSaved ? 'Changes Saved!' : 'Save Settings'}</span>
-        </button>
-      </form>
-    </>
+          {/* Notification Templates */}
+          <GlassCard className="p-4 sm:p-6">
+            <div className="mb-6">
+              <h2 className="text-lg sm:text-xl font-semibold text-white flex items-center gap-2">
+                <MessageSquare size={20} className="text-cyan-400 flex-shrink-0" />
+                <span>Push Notification Templates</span>
+              </h2>
+              <p className="text-xs text-gray-500 mt-1">Use the variables in curly braces to inject dynamic data into the messages.</p>
+            </div>
+            
+            <div className="space-y-6">
+              {templates.map((template) => (
+                <div key={template.id} className="p-4 bg-white/5 rounded-xl border border-white/10">
+                  <div className="mb-3">
+                    <h3 className="text-sm sm:text-base font-semibold text-white break-words">{template.title}</h3>
+                    <p className="text-xs text-gray-400 mt-1 break-words">{template.description}</p>
+                  </div>
+                  
+                  <textarea 
+                    value={template.content}
+                    onChange={(e) => handleTemplateChange(template.id, e.target.value)}
+                    rows={4}
+                    className="w-full bg-black/30 border border-white/20 rounded-lg text-white text-xs sm:text-sm p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono leading-relaxed"
+                  />
+                  
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {template.variables.map((variable) => (
+                      <span key={variable} className="px-2 py-0.5 bg-blue-500/20 text-blue-300 text-[10px] sm:text-xs rounded-full border border-blue-500/30 font-mono">
+                        {variable}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </GlassCard>
+
+          {/* Centered Save Button */}
+          <div className="flex justify-center pt-2 pb-8">
+            <button 
+              type="submit" 
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 transition-colors active:scale-95"
+            >
+              <Save size={18} />
+              <span>{isSaved ? 'Changes Saved!' : 'Save Settings'}</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }

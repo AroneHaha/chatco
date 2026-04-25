@@ -20,7 +20,7 @@ const ROUTE_COORDS: [number, number][] = [
 ];
 
 const rawBounds = L.latLngBounds(ROUTE_COORDS);
-const routeBounds = rawBounds.pad(0.008); 
+const routeBounds = rawBounds.pad(0.008);
 const mapBounds = L.latLngBounds(
   [rawBounds.getSouth() - 0.04, rawBounds.getWest() - 0.10],
   [rawBounds.getNorth() + 0.015, rawBounds.getEast() + 0.10]
@@ -35,7 +35,7 @@ const MAP_CENTER: L.LatLngTuple = [rawBounds.getCenter().lat, rawBounds.getCente
 interface HailerData {
   id: number;
   name: string;
-  latlng: [number, number]; 
+  latlng: [number, number];
   status: string;
 }
 
@@ -60,13 +60,13 @@ function getBearing(start: [number, number], end: [number, number]): number {
   return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
 
-function LocationFinder({ 
+function LocationFinder({
   isDesktop,
   userLocationRef,
-  setUserActualLocation, 
+  setUserActualLocation,
   setShowMapPin,
   setArrowPos
-}: { 
+}: {
   isDesktop: boolean;
   userLocationRef: React.MutableRefObject<[number, number] | null>;
   setUserActualLocation: (loc: [number, number] | null) => void;
@@ -81,11 +81,11 @@ function LocationFinder({
       const userCoords: [number, number] = [lat, lng];
       setUserActualLocation(userCoords);
       userLocationRef.current = userCoords;
-      
+
       const userLatLng = L.latLng(lat, lng);
       if (routeBounds.contains(userLatLng)) {
         setShowMapPin(true);
-        setArrowPos(null); 
+        setArrowPos(null);
         map.flyTo([lat, lng], 16, { duration: 1.5 });
       } else {
         setShowMapPin(false);
@@ -97,7 +97,7 @@ function LocationFinder({
 
       const userLatLng = L.latLng(userCoords[0], userCoords[1]);
       const bounds = map.getBounds();
-      
+
       if (bounds.contains(userLatLng)) {
         setArrowPos(null);
         return;
@@ -190,7 +190,7 @@ export default function AdminCommuterMap({ isDesktop = false }: { isDesktop?: bo
   return (
     <>
       {arrowPos && (
-        <div 
+        <div
           className="absolute z-[1000] flex flex-col items-center pointer-events-none select-none"
           style={{
             left: `${arrowPos.x}%`,
@@ -198,14 +198,14 @@ export default function AdminCommuterMap({ isDesktop = false }: { isDesktop?: bo
             transform: `translate(-50%, -50%)`
           }}
         >
-          <svg 
-            className="w-8 h-8 text-[#62A0EA] drop-shadow-lg animate-pulse" 
-            style={{ transform: `rotate(${arrowPos.angle}deg)` }} 
+          <svg
+            className="w-8 h-8 text-[#62A0EA] drop-shadow-lg animate-pulse"
+            style={{ transform: `rotate(${arrowPos.angle}deg)` }}
             fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}
           >
             <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
           </svg>
-          
+
           <span className="mt-1 text-[9px] font-bold text-white bg-[#071A2E]/90 backdrop-blur-sm px-1.5 py-0.5 rounded-md shadow-lg border border-white/20">
             You
           </span>
@@ -223,7 +223,7 @@ export default function AdminCommuterMap({ isDesktop = false }: { isDesktop?: bo
         maxBoundsViscosity={1.0}
         minZoom={isDesktop ? 13 : 11}
       >
-        <LocationFinder 
+        <LocationFinder
           isDesktop={isDesktop}
           userLocationRef={userLocationRef}
           setUserActualLocation={setUserActualLocation}
@@ -232,7 +232,7 @@ export default function AdminCommuterMap({ isDesktop = false }: { isDesktop?: bo
         />
 
         <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
-        
+
         <Polyline positions={ROUTE_COORDS} pathOptions={{ color: '#62A0EA', weight: 8, opacity: 0.2, lineCap: 'round', lineJoin: 'round' }} />
         <Polyline positions={ROUTE_COORDS} pathOptions={{ color: '#62A0EA', weight: 4, opacity: 0.9, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }} />
 
@@ -258,7 +258,7 @@ export default function AdminCommuterMap({ isDesktop = false }: { isDesktop?: bo
             <div className="text-xs text-gray-500">Available • Heading to Calumpit</div>
           </Popup>
         </Marker>
-        
+
         <Marker position={ROUTE_COORDS[68]} icon={jeepneyIcon}>
           <Popup>
             <div className="font-bold text-[#071A2E]">Jeep 03 - Marilao</div>

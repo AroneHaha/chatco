@@ -1,290 +1,359 @@
-// components/dashboard/Monitoring.tsx
+// app/page.tsx
 "use client";
 
-import { useState } from "react";
-import DataTable, { Column } from "@/components/ui/DataTable";
-import AdminCommuterMap from "@/components/admin/admin-commuter-map";
+import { useRef } from "react";
+import dynamic from "next/dynamic";
+import Link from "next/link";
+import {
+  MapPin,
+  Users,
+  Truck,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  Calculator,
+  Receipt,
+  Ticket,
+  Bell,
+  Settings,
+  ArrowRight,
+  TrendingUp,
+  Wallet,
+  Banknote,
+  SlidersHorizontal,
+} from "lucide-react";
 
-/* ─── Mock Data ─── */
-const VEHICLES = [
-  { unit: "XQJ 4728", driver: "Mhaku Jose Manalili", speed: 28, status: "normal", zone: "Malolos" },
-  { unit: "VMY 9183", driver: "Mark Arone Dela Cruz", speed: 62, status: "overspeeding", zone: "Malolos–Meycauayan" },
-  { unit: "RZP 6041", driver: "Rod Erick Dulalia", speed: 25, status: "normal", zone: "Meycauayan" },
-  { unit: "LKW 3579", driver: "Marinel Carbonel", speed: 0, status: "idle", zone: "Meycauayan" },
-  { unit: "TNB 8462", driver: "Nardong Putik", speed: 68, status: "overspeeding", zone: "Meycauayan–Calumpit" },
-  { unit: "JHX 7905", driver: "Karding Dela Paz", speed: 30, status: "normal", zone: "Calumpit" },
-  { unit: "PVR 6894", driver: "Nikola Tekla", speed: 27, status: "normal", zone: "Calumpit" },
-  { unit: "PVR 6894", driver: "Alden Recharge", speed: 32, status: "normal", zone: "Malolos–Meycauayan" },
-];
-
-const WEEKLY_RIDES = [
-  { day: "Mon", rides: 1680 },
-  { day: "Tue", rides: 1520 },
-  { day: "Wed", rides: 1740 },
-  { day: "Thu", rides: 1610 },
-  { day: "Fri", rides: 1890 },
-  { day: "Sat", rides: 1240 },
-  { day: "Sun", rides: 820 },
-];
-
-const ZONES_ANALYTICS = [
-  { name: "Malolos", riders: 1420 },
-  { name: "Meycauayan", riders: 980 },
-  { name: "Calumpit", riders: 740 },
-];
-
-// --- CHATCO WALLET DATA ---
-const CHATCO_WALLET_STATS = {
-  activeUsers: 2340,
-  weeklyTopUps: "₱45,200",
-  weeklySpent: "₱38,150",
-  weeklyTransactions: 6420,
-};
-
-const DAILY_WALLET_TXNS = [
-  { day: "Mon", txns: 980 },
-  { day: "Tue", txns: 910 },
-  { day: "Wed", txns: 1050 },
-  { day: "Thu", txns: 920 },
-  { day: "Fri", txns: 1120 },
-  { day: "Sat", txns: 840 },
-  { day: "Sun", txns: 600 },
-];
-
-/* ─── Sub-components ─── */
-function StatCard({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) {
-  return (
-    <div className="bg-white/[0.04] border border-white/10 rounded-xl p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-white/40">{label}</p>
-      <p className={`text-2xl font-bold mt-1 ${accent ?? "text-white"}`}>{value}</p>
-      {sub && <p className="text-xs text-white/40 mt-0.5">{sub}</p>}
+// FIX: Dynamic import to prevent "window is not defined" SSR error
+const AdminCommuterMap = dynamic(() => import("@/components/admin/admin-commuter-map"), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full bg-[#050F1A] rounded-xl animate-pulse flex items-center justify-center border border-white/10">
+      <p className="text-white/20 text-sm">Loading map...</p>
     </div>
-  );
-}
+  ),
+});
 
-/* ─── Main Component ─── */
-export default function Monitoring() {
-  const [tab, setTab] = useState<"live" | "analytics">("live");
+/* ─── MOCK DATA ─── */
+const recentVehicles = [
+  { unit: "XQJ 4728", driver: "Mhaku Jose Manalili", status: "Active" },
+  { unit: "VMY 9183", driver: "Mark Arone Dela Cruz", status: "Maintenance" },
+  { unit: "RZP 6041", driver: "Rod Erick Dulalia", status: "Active" },
+];
 
-  const overspeedCount = VEHICLES.filter((v) => v.status === "overspeeding").length;
-  const maxRides = Math.max(...WEEKLY_RIDES.map((d) => d.rides));
-  const maxTxns = Math.max(...DAILY_WALLET_TXNS.map((d) => d.txns));
+const recentLostFound = [
+  { item: "Black Backpack", status: "Under Review" },
+  { item: "Brown Wallet", status: "Reported" },
+  { item: "Student ID", status: "Returned" },
+];
 
-  const columns: Column[] = [
-    { key: "unit", label: "Unit", width: "w-[100px]", align: "left" },
-    { key: "driver", label: "Driver", width: "w-[160px]", align: "left" },
-    { key: "zone", label: "Location", width: "w-[180px]", align: "left" },
-    { key: "speed", label: "Speed", width: "w-[100px]", align: "center" },
-    { key: "status", label: "Status", width: "w-[140px]", align: "center" },
-  ];
+const recentUsers = [
+  { name: "Ana Lim", role: "Commuter", status: "Active" },
+  { name: "Marco Reyes", role: "Operator", status: "Active" },
+  { name: "Juan Dela Cruz", role: "Driver", status: "Inactive" },
+];
+
+const quickStats = [
+  { label: "Net Profit (Today)", value: "₱14,500", icon: TrendingUp, color: "text-green-400 bg-green-500/15", link: "/analytics" },
+  { label: "Total Rides (Week)", value: "9,500", icon: MapPin, color: "text-[#62A0EA] bg-[#1A5FB4]/15", link: "/analytics" },
+  { label: "Active Wallets", value: "2,340", icon: Wallet, color: "text-purple-400 bg-purple-500/15", link: "/analytics" },
+  { label: "Pending Remittance", value: "₱8,400", icon: Banknote, color: "text-amber-400 bg-amber-500/15", link: "/remittance" },
+];
+
+// FIXED: Exact paths matching your settings folder structure
+const settingsModules = [
+  { 
+    title: "Fare Matrix", 
+    desc: "Set base fares and distance rates.", 
+    icon: Calculator, 
+    iconColor: "text-blue-400", 
+    gradient: "linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(37, 99, 235, 0.05) 100%)",
+    href: "/settings/fare-matrix" 
+  },
+  { 
+    title: "Financial Rules", 
+    desc: "Configure fare deductions and splits.", 
+    icon: Receipt, 
+    iconColor: "text-green-400", 
+    gradient: "linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(22, 163, 74, 0.05) 100%)",
+    href: "/settings/financial-rules" 
+  },
+  { 
+    title: "Voucher Generator", 
+    desc: "Create promo codes and free ride passes.", 
+    icon: Ticket, 
+    iconColor: "text-purple-400", 
+    gradient: "linear-gradient(135deg, rgba(168, 85, 247, 0.2) 0%, rgba(147, 51, 234, 0.05) 100%)",
+    href: "/settings/voucher-generator" 
+  },
+  { 
+    title: "Safety Notifications", 
+    desc: "Manage alert triggers and templates.", 
+    icon: Bell, 
+    iconColor: "text-amber-400", 
+    gradient: "linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(217, 119, 6, 0.05) 100%)",
+    href: "/settings/safety-notifications" 
+  },
+  { 
+    title: "App Configuration", 
+    desc: "General system preferences and UI.", 
+    icon: SlidersHorizontal, 
+    iconColor: "text-pink-400", 
+    gradient: "linear-gradient(135deg, rgba(236, 72, 153, 0.2) 0%, rgba(219, 39, 119, 0.05) 100%)",
+    href: "/settings/app-configuration" 
+  },
+  { 
+    title: "Remittance Options", 
+    desc: "Add or edit remittance recipients.", 
+    icon: Banknote, 
+    iconColor: "text-cyan-400", 
+    gradient: "linear-gradient(135deg, rgba(6, 182, 212, 0.2) 0%, rgba(8, 145, 178, 0.05) 100%)",
+    href: "/settings/remittance-options" 
+  },
+];
+
+export default function DashboardHome() {
+  const carouselRef = useRef<HTMLDivElement>(null);
+
+  const scroll = (direction: "left" | "right") => {
+    if (carouselRef.current) {
+      const scrollAmount = 300;
+      carouselRef.current.scrollBy({ left: direction === "left" ? -scrollAmount : scrollAmount, behavior: "smooth" });
+    }
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-8">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-white">Monitoring</h1>
-        <p className="text-sm text-white/40 mt-1">
-          Malolos – Meycauayan – Calumpit e-jeep corridor. Real-time tracking, speed enforcement, and ridership data.
-        </p>
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+          <p className="text-sm text-white/40 mt-1">Welcome back. Here&apos;s what&apos;s happening across your network today.</p>
+        </div>
+        <Link href="/settings" className="group flex items-center gap-2 text-sm font-medium text-[#62A0EA] hover:text-[#99C1F1] transition-colors w-fit">
+          Open Full Settings
+          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+        </Link>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-white/[0.04] rounded-xl p-1 w-fit">
-        {(["live", "analytics"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-5 py-2 rounded-lg text-sm font-medium transition-all capitalize ${
-              tab === t ? "bg-[#1A5FB4] text-white shadow-lg shadow-[#1A5FB4]/30" : "text-white/50 hover:text-white/80"
-            }`}
-          >
-            {t === "live" ? "Live Map" : "Analytics"}
-          </button>
+      {/* Quick Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {quickStats.map((stat) => (
+          <Link key={stat.label} href={stat.link} className="bg-white/[0.04] border border-white/10 rounded-xl p-4 flex items-center gap-4 hover:border-white/20 transition-all">
+            <div className={`w-10 h-10 rounded-lg ${stat.color} flex items-center justify-center flex-shrink-0`}>
+              <stat.icon className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-[11px] font-medium text-white/40 uppercase tracking-wider">{stat.label}</p>
+              <p className="text-xl font-bold text-white mt-0.5">{stat.value}</p>
+            </div>
+          </Link>
         ))}
       </div>
 
-      {/* ═══ LIVE MAP TAB ═══ */}
-      {tab === "live" && (
-        <div className="space-y-6">
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatCard label="Total E-Jeeps" value={VEHICLES.length.toString()} sub="On this route" />
-            <StatCard label="Traveling" value={VEHICLES.filter((v) => v.status !== "idle").length.toString()} sub="On the road" />
-            <StatCard label="Overspeeding" value={overspeedCount.toString()} sub="Above 60 km/h" accent="text-red-400" />
-            <StatCard label="Boarding Zones" value="3" sub="Malolos · Meycauayan · Calumpit" />
+      {/* Main Grid: Map & Analytics */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Live Map Preview */}
+        <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-1 h-[380px] flex flex-col">
+          <div className="px-4 pt-3 pb-2 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-[#62A0EA]" /> Live Monitoring
+            </h3>
+            <Link href="/monitoring" className="text-xs text-[#62A0EA] hover:underline">View Full Map</Link>
           </div>
-
-          {/* Real Map Integration */}
-          <div className="relative h-[400px] md:h-[500px] rounded-2xl overflow-hidden border border-white/10">
-            <AdminCommuterMap isDesktop={true} />
+          <div className="flex-1 rounded-xl overflow-hidden border border-white/[0.06] mx-1 mb-1">
+            <AdminCommuterMap isDesktop={false} />
           </div>
-
-          {/* Vehicle Table */}
-          <DataTable
-            columns={columns}
-            data={VEHICLES}
-            rowClass={(row) => {
-              const s = row.status as string;
-              if (s === "overspeeding") return "bg-red-500/[0.06] border-l-2 border-l-red-500";
-              if (s === "idle") return "opacity-50";
-              return "";
-            }}
-            renderCell={(key, value, row) => {
-              if (key === "speed") {
-                const isOver = (row.status as string) === "overspeeding";
-                const isIdle = (row.status as string) === "idle";
-                return (
-                  <span className={`flex items-center justify-center gap-1 font-semibold ${isOver ? "text-red-400" : isIdle ? "text-white/30" : "text-white/70"}`}>
-                    {isOver && (
-                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.168 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495ZM10 6a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 6Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                    {value} km/h
-                  </span>
-                );
-              }
-              if (key === "status") {
-                const s = value as string;
-                const map: Record<string, { label: string; cls: string }> = {
-                  normal: { label: "Normal", cls: "bg-green-500/15 text-green-400" },
-                  overspeeding: { label: "OVERSPEEDING", cls: "bg-red-500/15 text-red-400 font-bold" },
-                  idle: { label: "Idle", cls: "bg-yellow-500/15 text-yellow-400" },
-                };
-                const cfg = map[s] ?? map.normal;
-                return <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] ${cfg.cls}`}>{cfg.label}</span>;
-              }
-              return null;
-            }}
-          />
         </div>
-      )}
 
-      {/* ═══ ANALYTICS TAB ═══ */}
-      {tab === "analytics" && (
-        <div className="space-y-6">
-          {/* Summary */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatCard label="Weekly Rides" value="9,500" sub="+8% vs last week" />
-            <StatCard label="Weekly Revenue" value="₱123,500" sub="Avg ₱13/ride" />
-            <StatCard label="Peak Hours" value="6–8 AM" sub="Weekday mornings" />
-            <StatCard label="Chatco Wallet Usage" value="₱4040" sub="Across all units" />
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* Weekly Ridership */}
-            <div className="bg-white/[0.04] border border-white/10 rounded-xl p-5">
-              <h3 className="text-sm font-semibold text-white mb-4">Weekly Ridership</h3>
-              <div className="flex items-end gap-3 h-48">
-                {WEEKLY_RIDES.map((d) => (
-                  <div key={d.day} className="flex-1 flex flex-col items-center gap-2">
-                    <span className="text-[10px] text-white/40 font-medium">{d.rides}</span>
-                    <div
-                      className="w-full bg-[#1A5FB4] rounded-t-md transition-all"
-                      style={{ height: `${(d.rides / maxRides) * 100}%`, minHeight: "8px" }}
-                    />
-                    <span className="text-[10px] text-white/50">{d.day}</span>
-                  </div>
-                ))}
-              </div>
+        {/* Right Side: Analytics Previews */}
+        <div className="flex flex-col gap-6">
+          {/* Payment Split */}
+          <div className="flex-1 bg-white/[0.04] border border-white/10 rounded-2xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-white">Payment Tendencies (Today)</h3>
+              <Link href="/analytics" className="text-xs text-[#62A0EA] hover:underline">More Analytics</Link>
             </div>
-
-            {/* Per-Zone Breakdown */}
-            <div className="bg-white/[0.04] border border-white/10 rounded-xl p-5">
-              <h3 className="text-sm font-semibold text-white mb-4">Boarding by Zone</h3>
-              <div className="space-y-4">
-                {ZONES_ANALYTICS.sort((a, b) => b.riders - a.riders).map((z) => (
-                  <div key={z.name}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs text-white/70 font-medium">{z.name}</span>
-                      <span className="text-xs text-white/40">{z.riders} riders</span>
-                    </div>
-                    <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden">
-                      <div className="h-full bg-[#1A5FB4] rounded-full" style={{ width: `${(z.riders / ZONES_ANALYTICS[0].riders) * 100}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-5 pt-4 border-t border-white/[0.06]">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-white/40">Total route distance</span>
-                  <span className="text-xs text-white/70 font-semibold">~14 km</span>
+            <div className="space-y-3">
+              <div>
+                <div className="flex justify-between mb-1">
+                  <span className="text-xs text-white/70">Chatco Wallet</span>
+                  <span className="text-xs font-bold text-white/80">78%</span>
                 </div>
-                <div className="flex items-center justify-between mt-1.5">
-                  <span className="text-xs text-white/40">Avg travel time</span>
-                  <span className="text-xs text-white/70 font-semibold">~35 min</span>
+                <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden">
+                  <div className="h-full bg-[#62A0EA] rounded-full w-[78%]" />
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between mb-1">
+                  <span className="text-xs text-white/70">Cash</span>
+                  <span className="text-xs font-bold text-white/80">22%</span>
+                </div>
+                <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden">
+                  <div className="h-full bg-white/20 rounded-full w-[22%]" />
                 </div>
               </div>
             </div>
           </div>
 
-          {/* ── CHATCO WALLET USAGE & FREQUENCY ── */}
-          <div className="bg-white/[0.04] border border-white/10 rounded-xl p-5">
-            <div className="flex items-center gap-2 mb-5">
-              <div className="w-7 h-7 bg-[#1A5FB4]/20 rounded-lg flex items-center justify-center">
-                <svg className="w-4 h-4 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a2.25 2.25 0 0 0-2.25-2.25H15a3 3 0 1 1-6 0H5.25A2.25 2.25 0 0 0 3 12m18 0v6a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 9m18 0V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v3" />
-                </svg>
-              </div>
-              <h3 className="text-sm font-semibold text-white">Chatco Wallet</h3>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-white/30">Active Users</p>
-                <p className="text-xl font-bold text-white mt-1">{CHATCO_WALLET_STATS.activeUsers.toLocaleString()}</p>
-              </div>
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-white/30">Weekly Top-Ups</p>
-                <p className="text-xl font-bold text-green-400 mt-1">{CHATCO_WALLET_STATS.weeklyTopUps}</p>
-              </div>
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-white/30">Weekly Spend</p>
-                <p className="text-xl font-bold text-[#62A0EA] mt-1">{CHATCO_WALLET_STATS.weeklySpent}</p>
-              </div>
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-white/30">Transactions</p>
-                <p className="text-xl font-bold text-white mt-1">{CHATCO_WALLET_STATS.weeklyTransactions.toLocaleString()}</p>
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs text-white/40 mb-3">Daily Tap Frequency (This Week)</p>
-              <div className="flex items-end gap-3 h-32">
-                {DAILY_WALLET_TXNS.map((d) => (
-                  <div key={d.day} className="flex-1 flex flex-col items-center gap-1.5">
-                    <span className="text-[9px] text-white/30 font-medium">{d.txns}</span>
-                    <div
-                      className="w-full bg-[#62A0EA] rounded-t-sm transition-all"
-                      style={{ height: `${(d.txns / maxTxns) * 100}%`, minHeight: "6px" }}
-                    />
-                    <span className="text-[9px] text-white/40">{d.day}</span>
+          {/* Top Pickup Points */}
+          <div className="flex-1 bg-white/[0.04] border border-white/10 rounded-2xl p-5">
+            <h3 className="text-sm font-semibold text-white mb-4">Top Pickup Points</h3>
+            <div className="space-y-3">
+              {[
+                { name: "Malolos Terminal", val: 1420 },
+                { name: "Meycauayan Crossing", val: 980 },
+                { name: "Calumpit Town Proper", val: 740 },
+              ].map((p, i) => (
+                <div key={p.name} className="flex items-center gap-3">
+                  <span className="text-[10px] font-bold text-white/30 w-3">{i + 1}</span>
+                  <div className="flex-1">
+                    <div className="flex justify-between mb-1">
+                      <span className="text-xs text-white/60">{p.name}</span>
+                      <span className="text-[10px] text-white/30">{p.val}</span>
+                    </div>
+                    <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+                      <div className="h-full bg-[#1A5FB4] rounded-full" style={{ width: `${(p.val / 1420) * 100}%` }} />
+                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Speed Violations */}
-          <div className="bg-white/[0.04] border border-white/10 rounded-xl p-5">
-            <h3 className="text-sm font-semibold text-white mb-4">Speed Violations This Week</h3>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="text-center">
-                <p className="text-3xl font-bold text-red-400">18</p>
-                <p className="text-xs text-white/40 mt-1">Total Violations</p>
-              </div>
-              <div className="text-center">
-                <p className="text-3xl font-bold text-yellow-400">2</p>
-                <p className="text-xs text-white/40 mt-1">Repeat Offenders</p>
-              </div>
-              <div className="text-center">
-                <p className="text-3xl font-bold text-white">65</p>
-                <p className="text-xs text-white/40 mt-1">Avg Violation (km/h)</p>
-              </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
-      )}
+      </div>
+
+      {/* Previews: Vehicles, Lost & Found, Users */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Vehicles / Fleet */}
+        <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-5 flex flex-col">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+              <Truck className="w-4 h-4 text-[#62A0EA]" /> Vehicles
+            </h3>
+            <Link href="/vehicles" className="text-xs text-[#62A0EA] hover:underline">View All</Link>
+          </div>
+          <div className="space-y-3 flex-1">
+            {recentVehicles.map((v) => (
+              <div key={v.unit} className="flex items-center justify-between bg-white/[0.03] rounded-lg p-2.5">
+                <div>
+                  <p className="text-xs font-semibold text-white/80">{v.unit}</p>
+                  <p className="text-[10px] text-white/30">{v.driver}</p>
+                </div>
+                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                  v.status === "Active" ? "bg-green-500/15 text-green-400" : "bg-yellow-500/15 text-yellow-400"
+                }`}>
+                  {v.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Lost & Found */}
+        <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-5 flex flex-col">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+              <Search className="w-4 h-4 text-[#62A0EA]" /> Lost & Found
+            </h3>
+            <Link href="/lost-found" className="text-xs text-[#62A0EA] hover:underline">View All</Link>
+          </div>
+          <div className="space-y-3 flex-1">
+            {recentLostFound.map((item) => (
+              <div key={item.item} className="flex items-center justify-between bg-white/[0.03] rounded-lg p-2.5">
+                <p className="text-xs text-white/80">{item.item}</p>
+                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                  item.status === "Returned" ? "bg-green-500/15 text-green-400" : 
+                  item.status === "Under Review" ? "bg-blue-500/15 text-blue-400" : "bg-yellow-500/15 text-yellow-400"
+                }`}>
+                  {item.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* User Management */}
+        <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-5 flex flex-col">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+              <Users className="w-4 h-4 text-[#62A0EA]" /> Users
+            </h3>
+            <Link href="/users" className="text-xs text-[#62A0EA] hover:underline">View All</Link>
+          </div>
+          <div className="space-y-3 flex-1">
+            {recentUsers.map((u) => (
+              <div key={u.name} className="flex items-center justify-between bg-white/[0.03] rounded-lg p-2.5">
+                <div>
+                  <p className="text-xs font-semibold text-white/80">{u.name}</p>
+                  <p className="text-[10px] text-white/30">{u.role}</p>
+                </div>
+                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                  u.status === "Active" ? "bg-green-500/15 text-green-400" : "bg-white/10 text-white/30"
+                }`}>
+                  {u.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ─── SYSTEM SETTINGS CAROUSEL ─── */}
+      <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-6 relative">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h2 className="text-base font-bold text-white">System Settings</h2>
+            <p className="text-xs text-white/40 mt-0.5">Quick access to core configurations.</p>
+          </div>
+          
+          {/* Arrows */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => scroll("left")}
+              className="w-8 h-8 rounded-lg bg-white/[0.06] hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-colors border border-white/10"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => scroll("right")}
+              className="w-8 h-8 rounded-lg bg-white/[0.06] hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-colors border border-white/10"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Carousel Track */}
+        <div 
+          ref={carouselRef} 
+          className="flex gap-5 overflow-x-auto scroll-smooth pb-2 snap-x snap-mandatory" 
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+          {settingsModules.map((mod) => (
+            <Link 
+              key={mod.title} 
+              href={mod.href}
+              className="flex-shrink-0 w-[280px] h-[140px] rounded-xl p-5 flex flex-col justify-between group hover:border-white/20 transition-all snap-start border border-white/10"
+              style={{ background: mod.gradient }}
+            >
+              <div className={`w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center ${mod.iconColor} group-hover:scale-110 transition-transform`}>
+                <mod.icon className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-white">{mod.title}</h3>
+                <p className="text-[11px] text-white/40 mt-1 leading-relaxed">{mod.desc}</p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      {/* Hide scrollbar CSS */}
+      <style jsx global>{`
+        div::-webkit-scrollbar {
+          display: none;
+        }
+      `}</style>
     </div>
   );
 }
