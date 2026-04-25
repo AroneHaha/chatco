@@ -39,12 +39,12 @@ const regularNavItems = [
   { href: "/conductor-dashboard", label: "Home", icon: HomeIcon },
   { href: "/conductor-dashboard/end-of-day", label: "Report", icon: ReportIcon },
   { href: "/conductor-dashboard/metrics", label: "Metrics", icon: ChartIcon },
-  { href: "/conductor-dashboard/settings", label: "Settings", icon: SettingsIcon },
+  { href: "/conductor-dashboard/conductor-settings", label: "Settings", icon: SettingsIcon },
 ];
 
 export default function ConductorBottomNav({ pathname }: { pathname: string }) {
   return (
-    <nav className="absolute bottom-0 inset-x-0 z-50 pb-safe">
+    <nav className="fixed bottom-0 inset-x-0 z-50 pb-safe">
       <div className="bg-[#0B1E33]/90 backdrop-blur-2xl shadow-[0_-4px_30px_rgba(0,0,0,0.3)] border-t border-white/[0.06]">
         <div className="relative flex items-end justify-around px-4 pt-1 pb-1 md:pt-1.5 md:pb-1.5">
 

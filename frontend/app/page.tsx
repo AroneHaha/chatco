@@ -19,7 +19,6 @@ export default function Home() {
       <CommuterFeatures />
       <SafetySupport />
       <LoyaltyPerks />
-      <PlatformFeatures />
       <HeatmapShowcase />
       <FinalCTA />
       <Footer />
