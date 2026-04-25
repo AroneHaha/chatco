@@ -10,7 +10,7 @@ export default function ConductorLayout({ children }: { children: React.ReactNod
 
   return (
 <div className="fixed inset-0 bg-gray-50 flex flex-col font-sans md:flex-row">
-        
+
       {/* Desktop Sidebar (Hidden on Mobile) */}
       <div className="hidden md:flex md:flex-shrink-0">
         <ConductorSidebar pathname={pathname} />
@@ -18,8 +18,8 @@ export default function ConductorLayout({ children }: { children: React.ReactNod
 
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto relative pb-20 md:pb-0">
-        {children}
+      <main className="flex-1 overflow-y-auto relative">
+          {children}
       </main>
 
       {/* Mobile Bottom Navigation (Hidden on Desktop) */}
