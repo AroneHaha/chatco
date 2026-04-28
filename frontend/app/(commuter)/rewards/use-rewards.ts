@@ -1,3 +1,4 @@
+// app/(commuter)/rewards/use-rewards.ts
 import { useState, useEffect } from "react";
 import { RewardData } from "./types";
 

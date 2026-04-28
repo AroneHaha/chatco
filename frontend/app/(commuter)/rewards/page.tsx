@@ -1,15 +1,28 @@
+// app/(commuter)/rewards/page.tsx
 "use client";
 
 import { useRewards } from "./use-rewards";
-import { Voucher } from "./types";
+import { useAnnouncements } from "./use-announcements";
+import { Voucher, AnnouncementType } from "./types";
+
+const announcementConfig: Record<AnnouncementType, { color: string; bg: string; label: string }> = {
+  PROMO: { color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/20", label: "Promo" },
+  SAFETY: { color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", label: "Safety" },
+  SYSTEM: { color: "text-[#62A0EA]", bg: "bg-[#1A5FB4]/10 border-[#1A5FB4]/20", label: "System" },
+  MAINTENANCE: { color: "text-red-400", bg: "bg-red-500/10 border-red-500/20", label: "Advisory" },
+};
 
 export default function RewardsPage() {
   const { 
-    data, isLoading, progressPercent, ridesRemaining, 
-    showVoucherModal, setShowVoucherModal, activeVoucher, redeemVoucher 
+    data, isLoading: rewardsLoading, progressPercent, ridesRemaining, 
+    showVoucherModal, setShowVoucherModal, activeVoucher, redeemVoucher
   } = useRewards();
 
-  if (isLoading || !data) {
+  const { 
+    announcements, isLoading: announcementsLoading, markAsRead, markAllAsRead, unreadCount 
+  } = useAnnouncements();
+
+  if (rewardsLoading || announcementsLoading || !data) {
     return (
       <div className="h-full w-full flex flex-col items-center justify-center bg-[#050F1A]">
         <div className="w-8 h-8 border-2 border-white/20 border-t-[#62A0EA] rounded-full animate-spin" />
@@ -33,14 +46,50 @@ export default function RewardsPage() {
         
         {/* --- HEADER --- */}
         <div>
-          <h1 className="text-white font-bold text-2xl">Rewards</h1>
-          <p className="text-white/40 text-sm mt-1">Ride more, save more. Track your loyalty progress here.</p>
+          <h1 className="text-white font-bold text-2xl">Rewards & Updates</h1>
+          <p className="text-white/40 text-sm mt-1">Your perks, progress, and latest alerts.</p>
         </div>
 
-        {/* --- PROGRESS RING SECTION --- */}
+        {/* --- 1. ANNOUNCEMENTS SECTION --- */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-white/70 uppercase tracking-wider">Latest Updates</h3>
+            {unreadCount > 0 && (
+              <button onClick={markAllAsRead} className="text-xs font-semibold text-[#62A0EA] hover:text-white transition-colors">
+                Mark all read
+              </button>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            {announcements.slice(0, 3).map((item) => {
+              const config = announcementConfig[item.type];
+              return (
+                <div 
+                  key={item.id} 
+                  onClick={() => markAsRead(item.id)}
+                  className={`relative bg-[#071A2E] border rounded-xl p-4 transition-all duration-300 cursor-pointer hover:bg-[#0B1E33] ${item.isRead ? 'border-white/5 opacity-60' : 'border-white/10 shadow-lg shadow-black/20'}`}
+                >
+                  {!item.isRead && (
+                    <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-[#62A0EA]" />
+                  )}
+                  <div className="flex items-start gap-3">
+                    <div className={`mt-0.5 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${config.bg} ${config.color}`}>
+                      {config.label}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className={`text-sm font-bold ${item.isRead ? 'text-white/60' : 'text-white'}`}>{item.title}</h4>
+                      <p className="text-xs text-white/40 leading-relaxed mt-0.5 line-clamp-2">{item.message}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* --- 2. PROGRESS RING SECTION --- */}
         <div className="bg-[#071A2E] border border-white/10 rounded-2xl p-8 flex flex-col md:flex-row items-center gap-8 shadow-xl shadow-black/20">
-          
-          {/* Circular Progress */}
           <div className="relative w-48 h-48 flex-shrink-0">
             <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
@@ -60,7 +109,6 @@ export default function RewardsPage() {
             </div>
           </div>
 
-          {/* Text Info */}
           <div className="flex-1 text-center md:text-left">
             <h2 className="text-white font-bold text-xl mb-2">
               {ridesRemaining === 0 ? "Free Ride Unlocked! 🎉" : `${ridesRemaining} Rides to Free Ride`}
@@ -81,7 +129,7 @@ export default function RewardsPage() {
           </div>
         </div>
 
-        {/* --- VOUCHERS LIST --- */}
+        {/* --- 3. VOUCHERS LIST --- */}
         <div>
           <h3 className="text-sm font-bold text-white/70 uppercase tracking-wider mb-4">My Vouchers</h3>
           <div className="space-y-4">
@@ -136,7 +184,6 @@ export default function RewardsPage() {
             </div>
             <div className="p-8 flex flex-col items-center justify-center flex-1 bg-[#050F1A]">
               <div className="w-40 h-40 bg-white rounded-xl flex items-center justify-center shadow-lg mb-4">
-                {/* Mock QR Code */}
                 <div className="grid grid-cols-5 gap-1 w-24 h-24">
                   {Array.from({length: 25}).map((_, i) => (
                     <div key={i} className={`w-full h-full rounded-sm ${Math.random() > 0.3 ? 'bg-black' : 'bg-white'}`}></div>

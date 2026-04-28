@@ -1,28 +1,36 @@
+// app/components/auth/login-form.tsx
 "use client";
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { loginUser } from "@/lib/auth"; // Import the service
 
 export default function LoginForm() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(""); // Added error state
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    // --- FUTURE BACKEND INTEGRATION POINT ---
-    // import { loginUser } from "@/lib/auth";
-    // const response = await loginUser({ email, password });
-    // -----------------------------------------
+    setError(""); // Reset error on new attempt
 
-    // Simulating API call for now
-    setTimeout(() => {
-      console.log("Logging in:", { email, password });
+    try {
+      // Call our backend-proof service
+      const { redirectPath } = await loginUser({ email, password });
+      
+      // Redirect to the correct dashboard
+      router.push(redirectPath);
+    } catch (err: any) {
+      // Display the error thrown from lib/auth.ts
+      setError(err.message || "An unexpected error occurred.");
+    } finally {
       setIsLoading(false);
-    }, 2000);
+    }
   };
 
   return (
@@ -34,20 +42,27 @@ export default function LoginForm() {
         Enter your credentials to access your account
       </p>
 
+      {/* Error Message Display */}
+      {error && (
+        <div className="mt-4 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">
+          {error}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-        {/* Email Input */}
+        {/* Email/Username Input */}
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
-            Email Address
+            Email or Username
           </label>
           <input
             id="email"
-            type="email"
+            type="text" // Changed to text to allow "admin" or "commuter"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-[#F8FAFC] text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A5FB4]/20 focus:border-[#1A5FB4] transition-all"
-            placeholder="you@example.com"
+            placeholder="you@example.com or admin"
           />
         </div>
 
@@ -85,7 +100,7 @@ export default function LoginForm() {
           </div>
         </div>
 
-        {/* Submit Button (Matches Navbar CTA perfectly) */}
+        {/* Submit Button */}
         <button
           type="submit"
           disabled={isLoading}
