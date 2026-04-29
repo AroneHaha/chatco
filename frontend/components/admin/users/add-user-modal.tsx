@@ -106,5 +106,5 @@ export function AddUserModal({ isOpen, onClose, onSave }: AddUserModalProps) {
         </div>
       </form>
     </Modal>
-  );
+  ); 
 }

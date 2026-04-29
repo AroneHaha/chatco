@@ -1,24 +1,18 @@
 // components/admin/vehicles/vehicle-table.tsx
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
+import { Pencil, Clock } from 'lucide-react'; // Added icons
 
-const mockVehicles = [
-  { plateNumber: 'XQJ 4728', route: 'Malolos - Meycauayan - Calumpit', driver: 'Marco Reyes', conductor: 'Juan Dela Cruz', status: 'Operating' },
-  { plateNumber: 'VMY 9183', route: 'Malolos - Meycauayan - Calumpit', driver: 'Pedro Santos', conductor: 'Jose Rizal', status: 'Operating' },
-  { plateNumber: 'RZP 6041', route: 'Malolos - Meycauayan - Calumpit', driver: null, conductor: null, status: 'Under Maintenance' },
-  { plateNumber: 'LKW 3579', route: 'Malolos - Meycauayan - Calumpit', driver: 'Andres Bonifacio', conductor: 'Emilio Aguinaldo', status: 'Operating' },
-  { plateNumber: 'TNB 8462', route: 'Malolos - Meycauayan - Calumpit', driver: null, conductor: null, status: 'Out of Service / Damaged' },
-  { plateNumber: 'JHX 7905', route: 'Malolos - Meycauayan - Calumpit', driver: 'Carlos Garcia', conductor: 'Ramon Magsaysay', status: 'Operating' },
-  { plateNumber: 'QFD 2316', route: 'Malolos - Meycauayan - Calumpit', driver: 'Maria Clara', conductor: null, status: 'Operating' },
-  { plateNumber: 'PVR 6894', route: 'Malolos - Meycauayan - Calumpit', driver: null, conductor: null, status: 'Under Maintenance' },
-  { plateNumber: 'KSL 5043', route: 'Malolos - Meycauayan - Calumpit', driver: 'Antonio Luna', conductor: 'Graciano Lopez', status: 'Operating' },
-];
+// REMOVED the hardcoded mockVehicles array since we are getting it from the page now
 
 interface VehicleTableProps {
+  vehicles: any[]; // Added vehicles prop
   searchQuery: string;
+  onEdit: (vehicle: any) => void; // Added edit handler
+  onEditShift: (vehicle: any) => void; // Added shift handler
 }
 
-export function VehicleTable({ searchQuery }: VehicleTableProps) {
+export function VehicleTable({ vehicles, searchQuery, onEdit, onEditShift }: VehicleTableProps) {
   const columns = [
     { key: 'plateNumber', label: 'Plate' },
     { key: 'route', label: 'Route' },
@@ -35,7 +29,40 @@ export function VehicleTable({ searchQuery }: VehicleTableProps) {
         return <Badge variant={variant}>{value}</Badge>;
       },
     },
+    {
+      key: 'actions',
+      label: 'Actions',
+      // We pass the whole row (vehicle) to the render function so we can trigger the modals
+      render: (_: any, row: any) => (
+        <div className="flex items-center justify-end gap-2">
+          {/* Edit Shift Icon */}
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              onEditShift(row);
+            }}
+            title="Edit Shift"
+            className="p-1.5 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+          >
+            <Clock size={16} />
+          </button>
+
+          {/* Edit Vehicle Icon */}
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(row);
+            }}
+            title="Edit Vehicle"
+            className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+          >
+            <Pencil size={16} />
+          </button>
+        </div>
+      )
+    },
   ];
 
-  return <DataTable data={mockVehicles} columns={columns} searchQuery={searchQuery} />;
+  // Changed mockVehicles to the vehicles prop
+  return <DataTable data={vehicles} columns={columns} searchQuery={searchQuery} />;
 }

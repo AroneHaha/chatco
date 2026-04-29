@@ -1,4 +1,3 @@
-// app/page.tsx
 "use client";
 
 import { useRef } from "react";
@@ -11,19 +10,18 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
-  Calculator,
-  Receipt,
-  Ticket,
-  Bell,
-  Settings,
   ArrowRight,
-  TrendingUp,
-  Wallet,
-  Banknote,
-  SlidersHorizontal,
 } from "lucide-react";
 
-// FIX: Dynamic import to prevent "window is not defined" SSR error
+import {
+  recentVehicles,
+  recentLostFound,
+  recentUsers,
+  quickStats,
+  settingsModules,
+  topPickupPoints,
+} from "./data/dashboard-data";
+
 const AdminCommuterMap = dynamic(() => import("@/components/admin/admin-commuter-map"), {
   ssr: false,
   loading: () => (
@@ -32,84 +30,6 @@ const AdminCommuterMap = dynamic(() => import("@/components/admin/admin-commuter
     </div>
   ),
 });
-
-/* ─── MOCK DATA ─── */
-const recentVehicles = [
-  { unit: "XQJ 4728", driver: "Mhaku Jose Manalili", status: "Active" },
-  { unit: "VMY 9183", driver: "Mark Arone Dela Cruz", status: "Maintenance" },
-  { unit: "RZP 6041", driver: "Rod Erick Dulalia", status: "Active" },
-];
-
-const recentLostFound = [
-  { item: "Black Backpack", status: "Under Review" },
-  { item: "Brown Wallet", status: "Reported" },
-  { item: "Student ID", status: "Returned" },
-];
-
-const recentUsers = [
-  { name: "Ana Lim", role: "Commuter", status: "Active" },
-  { name: "Marco Reyes", role: "Operator", status: "Active" },
-  { name: "Juan Dela Cruz", role: "Driver", status: "Inactive" },
-];
-
-const quickStats = [
-  { label: "Net Profit (Today)", value: "₱14,500", icon: TrendingUp, color: "text-green-400 bg-green-500/15", link: "/analytics" },
-  { label: "Total Rides (Week)", value: "9,500", icon: MapPin, color: "text-[#62A0EA] bg-[#1A5FB4]/15", link: "/analytics" },
-  { label: "Active Wallets", value: "2,340", icon: Wallet, color: "text-purple-400 bg-purple-500/15", link: "/analytics" },
-  { label: "Pending Remittance", value: "₱8,400", icon: Banknote, color: "text-amber-400 bg-amber-500/15", link: "/remittance" },
-];
-
-// FIXED: Exact paths matching your settings folder structure
-const settingsModules = [
-  { 
-    title: "Fare Matrix", 
-    desc: "Set base fares and distance rates.", 
-    icon: Calculator, 
-    iconColor: "text-blue-400", 
-    gradient: "linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(37, 99, 235, 0.05) 100%)",
-    href: "/settings/fare-matrix" 
-  },
-  { 
-    title: "Financial Rules", 
-    desc: "Configure fare deductions and splits.", 
-    icon: Receipt, 
-    iconColor: "text-green-400", 
-    gradient: "linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(22, 163, 74, 0.05) 100%)",
-    href: "/settings/financial-rules" 
-  },
-  { 
-    title: "Voucher Generator", 
-    desc: "Create promo codes and free ride passes.", 
-    icon: Ticket, 
-    iconColor: "text-purple-400", 
-    gradient: "linear-gradient(135deg, rgba(168, 85, 247, 0.2) 0%, rgba(147, 51, 234, 0.05) 100%)",
-    href: "/settings/voucher-generator" 
-  },
-  { 
-    title: "Safety Notifications", 
-    desc: "Manage alert triggers and templates.", 
-    icon: Bell, 
-    iconColor: "text-amber-400", 
-    gradient: "linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(217, 119, 6, 0.05) 100%)",
-    href: "/settings/safety-notifications" 
-  },
-  { 
-    title: "App Configuration", 
-    desc: "General system preferences and UI.", 
-    icon: SlidersHorizontal, 
-    iconColor: "text-pink-400", 
-    gradient: "linear-gradient(135deg, rgba(236, 72, 153, 0.2) 0%, rgba(219, 39, 119, 0.05) 100%)",
-    href: "/settings/app-configuration" 
-  },
-  { 
-    title: "Remittance Options", 
-    desc: "Add or edit remittance recipients.", 
-    icon: Banknote, 
-    iconColor: "text-cyan-400", 
-    gradient: "linear-gradient(135deg, rgba(6, 182, 212, 0.2) 0%, rgba(8, 145, 178, 0.05) 100%)",
-    href: "/settings/remittance-options" 
-  },
-];
 
 export default function DashboardHome() {
   const carouselRef = useRef<HTMLDivElement>(null);
@@ -199,11 +119,7 @@ export default function DashboardHome() {
           <div className="flex-1 bg-white/[0.04] border border-white/10 rounded-2xl p-5">
             <h3 className="text-sm font-semibold text-white mb-4">Top Pickup Points</h3>
             <div className="space-y-3">
-              {[
-                { name: "Malolos Terminal", val: 1420 },
-                { name: "Meycauayan Crossing", val: 980 },
-                { name: "Calumpit Town Proper", val: 740 },
-              ].map((p, i) => (
+              {topPickupPoints.map((p, i) => (
                 <div key={p.name} className="flex items-center gap-3">
                   <span className="text-[10px] font-bold text-white/30 w-3">{i + 1}</span>
                   <div className="flex-1">
@@ -306,7 +222,6 @@ export default function DashboardHome() {
             <p className="text-xs text-white/40 mt-0.5">Quick access to core configurations.</p>
           </div>
           
-          {/* Arrows */}
           <div className="flex gap-2">
             <button
               onClick={() => scroll("left")}
@@ -323,7 +238,6 @@ export default function DashboardHome() {
           </div>
         </div>
 
-        {/* Carousel Track */}
         <div 
           ref={carouselRef} 
           className="flex gap-5 overflow-x-auto scroll-smooth pb-2 snap-x snap-mandatory" 
@@ -348,7 +262,6 @@ export default function DashboardHome() {
         </div>
       </div>
 
-      {/* Hide scrollbar CSS */}
       <style jsx global>{`
         div::-webkit-scrollbar {
           display: none;
