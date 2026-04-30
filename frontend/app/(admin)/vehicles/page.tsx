@@ -9,9 +9,25 @@ import { PersonnelTable } from '@/components/admin/vehicles/personnel-table';
 import { AddPersonnelModal } from '@/components/admin/vehicles/add-personnel-modal';
 import { CreateConductorAccountModal } from '@/components/admin/vehicles/create-conductor-account-modal';
 import { ConductorAccountSuccessModal } from '@/components/admin/vehicles/conductor-account-success-modal';
+import { HistoryTable } from '@/components/admin/vehicles/history-table'; 
 import { SearchBar } from '@/components/admin/ui/search-bar';
-import { Plus, Users, Car, UserPlus } from 'lucide-react';
+import { Plus, Users, Car, UserPlus, Archive } from 'lucide-react';
 import { mockPersonnel, initialVehicles } from './data/vehicles-data';
+
+// NEW: Mock data for terminated personnel
+const terminatedPersonnel = [
+  { id: 6, name: 'Rizal Santiago', role: 'Driver', contact: '0917-123-4567', status: 'Terminated', reason: 'Repeated policy violations', terminatedDate: '2024-04-15', lastVehicle: 'XQJ 4728' },
+  { id: 7, name: 'Mark Arone', role: 'Conductor', contact: '0918-987-6543', status: 'Terminated', reason: 'Gross negligence', terminatedDate: '2024-04-28', lastVehicle: 'VMY 9183' },
+  { id: 8, name: 'Elaine Benitez', role: 'Driver', contact: '0919-555-1234', status: 'Resigned', reason: 'Health reasons', terminatedDate: '2024-05-02', lastVehicle: 'LKW 3579' },
+];
+
+// NEW: Mock history log of past shifts (Can be linked to terminated or just old shifts)
+const shiftHistoryLog = [
+  { id: 'LOG-001', personnelName: 'Rizal Santiago', role: 'Driver', vehicle: 'XQJ 4728', shiftDate: '2024-04-14', details: 'Last active shift before termination.' },
+  { id: 'LOG-002', personnelName: 'Mark Arone', role: 'Conductor', vehicle: 'VMY 9183', shiftDate: '2024-04-27', details: 'Involved in cash handling discrepancy.' },
+  { id: 'LOG-003', personnelName: 'Elaine Benitez', role: 'Driver', vehicle: 'LKW 3579', shiftDate: '2024-05-01', details: 'Resignation effective end of shift.' },
+  { id: 'LOG-004', personnelName: 'Jose Ngani', role: 'Conductor', vehicle: 'XQJ 4728', shiftDate: '2024-05-10', details: 'Regular shift completion. Vehicle handed over.' },
+];
 
 export default function VehiclesPage() {
   const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
@@ -23,7 +39,7 @@ export default function VehiclesPage() {
   const [createdAccountData, setCreatedAccountData] = useState<any>(null);
   
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'vehicles' | 'personnel'>('vehicles');
+  const [activeTab, setActiveTab] = useState<'vehicles' | 'personnel' | 'history'>('vehicles'); // ADDED 'history'
   
   const [vehicles, setVehicles] = useState(initialVehicles);
   const [editingVehicle, setEditingVehicle] = useState<any>(null);
@@ -82,14 +98,14 @@ export default function VehiclesPage() {
   const handleCloseCreateConductor = () => setIsCreateConductorOpen(false);
   
   const handleSaveConductorAccount = (data: any) => {
-    setCreatedAccountData(data); // Save the data to pass to the success modal
-    setIsSuccessModalOpen(true);  // Open the success modal
-    handleCloseCreateConductor(); // Close the creation form
+    setCreatedAccountData(data); 
+    setIsSuccessModalOpen(true);  
+    handleCloseCreateConductor(); 
   };
 
   const handleCloseSuccessModal = () => {
     setIsSuccessModalOpen(false);
-    setCreatedAccountData(null); // Clear the data when closing
+    setCreatedAccountData(null); 
   };
 
   return (
@@ -98,28 +114,32 @@ export default function VehiclesPage() {
         <h1 className="text-3xl font-bold text-white">Fleet Management</h1>
         <div className="flex items-center space-x-3 w-full sm:w-auto">
           <SearchBar
-            placeholder={`Search ${activeTab}...`}
+            placeholder={`Search ${activeTab === 'history' ? 'history...' : activeTab}...`}
             value={searchQuery}
             onChange={setSearchQuery}
             className="flex-1"
           />
           
-          {/* Create Conductor Scanner Account Button */}
-          <button
-            onClick={handleOpenCreateConductor}
-            className="flex items-center space-x-2 px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition-colors flex-shrink-0"
-          >
-            <UserPlus size={20} />
-            <span>Conductor Account</span>
-          </button>
+          {/* Hide add buttons on History tab */}
+          {activeTab !== 'history' && (
+            <>
+              <button
+                onClick={handleOpenCreateConductor}
+                className="flex items-center space-x-2 px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition-colors flex-shrink-0"
+              >
+                <UserPlus size={20} />
+                <span className="hidden sm:inline">Conductor Account</span>
+              </button>
 
-          <button
-            onClick={activeTab === 'vehicles' ? handleOpenVehicleModal : handleOpenPersonnelModal}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 transition-colors flex-shrink-0"
-          >
-            <Plus size={20} />
-            <span>Add {activeTab === 'vehicles' ? 'Vehicle' : 'Personnel'}</span>
-          </button>
+              <button
+                onClick={activeTab === 'vehicles' ? handleOpenVehicleModal : handleOpenPersonnelModal}
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 transition-colors flex-shrink-0"
+              >
+                <Plus size={20} />
+                <span className="hidden sm:inline">Add {activeTab === 'vehicles' ? 'Vehicle' : 'Personnel'}</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -147,6 +167,19 @@ export default function VehiclesPage() {
           <Users size={20} />
           <span>Chatco Personnel</span>
         </button>
+        
+        {/* NEW HISTORY TAB */}
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-lg transition-colors ${
+            activeTab === 'history'
+              ? 'text-white border-b-2 border-red-500 bg-red-500/10' // Red accent for terminated/history
+              : 'text-gray-400 hover:text-white hover:bg-white/10'
+          }`}
+        >
+          <Archive size={20} />
+          <span>Records & History</span>
+        </button>
       </div>
 
       {/* Tab Content */}
@@ -157,8 +190,14 @@ export default function VehiclesPage() {
           onEdit={handleOpenEditModal}
           onEditShift={handleOpenShiftModal} 
         />
-      ) : (
+      ) : activeTab === 'personnel' ? (
         <PersonnelTable searchQuery={searchQuery} />
+      ) : (
+        <HistoryTable 
+          terminatedPersonnel={terminatedPersonnel} 
+          shiftHistoryLog={shiftHistoryLog}
+          searchQuery={searchQuery}
+        />
       )}
 
       <AddVehicleModal 
@@ -179,14 +218,12 @@ export default function VehiclesPage() {
 
       <AddPersonnelModal isOpen={isPersonnelModalOpen} onClose={handleClosePersonnelModal} />
 
-      {/* Create Conductor Account Modal */}
       <CreateConductorAccountModal 
         isOpen={isCreateConductorOpen} 
         onClose={handleCloseCreateConductor} 
         onSave={handleSaveConductorAccount}
       />
 
-      {/* Conductor Account Success Modal */}
       <ConductorAccountSuccessModal 
         isOpen={isSuccessModalOpen} 
         onClose={handleCloseSuccessModal}

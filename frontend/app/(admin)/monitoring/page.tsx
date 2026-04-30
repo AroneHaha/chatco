@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { GlassCard } from '@/components/admin/ui/glass-card';
-import { Gauge, Clock, MapPin, AlertTriangle } from 'lucide-react';
+import { Gauge, Clock, MapPin, AlertTriangle, Archive } from 'lucide-react';
 import { liveVehicleTracking } from './data/data-monitoring';
 
 // Dynamically import the map and disable SSR (Leaflet requires the window object)
@@ -19,6 +19,17 @@ interface SosAlert {
   vehicle: string;
   message: string;
   time: string;
+  coordinates: [number, number];
+}
+
+// NEW: Interface for historical SOS logs
+interface SosHistoryLog {
+  id: string;
+  conductor: string;
+  vehicle: string;
+  message: string;
+  triggeredAt: string;
+  resolvedAt: string;
   coordinates: [number, number];
 }
 
@@ -39,6 +50,13 @@ const mockDemandHeatmap: DemandZone[] = [
   { id: 'zone-5', coords: [14.74300, 120.95912], radiusMeters: 350, commuterCount: 95, intensity: 'MEDIUM' },
 ];
 
+// NEW: Mock past SOS data so you can see the history table working immediately
+const initialSosHistory: SosHistoryLog[] = [
+  { id: 'sos-old-001', conductor: 'Mario Speedwagon', vehicle: 'DEF-456', message: 'Panic button triggered by conductor!', triggeredAt: 'Oct 24, 2023 - 10:15 AM', resolvedAt: 'Oct 24, 2023 - 10:22 AM', coordinates: [14.5980, 120.9830] },
+  { id: 'sos-old-002', conductor: 'Crisostomo Ibarra', vehicle: 'GHI-789', message: 'Medical emergency reported.', triggeredAt: 'Oct 23, 2023 - 02:40 PM', resolvedAt: 'Oct 23, 2023 - 03:10 PM', coordinates: [14.6010, 120.9860] },
+  { id: 'sos-old-003', conductor: 'Sisa Doe', vehicle: 'JKL-012', message: 'Panic button triggered by conductor!', triggeredAt: 'Oct 22, 2023 - 08:05 AM', resolvedAt: 'Oct 22, 2023 - 08:12 AM', coordinates: [14.5970, 120.9810] },
+];
+
 export default function MonitoringPage() {
   const [sosAlerts, setSosAlerts] = useState<SosAlert[]>([
     { 
@@ -51,6 +69,11 @@ export default function MonitoringPage() {
     },
   ]);
 
+  // NEW: State for SOS History & Pagination
+  const [sosHistory, setSosHistory] = useState<SosHistoryLog[]>(initialSosHistory);
+  const [historyPage, setHistoryPage] = useState(1);
+  const HISTORY_ROWS_PER_PAGE = 5;
+
   const overspeedCount = liveVehicleTracking.filter(v => v.status === "overspeeding").length;
   const idleCount = liveVehicleTracking.filter(v => v.status === "idle").length;
 
@@ -60,9 +83,37 @@ export default function MonitoringPage() {
     { title: 'Demand Heatmap', value: mockDemandHeatmap.length.toString(), icon: MapPin, color: 'text-blue-400' },
   ];
 
+  // UPDATED: Move alert to history instead of just deleting it
   const handleConfirmSos = (alertId: string) => {
+    const alertToResolve = sosAlerts.find(a => a.id === alertId);
+    if (!alertToResolve) return;
+
+    const now = new Date();
+    const formattedNow = now.toLocaleString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute:'2-digit', hour12: true
+    });
+
+    const historyLog: SosHistoryLog = {
+      id: alertToResolve.id,
+      conductor: alertToResolve.conductor,
+      vehicle: alertToResolve.vehicle,
+      message: alertToResolve.message,
+      triggeredAt: `Today - ${alertToResolve.time}`,
+      resolvedAt: formattedNow,
+      coordinates: alertToResolve.coordinates,
+    };
+
+    // Add to the beginning of history array and remove from active alerts
+    setSosHistory(prev => [historyLog, ...prev]);
     setSosAlerts(prev => prev.filter(alert => alert.id !== alertId));
   };
+
+  // Pagination logic for History Table
+  const totalHistoryPages = Math.max(1, Math.ceil(sosHistory.length / HISTORY_ROWS_PER_PAGE));
+  const currentHistoryData = sosHistory.slice(
+    (historyPage - 1) * HISTORY_ROWS_PER_PAGE,
+    historyPage * HISTORY_ROWS_PER_PAGE
+  );
 
   return (
     <>
@@ -130,7 +181,7 @@ export default function MonitoringPage() {
         </div>
       )}
       
-      {/* Map Container - Takes up remaining screen height, forcing table below the fold */}
+      {/* Map Container */}
       <div className="h-[calc(100vh-280px)]">
         <CommuterMap 
           isDesktop={true} 
@@ -139,7 +190,7 @@ export default function MonitoringPage() {
         />
       </div>
 
-      {/* ─── LIVE VEHICLE TRACKING TABLE (Visible on scroll) ─── */}
+      {/* ─── LIVE VEHICLE TRACKING TABLE ─── */}
       <div className="mt-6 pb-8">
         <GlassCard className="p-5">
           <h2 className="text-lg font-bold text-white mb-4">Active Vehicle Tracking</h2>
@@ -200,6 +251,94 @@ export default function MonitoringPage() {
               </tbody>
             </table>
           </div>
+        </GlassCard>
+      </div>
+
+      {/* ─── NEW: SOS HISTORY LOG TABLE ─── */}
+      <div className="mt-6 pb-8">
+        <GlassCard className="p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Archive size={18} className="text-white/40" />
+              <h2 className="text-lg font-bold text-white">SOS History Log</h2>
+            </div>
+            <span className="text-[10px] bg-white/[0.06] text-white/40 px-2 py-0.5 rounded">
+              {sosHistory.length} Total Resolved
+            </span>
+          </div>
+          
+          {sosHistory.length === 0 ? (
+            <div className="py-8 text-center text-white/20 text-sm">
+              No SOS history yet.
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-white/10">
+                      <th className="pb-3 text-xs font-semibold text-white/40 uppercase tracking-wider">Conductor</th>
+                      <th className="pb-3 text-xs font-semibold text-white/40 uppercase tracking-wider">Vehicle</th>
+                      <th className="pb-3 text-xs font-semibold text-white/40 uppercase tracking-wider">Message</th>
+                      <th className="pb-3 text-xs font-semibold text-white/40 uppercase tracking-wider hidden md:table-cell">Triggered</th>
+                      <th className="pb-3 text-xs font-semibold text-white/40 uppercase tracking-wider">Resolved</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {currentHistoryData.map((log) => (
+                      <tr key={log.id} className="hover:bg-white/[0.02] transition-colors opacity-70 hover:opacity-100">
+                        <td className="py-3.5 pr-4">
+                          <span className="text-sm text-white/70 font-medium">{log.conductor}</span>
+                        </td>
+                        <td className="py-3.5 pr-4">
+                          <span className="text-sm text-white/50 font-mono">{log.vehicle}</span>
+                        </td>
+                        <td className="py-3.5 pr-4">
+                          <span className="text-sm text-white/50">{log.message}</span>
+                        </td>
+                        <td className="py-3.5 pr-4 hidden md:table-cell">
+                          <span className="text-xs text-white/30">{log.triggeredAt}</span>
+                        </td>
+                        <td className="py-3.5">
+                          <span className="inline-flex items-center gap-1 text-xs text-green-400/70 bg-green-500/10 px-2 py-0.5 rounded-md">
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            {log.resolvedAt}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination Controls */}
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/[0.06]">
+                <p className="text-xs text-white/30">
+                  Page <span className="text-white/50 font-medium">{historyPage}</span> of <span className="text-white/50 font-medium">{totalHistoryPages}</span>
+                </p>
+                
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setHistoryPage(prev => Math.max(prev - 1, 1))}
+                    disabled={historyPage === 1}
+                    className="px-3 py-1.5 rounded-md text-xs font-medium bg-white/[0.04] text-white/40 hover:bg-white/[0.08] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  >
+                    Previous
+                  </button>
+                  
+                  <button
+                    onClick={() => setHistoryPage(prev => Math.min(prev + 1, totalHistoryPages))}
+                    disabled={historyPage === totalHistoryPages}
+                    className="px-3 py-1.5 rounded-md text-xs font-medium bg-white/[0.06] text-white/60 hover:bg-white/[0.1] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </GlassCard>
       </div>
 

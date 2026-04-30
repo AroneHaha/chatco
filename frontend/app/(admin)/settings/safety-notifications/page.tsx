@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { GlassCard } from '@/components/admin/ui/glass-card';
 import BackButton from '@/components/admin/ui/back-button';
-import { Save, PhoneCall, MessageSquare } from 'lucide-react';
+import { Save, PhoneCall, MessageSquare, Mail } from 'lucide-react';
 
 interface NotificationTemplate {
   id: string;
@@ -17,6 +17,7 @@ interface NotificationTemplate {
 export default function SafetyNotificationsPage() {
   const [emergencyHotline, setEmergencyHotline] = useState('911');
   const [adminSOSEmail, setAdminSOSEmail] = useState('admin@chatco.com');
+  const [senderGmail, setSenderGmail] = useState('noreply@chatco.com');
 
   const [templates, setTemplates] = useState<NotificationTemplate[]>([
     {
@@ -41,6 +42,17 @@ export default function SafetyNotificationsPage() {
       variables: ['{vehiclePlate}', '{routeName}', '{fareAmount}', '{paymentMethod}', '{date}'],
     }
   ]);
+
+  // New Account Creation Templates
+  const [accountApprovedTemplate, setAccountApprovedTemplate] = useState(
+    `Dear {commuterName},\n\nCongratulations! 🎉 Your Chatco Commuter account has been successfully approved and verified.\n\nYou can now log in to the app using your registered credentials and start enjoying seamless cashless rides across the Chatco network.\n\nIf you did not request this account, please contact support immediately.\n\nSafe travels!\nThe Chatco Team`
+  );
+  const approvedVariables = ['{commuterName}'];
+
+  const [accountRejectedTemplate, setAccountRejectedTemplate] = useState(
+    `Dear {commuterName},\n\nWe regret to inform you that your Chatco Commuter account registration has been rejected.\n\nReason: {rejectionReason}\n\nIf you believe this is a mistake, you may re-apply with valid and updated identification documents through the app or visit our local office.\n\nThank you for your understanding.\nThe Chatco Team`
+  );
+  const rejectedVariables = ['{commuterName}', '{rejectionReason}'];
 
   const [isSaved, setIsSaved] = useState(false);
 
@@ -135,6 +147,78 @@ export default function SafetyNotificationsPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          </GlassCard>
+
+          {/* ─── NEW: Account Registration Gmail Sender ─── */}
+          <GlassCard className="p-4 sm:p-6">
+            <div className="mb-6">
+              <h2 className="text-lg sm:text-xl font-semibold text-white flex items-center gap-2">
+                <Mail size={20} className="text-green-400 flex-shrink-0" />
+                <span>Account Registration Emails</span>
+              </h2>
+              <p className="text-xs text-gray-500 mt-1">Email templates sent to commuters upon registration review.</p>
+            </div>
+
+            {/* Gmail Sender Configuration */}
+            <div className="mb-6 p-4 bg-white/5 rounded-xl border border-white/10">
+              <label className="block text-sm font-medium text-gray-300 mb-1.5">Sender Gmail Address</label>
+              <p className="text-xs text-gray-500 mb-2">The email address that will appear as the sender for these registration emails.</p>
+              <input 
+                type="email" 
+                value={senderGmail} 
+                onChange={(e) => { setSenderGmail(e.target.value); setIsSaved(false); }} 
+                placeholder="noreply@chatco.com"
+                className="block w-full px-4 py-3 bg-black/30 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors placeholder-gray-600" 
+              />
+            </div>
+
+            <div className="space-y-6">
+              {/* Successful Account Template */}
+              <div className="p-4 bg-green-500/5 rounded-xl border border-green-500/20">
+                <div className="mb-3">
+                  <h3 className="text-sm sm:text-base font-semibold text-green-400 break-words"> Successful Account Creation</h3>
+                  <p className="text-xs text-gray-400 mt-1 break-words">Sent when the admin approves and verifies the commuter's ID.</p>
+                </div>
+                
+                <textarea 
+                  value={accountApprovedTemplate}
+                  onChange={(e) => { setAccountApprovedTemplate(e.target.value); setIsSaved(false); }}
+                  rows={6}
+                  className="w-full bg-black/30 border border-white/20 rounded-lg text-white text-xs sm:text-sm p-3 focus:outline-none focus:ring-2 focus:ring-green-500 resize-none font-mono leading-relaxed"
+                />
+                
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {approvedVariables.map((variable) => (
+                    <span key={variable} className="px-2 py-0.5 bg-green-500/20 text-green-300 text-[10px] sm:text-xs rounded-full border border-green-500/30 font-mono">
+                      {variable}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Rejected Account Template */}
+              <div className="p-4 bg-red-500/5 rounded-xl border border-red-500/20">
+                <div className="mb-3">
+                  <h3 className="text-sm sm:text-base font-semibold text-red-400 break-words"> Rejected Account Creation</h3>
+                  <p className="text-xs text-gray-400 mt-1 break-words">Sent when the admin rejects the registration due to invalid ID or information.</p>
+                </div>
+                
+                <textarea 
+                  value={accountRejectedTemplate}
+                  onChange={(e) => { setAccountRejectedTemplate(e.target.value); setIsSaved(false); }}
+                  rows={6}
+                  className="w-full bg-black/30 border border-white/20 rounded-lg text-white text-xs sm:text-sm p-3 focus:outline-none focus:ring-2 focus:ring-red-500 resize-none font-mono leading-relaxed"
+                />
+                
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {rejectedVariables.map((variable) => (
+                    <span key={variable} className="px-2 py-0.5 bg-red-500/20 text-red-300 text-[10px] sm:text-xs rounded-full border border-red-500/30 font-mono">
+                      {variable}
+                    </span>
+                  ))}
+                </div>
+              </div>
             </div>
           </GlassCard>
 

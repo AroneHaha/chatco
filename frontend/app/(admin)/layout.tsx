@@ -4,7 +4,7 @@
 import { ReactNode, useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Receipt, Map, Package, BarChart3, Car, Sliders, Users, Menu } from 'lucide-react';
+import { Home, Receipt, Map, Package, BarChart3, Car, Sliders, Users, Menu, LogOut, X } from 'lucide-react';
 
 // All items for Desktop
 const navItems = [
@@ -38,6 +38,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [isMobile, setIsMobile] = useState(false);
   const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const [isSignOutOpen, setIsSignOutOpen] = useState(false); // New State
 
   // Refs for the mobile bottom nav animation (HTMLElement allows both <a> and <button>)
   const indicatorRef = useRef<HTMLDivElement>(null);
@@ -81,6 +82,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     }
   }, [pathname, isMobile]);
 
+  // Sign Out Handler
+  const handleSignOut = () => {
+    console.log("User signed out");
+    setIsSignOutOpen(false);
+    window.location.href = '/login'; 
+  };
+
   // --- DESKTOP SIDE NAVIGATION ---
   if (!isMobile) {
     return (
@@ -89,6 +97,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           <div className="p-6">
             <h2 className="text-xl font-bold text-white">Admin Panel</h2>
           </div>
+          
+          {/* Nav Links */}
           <div className="flex-1 px-4">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -109,10 +119,60 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               );
             })}
           </div>
+
+          {/* --- NEW: Bottom Section (Sign Out & Branding) --- */}
+          <div className="px-4 pb-6 border-t border-white/10 pt-4 mt-4 space-y-3">
+            <button
+              onClick={() => setIsSignOutOpen(true)}
+              className="flex items-center space-x-3 px-4 py-3 w-full rounded-lg text-red-400 hover:bg-red-500/10 transition-colors duration-200"
+            >
+              <LogOut size={20} />
+              <span className="font-medium">Sign Out</span>
+            </button>
+            
+            <div className="px-4 pt-2">
+              <p className="text-xs text-white/20 font-medium tracking-wide">- CHATCO ADMIN</p>
+            </div>
+          </div>
         </nav>
+        
         <main className="flex-1 overflow-y-auto p-6 lg:p-8 text-white">
           {children}
         </main>
+
+        {/* --- Desktop Sign Out Modal --- */}
+        {isSignOutOpen && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-gray-800 border border-white/10 rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl">
+              <div className="text-center space-y-4">
+                <div className="mx-auto w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center">
+                  <LogOut className="text-red-400" size={32} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">Sign Out</h2>
+                  <p className="text-sm text-gray-400 mt-2">
+                    Are you sure you want to sign out of your admin account?
+                  </p>
+                </div>
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={() => setIsSignOutOpen(false)}
+                    className="flex-1 px-4 py-2.5 bg-white/10 border border-white/20 text-white font-medium rounded-lg hover:bg-white/20 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSignOut}
+                    className="flex-1 px-4 py-2.5 bg-red-500 text-white font-medium rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <LogOut size={18} />
+                    Yes, Sign Out
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -196,11 +256,57 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                     </Link>
                   );
                 })}
+                
+                {/* --- NEW: Mobile Sign Out Button --- */}
+                <button
+                  onClick={() => {
+                    setIsMoreOpen(false);
+                    setIsSignOutOpen(true);
+                  }}
+                  className="col-span-2 flex items-center justify-center gap-2 p-3 rounded-xl text-red-400 hover:bg-red-500/10 transition-colors border border-red-500/20"
+                >
+                  <LogOut size={20} />
+                  <span className="text-sm font-medium">Sign Out</span>
+                </button>
               </div>
             </div>
           </>
         )}
       </nav>
+
+      {/* --- Mobile Sign Out Modal --- */}
+      {isSignOutOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60]">
+          <div className="bg-gray-800 border border-white/10 rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl">
+            <div className="text-center space-y-4">
+              <div className="mx-auto w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center">
+                <LogOut className="text-red-400" size={32} />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white">Sign Out</h2>
+                <p className="text-sm text-gray-400 mt-2">
+                  Are you sure you want to sign out of your admin account?
+                </p>
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setIsSignOutOpen(false)}
+                  className="flex-1 px-4 py-2.5 bg-white/10 border border-white/20 text-white font-medium rounded-lg hover:bg-white/20 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSignOut}
+                  className="flex-1 px-4 py-2.5 bg-red-500 text-white font-medium rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center gap-2"
+                >
+                  <LogOut size={18} />
+                  Yes, Sign Out
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
