@@ -1,4 +1,3 @@
-// app/(admin)/users/page.tsx
 'use client';
 
 import { useState } from 'react';
@@ -13,9 +12,7 @@ import { Plus, UserCheck, Users, XCircle } from 'lucide-react';
 const initialActiveUsers = [
   { id: 1, name: 'Mhaku Jose Manalili', email: 'mhak@gmail.com', phoneNumber: '0917-123-4567', status: 'Active', commuterType: 'Regular', languagePreference: 'English', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=ID' },
   { id: 4, name: 'Mark Arone Dela Cruz', email: 'MArone.c@email.com', phoneNumber: '0918-234-5678', status: 'Active', commuterType: 'Student', languagePreference: 'Filipino', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=ID' },
-  { id: 1, name: 'Rod Dulalia', email: 'Rod@gmail.com', phoneNumber: '0923-324-4327', status: 'Active', commuterType: 'Regular', languagePreference: 'English', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=ID' },
-
-
+  { id: 5, name: 'Rod Dulalia', email: 'Rod@gmail.com', phoneNumber: '0923-324-4327', status: 'Active', commuterType: 'Regular', languagePreference: 'English', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=ID' },
 ];
 
 const initialPendingRequests = [
@@ -49,6 +46,9 @@ export default function UsersPage() {
   
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  
+  // NEW: Selected User Details State
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
 
   const handleOpenRegisterModal = () => setIsRegisterModalOpen(true);
   const handleCloseRegisterModal = () => setIsRegisterModalOpen(false);
@@ -77,7 +77,6 @@ export default function UsersPage() {
     handleCloseRegisterModal();
   };
 
-  // Approve from Review Modal
   const handleApproveRequest = () => {
     if (!selectedRequest) return;
     const newActiveUser = { ...selectedRequest, id: activeUsers.length + 10, status: 'Active' };
@@ -93,7 +92,6 @@ export default function UsersPage() {
     handleCloseReviewModal();
   };
 
-  // Reject from Review Modal
   const handleRejectRequest = (reason: string) => {
     if (!selectedRequest) return;
     const rejectedUser = { ...selectedRequest, status: 'Rejected', rejectionReason: reason };
@@ -126,7 +124,7 @@ export default function UsersPage() {
 
       {/* 3 Tabs */}
       <div className="flex space-x-1 mb-6 border-b border-white/20">
-        <button onClick={() => setActiveTab('active')} className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-lg transition-colors ${activeTab === 'active' ? 'text-white border-b-2 border-blue-500 bg-blue-500/10' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}>
+        <button onClick={() => { setActiveTab('active'); setSelectedUser(null); }} className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-lg transition-colors ${activeTab === 'active' ? 'text-white border-b-2 border-blue-500 bg-blue-500/10' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}>
           <UserCheck size={20} /><span>Active Commuters ({activeUsers.length})</span>
         </button>
         <button onClick={() => setActiveTab('pending')} className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-lg transition-colors ${activeTab === 'pending' ? 'text-white border-b-2 border-yellow-500 bg-yellow-500/10' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}>
@@ -138,14 +136,30 @@ export default function UsersPage() {
       </div>
 
       {/* Tab Content */}
-     {activeTab === 'active' && (
-        <UsersTable users={activeUsers} searchQuery={searchQuery} onDeactivate={handleDeactivateUser} onViewHistory={handleOpenHistoryModal} isRejectedTab={false} />
+      {activeTab === 'active' && (
+        <UsersTable 
+          users={activeUsers} 
+          searchQuery={searchQuery} 
+          onDeactivate={handleDeactivateUser} 
+          onViewHistory={handleOpenHistoryModal} 
+          isRejectedTab={false}
+          selectedUser={selectedUser}
+          onSelectUser={setSelectedUser}
+        />
       )}
       {activeTab === 'pending' && (
         <RegistrationRequestsTable requests={pendingRequests} onSelectRequest={handleOpenReviewModal} />
       )}
       {activeTab === 'rejected' && (
-        <UsersTable users={rejectedUsers} searchQuery={searchQuery} onDeactivate={() => {}} onViewHistory={() => {}} isRejectedTab={true} />
+        <UsersTable 
+          users={rejectedUsers} 
+          searchQuery={searchQuery} 
+          onDeactivate={() => {}} 
+          onViewHistory={() => {}} 
+          isRejectedTab={true}
+          selectedUser={null}
+          onSelectUser={() => {}}
+        />
       )}
 
       {/* Modals */}
