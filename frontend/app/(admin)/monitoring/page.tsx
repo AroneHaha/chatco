@@ -1,10 +1,10 @@
 // app/(admin)/monitoring/page.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { GlassCard } from '@/components/admin/ui/glass-card';
-import { Gauge, Clock, MapPin, AlertTriangle, Archive } from 'lucide-react';
+import { Gauge, Clock, MapPin, AlertTriangle, Archive, Filter, CalendarDays } from 'lucide-react';
 import { liveVehicleTracking } from './data/data-monitoring';
 
 // Dynamically import the map and disable SSR (Leaflet requires the window object)
@@ -19,10 +19,10 @@ interface SosAlert {
   vehicle: string;
   message: string;
   time: string;
+  triggeredDate: string; // Added for proper filtering
   coordinates: [number, number];
 }
 
-// NEW: Interface for historical SOS logs
 interface SosHistoryLog {
   id: string;
   conductor: string;
@@ -30,10 +30,20 @@ interface SosHistoryLog {
   message: string;
   triggeredAt: string;
   resolvedAt: string;
+  triggeredDate: string; // Added for proper filtering
   coordinates: [number, number];
 }
 
-// --- MOCK DATA FOR COMMUTER DEMAND HEATMAP CIRCLES ---
+interface OverspeedLog {
+  id: string;
+  unit: string;
+  driver: string;
+  speed: number;
+  zone: string;
+  loggedAt: string;
+  loggedDate: string; // Added for proper filtering
+}
+
 interface DemandZone {
   id: string;
   coords: [number, number];
@@ -50,14 +60,22 @@ const mockDemandHeatmap: DemandZone[] = [
   { id: 'zone-5', coords: [14.74300, 120.95912], radiusMeters: 350, commuterCount: 95, intensity: 'MEDIUM' },
 ];
 
-// NEW: Mock past SOS data so you can see the history table working immediately
 const initialSosHistory: SosHistoryLog[] = [
-  { id: 'sos-old-001', conductor: 'Mario Speedwagon', vehicle: 'DEF-456', message: 'Panic button triggered by conductor!', triggeredAt: 'Oct 24, 2023 - 10:15 AM', resolvedAt: 'Oct 24, 2023 - 10:22 AM', coordinates: [14.5980, 120.9830] },
-  { id: 'sos-old-002', conductor: 'Crisostomo Ibarra', vehicle: 'GHI-789', message: 'Medical emergency reported.', triggeredAt: 'Oct 23, 2023 - 02:40 PM', resolvedAt: 'Oct 23, 2023 - 03:10 PM', coordinates: [14.6010, 120.9860] },
-  { id: 'sos-old-003', conductor: 'Sisa Doe', vehicle: 'JKL-012', message: 'Panic button triggered by conductor!', triggeredAt: 'Oct 22, 2023 - 08:05 AM', resolvedAt: 'Oct 22, 2023 - 08:12 AM', coordinates: [14.5970, 120.9810] },
+  { id: 'sos-old-001', conductor: 'Mario Speedwagon', vehicle: 'DEF-456', message: 'Panic button triggered by conductor!', triggeredAt: 'Oct 24, 2023 - 10:15 AM', resolvedAt: 'Oct 24, 2023 - 10:22 AM', triggeredDate: '2023-10-24', coordinates: [14.5980, 120.9830] },
+  { id: 'sos-old-002', conductor: 'Crisostomo Ibarra', vehicle: 'GHI-789', message: 'Medical emergency reported.', triggeredAt: 'Oct 23, 2023 - 02:40 PM', resolvedAt: 'Oct 23, 2023 - 03:10 PM', triggeredDate: '2023-10-23', coordinates: [14.6010, 120.9860] },
+  { id: 'sos-old-003', conductor: 'Sisa Doe', vehicle: 'JKL-012', message: 'Panic button triggered by conductor!', triggeredAt: 'Oct 22, 2023 - 08:05 AM', resolvedAt: 'Oct 22, 2023 - 08:12 AM', triggeredDate: '2023-10-22', coordinates: [14.5970, 120.9810] },
+];
+
+// Mock Overspeeding History
+const initialOverspeedHistory: OverspeedLog[] = [
+  { id: 'ov-001', unit: 'VMY 9183', driver: 'Mark Arone Dela Cruz', speed: 72, zone: 'Malolos–Meycauayan', loggedAt: 'Nov 15, 2023 - 09:12 AM', loggedDate: '2023-11-15' },
+  { id: 'ov-002', unit: 'TNB 8462', driver: 'Nardong Putik', speed: 68, zone: 'Meycauayan–Calumpit', loggedAt: 'Nov 14, 2023 - 04:30 PM', loggedDate: '2023-11-14' },
+  { id: 'ov-003', unit: 'VMY 9183', driver: 'Mark Arone Dela Cruz', speed: 65, zone: 'Calumpit', loggedAt: 'Nov 10, 2023 - 08:45 AM', loggedDate: '2023-11-10' },
 ];
 
 export default function MonitoringPage() {
+  const today = new Date().toISOString().split('T')[0];
+  
   const [sosAlerts, setSosAlerts] = useState<SosAlert[]>([
     { 
       id: 'sos-001', 
@@ -65,14 +83,23 @@ export default function MonitoringPage() {
       vehicle: 'ABC-123', 
       message: 'Panic button triggered by conductor!', 
       time: 'Just now', 
+      triggeredDate: today,
       coordinates: [14.5995, 120.9842] 
     },
   ]);
 
-  // NEW: State for SOS History & Pagination
   const [sosHistory, setSosHistory] = useState<SosHistoryLog[]>(initialSosHistory);
-  const [historyPage, setHistoryPage] = useState(1);
-  const HISTORY_ROWS_PER_PAGE = 5;
+  const [overspeedHistory, setOverspeedHistory] = useState<OverspeedLog[]>(initialOverspeedHistory);
+  
+  // Pagination States
+  const [sosPage, setSosPage] = useState(1);
+  const [overspeedPage, setOverspeedPage] = useState(1);
+  const ROWS_PER_PAGE = 5;
+
+  // NEW: Filter States
+  const [filterSosDate, setFilterSosDate] = useState('');
+  const [filterOverspeedDate, setFilterOverspeedDate] = useState('');
+  const [showOverspeedOnly, setShowOverspeedOnly] = useState(false);
 
   const overspeedCount = liveVehicleTracking.filter(v => v.status === "overspeeding").length;
   const idleCount = liveVehicleTracking.filter(v => v.status === "idle").length;
@@ -83,7 +110,6 @@ export default function MonitoringPage() {
     { title: 'Demand Heatmap', value: mockDemandHeatmap.length.toString(), icon: MapPin, color: 'text-blue-400' },
   ];
 
-  // UPDATED: Move alert to history instead of just deleting it
   const handleConfirmSos = (alertId: string) => {
     const alertToResolve = sosAlerts.find(a => a.id === alertId);
     if (!alertToResolve) return;
@@ -100,20 +126,46 @@ export default function MonitoringPage() {
       message: alertToResolve.message,
       triggeredAt: `Today - ${alertToResolve.time}`,
       resolvedAt: formattedNow,
+      triggeredDate: alertToResolve.triggeredDate,
       coordinates: alertToResolve.coordinates,
     };
 
-    // Add to the beginning of history array and remove from active alerts
     setSosHistory(prev => [historyLog, ...prev]);
     setSosAlerts(prev => prev.filter(alert => alert.id !== alertId));
   };
 
-  // Pagination logic for History Table
-  const totalHistoryPages = Math.max(1, Math.ceil(sosHistory.length / HISTORY_ROWS_PER_PAGE));
-  const currentHistoryData = sosHistory.slice(
-    (historyPage - 1) * HISTORY_ROWS_PER_PAGE,
-    historyPage * HISTORY_ROWS_PER_PAGE
-  );
+  // Filtered Data Logic
+  const filteredVehicles = useMemo(() => {
+    if (!showOverspeedOnly) return liveVehicleTracking;
+    return liveVehicleTracking.filter(v => v.status === "overspeeding");
+  }, [showOverspeedOnly]);
+
+  const filteredSosHistory = useMemo(() => {
+    if (!filterSosDate) return sosHistory;
+    return sosHistory.filter(log => log.triggeredDate === filterSosDate);
+  }, [filterSosDate, sosHistory]);
+
+  const filteredOverspeedHistory = useMemo(() => {
+    if (!filterOverspeedDate) return overspeedHistory;
+    return overspeedHistory.filter(log => log.loggedDate === filterOverspeedDate);
+  }, [filterOverspeedDate, overspeedHistory]);
+
+  // Pagination Logic
+  const totalSosPages = Math.max(1, Math.ceil(filteredSosHistory.length / ROWS_PER_PAGE));
+  const currentSosData = filteredSosHistory.slice((sosPage - 1) * ROWS_PER_PAGE, sosPage * ROWS_PER_PAGE);
+
+  const totalOverspeedPages = Math.max(1, Math.ceil(filteredOverspeedHistory.length / ROWS_PER_PAGE));
+  const currentOverspeedData = filteredOverspeedHistory.slice((overspeedPage - 1) * ROWS_PER_PAGE, overspeedPage * ROWS_PER_PAGE);
+
+  // Reset pages when filters change
+  const handleSosDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFilterSosDate(e.target.value);
+    setSosPage(1);
+  };
+  const handleOverspeedDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFilterOverspeedDate(e.target.value);
+    setOverspeedPage(1);
+  };
 
   return (
     <>
@@ -193,7 +245,31 @@ export default function MonitoringPage() {
       {/* ─── LIVE VEHICLE TRACKING TABLE ─── */}
       <div className="mt-6 pb-8">
         <GlassCard className="p-5">
-          <h2 className="text-lg font-bold text-white mb-4">Active Vehicle Tracking</h2>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+            <h2 className="text-lg font-bold text-white">Active Vehicle Tracking</h2>
+            
+            {/* NEW: Overspeed Toggle Filter */}
+            <div className="flex items-center gap-2 bg-white/[0.04] p-1 rounded-lg border border-white/10">
+              <button
+                onClick={() => setShowOverspeedOnly(false)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  !showOverspeedOnly ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/60'
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setShowOverspeedOnly(true)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${
+                  showOverspeedOnly ? 'bg-red-500/20 text-red-400' : 'text-white/40 hover:text-white/60'
+                }`}
+              >
+                <Gauge size={12} />
+                Overspeeding Only
+              </button>
+            </div>
+          </div>
+          
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
@@ -206,71 +282,88 @@ export default function MonitoringPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {liveVehicleTracking.map((v) => (
-                  <tr 
-                    key={v.unit} 
-                    className={`transition-colors ${
-                      v.status === "overspeeding" ? "bg-red-500/[0.06] border-l-2 border-l-red-500" : 
-                      v.status === "idle" ? "opacity-50" : 
-                      "hover:bg-white/[0.02]"
-                    }`}
-                  >
-                    <td className="py-3.5 pr-4">
-                      <span className="text-sm font-semibold text-white/90">{v.unit}</span>
-                    </td>
-                    <td className="py-3.5 pr-4">
-                      <span className="text-sm text-white/60">{v.driver}</span>
-                    </td>
-                    <td className="py-3.5 pr-4">
-                      <span className="text-sm text-white/60">{v.zone}</span>
-                    </td>
-                    <td className="py-3.5 pr-4 text-center">
-                      <span className={`text-sm font-semibold flex items-center justify-center gap-1 ${
-                        v.status === "overspeeding" ? "text-red-400" : 
-                        v.status === "idle" ? "text-white/30" : "text-white/70"
-                      }`}>
-                        {v.status === "overspeeding" && (
-                          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.168 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495ZM10 6a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 6Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                        {v.speed} km/h
-                      </span>
-                    </td>
-                    <td className="py-3.5 text-center">
-                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-medium ${
-                        v.status === "normal" ? "bg-green-500/15 text-green-400" : 
-                        v.status === "overspeeding" ? "bg-red-500/15 text-red-400 font-bold" : 
-                        "bg-yellow-500/15 text-yellow-400"
-                      }`}>
-                        {v.status === "overspeeding" ? "OVERSPEEDING" : v.status.charAt(0).toUpperCase() + v.status.slice(1)}
-                      </span>
-                    </td>
+                {filteredVehicles.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-white/20 text-sm">No vehicles match the filter.</td>
                   </tr>
-                ))}
+                ) : (
+                  filteredVehicles.map((v) => (
+                    <tr 
+                      key={v.unit} 
+                      className={`transition-colors ${
+                        v.status === "overspeeding" ? "bg-red-500/[0.06] border-l-2 border-l-red-500" : 
+                        v.status === "idle" ? "opacity-50" : 
+                        "hover:bg-white/[0.02]"
+                      }`}
+                    >
+                      <td className="py-3.5 pr-4">
+                        <span className="text-sm font-semibold text-white/90">{v.unit}</span>
+                      </td>
+                      <td className="py-3.5 pr-4">
+                        <span className="text-sm text-white/60">{v.driver}</span>
+                      </td>
+                      <td className="py-3.5 pr-4">
+                        <span className="text-sm text-white/60">{v.zone}</span>
+                      </td>
+                      <td className="py-3.5 pr-4 text-center">
+                        <span className={`text-sm font-semibold flex items-center justify-center gap-1 ${
+                          v.status === "overspeeding" ? "text-red-400" : 
+                          v.status === "idle" ? "text-white/30" : "text-white/70"
+                        }`}>
+                          {v.status === "overspeeding" && (
+                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.168 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495ZM10 6a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 6Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                          {v.speed} km/h
+                        </span>
+                      </td>
+                      <td className="py-3.5 text-center">
+                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-medium ${
+                          v.status === "normal" ? "bg-green-500/15 text-green-400" : 
+                          v.status === "overspeeding" ? "bg-red-500/15 text-red-400 font-bold" : 
+                          "bg-yellow-500/15 text-yellow-400"
+                        }`}>
+                          {v.status === "overspeeding" ? "OVERSPEEDING" : v.status.charAt(0).toUpperCase() + v.status.slice(1)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
         </GlassCard>
       </div>
 
-      {/* ─── NEW: SOS HISTORY LOG TABLE ─── */}
-      <div className="mt-6 pb-8">
+      {/* ─── HISTORY LOGS GRID ─── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 pb-8">
+        
+        {/* SOS HISTORY LOG TABLE */}
         <GlassCard className="p-5">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div className="flex items-center gap-2">
               <Archive size={18} className="text-white/40" />
-              <h2 className="text-lg font-bold text-white">SOS History Log</h2>
+              <h2 className="text-lg font-bold text-white">SOS History</h2>
             </div>
-            <span className="text-[10px] bg-white/[0.06] text-white/40 px-2 py-0.5 rounded">
-              {sosHistory.length} Total Resolved
-            </span>
+            
+            {/* NEW: SOS Date Filter */}
+            <div className="relative flex items-center">
+              <CalendarDays size={14} className="absolute left-2.5 text-white/30 pointer-events-none" />
+              <input
+                type="date"
+                value={filterSosDate}
+                onChange={handleSosDateChange}
+                className="bg-white/[0.04] border border-white/10 rounded-lg text-xs text-white/70 pl-8 pr-2 py-1.5 focus:outline-none focus:border-blue-500/50 [color-scheme:dark]"
+              />
+              {filterSosDate && (
+                <button onClick={() => { setFilterSosDate(''); setSosPage(1); }} className="absolute right-2 text-white/30 hover:text-white text-xs">✕</button>
+              )}
+            </div>
           </div>
           
-          {sosHistory.length === 0 ? (
-            <div className="py-8 text-center text-white/20 text-sm">
-              No SOS history yet.
-            </div>
+          {filteredSosHistory.length === 0 ? (
+            <div className="py-8 text-center text-white/20 text-sm">No SOS history for this date.</div>
           ) : (
             <>
               <div className="overflow-x-auto">
@@ -279,27 +372,23 @@ export default function MonitoringPage() {
                     <tr className="border-b border-white/10">
                       <th className="pb-3 text-xs font-semibold text-white/40 uppercase tracking-wider">Conductor</th>
                       <th className="pb-3 text-xs font-semibold text-white/40 uppercase tracking-wider">Vehicle</th>
-                      <th className="pb-3 text-xs font-semibold text-white/40 uppercase tracking-wider">Message</th>
                       <th className="pb-3 text-xs font-semibold text-white/40 uppercase tracking-wider hidden md:table-cell">Triggered</th>
                       <th className="pb-3 text-xs font-semibold text-white/40 uppercase tracking-wider">Resolved</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
-                    {currentHistoryData.map((log) => (
+                    {currentSosData.map((log) => (
                       <tr key={log.id} className="hover:bg-white/[0.02] transition-colors opacity-70 hover:opacity-100">
-                        <td className="py-3.5 pr-4">
+                        <td className="py-3 pr-3">
                           <span className="text-sm text-white/70 font-medium">{log.conductor}</span>
                         </td>
-                        <td className="py-3.5 pr-4">
+                        <td className="py-3 pr-3">
                           <span className="text-sm text-white/50 font-mono">{log.vehicle}</span>
                         </td>
-                        <td className="py-3.5 pr-4">
-                          <span className="text-sm text-white/50">{log.message}</span>
-                        </td>
-                        <td className="py-3.5 pr-4 hidden md:table-cell">
+                        <td className="py-3 pr-3 hidden md:table-cell">
                           <span className="text-xs text-white/30">{log.triggeredAt}</span>
                         </td>
-                        <td className="py-3.5">
+                        <td className="py-3">
                           <span className="inline-flex items-center gap-1 text-xs text-green-400/70 bg-green-500/10 px-2 py-0.5 rounded-md">
                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -312,36 +401,95 @@ export default function MonitoringPage() {
                   </tbody>
                 </table>
               </div>
-
-              {/* Pagination Controls */}
+              {/* Pagination */}
               <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/[0.06]">
-                <p className="text-xs text-white/30">
-                  Page <span className="text-white/50 font-medium">{historyPage}</span> of <span className="text-white/50 font-medium">{totalHistoryPages}</span>
-                </p>
-                
+                <p className="text-xs text-white/30">Page {sosPage} of {totalSosPages}</p>
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setHistoryPage(prev => Math.max(prev - 1, 1))}
-                    disabled={historyPage === 1}
-                    className="px-3 py-1.5 rounded-md text-xs font-medium bg-white/[0.04] text-white/40 hover:bg-white/[0.08] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                  >
-                    Previous
-                  </button>
-                  
-                  <button
-                    onClick={() => setHistoryPage(prev => Math.min(prev + 1, totalHistoryPages))}
-                    disabled={historyPage === totalHistoryPages}
-                    className="px-3 py-1.5 rounded-md text-xs font-medium bg-white/[0.06] text-white/60 hover:bg-white/[0.1] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                  >
-                    Next
-                  </button>
+                  <button disabled={sosPage === 1} onClick={() => setSosPage(p => p - 1)} className="px-3 py-1.5 rounded-md text-xs font-medium bg-white/[0.04] text-white/40 hover:bg-white/[0.08] disabled:opacity-30 disabled:cursor-not-allowed transition-all">Previous</button>
+                  <button disabled={sosPage === totalSosPages} onClick={() => setSosPage(p => p + 1)} className="px-3 py-1.5 rounded-md text-xs font-medium bg-white/[0.06] text-white/60 hover:bg-white/[0.1] disabled:opacity-30 disabled:cursor-not-allowed transition-all">Next</button>
                 </div>
               </div>
             </>
           )}
         </GlassCard>
-      </div>
 
+        {/* NEW: OVERSPEEDING HISTORY LOG TABLE */}
+        <GlassCard className="p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-2">
+              <Gauge size={18} className="text-red-400/60" />
+              <h2 className="text-lg font-bold text-white">Overspeeding History</h2>
+            </div>
+            
+            {/* NEW: Overspeed Date Filter */}
+            <div className="relative flex items-center">
+              <CalendarDays size={14} className="absolute left-2.5 text-white/30 pointer-events-none" />
+              <input
+                type="date"
+                value={filterOverspeedDate}
+                onChange={handleOverspeedDateChange}
+                className="bg-white/[0.04] border border-white/10 rounded-lg text-xs text-white/70 pl-8 pr-2 py-1.5 focus:outline-none focus:border-red-500/50 [color-scheme:dark]"
+              />
+              {filterOverspeedDate && (
+                <button onClick={() => { setFilterOverspeedDate(''); setOverspeedPage(1); }} className="absolute right-2 text-white/30 hover:text-white text-xs">✕</button>
+              )}
+            </div>
+          </div>
+          
+          {filteredOverspeedHistory.length === 0 ? (
+            <div className="py-8 text-center text-white/20 text-sm">No overspeeding logs for this date.</div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-white/10">
+                      <th className="pb-3 text-xs font-semibold text-white/40 uppercase tracking-wider">Unit</th>
+                      <th className="pb-3 text-xs font-semibold text-white/40 uppercase tracking-wider">Driver</th>
+                      <th className="pb-3 text-xs font-semibold text-white/40 uppercase tracking-wider text-center">Speed</th>
+                      <th className="pb-3 text-xs font-semibold text-white/40 uppercase tracking-wider hidden md:table-cell">Zone</th>
+                      <th className="pb-3 text-xs font-semibold text-white/40 uppercase tracking-wider">Logged</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {currentOverspeedData.map((log) => (
+                      <tr key={log.id} className="hover:bg-white/[0.02] transition-colors opacity-70 hover:opacity-100">
+                        <td className="py-3 pr-3">
+                          <span className="text-sm text-white/70 font-semibold">{log.unit}</span>
+                        </td>
+                        <td className="py-3 pr-3">
+                          <span className="text-sm text-white/50">{log.driver}</span>
+                        </td>
+                        <td className="py-3 pr-3 text-center">
+                          <span className="text-sm font-bold text-red-400">{log.speed} km/h</span>
+                        </td>
+                        <td className="py-3 pr-3 hidden md:table-cell">
+                          <span className="text-xs text-white/30">{log.zone}</span>
+                        </td>
+                        <td className="py-3">
+                          <span className="inline-flex items-center gap-1 text-xs text-amber-400/70 bg-amber-500/10 px-2 py-0.5 rounded-md">
+                            <Clock size={12} />
+                            {log.loggedAt}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {/* Pagination */}
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/[0.06]">
+                <p className="text-xs text-white/30">Page {overspeedPage} of {totalOverspeedPages}</p>
+                <div className="flex items-center gap-2">
+                  <button disabled={overspeedPage === 1} onClick={() => setOverspeedPage(p => p - 1)} className="px-3 py-1.5 rounded-md text-xs font-medium bg-white/[0.04] text-white/40 hover:bg-white/[0.08] disabled:opacity-30 disabled:cursor-not-allowed transition-all">Previous</button>
+                  <button disabled={overspeedPage === totalOverspeedPages} onClick={() => setOverspeedPage(p => p + 1)} className="px-3 py-1.5 rounded-md text-xs font-medium bg-white/[0.06] text-white/60 hover:bg-white/[0.1] disabled:opacity-30 disabled:cursor-not-allowed transition-all">Next</button>
+                </div>
+              </div>
+            </>
+          )}
+        </GlassCard>
+
+      </div>
     </>
   );
 }

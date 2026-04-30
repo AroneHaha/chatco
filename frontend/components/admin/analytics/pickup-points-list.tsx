@@ -12,9 +12,10 @@ const maxPickup = Math.max(...PICKUP_POINTS.map((p) => p.count));
 
 export function PickupPointsList() {
   return (
-    <div className="bg-white/[0.04] border border-white/10 rounded-xl p-5">
-      <h3 className="text-sm font-semibold text-white mb-4">Most Used Pickup Points</h3>
-      <div className="space-y-3">
+    // Fixed outer container height
+    <div className="bg-white/[0.04] border border-white/10 rounded-xl p-5 h-[340px] flex flex-col">
+      <h3 className="text-sm font-semibold text-white mb-4 flex-shrink-0">Most Used Pickup Points</h3>
+      <div className="space-y-3 flex-1 flex flex-col justify-center">
         {PICKUP_POINTS.map((point, index) => (
           <div key={point.name} className="flex items-center gap-3">
             <div className={`w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
