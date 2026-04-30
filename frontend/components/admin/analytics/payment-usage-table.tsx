@@ -24,7 +24,6 @@ export function PaymentUsageTable() {
         {PAYMENT_USAGE_DATA.map((row) => (
           <div key={row.method} className="grid grid-cols-12 gap-2 px-3 py-3 items-center hover:bg-white/[0.02] transition-colors">
             <div className="col-span-5 flex items-center gap-2">
-              <span className="text-base">{row.icon}</span>
               <span className="text-xs text-white/80 font-medium truncate">{row.method}</span>
             </div>
             <div className="col-span-2 text-center text-xs text-white/60">{row.transactions.toLocaleString()}</div>

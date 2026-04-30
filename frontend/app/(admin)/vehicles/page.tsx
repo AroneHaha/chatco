@@ -15,7 +15,16 @@ import { Plus, Users, Car, UserPlus, Archive } from 'lucide-react';
 import { mockPersonnel, initialVehicles } from './data/vehicles-data';
 
 // NEW: Mock data for terminated personnel
-const terminatedPersonnel = [
+const terminatedPersonnel: Array<{
+  id: number;
+  name: string;
+  role: string;
+  contact: string;
+  status: 'Terminated' | 'Resigned';
+  reason: string;
+  terminatedDate: string;
+  lastVehicle: string;
+}> = [
   { id: 6, name: 'Rizal Santiago', role: 'Driver', contact: '0917-123-4567', status: 'Terminated', reason: 'Repeated policy violations', terminatedDate: '2024-04-15', lastVehicle: 'XQJ 4728' },
   { id: 7, name: 'Mark Arone', role: 'Conductor', contact: '0918-987-6543', status: 'Terminated', reason: 'Gross negligence', terminatedDate: '2024-04-28', lastVehicle: 'VMY 9183' },
   { id: 8, name: 'Elaine Benitez', role: 'Driver', contact: '0919-555-1234', status: 'Resigned', reason: 'Health reasons', terminatedDate: '2024-05-02', lastVehicle: 'LKW 3579' },

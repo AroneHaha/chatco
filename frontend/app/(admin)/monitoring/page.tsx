@@ -8,7 +8,13 @@ import { Gauge, Clock, MapPin, AlertTriangle, Archive } from 'lucide-react';
 import { liveVehicleTracking } from './data/data-monitoring';
 
 // Dynamically import the map and disable SSR (Leaflet requires the window object)
-const CommuterMap = dynamic(() => import('@/components/admin/admin-commuter-map'), { 
+interface CommuterMapProps {
+  isDesktop?: boolean;
+  demandZones: DemandZone[];
+  sosLocations: [number, number][];
+}
+
+const CommuterMap = dynamic<CommuterMapProps>(() => import('@/components/admin/admin-commuter-map'), { 
   ssr: false,
   loading: () => <p className="text-white text-center">Loading map...</p> 
 });

@@ -38,11 +38,11 @@ export function TopUpRevenueTable() {
         {data.map((row) => {
           const numericRevenue = parseInt(row.revenue.replace(/[₱,]/g, ""));
           return (
-            <div key={view === "daily" ? row.day : row.month} className="flex items-center gap-3">
-              <span className="text-xs text-white/50 w-20 flex-shrink-0">{view === "daily" ? row.day : row.month}</span>
+            <div key={'day' in row ? row.day : row.month} className="flex items-center gap-3">
+              <span className="text-xs text-white/50 w-20 flex-shrink-0">{'day' in row ? row.day : row.month}</span>
               <div className="flex-1 h-5 bg-white/[0.04] rounded-md overflow-hidden relative">
                 <div className="h-full bg-green-500/40 rounded-md" style={{ width: `${(numericRevenue / maxRevenue) * 100}%` }} />
-                {view === "daily" && <span className="absolute left-2 top-0 text-[10px] text-white/50 font-medium leading-5">{row.topups} txns</span>}
+                {'day' in row && <span className="absolute left-2 top-0 text-[10px] text-white/50 font-medium leading-5">{row.topups} txns</span>}
               </div>
               <span className="text-xs font-bold text-green-400 w-20 text-right flex-shrink-0">{row.revenue}</span>
             </div>
