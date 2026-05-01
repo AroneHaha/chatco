@@ -12,46 +12,29 @@ export interface LoginPayload {
   password: string;
 }
 
-// --- MOCK DATABASE ---
-const MOCK_USERS = [
-  { id: "u_1", email: "commuter@gmail.com", username: "commuter", password: "commuter", role: "COMMUTER" as UserRole },
-  { id: "a_1", email: "admin@chatco.com", username: "admin", password: "admin", role: "ADMIN" as UserRole },
-  { id: "c_1", email: "conductor@chatco.com", username: "conductor", password: "conductor", role: "CONDUCTOR" as UserRole },
-];
+// --- FUTURE BACKEND INTEGRATION POINT ---
+// Replace everything below with:
+// const response = await fetch('/api/auth/login', { method: 'POST', body: JSON.stringify(payload) });
+// const data = await response.json();
+// if (!response.ok) throw new Error(data.message);
+// return data;
+// -----------------------------------------
 
 export async function loginUser(payload: LoginPayload): Promise<{ user: User; redirectPath: string }> {
-  // --- FUTURE BACKEND INTEGRATION POINT ---
-  // Replace everything below with:
-  // const response = await fetch('/api/auth/login', { method: 'POST', body: JSON.stringify(payload) });
-  // const data = await response.json();
-  // if (!response.ok) throw new Error(data.message);
-  // return data;
-  // -----------------------------------------
+  // Call the real API route — the server sets the httpOnly cookie
+  const response = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 
-  // Simulate network latency
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  const data = await response.json();
 
-  // Find user by email OR username, and match password
-  const user = MOCK_USERS.find(
-    u => (u.email === payload.email || u.username === payload.email) && u.password === payload.password
-  );
-
-  if (!user) {
-    throw new Error("Invalid credentials. Please try again.");
+  if (!response.ok) {
+    throw new Error(data.message || "Login failed.");
   }
 
-  // Strip password before storing/returning
-  const { password, username, ...safeUser } = user;
-
-  // Save to localStorage so the dashboard knows the user is logged in
-  if (typeof window !== "undefined") {
-    localStorage.setItem("chatco_user", JSON.stringify(safeUser));
-  }
-
-  return {
-    user: safeUser,
-    redirectPath: getDashboardPath(user.role)
-  };
+  return data;
 }
 
 export function getDashboardPath(role: UserRole): string {
@@ -67,12 +50,16 @@ export function getDashboardPath(role: UserRole): string {
 // ... (keep existing code) ...
 
 export function logoutUser() {
-  if (typeof window !== "undefined") {
-    localStorage.removeItem("chatco_user");
-    // Clear conductor session data so they must select a unit upon next login
-    localStorage.removeItem("conductor_active_shift"); 
-    localStorage.removeItem("conductor_transactions");
-    localStorage.removeItem("remittance_history");
-  }
-  window.location.href = "/login";
+  // Call the real logout API route (we'll create this in Problem 3)
+  fetch("/api/auth/logout", { method: "POST" }).finally(() => {
+    // Clear any leftover client-side data
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("chatco_user");
+      // Clear conductor session data so they must select a unit upon next login
+      localStorage.removeItem("conductor_active_shift");
+      localStorage.removeItem("conductor_transactions");
+      localStorage.removeItem("remittance_history");
+    }
+    window.location.href = "/login";
+  });
 }
