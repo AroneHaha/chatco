@@ -2,10 +2,11 @@
 import { GlassCard } from '@/components/admin/ui/glass-card';
 import { Badge } from '@/components/admin/ui/badge';
 import { Eye } from 'lucide-react';
+import type { PendingRequest } from '@/app/(admin)/users/data/users-data';
 
 interface RegistrationRequestsTableProps {
-  requests: any[];
-  onSelectRequest: (request: any) => void;
+  requests: PendingRequest[];
+  onSelectRequest: (request: PendingRequest) => void;
 }
 
 export function RegistrationRequestsTable({ requests, onSelectRequest }: RegistrationRequestsTableProps) {
@@ -22,6 +23,7 @@ export function RegistrationRequestsTable({ requests, onSelectRequest }: Registr
               className="w-full text-left flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-white/5 rounded-lg border border-white/10 gap-4 hover:bg-white/10 transition-colors group"
             >
               <div className="flex items-center space-x-4">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={req.idImageUrl} alt="ID" className="w-12 h-12 rounded-md object-cover border border-white/20" />
                 <div>
                   <p className="text-white font-medium group-hover:text-blue-400 transition-colors">{req.name}</p>

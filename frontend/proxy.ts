@@ -3,9 +3,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-
- 
+    
+  const { pathname } = request.nextUrl; 
   const routeGroups: Record<string, string[]> = {
     admin: [
       "/admin-dashboard",
@@ -60,7 +59,7 @@ export function proxy(request: NextRequest) {
 
   // Extract role from token: "chatco_{id}_{role}_{timestamp}"
   // Later: replace with proper JWT verification
-  const tokenParts = sessionToken.split("_");
+const tokenParts = sessionToken.split(":");
   const userRole = tokenParts[2] || "";
 
   // Admin routes require ADMIN role

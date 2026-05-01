@@ -20,6 +20,7 @@ import {
   quickStats,
   settingsModules,
   topPickupPoints,
+  paymentTendencies,
 } from "./data/dashboard-data";
 
 const AdminCommuterMap = dynamic(() => import("@/components/admin/admin-commuter-map"), {
@@ -87,7 +88,6 @@ export default function DashboardHome() {
 
         {/* Right Side: Analytics Previews */}
         <div className="flex flex-col gap-6">
-          {/* Payment Split */}
           <div className="flex-1 bg-white/[0.04] border border-white/10 rounded-2xl p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-white">Payment Tendencies (Today)</h3>
@@ -97,19 +97,19 @@ export default function DashboardHome() {
               <div>
                 <div className="flex justify-between mb-1">
                   <span className="text-xs text-white/70">Chatco Wallet</span>
-                  <span className="text-xs font-bold text-white/80">78%</span>
+                  <span className="text-xs font-bold text-white/80">{paymentTendencies.chatcoWallet}%</span>
                 </div>
                 <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden">
-                  <div className="h-full bg-[#62A0EA] rounded-full w-[78%]" />
+                  <div className="h-full bg-[#62A0EA] rounded-full" style={{ width: `${paymentTendencies.chatcoWallet}%` }} />
                 </div>
               </div>
               <div>
                 <div className="flex justify-between mb-1">
                   <span className="text-xs text-white/70">Cash</span>
-                  <span className="text-xs font-bold text-white/80">22%</span>
+                  <span className="text-xs font-bold text-white/80">{paymentTendencies.cash}%</span>
                 </div>
                 <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden">
-                  <div className="h-full bg-white/20 rounded-full w-[22%]" />
+                  <div className="h-full bg-white/20 rounded-full" style={{ width: `${paymentTendencies.cash}%` }} />
                 </div>
               </div>
             </div>

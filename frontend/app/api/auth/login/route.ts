@@ -29,7 +29,7 @@ export async function POST(request: Request) {
 
     // --- Session token (placeholder) ---
     // Later: replace with real JWT
-    const sessionToken = `chatco_${user.id}_${user.role}_${Date.now()}`;
+const sessionToken = `chatco:${user.id}:${user.role}:${Date.now()}`;
 
     const response = NextResponse.json({
       user: { id: user.id, email: user.email, role: user.role },

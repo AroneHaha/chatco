@@ -14,29 +14,13 @@ import { ConductorAccountSuccessModal } from '@/components/admin/vehicles/conduc
 import { HistoryTable } from '@/components/admin/vehicles/history-table'; 
 import { SearchBar } from '@/components/admin/ui/search-bar';
 import { Plus, Users, Car, UserPlus, Archive } from 'lucide-react';
-import { mockPersonnel, initialVehicles } from './data/vehicles-data';
-
-const terminatedPersonnel: Array<{
-  id: number;
-  name: string;
-  role: string;
-  contact: string;
-  status: 'Terminated' | 'Resigned';
-  reason: string;
-  terminatedDate: string;
-  lastVehicle: string;
-}> = [
-  { id: 6, name: 'Rizal Santiago', role: 'Driver', contact: '0917-123-4567', status: 'Terminated', reason: 'Repeated policy violations', terminatedDate: '2024-04-15', lastVehicle: 'XQJ 4728' },
-  { id: 7, name: 'Mark Arone', role: 'Conductor', contact: '0918-987-6543', status: 'Terminated', reason: 'Gross negligence', terminatedDate: '2024-04-28', lastVehicle: 'VMY 9183' },
-  { id: 8, name: 'Elaine Benitez', role: 'Driver', contact: '0919-555-1234', status: 'Resigned', reason: 'Health reasons', terminatedDate: '2024-05-02', lastVehicle: 'LKW 3579' },
-];
-
-const shiftHistoryLog = [
-  { id: 'LOG-001', personnelName: 'Rizal Santiago', role: 'Driver', vehicle: 'XQJ 4728', shiftDate: '2024-04-14', details: 'Last active shift before termination.' },
-  { id: 'LOG-002', personnelName: 'Mark Arone', role: 'Conductor', vehicle: 'VMY 9183', shiftDate: '2024-04-27', details: 'Involved in cash handling discrepancy.' },
-  { id: 'LOG-003', personnelName: 'Elaine Benitez', role: 'Driver', vehicle: 'LKW 3579', shiftDate: '2024-05-01', details: 'Resignation effective end of shift.' },
-  { id: 'LOG-004', personnelName: 'Jose Ngani', role: 'Conductor', vehicle: 'XQJ 4728', shiftDate: '2024-05-10', details: 'Regular shift completion. Vehicle handed over.' },
-];
+import {
+  initialPersonnel,
+  initialVehicles,
+  initialTerminatedPersonnel,
+  initialShiftHistoryLog,
+} from './data/vehicles-data';
+import type { Vehicle, Personnel, TerminatedPersonnel, ShiftLog } from './data/vehicles-data';
 
 export default function VehiclesPage() {
   const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
@@ -48,10 +32,10 @@ export default function VehiclesPage() {
   const [isCreateConductorOpen, setIsCreateConductorOpen] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   
-  const [createdAccountData, setCreatedAccountData] = useState<any>(null);
-  const [editingVehicle, setEditingVehicle] = useState<any>(null);
-  const [editingPersonnelData, setEditingPersonnelData] = useState<any>(null);
-  const [deletingPersonnelData, setDeletingPersonnelData] = useState<any>(null);
+  const [createdAccountData, setCreatedAccountData] = useState<{ firstName: string; lastName: string; birthday: string; route: string } | null>(null);
+  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
+  const [editingPersonnelData, setEditingPersonnelData] = useState<Personnel | null>(null);
+  const [deletingPersonnelData, setDeletingPersonnelData] = useState<Personnel | null>(null);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'vehicles' | 'personnel' | 'history'>('vehicles');
@@ -62,24 +46,24 @@ export default function VehiclesPage() {
     const assignedDrivers = new Set(vehicles.filter(v => v.driver).map(v => v.driver));
     const assignedConductors = new Set(vehicles.filter(v => v.conductor).map(v => v.conductor));
     return {
-      unassignedDrivers: mockPersonnel.filter(p => p.role === 'Driver' && !assignedDrivers.has(p.name)),
-      unassignedConductors: mockPersonnel.filter(p => p.role === 'Conductor' && !assignedConductors.has(p.name)),
+      unassignedDrivers: initialPersonnel.filter(p => p.role === 'Driver' && !assignedDrivers.has(p.name)),
+      unassignedConductors: initialPersonnel.filter(p => p.role === 'Conductor' && !assignedConductors.has(p.name)),
     };
   }, [vehicles]);
 
   // Vehicle Handlers
   const handleOpenVehicleModal = () => setIsVehicleModalOpen(true);
   const handleCloseVehicleModal = () => setIsVehicleModalOpen(false);
-  const handleOpenEditModal = (vehicle: any) => { setEditingVehicle(vehicle); setIsEditVehicleModalOpen(true); };
+  const handleOpenEditModal = (vehicle: Vehicle) => { setEditingVehicle(vehicle); setIsEditVehicleModalOpen(true); };
   const handleCloseEditModal = () => { setEditingVehicle(null); setIsEditVehicleModalOpen(false); };
-  const handleSaveVehicle = (data: any) => { setVehicles(prev => [...prev, { ...data, id: prev.length + 1, speed: 0 }]); handleCloseVehicleModal(); };
-  const handleUpdateVehicle = (data: any) => { setVehicles(prev => prev.map(v => v.id === editingVehicle.id ? { ...v, ...data } : v)); handleCloseEditModal(); };
+  const handleSaveVehicle = (data: Partial<Vehicle>) => { setVehicles(prev => [...prev, { ...data, id: prev.length + 1, speed: 0 } as Vehicle]); handleCloseVehicleModal(); };
+  const handleUpdateVehicle = (data: Partial<Vehicle>) => { setVehicles(prev => prev.map(v => v.id === editingVehicle?.id ? { ...v, ...data } : v)); handleCloseEditModal(); };
 
   // Personnel Handlers
   const handleOpenPersonnelModal = () => setIsPersonnelModalOpen(true);
   const handleClosePersonnelModal = () => setIsPersonnelModalOpen(false);
   
-  const handleOpenEditPersonnel = (personnel: any) => {
+  const handleOpenEditPersonnel = (personnel: Personnel) => {
     setEditingPersonnelData(personnel);
     setIsEditPersonnelOpen(true);
   };
@@ -87,13 +71,13 @@ export default function VehiclesPage() {
     setEditingPersonnelData(null);
     setIsEditPersonnelOpen(false);
   };
-  const handleSaveEditPersonnel = (data: any) => {
+  const handleSaveEditPersonnel = (data: Personnel) => {
     console.log("Updated Personnel:", data);
     handleCloseEditPersonnel();
-    // In a real app, you would update the mockPersonnel state here
+    // In a real app, you would update the personnel state here
   };
 
-  const handleOpenDeletePersonnel = (personnel: any) => {
+  const handleOpenDeletePersonnel = (personnel: Personnel) => {
     setDeletingPersonnelData(personnel);
     setIsDeletePersonnelOpen(true);
   };
@@ -101,20 +85,20 @@ export default function VehiclesPage() {
     setDeletingPersonnelData(null);
     setIsDeletePersonnelOpen(false);
   };
-  const handleConfirmDeletePersonnel = (data: any) => {
+  const handleConfirmDeletePersonnel = (data: { id: number; reason: string; terminationType: string }) => {
     console.log("Deleted Personnel ID:", data.id, "Reason:", data.reason);
     handleCloseDeletePersonnel();
     // In a real app, you would move this personnel to terminatedPersonnel state here
   };
 
   // Shift & Conductor Handlers
-  const handleOpenShiftModal = (vehicle: any) => { setEditingVehicle(vehicle); setIsShiftModalOpen(true); };
+  const handleOpenShiftModal = (vehicle: Vehicle) => { setEditingVehicle(vehicle); setIsShiftModalOpen(true); };
   const handleCloseShiftModal = () => { setEditingVehicle(null); setIsShiftModalOpen(false); };
-  const handleSaveShift = (data: any) => { console.log("Shift saved for vehicle:", editingVehicle?.plateNumber, data); handleCloseShiftModal(); };
+  const handleSaveShift = (data: Record<string, string>) => { console.log("Shift saved for vehicle:", editingVehicle?.plateNumber, data); handleCloseShiftModal(); };
   
   const handleOpenCreateConductor = () => setIsCreateConductorOpen(true);
   const handleCloseCreateConductor = () => setIsCreateConductorOpen(false);
-  const handleSaveConductorAccount = (data: any) => { setCreatedAccountData(data); setIsSuccessModalOpen(true); handleCloseCreateConductor(); };
+  const handleSaveConductorAccount = (data: { firstName: string; lastName: string; birthday: string; route: string }) => { setCreatedAccountData(data); setIsSuccessModalOpen(true); handleCloseCreateConductor(); };
   const handleCloseSuccessModal = () => { setIsSuccessModalOpen(false); setCreatedAccountData(null); };
 
   return (
@@ -199,15 +183,15 @@ export default function VehiclesPage() {
         />
       ) : (
         <HistoryTable 
-          terminatedPersonnel={terminatedPersonnel} 
-          shiftHistoryLog={shiftHistoryLog}
+          terminatedPersonnel={initialTerminatedPersonnel} 
+          shiftHistoryLog={initialShiftHistoryLog}
           searchQuery={searchQuery}
         />
       )}
 
       {/* All Modals */}
       <AddVehicleModal isOpen={isVehicleModalOpen} onClose={handleCloseVehicleModal} onSave={handleSaveVehicle} unassignedDrivers={unassignedDrivers} unassignedConductors={unassignedConductors} />
-      <EditVehicleModal isOpen={isEditVehicleModalOpen} onClose={handleCloseEditModal} onSave={handleUpdateVehicle} editingVehicle={editingVehicle} allPersonnel={mockPersonnel} />
+      <EditVehicleModal isOpen={isEditVehicleModalOpen} onClose={handleCloseEditModal} onSave={handleUpdateVehicle} editingVehicle={editingVehicle} allPersonnel={initialPersonnel} />
       <AddPersonnelModal isOpen={isPersonnelModalOpen} onClose={handleClosePersonnelModal} />
       
       {/* NEW MODALS */}
