@@ -4,80 +4,45 @@
 import { useState, useMemo } from 'react';
 import { LostFoundGrid } from '@/components/admin/lost-found/lost-found-grid';
 import { AddLostFoundModal } from '@/components/admin/lost-found/add-lost-found-modal';
+import { ViewItemModal } from '@/components/admin/lost-found/view-item-modal';
 import { ClaimsListModal } from '@/components/admin/lost-found/claims-list-modal';
 import { HistoryModal } from '@/components/admin/lost-found/history-modal';
 import { Plus } from 'lucide-react';
-
-// EXACT Commuter Categories
-const categories = [
-  { value: "ALL", label: "All Items" },
-  { value: "ACCESSORY", label: "Accessories" },
-  { value: "BAG", label: "Bags" },
-  { value: "WALLET", label: "Wallets" },
-  { value: "GADGET", label: "Gadgets" },
-  { value: "CLOTHING", label: "Clothing" },
-  { value: "DOCUMENT", label: "Documents" },
-  { value: "OTHER", label: "Other" },
-];
-
-// EXACT Commuter Mock Database + Admin specific fields
-const initialItems = [
-  { id: "lf_001", itemName: "Black Leather Wallet", description: "Found under the seat near the back door.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Wallet", plateNumber: "ABC 1234", driverName: "Juan Dela Cruz", conductorName: "Pedro Penduko", estimatedTimeLost: "Around 8:00 AM", category: "WALLET", datePosted: "2026-04-06T10:00:00Z", reporterName: "Admin", status: "Unmatched", claimedBy: null },
-  { id: "lf_002", itemName: "Red Jansport Backpack", description: "Left on the luggage rack.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Backpack", plateNumber: "XYZ 5678", driverName: "Mario Speedwagon", conductorName: "Luigi Mansion", estimatedTimeLost: "Around 5:30 PM", category: "BAG", datePosted: "2026-04-06T08:00:00Z", reporterName: "Admin", status: "Claimed", claimedBy: "Jane Smith" },
-  { id: "lf_003", itemName: "iPhone 15 Pro Max", description: "Found on the floor near the entrance.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=iPhone", plateNumber: "DEF 9012", driverName: "Crisostomo Ibarra", conductorName: "Sisa Doe", estimatedTimeLost: "Around 7:15 AM", category: "GADGET", datePosted: "2026-04-06T09:00:00Z", reporterName: "Conductor Sisa", status: "Unmatched", claimedBy: null },
-  { id: "lf_004", itemName: "Blue Umbrella", description: "Generic blue folding umbrella left on the seat.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Umbrella", plateNumber: "ABC 1234", driverName: "Juan Dela Cruz", conductorName: "Pedro Penduko", estimatedTimeLost: "Around 2:00 PM", category: "ACCESSORY", datePosted: "2026-04-05T14:00:00Z", reporterName: "Admin", status: "Unmatched", claimedBy: null },
-  { id: "lf_005", itemName: "Official TOR", description: "Sealed envelope from PUP.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Document", plateNumber: "GHI 3456", driverName: "Jose Rizal", conductorName: "Andres Bonifacio", estimatedTimeLost: "Around 9:00 AM", category: "DOCUMENT", datePosted: "2026-04-05T10:00:00Z", reporterName: "Admin", status: "Unmatched", claimedBy: null },
-  { id: "lf_006", itemName: "Samsung Galaxy Buds", description: "White case, found under passenger seat.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Earbuds", plateNumber: "JKL 7890", driverName: "Apolinario Mabini", conductorName: "Antonio Luna", estimatedTimeLost: "Morning", category: "GADGET", datePosted: "2026-04-05T08:00:00Z", reporterName: "Admin", status: "Unmatched", claimedBy: null },
-  { id: "lf_007", itemName: "Gray Hoodie", description: "Left on the handrail near the door.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Hoodie", plateNumber: "MNO 1122", driverName: "Emilio Aguinaldo", conductorName: "Manuel Quezon", estimatedTimeLost: "Evening", category: "CLOTHING", datePosted: "2026-04-04T18:00:00Z", reporterName: "Admin", status: "Unmatched", claimedBy: null },
-  { id: "lf_008", itemName: "Laptop Charger", description: "Lenovo charger found near the driver area.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Charger", plateNumber: "PQR 3344", driverName: "Juan Dela Cruz", conductorName: "Pedro Penduko", estimatedTimeLost: "Afternoon", category: "ACCESSORY", datePosted: "2026-04-04T15:00:00Z", reporterName: "Admin", status: "Unmatched", claimedBy: null },
-  { id: "lf_009", itemName: "Prescription Glasses", description: "Black frame, found on the floor.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Glasses", plateNumber: "STU 5566", driverName: "Mario Speedwagon", conductorName: "Luigi Mansion", estimatedTimeLost: "Around 10:00 AM", category: "ACCESSORY", datePosted: "2026-04-04T09:00:00Z", reporterName: "Admin", status: "Unmatched", claimedBy: null },
-  { id: "lf_010", itemName: "ADT I.D.", description: "Unidentified ID found inside the jeep.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=ID", plateNumber: "VWX 7788", driverName: "Crisostomo Ibarra", conductorName: "Sisa Doe", estimatedTimeLost: "Morning", category: "DOCUMENT", datePosted: "2026-04-03T11:00:00Z", reporterName: "Admin", status: "Unmatched", claimedBy: null },
-  { id: "lf_011", itemName: "Reusable Water Bottle", description: "Steel bottle with stickers.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Bottle", plateNumber: "YZA 9900", driverName: "Jose Rizal", conductorName: "Andres Bonifacio", estimatedTimeLost: "Afternoon", category: "OTHER", datePosted: "2026-04-03T14:00:00Z", reporterName: "Admin", status: "Unmatched", claimedBy: null },
-  { id: "lf_012", itemName: "Canvas Tote Bag", description: "White tote bag with minimal dirt.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Tote", plateNumber: "BCD 1122", driverName: "Apolinario Mabini", conductorName: "Antonio Luna", estimatedTimeLost: "Around 6:00 PM", category: "BAG", datePosted: "2026-04-03T17:00:00Z", reporterName: "Admin", status: "Unmatched", claimedBy: null },
-  { id: "lf_013", itemName: "Power Bank", description: "Black 10,000 mAh power bank.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=PowerBank", plateNumber: "EFG 3344", driverName: "Emilio Aguinaldo", conductorName: "Manuel Quezon", estimatedTimeLost: "Morning", category: "GADGET", datePosted: "2026-04-02T08:00:00Z", reporterName: "Admin", status: "Unmatched", claimedBy: null },
-  { id: "lf_014", itemName: "Neck Pillow", description: "Gray memory foam neck pillow.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Pillow", plateNumber: "HIJ 5566", driverName: "Juan Dela Cruz", conductorName: "Pedro Penduko", estimatedTimeLost: "Around 4:00 PM", category: "OTHER", datePosted: "2026-04-02T16:00:00Z", reporterName: "Admin", status: "Unmatched", claimedBy: null },
-  { id: "lf_015", itemName: "Brown Purse", description: "Small leather purse with coin compartment.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Purse", plateNumber: "KLM 7788", driverName: "Mario Speedwagon", conductorName: "Luigi Mansion", estimatedTimeLost: "Afternoon", category: "WALLET", datePosted: "2026-04-02T13:00:00Z", reporterName: "Admin", status: "Unmatched", claimedBy: null },
-  { id: "lf_016", itemName: "Smart Watch", description: "Found near the entrance, screen locked.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Watch", plateNumber: "NOP 9900", driverName: "Crisostomo Ibarra", conductorName: "Sisa Doe", estimatedTimeLost: "Around 1:00 PM", category: "GADGET", datePosted: "2026-04-01T12:00:00Z", reporterName: "Admin", status: "Unmatched", claimedBy: null },
-  { id: "lf_017", itemName: "Ball Cap", description: "Black cap with no logo.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Cap", plateNumber: "QRS 1122", driverName: "Jose Rizal", conductorName: "Andres Bonifacio", estimatedTimeLost: "Morning", category: "CLOTHING", datePosted: "2026-04-01T09:00:00Z", reporterName: "Admin", status: "Unmatched", claimedBy: null },
-  { id: "lf_018", itemName: "Kids Lunchbox", description: "Blue lunchbox with superhero print.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Lunchbox", plateNumber: "TUV 3344", driverName: "Apolinario Mabini", conductorName: "Antonio Luna", estimatedTimeLost: "Around 11:00 AM", category: "OTHER", datePosted: "2026-03-31T11:00:00Z", reporterName: "Admin", status: "Unmatched", claimedBy: null },
-  { id: "lf_019", itemName: "Textbook", description: "Engineering textbook, no name written.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=Book", plateNumber: "WXY 5566", driverName: "Emilio Aguinaldo", conductorName: "Manuel Quezon", estimatedTimeLost: "Afternoon", category: "DOCUMENT", datePosted: "2026-03-31T15:00:00Z", reporterName: "Admin", status: "Unmatched", claimedBy: null },
-  { id: "lf_020", itemName: "Yellow Sling Bag", description: "Small yellow bag left on the floor.", imageUrl: "https://placehold.co/400x300/0A1E33/62A0EA?text=SlingBag", plateNumber: "ZAB 7788", driverName: "Juan Dela Cruz", conductorName: "Pedro Penduko", estimatedTimeLost: "Evening", category: "BAG", datePosted: "2026-03-30T18:00:00Z", reporterName: "Admin", status: "Unmatched", claimedBy: null },
-];
-
-// SAMPLE APPROVE/REJECT DATA
-const initialClaims = [
-  { id: 1, itemId: "lf_001", claimantName: "John Doe", claimantContact: "0917-123-4567", claimDate: "2026-04-07 09:00 AM", status: "Pending" },
-  { id: 2, itemId: "lf_002", claimantName: "Jane Smith", claimantContact: "0918-234-5678", claimDate: "2026-04-06 10:30 AM", status: "Approved" },
-  { id: 3, itemId: "lf_003", claimantName: "Fake Claimant", claimantContact: "0920-456-7890", claimDate: "2026-04-06 11:00 AM", status: "Rejected" },
-];
-
-const initialHistory = [
-  { id: "H-001", itemId: "lf_001", action: "Reported", details: 'Item "Black Leather Wallet" reported by Admin.', timestamp: "2026-04-06 10:00 AM" },
-  { id: "H-002", itemId: "lf_001", action: "Claim Submitted", details: "John Doe submitted a claim with proof of ownership.", timestamp: "2026-04-07 09:00 AM" },
-  { id: "H-003", itemId: "lf_002", action: "Claim Approved", details: 'Claim for "Red Jansport Backpack" approved for Jane Smith.', timestamp: "2026-04-06 10:35 AM" },
-  { id: "H-004", itemId: "lf_003", action: "Claim Rejected", details: "Claim by Fake Claimant was rejected due to mismatched proof.", timestamp: "2026-04-06 11:15 AM" },
-];
+import {
+  initialLostFoundItems,
+  initialClaims,
+  initialHistoryLog,
+  itemCategoriesWithAll,
+  type LostFoundItem,
+  type Claim,
+  type HistoryEvent,
+  type ItemCategory,
+  type ItemStatus,
+  type ClaimStatus,
+} from '@/app/(admin)/lost-found/data/lost-found-data';
+import type { LostFoundFormData } from '@/components/admin/lost-found/add-lost-found-modal';
 
 export default function LostFoundPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isClaimsModalOpen, setIsClaimsModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
-  const [items, setItems] = useState(initialItems);
-  const [claims, setClaims] = useState(initialClaims);
-  const [history, setHistory] = useState(initialHistory);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [items, setItems] = useState<LostFoundItem[]>(initialLostFoundItems);
+  const [claims, setClaims] = useState<Claim[]>(initialClaims);
+  const [history, setHistory] = useState<HistoryEvent[]>(initialHistoryLog);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   
   const [activeTab, setActiveTab] = useState<'ALL' | 'PENDING_CLAIMS'>('ALL');
-  const [activeCategory, setActiveCategory] = useState('ALL');
+  const [activeCategory, setActiveCategory] = useState<ItemCategory | 'ALL'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 15;
 
   const filteredItems = useMemo(() => {
     let result = items;
-    if (activeTab === 'PENDING_CLAIMS') result = result.filter(item => item.status === 'Unmatched');
-    if (activeCategory !== 'ALL') result = result.filter(item => item.category === activeCategory);
-    if (searchQuery.trim()) result = result.filter(item => item.itemName.toLowerCase().includes(searchQuery.toLowerCase()) || item.description.toLowerCase().includes(searchQuery.toLowerCase()));
+    if (activeTab === 'PENDING_CLAIMS') result = result.filter((item: LostFoundItem) => item.status === 'Unmatched');
+    if (activeCategory !== 'ALL') result = result.filter((item: LostFoundItem) => item.category === activeCategory);
+    if (searchQuery.trim()) result = result.filter((item: LostFoundItem) => item.itemName.toLowerCase().includes(searchQuery.toLowerCase()) || item.description.toLowerCase().includes(searchQuery.toLowerCase()));
     return result;
   }, [items, activeTab, activeCategory, searchQuery]);
 
@@ -90,17 +55,41 @@ export default function LostFoundPage() {
   const handleCloseClaimsModal = () => { setSelectedItemId(null); setIsClaimsModalOpen(false); };
   const handleOpenHistoryModal = (itemId: string) => { setSelectedItemId(itemId); setIsHistoryModalOpen(true); };
   const handleCloseHistoryModal = () => { setSelectedItemId(null); setIsHistoryModalOpen(false); };
+  const handleOpenDetailModal = (itemId: string) => { setSelectedItemId(itemId); setIsDetailModalOpen(true); };
+  const handleCloseDetailModal = () => { setSelectedItemId(null); setIsDetailModalOpen(false); };
 
-  const handleSaveItem = (newItem: any) => {
-    setItems(prev => [...prev, { ...newItem, id: `lf_${prev.length + 21}`, status: 'Unmatched', claimedBy: null, datePosted: new Date().toISOString() }]);
+  const handleSaveItem = (newItem: LostFoundFormData) => {
+    const nextId = `lf_${String(items.length + 1).padStart(3, '0')}`;
+    setItems(prev => [...prev, {
+      id: nextId,
+      itemName: newItem.itemName,
+      description: newItem.description,
+      imageUrl: newItem.imagePreview || `https://placehold.co/400x300/0A1E33/62A0EA?text=${encodeURIComponent(newItem.itemName)}`,
+      plateNumber: newItem.plateNumber,
+      driverName: newItem.driverName,
+      conductorName: newItem.conductorName,
+      estimatedTimeLost: newItem.estimatedTimeLost,
+      category: newItem.category,
+      datePosted: new Date().toISOString(),
+      reporterName: newItem.reporterName,
+      status: 'Unmatched',
+      claimedBy: null,
+    }]);
     handleCloseAddModal();
   };
 
   const handleClaimAction = (itemId: string, action: 'Release' | 'Return' | 'Reject', claimantName: string) => {
-    const newStatus = action === 'Release' ? 'Released' : action === 'Return' ? 'Returned' : 'Rejected';
-    setItems(prev => prev.map(item => item.id === itemId ? { ...item, status: newStatus, claimedBy: claimantName } : item));
-    setHistory(prev => [...prev, { id: `H-${prev.length + 1}`, itemId, action: `Claim ${newStatus}`, details: `Claim for item ${itemId} was ${newStatus.toLowerCase()} by admin for ${claimantName}.`, timestamp: new Date().toLocaleString() }]);
-    setClaims(prev => prev.map(claim => claim.itemId === itemId ? { ...claim, status: newStatus } : claim));
+    const newStatus: ItemStatus = action === 'Release' ? 'Released' : action === 'Return' ? 'Returned' : 'Rejected';
+    const newClaimStatus: ClaimStatus = newStatus as ClaimStatus;
+    setItems(prev => prev.map((item: LostFoundItem) => item.id === itemId ? { ...item, status: newStatus, claimedBy: claimantName } : item));
+    setHistory(prev => [...prev, {
+      id: `H-${String(prev.length + 1).padStart(3, '0')}`,
+      itemId,
+      action: `Claim ${newStatus}`,
+      details: `Claim for item ${itemId} was ${newStatus.toLowerCase()} by admin for ${claimantName}.`,
+      timestamp: new Date().toLocaleString(),
+    }]);
+    setClaims(prev => prev.map((claim: Claim) => claim.itemId === itemId ? { ...claim, status: newClaimStatus } : claim));
     handleCloseClaimsModal();
   };
 
@@ -129,7 +118,7 @@ export default function LostFoundPage() {
             <input type="text" placeholder="Search items, plates..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }} className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" />
           </div>
           <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-            {categories.map(cat => (
+            {itemCategoriesWithAll.map(cat => (
               <button key={cat.value} onClick={() => { setActiveCategory(cat.value); setCurrentPage(1); }} className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-semibold border transition-colors ${activeCategory === cat.value ? "bg-blue-500 border-blue-500 text-white" : "bg-transparent border-white/10 text-white/50 hover:bg-white/10"}`}>{cat.label}</button>
             ))}
           </div>
@@ -145,7 +134,7 @@ export default function LostFoundPage() {
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
-              <LostFoundGrid items={displayItems} onViewClaims={handleOpenClaimsModal} onViewHistory={handleOpenHistoryModal} />
+              <LostFoundGrid items={displayItems} onViewClaims={handleOpenClaimsModal} onViewHistory={handleOpenHistoryModal} onViewDetails={handleOpenDetailModal} />
             </div>
             {totalPages > 1 && (
               <div className="flex items-center justify-center gap-2 mt-8 mb-4">
@@ -160,9 +149,10 @@ export default function LostFoundPage() {
         )}
       </div>
 
+      <ViewItemModal isOpen={isDetailModalOpen} onClose={handleCloseDetailModal} item={items.find((i: LostFoundItem) => i.id === selectedItemId) ?? null} />
       <AddLostFoundModal isOpen={isAddModalOpen} onClose={handleCloseAddModal} onSave={handleSaveItem} />
-      <ClaimsListModal isOpen={isClaimsModalOpen} onClose={handleCloseClaimsModal} itemId={selectedItemId || ''} claims={claims.filter(c => c.itemId === selectedItemId)} onClaimAction={handleClaimAction} />
-      <HistoryModal isOpen={isHistoryModalOpen} onClose={handleCloseHistoryModal} itemId={selectedItemId || ''} history={history.filter(h => h.itemId === selectedItemId)} />
+      <ClaimsListModal isOpen={isClaimsModalOpen} onClose={handleCloseClaimsModal} itemId={selectedItemId || ''} claims={claims.filter((c: Claim) => c.itemId === selectedItemId)} onClaimAction={handleClaimAction} />
+      <HistoryModal isOpen={isHistoryModalOpen} onClose={handleCloseHistoryModal} itemId={selectedItemId || ''} history={history.filter((h: HistoryEvent) => h.itemId === selectedItemId)} />
     </div>
   );
 }

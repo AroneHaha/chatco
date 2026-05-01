@@ -1,12 +1,7 @@
 "use client";
 
-const HEATMAP_ZONES = [
-  { zone: "Malolos Terminal", commuters: 450, intensity: "Critical" as const, color: "bg-red-500" },
-  { zone: "Meycauayan Crossing", commuters: 320, intensity: "High" as const, color: "bg-orange-500" },
-  { zone: "Guiguinto Stop", commuters: 180, intensity: "Moderate" as const, color: "bg-yellow-500" },
-  { zone: "Marilao Highroad", commuters: 90, intensity: "Low" as const, color: "bg-green-500" },
-  { zone: "Calumpit Town Proper", commuters: 150, intensity: "Moderate" as const, color: "bg-yellow-500" },
-];
+import { initialHeatmapZones } from "@/app/(admin)/analytics/data/analytics-data";
+import type { HeatmapZone } from "@/app/(admin)/analytics/data/analytics-data";
 
 export function DemandHeatmapData() {
   return (
@@ -27,7 +22,7 @@ export function DemandHeatmapData() {
 
       {/* Fixed inner list height with overflow just in case */}
       <div className="space-y-2 flex-1 overflow-y-auto">
-        {HEATMAP_ZONES.map((zone) => (
+        {initialHeatmapZones.map((zone: HeatmapZone) => (
           <div key={zone.zone} className="flex items-center justify-between p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.04]">
             <div className="flex items-center gap-2">
               <div className={`w-2 h-8 rounded-full ${zone.color}`}></div>

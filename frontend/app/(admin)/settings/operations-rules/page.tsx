@@ -5,20 +5,15 @@ import { useState } from 'react';
 import { GlassCard } from '@/components/admin/ui/glass-card';
 import BackButton from '@/components/admin/ui/back-button';
 import { Save, Plus, X } from 'lucide-react';
+import {
+  defaultOperationsRules,
+  initialExpenseCategories,
+  type OperationsRulesConfig,
+} from '@/app/(admin)/settings/data/settings-data';
 
 export default function OperationsRulesPage() {
-  const [rules, setRules] = useState({
-    speedLimitKmh: '60',
-    maxShiftHours: '12',
-  });
-
-  const [expenseCategories, setExpenseCategories] = useState<string[]>([
-    'Gas / Fuel',
-    'Boundary / Remittance',
-    'Vehicle Washing',
-    'Tire Change / Repair',
-  ]);
-
+  const [rules, setRules] = useState<OperationsRulesConfig>({ ...defaultOperationsRules });
+  const [expenseCategories, setExpenseCategories] = useState<string[]>([...initialExpenseCategories]);
   const [newCategory, setNewCategory] = useState('');
   const [isSaved, setIsSaved] = useState(false);
 
@@ -36,7 +31,7 @@ export default function OperationsRulesPage() {
   };
 
   const handleRemoveCategory = (categoryToRemove: string) => {
-    setExpenseCategories(prev => prev.filter(cat => cat !== categoryToRemove));
+    setExpenseCategories(prev => prev.filter((cat: string) => cat !== categoryToRemove));
     setIsSaved(false);
   };
 
@@ -50,12 +45,12 @@ export default function OperationsRulesPage() {
     <div className="min-h-screen pb-12 px-4 sm:px-6">
       <div className="mx-auto w-full max-w-3xl space-y-6">
         
-        {/* Centered Back Button */}
-        <div className="flex justify-center pt-2">
+        {/* Left-aligned Back Button */}
+        <div className="pt-2">
           <BackButton href="/settings" />
         </div>
 
-        {/* Centered Title */}
+        {/* Title */}
         <div className="text-center">
           <h1 className="text-2xl sm:text-3xl font-bold text-white">Operations & Fleet Rules</h1>
         </div>
@@ -101,7 +96,7 @@ export default function OperationsRulesPage() {
             </div>
             
             <div className="space-y-2 mb-4">
-              {expenseCategories.map((category) => (
+              {expenseCategories.map((category: string) => (
                 <div key={category} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10">
                   <span className="text-sm text-gray-200 break-words mr-4">{category}</span>
                   <button 
@@ -137,7 +132,7 @@ export default function OperationsRulesPage() {
             </div>
           </GlassCard>
 
-          {/* Centered Save Button */}
+          {/* Mobile-Friendly Save Button */}
           <div className="flex justify-center pt-2 pb-8">
             <button 
               type="submit" 

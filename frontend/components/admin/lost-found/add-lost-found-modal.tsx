@@ -4,28 +4,33 @@
 import { useState } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import { Upload, X } from 'lucide-react';
+import { itemCategories, type ItemCategory } from '@/app/(admin)/lost-found/data/lost-found-data';
 
-// Exact Commuter Categories
-const itemCategories = [
-  { value: "ACCESSORY", label: "Accessories" },
-  { value: "BAG", label: "Bags" },
-  { value: "WALLET", label: "Wallets" },
-  { value: "GADGET", label: "Gadgets" },
-  { value: "CLOTHING", label: "Clothing" },
-  { value: "DOCUMENT", label: "Documents" },
-  { value: "OTHER", label: "Other" },
-];
+export interface LostFoundFormData {
+  itemName: string;
+  description: string;
+  category: ItemCategory;
+  plateNumber: string;
+  estimatedTimeLost: string;
+  driverName: string;
+  conductorName: string;
+  reporterName: string;
+  imageFile: File | null;
+  imagePreview: string | null;
+}
 
 interface AddLostFoundModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (itemData: any) => void;
+  onSave: (itemData: LostFoundFormData) => void;
 }
 
+const emptyForm: LostFoundFormData = {
+  itemName: '', description: '', category: 'OTHER', plateNumber: '', estimatedTimeLost: '', driverName: '', conductorName: '', reporterName: 'Admin', imageFile: null, imagePreview: null,
+};
+
 export function AddLostFoundModal({ isOpen, onClose, onSave }: AddLostFoundModalProps) {
-  const [formData, setFormData] = useState({
-    itemName: '', description: '', category: 'OTHER', plateNumber: '', estimatedTimeLost: '', driverName: '', conductorName: '', reporterName: 'Admin', imageFile: null as File | null, imagePreview: null as string | null,
-  });
+  const [formData, setFormData] = useState<LostFoundFormData>(emptyForm);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -47,7 +52,7 @@ export function AddLostFoundModal({ isOpen, onClose, onSave }: AddLostFoundModal
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(formData);
-    setFormData({ itemName: '', description: '', category: 'OTHER', plateNumber: '', estimatedTimeLost: '', driverName: '', conductorName: '', reporterName: 'Admin', imageFile: null, imagePreview: null });
+    setFormData(emptyForm);
   };
 
   return (

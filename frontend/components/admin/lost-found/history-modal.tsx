@@ -2,14 +2,14 @@
 'use client';
 
 import { Modal } from '@/components/admin/ui/modal';
-import { Badge } from '@/components/admin/ui/badge';
 import { Clock, User, CheckCircle, XCircle, RotateCcw } from 'lucide-react';
+import type { HistoryEvent } from '@/app/(admin)/lost-found/data/lost-found-data';
 
 interface HistoryModalProps {
   isOpen: boolean;
   onClose: () => void;
   itemId: string;
-  history: any[];
+  history: HistoryEvent[];
 }
 
 export function HistoryModal({ isOpen, onClose, itemId, history }: HistoryModalProps) {
@@ -17,6 +17,11 @@ export function HistoryModal({ isOpen, onClose, itemId, history }: HistoryModalP
     switch (action) {
       case 'Reported': return <User size={16} className="text-blue-400" />;
       case 'Claimed': return <RotateCcw size={16} className="text-yellow-400" />;
+      case 'Claim Submitted': return <User size={16} className="text-blue-300" />;
+      case 'Claim Approved': return <CheckCircle size={16} className="text-green-400" />;
+      case 'Claim Rejected': return <XCircle size={16} className="text-red-400" />;
+      case 'Claim Released': return <CheckCircle size={16} className="text-green-400" />;
+      case 'Claim Returned': return <RotateCcw size={16} className="text-blue-400" />;
       case 'Released': return <CheckCircle size={16} className="text-green-400" />;
       case 'Returned': return <RotateCcw size={16} className="text-blue-400" />;
       case 'Rejected': return <XCircle size={16} className="text-red-400" />;
@@ -33,7 +38,7 @@ export function HistoryModal({ isOpen, onClose, itemId, history }: HistoryModalP
 
       <div className="relative max-h-96 overflow-y-auto">
         <div className="space-y-4">
-          {history.map((event, index) => (
+          {history.map((event: HistoryEvent) => (
             <div key={event.id} className="flex items-start space-x-3">
               <div className="flex-shrink-0 mt-1">
                 {getActionIcon(event.action)}

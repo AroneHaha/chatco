@@ -1,14 +1,9 @@
 "use client";
 
-const PICKUP_POINTS = [
-  { name: "Malolos Terminal", count: 2450 },
-  { name: "Meycauayan Crossing", count: 1820 },
-  { name: "Calumpit Town Proper", count: 1240 },
-  { name: "Guiguinto Stop", count: 890 },
-  { name: "Marilao Highroad", count: 650 },
-];
+import { initialPickupPoints } from "@/app/(admin)/analytics/data/analytics-data";
+import type { PickupPoint } from "@/app/(admin)/analytics/data/analytics-data";
 
-const maxPickup = Math.max(...PICKUP_POINTS.map((p) => p.count));
+const maxPickup = Math.max(...initialPickupPoints.map((p: PickupPoint) => p.count));
 
 export function PickupPointsList() {
   return (
@@ -16,7 +11,7 @@ export function PickupPointsList() {
     <div className="bg-white/[0.04] border border-white/10 rounded-xl p-5 h-[340px] flex flex-col">
       <h3 className="text-sm font-semibold text-white mb-4 flex-shrink-0">Most Used Pickup Points</h3>
       <div className="space-y-3 flex-1 flex flex-col justify-center">
-        {PICKUP_POINTS.map((point, index) => (
+        {initialPickupPoints.map((point: PickupPoint, index: number) => (
           <div key={point.name} className="flex items-center gap-3">
             <div className={`w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
               index === 0 ? "bg-[#1A5FB4] text-white" : "bg-white/[0.06] text-white/40"

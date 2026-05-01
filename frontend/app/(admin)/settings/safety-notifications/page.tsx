@@ -5,59 +5,31 @@ import { useState } from 'react';
 import { GlassCard } from '@/components/admin/ui/glass-card';
 import BackButton from '@/components/admin/ui/back-button';
 import { Save, PhoneCall, MessageSquare, Mail } from 'lucide-react';
-
-interface NotificationTemplate {
-  id: string;
-  title: string;
-  description: string;
-  content: string;
-  variables: string[];
-}
+import {
+  defaultSafetyConfig,
+  initialNotificationTemplates,
+  initialAccountApprovedTemplate,
+  initialAccountRejectedTemplate,
+  approvedTemplateVariables,
+  rejectedTemplateVariables,
+  type NotificationTemplate,
+  type SafetyConfig,
+} from '@/app/(admin)/settings/data/settings-data';
 
 export default function SafetyNotificationsPage() {
-  const [emergencyHotline, setEmergencyHotline] = useState('911');
-  const [adminSOSEmail, setAdminSOSEmail] = useState('admin@chatco.com');
-  const [senderGmail, setSenderGmail] = useState('noreply@chatco.com');
-
-  const [templates, setTemplates] = useState<NotificationTemplate[]>([
-    {
-      id: 'sos-admin',
-      title: 'SOS Alert (To Admin)',
-      description: 'Sent to the admin dashboard when a conductor triggers the panic button.',
-      content: '🚨 EMERGENCY ALERT!\n\nUnit: {vehiclePlate}\nConductor: {conductorName}\nLocation: {latitude}, {longitude}\nTime: {timestamp}\n\nImmediate action required!',
-      variables: ['{vehiclePlate}', '{conductorName}', '{latitude}', '{longitude}', '{timestamp}'],
-    },
-    {
-      id: 'wallet-loaded',
-      title: 'Wallet Loaded (To Commuter)',
-      description: 'Sent to the commuter when they successfully top up their wallet.',
-      content: 'Hi {commuterName}! 💵\n\nYour Chatco wallet has been successfully loaded with ₱{amount}. Your new balance is ₱{newBalance}.\n\nKeep safe on your ride!',
-      variables: ['{commuterName}', '{amount}', '{newBalance}'],
-    },
-    {
-      id: 'ride-receipt',
-      title: 'Digital Receipt (To Commuter)',
-      description: 'Sent after a cashless transaction is completed.',
-      content: '🧾 Ride Receipt\n\nPlate: {vehiclePlate}\nRoute: {routeName}\nFare: ₱{fareAmount}\nPayment: {paymentMethod}\nDate: {date}\n\nThank you for riding with Chatco!',
-      variables: ['{vehiclePlate}', '{routeName}', '{fareAmount}', '{paymentMethod}', '{date}'],
-    }
-  ]);
-
-  // New Account Creation Templates
-  const [accountApprovedTemplate, setAccountApprovedTemplate] = useState(
-    `Dear {commuterName},\n\nCongratulations! 🎉 Your Chatco Commuter account has been successfully approved and verified.\n\nYou can now log in to the app using your registered credentials and start enjoying seamless cashless rides across the Chatco network.\n\nIf you did not request this account, please contact support immediately.\n\nSafe travels!\nThe Chatco Team`
-  );
-  const approvedVariables = ['{commuterName}'];
-
-  const [accountRejectedTemplate, setAccountRejectedTemplate] = useState(
-    `Dear {commuterName},\n\nWe regret to inform you that your Chatco Commuter account registration has been rejected.\n\nReason: {rejectionReason}\n\nIf you believe this is a mistake, you may re-apply with valid and updated identification documents through the app or visit our local office.\n\nThank you for your understanding.\nThe Chatco Team`
-  );
-  const rejectedVariables = ['{commuterName}', '{rejectionReason}'];
-
+  const [safetyConfig, setSafetyConfig] = useState<SafetyConfig>({ ...defaultSafetyConfig });
+  const [templates, setTemplates] = useState<NotificationTemplate[]>([...initialNotificationTemplates]);
+  const [accountApprovedTemplate, setAccountApprovedTemplate] = useState(initialAccountApprovedTemplate);
+  const [accountRejectedTemplate, setAccountRejectedTemplate] = useState(initialAccountRejectedTemplate);
   const [isSaved, setIsSaved] = useState(false);
 
   const handleTemplateChange = (id: string, newContent: string) => {
-    setTemplates(prev => prev.map(t => t.id === id ? { ...t, content: newContent } : t));
+    setTemplates(prev => prev.map((t: NotificationTemplate) => t.id === id ? { ...t, content: newContent } : t));
+    setIsSaved(false);
+  };
+
+  const handleSafetyChange = (field: keyof SafetyConfig, value: string) => {
+    setSafetyConfig(prev => ({ ...prev, [field]: value }));
     setIsSaved(false);
   };
 
@@ -71,12 +43,12 @@ export default function SafetyNotificationsPage() {
     <div className="min-h-screen pb-12 px-4 sm:px-6">
       <div className="mx-auto w-full max-w-4xl space-y-6">
         
-        {/* Centered Back Button */}
-        <div className="flex justify-center pt-2">
+        {/* Left-aligned Back Button */}
+        <div className="pt-2">
           <BackButton href="/settings" />
         </div>
 
-        {/* Centered Title */}
+        {/* Title */}
         <div className="text-center">
           <h1 className="text-2xl sm:text-3xl font-bold text-white">Safety & Notifications</h1>
         </div>
@@ -95,8 +67,8 @@ export default function SafetyNotificationsPage() {
                 <p className="text-xs text-gray-500 mb-2">Displayed to conductors in case of severe emergencies.</p>
                 <input 
                   type="text" 
-                  value={emergencyHotline} 
-                  onChange={(e) => { setEmergencyHotline(e.target.value); setIsSaved(false); }} 
+                  value={safetyConfig.emergencyHotline} 
+                  onChange={(e) => handleSafetyChange('emergencyHotline', e.target.value)} 
                   className="block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" 
                 />
               </div>
@@ -105,8 +77,8 @@ export default function SafetyNotificationsPage() {
                 <p className="text-xs text-gray-500 mb-2">Receives a backup email when an SOS is triggered.</p>
                 <input 
                   type="email" 
-                  value={adminSOSEmail} 
-                  onChange={(e) => { setAdminSOSEmail(e.target.value); setIsSaved(false); }} 
+                  value={safetyConfig.adminSOSEmail} 
+                  onChange={(e) => handleSafetyChange('adminSOSEmail', e.target.value)} 
                   className="block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" 
                 />
               </div>
@@ -124,7 +96,7 @@ export default function SafetyNotificationsPage() {
             </div>
             
             <div className="space-y-6">
-              {templates.map((template) => (
+              {templates.map((template: NotificationTemplate) => (
                 <div key={template.id} className="p-4 bg-white/5 rounded-xl border border-white/10">
                   <div className="mb-3">
                     <h3 className="text-sm sm:text-base font-semibold text-white break-words">{template.title}</h3>
@@ -139,7 +111,7 @@ export default function SafetyNotificationsPage() {
                   />
                   
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {template.variables.map((variable) => (
+                    {template.variables.map((variable: string) => (
                       <span key={variable} className="px-2 py-0.5 bg-blue-500/20 text-blue-300 text-[10px] sm:text-xs rounded-full border border-blue-500/30 font-mono">
                         {variable}
                       </span>
@@ -150,7 +122,7 @@ export default function SafetyNotificationsPage() {
             </div>
           </GlassCard>
 
-          {/* ─── NEW: Account Registration Gmail Sender ─── */}
+          {/* Account Registration Gmail Sender */}
           <GlassCard className="p-4 sm:p-6">
             <div className="mb-6">
               <h2 className="text-lg sm:text-xl font-semibold text-white flex items-center gap-2">
@@ -166,8 +138,8 @@ export default function SafetyNotificationsPage() {
               <p className="text-xs text-gray-500 mb-2">The email address that will appear as the sender for these registration emails.</p>
               <input 
                 type="email" 
-                value={senderGmail} 
-                onChange={(e) => { setSenderGmail(e.target.value); setIsSaved(false); }} 
+                value={safetyConfig.senderGmail} 
+                onChange={(e) => handleSafetyChange('senderGmail', e.target.value)} 
                 placeholder="noreply@chatco.com"
                 className="block w-full px-4 py-3 bg-black/30 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors placeholder-gray-600" 
               />
@@ -178,7 +150,7 @@ export default function SafetyNotificationsPage() {
               <div className="p-4 bg-green-500/5 rounded-xl border border-green-500/20">
                 <div className="mb-3">
                   <h3 className="text-sm sm:text-base font-semibold text-green-400 break-words"> Successful Account Creation</h3>
-                  <p className="text-xs text-gray-400 mt-1 break-words">Sent when the admin approves and verifies the commuter's ID.</p>
+                  <p className="text-xs text-gray-400 mt-1 break-words">Sent when the admin approves and verifies the commuter&apos;s ID.</p>
                 </div>
                 
                 <textarea 
@@ -189,7 +161,7 @@ export default function SafetyNotificationsPage() {
                 />
                 
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {approvedVariables.map((variable) => (
+                  {approvedTemplateVariables.map((variable: string) => (
                     <span key={variable} className="px-2 py-0.5 bg-green-500/20 text-green-300 text-[10px] sm:text-xs rounded-full border border-green-500/30 font-mono">
                       {variable}
                     </span>
@@ -212,7 +184,7 @@ export default function SafetyNotificationsPage() {
                 />
                 
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {rejectedVariables.map((variable) => (
+                  {rejectedTemplateVariables.map((variable: string) => (
                     <span key={variable} className="px-2 py-0.5 bg-red-500/20 text-red-300 text-[10px] sm:text-xs rounded-full border border-red-500/30 font-mono">
                       {variable}
                     </span>
@@ -222,7 +194,7 @@ export default function SafetyNotificationsPage() {
             </div>
           </GlassCard>
 
-          {/* Centered Save Button */}
+          {/* Mobile-Friendly Save Button */}
           <div className="flex justify-center pt-2 pb-8">
             <button 
               type="submit" 

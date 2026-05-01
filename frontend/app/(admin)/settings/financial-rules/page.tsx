@@ -5,18 +5,10 @@ import { useState } from 'react';
 import { GlassCard } from '@/components/admin/ui/glass-card';
 import BackButton from '@/components/admin/ui/back-button';
 import { Save } from 'lucide-react';
+import { defaultFinancialRules, type FinancialRulesConfig } from '@/app/(admin)/settings/data/settings-data';
 
 export default function FinancialRulesPage() {
-  const [rules, setRules] = useState({
-    minLoad: '20',
-    maxLoad: '1000',
-    ridesForFreeReward: '10',
-    regularDiscount: '0',
-    studentDiscount: '20',
-    seniorDiscount: '20',
-    pwdDiscount: '20',
-  });
-
+  const [rules, setRules] = useState<FinancialRulesConfig>({ ...defaultFinancialRules });
   const [isSaved, setIsSaved] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -34,12 +26,12 @@ export default function FinancialRulesPage() {
     <div className="min-h-screen pb-12 px-4 sm:px-6">
       <div className="mx-auto w-full max-w-3xl space-y-6">
         
-        {/* Centered Back Button */}
-        <div className="flex justify-center pt-2">
+        {/* Left-aligned Back Button */}
+        <div className="pt-2">
           <BackButton href="/settings" />
         </div>
 
-        {/* Centered Title */}
+        {/* Title */}
         <div className="text-center">
           <h1 className="text-2xl sm:text-3xl font-bold text-white">Financial Rules</h1>
         </div>
@@ -142,7 +134,7 @@ export default function FinancialRulesPage() {
             </div>
           </GlassCard>
 
-          {/* Centered Save Button */}
+          {/* Mobile-Friendly Save Button */}
           <div className="flex justify-center pt-2 pb-8">
             <button 
               type="submit" 

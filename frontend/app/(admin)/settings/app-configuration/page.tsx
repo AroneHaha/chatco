@@ -5,12 +5,10 @@ import { useState } from 'react';
 import { GlassCard } from '@/components/admin/ui/glass-card'; 
 import BackButton from '@/components/admin/ui/back-button';       
 import { Save, AlertTriangle } from 'lucide-react';
+import { defaultAppConfiguration, type AppConfiguration } from '@/app/(admin)/settings/data/settings-data';
 
 export default function AppConfigurationPage() {
-  const [maintenanceMode, setMaintenanceMode] = useState(false);
-  const [requireIdUpload, setRequireIdUpload] = useState(true);
-  const [requirePhoneVerification, setRequirePhoneVerification] = useState(false);
-
+  const [config, setConfig] = useState<AppConfiguration>({ ...defaultAppConfiguration });
   const [isSaved, setIsSaved] = useState(false);
 
   const handleSave = (e: React.FormEvent) => {
@@ -23,12 +21,12 @@ export default function AppConfigurationPage() {
     <div className="min-h-screen pb-12 px-4 sm:px-6">
       <div className="mx-auto w-full max-w-3xl space-y-6">
         
-        {/* Centered Back Button */}
-        <div className="flex justify-center pt-2">
+        {/* Left-aligned Back Button */}
+        <div className="pt-2">
           <BackButton href="/settings" />
         </div>
 
-        {/* Centered Title */}
+        {/* Title */}
         <div className="text-center">
           <h1 className="text-2xl sm:text-3xl font-bold text-white">App Configuration</h1>
         </div>
@@ -52,8 +50,8 @@ export default function AppConfigurationPage() {
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input 
                     type="checkbox" 
-                    checked={maintenanceMode} 
-                    onChange={(e) => { setMaintenanceMode(e.target.checked); setIsSaved(false); }} 
+                    checked={config.maintenanceMode} 
+                    onChange={(e) => { setConfig(prev => ({ ...prev, maintenanceMode: e.target.checked })); setIsSaved(false); }} 
                     className="sr-only peer" 
                   />
                   <div className="w-14 h-7 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-yellow-500"></div>
@@ -80,8 +78,8 @@ export default function AppConfigurationPage() {
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input 
                       type="checkbox" 
-                      checked={requireIdUpload} 
-                      onChange={(e) => { setRequireIdUpload(e.target.checked); setIsSaved(false); }} 
+                      checked={config.requireIdUpload} 
+                      onChange={(e) => { setConfig(prev => ({ ...prev, requireIdUpload: e.target.checked })); setIsSaved(false); }} 
                       className="sr-only peer" 
                     />
                     <div className="w-14 h-7 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-500"></div>
@@ -101,8 +99,8 @@ export default function AppConfigurationPage() {
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input 
                       type="checkbox" 
-                      checked={requirePhoneVerification} 
-                      onChange={(e) => { setRequirePhoneVerification(e.target.checked); setIsSaved(false); }} 
+                      checked={config.requirePhoneVerification} 
+                      onChange={(e) => { setConfig(prev => ({ ...prev, requirePhoneVerification: e.target.checked })); setIsSaved(false); }} 
                       className="sr-only peer" 
                     />
                     <div className="w-14 h-7 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-500"></div>
@@ -112,7 +110,7 @@ export default function AppConfigurationPage() {
             </div>
           </GlassCard>
 
-          {/* Centered Save Button */}
+          {/* Mobile-Friendly Save Button */}
           <div className="flex justify-center pt-2 pb-8">
             <button 
               type="submit" 

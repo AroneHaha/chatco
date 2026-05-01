@@ -5,13 +5,10 @@ import { useState } from 'react';
 import { GlassCard } from '@/components/admin/ui/glass-card';
 import BackButton from '@/components/admin/ui/back-button';
 import { Save } from 'lucide-react';
+import { defaultFareConfig, type FareConfig } from '@/app/(admin)/settings/data/settings-data';
 
 export default function FareMatrixPage() {
-  const [fareData, setFareData] = useState({
-    baseFare: '18',
-    baseDistanceKm: '4',
-    succeedingRatePerKm: '2',
-  });
+  const [fareData, setFareData] = useState<FareConfig>({ ...defaultFareConfig });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -28,12 +25,12 @@ export default function FareMatrixPage() {
     <div className="min-h-screen pb-12 px-4 sm:px-6">
       <div className="mx-auto w-full max-w-2xl space-y-6">
         
-        {/* Centered Back Button */}
-        <div className="flex justify-center pt-2">
+        {/* Left-aligned Back Button */}
+        <div className="pt-2">
           <BackButton href="/settings" />
         </div>
 
-        {/* Centered Title */}
+        {/* Title */}
         <div className="text-center">
           <h1 className="text-2xl sm:text-3xl font-bold text-white">Fare Matrix Configuration</h1>
         </div>
@@ -76,7 +73,7 @@ export default function FareMatrixPage() {
               />
             </div>
 
-            {/* Centered Save Button */}
+            {/* Mobile-Friendly Save Button */}
             <div className="flex justify-center pt-2 pb-2">
               <button
                 type="submit"

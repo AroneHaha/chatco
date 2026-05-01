@@ -41,7 +41,7 @@ export function getDashboardPath(role: UserRole): string {
   switch (role) {
     case "COMMUTER": return "/dashboard";
     case "ADMIN": return "/admin-dashboard";
-    case "CONDUCTOR": return "/unit-verification"; // <-- Confirmed correct path!
+    case "CONDUCTOR": return "/unit-verification"; 
     default: return "/login";
   }
 }

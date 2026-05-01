@@ -2,14 +2,16 @@
 import { GlassCard } from '@/components/admin/ui/glass-card';
 import { Badge } from '@/components/admin/ui/badge';
 import { Eye, History, List } from 'lucide-react';
+import type { LostFoundItem } from '@/app/(admin)/lost-found/data/lost-found-data';
 
 interface LostFoundGridProps {
-  items: any[];
+  items: LostFoundItem[];
   onViewClaims: (itemId: string) => void;
   onViewHistory: (itemId: string) => void;
+  onViewDetails: (itemId: string) => void;
 }
 
-export function LostFoundGrid({ items, onViewClaims, onViewHistory }: LostFoundGridProps) {
+export function LostFoundGrid({ items, onViewClaims, onViewHistory, onViewDetails }: LostFoundGridProps) {
   return (
     <>
       {items.map((item) => (
@@ -60,7 +62,7 @@ export function LostFoundGrid({ items, onViewClaims, onViewHistory }: LostFoundG
           </div>
 
           <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center space-x-4 z-10">
-            <button className="p-2 bg-white/20 rounded-full text-white hover:bg-white/30" title="View Details"><Eye size={20} /></button>
+            <button onClick={() => onViewDetails(item.id)} className="p-2 bg-white/20 rounded-full text-white hover:bg-white/30" title="View Details"><Eye size={20} /></button>
             <button onClick={() => onViewClaims(item.id)} className="p-2 bg-white/20 rounded-full text-white hover:bg-white/30" title="View Claims"><List size={20} /></button>
             <button onClick={() => onViewHistory(item.id)} className="p-2 bg-white/20 rounded-full text-white hover:bg-white/30" title="View History"><History size={20} /></button>
           </div>

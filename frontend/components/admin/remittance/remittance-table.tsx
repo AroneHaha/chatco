@@ -5,24 +5,16 @@ import { useState, useMemo } from 'react';
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { initialRemittanceData, type Remittance, type RemittanceStatus } from '@/app/(admin)/remittance/data/remittance-data';
 
 interface RemittanceTableProps {
   searchQuery: string;
   startDate: string;
   endDate: string;
-  statusFilter: string;
+  statusFilter: RemittanceStatus | 'All';
 }
 
-// Mock data structured for backend integration
-const mockData = [
-  { id: 'S-101', conductor: 'Jose Ngani', vehicle: 'XQJ 4728', status: 'Remitted', amount: '₱2,500.00', date: '2024-05-01' },
-  { id: 'S-102', conductor: 'Mark Pakak', vehicle: 'VMY 9183', status: 'Pending', amount: '₱2,450.00', date: '2024-05-01' },
-  { id: 'S-103', conductor: 'Ericks Son', vehicle: 'LKW 3579', status: 'Remitted', amount: '₱2,600.00', date: '2024-05-02' },
-  { id: 'S-104', conductor: 'Rinel Trinel', vehicle: 'TNB 8462', status: 'Remitted', amount: '₱2,550.00', date: '2024-05-03' },
-  { id: 'S-105', conductor: 'Leon Barbel', vehicle: 'PVR 6894', status: 'Pending', amount: '₱2,400.00', date: '2024-05-04' },
-];
-
-const ROWS_PER_PAGE = 100;
+const ROWS_PER_PAGE = 10;
 
 export function RemittanceTable({ searchQuery, startDate, endDate, statusFilter }: RemittanceTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
@@ -36,7 +28,7 @@ export function RemittanceTable({ searchQuery, startDate, endDate, statusFilter 
     {
       key: 'status',
       label: 'Status',
-      render: (value: string) => (
+      render: (value: Remittance['status']) => (
         <Badge variant={value === 'Remitted' ? 'success' : 'warning'}>{value}</Badge>
       ),
     },
@@ -44,7 +36,7 @@ export function RemittanceTable({ searchQuery, startDate, endDate, statusFilter 
 
   // Combined Filter logic (Prepped for backend integration)
   const filteredData = useMemo(() => {
-    return mockData.filter((item) => {
+    return initialRemittanceData.filter((item: Remittance) => {
       // Quick Status Filter
       const matchesStatus = statusFilter === 'All' || item.status === statusFilter;
       

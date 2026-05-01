@@ -4,38 +4,49 @@
 import { useState } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import { Badge } from '@/components/admin/ui/badge';
-import { User, Phone, Mail, CheckCircle, XCircle, ArrowLeft, ArrowRight, RotateCcw } from 'lucide-react';
+import { User, Phone, Mail, CheckCircle, XCircle, RotateCcw } from 'lucide-react';
+import type { Claim, ClaimStatus } from '@/app/(admin)/lost-found/data/lost-found-data';
+
+type ClaimAction = 'Release' | 'Return' | 'Reject';
 
 interface ClaimsListModalProps {
   isOpen: boolean;
   onClose: () => void;
   itemId: string;
-  claims: any[];
-  onClaimAction: (itemId: string, action: 'Release' | 'Return' | 'Reject', claimantName: string) => void;
+  claims: Claim[];
+  onClaimAction: (itemId: string, action: ClaimAction, claimantName: string) => void;
 }
 
 export function ClaimsListModal({ isOpen, onClose, itemId, claims, onClaimAction }: ClaimsListModalProps) {
-  const [selectedClaimId, setSelectedClaimId] = useState<string | null>(null);
+  const [selectedClaimId, setSelectedClaimId] = useState<number | null>(null);
 
-  const handleSelectClaim = (claimId: string) => {
+  const handleSelectClaim = (claimId: number) => {
     setSelectedClaimId(claimId === selectedClaimId ? null : claimId);
   };
 
-  const handleAction = (action: 'Release' | 'Return' | 'Reject') => {
+  const handleAction = (action: ClaimAction) => {
     if (!selectedClaimId) return;
-    const claim = claims.find(c => c.id === selectedClaimId);
+    const claim = claims.find((c: Claim) => c.id === selectedClaimId);
     if (claim) {
       onClaimAction(itemId, action, claim.claimantName);
       onClose();
     }
   };
 
-  const getActionIcon = (action: string) => {
+  const getActionIcon = (action: ClaimAction) => {
     switch (action) {
       case 'Release': return <CheckCircle size={18} className="text-green-400" />;
       case 'Return': return <RotateCcw size={18} className="text-blue-400" />;
       case 'Reject': return <XCircle size={18} className="text-red-400" />;
-      default: return null;
+    }
+  };
+
+  const getBadgeVariant = (status: ClaimStatus): 'success' | 'warning' | 'danger' | 'info' => {
+    switch (status) {
+      case 'Approved': case 'Released': case 'Returned': return 'success';
+      case 'Pending': return 'warning';
+      case 'Rejected': return 'danger';
+      default: return 'info';
     }
   };
 
@@ -47,7 +58,7 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, onClaimAction
       </div>
 
       <div className="space-y-3 max-h-96 overflow-y-auto">
-        {claims.length > 0 ? claims.map((claim) => (
+        {claims.length > 0 ? claims.map((claim: Claim) => (
           <div
             key={claim.id}
             className={`p-4 border rounded-lg cursor-pointer transition-all ${
@@ -67,7 +78,7 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, onClaimAction
                   <p className="text-xs text-gray-400">Claimant</p>
                 </div>
               </div>
-              <Badge variant={claim.status === 'Approved' ? 'success' : 'warning'}>
+              <Badge variant={getBadgeVariant(claim.status)}>
                 {claim.status}
               </Badge>
             </div>

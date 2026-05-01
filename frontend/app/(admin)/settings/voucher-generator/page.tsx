@@ -6,16 +6,10 @@ import { GlassCard } from '@/components/admin/ui/glass-card';
 import { Badge } from '@/components/admin/ui/badge';
 import BackButton from '@/components/admin/ui/back-button';
 import { Ticket, Copy, CheckCircle } from 'lucide-react';
-
-interface Voucher {
-  id: string;
-  code: string;
-  type: string;
-  status: string;
-}
+import type { Voucher, VoucherType, VoucherStatus } from '@/app/(admin)/settings/data/settings-data';
 
 export default function VoucherGeneratorPage() {
-  const [voucherType, setVoucherType] = useState('FREE_RIDE');
+  const [voucherType, setVoucherType] = useState<VoucherType>('FREE_RIDE');
   const [amount, setAmount] = useState('1');
   const [quantity, setQuantity] = useState('5');
   const [generatedVouchers, setGeneratedVouchers] = useState<Voucher[]>([]);
@@ -29,7 +23,7 @@ export default function VoucherGeneratorPage() {
         id: Date.now().toString() + i,
         code: `CHATCO-${voucherType.substring(0,3)}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
         type: voucherType === 'FREE_RIDE' ? 'Free Ride' : `₱${amount} Credit`,
-        status: 'Active',
+        status: 'Active' as VoucherStatus,
       });
     }
     setGeneratedVouchers(prev => [...newVouchers, ...prev]);
@@ -45,12 +39,12 @@ export default function VoucherGeneratorPage() {
     <div className="min-h-screen pb-12 px-4 sm:px-6">
       <div className="mx-auto w-full max-w-6xl space-y-6">
         
-        {/* Centered Back Button */}
-        <div className="flex justify-center pt-2">
+        {/* Left-aligned Back Button */}
+        <div className="pt-2">
           <BackButton href="/settings" />
         </div>
 
-        {/* Centered Title */}
+        {/* Title */}
         <div className="text-center">
           <h1 className="text-2xl sm:text-3xl font-bold text-white">Voucher Generator</h1>
         </div>
@@ -70,7 +64,7 @@ export default function VoucherGeneratorPage() {
                     <label className="block text-sm font-medium text-gray-300 mb-1.5">Voucher Type</label>
                     <select 
                       value={voucherType} 
-                      onChange={(e) => setVoucherType(e.target.value)} 
+                      onChange={(e) => setVoucherType(e.target.value as VoucherType)} 
                       className="block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors [color-scheme:dark]"
                     >
                       <option value="FREE_RIDE" className="bg-gray-800">Free Ride</option>
@@ -130,7 +124,7 @@ export default function VoucherGeneratorPage() {
                 </div>
               ) : (
                 <div className="space-y-3 max-h-[50vh] lg:max-h-[70vh] overflow-y-auto pr-1">
-                  {generatedVouchers.map((voucher) => (
+                  {generatedVouchers.map((voucher: Voucher) => (
                     <div key={voucher.id} className="flex items-center justify-between p-3 sm:p-4 bg-white/5 rounded-xl border border-white/10 gap-3">
                       <div className="flex-1 min-w-0">
                         <p className="text-xs sm:text-sm font-mono font-bold text-white tracking-wider break-all">{voucher.code}</p>

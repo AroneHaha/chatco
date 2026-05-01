@@ -5,19 +5,10 @@ import { useState } from 'react';
 import { GlassCard } from '@/components/admin/ui/glass-card';
 import BackButton from '@/components/admin/ui/back-button';
 import { Plus, Trash2, ChevronUp, ChevronDown, Save, X } from 'lucide-react';
-
-interface FaqItem {
-  id: string;
-  question: string;
-  answer: string;
-  displayOrder: number;
-}
+import { initialFaqs, type FaqItem } from '@/app/(admin)/settings/data/settings-data';
 
 export default function FaqManagementPage() {
-  const [faqs, setFaqs] = useState<FaqItem[]>([
-    { id: '1', question: 'How do I top-up my wallet?', answer: 'Go to the Wallet tab, click "Load Wallet", and enter the amount. You can pay via GCash or over-the-counter.', displayOrder: 1 },
-    { id: '2', question: 'I left my item on the jeep. How do I report it?', answer: 'Go to the "Lost & Found" section in the app menu and fill out the item report form with the details of your trip.', displayOrder: 2 },
-  ]);
+  const [faqs, setFaqs] = useState<FaqItem[]>([...initialFaqs]);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [newFaq, setNewFaq] = useState({ question: '', answer: '' });
@@ -26,7 +17,7 @@ export default function FaqManagementPage() {
   const handleAdd = () => {
     if (!newFaq.question.trim() || !newFaq.answer.trim()) return;
     const newId = Date.now().toString();
-    const maxOrder = faqs.length > 0 ? Math.max(...faqs.map(f => f.displayOrder)) : 0;
+    const maxOrder = faqs.length > 0 ? Math.max(...faqs.map((f: FaqItem) => f.displayOrder)) : 0;
     
     setFaqs(prev => [...prev, { id: newId, ...newFaq, displayOrder: maxOrder + 1 }]);
     setNewFaq({ question: '', answer: '' });
@@ -35,13 +26,13 @@ export default function FaqManagementPage() {
   };
 
   const handleDelete = (id: string) => {
-    setFaqs(prev => prev.filter(f => f.id !== id));
+    setFaqs(prev => prev.filter((f: FaqItem) => f.id !== id));
     setIsSaved(false);
   };
 
   const handleMove = (id: string, direction: 'up' | 'down') => {
     setFaqs(prev => {
-      const index = prev.findIndex(f => f.id === id);
+      const index = prev.findIndex((f: FaqItem) => f.id === id);
       if ((direction === 'up' && index === 0) || (direction === 'down' && index === prev.length - 1)) return prev;
       
       const newFaqs = [...prev];
@@ -49,7 +40,7 @@ export default function FaqManagementPage() {
       [newFaqs[index].displayOrder, newFaqs[swapIndex].displayOrder] = 
       [newFaqs[swapIndex].displayOrder, newFaqs[index].displayOrder];
       
-      return newFaqs.sort((a, b) => a.displayOrder - b.displayOrder);
+      return newFaqs.sort((a: FaqItem, b: FaqItem) => a.displayOrder - b.displayOrder);
     });
     setIsSaved(false);
   };
@@ -64,12 +55,12 @@ export default function FaqManagementPage() {
     <div className="min-h-screen pb-12 px-4 sm:px-6">
       <div className="mx-auto w-full max-w-4xl space-y-6">
         
-        {/* Centered Back Button */}
-        <div className="flex justify-center pt-2">
+        {/* Left-aligned Back Button */}
+        <div className="pt-2">
           <BackButton href="/settings" />
         </div>
 
-        {/* Centered Title */}
+        {/* Title */}
         <div className="text-center">
           <h1 className="text-2xl sm:text-3xl font-bold text-white">FAQ Management</h1>
         </div>
@@ -119,7 +110,7 @@ export default function FaqManagementPage() {
             {faqs.length === 0 ? (
               <GlassCard className="p-8 text-center text-gray-500">No FAQs added yet.</GlassCard>
             ) : (
-              faqs.map((faq, index) => (
+              faqs.map((faq: FaqItem, index: number) => (
                 <GlassCard key={faq.id} className="p-4 sm:p-5 group">
                   <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4">
                     <div className="flex-1 min-w-0">

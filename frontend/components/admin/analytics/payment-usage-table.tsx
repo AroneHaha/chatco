@@ -1,10 +1,7 @@
 "use client";
 
-const PAYMENT_USAGE_DATA = [
-  { method: "Self-Pay (Online/App)", transactions: 4200, percentage: 65, amount: "₱84,000", color: "bg-[#1A5FB4]", icon: "📱" },
-  { method: "Conductor Scan (Commuter QR)", transactions: 1575, percentage: 24, amount: "₱31,500", color: "bg-[#62A0EA]", icon: "📷" },
-  { method: "Offline Wallet (Conductor Device)", transactions: 715, percentage: 11, amount: "₱14,300",color: "bg-purple-500", icon: "💻" },
-];
+import { initialPaymentUsageData } from "@/app/(admin)/analytics/data/analytics-data";
+import type { PaymentMethodUsage } from "@/app/(admin)/analytics/data/analytics-data";
 
 export function PaymentUsageTable() {
   return (
@@ -22,7 +19,7 @@ export function PaymentUsageTable() {
 
       {/* Table Body */}
       <div className="divide-y divide-white/[0.04] flex-1 flex flex-col justify-center">
-        {PAYMENT_USAGE_DATA.map((row) => (
+        {initialPaymentUsageData.map((row: PaymentMethodUsage) => (
           <div key={row.method} className="grid grid-cols-12 gap-2 px-3 py-3 items-center">
             <div className="col-span-5 flex items-center gap-2">
               <span className="text-xs text-white/80 font-medium truncate">{row.method}</span>

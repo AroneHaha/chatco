@@ -5,14 +5,15 @@ import { useState } from 'react';
 import { RemittanceTable } from '@/components/admin/remittance/remittance-table';
 import { SearchBar } from '@/components/admin/ui/search-bar';
 import { CalendarDays } from 'lucide-react';
+import type { RemittanceStatus } from '@/app/(admin)/remittance/data/remittance-data';
 
 export default function RemittancePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All'); // Quick Filter State
+  const [statusFilter, setStatusFilter] = useState<RemittanceStatus | 'All'>('All'); // Quick Filter State
 
-  const quickFilters = ['All', 'Pending', 'Remitted'];
+  const quickFilters: (RemittanceStatus | 'All')[] = ['All', 'Pending', 'Remitted'];
 
   return (
     <>
