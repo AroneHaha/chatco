@@ -1,3 +1,6 @@
+import Image from "next/image";
+import logo from "../../assets/logo-transparent.png";
+
 export default function Footer({ compact = false }: { compact?: boolean }) {
   // --- COMPACT MODE (For Login / Signup pages) ---
   if (compact) {
@@ -19,9 +22,13 @@ export default function Footer({ compact = false }: { compact?: boolean }) {
           {/* Brand */}
           <div className="sm:col-span-2 lg:col-span-1">
             <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-[#1A5FB4] flex items-center justify-center">
-                <span className="text-white font-bold text-xs">C</span>
-              </div>
+              <Image
+                src={logo}
+                alt="CHATCO"
+                width={57}
+                height={57}
+                className="rounded-lg"
+              />
               <span className="text-lg font-bold text-white">CHATCO</span>
             </div>
             <p className="text-sm leading-relaxed">

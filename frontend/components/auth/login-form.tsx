@@ -35,24 +35,26 @@ export default function LoginForm() {
 
   return (
     <div>
-      <h2 className="text-2xl font-extrabold text-[#071A2E] tracking-tight">
+      {/* Increased heading size and spacing */}
+      <h2 className="text-3xl font-extrabold text-[#071A2E] tracking-tight">
         Welcome back
       </h2>
-      <p className="mt-2 text-sm text-gray-500">
+      <p className="mt-3 text-base text-gray-500">
         Enter your credentials to access your account
       </p>
 
       {/* Error Message Display */}
       {error && (
-        <div className="mt-4 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">
+        <div className="mt-6 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">
           {error}
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+      {/* Increased vertical spacing between inputs */}
+      <form onSubmit={handleSubmit} className="mt-10 space-y-7">
         {/* Email/Username Input */}
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
+          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
             Email or Username
           </label>
           <input
@@ -61,14 +63,15 @@ export default function LoginForm() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-[#F8FAFC] text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A5FB4]/20 focus:border-[#1A5FB4] transition-all"
-            placeholder="you@example.com or admin"
+            /* Increased padding and text size */
+            className="w-full px-5 py-3.5 rounded-xl border border-gray-200 bg-[#F8FAFC] text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A5FB4]/20 focus:border-[#1A5FB4] transition-all"
+            placeholder="you@example.com"
           />
         </div>
 
         {/* Password Input */}
         <div>
-          <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center justify-between mb-2">
             <label htmlFor="password" className="block text-sm font-medium text-gray-700">
               Password
             </label>
@@ -83,13 +86,14 @@ export default function LoginForm() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-[#F8FAFC] text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A5FB4]/20 focus:border-[#1A5FB4] transition-all pr-12"
+              /* Increased padding, text size, and icon offset */
+              className="w-full px-5 py-3.5 rounded-xl border border-gray-200 bg-[#F8FAFC] text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A5FB4]/20 focus:border-[#1A5FB4] transition-all pr-14"
               placeholder="••••••••"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute inset-y-0 right-0 flex items-center pr-4 text-gray-400 hover:text-gray-600"
+              className="absolute inset-y-0 right-0 flex items-center pr-5 text-gray-400 hover:text-gray-600"
             >
               {showPassword ? (
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12c1.292 4.338 5.31 7.5 10.066 7.5.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" /></svg>
@@ -104,7 +108,8 @@ export default function LoginForm() {
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl text-sm font-semibold bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-colors shadow-md shadow-[#1A5FB4]/20 disabled:opacity-70 disabled:cursor-not-allowed"
+          /* Increased padding and text size to match inputs */
+          className="w-full flex items-center justify-center gap-2 px-5 py-4 rounded-xl text-base font-semibold bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-colors shadow-md shadow-[#1A5FB4]/20 disabled:opacity-70 disabled:cursor-not-allowed"
         >
           {isLoading ? (
             <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -118,7 +123,7 @@ export default function LoginForm() {
       </form>
 
       {/* Footer Link */}
-      <p className="mt-8 text-center text-sm text-gray-500">
+      <p className="mt-10 text-center text-base text-gray-500">
         Don&apos;t have an account?{" "}
         <Link href="/signup" className="font-semibold text-[#1A5FB4] hover:text-[#164A8F]">
           Sign up for free

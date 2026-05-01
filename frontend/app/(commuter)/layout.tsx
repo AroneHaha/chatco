@@ -50,7 +50,6 @@ export default function CommuterLayout({ children }: { children: React.ReactNode
                 key={item.href}
                 href={item.href}
                 onClick={() => handleNav(item.href, index)}
-                // Added min-w-0 to allow text truncation safely
                 className={`relative flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 min-w-0 ${
                   isActive ? "bg-[#1A5FB4] text-white shadow-lg shadow-[#1A5FB4]/30" : "text-white/50 hover:text-white hover:bg-white/5"
                 }`}
@@ -63,7 +62,6 @@ export default function CommuterLayout({ children }: { children: React.ReactNode
                      </span>
                   )}
                 </div>
-                {/* Added truncate for safety on smaller desktop screens */}
                 <span className="truncate">{item.label}</span>
               </Link>
             );
@@ -87,11 +85,13 @@ export default function CommuterLayout({ children }: { children: React.ReactNode
         
         {/* --- MOBILE BOTTOM NAV --- */}
         <nav className="absolute bottom-0 inset-x-0 z-50 bg-[#071A2E]/95 backdrop-blur-xl border-t border-white/10 lg:hidden">
-          <div className="relative flex items-center justify-around h-20 px-2 max-w-lg mx-auto">
+          {/* Changed to Grid for perfect math alignment */}
+          <div className="relative grid grid-cols-5 h-20 max-w-lg mx-auto">
             
+            {/* Sliding Dot Indicator - Math is now exactly centered per column */}
             <div 
-              className="absolute top-2 w-1.5 h-1.5 rounded-full bg-[#62A0EA] transition-all duration-500 ease-in-out"
-              style={{ left: `calc(${(activeDotIndex / (navItemsWithBadges.length - 1)) * 100}% - 4px)` }}
+              className="absolute top-1.5 w-1.5 h-1.5 rounded-full bg-[#62A0EA] transition-all duration-300 ease-in-out"
+              style={{ left: `calc(${activeDotIndex * 20 + 10}% - 3px)` }}
             />
 
             {navItemsWithBadges.map((item, index) => {
@@ -101,24 +101,26 @@ export default function CommuterLayout({ children }: { children: React.ReactNode
                   key={item.href}
                   href={item.href}
                   onClick={() => handleNav(item.href, index)}
-                  className="flex flex-col items-center justify-center w-16 h-full relative group"
+                  // Cleaned up layout: natural flex centering, no absolute text positioning
+                  className="flex flex-col items-center justify-center pt-2 pb-1 relative group"
                 >
                   <div 
-                    className={`relative top-1 w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 ease-out ${
+                    className={`relative w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 ease-out ${
                       isActive ? "bg-[#1A5FB4] scale-100 shadow-lg shadow-[#1A5FB4]/40" : "bg-transparent scale-75 group-hover:scale-90"
                     }`}
                   >
-                    <item.icon className={`w-5 h-5 transition-colors duration-300 ${isActive ? "text-white" : "text-white/50 group-hover:text-white/80"}`} />
+                    {/* Increased icon size slightly for better circle fit */}
+                    <item.icon className={`w-6 h-6 transition-colors duration-300 ${isActive ? "text-white" : "text-white/50 group-hover:text-white/80"}`} />
                     
                     {item.badge > 0 && (
-                      <span className="absolute top-0 right-0 w-4 h-4 bg-[#FF6D3A] rounded-full text-[9px] font-bold text-white flex items-center justify-center ring-2 ring-[#071A2E]/95">
+                      <span className="absolute top-0.5 right-0.5 w-4 h-4 bg-[#FF6D3A] rounded-full text-[9px] font-bold text-white flex items-center justify-center ring-2 ring-[#071A2E]/95">
                         {item.badge}
                       </span>
                     )}
                   </div>
                   
-                  {/* Uses shortLabel for mobile to prevent ugly text wrapping/overflow */}
-                  <span className={`absolute bottom-2 text-[10px] font-medium transition-colors duration-300 truncate w-full text-center px-1 ${isActive ? "text-[#62A0EA]" : "text-white/40"}`}>
+                  {/* Natural text flow with truncate to safely handle long names */}
+                  <span className={`mt-1 text-[10px] font-medium transition-colors duration-300 truncate max-w-[64px] text-center ${isActive ? "text-[#62A0EA]" : "text-white/40"}`}>
                     {item.shortLabel || item.label}
                   </span>
                 </Link>
@@ -138,10 +140,10 @@ const GiftIcon = ({ className }: { className?: string }) => (<svg className={cla
 const BellIcon = ({ className }: { className?: string }) => (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" /></svg>);
 const UserIcon = ({ className }: { className?: string }) => (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>);
 
-// Added shortLabel property for the mobile bottom nav
+// Cleaner shortLabels
 const navItems = [
   { href: "/dashboard", label: "Home", shortLabel: "Home", icon: HomeIcon },  
-  { href: "/lost-and-found", label: "Lost & Found", shortLabel: "Lost", icon: LostFoundIcon },
+  { href: "/lost-and-found", label: "Lost & Found", shortLabel: "Lost & Found", icon: LostFoundIcon },
   { href: "/rewards", label: "Rewards & Announcements", shortLabel: "Rewards", icon: GiftIcon },
   { href: "/feedback", label: "Feedback", shortLabel: "Feedback", icon: BellIcon },
   { href: "/profile", label: "Profile", shortLabel: "Profile", icon: UserIcon },

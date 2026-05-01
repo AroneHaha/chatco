@@ -1,6 +1,8 @@
 // components/landing/Navbar.tsx
 "use client";
 import { useState, useEffect } from "react";
+import Image from "next/image";
+import logo from "../../assets/logo-transparent.png";
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -15,13 +17,17 @@ export default function Navbar() {
   return (
     <>
       <nav className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ease-out ${scrolled ? "py-3" : "py-5"}`}>
-        {/* Removed 'border border-gray-200/50' from scrolled state */}
         <div className={`max-w-5xl mx-auto px-6 py-3.5 flex items-center justify-between transition-all duration-300 ease-out ${scrolled ? "bg-white/90 backdrop-blur-xl rounded-full shadow-lg shadow-black/5" : "bg-transparent"}`}>
           
           <a href="#" className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#1A5FB4] flex items-center justify-center shadow-lg shadow-[#1A5FB4]/30 transition-all duration-300">
-              <span className="text-white font-bold text-base">C</span>
-            </div>
+            <Image
+              src={logo}
+              alt="CHATCO"
+              width={70}
+              height={70}
+              className="rounded-xl"
+              priority
+            />
             <span className={`text-2xl font-extrabold tracking-tight transition-colors duration-300 ease-out ${scrolled ? "text-[#071A2E]" : "text-white"}`}>CHATCO</span>
           </a>
 
