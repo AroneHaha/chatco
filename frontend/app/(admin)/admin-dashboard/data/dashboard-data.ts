@@ -71,8 +71,8 @@ export const recentUsers: UserItem[] = [
 ];
 
 export const quickStats: StatItem[] = [
-  { label: "Net Profit (Today)", value: "₱14,500", icon: TrendingUp, color: "text-green-400 bg-green-500/15", link: "/analytics" },
-  { label: "Total Rides (Week)", value: "9,500", icon: MapPin, color: "text-[#62A0EA] bg-[#1A5FB4]/15", link: "/analytics" },
+  { label: "Total Top Up Today", value: "₱14,500", icon: TrendingUp, color: "text-green-400 bg-green-500/15", link: "/analytics" },
+  { label: "Total Rides Using Wallet", value: "9,500", icon: MapPin, color: "text-[#62A0EA] bg-[#1A5FB4]/15", link: "/analytics" },
   { label: "Active Wallets", value: "2,340", icon: Wallet, color: "text-purple-400 bg-purple-500/15", link: "/analytics" },
   { label: "Pending Remittance", value: "₱8,400", icon: Banknote, color: "text-amber-400 bg-amber-500/15", link: "/remittance" },
 ];
@@ -133,3 +133,40 @@ export const topPickupPoints: PickupPoint[] = [
   { name: "Meycauayan Crossing", val: 980 },
   { name: "Calumpit Town Proper", val: 740 },
 ];
+/* ─── FINANCIAL SUMMARY DATA ─── */
+export const todayRevenue = 15450.50;
+export const todayEwallet = 11500.00;
+export const todayCash = todayRevenue - todayEwallet;
+
+export const profitAndLoss = {
+  totalRevenue: "₱25,000.00",
+  totalExpenses: "₱8,500.00",
+  totalBoundary: "₱10,000.00",
+  netProfit: "₱6,500.00",
+};
+
+/* ─── PAYMENT METHODS CHART DATA ─── */
+export const weeklyPaymentData = [
+  { day: 'Mon', cash: 800, ewallet: 2200 },
+  { day: 'Tue', cash: 950, ewallet: 2500 },
+  { day: 'Wed', cash: 700, ewallet: 2800 },
+  { day: 'Thu', cash: 1100, ewallet: 3100 },
+  { day: 'Fri', cash: 1200, ewallet: 3500 },
+  { day: 'Sat', cash: 500, ewallet: 1900 },
+  { day: 'Sun', cash: 400, ewallet: 1500 },
+];
+
+export const totalCash = weeklyPaymentData.reduce((sum, day) => sum + day.cash, 0);
+export const totalEwallet = weeklyPaymentData.reduce((sum, day) => sum + day.ewallet, 0);
+
+/* ─── RECENT ALERTS DATA ─── */
+export const recentAlerts = [
+  { id: 1, type: 'Emergency', message: 'Panic button triggered on Unit ABC-123', time: '2 mins ago' },
+  { id: 2, type: 'Overspeeding', message: 'Unit XYZ-789 detected at 85 kph', time: '15 mins ago' },
+];
+
+/* ─── PAYMENT TENDENCIES DATA ─── */
+export const paymentTendencies = {
+  chatcoWallet: 78,
+  cash: 22,
+};

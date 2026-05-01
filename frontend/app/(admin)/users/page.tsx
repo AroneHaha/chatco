@@ -8,35 +8,23 @@ import { AddRegistrationModal } from '@/components/admin/users/add-registration-
 import { UserHistoryModal } from '@/components/admin/users/user-history-modal';
 import { SearchBar } from '@/components/admin/ui/search-bar';
 import { Plus, UserCheck, Users, XCircle } from 'lucide-react';
-
-const initialActiveUsers = [
-  { id: 1, name: 'Mhaku Jose Manalili', email: 'mhak@gmail.com', phoneNumber: '0917-123-4567', status: 'Active', commuterType: 'Regular', languagePreference: 'English', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=ID' },
-  { id: 4, name: 'Mark Arone Dela Cruz', email: 'MArone.c@email.com', phoneNumber: '0918-234-5678', status: 'Active', commuterType: 'Student', languagePreference: 'Filipino', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=ID' },
-  { id: 5, name: 'Rod Dulalia', email: 'Rod@gmail.com', phoneNumber: '0923-324-4327', status: 'Active', commuterType: 'Regular', languagePreference: 'English', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=ID' },
-];
-
-const initialPendingRequests = [
-  { id: 'REQ-101', name: 'Marinel Carbonel', email: 'Mari.C@email.com', phoneNumber: '0919-345-6789', commuterType: 'PWD', languagePreference: 'English', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=PWD+ID', status: 'Pending Verification' },
-  { id: 'REQ-102', name: 'Stephen Hawkin', email: 'Jeff.Stephen@email.com', phoneNumber: '0920-456-7890', commuterType: 'PWD', languagePreference: 'Filipino', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=Senior+ID', status: 'Pending Verification' },
-];
-
-const initialRejectedUsers = [
-  { id: 'REQ-099', name: 'Fake Account', email: 'fake@email.com', phoneNumber: '0000-000-0000', commuterType: 'Regular', languagePreference: 'English', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=Fake+ID', status: 'Rejected', rejectionReason: 'Invalid ID provided.' },
-];
-
-const initialHistoryLogs: Record<string, any[]> = {
-  1: [
-    { id: 'H1', date: '2024-05-20 10:00 AM', action: 'Account Created', details: 'Account manually created by Admin.' },
-  ],
-};
+import {
+  initialActiveUsers,
+  initialPendingRequests,
+  initialRejectedUsers,
+  initialHistoryLogs,
+  type ActiveUser,
+  type PendingRequest,
+  type RejectedUser,
+} from './data/users-data';
 
 export default function UsersPage() {
   const [activeTab, setActiveTab] = useState<'active' | 'pending' | 'rejected'>('active');
   const [searchQuery, setSearchQuery] = useState('');
   
-  const [activeUsers, setActiveUsers] = useState(initialActiveUsers);
-  const [pendingRequests, setPendingRequests] = useState(initialPendingRequests);
-  const [rejectedUsers, setRejectedUsers] = useState(initialRejectedUsers);
+  const [activeUsers, setActiveUsers] = useState<ActiveUser[]>(initialActiveUsers);
+  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>(initialPendingRequests);
+  const [rejectedUsers, setRejectedUsers] = useState<RejectedUser[]>(initialRejectedUsers);
   const [historyLogs, setHistoryLogs] = useState(initialHistoryLogs);
   
   // Modal States
@@ -44,16 +32,16 @@ export default function UsersPage() {
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   
-  const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [selectedRequest, setSelectedRequest] = useState<PendingRequest | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   
   // NEW: Selected User Details State
-  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [selectedUser, setSelectedUser] = useState<ActiveUser | RejectedUser | null>(null);
 
   const handleOpenRegisterModal = () => setIsRegisterModalOpen(true);
   const handleCloseRegisterModal = () => setIsRegisterModalOpen(false);
 
-  const handleOpenReviewModal = (request: any) => {
+  const handleOpenReviewModal = (request: PendingRequest) => {
     setSelectedRequest(request);
     setIsReviewModalOpen(true);
   };
@@ -79,7 +67,7 @@ export default function UsersPage() {
 
   const handleApproveRequest = () => {
     if (!selectedRequest) return;
-    const newActiveUser = { ...selectedRequest, id: activeUsers.length + 10, status: 'Active' };
+    const newActiveUser: ActiveUser = { ...selectedRequest, id: activeUsers.length + 10, status: 'Active' };
     setActiveUsers(prev => [newActiveUser, ...prev]);
     setPendingRequests(prev => prev.filter(req => req.id !== selectedRequest.id));
     
@@ -94,7 +82,7 @@ export default function UsersPage() {
 
   const handleRejectRequest = (reason: string) => {
     if (!selectedRequest) return;
-    const rejectedUser = { ...selectedRequest, status: 'Rejected', rejectionReason: reason };
+    const rejectedUser: RejectedUser = { ...selectedRequest, status: 'Rejected', rejectionReason: reason };
     setRejectedUsers(prev => [rejectedUser, ...prev]);
     setPendingRequests(prev => prev.filter(req => req.id !== selectedRequest.id));
     handleCloseReviewModal();

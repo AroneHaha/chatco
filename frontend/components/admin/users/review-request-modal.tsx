@@ -5,11 +5,12 @@ import { useState } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import { Badge } from '@/components/admin/ui/badge';
 import { CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import type { PendingRequest } from '@/app/(admin)/users/data/users-data';
 
 interface ReviewRequestModalProps {
   isOpen: boolean;
   onClose: () => void;
-  request: any | null;
+  request: PendingRequest | null;
   onApprove: () => void;
   onReject: (reason: string) => void;
 }
@@ -36,6 +37,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
         {/* ID Image Display */}
         <div className="flex justify-center">
           <div className="relative">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={request.idImageUrl} alt="Uploaded ID" className="w-64 h-40 object-cover rounded-lg border-2 border-white/20 shadow-lg" />
             <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-center py-1 rounded-b-lg">
               <span className="text-xs text-gray-300">Uploaded Valid ID</span>

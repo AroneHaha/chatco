@@ -3,15 +3,18 @@ import { Badge } from '@/components/admin/ui/badge';
 import { GlassCard } from '@/components/admin/ui/glass-card';
 import { Modal } from '@/components/admin/ui/modal';
 import { Clock, UserIcon, Mail, Phone, CreditCard } from 'lucide-react';
+import type { ActiveUser, RejectedUser } from '@/app/(admin)/users/data/users-data';
+
+type User = ActiveUser | RejectedUser;
 
 interface UsersTableProps {
-  users: any[];
+  users: User[];
   searchQuery: string;
   onDeactivate: (userId: number) => void;
   onViewHistory: (userId: string) => void;
   isRejectedTab: boolean;
-  selectedUser: any | null;
-  onSelectUser: (user: any | null) => void;
+  selectedUser: User | null;
+  onSelectUser: (user: User | null) => void;
 }
 
 export function UsersTable({ users, searchQuery, onDeactivate, onViewHistory, isRejectedTab, selectedUser, onSelectUser }: UsersTableProps) {
@@ -30,8 +33,9 @@ export function UsersTable({ users, searchQuery, onDeactivate, onViewHistory, is
     {
       key: 'actions',
       label: 'Actions',
-      render: (_: unknown, item: any) => (
-        <div className="flex items-center justify-end space-x-1">
+      align: 'center' as const,
+      render: (_: unknown, item: User) => (
+        <div className="flex items-center justify-center space-x-1">
           {!isRejectedTab && (
             <>
               <button 
@@ -61,7 +65,7 @@ export function UsersTable({ users, searchQuery, onDeactivate, onViewHistory, is
         <DataTable data={users} columns={columns} searchQuery={searchQuery} />
       </GlassCard>
 
-      {/* User Details Modal (Removed duplicate X and Language Preference) */}
+      {/* User Details Modal */}
       <Modal isOpen={!!selectedUser} onClose={() => onSelectUser(null)}>
         {selectedUser && (
           <div className="space-y-6">
@@ -127,7 +131,7 @@ export function UsersTable({ users, searchQuery, onDeactivate, onViewHistory, is
 
             {/* Action Button */}
             <button 
-              onClick={() => { onDeactivate(selectedUser.id); onSelectUser(null); }}
+              onClick={() => { onDeactivate(selectedUser.id as number); onSelectUser(null); }}
               className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 selectedUser.status === 'Active' 
                   ? 'bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20' 

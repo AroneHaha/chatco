@@ -1,20 +1,7 @@
 // components/admin/dashboard/payment-methods-chart.tsx
 import { GlassCard } from '@/components/admin/ui/glass-card';
 import { DollarSign, Smartphone } from 'lucide-react';
-
-// Mock data for the chart
-const weeklyData = [
-  { day: 'Mon', cash: 800, ewallet: 2200 },
-  { day: 'Tue', cash: 950, ewallet: 2500 },
-  { day: 'Wed', cash: 700, ewallet: 2800 },
-  { day: 'Thu', cash: 1100, ewallet: 3100 },
-  { day: 'Fri', cash: 1200, ewallet: 3500 },
-  { day: 'Sat', cash: 500, ewallet: 1900 },
-  { day: 'Sun', cash: 400, ewallet: 1500 },
-];
-
-const totalCash = weeklyData.reduce((sum, day) => sum + day.cash, 0);
-const totalEwallet = weeklyData.reduce((sum, day) => sum + day.ewallet, 0);
+import { weeklyPaymentData, totalCash, totalEwallet } from '@/app/(admin)/admin-dashboard/data/dashboard-data';
 
 // --- MOBILE VIEW
 function CompactPaymentMethods() {
@@ -43,7 +30,7 @@ function CompactPaymentMethods() {
 
 // --- DESKTOP VIEW
 function FullPaymentMethodsChart() {
-  const maxValue = Math.max(...weeklyData.map(d => Math.max(d.cash, d.ewallet)));
+  const maxValue = Math.max(...weeklyPaymentData.map(d => Math.max(d.cash, d.ewallet)));
 
   return (
     <GlassCard className="p-6">
@@ -71,7 +58,7 @@ function FullPaymentMethodsChart() {
       </div>
 
       <div className="space-y-2">
-        {weeklyData.map((day) => (
+        {weeklyPaymentData.map((day) => (
           <div key={day.day} className="flex items-center space-x-4">
             <span className="text-sm font-medium text-gray-300 w-10">{day.day}</span>
             <div className="flex-1 flex items-center space-x-1 h-6">
