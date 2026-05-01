@@ -8,6 +8,7 @@ import SafetySupport from "@/components/landing/SafetySupport";
 import LoyaltyPerks from "@/components/landing/LoyaltyPerks";
 import FinalCTA from "@/components/landing/FinalCTA";
 import Footer from "@/components/landing/Footer";
+import FAQChatBubble from "@/components/landing/FAQChatBubble";
 
 export default function Home() {
   return (
@@ -22,6 +23,7 @@ export default function Home() {
       <HeatmapShowcase />
       <FinalCTA />
       <Footer />
+      <FAQChatBubble />
     </main>
   );
 }

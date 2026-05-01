@@ -36,14 +36,11 @@ body {
 .float-c { animation: float-c 5s ease-in-out infinite; }
 .pulse-ring { animation: pulse-ring 2s ease-out infinite; }
 .hero-bg { background: linear-gradient(135deg,#071A2E 0%,#0D2847 40%,#132E5B 70%,#0A1F38 100%); background-size: 200% 200%; animation: hero-gradient 12s ease infinite; }
-@keyframes float-a { 0%,100%{transform:translateY(0) rotate(-6deg)} 50%{transform:translateY(-14px) rotate(-6deg)} }
-@keyframes float-b { 0%,100%{transform:translateY(0) rotate(3deg)} 50%{transform:translateY(-18px) rotate(3deg)} }
-@keyframes float-c { 0%,100%{transform:translateY(0) rotate(5deg)} 50%{transform:translateY(-10px) rotate(5deg)} }
-@keyframes pulse-ring { 0%{transform:scale(1);opacity:.6} 100%{transform:scale(2.2);opacity:0} }
-@keyframes hero-gradient { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
 
-.float-a { animation: float-a 6s ease-in-out infinite; }
-.float-b { animation: float-b 7s ease-in-out infinite; }
-.float-c { animation: float-c 5s ease-in-out infinite; }
-.pulse-ring { animation: pulse-ring 2s ease-out infinite; }
-.hero-bg { background: linear-gradient(135deg,#071A2E 0%,#0D2847 40%,#132E5B 70%,#0A1F38 100%); background-size: 200% 200%; animation: hero-gradient 12s ease infinite; }
+/* FAQ Chat Bubble bounce animation */
+@keyframes bounce-slow { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+.animate-bounce-slow { animation: bounce-slow 2.5s ease-in-out infinite; }
+
+/* Hide scrollbar for category pills */
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }

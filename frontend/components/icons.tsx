@@ -60,3 +60,4 @@ export const Icons: Record<string, React.ReactNode> = {
     </svg>
   ),
 };
+
