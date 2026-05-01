@@ -65,9 +65,9 @@ export const recentLostFound: LostFoundItem[] = [
 ];
 
 export const recentUsers: UserItem[] = [
-  { name: "Ana Lim", role: "Commuter", status: "Active" },
-  { name: "Marco Reyes", role: "Operator", status: "Active" },
-  { name: "Juan Dela Cruz", role: "Driver", status: "Inactive" },
+  { name: "Mhaku Jose Manalili", role: "Commuter", status: "Active" },
+  { name: "Mark Arone Dela Cruz", role: "Commuter", status: "Active" },
+  { name: "Rod Dulalia", role: "Commuter", status: "Inactive" },
 ];
 
 export const quickStats: StatItem[] = [

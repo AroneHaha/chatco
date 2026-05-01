@@ -7,6 +7,8 @@ import { AddVehicleModal } from '@/components/admin/vehicles/add-vehicle-modal';
 import { EditVehicleModal } from '@/components/admin/vehicles/edit-vehicle-modal';
 import { PersonnelTable } from '@/components/admin/vehicles/personnel-table';
 import { AddPersonnelModal } from '@/components/admin/vehicles/add-personnel-modal';
+import { EditPersonnelModal } from '@/components/admin/vehicles/edit-personnel-modal';
+import { DeletePersonnelModal } from '@/components/admin/vehicles/delete-personnel-modal';
 import { CreateConductorAccountModal } from '@/components/admin/vehicles/create-conductor-account-modal';
 import { ConductorAccountSuccessModal } from '@/components/admin/vehicles/conductor-account-success-modal';
 import { HistoryTable } from '@/components/admin/vehicles/history-table'; 
@@ -14,7 +16,6 @@ import { SearchBar } from '@/components/admin/ui/search-bar';
 import { Plus, Users, Car, UserPlus, Archive } from 'lucide-react';
 import { mockPersonnel, initialVehicles } from './data/vehicles-data';
 
-// NEW: Mock data for terminated personnel
 const terminatedPersonnel: Array<{
   id: number;
   name: string;
@@ -30,7 +31,6 @@ const terminatedPersonnel: Array<{
   { id: 8, name: 'Elaine Benitez', role: 'Driver', contact: '0919-555-1234', status: 'Resigned', reason: 'Health reasons', terminatedDate: '2024-05-02', lastVehicle: 'LKW 3579' },
 ];
 
-// NEW: Mock history log of past shifts (Can be linked to terminated or just old shifts)
 const shiftHistoryLog = [
   { id: 'LOG-001', personnelName: 'Rizal Santiago', role: 'Driver', vehicle: 'XQJ 4728', shiftDate: '2024-04-14', details: 'Last active shift before termination.' },
   { id: 'LOG-002', personnelName: 'Mark Arone', role: 'Conductor', vehicle: 'VMY 9183', shiftDate: '2024-04-27', details: 'Involved in cash handling discrepancy.' },
@@ -42,80 +42,80 @@ export default function VehiclesPage() {
   const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
   const [isEditVehicleModalOpen, setIsEditVehicleModalOpen] = useState(false);
   const [isPersonnelModalOpen, setIsPersonnelModalOpen] = useState(false);
+  const [isEditPersonnelOpen, setIsEditPersonnelOpen] = useState(false);
+  const [isDeletePersonnelOpen, setIsDeletePersonnelOpen] = useState(false);
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   const [isCreateConductorOpen, setIsCreateConductorOpen] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  
   const [createdAccountData, setCreatedAccountData] = useState<any>(null);
+  const [editingVehicle, setEditingVehicle] = useState<any>(null);
+  const [editingPersonnelData, setEditingPersonnelData] = useState<any>(null);
+  const [deletingPersonnelData, setDeletingPersonnelData] = useState<any>(null);
   
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'vehicles' | 'personnel' | 'history'>('vehicles'); // ADDED 'history'
+  const [activeTab, setActiveTab] = useState<'vehicles' | 'personnel' | 'history'>('vehicles');
   
   const [vehicles, setVehicles] = useState(initialVehicles);
-  const [editingVehicle, setEditingVehicle] = useState<any>(null);
 
   const { unassignedDrivers, unassignedConductors } = useMemo(() => {
     const assignedDrivers = new Set(vehicles.filter(v => v.driver).map(v => v.driver));
     const assignedConductors = new Set(vehicles.filter(v => v.conductor).map(v => v.conductor));
-
     return {
       unassignedDrivers: mockPersonnel.filter(p => p.role === 'Driver' && !assignedDrivers.has(p.name)),
       unassignedConductors: mockPersonnel.filter(p => p.role === 'Conductor' && !assignedConductors.has(p.name)),
     };
   }, [vehicles]);
 
+  // Vehicle Handlers
   const handleOpenVehicleModal = () => setIsVehicleModalOpen(true);
   const handleCloseVehicleModal = () => setIsVehicleModalOpen(false);
-  
-  const handleOpenEditModal = (vehicle: any) => {
-    setEditingVehicle(vehicle);
-    setIsEditVehicleModalOpen(true);
-  };
-  const handleCloseEditModal = () => {
-    setEditingVehicle(null);
-    setIsEditVehicleModalOpen(false);
-  };
+  const handleOpenEditModal = (vehicle: any) => { setEditingVehicle(vehicle); setIsEditVehicleModalOpen(true); };
+  const handleCloseEditModal = () => { setEditingVehicle(null); setIsEditVehicleModalOpen(false); };
+  const handleSaveVehicle = (data: any) => { setVehicles(prev => [...prev, { ...data, id: prev.length + 1, speed: 0 }]); handleCloseVehicleModal(); };
+  const handleUpdateVehicle = (data: any) => { setVehicles(prev => prev.map(v => v.id === editingVehicle.id ? { ...v, ...data } : v)); handleCloseEditModal(); };
 
+  // Personnel Handlers
   const handleOpenPersonnelModal = () => setIsPersonnelModalOpen(true);
   const handleClosePersonnelModal = () => setIsPersonnelModalOpen(false);
-
-  const handleSaveVehicle = (data: any) => {
-    setVehicles(prev => [...prev, { ...data, id: prev.length + 1, speed: 0 }]);
-    handleCloseVehicleModal();
+  
+  const handleOpenEditPersonnel = (personnel: any) => {
+    setEditingPersonnelData(personnel);
+    setIsEditPersonnelOpen(true);
+  };
+  const handleCloseEditPersonnel = () => {
+    setEditingPersonnelData(null);
+    setIsEditPersonnelOpen(false);
+  };
+  const handleSaveEditPersonnel = (data: any) => {
+    console.log("Updated Personnel:", data);
+    handleCloseEditPersonnel();
+    // In a real app, you would update the mockPersonnel state here
   };
 
-  const handleUpdateVehicle = (data: any) => {
-    setVehicles(prev => prev.map(v => v.id === editingVehicle.id ? { ...v, ...data } : v));
-    handleCloseEditModal();
+  const handleOpenDeletePersonnel = (personnel: any) => {
+    setDeletingPersonnelData(personnel);
+    setIsDeletePersonnelOpen(true);
+  };
+  const handleCloseDeletePersonnel = () => {
+    setDeletingPersonnelData(null);
+    setIsDeletePersonnelOpen(false);
+  };
+  const handleConfirmDeletePersonnel = (data: any) => {
+    console.log("Deleted Personnel ID:", data.id, "Reason:", data.reason);
+    handleCloseDeletePersonnel();
+    // In a real app, you would move this personnel to terminatedPersonnel state here
   };
 
-  // Shift Modal Handlers
-  const handleOpenShiftModal = (vehicle: any) => {
-    setEditingVehicle(vehicle); 
-    setIsShiftModalOpen(true);
-  };
-  const handleCloseShiftModal = () => {
-    setEditingVehicle(null);
-    setIsShiftModalOpen(false);
-  };
-  const handleSaveShift = (data: any) => {
-    console.log("Shift saved for vehicle:", editingVehicle?.plateNumber, data);
-    handleCloseShiftModal();
-  };
-
-  // Create Conductor Handlers
+  // Shift & Conductor Handlers
+  const handleOpenShiftModal = (vehicle: any) => { setEditingVehicle(vehicle); setIsShiftModalOpen(true); };
+  const handleCloseShiftModal = () => { setEditingVehicle(null); setIsShiftModalOpen(false); };
+  const handleSaveShift = (data: any) => { console.log("Shift saved for vehicle:", editingVehicle?.plateNumber, data); handleCloseShiftModal(); };
+  
   const handleOpenCreateConductor = () => setIsCreateConductorOpen(true);
   const handleCloseCreateConductor = () => setIsCreateConductorOpen(false);
-  
-  const handleSaveConductorAccount = (data: any) => {
-    setCreatedAccountData(data); 
-    setIsSuccessModalOpen(true);  
-    handleCloseCreateConductor(); 
-  };
-
-  const handleCloseSuccessModal = () => {
-    setIsSuccessModalOpen(false);
-    setCreatedAccountData(null); 
-  };
+  const handleSaveConductorAccount = (data: any) => { setCreatedAccountData(data); setIsSuccessModalOpen(true); handleCloseCreateConductor(); };
+  const handleCloseSuccessModal = () => { setIsSuccessModalOpen(false); setCreatedAccountData(null); };
 
   return (
     <>
@@ -129,7 +129,6 @@ export default function VehiclesPage() {
             className="flex-1"
           />
           
-          {/* Hide add buttons on History tab */}
           {activeTab !== 'history' && (
             <>
               <button
@@ -145,7 +144,7 @@ export default function VehiclesPage() {
                 className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 transition-colors flex-shrink-0"
               >
                 <Plus size={20} />
-                <span className="hidden sm:inline">Add {activeTab === 'vehicles' ? 'Vehicle' : 'Personnel'}</span>
+                <span className="hidden sm:inline">Add {activeTab === 'vehicles' ? 'Vehicle' : 'Driver'}</span>
               </button>
             </>
           )}
@@ -157,9 +156,7 @@ export default function VehiclesPage() {
         <button
           onClick={() => setActiveTab('vehicles')}
           className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-lg transition-colors ${
-            activeTab === 'vehicles'
-              ? 'text-white border-b-2 border-blue-500 bg-blue-500/10'
-              : 'text-gray-400 hover:text-white hover:bg-white/10'
+            activeTab === 'vehicles' ? 'text-white border-b-2 border-blue-500 bg-blue-500/10' : 'text-gray-400 hover:text-white hover:bg-white/10'
           }`}
         >
           <Car size={20} />
@@ -168,22 +165,17 @@ export default function VehiclesPage() {
         <button
           onClick={() => setActiveTab('personnel')}
           className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-lg transition-colors ${
-            activeTab === 'personnel'
-              ? 'text-white border-b-2 border-blue-500 bg-blue-500/10'
-              : 'text-gray-400 hover:text-white hover:bg-white/10'
+            activeTab === 'personnel' ? 'text-white border-b-2 border-blue-500 bg-blue-500/10' : 'text-gray-400 hover:text-white hover:bg-white/10'
           }`}
         >
           <Users size={20} />
           <span>Chatco Personnel</span>
         </button>
         
-        {/* NEW HISTORY TAB */}
         <button
           onClick={() => setActiveTab('history')}
           className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-lg transition-colors ${
-            activeTab === 'history'
-              ? 'text-white border-b-2 border-red-500 bg-red-500/10' // Red accent for terminated/history
-              : 'text-gray-400 hover:text-white hover:bg-white/10'
+            activeTab === 'history' ? 'text-white border-b-2 border-red-500 bg-red-500/10' : 'text-gray-400 hover:text-white hover:bg-white/10'
           }`}
         >
           <Archive size={20} />
@@ -191,7 +183,7 @@ export default function VehiclesPage() {
         </button>
       </div>
 
-      {/* Tab Content */}
+      {/* Tab Content - NOW PASSES onEdit AND onDelete TO PersonnelTable */}
       {activeTab === 'vehicles' ? (
         <VehicleTable 
           vehicles={vehicles} 
@@ -200,7 +192,11 @@ export default function VehiclesPage() {
           onEditShift={handleOpenShiftModal} 
         />
       ) : activeTab === 'personnel' ? (
-        <PersonnelTable searchQuery={searchQuery} />
+        <PersonnelTable 
+          searchQuery={searchQuery} 
+          onEdit={handleOpenEditPersonnel}
+          onDelete={handleOpenDeletePersonnel}
+        />
       ) : (
         <HistoryTable 
           terminatedPersonnel={terminatedPersonnel} 
@@ -209,35 +205,17 @@ export default function VehiclesPage() {
         />
       )}
 
-      <AddVehicleModal 
-        isOpen={isVehicleModalOpen} 
-        onClose={handleCloseVehicleModal} 
-        onSave={handleSaveVehicle}
-        unassignedDrivers={unassignedDrivers}
-        unassignedConductors={unassignedConductors}
-      />
-
-      <EditVehicleModal 
-        isOpen={isEditVehicleModalOpen} 
-        onClose={handleCloseEditModal} 
-        onSave={handleUpdateVehicle}
-        editingVehicle={editingVehicle}
-        allPersonnel={mockPersonnel}
-      />
-
+      {/* All Modals */}
+      <AddVehicleModal isOpen={isVehicleModalOpen} onClose={handleCloseVehicleModal} onSave={handleSaveVehicle} unassignedDrivers={unassignedDrivers} unassignedConductors={unassignedConductors} />
+      <EditVehicleModal isOpen={isEditVehicleModalOpen} onClose={handleCloseEditModal} onSave={handleUpdateVehicle} editingVehicle={editingVehicle} allPersonnel={mockPersonnel} />
       <AddPersonnelModal isOpen={isPersonnelModalOpen} onClose={handleClosePersonnelModal} />
+      
+      {/* NEW MODALS */}
+      <EditPersonnelModal isOpen={isEditPersonnelOpen} onClose={handleCloseEditPersonnel} onSave={handleSaveEditPersonnel} editingData={editingPersonnelData} />
+      <DeletePersonnelModal isOpen={isDeletePersonnelOpen} onClose={handleCloseDeletePersonnel} onConfirm={handleConfirmDeletePersonnel} personnelData={deletingPersonnelData} />
 
-      <CreateConductorAccountModal 
-        isOpen={isCreateConductorOpen} 
-        onClose={handleCloseCreateConductor} 
-        onSave={handleSaveConductorAccount}
-      />
-
-      <ConductorAccountSuccessModal 
-        isOpen={isSuccessModalOpen} 
-        onClose={handleCloseSuccessModal}
-        accountData={createdAccountData}
-      />
+      <CreateConductorAccountModal isOpen={isCreateConductorOpen} onClose={handleCloseCreateConductor} onSave={handleSaveConductorAccount} />
+      <ConductorAccountSuccessModal isOpen={isSuccessModalOpen} onClose={handleCloseSuccessModal} accountData={createdAccountData} />
     </>
   );
 }
