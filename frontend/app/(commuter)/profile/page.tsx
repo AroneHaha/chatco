@@ -2,6 +2,7 @@
 
 import { useProfile } from "./use-profile";
 import { AccountStatus } from "./types";
+import { useRouter } from 'next/navigation';
 
 export default function ProfilePage() {
   const {
