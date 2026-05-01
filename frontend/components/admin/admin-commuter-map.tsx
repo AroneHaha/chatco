@@ -6,25 +6,23 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
 // --- 1. BACKEND PROOFING: Types & Mock Data ---
-type VehicleCapacity = "AVAILABLE" | "STANDING" | "FULL"; // Green, Yellow, Red
+type VehicleCapacity = "AVAILABLE" | "STANDING" | "FULL";
 
 interface ActiveVehicle {
   id: string;
   plateNumber: string;
   driverName: string;
   conductorName: string;
-  routeIndex: number; // Index in ROUTE_COORDS array representing current location
+  routeIndex: number;
   capacity: VehicleCapacity;
 }
 
-// This array simulates a real-time API response: GET /api/vehicles/active
 const MOCK_ACTIVE_VEHICLES: ActiveVehicle[] = [
   { id: "v_01", plateNumber: "ABC 1234", driverName: "Juan Dela Cruz", conductorName: "Pedro Penduko", routeIndex: 8, capacity: "AVAILABLE" },
   { id: "v_02", plateNumber: "XYZ 5678", driverName: "Mario Speedwagon", conductorName: "Luigi Mansion", routeIndex: 42, capacity: "STANDING" },
   { id: "v_03", plateNumber: "DEF 9012", driverName: "Crisostomo Ibarra", conductorName: "Sisa Doe", routeIndex: 68, capacity: "FULL" },
 ];
 
-// --- MOCK COMMUTER DATA (Exact same style as ConductorMap) ---
 interface CommuterData {
   id: number;
   name: string;
@@ -40,7 +38,6 @@ const MOCK_COMMUTERS: CommuterData[] = [
   { id: 5, name: 'Erik', latlng: [14.8605, 120.8090], locationDetail: 'Across School • 4 min away' },
 ];
 
-// --- MOCK DEMAND HEATMAP DATA ---
 interface DemandZone {
   id: string;
   coords: [number, number];
@@ -101,7 +98,7 @@ const ROUTE_COORDS: [number, number][] = [
 ];
 
 const rawBounds = L.latLngBounds(ROUTE_COORDS);
-const routeBounds = rawBounds.pad(0.008); 
+const routeBounds = rawBounds.pad(0.008);
 const mapBounds = L.latLngBounds(
   [rawBounds.getSouth() - 0.04, rawBounds.getWest() - 0.10],
   [rawBounds.getNorth() + 0.015, rawBounds.getEast() + 0.10]
@@ -124,15 +121,15 @@ function getBearing(start: [number, number], end: [number, number]): number {
 
 const getCapacityConfig = (capacity: VehicleCapacity) => {
   switch (capacity) {
-    case "AVAILABLE": return { color: "#22c55e", label: "Maluwag / Available", twBg: "bg-green-500/10", twText: "text-green-400", twBorder: "border-green-500/30" };
-    case "STANDING": return { color: "#eab308", label: "Standing Only", twBg: "bg-yellow-500/10", twText: "text-yellow-400", twBorder: "border-yellow-500/30" };
+    case "AVAILABLE": return { color: "#22c55e", label: "Available", twBg: "bg-green-500/10", twText: "text-green-400", twBorder: "border-green-500/30" };
+    case "STANDING": return { color: "#eab308", label: "Standing", twBg: "bg-yellow-500/10", twText: "text-yellow-400", twBorder: "border-yellow-500/30" };
     case "FULL": return { color: "#ef4444", label: "Full", twBg: "bg-red-500/10", twText: "text-red-400", twBorder: "border-red-500/30" };
   }
 };
 
-function LocationFinder({ 
+function LocationFinder({
   userLocationRef, setUserActualLocation, setShowMapPin, setArrowPos
-}: { 
+}: {
   userLocationRef: React.MutableRefObject<[number, number] | null>;
   setUserActualLocation: (loc: [number, number] | null) => void;
   setShowMapPin: (val: boolean) => void;
@@ -146,16 +143,16 @@ function LocationFinder({
       const userCoords: [number, number] = [lat, lng];
       setUserActualLocation(userCoords);
       userLocationRef.current = userCoords;
-      
+
       const userLatLng = L.latLng(lat, lng);
       setShowMapPin(true);
 
       if (routeBounds.contains(userLatLng)) {
-        setArrowPos(null); 
+        setArrowPos(null);
         map.flyTo([lat, lng], 16, { duration: 1.5 });
       } else if (mapBounds.contains(userLatLng)) {
         setArrowPos(null);
-        map.setView([lat, lng], 13, { animate: true }); 
+        map.setView([lat, lng], 13, { animate: true });
       }
     },
     locationerror(e) {
@@ -167,7 +164,7 @@ function LocationFinder({
 
       const userLatLng = L.latLng(userCoords[0], userCoords[1]);
       const bounds = map.getBounds();
-      
+
       if (bounds.contains(userLatLng)) {
         setArrowPos(null);
         return;
@@ -204,7 +201,15 @@ function LocationFinder({
 }
 
 // --- 4. MAIN COMPONENT ---
-export default function CommuterMap({ isDesktop = false }: { isDesktop?: boolean }) {
+export default function AdminCommuterMap({ 
+  isDesktop = false, 
+  demandZones, 
+  sosLocations 
+}: { 
+  isDesktop?: boolean;
+  demandZones?: DemandZone[];
+  sosLocations?: [number, number][];
+}) {
   const [isDomReady, setIsDomReady] = useState(false);
   const [userActualLocation, setUserActualLocation] = useState<[number, number] | null>(null);
   const [showMapPin, setShowMapPin] = useState(false);
@@ -225,7 +230,6 @@ export default function CommuterMap({ isDesktop = false }: { isDesktop?: boolean
     iconSize: [20, 20], iconAnchor: [10, 10],
   }), []);
 
-  // Dynamic Jeepney Icon Generator based on Capacity
   const getJeepneyIcon = useMemo(() => (capacity: VehicleCapacity) => {
     const config = getCapacityConfig(capacity);
     return new L.DivIcon({
@@ -239,7 +243,6 @@ export default function CommuterMap({ isDesktop = false }: { isDesktop?: boolean
     });
   }, []);
 
-  // EXACT COPY OF CONDUCTOR MAP'S COMMUTER ICON
   const hailingCommuterIcon = useMemo(() => new L.DivIcon({
     className: "custom-hailing-icon",
     html: `
@@ -253,19 +256,33 @@ export default function CommuterMap({ isDesktop = false }: { isDesktop?: boolean
     popupAnchor: [0, -15],
   }), []);
 
-  if (!isDomReady) return <div className="absolute inset-0 bg-[#050F1A]" />;
+  const zonesToRender = demandZones || MOCK_DEMAND_HEATMAP;
+
+  if (!isDomReady) return <div className="w-full h-full bg-[#050F1A] rounded-xl" />;
 
   return (
-    <>
-      <MapContainer center={MAP_CENTER} zoom={12} zoomControl={false} attributionControl={false} className="w-full h-full" style={{ background: '#050F1A' }} maxBounds={mapBoundsArray} maxBoundsViscosity={1.0} minZoom={isDesktop ? 13 : 11}>
+    <div className="admin-map-wrapper w-full h-full rounded-xl overflow-hidden">
+      <MapContainer
+        center={MAP_CENTER}
+        zoom={12}
+        zoomControl={false}
+        attributionControl={false}
+        className="admin-map-container"
+        style={{ background: '#050F1A' }}
+        maxBounds={mapBoundsArray}
+        maxBoundsViscosity={1.0}
+        minZoom={11}
+        maxZoom={18}
+        zoomSnap={1}
+      >
         <LocationFinder userLocationRef={userLocationRef} setUserActualLocation={setUserActualLocation} setShowMapPin={setShowMapPin} setArrowPos={setArrowPos} />
         <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
-        
+
         <Polyline positions={ROUTE_COORDS} pathOptions={{ color: '#62A0EA', weight: 8, opacity: 0.2, lineCap: 'round', lineJoin: 'round' }} />
         <Polyline positions={ROUTE_COORDS} pathOptions={{ color: '#62A0EA', weight: 4, opacity: 0.9, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }} />
 
-        {/* --- COMMUTER DEMAND HEATMAP CIRCLES --- */}
-        {MOCK_DEMAND_HEATMAP.map((zone) => {
+        {/* --- DEMAND HEATMAP CIRCLES --- */}
+        {zonesToRender.map((zone) => {
           const colorMap = {
             LOW: { fill: '#22c55e', border: '#16a34a' },
             MEDIUM: { fill: '#eab308', border: '#ca8a04' },
@@ -286,18 +303,40 @@ export default function CommuterMap({ isDesktop = false }: { isDesktop?: boolean
                 opacity: 0.5
               }}
             >
-              <Tooltip direction="center" permanent={isDesktop}>
-                <div className="text-center font-semibold text-xs">
-                  <p>{zone.commuterCount} Commuters</p>
-                  <p className="font-normal text-[10px] opacity-80">{zone.intensity} Demand</p>
-                </div>
-              </Tooltip>
+              {isDesktop ? (
+                <Tooltip direction="center" permanent>
+                  <div className="text-center font-semibold text-xs whitespace-nowrap">
+                    <p>{zone.commuterCount}</p>
+                  </div>
+                </Tooltip>
+              ) : (
+                <Tooltip direction="top" offset={[0, -5]}>
+                  <div className="text-center font-semibold text-xs whitespace-nowrap">
+                    <p>{zone.commuterCount} Commuters</p>
+                    <p className="font-normal text-[10px] opacity-80">{zone.intensity}</p>
+                  </div>
+                </Tooltip>
+              )}
             </Circle>
           );
         })}
 
+        {/* --- SOS LOCATIONS --- */}
+        {sosLocations && sosLocations.map((loc, idx) => (
+          <Marker key={`sos-${idx}`} position={loc} icon={new L.DivIcon({
+            className: 'custom-sos-icon',
+            html: `<div style="width:24px;height:24px;background:#ef4444;border:3px solid white;border-radius:50%;box-shadow:0 0 12px rgba(239,68,68,0.8);"></div>`,
+            iconSize: [24, 24], iconAnchor: [12, 12]
+          })}>
+            <Popup>
+              <div className="font-bold text-red-600 text-sm">SOS Location</div>
+              <div className="text-xs text-gray-500">Coords: {loc[0]}, {loc[1]}</div>
+            </Popup>
+          </Marker>
+        ))}
+
         {showMapPin && userActualLocation && (
-          <Marker position={userActualLocation} icon={commuterIcon}>
+          <Marker position={userActualLocation} icon={commuterIcon} zIndexOffset={1000}>
             <Popup>
               <div className="font-bold text-[#071A2E]">You are here</div>
               <div className="text-xs text-gray-500">Live GPS Location</div>
@@ -305,9 +344,8 @@ export default function CommuterMap({ isDesktop = false }: { isDesktop?: boolean
           </Marker>
         )}
 
-        {/* --- EXACT COPY OF CONDUCTOR MAP'S PASSENGER WAITING MARKERS --- */}
         {MOCK_COMMUTERS.map((commuter) => (
-          <Marker key={commuter.id} position={commuter.latlng} icon={hailingCommuterIcon}>
+          <Marker key={commuter.id} position={commuter.latlng} icon={hailingCommuterIcon} zIndexOffset={500}>
             <Popup>
               <div className="font-bold text-[#FF6D3A]">Passenger Waiting ({commuter.name})</div>
               <div className="text-xs text-gray-500">{commuter.locationDetail}</div>
@@ -315,11 +353,10 @@ export default function CommuterMap({ isDesktop = false }: { isDesktop?: boolean
           </Marker>
         ))}
 
-        {/* --- DYNAMIC JEEPNEY MARKERS --- */}
         {MOCK_ACTIVE_VEHICLES.map((vehicle) => {
           const config = getCapacityConfig(vehicle.capacity);
           return (
-            <Marker key={vehicle.id} position={ROUTE_COORDS[vehicle.routeIndex]} icon={getJeepneyIcon(vehicle.capacity)}>
+            <Marker key={vehicle.id} position={ROUTE_COORDS[vehicle.routeIndex]} icon={getJeepneyIcon(vehicle.capacity)} zIndexOffset={800}>
               <Popup>
                 <div className="space-y-2 min-w-[180px]">
                   <div className="flex items-center justify-between">
@@ -343,26 +380,81 @@ export default function CommuterMap({ isDesktop = false }: { isDesktop?: boolean
       </MapContainer>
 
       <style jsx global>{`
-        .custom-commuter-icon, .custom-jeepney-icon, .custom-hailing-icon { background: transparent !important; border: none !important; }
-        .leaflet-container { background: #050F1A !important; font-family: inherit !important; }
-        .leaflet-popup-content-wrapper { background: white !important; border-radius: 12px !important; box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important; padding: 0 !important; }
-        .leaflet-popup-content { margin: 12px 16px !important; color: #071A2E !important; line-height: 1.4 !important; }
-        .leaflet-popup-tip { background: white !important; }
-        .leaflet-popup-close-button { color: #071A2E !important; }
-        .leaflet-tooltip { 
-          background: #071A2E !important; 
-          color: white !important; 
-          border: 1px solid rgba(255,255,255,0.2) !important; 
-          border-radius: 6px !important; 
-          padding: 4px 8px !important; 
-          box-shadow: 0 4px 6px rgba(0,0,0,0.3) !important; 
+        /* 
+         * SCOPED WRAPPER FIX
+         * Prevents Leaflet from escaping its bounds and hijacking parent scroll 
+         */
+        .admin-map-wrapper {
+          position: relative;
+          touch-action: none; /* Forces Leaflet to handle touch, not iOS Safari */
         }
+
+        .admin-map-container {
+          width: 100% !important;
+          height: 100% !important;
+          position: absolute !important;
+          inset: 0 !important;
+          z-index: 0 !important;
+          isolation: isolate !important; /* Traps Leaflet's internal z-indexes */
+        }
+
+        .leaflet-container {
+          background: #050F1A !important;
+          font-family: inherit !important;
+        }
+
+        .custom-commuter-icon,
+        .custom-jeepney-icon,
+        .custom-hailing-icon,
+        .custom-sos-icon {
+          background: transparent !important;
+          border: none !important;
+        }
+
+        .leaflet-popup-content-wrapper {
+          background: white !important;
+          border-radius: 10px !important;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+          padding: 0 !important;
+          overflow: hidden;
+        }
+
+        .leaflet-popup-content {
+          margin: 10px 12px !important;
+          color: #071A2E !important;
+          line-height: 1.4 !important;
+        }
+
+        .leaflet-popup-tip {
+          background: white !important;
+        }
+
+        .leaflet-popup-close-button {
+          color: #071A2E !important;
+          font-size: 18px !important;
+          padding: 6px 8px 0 0 !important;
+        }
+
+        .leaflet-tooltip {
+          background: #071A2E !important;
+          color: white !important;
+          border: 1px solid rgba(255,255,255,0.2) !important;
+          border-radius: 4px !important;
+          padding: 3px 6px !important;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.3) !important;
+          font-size: 11px !important;
+        }
+
         .leaflet-tooltip-top:before { border-top-color: #071A2E !important; }
         .leaflet-tooltip-bottom:before { border-bottom-color: #071A2E !important; }
         .leaflet-tooltip-left:before { border-left-color: #071A2E !important; }
         .leaflet-tooltip-right:before { border-right-color: #071A2E !important; }
-        @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(2.5); opacity: 0; } }
+
+        @keyframes pulse {
+          0% { transform: scale(1); opacity: 1; }
+          100% { transform: scale(2.5); opacity: 0; }
+        }
       `}</style>
-    </>
+    </div>
   );
 }

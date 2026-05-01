@@ -78,13 +78,16 @@ export function AddPersonnelModal({ isOpen, onClose }: AddPersonnelModalProps) {
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-2 bg-emerald-500/20 rounded-lg">
-          <UserPlus className="text-emerald-400" size={24} />
-        </div>
-        <div>
-          <h2 className="text-xl font-bold text-white">Add New Driver</h2>
-          <p className="text-sm text-gray-400">Register a driver to the fleet management system.</p>
+      {/* STICKY HEADER - Stays at the top while scrolling on mobile */}
+      <div className="sticky top-0 bg-[#0f172a] -mx-6 px-6 pt-0 pb-4 z-10">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-emerald-500/20 rounded-lg flex-shrink-0">
+            <UserPlus className="text-emerald-400" size={24} />
+          </div>
+          <div className="pr-8"> {/* pr-8 prevents text from going under the X button */}
+            <h2 className="text-lg sm:text-xl font-bold text-white">Add New Driver</h2>
+            <p className="text-xs sm:text-sm text-gray-400">Register a driver to the fleet management system.</p>
+          </div>
         </div>
       </div>
       
@@ -153,7 +156,7 @@ export function AddPersonnelModal({ isOpen, onClose }: AddPersonnelModalProps) {
         {/* Name Fields */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="firstName" className="block text-sm font-medium text-gray-300 mb-1.5">First Name <span className="text-red-400">*</span></label>
+            <label htmlFor="firstName" className="block text-xs font-medium text-gray-300 mb-1.5">First Name <span className="text-red-400">*</span></label>
             <input
               type="text"
               id="firstName"
@@ -162,11 +165,11 @@ export function AddPersonnelModal({ isOpen, onClose }: AddPersonnelModalProps) {
               onChange={handleChange}
               required
               placeholder="Juan"
-              className="block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors"
+              className="block w-full px-4 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors"
             />
           </div>
           <div>
-            <label htmlFor="lastName" className="block text-sm font-medium text-gray-300 mb-1.5">Last Name <span className="text-red-400">*</span></label>
+            <label htmlFor="lastName" className="block text-xs font-medium text-gray-300 mb-1.5">Last Name <span className="text-red-400">*</span></label>
             <input
               type="text"
               id="lastName"
@@ -175,13 +178,13 @@ export function AddPersonnelModal({ isOpen, onClose }: AddPersonnelModalProps) {
               onChange={handleChange}
               required
               placeholder="Dela Cruz"
-              className="block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors"
+              className="block w-full px-4 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors"
             />
           </div>
         </div>
 
         <div>
-          <label htmlFor="middleName" className="block text-sm font-medium text-gray-300 mb-1.5">Middle Name</label>
+          <label htmlFor="middleName" className="block text-xs font-medium text-gray-300 mb-1.5">Middle Name</label>
           <input
             type="text"
             id="middleName"
@@ -189,13 +192,13 @@ export function AddPersonnelModal({ isOpen, onClose }: AddPersonnelModalProps) {
             value={formData.middleName}
             onChange={handleChange}
             placeholder="Optional"
-            className="block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors"
+            className="block w-full px-4 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors"
           />
         </div>
 
         {/* Birthday */}
         <div>
-          <label htmlFor="birthday" className="block text-sm font-medium text-gray-300 mb-1.5">Birthday <span className="text-red-400">*</span></label>
+          <label htmlFor="birthday" className="block text-xs font-medium text-gray-300 mb-1.5">Birthday <span className="text-red-400">*</span></label>
           <input
             type="date"
             id="birthday"
@@ -203,13 +206,13 @@ export function AddPersonnelModal({ isOpen, onClose }: AddPersonnelModalProps) {
             value={formData.birthday}
             onChange={handleChange}
             required
-            className="block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors [color-scheme:dark]"
+            className="block w-full px-4 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors [color-scheme:dark]"
           />
         </div>
 
         {/* Contact Number */}
         <div>
-          <label htmlFor="contact" className="block text-sm font-medium text-gray-300 mb-1.5 flex items-center gap-2">
+          <label htmlFor="contact" className="block text-xs font-medium text-gray-300 mb-1.5 flex items-center gap-2">
             <Phone size={14} /> Contact Number <span className="text-red-400">*</span>
           </label>
           <input
@@ -220,13 +223,13 @@ export function AddPersonnelModal({ isOpen, onClose }: AddPersonnelModalProps) {
             onChange={handleChange}
             required
             placeholder="e.g. 0917 123 4567"
-            className="block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors"
+            className="block w-full px-4 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors"
           />
         </div>
 
         {/* Route Assignment */}
         <div>
-          <label htmlFor="driver-route" className="block text-sm font-medium text-gray-300 mb-1.5 flex items-center gap-2">
+          <label htmlFor="driver-route" className="block text-xs font-medium text-gray-300 mb-1.5 flex items-center gap-2">
             <MapPin size={14} /> Assigned Route
           </label>
           <select
@@ -234,29 +237,30 @@ export function AddPersonnelModal({ isOpen, onClose }: AddPersonnelModalProps) {
             name="route"
             value={formData.route}
             disabled
-            className="block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-gray-500 cursor-not-allowed [color-scheme:dark]"
+            className="block w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-gray-500 cursor-not-allowed text-sm [color-scheme:dark]"
           >
             <option value="Malolos - Meycauayan - Calumpit" className="bg-gray-800">Malolos - Meycauayan - Calumpit</option>
           </select>
           <p className="text-[11px] text-gray-600 mt-1">Currently fixed to the single active e-jeep corridor.</p>
         </div>
 
-        {/* Mobile-friendly Action Buttons */}
-        <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-white/10">
-          <button 
-            type="button" 
-            onClick={onClose} 
-            className="w-full sm:w-auto px-6 py-3 border border-white/20 rounded-lg text-gray-300 hover:bg-white/5 transition-colors active:scale-[0.98]"
-          >
-            Cancel
-          </button>
-          <button 
-            type="submit" 
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-emerald-500 text-white font-medium rounded-lg hover:bg-emerald-600 transition-colors active:scale-[0.98]"
-          >
-            <UserPlus size={16} />
-            Save Driver
-          </button>
+        <div className="sticky bottom-0 bg-[#0f172a] -mx-6 px-6 pt-4 pb-1 -mb-6 border-t border-white/10 z-10">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+            <button 
+              type="button" 
+              onClick={onClose} 
+              className="w-full sm:w-auto px-6 py-2.5 border border-white/20 rounded-lg text-gray-300 hover:bg-white/5 transition-colors active:scale-[0.98]"
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit" 
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-emerald-500 text-white font-medium rounded-lg hover:bg-emerald-600 transition-colors active:scale-[0.98]"
+            >
+              <UserPlus size={16} />
+              Save Driver
+            </button>
+          </div>
         </div>
       </form>
     </Modal>
