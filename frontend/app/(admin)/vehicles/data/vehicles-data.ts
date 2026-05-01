@@ -48,8 +48,8 @@ export const mockPersonnel: Personnel[] = [
 ];
 
 export const initialVehicles: Vehicle[] = [
-  { id: 1, plateNumber: 'DEF-5678', route: 'Cubao - Fairview', driver: 'Pedro Cruz', conductor: 'Juan Santos', status: 'Operating', speed: 35 },
-  { id: 2, plateNumber: 'GHI-9012', route: 'Monumento - Baclaran', driver: 'Carlos Reyes', conductor: 'Miguel Garcia', status: 'Under Maintenance', speed: 0 },
-  { id: 3, plateNumber: 'JKL-3456', route: 'Quiapo - Divisoria', driver: 'Luis Martinez', conductor: null, status: 'Out of Service / Damaged', speed: 0 },
-  { id: 4, plateNumber: 'ABC-1234', route: 'Quiapo - Divisoria', driver: 'Juan Santos', conductor: 'Ana Lopez', status: 'Operating', speed: 25 },
+  { id: 1, plateNumber: 'DEF-5678', route: 'Meycauayan–Calumpit', driver: 'Pedro Cruz', conductor: 'Juan Santos', status: 'Operating', speed: 35 },
+  { id: 2, plateNumber: 'GHI-9012', route: 'Meycauayan–Calumpit', driver: 'Carlos Reyes', conductor: 'Miguel Garcia', status: 'Under Maintenance', speed: 0 },
+  { id: 3, plateNumber: 'JKL-3456', route: 'Meycauayan–Calumpit', driver: 'Luis Martinez', conductor: null, status: 'Out of Service / Damaged', speed: 0 },
+  { id: 4, plateNumber: 'ABC-1234', route: 'Meycauayan–Calumpit', driver: 'Juan Santos', conductor: 'Ana Lopez', status: 'Operating', speed: 25 },
 ];
