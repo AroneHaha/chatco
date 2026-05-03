@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { getActiveShift, clearShift } from "@/lib/conductor-shift";
 import { getRemittanceHistory } from "@/lib/remittance-history";
+import { getShiftTransactions } from "@/lib/conductor-transactions";
 import type { ConductorShift } from "@/lib/conductor-shift";
 import ClearCacheModal from "@/components/conductor/modals/clear-cache-modal";
 import SosConfirmModal from "@/components/conductor/modals/sos-confirm-modal";
@@ -15,6 +16,7 @@ export default function SettingsPage() {
 
   const [showClearCache, setShowClearCache] = useState(false);
   const [showSOS, setShowSOS] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   useEffect(() => {
     setShift(getActiveShift());
@@ -23,9 +25,18 @@ export default function SettingsPage() {
   const logoutLocked = useMemo(() => {
     if (!shift) return false;
     const history = getRemittanceHistory();
-    const record = history.find((r) => r.shiftId === shift.shiftId);
-    if (!record) return false;
-    return record.totalCashless > 0 && record.remittanceStatus === "Pending";
+
+    // Check 1: Any pending remittance across all records
+    const hasPendingRemit = history.some((r) => r.remittanceStatus === "Pending" && r.totalCashless > 0);
+    if (hasPendingRemit) return true;
+
+    // Check 2: Current shift has un-remitted wallet transactions (wallet value not zero)
+    const transactions = getShiftTransactions(shift.shiftId);
+    const totalWallet = transactions.reduce((sum, t) => sum + t.finalAmount, 0);
+    const hasRemitted = history.some((r) => r.shiftId === shift.shiftId && r.remittanceStatus === "Remitted");
+    if (totalWallet > 0 && !hasRemitted) return true;
+
+    return false;
   }, [shift]);
 
   const handleClearCache = () => {
@@ -35,8 +46,13 @@ export default function SettingsPage() {
   };
 
   const handleLogout = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutConfirm(false);
     clearShift();
-    router.push("/conductor-login");
+    router.push("/login");
   };
 
   return (
@@ -333,7 +349,7 @@ export default function SettingsPage() {
                 />
               </svg>
               <p className="text-xs text-amber-400/70 font-medium">
-                Remit your collected cashless amount before logging out.
+                Remit all pending collections and zero out wallet before logging out.
               </p>
             </div>
           )}
@@ -373,6 +389,41 @@ export default function SettingsPage() {
         onClose={() => setShowSOS(false)}
         onConfirm={() => setShowSOS(false)}
       />
+
+      {/* ===== Logout Confirmation Modal ===== */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="relative backdrop-blur-md bg-gray-900/90 border border-white/20 rounded-xl shadow-2xl w-full max-w-sm mx-4">
+            <div className="p-6">
+              <div className="flex flex-col items-center text-center space-y-4">
+                <div className="w-14 h-14 bg-red-500/15 rounded-full flex items-center justify-center">
+                  <svg className="w-7 h-7 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">Log Out?</h2>
+                  <p className="text-sm text-white/50 mt-1">Are you sure you want to log out? You will need to sign in again to continue.</p>
+                </div>
+                <div className="w-full grid grid-cols-2 gap-3 pt-2">
+                  <button
+                    onClick={() => setShowLogoutConfirm(false)}
+                    className="py-3 rounded-xl text-sm font-semibold border border-white/10 text-gray-300 hover:bg-white/5 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmLogout}
+                    className="py-3 rounded-xl text-sm font-bold bg-red-600 text-white hover:bg-red-700 transition-colors"
+                  >
+                    Log Out
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
