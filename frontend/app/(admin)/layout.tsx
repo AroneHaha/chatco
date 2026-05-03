@@ -4,18 +4,27 @@
 import { ReactNode, useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Receipt, Map, Package, BarChart3, Car, Sliders, Users, Menu, LogOut, X } from 'lucide-react';
+import Image from 'next/image';
+import { Home, Receipt, Map, Package, BarChart3, Car, Sliders, Users, Menu, LogOut, X, Bus, Settings, Shield, Eye } from 'lucide-react';
+import { SignOutModal } from '@/components/admin/ui/sign-out-modal';
 
-// All items for Desktop
-const navItems = [
+// ─── Nav Sections ───
+
+const operationsNav = [
   { href: '/admin-dashboard', label: 'Dashboard', icon: Home },
-  { href: '/users', label: 'User Management', icon: Users },
   { href: '/remittance', label: 'Remittance', icon: Receipt },
   { href: '/monitoring', label: 'Monitoring', icon: Map },
+];
+
+const managementNav = [
   { href: '/vehicles', label: 'Fleet Management', icon: Car },
   { href: '/lost-found', label: 'Lost & Found', icon: Package },
+  { href: '/users', label: 'User Management', icon: Users },
+];
+
+const systemNav = [
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
-  { href: '/settings', label: 'Settings', icon: Sliders }
+  { href: '/settings', label: 'Settings', icon: Sliders },
 ];
 
 // Items for Mobile Bottom Bar (Shortened labels to prevent overlap)
@@ -62,14 +71,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   // Mobile: Animate the bottom nav indicator (Only for the 4 main items + 1 More button)
   useEffect(() => {
     if (!isMobile) return;
-    
+
     // Check if current route is in the main 4 items
     const mainIndex = mobileMainItems.findIndex(item => item.href === pathname);
     let activeIndex = mainIndex;
 
     // If it's not in the main 4, it must be in the "More" menu, so highlight the "More" button (index 4)
     if (mainIndex === -1) {
-      activeIndex = 4; 
+      activeIndex = 4;
     }
 
     if (activeIndex !== -1) {
@@ -86,113 +95,145 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const handleSignOut = () => {
     console.log("User signed out");
     setIsSignOutOpen(false);
-    window.location.href = '/login'; 
+    window.location.href = '/login';
   };
 
   // --- DESKTOP SIDE NAVIGATION ---
   if (!isMobile) {
     return (
-      <div className="flex h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
-        <nav className="w-64 backdrop-blur-md bg-gray-900/95 border-r border-white/10 flex flex-col">
-          <div className="p-6">
-            <h2 className="text-xl font-bold text-white">Admin Panel</h2>
+      <div className="flex h-screen bg-[#0B1120]">
+        <nav className="w-64 bg-[#0D1424] border-r border-[#1E2D45] flex flex-col">
+          {/* Logo */}
+          <div className="p-5 flex items-center gap-3">
+            <Image src="/logo-transparent.png" alt="CHATCO" width={36} height={36} className="flex-shrink-0" />
+            <div>
+              <h2 className="text-base font-bold text-white leading-tight">CHATCO</h2>
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider">Admin Panel</p>
+            </div>
           </div>
-          
-          {/* Nav Links */}
-          <div className="flex-1 px-4">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center space-x-3 px-4 py-3 my-1 rounded-lg transition-colors duration-200 ${
-                    isActive
-                      ? 'bg-blue-500/20 text-blue-400 border-l-4 border-blue-500'
-                      : 'text-gray-400 hover:bg-white/10 hover:text-white'
-                  }`}
-                >
-                  <Icon size={20} />
-                  <span className="font-medium">{item.label}</span>
-                </Link>
-              );
-            })}
+
+          {/* Nav Links — grouped */}
+          <div className="flex-1 px-3 overflow-y-auto space-y-6">
+
+            {/* Operations */}
+            <div>
+              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-3 mb-2">Operations</p>
+              {operationsNav.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center space-x-3 px-3 py-2.5 my-0.5 rounded-md transition-colors duration-200 ${
+                      isActive
+                        ? 'bg-[#62A0EA]/10 text-[#62A0EA]'
+                        : 'text-slate-400 hover:bg-[#1A2540] hover:text-white'
+                    }`}
+                  >
+                    {isActive && <span className="w-1.5 h-1.5 rounded-full bg-[#62A0EA] flex-shrink-0" />}
+                    {!isActive && <span className="w-1.5 h-1.5 flex-shrink-0" />}
+                    <Icon size={18} />
+                    <span className="text-sm font-medium">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Management */}
+            <div>
+              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-3 mb-2">Management</p>
+              {managementNav.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center space-x-3 px-3 py-2.5 my-0.5 rounded-md transition-colors duration-200 ${
+                      isActive
+                        ? 'bg-[#62A0EA]/10 text-[#62A0EA]'
+                        : 'text-slate-400 hover:bg-[#1A2540] hover:text-white'
+                    }`}
+                  >
+                    {isActive && <span className="w-1.5 h-1.5 rounded-full bg-[#62A0EA] flex-shrink-0" />}
+                    {!isActive && <span className="w-1.5 h-1.5 flex-shrink-0" />}
+                    <Icon size={18} />
+                    <span className="text-sm font-medium">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* System */}
+            <div>
+              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-3 mb-2">System</p>
+              {systemNav.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center space-x-3 px-3 py-2.5 my-0.5 rounded-md transition-colors duration-200 ${
+                      isActive
+                        ? 'bg-[#62A0EA]/10 text-[#62A0EA]'
+                        : 'text-slate-400 hover:bg-[#1A2540] hover:text-white'
+                    }`}
+                  >
+                    {isActive && <span className="w-1.5 h-1.5 rounded-full bg-[#62A0EA] flex-shrink-0" />}
+                    {!isActive && <span className="w-1.5 h-1.5 flex-shrink-0" />}
+                    <Icon size={18} />
+                    <span className="text-sm font-medium">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+
           </div>
 
           {/* --- NEW: Bottom Section (Sign Out & Branding) --- */}
-          <div className="px-4 pb-6 border-t border-white/10 pt-4 mt-4 space-y-3">
+          <div className="px-3 pb-5 border-t border-[#1E2D45] pt-3 mt-2 space-y-2">
             <button
               onClick={() => setIsSignOutOpen(true)}
-              className="flex items-center space-x-3 px-4 py-3 w-full rounded-lg text-red-400 hover:bg-red-500/10 transition-colors duration-200"
+              className="flex items-center space-x-3 px-3 py-2.5 w-full rounded-md text-red-400 hover:bg-red-400/10 transition-colors duration-200"
             >
-              <LogOut size={20} />
-              <span className="font-medium">Sign Out</span>
+              <LogOut size={18} />
+              <span className="text-sm font-medium">Sign Out</span>
             </button>
-            
-            <div className="px-4 pt-2">
-              <p className="text-xs text-white/20 font-medium tracking-wide">- CHATCO ADMIN</p>
+
+            <div className="px-3 pt-1">
+              <p className="text-[10px] text-slate-600 font-medium tracking-wide">CHATCO ADMIN v1.0</p>
             </div>
           </div>
         </nav>
-        
+
         <main className="flex-1 overflow-y-auto p-6 lg:p-8 text-white">
           {children}
         </main>
 
         {/* --- Desktop Sign Out Modal --- */}
-        {isSignOutOpen && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-gray-800 border border-white/10 rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl">
-              <div className="text-center space-y-4">
-                <div className="mx-auto w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center">
-                  <LogOut className="text-red-400" size={32} />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-white">Sign Out</h2>
-                  <p className="text-sm text-gray-400 mt-2">
-                    Are you sure you want to sign out of your admin account?
-                  </p>
-                </div>
-                <div className="flex gap-3 pt-4">
-                  <button
-                    onClick={() => setIsSignOutOpen(false)}
-                    className="flex-1 px-4 py-2.5 bg-white/10 border border-white/20 text-white font-medium rounded-lg hover:bg-white/20 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSignOut}
-                    className="flex-1 px-4 py-2.5 bg-red-500 text-white font-medium rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <LogOut size={18} />
-                    Yes, Sign Out
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        <SignOutModal isOpen={isSignOutOpen} onClose={() => setIsSignOutOpen(false)} onConfirm={handleSignOut} />
       </div>
     );
   }
 
   // --- MOBILE BOTTOM NAVIGATION ---
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white flex flex-col">
+    <div className="min-h-screen bg-[#0B1120] text-white flex flex-col">
       <main className="flex-1 p-4 md:p-6 lg:p-8 pb-24 overflow-y-auto">
         {children}
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-gray-900/80 backdrop-blur-md border-t border-white/10 z-50 md:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 bg-[#0D1424]/95 backdrop-blur-sm border-t border-[#1E2D45] z-50 md:hidden">
         <div className="relative flex justify-around items-center h-16 max-w-screen-xl mx-auto">
-          {/* Animated Pill Indicator */}
+          {/* Thin top-line indicator */}
           <div
             ref={indicatorRef}
-            className="absolute top-1/2 -translate-y-1/2 h-12 bg-blue-500 rounded-full transition-all duration-300 ease-in-out shadow-lg"
+            className="absolute top-0 h-0.5 bg-[#62A0EA] transition-all duration-300 ease-in-out"
           />
-          
+
           {/* Main 4 Items */}
           {mobileMainItems.map((item, index) => {
             const Icon = item.icon;
@@ -203,7 +244,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 href={item.href}
                 ref={el => { navItemRefs.current[index] = el; }}
                 className={`relative z-10 flex flex-col items-center justify-center w-full h-full text-xs font-medium transition-colors duration-200 ${
-                  isActive ? 'text-white' : 'text-gray-400'
+                  isActive ? 'text-[#62A0EA]' : 'text-slate-500'
                 }`}
               >
                 <Icon size={20} />
@@ -217,7 +258,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             ref={el => { navItemRefs.current[4] = el; }}
             onClick={() => setIsMoreOpen(!isMoreOpen)}
             className={`relative z-10 flex flex-col items-center justify-center w-full h-full text-xs font-medium transition-colors duration-200 ${
-              isMoreOpen || mobileMoreItems.some(i => i.href === pathname) ? 'text-white' : 'text-gray-400'
+              isMoreOpen || mobileMoreItems.some(i => i.href === pathname) ? 'text-[#62A0EA]' : 'text-slate-500'
             }`}
           >
             <Menu size={20} />
@@ -229,13 +270,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         {isMoreOpen && (
           <>
             {/* Invisible backdrop to close menu when tapping outside */}
-            <div 
-              className="fixed inset-0 bg-black/20 z-40" 
-              onClick={() => setIsMoreOpen(false)} 
+            <div
+              className="fixed inset-0 bg-black/20 z-40"
+              onClick={() => setIsMoreOpen(false)}
             />
-            
+
             {/* Actual Menu */}
-            <div className="absolute bottom-20 right-4 left-4 bg-gray-800 border border-white/10 rounded-2xl p-4 shadow-2xl z-50">
+            <div className="absolute bottom-20 right-4 left-4 bg-[#1A2540] border border-[#2A3A55] rounded-lg p-4 shadow-2xl z-50">
               <div className="grid grid-cols-2 gap-3">
                 {mobileMoreItems.map((item) => {
                   const Icon = item.icon;
@@ -245,10 +286,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                       key={item.href}
                       href={item.href}
                       onClick={() => setIsMoreOpen(false)}
-                      className={`flex flex-col items-center justify-center p-3 rounded-xl transition-colors ${
-                        isActive 
-                          ? 'bg-blue-500/20 text-blue-400' 
-                          : 'text-gray-300 hover:bg-white/5'
+                      className={`flex flex-col items-center justify-center p-3 rounded-md transition-colors ${
+                        isActive
+                          ? 'bg-[#62A0EA]/10 text-[#62A0EA]'
+                          : 'text-slate-300 hover:bg-[#131C2E]'
                       }`}
                     >
                       <Icon size={22} />
@@ -256,14 +297,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                     </Link>
                   );
                 })}
-                
+
                 {/* --- NEW: Mobile Sign Out Button --- */}
                 <button
                   onClick={() => {
                     setIsMoreOpen(false);
                     setIsSignOutOpen(true);
                   }}
-                  className="col-span-2 flex items-center justify-center gap-2 p-3 rounded-xl text-red-400 hover:bg-red-500/10 transition-colors border border-red-500/20"
+                  className="col-span-2 flex items-center justify-center gap-2 p-3 rounded-md text-red-400 hover:bg-red-400/10 transition-colors border border-red-400/20"
                 >
                   <LogOut size={20} />
                   <span className="text-sm font-medium">Sign Out</span>
@@ -275,38 +316,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       </nav>
 
       {/* --- Mobile Sign Out Modal --- */}
-      {isSignOutOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60]">
-          <div className="bg-gray-800 border border-white/10 rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl">
-            <div className="text-center space-y-4">
-              <div className="mx-auto w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center">
-                <LogOut className="text-red-400" size={32} />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-white">Sign Out</h2>
-                <p className="text-sm text-gray-400 mt-2">
-                  Are you sure you want to sign out of your admin account?
-                </p>
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={() => setIsSignOutOpen(false)}
-                  className="flex-1 px-4 py-2.5 bg-white/10 border border-white/20 text-white font-medium rounded-lg hover:bg-white/20 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSignOut}
-                  className="flex-1 px-4 py-2.5 bg-red-500 text-white font-medium rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center gap-2"
-                >
-                  <LogOut size={18} />
-                  Yes, Sign Out
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <SignOutModal isOpen={isSignOutOpen} onClose={() => setIsSignOutOpen(false)} onConfirm={handleSignOut} />
     </div>
   );
 }

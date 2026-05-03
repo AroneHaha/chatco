@@ -14,20 +14,20 @@ export function RegistrationRequestsTable({ requests, onSelectRequest }: Registr
     <GlassCard className="p-4">
       <div className="space-y-4">
         {requests.length === 0 ? (
-          <p className="text-center text-gray-400 py-8">No pending registration requests.</p>
+          <p className="text-center text-slate-400 py-8">No pending registration requests.</p>
         ) : (
           requests.map((req) => (
             <button 
               key={req.id} 
               onClick={() => onSelectRequest(req)}
-              className="w-full text-left flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-white/5 rounded-lg border border-white/10 gap-4 hover:bg-white/10 transition-colors group"
+              className="w-full text-left flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-[#0E1628] rounded-md border border-[#1E2D45] gap-4 hover:bg-[#1A2540] transition-colors group"
             >
               <div className="flex items-center space-x-4">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={req.idImageUrl} alt="ID" className="w-12 h-12 rounded-md object-cover border border-white/20" />
+                <img src={req.idImageUrl} alt="ID" className="w-12 h-12 rounded-md object-cover border border-[#1E2D45]" />
                 <div>
-                  <p className="text-white font-medium group-hover:text-blue-400 transition-colors">{req.name}</p>
-                  <p className="text-sm text-gray-400">{req.email} • {req.phoneNumber}</p>
+                  <p className="text-white font-medium group-hover:text-sky-400 transition-colors">{req.name}</p>
+                  <p className="text-sm text-slate-400">{req.email} • {req.phoneNumber}</p>
                   <div className="flex items-center gap-2 mt-1">
                     <Badge variant="info">{req.commuterType}</Badge>
                     <Badge variant="warning">Pending Verification</Badge>
@@ -35,7 +35,7 @@ export function RegistrationRequestsTable({ requests, onSelectRequest }: Registr
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2 text-gray-400 group-hover:text-white transition-colors">
+              <div className="flex items-center space-x-2 text-slate-400 group-hover:text-white transition-colors">
                 <Eye size={18} />
                 <span className="text-sm font-medium">Review Details</span>
               </div>

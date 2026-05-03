@@ -31,7 +31,7 @@ export default function LostFoundPage() {
   const [claims, setClaims] = useState<Claim[]>(initialClaims);
   const [history, setHistory] = useState<HistoryEvent[]>(initialHistoryLog);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
-  
+
   const [activeTab, setActiveTab] = useState<'ALL' | 'PENDING_CLAIMS'>('ALL');
   const [activeCategory, setActiveCategory] = useState<ItemCategory | 'ALL'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -95,31 +95,31 @@ export default function LostFoundPage() {
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden relative">
-      <div className="flex-shrink-0 border-b border-white/10 bg-white/5 backdrop-blur-md p-4 lg:px-8 lg:py-6 z-10 rounded-xl mb-6">
+      <div className="flex-shrink-0 bg-[#131C2E] border border-[#1E2D45] p-4 lg:px-8 lg:py-6 z-10 rounded-lg mb-6">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-5">
           <div>
             <h1 className="text-white font-bold text-xl lg:text-2xl">Lost & Found Management</h1>
-            <p className="text-white/40 text-xs mt-1">{filteredItems.length} items reported • Page {currentPage} of {totalPages || 1}</p>
+            <p className="text-slate-500 text-xs mt-1">{filteredItems.length} items reported • Page {currentPage} of {totalPages || 1}</p>
           </div>
           <div className="flex items-center gap-3 w-full lg:w-fit">
-            <div className="flex bg-white/5 rounded-xl p-1 border border-white/10 w-fit">
+            <div className="flex bg-[#0E1628] rounded-md p-1 border border-[#1E2D45] w-fit">
               {([ ["ALL", "All Items"], ["PENDING_CLAIMS", "Pending Claims"] ] as const).map(([key, label]) => (
-                <button key={key} onClick={() => setActiveTab(key)} className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${activeTab === key ? "bg-blue-500 text-white shadow-lg shadow-blue-500/30" : "text-white/40 hover:text-white/70 hover:bg-white/10"}`}>{label}</button>
+                <button key={key} onClick={() => setActiveTab(key)} className={`px-4 py-2 rounded-md text-xs font-semibold transition-all ${activeTab === key ? "bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/30" : "text-slate-500 hover:text-slate-300 hover:bg-[#1A2540]"}`}>{label}</button>
               ))}
             </div>
-            <button onClick={handleOpenAddModal} className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white text-xs font-semibold rounded-lg hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/30">
+            <button onClick={handleOpenAddModal} className="flex items-center space-x-2 px-4 py-2 bg-[#62A0EA] text-white text-xs font-semibold rounded-md hover:bg-[#4A8BD4] transition-colors shadow-lg shadow-[#62A0EA]/30">
               <Plus size={16} /><span>Add Item</span>
             </button>
           </div>
         </div>
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
-            <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
-            <input type="text" placeholder="Search items, plates..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }} className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" />
+            <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
+            <input type="text" placeholder="Search items, plates..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }} className="w-full bg-[#0E1628] border border-[#1E2D45] rounded-md pl-12 pr-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors" />
           </div>
           <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
             {itemCategoriesWithAll.map(cat => (
-              <button key={cat.value} onClick={() => { setActiveCategory(cat.value); setCurrentPage(1); }} className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-semibold border transition-colors ${activeCategory === cat.value ? "bg-blue-500 border-blue-500 text-white" : "bg-transparent border-white/10 text-white/50 hover:bg-white/10"}`}>{cat.label}</button>
+              <button key={cat.value} onClick={() => { setActiveCategory(cat.value); setCurrentPage(1); }} className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-semibold border transition-colors ${activeCategory === cat.value ? "bg-[#62A0EA] border-[#62A0EA] text-white" : "bg-transparent border-[#1E2D45] text-slate-500 hover:bg-[#1A2540]"}`}>{cat.label}</button>
             ))}
           </div>
         </div>
@@ -128,8 +128,8 @@ export default function LostFoundPage() {
       <div className="flex-1 overflow-y-auto pb-28 lg:pb-8">
         {displayItems.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center px-4">
-            <h3 className="text-white/70 font-semibold mb-1">No items found</h3>
-            <p className="text-white/40 text-sm">Try adjusting your search or filters.</p>
+            <h3 className="text-slate-300 font-semibold mb-1">No items found</h3>
+            <p className="text-slate-500 text-sm">Try adjusting your search or filters.</p>
           </div>
         ) : (
           <>
@@ -138,11 +138,11 @@ export default function LostFoundPage() {
             </div>
             {totalPages > 1 && (
               <div className="flex items-center justify-center gap-2 mt-8 mb-4">
-                <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} className={`px-4 py-2 rounded-lg text-sm font-semibold ${currentPage === 1 ? "bg-white/5 text-white/20 cursor-not-allowed" : "bg-white/5 text-white/60 hover:bg-white/10"}`}>Prev</button>
+                <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} className={`px-4 py-2 rounded-md text-sm font-semibold ${currentPage === 1 ? "bg-[#0E1628] text-slate-600 cursor-not-allowed" : "bg-[#0E1628] border border-[#1E2D45] text-slate-400 hover:bg-[#1A2540]"}`}>Prev</button>
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                  <button key={page} onClick={() => setCurrentPage(page)} className={`w-9 h-9 rounded-lg text-sm font-semibold ${currentPage === page ? "bg-blue-500 text-white shadow-lg shadow-blue-500/30" : "bg-white/5 text-white/60 hover:bg-white/10"}`}>{page}</button>
+                  <button key={page} onClick={() => setCurrentPage(page)} className={`w-9 h-9 rounded-md text-sm font-semibold ${currentPage === page ? "bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/30" : "bg-[#0E1628] border border-[#1E2D45] text-slate-400 hover:bg-[#1A2540]"}`}>{page}</button>
                 ))}
-                <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} className={`px-4 py-2 rounded-lg text-sm font-semibold ${currentPage === totalPages ? "bg-white/5 text-white/20 cursor-not-allowed" : "bg-white/5 text-white/60 hover:bg-white/10"}`}>Next</button>
+                <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} className={`px-4 py-2 rounded-md text-sm font-semibold ${currentPage === totalPages ? "bg-[#0E1628] text-slate-600 cursor-not-allowed" : "bg-[#0E1628] border border-[#1E2D45] text-slate-400 hover:bg-[#1A2540]"}`}>Next</button>
               </div>
             )}
           </>

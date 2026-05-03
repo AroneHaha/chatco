@@ -55,53 +55,55 @@ export function AddLostFoundModal({ isOpen, onClose, onSave }: AddLostFoundModal
     setFormData(emptyForm);
   };
 
+  const inputClasses = "mt-1 block w-full px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm placeholder-slate-500 shadow-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors";
+
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
-      <h2 className="text-xl font-bold text-white mb-4">Report New Item</h2>
-      <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-        
+      <h2 className="text-lg sm:text-xl font-bold text-white mb-5">Report New Item</h2>
+      <form onSubmit={handleSubmit} className="space-y-4">
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="sm:col-span-2">
-            <label htmlFor="itemName" className="block text-sm font-medium text-gray-300">Item Name <span className="text-red-400">*</span></label>
-            <input type="text" id="itemName" name="itemName" value={formData.itemName} onChange={handleChange} required placeholder="e.g., Black Leather Wallet" className="mt-1 block w-full px-3 py-2 bg-white/10 border border-white/20 rounded-md text-white placeholder-gray-400 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" />
+            <label htmlFor="itemName" className="block text-xs font-medium text-slate-300 mb-1.5">Item Name <span className="text-red-400">*</span></label>
+            <input type="text" id="itemName" name="itemName" value={formData.itemName} onChange={handleChange} required placeholder="e.g., Black Leather Wallet" className={inputClasses} />
           </div>
-          
+
           <div>
-            <label htmlFor="category" className="block text-sm font-medium text-gray-300">Category</label>
-            <select id="category" name="category" value={formData.category} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white/10 border border-white/20 rounded-md text-white shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 [color-scheme:dark]">
+            <label htmlFor="category" className="block text-xs font-medium text-slate-300 mb-1.5">Category</label>
+            <select id="category" name="category" value={formData.category} onChange={handleChange} className={`${inputClasses} [color-scheme:dark]`}>
               {itemCategories.map(cat => (<option key={cat.value} value={cat.value} className="bg-gray-800">{cat.label}</option>))}
             </select>
           </div>
 
           <div>
-            <label htmlFor="plateNumber" className="block text-sm font-medium text-gray-300">Plate Number</label>
-            <input type="text" id="plateNumber" name="plateNumber" value={formData.plateNumber} onChange={handleChange} placeholder="ABC 1234" className="mt-1 block w-full px-3 py-2 bg-white/10 border border-white/20 rounded-md text-white placeholder-gray-400 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" />
+            <label htmlFor="plateNumber" className="block text-xs font-medium text-slate-300 mb-1.5">Plate Number</label>
+            <input type="text" id="plateNumber" name="plateNumber" value={formData.plateNumber} onChange={handleChange} placeholder="ABC 1234" className={inputClasses} />
           </div>
 
           <div>
-            <label htmlFor="estimatedTimeLost" className="block text-sm font-medium text-gray-300">Estimated Time Lost</label>
-            <input type="text" id="estimatedTimeLost" name="estimatedTimeLost" value={formData.estimatedTimeLost} onChange={handleChange} placeholder="Around 8:00 AM" className="mt-1 block w-full px-3 py-2 bg-white/10 border border-white/20 rounded-md text-white placeholder-gray-400 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" />
+            <label htmlFor="estimatedTimeLost" className="block text-xs font-medium text-slate-300 mb-1.5">Estimated Time Lost</label>
+            <input type="text" id="estimatedTimeLost" name="estimatedTimeLost" value={formData.estimatedTimeLost} onChange={handleChange} placeholder="Around 8:00 AM" className={inputClasses} />
           </div>
 
           <div>
-            <label htmlFor="driverName" className="block text-sm font-medium text-gray-300">Driver Name</label>
-            <input type="text" id="driverName" name="driverName" value={formData.driverName} onChange={handleChange} placeholder="Juan Dela Cruz" className="mt-1 block w-full px-3 py-2 bg-white/10 border border-white/20 rounded-md text-white placeholder-gray-400 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" />
+            <label htmlFor="driverName" className="block text-xs font-medium text-slate-300 mb-1.5">Driver Name</label>
+            <input type="text" id="driverName" name="driverName" value={formData.driverName} onChange={handleChange} placeholder="Juan Dela Cruz" className={inputClasses} />
           </div>
 
           <div>
-            <label htmlFor="conductorName" className="block text-sm font-medium text-gray-300">Conductor Name</label>
-            <input type="text" id="conductorName" name="conductorName" value={formData.conductorName} onChange={handleChange} placeholder="Pedro Penduko" className="mt-1 block w-full px-3 py-2 bg-white/10 border border-white/20 rounded-md text-white placeholder-gray-400 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" />
+            <label htmlFor="conductorName" className="block text-xs font-medium text-slate-300 mb-1.5">Conductor Name</label>
+            <input type="text" id="conductorName" name="conductorName" value={formData.conductorName} onChange={handleChange} placeholder="Pedro Penduko" className={inputClasses} />
           </div>
         </div>
 
         <div>
-          <label htmlFor="description" className="block text-sm font-medium text-gray-300">Detailed Description</label>
-          <textarea id="description" name="description" rows={3} value={formData.description} onChange={handleChange} placeholder="Found under the seat near the back door..." className="mt-1 block w-full px-3 py-2 bg-white/10 border border-white/20 rounded-md text-white placeholder-gray-400 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 resize-none" />
+          <label htmlFor="description" className="block text-xs font-medium text-slate-300 mb-1.5">Detailed Description</label>
+          <textarea id="description" name="description" rows={3} value={formData.description} onChange={handleChange} placeholder="Found under the seat near the back door..." className={`${inputClasses} resize-none`} />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-300">Upload Image</label>
-          <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-white/20 border-dashed rounded-md">
+          <label className="block text-xs font-medium text-slate-300 mb-1.5">Upload Image</label>
+          <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed border-[#1E2D45] rounded-md">
             {formData.imagePreview ? (
               <div className="relative">
                 <img src={formData.imagePreview} alt="Preview" className="h-32 w-32 object-cover rounded-md" />
@@ -109,23 +111,23 @@ export function AddLostFoundModal({ isOpen, onClose, onSave }: AddLostFoundModal
               </div>
             ) : (
               <div className="space-y-1 text-center">
-                <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                <div className="flex text-sm text-gray-300">
-                  <label htmlFor="image-upload" className="relative cursor-pointer rounded-md font-medium text-blue-400 hover:text-blue-300">
+                <Upload className="mx-auto h-12 w-12 text-slate-500" />
+                <div className="flex text-sm text-slate-300">
+                  <label htmlFor="image-upload" className="relative cursor-pointer rounded-md font-medium text-[#62A0EA] hover:text-[#4A8BD4]">
                     <span>Upload a file</span>
                     <input id="image-upload" name="image-upload" type="file" className="sr-only" accept="image/*" onChange={handleImageChange} />
                   </label>
                   <p className="pl-1">or drag and drop</p>
                 </div>
-                <p className="text-xs text-gray-400">PNG, JPG, GIF up to 10MB</p>
+                <p className="text-xs text-slate-500">PNG, JPG, GIF up to 10MB</p>
               </div>
             )}
           </div>
         </div>
 
-        <div className="flex justify-end space-x-3 pt-4">
-          <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-500 rounded-md text-gray-300 hover:bg-gray-700 transition-colors">Cancel</button>
-          <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors">Report Item</button>
+        <div className="flex justify-end gap-2 pt-4 border-t border-[#1E2D45]">
+          <button type="button" onClick={onClose} className="px-5 py-2.5 border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#131C2E] transition-colors">Cancel</button>
+          <button type="submit" className="px-5 py-2.5 bg-[#62A0EA] text-white font-medium rounded-md hover:bg-[#4A8BD4] transition-colors">Report Item</button>
         </div>
       </form>
     </Modal>

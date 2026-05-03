@@ -2,7 +2,6 @@
 'use client';
 
 import { useState } from 'react';
-import { GlassCard } from '@/components/admin/ui/glass-card';
 import BackButton from '@/components/admin/ui/back-button';
 import { Save, Plus, X } from 'lucide-react';
 import {
@@ -44,7 +43,7 @@ export default function OperationsRulesPage() {
   return (
     <div className="min-h-screen pb-12 px-4 sm:px-6">
       <div className="mx-auto w-full max-w-3xl space-y-6">
-        
+
         {/* Left-aligned Back Button */}
         <div className="pt-2">
           <BackButton href="/settings" />
@@ -54,55 +53,55 @@ export default function OperationsRulesPage() {
         <div className="text-center">
           <h1 className="text-2xl sm:text-3xl font-bold text-white">Operations & Fleet Rules</h1>
         </div>
-        
+
         <form onSubmit={handleSave} className="space-y-6">
-          
+
           {/* Fleet Safety */}
-          <GlassCard className="p-4 sm:p-6">
+          <div className="bg-[#131C2E] border border-[#1E2D45] p-4 sm:p-6 rounded-lg">
             <h2 className="text-lg sm:text-xl font-semibold text-white mb-4">Safety Thresholds</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1.5">Overspeeding Limit (km/h)</label>
-                <p className="text-xs text-gray-500 mb-2">Triggers alert on monitoring map if exceeded.</p>
-                <input 
-                  type="number" 
-                  name="speedLimitKmh" 
-                  value={rules.speedLimitKmh} 
-                  onChange={handleChange} 
-                  required 
-                  className="block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" 
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">Overspeeding Limit (km/h)</label>
+                <p className="text-xs text-slate-500 mb-2">Triggers alert on monitoring map if exceeded.</p>
+                <input
+                  type="number"
+                  name="speedLimitKmh"
+                  value={rules.speedLimitKmh}
+                  onChange={handleChange}
+                  required
+                  className="block w-full px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1.5">Maximum Shift Duration (Hours)</label>
-                <p className="text-xs text-gray-500 mb-2">Flags conductor in remittance if exceeded.</p>
-                <input 
-                  type="number" 
-                  name="maxShiftHours" 
-                  value={rules.maxShiftHours} 
-                  onChange={handleChange} 
-                  required 
-                  className="block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" 
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">Maximum Shift Duration (Hours)</label>
+                <p className="text-xs text-slate-500 mb-2">Flags conductor in remittance if exceeded.</p>
+                <input
+                  type="number"
+                  name="maxShiftHours"
+                  value={rules.maxShiftHours}
+                  onChange={handleChange}
+                  required
+                  className="block w-full px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors"
                 />
               </div>
             </div>
-          </GlassCard>
+          </div>
 
           {/* Expense Categories */}
-          <GlassCard className="p-4 sm:p-6">
+          <div className="bg-[#131C2E] border border-[#1E2D45] p-4 sm:p-6 rounded-lg">
             <div className="mb-4">
               <h2 className="text-lg sm:text-xl font-semibold text-white">Conductor Expense Categories</h2>
-              <p className="text-xs text-gray-500 mt-1">These will appear in the conductor&apos;s expense logger dropdown.</p>
+              <p className="text-xs text-slate-500 mt-1">These will appear in the conductor&apos;s expense logger dropdown.</p>
             </div>
-            
+
             <div className="space-y-2 mb-4">
               {expenseCategories.map((category: string) => (
-                <div key={category} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10">
-                  <span className="text-sm text-gray-200 break-words mr-4">{category}</span>
-                  <button 
-                    type="button" 
-                    onClick={() => handleRemoveCategory(category)} 
-                    className="text-gray-500 hover:text-red-400 transition-colors flex-shrink-0 p-1"
+                <div key={category} className="flex items-center justify-between p-3 bg-[#0E1628] rounded-lg border border-[#1E2D45]">
+                  <span className="text-sm text-slate-200 break-words mr-4">{category}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveCategory(category)}
+                    className="text-slate-500 hover:text-red-400 transition-colors flex-shrink-0 p-1"
                     title="Remove category"
                   >
                     <X size={16} />
@@ -113,30 +112,30 @@ export default function OperationsRulesPage() {
 
             {/* Add Category Input */}
             <div className="flex flex-col sm:flex-row gap-2">
-              <input 
-                type="text" 
-                value={newCategory} 
+              <input
+                type="text"
+                value={newCategory}
                 onChange={(e) => setNewCategory(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' ? (e.preventDefault(), handleAddCategory()) : null}
                 placeholder="e.g. Toll Fee, Oil Change"
-                className="flex-1 block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                className="flex-1 block w-full px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors"
               />
-              <button 
-                type="button" 
-                onClick={handleAddCategory} 
-                className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-5 py-3 bg-orange-500/20 text-orange-400 border border-orange-500/30 rounded-lg hover:bg-orange-500/30 transition-colors active:scale-95 font-medium text-sm"
+              <button
+                type="button"
+                onClick={handleAddCategory}
+                className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-5 py-2 bg-orange-500/20 text-orange-400 border border-orange-500/30 rounded-lg hover:bg-orange-500/30 transition-colors active:scale-95 font-medium text-sm"
               >
                 <Plus size={16} />
                 <span>Add</span>
               </button>
             </div>
-          </GlassCard>
+          </div>
 
           {/* Mobile-Friendly Save Button */}
           <div className="flex justify-center pt-2 pb-8">
-            <button 
-              type="submit" 
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 transition-colors active:scale-95"
+            <button
+              type="submit"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 bg-[#62A0EA] text-white font-medium rounded-lg hover:bg-[#4A8BD4] transition-colors active:scale-95"
             >
               <Save size={18} />
               <span>{isSaved ? 'Changes Saved!' : 'Save Rules'}</span>

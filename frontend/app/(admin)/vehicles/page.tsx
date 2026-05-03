@@ -104,7 +104,7 @@ export default function VehiclesPage() {
   return (
     <>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-        <h1 className="text-3xl font-bold text-white">Fleet Management</h1>
+        <h1 className="text-2xl font-bold text-white">Fleet Management</h1>
         <div className="flex items-center space-x-3 w-full sm:w-auto">
           <SearchBar
             placeholder={`Search ${activeTab === 'history' ? 'history...' : activeTab}...`}
@@ -117,7 +117,7 @@ export default function VehiclesPage() {
             <>
               <button
                 onClick={handleOpenCreateConductor}
-                className="flex items-center space-x-2 px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition-colors flex-shrink-0"
+                className="flex items-center space-x-2 px-4 py-2 bg-[#62A0EA] text-white font-medium rounded-md hover:bg-[#4A8BD4] transition-colors flex-shrink-0"
               >
                 <UserPlus size={20} />
                 <span className="hidden sm:inline">Conductor Account</span>
@@ -125,7 +125,7 @@ export default function VehiclesPage() {
 
               <button
                 onClick={activeTab === 'vehicles' ? handleOpenVehicleModal : handleOpenPersonnelModal}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 transition-colors flex-shrink-0"
+                className="flex items-center space-x-2 px-4 py-2 bg-[#62A0EA] text-white font-medium rounded-md hover:bg-[#4A8BD4] transition-colors flex-shrink-0"
               >
                 <Plus size={20} />
                 <span className="hidden sm:inline">Add {activeTab === 'vehicles' ? 'Vehicle' : 'Driver'}</span>
@@ -136,11 +136,11 @@ export default function VehiclesPage() {
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex space-x-1 mb-6 border-b border-white/20">
+      <div className="flex space-x-1 mb-6 border-b border-[#1E2D45]">
         <button
           onClick={() => setActiveTab('vehicles')}
-          className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-lg transition-colors ${
-            activeTab === 'vehicles' ? 'text-white border-b-2 border-blue-500 bg-blue-500/10' : 'text-gray-400 hover:text-white hover:bg-white/10'
+          className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-md transition-colors ${
+            activeTab === 'vehicles' ? 'text-white border-b-2 border-[#62A0EA] bg-[#62A0EA]/10' : 'text-slate-400 hover:text-white hover:bg-[#1A2540]'
           }`}
         >
           <Car size={20} />
@@ -148,8 +148,8 @@ export default function VehiclesPage() {
         </button>
         <button
           onClick={() => setActiveTab('personnel')}
-          className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-lg transition-colors ${
-            activeTab === 'personnel' ? 'text-white border-b-2 border-blue-500 bg-blue-500/10' : 'text-gray-400 hover:text-white hover:bg-white/10'
+          className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-md transition-colors ${
+            activeTab === 'personnel' ? 'text-white border-b-2 border-[#62A0EA] bg-[#62A0EA]/10' : 'text-slate-400 hover:text-white hover:bg-[#1A2540]'
           }`}
         >
           <Users size={20} />
@@ -158,8 +158,8 @@ export default function VehiclesPage() {
         
         <button
           onClick={() => setActiveTab('history')}
-          className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-lg transition-colors ${
-            activeTab === 'history' ? 'text-white border-b-2 border-red-500 bg-red-500/10' : 'text-gray-400 hover:text-white hover:bg-white/10'
+          className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-md transition-colors ${
+            activeTab === 'history' ? 'text-white border-b-2 border-red-400 bg-red-400/10' : 'text-slate-400 hover:text-white hover:bg-[#1A2540]'
           }`}
         >
           <Archive size={20} />
@@ -193,8 +193,6 @@ export default function VehiclesPage() {
       <AddVehicleModal isOpen={isVehicleModalOpen} onClose={handleCloseVehicleModal} onSave={handleSaveVehicle} unassignedDrivers={unassignedDrivers} unassignedConductors={unassignedConductors} />
       <EditVehicleModal isOpen={isEditVehicleModalOpen} onClose={handleCloseEditModal} onSave={handleUpdateVehicle} editingVehicle={editingVehicle} allPersonnel={initialPersonnel} />
       <AddPersonnelModal isOpen={isPersonnelModalOpen} onClose={handleClosePersonnelModal} />
-      
-      {/* NEW MODALS */}
       <EditPersonnelModal isOpen={isEditPersonnelOpen} onClose={handleCloseEditPersonnel} onSave={handleSaveEditPersonnel} editingData={editingPersonnelData} />
       <DeletePersonnelModal isOpen={isDeletePersonnelOpen} onClose={handleCloseDeletePersonnel} onConfirm={handleConfirmDeletePersonnel} personnelData={deletingPersonnelData} />
 

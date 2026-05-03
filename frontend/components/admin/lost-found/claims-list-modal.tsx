@@ -35,8 +35,8 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, onClaimAction
 
   const getActionIcon = (action: ClaimAction) => {
     switch (action) {
-      case 'Release': return <CheckCircle size={18} className="text-green-400" />;
-      case 'Return': return <RotateCcw size={18} className="text-blue-400" />;
+      case 'Release': return <CheckCircle size={18} className="text-sky-400" />;
+      case 'Return': return <RotateCcw size={18} className="text-[#62A0EA]" />;
       case 'Reject': return <XCircle size={18} className="text-red-400" />;
     }
   };
@@ -52,58 +52,58 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, onClaimAction
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold text-white">Claims for Item {itemId}</h2>
-        <span className="text-sm text-gray-400">{claims.length} claim(s)</span>
+      <div className="flex items-center justify-between mb-5">
+        <h2 className="text-lg sm:text-xl font-bold text-white">Claims for Item {itemId}</h2>
+        <span className="text-sm text-slate-500">{claims.length} claim(s)</span>
       </div>
 
       <div className="space-y-3 max-h-96 overflow-y-auto">
         {claims.length > 0 ? claims.map((claim: Claim) => (
           <div
             key={claim.id}
-            className={`p-4 border rounded-lg cursor-pointer transition-all ${
+            className={`p-4 border rounded-md cursor-pointer transition-all ${
               selectedClaimId === claim.id
-                ? 'border-blue-500 bg-blue-500/10'
-                : 'border-white/20 bg-white/5 hover:bg-white/10'
+                ? 'border-[#62A0EA] bg-[#62A0EA]/10'
+                : 'border-[#1E2D45] bg-[#0E1628] hover:bg-[#131C2E]'
             }`}
             onClick={() => handleSelectClaim(claim.id)}
           >
             <div className="flex items-start justify-between">
               <div className="flex items-center space-x-3">
-                <div className="p-2 bg-gray-700 rounded-full">
-                  <User size={20} className="text-gray-300" />
+                <div className="p-2 bg-[#131C2E] rounded-full">
+                  <User size={20} className="text-slate-300" />
                 </div>
                 <div>
                   <p className="text-white font-medium">{claim.claimantName}</p>
-                  <p className="text-xs text-gray-400">Claimant</p>
+                  <p className="text-xs text-slate-500">Claimant</p>
                 </div>
               </div>
               <Badge variant={getBadgeVariant(claim.status)}>
                 {claim.status}
               </Badge>
             </div>
-            <div className="mt-2 text-xs text-gray-300">
+            <div className="mt-2 text-xs text-slate-300">
               <p className="flex items-center"><Phone size={12} className="mr-1" /> {claim.claimantContact}</p>
               <p className="flex items-center"><Mail size={12} className="mr-1" /> {claim.claimantEmail || 'N/A'}</p>
             </div>
           </div>
         )) : (
-          <p className="text-center text-gray-400 py-8">No claims found for this item.</p>
+          <p className="text-center text-slate-500 py-8">No claims found for this item.</p>
         )}
       </div>
 
       {selectedClaimId && (
-        <div className="flex justify-end space-x-2 pt-4 border-t border-white/20 mt-4">
+        <div className="flex justify-end gap-2 pt-4 border-t border-[#1E2D45] mt-4">
           <button
             onClick={() => handleAction('Release')}
-            className="flex items-center space-x-2 px-3 py-2 bg-green-500 text-white text-sm font-medium rounded-md hover:bg-green-600"
+            className="flex items-center space-x-2 px-3 py-2 bg-sky-500 text-white text-sm font-medium rounded-md hover:bg-sky-600"
           >
             {getActionIcon('Release')}
             <span>Release</span>
           </button>
           <button
             onClick={() => handleAction('Return')}
-            className="flex items-center space-x-2 px-3 py-2 bg-blue-500 text-white text-sm font-medium rounded-md hover:bg-blue-600"
+            className="flex items-center space-x-2 px-3 py-2 bg-[#62A0EA] text-white text-sm font-medium rounded-md hover:bg-[#4A8BD4]"
           >
             {getActionIcon('Return')}
             <span>Return</span>

@@ -18,25 +18,25 @@ export default function RemittancePage() {
   return (
     <>
       <div className="flex flex-col gap-6 mb-6">
-        <h1 className="text-3xl font-bold text-white">Remittance Tracker</h1>
-        
+        <h1 className="text-2xl font-bold text-white">Remittance Tracker</h1>
+
         {/* Quick Status Filters */}
         <div className="flex flex-wrap gap-2">
           {quickFilters.map((filter) => (
             <button
               key={filter}
               onClick={() => setStatusFilter(filter)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 statusFilter === filter
-                  ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/25'
-                  : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                  ? 'bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/25'
+                  : 'bg-[#0E1628] border border-[#1E2D45] text-slate-300 hover:bg-[#1A2540]'
               }`}
             >
               {filter}
             </button>
           ))}
         </div>
-        
+
         {/* Search & Date Filters Row */}
         <div className="flex flex-col lg:flex-row gap-3 w-full">
           <SearchBar
@@ -45,31 +45,31 @@ export default function RemittancePage() {
             onChange={setSearchQuery}
             className="w-full lg:w-64"
           />
-          
+
           <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
             {/* Start Date Filter */}
             <div className="relative flex-1 lg:flex-none">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <CalendarDays className="h-4 w-4 text-gray-400" />
+                <CalendarDays className="h-4 w-4 text-slate-400" />
               </div>
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="block w-full lg:w-48 pl-10 pr-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 [color-scheme:dark]"
+                className="block w-full lg:w-48 pl-10 pr-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] focus:border-[#62A0EA] [color-scheme:dark]"
               />
             </div>
 
             {/* End Date Filter */}
             <div className="relative flex-1 lg:flex-none">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <CalendarDays className="h-4 w-4 text-gray-400" />
+                <CalendarDays className="h-4 w-4 text-slate-400" />
               </div>
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="block w-full lg:w-48 pl-10 pr-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 [color-scheme:dark]"
+                className="block w-full lg:w-48 pl-10 pr-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] focus:border-[#62A0EA] [color-scheme:dark]"
               />
             </div>
 
@@ -82,7 +82,7 @@ export default function RemittancePage() {
                   setSearchQuery('');
                   setStatusFilter('All');
                 }}
-                className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-gray-300 hover:bg-white/20 transition-colors text-sm w-full sm:w-auto"
+                className="px-4 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#1A2540] transition-colors text-sm w-full sm:w-auto"
               >
                 Clear Filters
               </button>
@@ -91,9 +91,9 @@ export default function RemittancePage() {
         </div>
       </div>
 
-      <RemittanceTable 
-        searchQuery={searchQuery} 
-        startDate={startDate} 
+      <RemittanceTable
+        searchQuery={searchQuery}
+        startDate={startDate}
         endDate={endDate}
         statusFilter={statusFilter}
       />

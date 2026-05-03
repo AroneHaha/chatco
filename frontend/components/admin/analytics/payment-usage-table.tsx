@@ -6,11 +6,11 @@ import type { PaymentMethodUsage } from "@/app/(admin)/analytics/data/analytics-
 export function PaymentUsageTable() {
   return (
     // Fixed outer container height
-    <div className="bg-white/[0.04] border border-white/10 rounded-xl p-5 h-[270px] flex flex-col">
+    <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5 h-[270px] flex flex-col">
       <h3 className="text-sm font-semibold text-white mb-4 flex-shrink-0">Payment Method Usage</h3>
       
       {/* Table Header */}
-      <div className="grid grid-cols-12 gap-2 px-3 py-2 text-[10px] uppercase tracking-wider text-white/30 font-semibold border-b border-white/[0.06] flex-shrink-0">
+      <div className="grid grid-cols-12 gap-2 px-3 py-2 text-[10px] uppercase tracking-wider text-slate-500 font-semibold border-b border-[#1E2D45] flex-shrink-0">
         <div className="col-span-5">Method</div>
         <div className="col-span-2 text-center">Txns</div>
         <div className="col-span-3 text-center">Share</div>
@@ -18,18 +18,18 @@ export function PaymentUsageTable() {
       </div>
 
       {/* Table Body */}
-      <div className="divide-y divide-white/[0.04] flex-1 flex flex-col justify-center">
+      <div className="divide-y divide-[#1E2D45] flex-1 flex flex-col justify-center">
         {initialPaymentUsageData.map((row: PaymentMethodUsage) => (
           <div key={row.method} className="grid grid-cols-12 gap-2 px-3 py-3 items-center">
             <div className="col-span-5 flex items-center gap-2">
-              <span className="text-xs text-white/80 font-medium truncate">{row.method}</span>
+              <span className="text-xs text-slate-300 font-medium truncate">{row.method}</span>
             </div>
-            <div className="col-span-2 text-center text-xs text-white/60">{row.transactions.toLocaleString()}</div>
+            <div className="col-span-2 text-center text-xs text-slate-400">{row.transactions.toLocaleString()}</div>
             <div className="col-span-3 flex flex-col gap-1">
-              <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden w-full">
+              <div className="h-1.5 bg-[#0E1628] rounded-full overflow-hidden w-full">
                 <div className={`h-full rounded-full ${row.color}`} style={{ width: `${row.percentage}%` }} />
               </div>
-              <span className="text-[10px] text-white/40 text-center">{row.percentage}%</span>
+              <span className="text-[10px] text-slate-500 text-center">{row.percentage}%</span>
             </div>
             <div className="col-span-2 text-right text-xs font-semibold text-white">{row.amount}</div>
           </div>

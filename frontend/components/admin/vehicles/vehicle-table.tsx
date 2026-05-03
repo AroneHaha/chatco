@@ -16,8 +16,8 @@ export function VehicleTable({ vehicles, searchQuery, onEdit, onEditShift }: Veh
   const columns = [
     { key: 'plateNumber', label: 'Plate' },
     { key: 'route', label: 'Route' },
-    { key: 'driver', label: 'Driver', render: (value: string | null) => value || <span className="text-gray-500 italic">Unassigned</span> },
-    { key: 'conductor', label: 'Conductor', render: (value: string | null) => value || <span className="text-gray-500 italic">Unassigned</span> },
+    { key: 'driver', label: 'Driver', render: (value: string | null) => value || <span className="text-slate-500 italic">Unassigned</span> },
+    { key: 'conductor', label: 'Conductor', render: (value: string | null) => value || <span className="text-slate-500 italic">Unassigned</span> },
     {
       key: 'status',
       label: 'Status',
@@ -42,7 +42,7 @@ export function VehicleTable({ vehicles, searchQuery, onEdit, onEditShift }: Veh
               onEditShift(row);
             }}
             title="Edit Shift"
-            className="p-1.5 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+            className="p-1.5 text-slate-400 hover:text-[#62A0EA] hover:bg-[#62A0EA]/10 rounded-md transition-colors"
           >
             <Clock size={16} />
           </button>
@@ -54,7 +54,7 @@ export function VehicleTable({ vehicles, searchQuery, onEdit, onEditShift }: Veh
               onEdit(row);
             }}
             title="Edit Vehicle"
-            className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+            className="p-1.5 text-slate-400 hover:text-white hover:bg-[#1A2540] rounded-md transition-colors"
           >
             <Pencil size={16} />
           </button>

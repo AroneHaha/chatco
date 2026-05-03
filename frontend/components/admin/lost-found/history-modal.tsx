@@ -15,25 +15,25 @@ interface HistoryModalProps {
 export function HistoryModal({ isOpen, onClose, itemId, history }: HistoryModalProps) {
   const getActionIcon = (action: string) => {
     switch (action) {
-      case 'Reported': return <User size={16} className="text-blue-400" />;
-      case 'Claimed': return <RotateCcw size={16} className="text-yellow-400" />;
-      case 'Claim Submitted': return <User size={16} className="text-blue-300" />;
-      case 'Claim Approved': return <CheckCircle size={16} className="text-green-400" />;
+      case 'Reported': return <User size={16} className="text-[#62A0EA]" />;
+      case 'Claimed': return <RotateCcw size={16} className="text-amber-400" />;
+      case 'Claim Submitted': return <User size={16} className="text-[#62A0EA]/70" />;
+      case 'Claim Approved': return <CheckCircle size={16} className="text-sky-400" />;
       case 'Claim Rejected': return <XCircle size={16} className="text-red-400" />;
-      case 'Claim Released': return <CheckCircle size={16} className="text-green-400" />;
-      case 'Claim Returned': return <RotateCcw size={16} className="text-blue-400" />;
-      case 'Released': return <CheckCircle size={16} className="text-green-400" />;
-      case 'Returned': return <RotateCcw size={16} className="text-blue-400" />;
+      case 'Claim Released': return <CheckCircle size={16} className="text-sky-400" />;
+      case 'Claim Returned': return <RotateCcw size={16} className="text-[#62A0EA]" />;
+      case 'Released': return <CheckCircle size={16} className="text-sky-400" />;
+      case 'Returned': return <RotateCcw size={16} className="text-[#62A0EA]" />;
       case 'Rejected': return <XCircle size={16} className="text-red-400" />;
-      default: return <Clock size={16} className="text-gray-400" />;
+      default: return <Clock size={16} className="text-slate-500" />;
     }
   };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold text-white">History for Item {itemId}</h2>
-        <span className="text-sm text-gray-400">{history.length} event(s)</span>
+      <div className="flex items-center justify-between mb-5">
+        <h2 className="text-lg sm:text-xl font-bold text-white">History for Item {itemId}</h2>
+        <span className="text-sm text-slate-500">{history.length} event(s)</span>
       </div>
 
       <div className="relative max-h-96 overflow-y-auto">
@@ -43,10 +43,10 @@ export function HistoryModal({ isOpen, onClose, itemId, history }: HistoryModalP
               <div className="flex-shrink-0 mt-1">
                 {getActionIcon(event.action)}
               </div>
-              <div className="flex-1 bg-white/5 rounded-lg p-3">
+              <div className="flex-1 bg-[#0E1628] rounded-md border border-[#1E2D45] p-3">
                 <p className="text-white font-medium">{event.action}</p>
-                <p className="text-xs text-gray-300 mt-1">{event.details}</p>
-                <p className="text-xs text-gray-500 mt-2 flex items-center">
+                <p className="text-xs text-slate-400 mt-1">{event.details}</p>
+                <p className="text-xs text-slate-500 mt-2 flex items-center">
                   <Clock size={12} className="mr-1" />
                   {event.timestamp}
                 </p>

@@ -11,7 +11,6 @@ interface AddRegistrationModalProps {
 }
 
 export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistrationModalProps) {
-  // Language Preference completely removed from here
   const [formData, setFormData] = useState({
     firstName: '',
     middleInitial: '',
@@ -56,7 +55,6 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
     e.preventDefault();
     onSave(formData);
     
-    // Language Preference completely removed from here
     setFormData({ 
       firstName: '', 
       middleInitial: '', 
@@ -72,28 +70,28 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
     });
   };
 
-  const inputClasses = "mt-1 block w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white text-sm placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors";
+  const inputClasses = "mt-1 block w-full px-3 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors";
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <div className="px-1 sm:px-0">
         <h2 className="text-lg sm:text-xl font-bold text-white mb-1">Onsite Commuter Registration</h2>
-        <p className="text-xs text-gray-400 mb-5">This will create a pending verification request.</p>
+        <p className="text-xs text-slate-400 mb-5">This will create a pending verification request.</p>
         
         <form onSubmit={handleSubmit} className="space-y-4">
           
           {/* Name Fields Row */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-300 mb-1">First Name</label>
+              <label className="block text-xs font-medium text-slate-300 mb-1">First Name</label>
               <input type="text" name="firstName" value={formData.firstName} onChange={handleChange} required className={inputClasses} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-300 mb-1">Middle Initial</label>
+              <label className="block text-xs font-medium text-slate-300 mb-1">Middle Initial</label>
               <input type="text" name="middleInitial" value={formData.middleInitial} onChange={handleChange} maxLength={1} className={`${inputClasses} uppercase`} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-300 mb-1">Last Name</label>
+              <label className="block text-xs font-medium text-slate-300 mb-1">Last Name</label>
               <input type="text" name="lastName" value={formData.lastName} onChange={handleChange} required className={inputClasses} />
             </div>
           </div>
@@ -101,11 +99,11 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
           {/* Birthday & Commuter Type Row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-300 mb-1">Birthday</label>
+              <label className="block text-xs font-medium text-slate-300 mb-1">Birthday</label>
               <input type="date" name="birthday" value={formData.birthday} onChange={handleChange} required className={`${inputClasses} [color-scheme:dark]`} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-300 mb-1">Commuter Type</label>
+              <label className="block text-xs font-medium text-slate-300 mb-1">Commuter Type</label>
               <select name="commuterType" value={formData.commuterType} onChange={handleChange} className={`${inputClasses} [color-scheme:dark]`}>
                 <option value="Regular" className="bg-gray-800">Regular</option>
                 <option value="Student" className="bg-gray-800">Student</option>
@@ -118,11 +116,11 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
           {/* Account Details Row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-300 mb-1">Username</label>
+              <label className="block text-xs font-medium text-slate-300 mb-1">Username</label>
               <input type="text" name="username" value={formData.username} onChange={handleChange} required placeholder="e.g. juan.delacruz123" className={inputClasses} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-300 mb-1">Password</label>
+              <label className="block text-xs font-medium text-slate-300 mb-1">Password</label>
               <input type="password" name="password" value={formData.password} onChange={handleChange} required className={inputClasses} />
             </div>
           </div>
@@ -130,19 +128,19 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
           {/* Contact Details Row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-300 mb-1">Email</label>
+              <label className="block text-xs font-medium text-slate-300 mb-1">Email</label>
               <input type="email" name="email" value={formData.email} onChange={handleChange} required className={inputClasses} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-300 mb-1">Phone Number</label>
+              <label className="block text-xs font-medium text-slate-300 mb-1">Phone Number</label>
               <input type="text" name="phoneNumber" value={formData.phoneNumber} onChange={handleChange} required placeholder="0917-123-4567" className={inputClasses} />
             </div>
           </div>
 
           {/* Upload Valid ID */}
           <div>
-            <label className="block text-xs font-medium text-gray-300 mb-1">Upload Valid ID <span className="text-red-400">*</span></label>
-            <div className="mt-1 flex justify-center px-4 pt-4 pb-4 border-2 border-white/20 border-dashed rounded-lg transition-colors hover:border-white/30">
+            <label className="block text-xs font-medium text-slate-300 mb-1">Upload Valid ID <span className="text-red-400">*</span></label>
+            <div className="mt-1 flex justify-center px-4 pt-4 pb-4 border-2 border-[#1E2D45] border-dashed rounded-md transition-colors hover:border-[#2A3A55]">
               {formData.idImagePreview ? (
                 <div className="relative w-full max-w-xs">
                   <img src={formData.idImagePreview} alt="ID Preview" className="h-28 w-full object-cover rounded-md" />
@@ -152,14 +150,14 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
                 </div>
               ) : (
                 <div className="space-y-2 text-center py-2">
-                  <Upload className="mx-auto h-10 w-10 text-gray-500" />
-                  <div className="flex text-sm text-gray-300">
-                    <label htmlFor="reg-id-upload" className="relative cursor-pointer rounded-md font-medium text-blue-400 hover:text-blue-300">
+                  <Upload className="mx-auto h-10 w-10 text-slate-500" />
+                  <div className="flex text-sm text-slate-300">
+                    <label htmlFor="reg-id-upload" className="relative cursor-pointer rounded-md font-medium text-sky-400 hover:text-sky-300">
                       <span>Upload file</span>
                       <input id="reg-id-upload" type="file" className="sr-only" accept="image/*" onChange={handleImageChange} />
                     </label>
                   </div>
-                  <p className="text-xs text-gray-500">JPG, PNG up to 5MB</p>
+                  <p className="text-xs text-slate-500">JPG, PNG up to 5MB</p>
                 </div>
               )}
             </div>
@@ -167,10 +165,10 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
 
           {/* Buttons */}
           <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2 pb-1">
-            <button type="button" onClick={onClose} className="w-full sm:w-auto px-4 py-2.5 border border-gray-500 rounded-lg text-gray-300 hover:bg-gray-700 text-sm transition-colors">
+            <button type="button" onClick={onClose} className="w-full sm:w-auto px-4 py-2.5 border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#1A2540] text-sm transition-colors">
               Cancel
             </button>
-            <button type="submit" className="w-full sm:w-auto px-4 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm font-medium transition-colors">
+            <button type="submit" className="w-full sm:w-auto px-4 py-2.5 bg-[#62A0EA] text-white rounded-md hover:bg-[#4A8BD4] text-sm font-medium transition-colors">
               Submit Request
             </button>
           </div>

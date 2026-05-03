@@ -16,7 +16,7 @@ export default function RemittanceOptionsPage() {
   return (
     <div className="min-h-screen pb-12 px-4 sm:px-6">
       <div className="mx-auto w-full max-w-6xl space-y-6">
-        
+
         {/* Left-aligned Back Button */}
         <div className="pt-2">
           <BackButton href="/settings" />
@@ -31,7 +31,7 @@ export default function RemittanceOptionsPage() {
         <div className="flex justify-center sm:justify-end">
           <button
             onClick={handleOpenModal}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 transition-colors active:scale-95"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-[#62A0EA] text-white font-medium rounded-lg hover:bg-[#4A8BD4] transition-colors active:scale-95"
           >
             <Plus size={18} />
             <span>Add New Option</span>

@@ -75,15 +75,17 @@ export function CreateConductorAccountModal({ isOpen, onClose, onSave }: CreateC
     setUseDefaultPicture(true);
   };
 
+  const inputClasses = "block w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors";
+
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <div className="flex items-center gap-3 mb-5">
-        <div className="p-2 bg-blue-500/20 rounded-lg">
-          <UserPlus className="text-blue-400" size={24} />
+        <div className="p-2 bg-[#62A0EA]/20 rounded-lg">
+          <UserPlus className="text-[#62A0EA]" size={24} />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-white">Create Conductor Account</h2>
-          <p className="text-sm text-gray-400">Setup an account for the commuter scanning app.</p>
+          <h2 className="text-lg sm:text-xl font-bold text-white">Create Conductor Account</h2>
+          <p className="text-xs sm:text-sm text-slate-400">Setup an account for the commuter scanning app.</p>
         </div>
       </div>
       
@@ -92,13 +94,13 @@ export function CreateConductorAccountModal({ isOpen, onClose, onSave }: CreateC
         {/* Profile Picture Section */}
         <div className="flex items-center gap-5">
           {/* Image Preview */}
-          <div className="relative w-20 h-20 rounded-full bg-white/10 border-2 border-dashed border-white/20 flex items-center justify-center overflow-hidden flex-shrink-0">
+          <div className="relative w-20 h-20 rounded-full bg-[#0E1628] border-2 border-dashed border-[#1E2D45] flex items-center justify-center overflow-hidden flex-shrink-0">
             {useDefaultPicture ? (
-              <User className="text-white/30" size={32} />
+              <User className="text-slate-600" size={32} />
             ) : profilePicture ? (
               <img src={profilePicture} alt="Preview" className="w-full h-full object-cover" />
             ) : (
-              <User className="text-white/30" size={32} />
+              <User className="text-slate-600" size={32} />
             )}
           </div>
 
@@ -115,7 +117,7 @@ export function CreateConductorAccountModal({ isOpen, onClose, onSave }: CreateC
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white/70 hover:bg-white/10 hover:text-white transition-colors"
+              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-sm text-slate-300 hover:bg-[#1A2540] hover:text-white transition-colors"
             >
               <Upload size={16} />
               Upload Photo
@@ -126,12 +128,12 @@ export function CreateConductorAccountModal({ isOpen, onClose, onSave }: CreateC
                 <div 
                   onClick={() => { setUseDefaultPicture(!useDefaultPicture); if(profilePicture) setProfilePicture(null); }}
                   className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                    useDefaultPicture ? 'bg-blue-500 border-blue-500' : 'border-white/30 group-hover:border-white/50'
+                    useDefaultPicture ? 'bg-[#62A0EA] border-[#62A0EA]' : 'border-[#1E2D45] group-hover:border-[#2A3A55]'
                   }`}
                 >
                   {useDefaultPicture && <Check size={12} className="text-white" />}
                 </div>
-                <span className="text-xs text-white/50 group-hover:text-white/70 transition-colors">
+                <span className="text-xs text-slate-500 group-hover:text-slate-300 transition-colors">
                   Use default picture
                 </span>
               </label>
@@ -150,9 +152,9 @@ export function CreateConductorAccountModal({ isOpen, onClose, onSave }: CreateC
         </div>
 
         {/* Name Fields */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="firstName" className="block text-sm font-medium text-gray-300 mb-1">First Name <span className="text-red-400">*</span></label>
+            <label htmlFor="firstName" className="block text-xs font-medium text-slate-300 mb-1.5">First Name <span className="text-red-400">*</span></label>
             <input
               type="text"
               id="firstName"
@@ -161,11 +163,11 @@ export function CreateConductorAccountModal({ isOpen, onClose, onSave }: CreateC
               onChange={handleChange}
               required
               placeholder="Juan"
-              className="block w-full px-3 py-2 bg-white/10 border border-white/20 rounded-md text-white placeholder-gray-500 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              className={inputClasses}
             />
           </div>
           <div>
-            <label htmlFor="lastName" className="block text-sm font-medium text-gray-300 mb-1">Last Name <span className="text-red-400">*</span></label>
+            <label htmlFor="lastName" className="block text-xs font-medium text-slate-300 mb-1.5">Last Name <span className="text-red-400">*</span></label>
             <input
               type="text"
               id="lastName"
@@ -174,13 +176,13 @@ export function CreateConductorAccountModal({ isOpen, onClose, onSave }: CreateC
               onChange={handleChange}
               required
               placeholder="Dela Cruz"
-              className="block w-full px-3 py-2 bg-white/10 border border-white/20 rounded-md text-white placeholder-gray-500 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              className={inputClasses}
             />
           </div>
         </div>
 
         <div>
-          <label htmlFor="middleName" className="block text-sm font-medium text-gray-300 mb-1">Middle Name</label>
+          <label htmlFor="middleName" className="block text-xs font-medium text-slate-300 mb-1.5">Middle Name</label>
           <input
             type="text"
             id="middleName"
@@ -188,13 +190,13 @@ export function CreateConductorAccountModal({ isOpen, onClose, onSave }: CreateC
             value={formData.middleName}
             onChange={handleChange}
             placeholder="Optional"
-            className="block w-full px-3 py-2 bg-white/10 border border-white/20 rounded-md text-white placeholder-gray-500 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            className={inputClasses}
           />
         </div>
 
         {/* Birthday */}
         <div>
-          <label htmlFor="birthday" className="block text-sm font-medium text-gray-300 mb-1">Birthday <span className="text-red-400">*</span></label>
+          <label htmlFor="birthday" className="block text-xs font-medium text-slate-300 mb-1.5">Birthday <span className="text-red-400">*</span></label>
           <input
             type="date"
             id="birthday"
@@ -202,13 +204,13 @@ export function CreateConductorAccountModal({ isOpen, onClose, onSave }: CreateC
             value={formData.birthday}
             onChange={handleChange}
             required
-            className="block w-full px-3 py-2 bg-white/10 border border-white/20 rounded-md text-white shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 [color-scheme:dark]"
+            className={`${inputClasses} [color-scheme:dark]`}
           />
         </div>
 
         {/* Route Assignment */}
         <div>
-          <label htmlFor="conductor-route" className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-2">
+          <label htmlFor="conductor-route" className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-2">
             <MapPin size={14} /> Assigned Route
           </label>
           <select
@@ -216,7 +218,7 @@ export function CreateConductorAccountModal({ isOpen, onClose, onSave }: CreateC
             name="route"
             value={formData.route}
             onChange={handleChange}
-            className="block w-full px-3 py-2 bg-white/10 border border-white/20 rounded-md text-white shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 [color-scheme:dark]"
+            className={`${inputClasses} [color-scheme:dark]`}
           >
             <option value="Meycauayan - Calumpit" className="bg-gray-800">Meycauayan - Calumpit</option>
             <option value="Malolos - Meycauayan" className="bg-gray-800">Malolos - Meycauayan</option>
@@ -224,17 +226,17 @@ export function CreateConductorAccountModal({ isOpen, onClose, onSave }: CreateC
           </select>
         </div>
 
-        <div className="flex justify-end space-x-3 pt-4 border-t border-white/10">
+        <div className="flex justify-end gap-2 pt-4 border-t border-[#1E2D45]">
           <button 
             type="button" 
             onClick={onClose} 
-            className="px-4 py-2 border border-gray-500 rounded-md text-gray-300 hover:bg-gray-700 transition-colors"
+            className="px-5 py-2.5 border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#1A2540] transition-colors"
           >
             Cancel
           </button>
           <button 
             type="submit" 
-            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors flex items-center gap-2"
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#62A0EA] text-white font-medium rounded-md hover:bg-[#4A8BD4] transition-colors"
           >
             <UserPlus size={16} />
             Create Account

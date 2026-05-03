@@ -46,9 +46,9 @@ export function ConductorAccountSuccessModal({ isOpen, onClose, accountData }: C
         {/* Success Icon */}
         <div className="flex justify-center">
           <div className="relative">
-            <div className="absolute inset-0 bg-green-500/20 rounded-full animate-ping" />
-            <div className="relative bg-green-500/20 p-4 rounded-full">
-              <CheckCircle className="text-green-400" size={48} />
+            <div className="absolute inset-0 bg-sky-400/20 rounded-full animate-ping" />
+            <div className="relative bg-sky-400/20 p-4 rounded-full">
+              <CheckCircle className="text-sky-400" size={48} />
             </div>
           </div>
         </div>
@@ -56,54 +56,54 @@ export function ConductorAccountSuccessModal({ isOpen, onClose, accountData }: C
         {/* Header Text */}
         <div>
           <h2 className="text-2xl font-bold text-white">Account Created Successfully</h2>
-          <p className="text-sm text-gray-400 mt-1">
+          <p className="text-sm text-slate-400 mt-1">
             Conductor account for <span className="text-white font-medium">{accountData.firstName} {accountData.lastName}</span>
           </p>
         </div>
 
         {/* Credentials Card */}
-        <div className="bg-white/[0.05] border border-white/10 rounded-xl p-5 space-y-4 text-left">
-          <p className="text-xs font-semibold text-white/40 uppercase tracking-wider">Scanner Login Credentials</p>
+        <div className="bg-[#0E1628] border border-[#1E2D45] rounded-md p-5 space-y-4 text-left">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Scanner Login Credentials</p>
           
           {/* Username Field */}
-          <div className="flex items-center justify-between bg-white/[0.05] rounded-lg p-3">
+          <div className="flex items-center justify-between bg-[#0B1120] rounded-md p-3">
             <div className="flex items-center gap-3">
-              <User size={18} className="text-blue-400 flex-shrink-0" />
+              <User size={18} className="text-[#62A0EA] flex-shrink-0" />
               <div>
-                <p className="text-[10px] text-white/30 uppercase">Username</p>
+                <p className="text-xs text-slate-500 uppercase">Username</p>
                 <p className="text-lg font-mono font-bold text-white tracking-wide">{generatedUsername}</p>
               </div>
             </div>
             <button
               onClick={() => handleCopy(generatedUsername, 'username')}
-              className="p-2 text-white/30 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              className="p-2 text-slate-500 hover:text-white hover:bg-[#1A2540] rounded-md transition-colors"
               title="Copy username"
             >
-              {copiedField === 'username' ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
+              {copiedField === 'username' ? <Check size={16} className="text-sky-400" /> : <Copy size={16} />}
             </button>
           </div>
 
           {/* Password Field */}
-          <div className="flex items-center justify-between bg-white/[0.05] rounded-lg p-3">
+          <div className="flex items-center justify-between bg-[#0B1120] rounded-md p-3">
             <div className="flex items-center gap-3">
               <KeyRound size={18} className="text-amber-400 flex-shrink-0" />
               <div>
-                <p className="text-[10px] text-white/30 uppercase">Password</p>
+                <p className="text-xs text-slate-500 uppercase">Password</p>
                 <p className="text-lg font-mono font-bold text-white tracking-wide">{generatedPassword}</p>
               </div>
             </div>
             <button
               onClick={() => handleCopy(generatedPassword, 'password')}
-              className="p-2 text-white/30 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              className="p-2 text-slate-500 hover:text-white hover:bg-[#1A2540] rounded-md transition-colors"
               title="Copy password"
             >
-              {copiedField === 'password' ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
+              {copiedField === 'password' ? <Check size={16} className="text-sky-400" /> : <Copy size={16} />}
             </button>
           </div>
         </div>
 
         {/* Warning Note */}
-        <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-left flex gap-3">
+        <div className="bg-amber-400/10 border border-amber-400/20 rounded-md p-3 text-left flex gap-3">
           <KeyRound size={16} className="text-amber-400 mt-0.5 flex-shrink-0" />
           <p className="text-xs text-amber-200/70">
             Please ensure these credentials are written down or sent securely to the conductor. They will need this to log into the scanning device.
@@ -113,7 +113,7 @@ export function ConductorAccountSuccessModal({ isOpen, onClose, accountData }: C
         {/* Action Button */}
         <button
           onClick={onClose}
-          className="w-full px-4 py-3 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 transition-colors"
+          className="w-full px-4 py-3 bg-[#62A0EA] text-white font-medium rounded-md hover:bg-[#4A8BD4] transition-colors"
         >
           Done
         </button>

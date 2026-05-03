@@ -1,5 +1,4 @@
 // components/admin/lost-found/lost-found-table.tsx
-import { GlassCard } from '@/components/admin/ui/glass-card';
 import { Badge } from '@/components/admin/ui/badge';
 import { Eye, Edit, Trash } from 'lucide-react';
 
@@ -65,9 +64,9 @@ export function LostFoundTable() {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
       {mockItems.map((item) => (
-        <GlassCard key={item.id} className="overflow-hidden group cursor-pointer">
+        <div key={item.id} className="bg-[#131C2E] border border-[#1E2D45] rounded-lg overflow-hidden group cursor-pointer">
           {/* Image Container */}
-          <div className="relative h-48 bg-gray-800">
+          <div className="relative h-48 bg-[#0E1628]">
             <img
               src={item.imageUrl}
               alt={item.description}
@@ -86,10 +85,10 @@ export function LostFoundTable() {
             <h3 className="text-sm font-semibold text-white truncate mb-2" title={item.description}>
               {item.description}
             </h3>
-            <div className="space-y-1 text-xs text-gray-400">
-              <p>Reported by: <span className="text-gray-300">{item.reporterName}</span></p>
-              <p>Role: <span className="text-gray-300">{item.reporterRole}</span></p>
-              <p>Date: <span className="text-gray-300">{item.reportedAt}</span></p>
+            <div className="space-y-1 text-xs text-slate-400">
+              <p>Reported by: <span className="text-slate-300">{item.reporterName}</span></p>
+              <p>Role: <span className="text-slate-300">{item.reporterRole}</span></p>
+              <p>Date: <span className="text-slate-300">{item.reportedAt}</span></p>
             </div>
           </div>
 
@@ -104,7 +103,7 @@ export function LostFoundTable() {
               <Trash size={20} />
             </button>
           </div>
-        </GlassCard>
+        </div>
       ))}
     </div>
   );

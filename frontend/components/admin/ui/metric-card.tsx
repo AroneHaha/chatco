@@ -5,26 +5,38 @@ interface MetricCardProps {
   title: string;
   value: string | number;
   icon: LucideIcon;
-  trend: string;
-  trendUp: boolean;
+  trend?: string;
+  trendUp?: boolean;
+  iconColor?: string;
+  iconBg?: string;
 }
 
-export function MetricCard({ title, value, icon: Icon, trend, trendUp }: MetricCardProps) {
+export function MetricCard({
+  title,
+  value,
+  icon: Icon,
+  trend,
+  trendUp,
+  iconColor = 'text-[#62A0EA]',
+  iconBg = 'bg-[#62A0EA]/10',
+}: MetricCardProps) {
   return (
-    <div className="backdrop-blur-md bg-white/10 border border-white/20 rounded-xl shadow-xl p-3 flex flex-col h-full">
-      <div className="flex items-center space-x-2 mb-2">
-        <div className="p-1.5 bg-white/10 rounded-lg flex-shrink-0">
-          <Icon className="text-blue-400" size={18} />
+    <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4 flex flex-col h-full">
+      <div className="flex items-center gap-3 mb-3">
+        <div className={`p-2 rounded-lg ${iconBg} flex-shrink-0`}>
+          <Icon className={iconColor} size={18} />
         </div>
-        <p className="text-xs font-medium text-gray-400 truncate">{title}</p>
+        <p className="text-xs font-medium text-slate-400 truncate">{title}</p>
       </div>
 
-      <p className="text-xl font-bold text-white mt-auto mb-1">{value}</p>
-      
-      <p className={`text-xs font-semibold flex items-center ${trendUp ? 'text-green-400' : 'text-red-400'}`}>
-        <span>{trendUp ? '↑' : '↓'}</span>
-        <span className="ml-1">{trend}</span>
-      </p>
+      <p className="text-xl font-bold text-slate-100 mt-auto mb-1">{value}</p>
+
+      {trend && (
+        <p className={`text-xs font-medium flex items-center gap-1 ${trendUp ? 'text-emerald-400' : 'text-red-400'}`}>
+          <span>{trendUp ? '\u2191' : '\u2193'}</span>
+          <span>{trend}</span>
+        </p>
+      )}
     </div>
   );
 }
