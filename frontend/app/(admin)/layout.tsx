@@ -1,12 +1,13 @@
 // app/(admin)/layout.tsx
 'use client';
 
-import { ReactNode, useState, useEffect, useRef } from 'react';
+import { ReactNode, useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { Home, Receipt, Map, Package, BarChart3, Car, Sliders, Users, Menu, LogOut, X, Bus, Settings, Shield, Eye } from 'lucide-react';
 import { SignOutModal } from '@/components/admin/ui/sign-out-modal';
+import { SettingsDrawerProvider, SettingsDrawer, useSettingsDrawer } from '@/components/admin/ui/settings-drawer';
 
 // ─── Nav Sections ───
 
@@ -43,11 +44,15 @@ const mobileMoreItems = [
   { href: '/settings', label: 'Settings', icon: Sliders },
 ];
 
-export default function AdminLayout({ children }: { children: ReactNode }) {
+// ─── Inner Layout (uses context) ───
+
+function AdminLayoutInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const { isSettingsOpen, openSettingsDrawer, closeSettingsDrawer } = useSettingsDrawer();
   const [isMobile, setIsMobile] = useState(false);
   const [isMoreOpen, setIsMoreOpen] = useState(false);
-  const [isSignOutOpen, setIsSignOutOpen] = useState(false); // New State
+  const [isSignOutOpen, setIsSignOutOpen] = useState(false);
 
   // Refs for the mobile bottom nav animation (HTMLElement allows both <a> and <button>)
   const indicatorRef = useRef<HTMLDivElement>(null);
@@ -67,6 +72,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
     setIsMoreOpen(false);
   }, [pathname]);
+
+  // Close Settings drawer when route changes
+  useEffect(() => {
+    closeSettingsDrawer();
+  }, [pathname, closeSettingsDrawer]);
 
   // Mobile: Animate the bottom nav indicator (Only for the 4 main items + 1 More button)
   useEffect(() => {
@@ -97,6 +107,21 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     setIsSignOutOpen(false);
     window.location.href = '/login';
   };
+
+  // ── EMBED MODE ──
+  // When the page is loaded inside the settings drawer iframe (?embed=1),
+  // render ONLY the content area — no sidebar, no bottom nav, no modals.
+  const isEmbed = searchParams.get('embed') === '1';
+
+  if (isEmbed) {
+    return (
+      <div className="min-h-screen bg-[#0B1120] text-white">
+        <main className="p-5 lg:p-6 overflow-y-auto h-screen">
+          {children}
+        </main>
+      </div>
+    );
+  }
 
   // --- DESKTOP SIDE NAVIGATION ---
   if (!isMobile) {
@@ -170,7 +195,29 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-3 mb-2">System</p>
               {systemNav.map((item) => {
                 const Icon = item.icon;
-                const isActive = pathname === item.href;
+                const isSettings = item.href === '/settings';
+                const isActive = isSettings ? pathname.startsWith('/settings') : pathname === item.href;
+
+                // Settings opens drawer instead of navigating
+                if (isSettings) {
+                  return (
+                    <button
+                      key={item.href}
+                      onClick={openSettingsDrawer}
+                      className={`flex items-center space-x-3 px-3 py-2.5 my-0.5 rounded-md transition-colors duration-200 w-full ${
+                        isSettingsOpen || isActive
+                          ? 'bg-[#62A0EA]/10 text-[#62A0EA]'
+                          : 'text-slate-400 hover:bg-[#1A2540] hover:text-white'
+                      }`}
+                    >
+                      {isActive && <span className="w-1.5 h-1.5 rounded-full bg-[#62A0EA] flex-shrink-0" />}
+                      {!isActive && <span className="w-1.5 h-1.5 flex-shrink-0" />}
+                      <Icon size={18} />
+                      <span className="text-sm font-medium">{item.label}</span>
+                    </button>
+                  );
+                }
+
                 return (
                   <Link
                     key={item.href}
@@ -192,7 +239,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
           </div>
 
-          {/* --- NEW: Bottom Section (Sign Out & Branding) --- */}
+          {/* --- Bottom Section (Sign Out & Branding) --- */}
           <div className="px-3 pb-5 border-t border-[#1E2D45] pt-3 mt-2 space-y-2">
             <button
               onClick={() => setIsSignOutOpen(true)}
@@ -212,8 +259,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           {children}
         </main>
 
-        {/* --- Desktop Sign Out Modal --- */}
+        {/* Desktop Sign Out Modal */}
         <SignOutModal isOpen={isSignOutOpen} onClose={() => setIsSignOutOpen(false)} onConfirm={handleSignOut} />
+
+        {/* Desktop Settings Drawer */}
+        <SettingsDrawer />
       </div>
     );
   }
@@ -280,7 +330,30 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               <div className="grid grid-cols-2 gap-3">
                 {mobileMoreItems.map((item) => {
                   const Icon = item.icon;
-                  const isActive = pathname === item.href;
+                  const isSettings = item.href === '/settings';
+                  const isActive = isSettings ? pathname.startsWith('/settings') : pathname === item.href;
+
+                  // Settings opens drawer instead of navigating
+                  if (isSettings) {
+                    return (
+                      <button
+                        key={item.href}
+                        onClick={() => {
+                          setIsMoreOpen(false);
+                          openSettingsDrawer();
+                        }}
+                        className={`flex flex-col items-center justify-center p-3 rounded-md transition-colors w-full ${
+                          isActive
+                            ? 'bg-[#62A0EA]/10 text-[#62A0EA]'
+                            : 'text-slate-300 hover:bg-[#131C2E]'
+                        }`}
+                      >
+                        <Icon size={22} />
+                        <span className="mt-2 text-xs text-center leading-tight">{item.label}</span>
+                      </button>
+                    );
+                  }
+
                   return (
                     <Link
                       key={item.href}
@@ -298,7 +371,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   );
                 })}
 
-                {/* --- NEW: Mobile Sign Out Button --- */}
+                {/* Mobile Sign Out Button */}
                 <button
                   onClick={() => {
                     setIsMoreOpen(false);
@@ -315,8 +388,23 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         )}
       </nav>
 
-      {/* --- Mobile Sign Out Modal --- */}
+      {/* Mobile Sign Out Modal */}
       <SignOutModal isOpen={isSignOutOpen} onClose={() => setIsSignOutOpen(false)} onConfirm={handleSignOut} />
+
+      {/* Mobile Settings Drawer */}
+      <SettingsDrawer />
     </div>
+  );
+}
+
+// ─── Outer Layout (wraps with context provider) ───
+
+export default function AdminLayout({ children }: { children: ReactNode }) {
+  return (
+    <SettingsDrawerProvider>
+      <Suspense fallback={<div className="min-h-screen bg-[#0B1120]" />}>
+        <AdminLayoutInner>{children}</AdminLayoutInner>
+      </Suspense>
+    </SettingsDrawerProvider>
   );
 }
