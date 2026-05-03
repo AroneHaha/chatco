@@ -3,7 +3,12 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import FareCalculatorModal from "@/components/conductor/modals/fare-calculator-modal";
+import dynamic from "next/dynamic";
+
+const FareCalculatorModal = dynamic(
+  () => import("@/components/conductor/modals/fare-calculator-modal"),
+  { ssr: false }
+);
 import { endShift, getActiveShift, formatTime } from "@/lib/conductor-shift";
 import { saveRemittance, getRemittanceHistory, type RemittanceRecord } from "@/lib/remittance-history";
 import { getShiftTransactions, type Transaction } from "@/lib/conductor-transactions";
