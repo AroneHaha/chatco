@@ -13,6 +13,7 @@ interface DataTableProps<T> {
   columns: Column<T>[];
   searchQuery: string;
   emptyMessage?: string;
+  onRowClick?: (item: T) => void;
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -20,6 +21,7 @@ export function DataTable<T extends Record<string, any>>({
   columns,
   searchQuery,
   emptyMessage = 'No data found.',
+  onRowClick,
 }: DataTableProps<T>) {
   const filteredData = useMemo(() => {
     if (!searchQuery) {
@@ -35,8 +37,6 @@ export function DataTable<T extends Record<string, any>>({
   }, [data, searchQuery]);
 
   return (
-    // touch-action: manipulation prevents double-tap-to-zoom which causes
-    // ghost "double-click" taps on mobile devices
     <div className="overflow-x-auto" style={{ touchAction: 'manipulation' }}>
       {filteredData.length === 0 ? (
         <div className="py-12 text-center">
@@ -63,7 +63,8 @@ export function DataTable<T extends Record<string, any>>({
             {filteredData.map((item, idx) => (
               <tr
                 key={idx}
-                className="hover:bg-[#162033] transition-colors"
+                className={`transition-colors ${onRowClick ? 'hover:bg-[#162033] cursor-pointer active:bg-[#1A2A40]' : 'hover:bg-[#162033]'}`}
+                onClick={() => onRowClick?.(item)}
               >
                 {columns.map((col) => (
                   <td

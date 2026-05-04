@@ -1,11 +1,12 @@
 // components/admin/remittance/remittance-table.tsx
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { initialRemittanceData, type Remittance, type RemittanceStatus } from '@/app/(admin)/remittance/data/remittance-data';
+import { ConductorDetailModal } from '@/components/admin/remittance/conductor-detail-modal';
 
 interface RemittanceTableProps {
   searchQuery: string;
@@ -18,6 +19,11 @@ const ROWS_PER_PAGE = 10;
 
 export function RemittanceTable({ searchQuery, startDate, endDate, statusFilter }: RemittanceTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedConductor, setSelectedConductor] = useState<Remittance | null>(null);
+
+  const handleRowClick = useCallback((item: Remittance) => {
+    setSelectedConductor(item);
+  }, []);
 
   const columns = [
     { key: 'id', label: 'Shift ID' },
@@ -75,7 +81,13 @@ export function RemittanceTable({ searchQuery, startDate, endDate, statusFilter 
 
   return (
     <div>
-      <DataTable data={paginatedData} columns={columns} searchQuery={""} />
+      {/* Click hint */}
+      <p className="text-xs text-slate-600 mb-3 flex items-center gap-1.5">
+        <span className="px-1.5 py-0.5 bg-[#0E1628] rounded text-[10px] text-slate-500 border border-[#1E2D45] font-mono">click</span>
+        Click a row to view conductor details &amp; transaction history
+      </p>
+
+      <DataTable data={paginatedData} columns={columns} searchQuery="" onRowClick={handleRowClick} />
 
       {/* Pagination Controls */}
       <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-4 text-xs text-slate-400">
@@ -106,6 +118,13 @@ export function RemittanceTable({ searchQuery, startDate, endDate, statusFilter 
           </button>
         </div>
       </div>
+
+      {/* Conductor Detail Modal */}
+      <ConductorDetailModal
+        isOpen={selectedConductor !== null}
+        onClose={() => setSelectedConductor(null)}
+        conductor={selectedConductor}
+      />
     </div>
   );
 }

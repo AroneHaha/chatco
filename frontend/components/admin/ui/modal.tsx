@@ -14,9 +14,9 @@ export function Modal({ isOpen, onClose, children, maxWidth = 'max-w-md', rounde
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50">
       <div
-        className={`relative bg-[#1A2540] border border-[#2A3A55] ${rounded} shadow-2xl w-full ${maxWidth} mx-4 max-h-[90vh] flex flex-col`}
+        className={`relative bg-[#1A2540] border border-[#2A3A55] ${rounded} shadow-2xl w-full ${maxWidth} mx-0 sm:mx-4 max-h-[95vh] sm:max-h-[90vh] flex flex-col ${rounded === 'rounded-xl' ? 'rounded-b-none sm:rounded-b-xl' : ''}`}
         role="dialog"
         aria-modal="true"
       >
@@ -27,7 +27,7 @@ export function Modal({ isOpen, onClose, children, maxWidth = 'max-w-md', rounde
         >
           <X size={20} />
         </button>
-        <div className="p-6 overflow-y-auto flex-1">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1">
           {children}
         </div>
       </div>
