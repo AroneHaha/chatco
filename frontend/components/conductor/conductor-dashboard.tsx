@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
-import FareCalculatorModal from "@/components/conductor/modals/fare-calculator-modal";
+const FareCalculatorModal = dynamic(
+  () => import("@/components/conductor/modals/fare-calculator-modal"),
+  { ssr: false }
+);
 import HistoryLogModal from "@/components/conductor/modals/history-log-modal";
 import { getActiveShift, getElapsed, formatTime } from "@/lib/conductor-shift";
 import type { ConductorShift } from "@/lib/conductor-shift";

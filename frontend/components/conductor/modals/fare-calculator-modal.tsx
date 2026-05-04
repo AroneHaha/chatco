@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { Modal } from "@/components/admin/ui/modal";
 import { saveTransaction } from "@/lib/conductor-transactions";
@@ -154,7 +154,7 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
   // Location names from reverse geocoding
   const [boardingName, setBoardingName] = useState<string>("");
   const [dropoffName, setDropoffName] = useState<string>("");
-  const [isGeocoding, setIsGeocoding] = useState(false);
+  const [, setIsGeocoding] = useState(false);
 
   const [receiptId, setReceiptId] = useState("");
   const [cameraError, setCameraError] = useState(false);
