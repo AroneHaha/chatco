@@ -16,7 +16,8 @@ export default function RemittancePage() {
   const quickFilters: (RemittanceStatus | 'All')[] = ['All', 'Pending', 'Remitted'];
 
   return (
-    <>
+    // touch-action: manipulation prevents mobile double-tap ghost clicks
+    <div style={{ touchAction: 'manipulation' }}>
       <div className="flex flex-col gap-6 mb-6">
         <h1 className="text-2xl font-bold text-white">Remittance Tracker</h1>
 
@@ -97,6 +98,6 @@ export default function RemittancePage() {
         endDate={endDate}
         statusFilter={statusFilter}
       />
-    </>
+    </div>
   );
 }

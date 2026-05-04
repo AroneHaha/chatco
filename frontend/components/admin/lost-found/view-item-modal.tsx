@@ -34,11 +34,12 @@ export function ViewItemModal({ isOpen, onClose, item }: ViewItemModalProps) {
   });
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-5xl" rounded="rounded-none">
-      <div className="flex gap-6">
+    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-5xl" rounded="rounded-xl">
+      {/* Mobile: stacked layout. Desktop: side-by-side */}
+      <div className="flex flex-col lg:flex-row gap-6">
         {/* Left — Image */}
-        <div className="w-[400px] flex-shrink-0">
-          <div className="relative rounded-lg overflow-hidden h-[420px] bg-[#0E1628]">
+        <div className="w-full lg:w-[400px] flex-shrink-0">
+          <div className="relative rounded-lg overflow-hidden h-56 sm:h-72 lg:h-[420px] bg-[#0E1628]">
             <img src={item.imageUrl} alt={item.itemName} className="w-full h-full object-cover" />
             <div className="absolute top-3 right-3">
               <Badge variant={getBadgeVariant(item.status)}>{item.status}</Badge>
@@ -53,10 +54,10 @@ export function ViewItemModal({ isOpen, onClose, item }: ViewItemModalProps) {
 
         {/* Right — Details */}
         <div className="flex-1 min-w-0">
-          <h2 className="text-2xl font-bold text-white mb-1.5">{item.itemName}</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-white mb-1.5">{item.itemName}</h2>
           <p className="text-sm text-slate-400 mb-5">{item.description}</p>
 
-          <div className="space-y-3 max-h-[370px] overflow-y-auto pr-1">
+          <div className="space-y-3 max-h-[50vh] lg:max-h-[370px] overflow-y-auto pr-1">
             <div className="flex items-center gap-3 p-3 bg-[#0E1628] rounded-md border border-[#1E2D45]">
               <MapPin size={16} className="text-[#62A0EA] flex-shrink-0" />
               <div>
@@ -73,7 +74,8 @@ export function ViewItemModal({ isOpen, onClose, item }: ViewItemModalProps) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            {/* 2-col on tablet+, 1-col on mobile */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="flex items-center gap-3 p-3 bg-[#0E1628] rounded-md border border-[#1E2D45]">
                 <Truck size={16} className="text-sky-400 flex-shrink-0" />
                 <div>
@@ -91,7 +93,7 @@ export function ViewItemModal({ isOpen, onClose, item }: ViewItemModalProps) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="flex items-center gap-3 p-3 bg-[#0E1628] rounded-md border border-[#1E2D45]">
                 <User size={16} className="text-cyan-400 flex-shrink-0" />
                 <div>

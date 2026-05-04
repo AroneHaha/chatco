@@ -60,10 +60,20 @@ export function LostFoundGrid({ items, onViewClaims, onViewHistory, onViewDetail
             </div>
           </div>
 
-          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center space-x-4 z-10">
-            <button onClick={() => onViewDetails(item.id)} className="p-2 bg-white/20 rounded-full text-white hover:bg-white/30" title="View Details"><Eye size={20} /></button>
-            <button onClick={() => onViewClaims(item.id)} className="p-2 bg-white/20 rounded-full text-white hover:bg-white/30" title="View Claims"><List size={20} /></button>
-            <button onClick={() => onViewHistory(item.id)} className="p-2 bg-white/20 rounded-full text-white hover:bg-white/30" title="View History"><History size={20} /></button>
+          {/* Action Buttons — always visible on mobile (touch), hover-visible on desktop */}
+          <div className="flex items-center justify-around border-t border-[#1E2D45] bg-[#0E1628] p-2.5 flex-shrink-0 lg:absolute lg:inset-0 lg:border-t-0 lg:bg-black/60 lg:opacity-0 lg:group-hover:opacity-100 lg:transition-opacity lg:duration-200 lg:p-0 lg:backdrop-blur-sm lg:z-10">
+            <button onClick={() => onViewDetails(item.id)} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-slate-300 hover:bg-white/10 hover:text-white text-xs font-medium transition-colors active:scale-95" title="View Details">
+              <Eye size={16} />
+              <span className="lg:hidden">Details</span>
+            </button>
+            <button onClick={() => onViewClaims(item.id)} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-slate-300 hover:bg-white/10 hover:text-white text-xs font-medium transition-colors active:scale-95" title="View Claims">
+              <List size={16} />
+              <span className="lg:hidden">Claims</span>
+            </button>
+            <button onClick={() => onViewHistory(item.id)} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-slate-300 hover:bg-white/10 hover:text-white text-xs font-medium transition-colors active:scale-95" title="View History">
+              <History size={16} />
+              <span className="lg:hidden">History</span>
+            </button>
           </div>
         </div>
       ))}

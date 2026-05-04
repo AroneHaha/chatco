@@ -5,7 +5,7 @@ import { ReactNode, useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
-import { Home, Receipt, Map, Package, BarChart3, Car, Sliders, Users, Menu, LogOut, X, Bus, Settings, Shield, Eye } from 'lucide-react';
+import { Home, Receipt, Map, Package, BarChart3, Car, Sliders, Users, Menu, LogOut, X, Bus, Settings, Shield, Eye, FileText } from 'lucide-react';
 import { SignOutModal } from '@/components/admin/ui/sign-out-modal';
 import { SettingsDrawerProvider, SettingsDrawer, useSettingsDrawer } from '@/components/admin/ui/settings-drawer';
 
@@ -14,6 +14,7 @@ import { SettingsDrawerProvider, SettingsDrawer, useSettingsDrawer } from '@/com
 const operationsNav = [
   { href: '/admin-dashboard', label: 'Dashboard', icon: Home },
   { href: '/remittance', label: 'Remittance', icon: Receipt },
+  { href: '/receipts', label: 'Receipts', icon: FileText },
   { href: '/monitoring', label: 'Monitoring', icon: Map },
 ];
 
@@ -34,6 +35,10 @@ const mobileMainItems = [
   { href: '/remittance', label: 'Remit', icon: Receipt },
   { href: '/monitoring', label: 'Map', icon: Map },
   { href: '/analytics', label: 'Stats', icon: BarChart3 },
+];
+
+const mobileOverflowItems = [
+  { href: '/receipts', label: 'Receipts', icon: FileText },
 ];
 
 // Items hidden inside the "More" menu on Mobile
@@ -328,6 +333,28 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
             {/* Actual Menu */}
             <div className="absolute bottom-20 right-4 left-4 bg-[#1A2540] border border-[#2A3A55] rounded-lg p-4 shadow-2xl z-50">
               <div className="grid grid-cols-2 gap-3">
+                {/* Overflow items (Receipts, etc.) */}
+                {mobileOverflowItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = pathname === item.href;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setIsMoreOpen(false)}
+                      className={`flex flex-col items-center justify-center p-3 rounded-md transition-colors ${
+                        isActive
+                          ? 'bg-[#62A0EA]/10 text-[#62A0EA]'
+                          : 'text-slate-300 hover:bg-[#131C2E]'
+                      }`}
+                    >
+                      <Icon size={22} />
+                      <span className="mt-2 text-xs text-center leading-tight">{item.label}</span>
+                    </Link>
+                  );
+                })}
+
+                {/* More menu items (Fleet, Lost & Found, Users, Settings) */}
                 {mobileMoreItems.map((item) => {
                   const Icon = item.icon;
                   const isSettings = item.href === '/settings';

@@ -1,5 +1,5 @@
 // components/admin/ui/data-table.tsx
-import { ReactNode, useState, useMemo } from 'react';
+import { ReactNode, useMemo } from 'react';
 
 interface Column<T> {
   key: string;
@@ -12,9 +12,15 @@ interface DataTableProps<T> {
   data: T[];
   columns: Column<T>[];
   searchQuery: string;
+  emptyMessage?: string;
 }
 
-export function DataTable<T extends Record<string, any>>({ data, columns, searchQuery }: DataTableProps<T>) {
+export function DataTable<T extends Record<string, any>>({
+  data,
+  columns,
+  searchQuery,
+  emptyMessage = 'No data found.',
+}: DataTableProps<T>) {
   const filteredData = useMemo(() => {
     if (!searchQuery) {
       return data;
@@ -29,33 +35,51 @@ export function DataTable<T extends Record<string, any>>({ data, columns, search
   }, [data, searchQuery]);
 
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-white/20">
-        <thead className="bg-white/5">
-          <tr>
-            {columns.map((col) => (
-              <th
-                key={col.key}
-                scope="col"
-                className={`px-6 py-3 text-xs font-medium text-gray-300 uppercase tracking-wider ${col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'}`}
-              >
-                {col.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-white/10">
-          {filteredData.map((item, idx) => (
-            <tr key={idx} className="hover:bg-white/5 transition-colors">
+    // touch-action: manipulation prevents double-tap-to-zoom which causes
+    // ghost "double-click" taps on mobile devices
+    <div className="overflow-x-auto" style={{ touchAction: 'manipulation' }}>
+      {filteredData.length === 0 ? (
+        <div className="py-12 text-center">
+          <p className="text-sm text-slate-500">{emptyMessage}</p>
+        </div>
+      ) : (
+        <table className="min-w-full" style={{ touchAction: 'manipulation' }}>
+          <thead>
+            <tr className="border-b border-[#1E2D45]">
               {columns.map((col) => (
-                <td key={col.key} className={`px-6 py-4 whitespace-nowrap text-sm text-gray-200 ${col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'}`}>
-                  {col.render ? col.render(item[col.key], item) : item[col.key]}
-                </td>
+                <th
+                  key={col.key}
+                  scope="col"
+                  className={`px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider whitespace-nowrap ${
+                    col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'
+                  }`}
+                >
+                  {col.label}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-[#1A2540]">
+            {filteredData.map((item, idx) => (
+              <tr
+                key={idx}
+                className="hover:bg-[#162033] transition-colors"
+              >
+                {columns.map((col) => (
+                  <td
+                    key={col.key}
+                    className={`px-4 py-3 text-sm text-slate-300 whitespace-nowrap ${
+                      col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'
+                    }`}
+                  >
+                    {col.render ? col.render(item[col.key], item) : item[col.key]}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

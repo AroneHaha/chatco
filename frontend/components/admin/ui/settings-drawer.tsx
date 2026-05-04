@@ -2,7 +2,7 @@
 'use client';
 
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import {
   X, Calculator, MapPin, Wallet, PiggyBank, Ticket, Gauge,
   Shield, MessageCircleQuestion, Settings2, Sliders, ArrowLeft
@@ -54,8 +54,15 @@ export function useSettingsDrawer() {
 }
 
 // ─── Settings Nav Button (replaces BackButton on settings sub-pages) ───
+// When inside the drawer iframe (?embed=1), this button is hidden
+// because the drawer has its own back arrow in the header.
 export function SettingsNavButton() {
   const { toggleSettingsDrawer } = useSettingsDrawer();
+  const searchParams = useSearchParams();
+  const isEmbed = searchParams.get('embed') === '1';
+
+  if (isEmbed) return null;
+
   return (
     <button
       type="button"
@@ -115,10 +122,10 @@ export function SettingsDrawer() {
         onClick={handleClose}
       />
 
-      {/* Drawer Panel — 50% width, slides from RIGHT */}
+      {/* Drawer Panel — 90% on mobile, 50% on desktop, slides from RIGHT */}
       <aside
         className={`
-          fixed top-0 right-0 z-50 h-full w-1/2
+          fixed top-0 right-0 z-50 h-full w-[90vw] sm:w-[80vw] lg:w-1/2
           bg-[#0D1424] border-l border-[#1E2D45] shadow-2xl shadow-black/40
           flex flex-col
           transform transition-transform duration-300 ease-out
@@ -184,9 +191,9 @@ export function SettingsDrawer() {
 
         {/* ── View 2: Sub-page Content (loaded via iframe) ── */}
         {activeHref && (
-          <div className="flex-1 bg-[#0B1120] overflow-hidden relative">
+          <div key={activeHref} className="flex-1 bg-[#0B1120] overflow-hidden relative">
             {/* Loading shimmer while iframe loads */}
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0B1120] pointer-events-none" id="drawer-iframe-loader">
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0B1120] pointer-events-none transition-opacity duration-300" id="drawer-iframe-loader">
               <div className="flex flex-col items-center gap-3">
                 <div className="w-8 h-8 border-2 border-[#62A0EA]/30 border-t-[#62A0EA] rounded-full animate-spin" />
                 <p className="text-xs text-slate-500">Loading…</p>
@@ -199,7 +206,12 @@ export function SettingsDrawer() {
               onLoad={() => {
                 // Hide the loading spinner once the iframe has finished loading
                 const loader = document.getElementById('drawer-iframe-loader');
-                if (loader) loader.style.display = 'none';
+                if (loader) {
+                  (loader as HTMLElement).style.opacity = '0';
+                  setTimeout(() => {
+                    (loader as HTMLElement).style.display = 'none';
+                  }, 300);
+                }
               }}
             />
           </div>

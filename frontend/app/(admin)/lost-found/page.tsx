@@ -96,19 +96,19 @@ export default function LostFoundPage() {
   return (
     <div className="h-full w-full flex flex-col overflow-hidden relative">
       <div className="flex-shrink-0 bg-[#131C2E] border border-[#1E2D45] p-4 lg:px-8 lg:py-6 z-10 rounded-lg mb-6">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-5">
-          <div>
+        <div className="flex flex-col sm:flex-row lg:flex-row lg:items-center lg:justify-between gap-4 mb-5">
+          <div className="min-w-0">
             <h1 className="text-white font-bold text-xl lg:text-2xl">Lost & Found Management</h1>
             <p className="text-slate-500 text-xs mt-1">{filteredItems.length} items reported • Page {currentPage} of {totalPages || 1}</p>
           </div>
-          <div className="flex items-center gap-3 w-full lg:w-fit">
-            <div className="flex bg-[#0E1628] rounded-md p-1 border border-[#1E2D45] w-fit">
+          <div className="flex items-center gap-2 w-full lg:w-fit flex-shrink-0">
+            <div className="flex bg-[#0E1628] rounded-md p-1 border border-[#1E2D45] flex-1 lg:flex-none">
               {([ ["ALL", "All Items"], ["PENDING_CLAIMS", "Pending Claims"] ] as const).map(([key, label]) => (
-                <button key={key} onClick={() => setActiveTab(key)} className={`px-4 py-2 rounded-md text-xs font-semibold transition-all ${activeTab === key ? "bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/30" : "text-slate-500 hover:text-slate-300 hover:bg-[#1A2540]"}`}>{label}</button>
+                <button key={key} onClick={() => setActiveTab(key)} className={`flex-1 lg:flex-none px-3 py-2 rounded-md text-xs font-semibold transition-all text-center ${activeTab === key ? "bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/30" : "text-slate-500 hover:text-slate-300 hover:bg-[#1A2540]"}`}>{label}</button>
               ))}
             </div>
-            <button onClick={handleOpenAddModal} className="flex items-center space-x-2 px-4 py-2 bg-[#62A0EA] text-white text-xs font-semibold rounded-md hover:bg-[#4A8BD4] transition-colors shadow-lg shadow-[#62A0EA]/30">
-              <Plus size={16} /><span>Add Item</span>
+            <button onClick={handleOpenAddModal} className="flex items-center justify-center gap-2 px-4 py-2 bg-[#62A0EA] text-white text-xs font-semibold rounded-md hover:bg-[#4A8BD4] transition-colors shadow-lg shadow-[#62A0EA]/30 flex-shrink-0">
+              <Plus size={16} /><span className="hidden xs:inline">Add Item</span>
             </button>
           </div>
         </div>
