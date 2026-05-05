@@ -325,7 +325,7 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
           <div id="fare-scanner" className="w-full rounded-xl overflow-hidden" style={{ minHeight: "250px" }} />
         )}
 
-        {process.env.NODE_ENV === 'development' && (
+        {(process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_DEV_TOOLS === 'true') && (
           <button
             onClick={() => {
               isScanningActiveRef.current = false;
