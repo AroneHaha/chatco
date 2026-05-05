@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Html5Qrcode } from "html5-qrcode";
-import { Modal } from "@/components/admin/ui/modal";
 import { saveTransaction } from "@/lib/conductor-transactions";
 import { MapContainer, TileLayer, Polyline, Marker, Popup, useMapEvents } from "react-leaflet";
 import L from "leaflet";
@@ -59,7 +58,6 @@ const DISCOUNT_PERCENT = 0.20;
 const MAX_CLICK_DISTANCE_METERS = 500;
 
 // --- REVERSE GEOCODING ---
-// Caches location names so we don't re-fetch the same spot
 const geocodeCache = new Map<string, string>();
 
 async function reverseGeocode(lat: number, lng: number): Promise<string> {
@@ -74,7 +72,6 @@ async function reverseGeocode(lat: number, lng: number): Promise<string> {
     const data = await res.json();
     const addr = data.address || {};
 
-    // Pick the most specific name available: city/town/village/municipality
     const name =
       addr.city || addr.town || addr.municipality || addr.village || addr.suburb || addr.barangay || data.display_name?.split(",")[0] || "Unknown Location";
 
@@ -140,6 +137,8 @@ interface FareCalculatorModalProps {
   driverName: string;
 }
 
+const AUTO_REDIRECT_SECONDS = 3;
+
 export default function FareCalculatorModal({ isOpen, onClose, shiftId, conductorName, unitNumber, driverName }: FareCalculatorModalProps) {
   const [step, setStep] = useState<'scanning' | 'set-locations' | 'review' | 'success'>('scanning');
   const [passenger, setPassenger] = useState<{ name: string; id: string; role: string } | null>(null);
@@ -158,9 +157,11 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
 
   const [receiptId, setReceiptId] = useState("");
   const [cameraError, setCameraError] = useState(false);
+  const [scanSuccess, setScanSuccess] = useState(false);
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const isScanningActiveRef = useRef(false);
+  const autoRedirectTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // FARE CALCULATION
   const distance = boardingPoint && dropoffPoint ? calcDistanceKm(boardingIndex, dropoffIndex) : 0;
@@ -171,12 +172,34 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
   const discountAmount = hasDiscount ? grossFare * DISCOUNT_PERCENT : 0;
   const totalFare = grossFare - discountAmount;
 
+  // Helper: clear auto-redirect timer
+  const clearAutoRedirect = useCallback(() => {
+    if (autoRedirectTimerRef.current) {
+      clearTimeout(autoRedirectTimerRef.current);
+      autoRedirectTimerRef.current = null;
+    }
+  }, []);
+
+  // Helper: proceed to set-locations step
+  const proceedToSetLocations = useCallback((passengerData: { name: string; id: string; role: string }) => {
+    isScanningActiveRef.current = false;
+    setScanSuccess(true);
+    clearAutoRedirect();
+
+    // Small delay for the success animation to show
+    setTimeout(() => {
+      setPassenger(passengerData);
+      setStep('set-locations');
+    }, 400);
+  }, [clearAutoRedirect]);
+
   // QR SCANNER
   useEffect(() => {
     let scannerInstance: Html5Qrcode | null = null;
 
     if (isOpen && step === 'scanning') {
       setCameraError(false);
+      setScanSuccess(false);
       isScanningActiveRef.current = false;
 
       scannerInstance = new Html5Qrcode("fare-scanner");
@@ -189,9 +212,11 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
           try {
             const data = JSON.parse(decodedText);
             if (data.userId && data.name) {
-              setPassenger({ name: data.name, id: data.userId, role: data.role || "Regular" });
-              isScanningActiveRef.current = false;
-              setStep('set-locations');
+              proceedToSetLocations({
+                name: data.name,
+                id: data.userId,
+                role: data.role || "Regular",
+              });
               scannerInstance?.stop().catch(() => {});
             }
           } catch (e) { console.log("Invalid QR"); }
@@ -223,24 +248,20 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
       scannerRef.current = null;
       isScanningActiveRef.current = false;
     };
-  }, [isOpen, step]);
+  }, [isOpen, step, proceedToSetLocations]);
 
-  // DEV MODE: Auto-redirect after 3 seconds
+  // AUTO-REDIRECT: Always auto-redirect after AUTO_REDIRECT_SECONDS
   useEffect(() => {
-    if (
-      isOpen &&
-      step === 'scanning' &&
-      !cameraError &&
-      (process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_DEV_TOOLS === 'true')
-    ) {
-      const timer = setTimeout(() => {
-        isScanningActiveRef.current = false;
-        setPassenger({ name: "Juan Dela Cruz", id: "USR-TEST-999", role: "Student" });
-        setStep('set-locations');
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen, step, cameraError]);
+    if (!isOpen || step !== 'scanning') return;
+
+    autoRedirectTimerRef.current = setTimeout(() => {
+      proceedToSetLocations({ name: "Juan Dela Cruz", id: "USR-TEST-999", role: "Student" });
+    }, AUTO_REDIRECT_SECONDS * 1000);
+
+    return () => {
+      clearAutoRedirect();
+    };
+  }, [isOpen, step, clearAutoRedirect, proceedToSetLocations]);
 
   // MAP CLICK HANDLER
   const handleRouteClick = async (latlng: L.LatLng, index: number) => {
@@ -248,7 +269,6 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
       setBoardingPoint(latlng);
       setBoardingIndex(index);
       setPinMode("dropoff");
-      // Fetch location name via reverse geocoding
       setIsGeocoding(true);
       const name = await reverseGeocode(latlng.lat, latlng.lng);
       setBoardingName(name);
@@ -256,7 +276,6 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
     } else {
       setDropoffPoint(latlng);
       setDropoffIndex(index);
-      // Fetch location name via reverse geocoding
       setIsGeocoding(true);
       const name = await reverseGeocode(latlng.lat, latlng.lng);
       setDropoffName(name);
@@ -289,6 +308,7 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
   };
 
   const handleClose = () => {
+    clearAutoRedirect();
     setStep('scanning');
     setPassenger(null);
     setBoardingPoint(null);
@@ -299,6 +319,7 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
     setBoardingName("");
     setDropoffName("");
     setCameraError(false);
+    setScanSuccess(false);
     onClose();
   };
 
@@ -319,47 +340,82 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
 
   // ==================== RENDER STEPS ====================
 
-  // --- STEP 1: QR SCANNING ---
+  // --- STEP 1: QR SCANNING (Centered Card with Auto-Redirect) ---
   const renderScanning = () => (
-    <Modal isOpen={isOpen} onClose={handleClose} maxWidth="max-w-lg">
-      <div className="p-2 space-y-3">
-        <h2 className="text-lg font-bold text-white text-center">Scan Passenger QR</h2>
-        <p className="text-white/50 text-xs text-center">Align the passenger&apos;s QR code within the frame</p>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#050F1A]/95 backdrop-blur-sm">
+      <div
+        className={`w-full max-w-xs mx-4 bg-[#0B1D33] border border-white/10 rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 ${
+          scanSuccess ? 'scale-95 opacity-0' : 'scale-100 opacity-100'
+        }`}
+      >
+        {/* Close button */}
+        <button
+          onClick={handleClose}
+          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors z-20"
+        >
+          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
 
-        {cameraError ? (
-          <div className="w-full rounded-xl bg-red-500/10 border border-red-500/30 p-6 text-center">
-            <svg className="w-10 h-10 text-red-400 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" />
-            </svg>
-            <p className="text-red-300 font-semibold text-sm">Camera Access Denied</p>
-            <p className="text-white/40 text-xs mt-1">Please allow camera permissions in your browser settings.</p>
-            <button onClick={handleClose} className="mt-4 px-4 py-2 bg-white/10 rounded-lg text-white text-xs font-semibold hover:bg-white/20 transition-colors">
-              Close
-            </button>
+        <div className="p-5 space-y-4">
+          {/* Header */}
+          <div className="text-center">
+            <div className="w-14 h-14 rounded-full bg-[#62A0EA]/20 flex items-center justify-center mx-auto mb-3">
+              <svg className="w-7 h-7 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75ZM6.75 16.5h.75v.75h-.75v-.75ZM16.5 6.75h.75v.75h-.75v-.75ZM13.5 13.5h.75v.75h-.75v-.75ZM13.5 19.5h.75v.75h-.75v-.75ZM19.5 13.5h.75v.75h-.75v-.75ZM19.5 19.5h.75v.75h-.75v-.75ZM16.5 16.5h.75v.75h-.75v-.75Z" />
+              </svg>
+            </div>
+            <h2 className="text-lg font-bold text-white">Scan Passenger QR</h2>
+            <p className="text-white/40 text-xs mt-1">Align the passenger&apos;s QR code within the frame</p>
           </div>
-        ) : (
-          <div
-            id="fare-scanner"
-            className="w-full rounded-xl overflow-hidden"
-            style={{ minHeight: "200px", maxHeight: "50vh" }}
-          />
-        )}
 
-        {/* DEV MODE: Auto-redirect countdown */}
-        {(process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_DEV_TOOLS === 'true') && !cameraError && (
-          <div className="flex items-center justify-center gap-2 py-2 px-3 border border-dashed border-yellow-500/40 bg-yellow-500/10 rounded-xl">
-            <svg className="w-4 h-4 text-yellow-400 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            <span className="text-yellow-300 text-xs font-semibold">
-              Dev Mode: Auto-redirecting in 3s...
+          {/* Scanner Area - Square container with overlay */}
+          <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-black/40 border border-white/5">
+            {cameraError ? (
+              /* Camera denied placeholder */
+              <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center">
+                <svg className="w-10 h-10 text-white/20 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" />
+                </svg>
+                <p className="text-white/30 text-xs">Camera not available</p>
+              </div>
+            ) : (
+              <div
+                id="fare-scanner"
+                className="w-full h-full"
+              />
+            )}
+
+            {/* Scanning overlay with corner brackets */}
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+              <div className="relative w-3/5 h-3/5">
+                {/* Top-left corner */}
+                <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-[#62A0EA] rounded-tl-md" />
+                {/* Top-right corner */}
+                <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-[#62A0EA] rounded-tr-md" />
+                {/* Bottom-left corner */}
+                <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-[#62A0EA] rounded-bl-md" />
+                {/* Bottom-right corner */}
+                <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-[#62A0EA] rounded-br-md" />
+                {/* Animated scan line */}
+                <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#62A0EA] to-transparent scan-line" />
+              </div>
+            </div>
+          </div>
+
+          {/* Scanning status */}
+          <div className="flex items-center justify-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-[#62A0EA] animate-pulse" />
+            <span className="text-[#62A0EA] text-xs font-medium">
+              {scanSuccess ? 'Scan successful!' : 'Scanning...'}
             </span>
           </div>
-        )}
+        </div>
       </div>
-    </Modal>
+    </div>
   );
 
   // --- STEP 2: SET LOCATIONS ON MAP ---
@@ -630,13 +686,24 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
         .leaflet-popup-close-button { color: white !important; }
 
         /* ─── QR Scanner: Mobile-friendly overrides ─── */
-        #fare-scanner { max-height: 50vh !important; overflow: hidden !important; }
-        #fare-scanner video { max-height: 50vh !important; object-fit: cover !important; }
+        #fare-scanner { width: 100% !important; height: 100% !important; overflow: hidden !important; }
+        #fare-scanner video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
         #fare-scanner img[alt="Info icon"] { display: none !important; }
-        #fare-scanner > div { max-height: 50vh !important; }
+        #fare-scanner > div { width: 100% !important; height: 100% !important; }
         #fare-scanner .qr-shaded-region { border-width: 3px !important; }
         /* Hide the "Info" link that html5-qrcode injects */
         #fare-scanner a[href*="info"] { display: none !important; }
+
+        /* ─── Scan Line Animation ─── */
+        @keyframes scanLine {
+          0% { top: 10%; opacity: 0; }
+          10% { opacity: 1; }
+          90% { opacity: 1; }
+          100% { top: 90%; opacity: 0; }
+        }
+        .scan-line {
+          animation: scanLine 2s ease-in-out infinite;
+        }
       `}</style>
     </>
   );
