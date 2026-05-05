@@ -148,12 +148,12 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
   const [boardingIndex, setBoardingIndex] = useState<number>(0);
   const [dropoffPoint, setDropoffPoint] = useState<L.LatLng | null>(null);
   const [dropoffIndex, setDropoffIndex] = useState<number>(0);
-  const [pinMode, setPinMode] = useState<"boarding" | "dropoff">("boarding");
 
   // Location names from reverse geocoding
   const [boardingName, setBoardingName] = useState<string>("");
   const [dropoffName, setDropoffName] = useState<string>("");
   const [, setIsGeocoding] = useState(false);
+  const [boardingLoading, setBoardingLoading] = useState(false);
 
   const [receiptId, setReceiptId] = useState("");
   const [cameraError, setCameraError] = useState(false);
@@ -263,24 +263,67 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
     };
   }, [isOpen, step, clearAutoRedirect, proceedToSetLocations]);
 
-  // MAP CLICK HANDLER
-  const handleRouteClick = async (latlng: L.LatLng, index: number) => {
-    if (pinMode === "boarding") {
-      setBoardingPoint(latlng);
+  // SNAP A LATLNG TO THE NEAREST ROUTE POINT
+  const snapToRoute = (latlng: L.LatLng): { point: L.LatLng; index: number } => {
+    let closestIndex = 0;
+    let minDist = Infinity;
+    for (let i = 0; i < ROUTE_COORDS.length; i++) {
+      const dist = latlng.distanceTo(L.latLng(ROUTE_COORDS[i]));
+      if (dist < minDist) {
+        minDist = dist;
+        closestIndex = i;
+      }
+    }
+    return { point: L.latLng(ROUTE_COORDS[closestIndex]), index: closestIndex };
+  };
+
+  // AUTO-DETECT BOARDING LOCATION FROM GPS
+  useEffect(() => {
+    if (step !== 'set-locations' || boardingPoint || boardingLoading) return;
+
+    setBoardingLoading(true);
+
+    const setBoardingFromCoords = async (lat: number, lng: number) => {
+      const userLatLng = L.latLng(lat, lng);
+      const { point, index } = snapToRoute(userLatLng);
+      setBoardingPoint(point);
       setBoardingIndex(index);
-      setPinMode("dropoff");
       setIsGeocoding(true);
-      const name = await reverseGeocode(latlng.lat, latlng.lng);
+      const name = await reverseGeocode(point.lat, point.lng);
       setBoardingName(name);
       setIsGeocoding(false);
+      setBoardingLoading(false);
+    };
+
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setBoardingFromCoords(position.coords.latitude, position.coords.longitude);
+        },
+        () => {
+          // Fallback: use the middle of the route
+          const midIdx = Math.floor(ROUTE_COORDS.length / 2);
+          const midCoord = ROUTE_COORDS[midIdx];
+          setBoardingFromCoords(midCoord[0], midCoord[1]);
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+      );
     } else {
-      setDropoffPoint(latlng);
-      setDropoffIndex(index);
-      setIsGeocoding(true);
-      const name = await reverseGeocode(latlng.lat, latlng.lng);
-      setDropoffName(name);
-      setIsGeocoding(false);
+      // No geolocation API: fallback to route midpoint
+      const midIdx = Math.floor(ROUTE_COORDS.length / 2);
+      const midCoord = ROUTE_COORDS[midIdx];
+      setBoardingFromCoords(midCoord[0], midCoord[1]);
     }
+  }, [step, boardingPoint, boardingLoading]);
+
+  // MAP CLICK HANDLER — only for drop-off point
+  const handleRouteClick = async (latlng: L.LatLng, index: number) => {
+    setDropoffPoint(latlng);
+    setDropoffIndex(index);
+    setIsGeocoding(true);
+    const name = await reverseGeocode(latlng.lat, latlng.lng);
+    setDropoffName(name);
+    setIsGeocoding(false);
   };
 
   const handleConfirmPayment = () => {
@@ -315,9 +358,9 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
     setDropoffPoint(null);
     setBoardingIndex(0);
     setDropoffIndex(0);
-    setPinMode("boarding");
     setBoardingName("");
     setDropoffName("");
+    setBoardingLoading(false);
     setCameraError(false);
     setScanSuccess(false);
     onClose();
@@ -425,12 +468,10 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
       <div className="flex-shrink-0 flex items-center justify-between p-4 bg-[#071A2E] border-b border-white/10 z-20">
         <div>
           <h2 className="text-white font-bold text-lg">
-            {pinMode === "boarding" ? "Set Boarding Point" : "Set Drop-off Point"}
+            Set Drop-off Point
           </h2>
           <p className="text-white/40 text-[10px] mt-0.5">
-            {pinMode === "boarding"
-              ? "Tap on the route to pin where the passenger boarded"
-              : "Tap on the route to pin where the passenger will alight"}
+            Tap on the route to pin where the passenger will alight
           </p>
         </div>
         <button onClick={handleClose} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
@@ -463,19 +504,13 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
           )}
         </MapContainer>
 
-        {/* Floating Pin Mode Toggle */}
+        {/* Boarding location auto-detected badge */}
         {boardingPoint && (
           <div className="absolute top-4 right-4 z-10">
-            <button
-              onClick={() => setPinMode(pinMode === "boarding" ? "dropoff" : "boarding")}
-              className={`px-3 py-2 rounded-xl text-xs font-bold shadow-lg transition-colors ${
-                pinMode === "boarding"
-                  ? "bg-green-500 text-white shadow-green-500/30"
-                  : "bg-[#FF6D3A] text-white shadow-[#FF6D3A]/30"
-              }`}
-            >
-              {pinMode === "boarding" ? "Setting: Boarding" : "Setting: Drop-off"}
-            </button>
+            <div className="px-3 py-2 rounded-xl text-xs font-bold shadow-lg bg-green-500/90 text-white shadow-green-500/30 flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" /></svg>
+              Boarding: Auto
+            </div>
           </div>
         )}
       </div>
@@ -484,9 +519,14 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
       <div className="flex-shrink-0 bg-[#071A2E] border-t border-white/10 p-5 pb-6 shadow-2xl z-20">
         {/* Location Chips */}
         <div className="flex items-center gap-2 mb-3">
-          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${boardingPoint ? "bg-green-500/20 text-green-400" : "bg-white/5 text-white/30"}`}>
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${boardingPoint ? "bg-green-500/20 text-green-400" : boardingLoading ? "bg-green-500/10 text-green-400/60" : "bg-white/5 text-white/30"}`}>
             <span className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center text-[9px] font-bold">A</span>
-            {boardingPoint ? (boardingName || "Loading...") : "Tap to set"}
+            {boardingLoading ? (
+              <span className="flex items-center gap-1">
+                <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                Detecting...
+              </span>
+            ) : boardingPoint ? (boardingName || "Loading...") : "—"}
           </div>
           <svg className="w-4 h-4 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
           <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${dropoffPoint ? "bg-orange-500/20 text-orange-400" : "bg-white/5 text-white/30"}`}>
@@ -514,7 +554,7 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
               <div className="flex justify-between text-sm">
                 <span className="text-white/60">Succeeding ({succeedingKm.toFixed(2)} km x ₱{ADDITIONAL_RATE})</span>
                 <span className="font-semibold text-white">₱ {succeedingFare.toFixed(2)}</span>
-              </div>
+            </div>
             )}
             {hasDiscount && (
               <div className="flex justify-between text-sm">
@@ -528,9 +568,13 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
               <span className="font-extrabold text-[#62A0EA] text-2xl">₱ {totalFare.toFixed(2)}</span>
             </div>
           </div>
+        ) : boardingLoading ? (
+          <div className="mb-4 text-white/30 text-xs text-center py-3">
+            Detecting your current location...
+          </div>
         ) : (
           <div className="mb-4 text-white/20 text-xs text-center py-3">
-            Tap on the route to set boarding and drop-off points
+            Tap on the route to set the drop-off point
           </div>
         )}
 
@@ -542,19 +586,13 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
                 setDropoffPoint(null);
                 setDropoffIndex(0);
                 setDropoffName("");
-                setPinMode("dropoff");
-              } else if (boardingPoint) {
-                setBoardingPoint(null);
-                setBoardingIndex(0);
-                setBoardingName("");
-                setPinMode("boarding");
               } else {
                 handleClose();
               }
             }}
             className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold border border-white/10 text-white/60 hover:bg-white/5 transition-colors"
           >
-            {dropoffPoint ? "Reset Drop-off" : boardingPoint ? "Reset Boarding" : "Cancel"}
+            {dropoffPoint ? "Reset Drop-off" : "Cancel"}
           </button>
           <button
             onClick={() => boardingPoint && dropoffPoint ? setStep('review') : null}
