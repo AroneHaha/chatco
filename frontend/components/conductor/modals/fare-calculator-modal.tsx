@@ -184,7 +184,7 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
 
       scannerInstance.start(
         { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
+        { fps: 10, qrbox: { width: 220, height: 220 }, aspectRatio: 1.0 },
         (decodedText) => {
           try {
             const data = JSON.parse(decodedText);
@@ -224,6 +224,23 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
       isScanningActiveRef.current = false;
     };
   }, [isOpen, step]);
+
+  // DEV MODE: Auto-redirect after 3 seconds
+  useEffect(() => {
+    if (
+      isOpen &&
+      step === 'scanning' &&
+      !cameraError &&
+      (process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_DEV_TOOLS === 'true')
+    ) {
+      const timer = setTimeout(() => {
+        isScanningActiveRef.current = false;
+        setPassenger({ name: "Juan Dela Cruz", id: "USR-TEST-999", role: "Student" });
+        setStep('set-locations');
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, step, cameraError]);
 
   // MAP CLICK HANDLER
   const handleRouteClick = async (latlng: L.LatLng, index: number) => {
@@ -304,10 +321,10 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
 
   // --- STEP 1: QR SCANNING ---
   const renderScanning = () => (
-    <Modal isOpen={isOpen} onClose={handleClose}>
-      <div className="p-2 space-y-4">
-        <h2 className="text-xl font-bold text-white text-center">Scan Passenger QR</h2>
-        <p className="text-white/50 text-sm text-center">Align the passenger&apos;s QR code within the frame</p>
+    <Modal isOpen={isOpen} onClose={handleClose} maxWidth="max-w-lg">
+      <div className="p-2 space-y-3">
+        <h2 className="text-lg font-bold text-white text-center">Scan Passenger QR</h2>
+        <p className="text-white/50 text-xs text-center">Align the passenger&apos;s QR code within the frame</p>
 
         {cameraError ? (
           <div className="w-full rounded-xl bg-red-500/10 border border-red-500/30 p-6 text-center">
@@ -322,20 +339,24 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
             </button>
           </div>
         ) : (
-          <div id="fare-scanner" className="w-full rounded-xl overflow-hidden" style={{ minHeight: "250px" }} />
+          <div
+            id="fare-scanner"
+            className="w-full rounded-xl overflow-hidden"
+            style={{ minHeight: "200px", maxHeight: "50vh" }}
+          />
         )}
 
-        {(process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_DEV_TOOLS === 'true') && (
-          <button
-            onClick={() => {
-              isScanningActiveRef.current = false;
-              setPassenger({ name: "Juan Dela Cruz", id: "USR-TEST-999", role: "Student" });
-              setStep('set-locations');
-            }}
-            className="w-full py-3 mt-2 border-2 border-dashed border-yellow-500/50 bg-yellow-500/10 text-yellow-300 rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-yellow-500/20 transition-colors"
-          >
-            🐛 Dev Mode: Fake Scan (Inject Student Data)
-          </button>
+        {/* DEV MODE: Auto-redirect countdown */}
+        {(process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_DEV_TOOLS === 'true') && !cameraError && (
+          <div className="flex items-center justify-center gap-2 py-2 px-3 border border-dashed border-yellow-500/40 bg-yellow-500/10 rounded-xl">
+            <svg className="w-4 h-4 text-yellow-400 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <span className="text-yellow-300 text-xs font-semibold">
+              Dev Mode: Auto-redirecting in 3s...
+            </span>
+          </div>
         )}
       </div>
     </Modal>
@@ -607,6 +628,15 @@ export default function FareCalculatorModal({ isOpen, onClose, shiftId, conducto
         .leaflet-popup-content { margin: 12px 16px !important; color: white !important; line-height: 1.4 !important; }
         .leaflet-popup-tip { background: #071A2E !important; }
         .leaflet-popup-close-button { color: white !important; }
+
+        /* ─── QR Scanner: Mobile-friendly overrides ─── */
+        #fare-scanner { max-height: 50vh !important; overflow: hidden !important; }
+        #fare-scanner video { max-height: 50vh !important; object-fit: cover !important; }
+        #fare-scanner img[alt="Info icon"] { display: none !important; }
+        #fare-scanner > div { max-height: 50vh !important; }
+        #fare-scanner .qr-shaded-region { border-width: 3px !important; }
+        /* Hide the "Info" link that html5-qrcode injects */
+        #fare-scanner a[href*="info"] { display: none !important; }
       `}</style>
     </>
   );
