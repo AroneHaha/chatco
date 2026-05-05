@@ -82,3 +82,11 @@ body {
 /* Hide scrollbar for category pills */
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 .scrollbar-hide::-webkit-scrollbar { display: none; }
+
+/* ─── Hide ALL scrollbars inside modals ─── */
+[role="dialog"] * {
+  scrollbar-width: none !important;
+}
+[role="dialog"] *::-webkit-scrollbar {
+  display: none !important;
+}
