@@ -87,50 +87,6 @@ export default function OperationsRulesPage() {
             </div>
           </div>
 
-          {/* Expense Categories */}
-          <div className="bg-[#131C2E] border border-[#1E2D45] p-4 sm:p-6 rounded-lg">
-            <div className="mb-4">
-              <h2 className="text-lg sm:text-xl font-semibold text-white">Conductor Expense Categories</h2>
-              <p className="text-xs text-slate-500 mt-1">These will appear in the conductor&apos;s expense logger dropdown.</p>
-            </div>
-
-            <div className="space-y-2 mb-4">
-              {expenseCategories.map((category: string) => (
-                <div key={category} className="flex items-center justify-between p-3 bg-[#0E1628] rounded-lg border border-[#1E2D45]">
-                  <span className="text-sm text-slate-200 break-words mr-4">{category}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveCategory(category)}
-                    className="text-slate-500 hover:text-red-400 transition-colors flex-shrink-0 p-1"
-                    title="Remove category"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            {/* Add Category Input */}
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="text"
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' ? (e.preventDefault(), handleAddCategory()) : null}
-                placeholder="e.g. Toll Fee, Oil Change"
-                className="flex-1 block w-full px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors"
-              />
-              <button
-                type="button"
-                onClick={handleAddCategory}
-                className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-5 py-2 bg-orange-500/20 text-orange-400 border border-orange-500/30 rounded-lg hover:bg-orange-500/30 transition-colors active:scale-95 font-medium text-sm"
-              >
-                <Plus size={16} />
-                <span>Add</span>
-              </button>
-            </div>
-          </div>
-
           {/* Mobile-Friendly Save Button */}
           <div className="flex justify-center pt-2 pb-8">
             <button

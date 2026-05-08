@@ -2,7 +2,6 @@
 'use client';
 
 import { useState } from 'react';
-import BackButton from '@/components/admin/ui/back-button';
 import { Save } from 'lucide-react';
 import { defaultFareConfig, type FareConfig } from '@/app/(admin)/settings/data/settings-data';
 
@@ -25,9 +24,6 @@ export default function FareMatrixPage() {
       <div className="mx-auto w-full max-w-2xl space-y-6">
 
         {/* Left-aligned Back Button */}
-        <div className="pt-2">
-          <BackButton href="/settings" />
-        </div>
 
         {/* Title */}
         <div className="text-center">
