@@ -87,7 +87,7 @@ export function RemittanceTable({ searchQuery, startDate, endDate, statusFilter 
         Click a row to view conductor details &amp; transaction history
       </p>
 
-      <DataTable data={paginatedData} columns={columns} searchQuery="" onRowClick={handleRowClick} />
+      <DataTable data={paginatedData} columns={columns} searchQuery="" onRowDoubleClick={handleRowClick} />
 
       {/* Pagination Controls */}
       <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-4 text-xs text-slate-400">
