@@ -386,8 +386,9 @@ export default function SettingsPage() {
       />
       <SosConfirmModal
         isOpen={showSOS}
-        onClose={() => setShowSOS(false)}
-        onConfirm={() => setShowSOS(false)}
+         conductorId={shift?.shiftId || ""}
+          conductorName={shift?.conductorName || ""}
+           onClose={() => setShowSOS(false)}
       />
 
       {/* ===== Logout Confirmation Modal ===== */}

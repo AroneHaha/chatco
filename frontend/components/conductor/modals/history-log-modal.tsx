@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Modal } from "@/components/admin/ui/modal";
+import { X } from "lucide-react";
 import { getShiftTransactions, type Transaction } from "@/lib/conductor-transactions";
 
 interface HistoryLogModalProps {
@@ -61,49 +61,57 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
     setDateTo("");
   };
 
+  if (!isOpen) return null;
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
-      <div className="space-y-3 p-2 max-h-[80vh] flex flex-col">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50">
+      <div className="relative bg-[#1A2540] border border-[#2A3A55] rounded-xl shadow-2xl w-full max-w-md mx-0 sm:mx-4 max-h-[85vh] sm:max-h-[90vh] flex flex-col rounded-b-none sm:rounded-b-xl mb-16 sm:mb-0">
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-white/8 transition-colors z-20"
+          aria-label="Close modal"
+        >
+          <X size={20} />
+        </button>
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1">
+          <div className="space-y-3 p-2 flex flex-col">
 
         {/* ── Header ─────────────────────────────────────────── */}
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-bold text-white">Transaction History</h2>
-            <p className="text-white/40 text-xs mt-0.5">
-              {history.length} total
-              <span className="mx-1.5 text-white/20">·</span>
-              <span className="text-purple-400 font-medium">{scannedCount} scanned</span>
-              <span className="mx-1.5 text-white/20">·</span>
-              <span className="text-emerald-400 font-medium">{prepaidCount} prepaid</span>
-            </p>
-          </div>
-
-          {/* Date Filter Toggle */}
-          <button
-            onClick={() => setShowDateFilter(!showDateFilter)}
-            className={`flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-              hasDateFilter
-                ? "bg-[#62A0EA]/20 border-[#62A0EA]/40 text-[#62A0EA]"
-                : showDateFilter
-                  ? "bg-white/10 border-white/20 text-white/70"
-                  : "bg-transparent border-white/10 text-white/40 hover:bg-white/5"
-            }`}
-          >
-            {/* Calendar icon — fixed path */}
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
-            </svg>
-            Date
-            {hasDateFilter && (
-              <svg className="w-3 h-3 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-              </svg>
-            )}
-          </button>
+        <div>
+          <h2 className="text-xl font-bold text-white">Transaction History</h2>
+          <p className="text-white/40 text-xs mt-0.5">
+            {history.length} total
+            <span className="mx-1.5 text-white/20">·</span>
+            <span className="text-purple-400 font-medium">{scannedCount} scanned</span>
+            <span className="mx-1.5 text-white/20">·</span>
+            <span className="text-emerald-400 font-medium">{prepaidCount} prepaid</span>
+          </p>
         </div>
+
+        {/* Date Filter Toggle — placed below title to avoid overlapping close button */}
+        <button
+          onClick={() => setShowDateFilter(!showDateFilter)}
+          className={`self-start flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+            hasDateFilter
+              ? "bg-[#62A0EA]/20 border-[#62A0EA]/40 text-[#62A0EA]"
+              : showDateFilter
+                ? "bg-white/10 border-white/20 text-white/70"
+                : "bg-transparent border-white/10 text-white/40 hover:bg-white/5"
+          }`}
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+          </svg>
+          Date
+          {hasDateFilter && (
+            <svg className="w-3 h-3 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          )}
+        </button>
         {/* ── End Header ─────────────────────────────────────── */}
 
-        {/* ── Date Filter Panel (outside header) ─────────────── */}
+        {/* ── Date Filter Panel ────────────────── */}
         {showDateFilter && (
           <div className="bg-white/5 rounded-xl p-3 border border-white/10 space-y-2">
             <div className="grid grid-cols-2 gap-2">
@@ -139,7 +147,7 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
           </div>
         )}
 
-        {/* ── Filter Pills (outside header) ──────────────────── */}
+        {/* ── Filter Pills ─────────────────────── */}
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
           {(["ALL", "Wallet_Prepay", "Wallet_Scanned"] as const).map((method) => (
             <button
@@ -160,7 +168,7 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
           ))}
         </div>
 
-        {/* ── Filtered Summary (outside header) ──────────────── */}
+        {/* ── Filtered Summary ─────────────────── */}
         {hasDateFilter && (
           <div className="flex items-center justify-between bg-[#62A0EA]/10 border border-[#62A0EA]/20 rounded-xl px-3 py-2.5">
             <div>
@@ -171,7 +179,7 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
           </div>
         )}
 
-        {/* ── Transaction List (outside header) ──────────────── */}
+        {/* ── Transaction List ─────────────────── */}
         {filteredHistory.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-white/30 text-sm py-10 gap-2">
             <svg className="w-10 h-10 text-white/10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -203,7 +211,6 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
                 hour12: true,
               });
 
-              // Computed succeeding fare from the fields that actually exist on Transaction
               const succeedingFare = tx.distance > 1
                 ? (tx.baseFare + (tx.succeedingKm * (tx.distance - 1))) - tx.baseFare
                 : 0;
@@ -212,7 +219,6 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
                 <div key={tx.transactionId} className={`border rounded-xl overflow-hidden transition-colors ${
                   isPrepaid ? "border-emerald-500/20" : isScanned ? "border-purple-500/20" : "border-white/10"
                 }`}>
-                  {/* Collapsed Row */}
                   <button
                     onClick={() => toggleExpand(tx.transactionId)}
                     className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors text-left"
@@ -221,19 +227,13 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
                       <div className="flex items-center gap-2">
                         <p className="text-white text-sm font-semibold truncate">{tx.passengerName}</p>
                         {isPrepaid && (
-                          <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 leading-none">
-                            Prepaid
-                          </span>
+                          <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 leading-none">Prepaid</span>
                         )}
                         {isScanned && (
-                          <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-purple-500/20 text-purple-400 border border-purple-500/30 leading-none">
-                            Scanned
-                          </span>
+                          <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-purple-500/20 text-purple-400 border border-purple-500/30 leading-none">Scanned</span>
                         )}
                       </div>
-                      <p className="text-white/40 text-xs mt-0.5 truncate">
-                        {displayDate} • {tx.from} → {tx.to}
-                      </p>
+                      <p className="text-white/40 text-xs mt-0.5 truncate">{displayDate} • {tx.from} → {tx.to}</p>
                     </div>
                     <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
                       <p className={`font-bold ${methodDisplay.color}`}>₱{tx.finalAmount.toFixed(2)}</p>
@@ -241,19 +241,16 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
                     </div>
                   </button>
 
-                  {/* Expanded Receipt */}
                   {expandedId === tx.transactionId && (
                     <div className="bg-white/5 p-4 border-t border-dashed border-white/10 text-xs space-y-1.5 font-mono">
                       <div className="flex justify-between"><span className="text-gray-400">Txn ID:</span><span className="text-white">{tx.transactionId}</span></div>
                       <div className="flex justify-between"><span className="text-gray-400">Date:</span><span className="text-white">{displayDate} {displayTime}</span></div>
-
                       <div className="border-t border-dashed border-white/10 pt-2 space-y-1">
                         <p className="text-white/50 font-bold uppercase text-[10px]">Passenger</p>
                         <div className="flex justify-between"><span className="text-gray-400">Name:</span><span className="text-white">{tx.passengerName}</span></div>
                         <div className="flex justify-between"><span className="text-gray-400">ID:</span><span className="text-white">{tx.passengerId}</span></div>
                         <div className="flex justify-between"><span className="text-gray-400">Role:</span><span className="text-white">{tx.passengerRole}</span></div>
                       </div>
-
                       <div className="border-t border-dashed border-white/10 pt-2 space-y-1">
                         <p className="text-white/50 font-bold uppercase text-[10px]">Route &amp; Fare</p>
                         <div className="flex justify-between"><span className="text-gray-400">Route:</span><span className="text-white capitalize">{tx.from} → {tx.to}</span></div>
@@ -263,34 +260,23 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
                         {tx.discountAmount > 0 && <div className="flex justify-between text-green-400"><span>Discount:</span><span>-₱{tx.discountAmount.toFixed(2)}</span></div>}
                         <div className="flex justify-between font-bold text-base text-[#62A0EA] border-t border-white/10 pt-2 mt-1"><span>Total:</span><span>₱{tx.finalAmount.toFixed(2)}</span></div>
                       </div>
-
                       <div className="border-t border-dashed border-white/10 pt-2 space-y-1">
                         <p className="text-white/50 font-bold uppercase text-[10px]">Unit Info</p>
                         <div className="flex justify-between"><span className="text-gray-400">Conductor:</span><span className="text-white">{tx.conductorName}</span></div>
                         <div className="flex justify-between"><span className="text-gray-400">Driver:</span><span className="text-white">{tx.driverName}</span></div>
                         <div className="flex justify-between"><span className="text-gray-400">Unit No:</span><span className="text-white">{tx.unitNumber}</span></div>
                       </div>
-
-                      {/* Payment Method */}
                       <div className={`border-t border-dashed pt-2 mt-1 ${isPrepaid ? "border-emerald-500/30" : isScanned ? "border-purple-500/30" : "border-white/10"}`}>
                         <div className="flex justify-between items-center">
                           <span className="text-gray-400">Payment Method:</span>
                           <span className={`font-bold text-sm ${methodDisplay.color}`}>
-                            {isPrepaid && (
-                              <svg className="w-3.5 h-3.5 inline mr-1 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                            )}
-                            {isScanned && (
-                              <svg className="w-3.5 h-3.5 inline mr-1 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5ZM13.5 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5Z" /></svg>
-                            )}
+                            {isPrepaid && (<svg className="w-3.5 h-3.5 inline mr-1 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>)}
+                            {isScanned && (<svg className="w-3.5 h-3.5 inline mr-1 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5ZM13.5 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5Z" /></svg>)}
                             {methodDisplay.label}
                           </span>
                         </div>
-                        {isPrepaid && (
-                          <p className="text-emerald-400/60 text-[10px] mt-1 text-right">Passenger paid via self-scan</p>
-                        )}
-                        {isScanned && (
-                          <p className="text-purple-400/60 text-[10px] mt-1 text-right">Conductor scanned passenger wallet</p>
-                        )}
+                        {isPrepaid && (<p className="text-emerald-400/60 text-[10px] mt-1 text-right">Passenger paid via self-scan</p>)}
+                        {isScanned && (<p className="text-purple-400/60 text-[10px] mt-1 text-right">Conductor scanned passenger wallet</p>)}
                       </div>
                     </div>
                   )}
@@ -299,7 +285,9 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
             })}
           </div>
         )}
+          </div>
+        </div>
       </div>
-    </Modal>
+    </div>
   );
 }

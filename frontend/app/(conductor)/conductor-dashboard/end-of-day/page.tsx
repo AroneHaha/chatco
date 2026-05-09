@@ -32,6 +32,7 @@ export default function EndOfDayPage() {
   const [reportForRecord, setReportForRecord] = useState<RemittanceRecord | null>(null);
   const [showFareCalc, setShowFareCalc] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [autoPrint, setAutoPrint] = useState(false);
   const [history, setHistory] = useState<RemittanceRecord[]>([]);
   
   const [shiftInfo, setShiftInfo] = useState({ conductorName: "Mark", driverName: "Ramon", unitNumber: "RIZ 2024", route: "Quiapo - Taytay", shiftId: "SHF-001", timeIn: new Date().toISOString(), timeOut: new Date().toISOString() });
@@ -63,14 +64,16 @@ export default function EndOfDayPage() {
     setTimeout(() => { setShowSuccess(false); router.replace("/login"); }, 3000);
   };
 
-  const openOfficialReport = (record?: RemittanceRecord) => { setReportForRecord(record || null); if (!record) setReportForRecord({ ...activeReport, remittanceStatus: hasRemittedToday ? "Remitted" : "Pending" }); setShowOfficialReport(true); };
+  const openOfficialReport = (record?: RemittanceRecord) => { setReportForRecord(record || null); if (!record) setReportForRecord({ ...activeReport, remittanceStatus: hasRemittedToday ? "Remitted" : "Pending" }); setAutoPrint(false); setShowOfficialReport(true); };
+
+  const printReport = (record: RemittanceRecord) => { setReportForRecord(record); setAutoPrint(true); setShowOfficialReport(true); };
 
   return (
     <div className="min-h-screen bg-[#050F1A] pb-28">
       <div className="sticky top-0 z-20 bg-[#050F1A]/90 backdrop-blur-xl border-b border-white/5"><div className="flex items-center gap-3 px-4 py-3.5"><button onClick={() => router.back()} className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white transition-all active:scale-95"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg></button><h1 className="text-white font-bold text-lg">End of Day Report</h1>{hasRemittedToday && <span className="ml-auto text-[10px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 px-2.5 py-1 rounded-full">Remitted</span>}</div></div>
 
       <div className="px-4 pt-5 space-y-5">
-        <div className="bg-[#071A2E] border border-white/[0.06] rounded-2xl p-4 flex items-center justify-between"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-[#1A5FB4]/15 flex items-center justify-center text-[#62A0EA] font-bold text-sm">{shiftInfo.driverName[0]}</div><div><p className="text-sm font-bold text-white">{shiftInfo.driverName}</p><p className="text-[11px] text-white/40 font-medium">{shiftInfo.unitNumber} · {shiftInfo.route}</p></div></div><button onClick={() => openOfficialReport()} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white/60 hover:bg-white/10 hover:text-white transition-all active:scale-[0.97]"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg><span className="text-[11px] font-semibold">Report</span></button></div>
+        <div className="bg-[#071A2E] border border-white/[0.06] rounded-2xl p-4 flex items-center justify-between"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-[#1A5FB4]/15 flex items-center justify-center text-[#62A0EA] font-bold text-sm">{shiftInfo.driverName[0]}</div><div><p className="text-sm font-bold text-white">{shiftInfo.driverName}</p><p className="text-[11px] text-white/40 font-medium">{shiftInfo.unitNumber} · {shiftInfo.route}</p></div></div></div>
 
         <div className="bg-[#071A2E] border border-white/[0.06] rounded-2xl p-4"><div className="flex items-center gap-2 mb-2"><div className="w-7 h-7 rounded-lg bg-[#1A5FB4]/15 flex items-center justify-center"><svg className="w-4 h-4 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" /></svg></div><p className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">Cashless Collected</p></div><p className="text-3xl font-extrabold text-[#62A0EA]">{fmt(summary.totalCashless)}</p></div>
 
@@ -86,12 +89,12 @@ export default function EndOfDayPage() {
           <div className="bg-emerald-500/8 border border-emerald-500/20 rounded-2xl p-4 flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-emerald-500/15 flex items-center justify-center flex-shrink-0"><svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg></div><div><p className="text-sm font-bold text-emerald-400">Remitted to Admin</p><p className="text-[11px] text-white/30 mt-0.5">Cashless {fmt(summary.totalCashless)} transferred · Cash {fmt(cashAmount)} for manual handover</p></div></div>
         )}
 
-        <HistorySection showHistory={showHistory} setShowHistory={setShowHistory} filteredHistory={filteredHistory} historyFilter={historyFilter} setHistoryFilter={setHistoryFilter} openOfficialReport={openOfficialReport} />
+        <HistorySection showHistory={showHistory} setShowHistory={setShowHistory} filteredHistory={filteredHistory} historyFilter={historyFilter} setHistoryFilter={setHistoryFilter} openOfficialReport={openOfficialReport} onPrintReport={printReport} />
       </div>
 
       <ConfirmModal show={showConfirm} onClose={() => setShowConfirm(false)} onConfirm={handleRemit} isRemitting={isRemitting} shiftInfo={shiftInfo} totalCashless={summary.totalCashless} cashAmount={cashAmount} grandTotal={grandTotal} />
       <SuccessOverlay show={showSuccess} onClose={() => { setShowSuccess(false); router.replace("/login"); }} totalCashless={summary.totalCashless} unitNumber={shiftInfo.unitNumber} />
-      <OfficialReportModal show={showOfficialReport} onClose={() => setShowOfficialReport(false)} activeReport={activeReport} route={shiftInfo.route} />
+      <OfficialReportModal show={showOfficialReport} onClose={() => { setShowOfficialReport(false); setAutoPrint(false); }} activeReport={activeReport} route={shiftInfo.route} autoPrint={autoPrint} />
       <FareCalculatorModal isOpen={showFareCalc} onClose={() => setShowFareCalc(false)} shiftId={shiftInfo.shiftId} conductorName={shiftInfo.conductorName} unitNumber={shiftInfo.unitNumber} driverName={shiftInfo.driverName} />
     </div>
   );
