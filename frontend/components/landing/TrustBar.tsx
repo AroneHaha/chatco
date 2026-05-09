@@ -1,6 +1,6 @@
 export default function TrustBar() {
   const items = [
-    { label: "Offline-First", sub: "Works without internet" },
+    { label: "No WiFi Needed", sub: "QR works without internet" },
     { label: "LTFRB Compliant", sub: "Accurate fare rates" },
     { label: "3 Platforms", sub: "Commuter · Conductor · Admin" },
     { label: "Multi-Language", sub: "EN · FIL · Regional" },

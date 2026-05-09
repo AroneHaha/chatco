@@ -15,8 +15,8 @@ export default function SafetySupport() {
     },
     {
       icon: Icons.sparkles,
-      title: "AI-Powered FAQ Assistant",
-      desc: "A floating chat head that answers common questions instantly — fare rates, route details, how to top up, lost item procedures. Reduces support load, improves UX.",
+      title: "Emergency SOS Alert",
+      desc: "One-tap panic button sends your location and vehicle details straight to the admin. No manual calls needed — help comes to you.",
     },
   ];
 

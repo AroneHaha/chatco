@@ -91,7 +91,11 @@ export function useProfile() {
   };
 
   const handleLogout = () => {
-    alert("Logging out...");
+    localStorage.removeItem("chatco_user");
+    localStorage.removeItem("conductor_active_shift");
+    localStorage.removeItem("conductor_transactions");
+    localStorage.removeItem("remittance_history");
+    window.location.href = "/login";
   };
 
   const closePasswordModal = () => {

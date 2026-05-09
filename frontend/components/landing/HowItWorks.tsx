@@ -4,8 +4,8 @@ import { useEffect, useRef, useState, useCallback } from "react";
 
 export default function HowItWorks() {
   const steps = [
-    { step: "01", title: "Load Your Wallet", desc: "Create your commuter account and top up your digital wallet via GCash or over-the-counter loading. Your unique QR code is generated instantly — works offline." },
-    { step: "02", title: "Ride & Scan", desc: "Board the jeepney, show your QR code to the Conductor. They scan it, input the fare, and payment is deducted — even without signal. Pending transactions auto-sync later." },
+    { step: "01", title: "Load Your Wallet", desc: "Create your commuter account and top up your digital wallet via GCash or over-the-counter loading. Your personal QR code is ready instantly." },
+    { step: "02", title: "Show & Pay", desc: "Board the jeepney and show your QR code to the conductor. They scan it, enter the fare, and your balance is deducted — no WiFi needed." },
     { step: "03", title: "Track & Arrive", desc: "Follow your jeepney in real-time on the map. Share your ride with family for safety. Receive a digital receipt instantly after every cashless trip." },
   ];
 

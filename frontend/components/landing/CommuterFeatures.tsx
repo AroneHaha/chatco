@@ -15,8 +15,8 @@ import {
 const row1 = [
   {
     icon: QrCode,
-    title: "Offline QR Payments",
-    desc: "No internet? No problem. Your unique QR is scanned locally and syncs automatically.",
+    title: "QR Wallet Payment",
+    desc: "No WiFi needed. Show your wallet QR to the conductor — they scan it, input the fare, and your balance is deducted instantly.",
     color: "bg-blue-50 text-blue-600",
   },
   {
@@ -57,12 +57,6 @@ const row2 = [
     title: "Ride & Earn Rewards",
     desc: "Every cashless ride earns points. Hit the threshold and unlock free ride vouchers.",
     color: "bg-yellow-50 text-yellow-600",
-  },
-  {
-    icon: Smartphone,
-    title: "AI Chat Assistant",
-    desc: "Our built-in AI assistant instantly helps with fares, routes, and support.",
-    color: "bg-indigo-50 text-indigo-600",
   },
 ];
 
