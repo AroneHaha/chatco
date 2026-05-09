@@ -75,6 +75,7 @@ body {
 }
 [role="dialog"] *::-webkit-scrollbar {
   display: none !important;
+<<<<<<< HEAD
 }
 
 /* ─── Print Styles: hide everything except the report modal ─── */
@@ -96,4 +97,6 @@ body {
     margin: 1cm;
     size: A4;
   }
+=======
+>>>>>>> 64fdff5c67edf9ff90957cfc5d9fb37c71ae41c1
 }

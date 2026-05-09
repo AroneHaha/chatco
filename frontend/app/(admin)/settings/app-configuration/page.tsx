@@ -2,7 +2,6 @@
 'use client';
 
 import { useState } from 'react';
-import BackButton from '@/components/admin/ui/back-button';
 import { Save, AlertTriangle } from 'lucide-react';
 import { defaultAppConfiguration, type AppConfiguration } from '@/app/(admin)/settings/data/settings-data';
 
@@ -19,11 +18,6 @@ export default function AppConfigurationPage() {
   return (
     <div className="min-h-screen pb-12 px-4 sm:px-6">
       <div className="mx-auto w-full max-w-3xl space-y-6">
-
-        {/* Left-aligned Back Button */}
-        <div className="pt-2">
-          <BackButton href="/settings" />
-        </div>
 
         {/* Title */}
         <div className="text-center">

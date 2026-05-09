@@ -13,7 +13,7 @@ interface DataTableProps<T> {
   columns: Column<T>[];
   searchQuery: string;
   emptyMessage?: string;
-  onRowClick?: (item: T) => void;
+  onRowDoubleClick?: (item: T) => void;
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -21,7 +21,7 @@ export function DataTable<T extends Record<string, any>>({
   columns,
   searchQuery,
   emptyMessage = 'No data found.',
-  onRowClick,
+  onRowDoubleClick,
 }: DataTableProps<T>) {
   const filteredData = useMemo(() => {
     if (!searchQuery) {
@@ -37,20 +37,20 @@ export function DataTable<T extends Record<string, any>>({
   }, [data, searchQuery]);
 
   return (
-    <div className="overflow-x-auto" style={{ touchAction: 'manipulation' }}>
+    <div className="overflow-x-auto">
       {filteredData.length === 0 ? (
         <div className="py-12 text-center">
           <p className="text-sm text-slate-500">{emptyMessage}</p>
         </div>
       ) : (
-        <table className="min-w-full" style={{ touchAction: 'manipulation' }}>
+        <table className="min-w-full">
           <thead>
             <tr className="border-b border-[#1E2D45]">
               {columns.map((col) => (
                 <th
                   key={col.key}
                   scope="col"
-                  className={`px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider whitespace-nowrap ${
+                  className={`px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider ${
                     col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'
                   }`}
                 >
@@ -63,13 +63,13 @@ export function DataTable<T extends Record<string, any>>({
             {filteredData.map((item, idx) => (
               <tr
                 key={idx}
-                className={`transition-colors ${onRowClick ? 'hover:bg-[#162033] cursor-pointer active:bg-[#1A2A40]' : 'hover:bg-[#162033]'}`}
-                onClick={() => onRowClick?.(item)}
+                className={`hover:bg-[#162033] transition-colors ${onRowDoubleClick ? 'cursor-pointer' : ''}`}
+                onDoubleClick={() => onRowDoubleClick?.(item)}
               >
                 {columns.map((col) => (
                   <td
                     key={col.key}
-                    className={`px-4 py-3 text-sm text-slate-300 whitespace-nowrap ${
+                    className={`px-4 py-3 text-sm text-slate-300 ${
                       col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'
                     }`}
                   >

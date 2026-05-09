@@ -2,7 +2,6 @@
 'use client';
 
 import { useState } from 'react';
-import BackButton from '@/components/admin/ui/back-button';
 import { Save, PhoneCall, MessageSquare, Mail } from 'lucide-react';
 import {
   defaultSafetyConfig,
@@ -45,7 +44,6 @@ export default function SafetyNotificationsPage() {
   return (
     <div className="min-h-screen pb-12 px-4 sm:px-6">
       <div className="mx-auto w-full max-w-4xl space-y-6">
-        <div className="pt-2"><BackButton href="/settings" /></div>
         <div className="text-center">
           <h1 className="text-2xl sm:text-3xl font-bold text-white">Safety & Notifications</h1>
         </div>
