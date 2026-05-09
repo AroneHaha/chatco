@@ -1,12 +1,11 @@
 // components/conductor/remittance/OfficialReportModal.tsx
-import { useEffect, useRef, useCallback } from "react";
 import { RemittanceRecord } from "@/lib/remittance-history";
 import { formatTime } from "@/lib/conductor-shift";
 import { fmt, fmtDate, fmtDateTime } from "@/app/(conductor)/conductor-dashboard/end-of-day/helpers";
 
-interface OfficialReportModalProps { show: boolean; onClose: () => void; activeReport: RemittanceRecord; route: string; autoPrint?: boolean; }
+interface OfficialReportModalProps { show: boolean; onClose: () => void; activeReport: RemittanceRecord; route: string; }
 
-function buildPrintHTML(report: RemittanceRecord, route: string): string {
+export function buildPrintHTML(report: RemittanceRecord, route: string): string {
   const statusColor = report.remittanceStatus === "Remitted" ? "#16a34a" : "#d97706";
   const statusBg = report.remittanceStatus === "Remitted" ? "#f0fdf4" : "#fffbeb";
 
@@ -259,69 +258,7 @@ function buildPrintHTML(report: RemittanceRecord, route: string): string {
 </html>`;
 }
 
-export default function OfficialReportModal({ show, onClose, activeReport, route, autoPrint = false }: OfficialReportModalProps) {
-  const printFrameRef = useRef<HTMLIFrameElement | null>(null);
-
-  const handlePrint = useCallback(() => {
-    const html = buildPrintHTML(activeReport, route);
-
-    // Create a hidden iframe for isolated printing
-    const iframe = document.createElement("iframe");
-    iframe.style.position = "fixed";
-    iframe.style.right = "0";
-    iframe.style.bottom = "0";
-    iframe.style.width = "0";
-    iframe.style.height = "0";
-    iframe.style.border = "none";
-    document.body.appendChild(iframe);
-    printFrameRef.current = iframe;
-
-    const doc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (doc) {
-      doc.open();
-      doc.write(html);
-      doc.close();
-    }
-
-    // Wait for content to render, then print the iframe
-    iframe.onload = () => {
-      setTimeout(() => {
-        try {
-          iframe.contentWindow?.focus();
-          iframe.contentWindow?.print();
-        } catch (e) {
-          // Fallback: open in new window
-          const printWindow = window.open("", "_blank");
-          if (printWindow) {
-            printWindow.document.write(html);
-            printWindow.document.close();
-            printWindow.onload = () => {
-              printWindow.print();
-              printWindow.close();
-            };
-          }
-        }
-        // Clean up iframe after a delay
-        setTimeout(() => {
-          if (iframe.parentNode) {
-            document.body.removeChild(iframe);
-          }
-          printFrameRef.current = null;
-        }, 1000);
-      }, 300);
-    };
-  }, [activeReport, route]);
-
-  // Auto-trigger print when opened via Print button from history
-  useEffect(() => {
-    if (autoPrint && show) {
-      const timer = setTimeout(() => {
-        handlePrint();
-      }, 600);
-      return () => clearTimeout(timer);
-    }
-  }, [autoPrint, show, handlePrint]);
-
+export default function OfficialReportModal({ show, onClose, activeReport, route }: OfficialReportModalProps) {
   if (!show) return null;
 
   return (
@@ -341,7 +278,7 @@ export default function OfficialReportModal({ show, onClose, activeReport, route
           <div className="flex items-center justify-between bg-white/[0.03] border border-white/[0.05] rounded-xl px-4 py-3"><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Remittance Status</p><p className="text-xs font-semibold text-white/60 mt-0.5">Remitted to Admin</p></div><span className={`text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${activeReport.remittanceStatus === "Remitted" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-amber-500/10 text-amber-400 border border-amber-500/20"}`}>{activeReport.remittanceStatus}</span></div>
           <p className="text-[10px] text-white/15 text-center font-mono">Generated: {fmtDateTime()}</p>
         </div>
-        <div className="flex-shrink-0 px-6 py-4 border-t border-white/[0.06] flex gap-3 bg-[#0F2135]"><button onClick={onClose} className="flex-1 py-3 rounded-xl bg-white/5 border border-white/10 text-white/50 text-xs font-semibold hover:bg-white/10 transition-all">Close</button><button onClick={handlePrint} className="flex-1 py-3 rounded-xl bg-[#1A5FB4] text-white text-xs font-bold shadow-lg shadow-[#1A5FB4]/20 hover:bg-[#165a9f] transition-all flex items-center justify-center gap-1.5"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" /></svg>Print</button></div>
+        <div className="flex-shrink-0 px-6 py-4 border-t border-white/[0.06] bg-[#0F2135]"><button onClick={onClose} className="w-full py-3 rounded-xl bg-white/5 border border-white/10 text-white/50 text-xs font-semibold hover:bg-white/10 transition-all">Close</button></div>
       </div>
     </div>
   );

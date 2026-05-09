@@ -18,7 +18,7 @@ import { fmt, methodConfig } from "./helpers";
 import HistorySection from "@/components/conductor/remittance/HistorySection";
 import ConfirmModal from "@/components/conductor/remittance/ConfirmModal";
 import SuccessOverlay from "@/components/conductor/remittance/SuccessOverlay";
-import OfficialReportModal from "@/components/conductor/remittance/OfficialReportModal";
+import OfficialReportModal, { buildPrintHTML } from "@/components/conductor/remittance/OfficialReportModal";
 
 export default function EndOfDayPage() {
   const router = useRouter();
@@ -32,7 +32,6 @@ export default function EndOfDayPage() {
   const [reportForRecord, setReportForRecord] = useState<RemittanceRecord | null>(null);
   const [showFareCalc, setShowFareCalc] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [autoPrint, setAutoPrint] = useState(false);
   const [history, setHistory] = useState<RemittanceRecord[]>([]);
   
   const [shiftInfo, setShiftInfo] = useState({ conductorName: "Mark", driverName: "Ramon", unitNumber: "RIZ 2024", route: "Quiapo - Taytay", shiftId: "SHF-001", timeIn: new Date().toISOString(), timeOut: new Date().toISOString() });
@@ -48,7 +47,8 @@ export default function EndOfDayPage() {
   useEffect(() => { const handler = () => setShowFareCalc(true); window.addEventListener("conductor:scan-qr", handler); return () => window.removeEventListener("conductor:scan-qr", handler); }, []);
 
   const summary = useMemo(() => { const keys = ["Wallet_Scanned", "Wallet_Prepay", "Voucher"] as const; const breakdown: Record<string, { count: number; amount: number }> = {}; for (const key of keys) { const txns = transactions.filter((t) => t.paymentMethod === key); breakdown[key] = { count: txns.length, amount: txns.reduce((s, t) => s + t.finalAmount, 0) }; } return { breakdown, totalPassengers: transactions.length, totalCashless: transactions.reduce((s, t) => s + t.finalAmount, 0) }; }, [transactions]);
-  const cashAmount = parseFloat(cashDeclared) || 0;
+  const MAX_CASH = 50000;
+  const cashAmount = Math.min(parseFloat(cashDeclared) || 0, MAX_CASH);
   const grandTotal = summary.totalCashless + cashAmount;
   const canRemit = cashAmount > 0 && !hasRemittedToday;
 
@@ -64,9 +64,28 @@ export default function EndOfDayPage() {
     setTimeout(() => { setShowSuccess(false); router.replace("/login"); }, 3000);
   };
 
-  const openOfficialReport = (record?: RemittanceRecord) => { setReportForRecord(record || null); if (!record) setReportForRecord({ ...activeReport, remittanceStatus: hasRemittedToday ? "Remitted" : "Pending" }); setAutoPrint(false); setShowOfficialReport(true); };
+  const openOfficialReport = (record?: RemittanceRecord) => { setReportForRecord(record || null); if (!record) setReportForRecord({ ...activeReport, remittanceStatus: hasRemittedToday ? "Remitted" : "Pending" }); setShowOfficialReport(true); };
 
-  const printReport = (record: RemittanceRecord) => { setReportForRecord(record); setAutoPrint(true); setShowOfficialReport(true); };
+  const printReport = (record: RemittanceRecord) => {
+    const html = buildPrintHTML(record, shiftInfo.route);
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "none";
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (doc) { doc.open(); doc.write(html); doc.close(); }
+    iframe.onload = () => {
+      setTimeout(() => {
+        try { iframe.contentWindow?.focus(); iframe.contentWindow?.print(); }
+        catch { const pw = window.open("", "_blank"); if (pw) { pw.document.write(html); pw.document.close(); pw.onload = () => { pw.print(); pw.close(); }; } }
+        setTimeout(() => { if (iframe.parentNode) document.body.removeChild(iframe); }, 1000);
+      }, 300);
+    };
+  };
 
   return (
     <div className="min-h-screen bg-[#050F1A] pb-28">
@@ -79,7 +98,11 @@ export default function EndOfDayPage() {
 
         <div className="bg-[#071A2E] border border-white/[0.06] rounded-2xl overflow-hidden"><div className="px-4 py-3 border-b border-white/5"><p className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Cashless Breakdown</p></div><div className="divide-y divide-white/[0.04]">{(Object.entries(summary.breakdown) as [string, { count: number; amount: number }][]).map(([key, val]) => { const cfg = methodConfig[key]; return (<div key={key} className="flex items-center justify-between px-4 py-3"><div className="flex items-center gap-2.5"><div className={`w-2 h-2 rounded-full ${cfg.dot}`} /><span className="text-sm font-medium text-white/70">{cfg.label}</span><span className="text-[11px] text-white/30 font-medium tabular-nums">{val.count}x</span></div><span className={`text-sm font-bold tabular-nums ${cfg.color}`}>{fmt(val.amount)}</span></div>); })}</div><div className="px-4 py-3 bg-white/[0.02] border-t border-white/[0.06] flex items-center justify-between"><span className="text-xs font-bold text-white/50 uppercase tracking-wider">Total Cashless</span><span className="text-base font-extrabold text-white tabular-nums">{fmt(summary.totalCashless)}</span></div></div>
 
-        <div className="bg-[#071A2E] border border-white/[0.06] rounded-2xl p-4 space-y-3"><div className="flex items-center justify-between"><p className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Cash Declaration</p><p className="text-[10px] text-amber-400/60 font-medium">Manual input</p></div><div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-bold text-white/30">₱</span><input type="number" min="0" step="0.01" value={cashDeclared} onChange={(e) => !hasRemittedToday && setCashDeclared(e.target.value)} disabled={hasRemittedToday} placeholder="0.00" className={`w-full bg-white/5 border rounded-xl pl-9 pr-4 py-3.5 text-xl font-bold text-white tabular-nums placeholder:text-white/15 outline-none transition-all ${hasRemittedToday ? "border-white/5 opacity-50 cursor-not-allowed" : "border-white/10 focus:border-[#1A5FB4]/50 focus:ring-2 focus:ring-[#1A5FB4]/20"}`} /></div><p className="text-[10px] text-white/25 leading-relaxed">Enter the total cash collected during your shift. Physical cash must be handed over manually to admin.</p></div>
+        <div className="bg-[#071A2E] border border-white/[0.06] rounded-2xl p-4 space-y-3"><div className="flex items-center justify-between"><p className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Cash Declaration</p><p className="text-[10px] text-amber-400/60 font-medium">Manual input</p></div><div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-bold text-white/30">₱</span><input type="number" min="0" max="50000" step="0.01" value={cashDeclared} onChange={(e) => {
+                    if (hasRemittedToday) return;
+                    const val = parseFloat(e.target.value);
+                    if (isNaN(val) || val <= MAX_CASH) setCashDeclared(e.target.value);
+                  }} disabled={hasRemittedToday} placeholder="0.00" className={`w-full bg-white/5 border rounded-xl pl-9 pr-4 py-3.5 text-xl font-bold text-white tabular-nums placeholder:text-white/15 outline-none transition-all ${hasRemittedToday ? "border-white/5 opacity-50 cursor-not-allowed" : "border-white/10 focus:border-[#1A5FB4]/50 focus:ring-2 focus:ring-[#1A5FB4]/20"}`} /></div><p className="text-[10px] text-white/25 leading-relaxed">Enter the total cash collected during your shift. Physical cash must be handed over manually to admin. <span className="text-amber-400/60">Maximum: ₱50,000.00</span></p></div>
 
         <div className="bg-[#1A5FB4]/8 border border-[#1A5FB4]/20 rounded-2xl p-4 space-y-3"><p className="text-[10px] font-bold text-[#62A0EA]/60 uppercase tracking-wider">Collection Summary</p><div className="space-y-2"><div className="flex items-center justify-between"><span className="text-sm text-white/50">Cashless (digital)</span><span className="text-sm font-bold text-white tabular-nums">{fmt(summary.totalCashless)}</span></div><div className="flex items-center justify-between"><span className="text-sm text-white/50">Cash (declared)</span><span className="text-sm font-bold text-white tabular-nums">{cashAmount > 0 ? fmt(cashAmount) : "—"}</span></div></div><div className="h-px bg-white/10" /><div className="flex items-center justify-between"><span className="text-xs font-bold text-white/70 uppercase tracking-wider">Grand Total</span><span className="text-2xl font-extrabold text-[#62A0EA] tabular-nums">{grandTotal > 0 ? fmt(grandTotal) : "—"}</span></div></div>
 
@@ -94,7 +117,7 @@ export default function EndOfDayPage() {
 
       <ConfirmModal show={showConfirm} onClose={() => setShowConfirm(false)} onConfirm={handleRemit} isRemitting={isRemitting} shiftInfo={shiftInfo} totalCashless={summary.totalCashless} cashAmount={cashAmount} grandTotal={grandTotal} />
       <SuccessOverlay show={showSuccess} onClose={() => { setShowSuccess(false); router.replace("/login"); }} totalCashless={summary.totalCashless} unitNumber={shiftInfo.unitNumber} />
-      <OfficialReportModal show={showOfficialReport} onClose={() => { setShowOfficialReport(false); setAutoPrint(false); }} activeReport={activeReport} route={shiftInfo.route} autoPrint={autoPrint} />
+      <OfficialReportModal show={showOfficialReport} onClose={() => setShowOfficialReport(false)} activeReport={activeReport} route={shiftInfo.route} />
       <FareCalculatorModal isOpen={showFareCalc} onClose={() => setShowFareCalc(false)} shiftId={shiftInfo.shiftId} conductorName={shiftInfo.conductorName} unitNumber={shiftInfo.unitNumber} driverName={shiftInfo.driverName} />
     </div>
   );
