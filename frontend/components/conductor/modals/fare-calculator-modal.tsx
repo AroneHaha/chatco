@@ -335,7 +335,9 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
 
                 return (
                   <div key={point.pointNumber} className="mb-1">
-                    <button
+                    <div
+                      role="button"
+                      tabIndex={0}
                       onClick={() => {
                         if (selectingField === "pickup") {
                           setPickupPoint(point);
@@ -347,7 +349,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                         }
                         setSearchQuery("");
                       }}
-                      className={`w-full text-left p-3 rounded-xl transition-colors ${
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); (e.target as HTMLElement).click(); } }}
+                      className={`w-full text-left p-3 rounded-xl transition-colors cursor-pointer ${
                         isSelected
                           ? isPickup && isDropoff
                             ? "bg-purple-500/20 border border-purple-500/40"
@@ -429,7 +432,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                           </button>
                         </div>
                       </div>
-                    </button>
+                    </div>
 
                     {/* Expanded landmarks */}
                     {isExpanded && (
@@ -442,7 +445,9 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                           const isLandmarkDropoff = dropoffPoint?.pointNumber === point.pointNumber && dropoffLandmark === landmark;
                           const isLandmarkSelected = isLandmarkPickup || isLandmarkDropoff;
                           return (
-                            <button
+                            <div
+                              role="button"
+                              tabIndex={0}
                               key={idx}
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -459,7 +464,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                                   setDropoffLandmark(landmark);
                                 }
                               }}
-                              className={`flex items-center gap-2 px-2 py-1.5 rounded-md w-full text-left transition-colors border ${
+                              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); (e.target as HTMLElement).click(); } }}
+                              className={`flex items-center gap-2 px-2 py-1.5 rounded-md w-full text-left transition-colors border cursor-pointer ${
                                 isLandmarkSelected
                                   ? isLandmarkPickup && isLandmarkDropoff
                                     ? "bg-purple-500/15 border-purple-500/30"
@@ -490,7 +496,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                               {isLandmarkPickup && isLandmarkDropoff && (
                                 <span className="text-[8px] font-bold text-purple-400 bg-purple-500/10 px-1 py-0.5 rounded ml-auto">BOTH</span>
                               )}
-                            </button>
+                            </div>
                           );
                         })}
                       </div>
