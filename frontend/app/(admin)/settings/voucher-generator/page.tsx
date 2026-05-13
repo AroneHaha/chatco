@@ -60,11 +60,11 @@ export default function VoucherGeneratorPage() {
                       className="block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors [color-scheme:dark]"
                     >
                       <option value="FREE_RIDE" className="bg-gray-800">Free Ride</option>
-                      <option value="WALLET" className="bg-gray-800">Wallet Credit</option>
+                      <option value="DISCOUNT" className="bg-gray-800">Discount Credit</option>
                     </select>
                   </div>
 
-                  {voucherType === 'WALLET' && (
+                  {voucherType === 'DISCOUNT' && (
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-1.5">Credit Amount (₱)</label>
                       <input

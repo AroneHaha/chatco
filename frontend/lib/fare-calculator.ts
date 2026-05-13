@@ -150,3 +150,21 @@ export function getNearestPoint(
 }
 
 export type { FarePoint, FareResult };
+
+// ─── Utility Exports (used by commuter UI components) ───────────────────────
+
+/** Format a number as Philippine peso string */
+export function formatCurrency(amount: number): string {
+  return `\u20B1${amount.toFixed(2)}`;
+}
+
+/** Get the display label for a commuter type */
+export function getCommuterTypeLabel(type: CommuterType): string {
+  const labels: Record<CommuterType, string> = {
+    REGULAR: "Regular",
+    STUDENT: "Student",
+    SENIOR_CITIZEN: "Senior Citizen",
+    PWD: "PWD",
+  };
+  return labels[type];
+}
