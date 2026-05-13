@@ -21,12 +21,17 @@ import {
 } from "@/lib/gcash-payment";
 
 interface FareCalcModalProps {
+  isOpen: boolean;
   onClose: () => void;
+  shiftId?: string;
+  conductorName?: string;
+  unitNumber?: string;
+  driverName?: string;
 }
 
 type Step = "select" | "confirm" | "processing" | "success" | "failed";
 
-export default function FareCalcModal({ onClose }: FareCalcModalProps) {
+export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName, unitNumber, driverName }: FareCalcModalProps) {
   const [step, setStep] = useState<Step>("select");
   const [pickupPoint, setPickupPoint] = useState<PointArea | null>(null);
   const [dropoffPoint, setDropoffPoint] = useState<PointArea | null>(null);
@@ -123,18 +128,37 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
     }
   };
 
+  // ─── RESET STATE & CLOSE ──────────────────────────────────────
+  const handleClose = () => {
+    setStep("select");
+    setPickupPoint(null);
+    setDropoffPoint(null);
+    setPickupLandmark(null);
+    setDropoffLandmark(null);
+    setCommuterType("REGULAR");
+    setSearchQuery("");
+    setSelectingField("pickup");
+    setExpandedBarangay(null);
+    setPaymentIntent(null);
+    setPaymentStatus(null);
+    onClose();
+  };
+
+  // ─── HIDDEN UNTIL CLICKED ──────────────────────────────────────
+  if (!isOpen) return null;
+
   // ─── STEP: Point Area Selection ─────────────────────────────────
 
   if (step === "select") {
     return (
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
+      <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
         <div className="w-full sm:max-w-md bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-white/10 shadow-2xl max-h-[90vh] flex flex-col">
           {/* Header */}
           <div className="p-5 border-b border-white/10">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-white">Calculate Fare</h2>
               <button
-                onClick={onClose}
+                onClick={handleClose}
                 className="text-white/40 hover:text-white transition-colors"
               >
                 <svg
@@ -544,7 +568,7 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
 
   if (step === "confirm" && fareInfo) {
     return (
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
         <div className="w-full sm:max-w-sm bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl">
           <div className="p-6">
             <h2 className="text-lg font-bold text-white mb-4">
@@ -663,7 +687,7 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
 
   if (step === "processing") {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
         <div className="w-full max-w-xs bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl p-8 text-center">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-[#1A5FB4] border-t-transparent animate-spin" />
           <h2 className="text-lg font-bold text-white mb-2">
@@ -681,7 +705,7 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
 
   if (step === "success" && fareInfo) {
     return (
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
         <div className="w-full sm:max-w-sm bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl">
           <div className="p-6 text-center">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center">
@@ -753,7 +777,7 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
             </div>
 
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="w-full py-3 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] text-white text-sm font-bold transition-colors"
             >
               Done
@@ -768,7 +792,7 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
 
   if (step === "failed") {
     return (
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
         <div className="w-full sm:max-w-sm bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl">
           <div className="p-6 text-center">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
@@ -795,7 +819,7 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
             </p>
             <div className="flex gap-3">
               <button
-                onClick={onClose}
+                onClick={handleClose}
                 className="flex-1 py-3 rounded-xl border border-white/10 text-white/60 text-sm font-semibold hover:bg-white/5 transition-colors"
               >
                 Close
