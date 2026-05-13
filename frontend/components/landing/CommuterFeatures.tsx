@@ -7,9 +7,9 @@ import {
   MapPin,
   Calculator,
   Megaphone,
-  RotateCcw,
   ShieldCheck,
   Gift,
+  Bell,
 } from "lucide-react";
 
 const row1 = [
@@ -41,9 +41,9 @@ const row1 = [
 
 const row2 = [
   {
-    icon: RotateCcw,
-    title: "Refund Requests",
-    desc: "Trip interrupted? Submit a refund request for engine breakdowns, incomplete rides, or overcharges.",
+    icon: Bell,
+    title: "Ride Notifications",
+    desc: "Get real-time alerts when a CHATCO jeep is nearby, when your ride is confirmed, and when you arrive at your drop-off.",
     color: "bg-cyan-50 text-cyan-600",
   },
   {

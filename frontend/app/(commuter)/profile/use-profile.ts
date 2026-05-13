@@ -101,7 +101,6 @@ export function useProfile() {
   const handleLogout = () => {
     localStorage.removeItem("chatco_user");
     localStorage.removeItem("chatco_payment_history");
-    localStorage.removeItem("chatco_refund_requests");
     localStorage.removeItem("conductor_active_shift");
     localStorage.removeItem("conductor_transactions");
     localStorage.removeItem("remittance_history");
@@ -130,7 +129,7 @@ export function useProfile() {
     handleEditChange,
     showPasswordModal,
     setShowPasswordModal,
-    passwordData,
+    passwordData, 
     setPasswordData,
     isChangingPassword,
     handleChangePassword,

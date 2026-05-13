@@ -59,9 +59,9 @@ export const faqCategories: FAQCategory[] = [
           "Yes, for cashless payments you'll need a GCash account. When the conductor scans your QR, you'll receive a GCash payment prompt to confirm. You can also pay with cash directly to the conductor.",
       },
       {
-        question: "Can I get a refund?",
+        question: "What happens if my ride is interrupted?",
         answer:
-          "Yes! If your trip is interrupted due to engine breakdown, an incomplete ride, or similar issues, you can submit a refund request through the app. GCash payments are reversed back to your account. Cash refunds are processed manually by the conductor.",
+          "If your trip is interrupted (e.g., engine breakdown), report the issue directly to the conductor or contact our support team. We'll work with you to resolve the situation as quickly as possible.",
       },
     ],
   },
