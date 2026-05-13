@@ -5,7 +5,17 @@ import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 
-const FareCalculatorModal = dynamic(
+// Explicit type for dynamic import — prevents Vercel build type inference errors
+interface FareCalculatorModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  shiftId: string;
+  conductorName: string;
+  unitNumber: string;
+  driverName: string;
+}
+
+const FareCalculatorModal = dynamic<FareCalculatorModalProps>(
   () => import("@/components/conductor/modals/fare-calculator-modal"),
   { ssr: false }
 );
