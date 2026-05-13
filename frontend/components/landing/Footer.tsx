@@ -52,7 +52,7 @@ export default function Footer({ compact = false }: { compact?: boolean }) {
           <div>
             <h4 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-4">Features</h4>
             <ul className="space-y-2 text-sm">
-              <li><a href="#features" className="hover:text-white transition-colors">Offline QR Pay</a></li>
+              <li><a href="#features" className="hover:text-white transition-colors">GCash Payment</a></li>
               <li><a href="#safety" className="hover:text-white transition-colors">Share My Ride</a></li>
               <li><a href="#safety" className="hover:text-white transition-colors">SOS Alert</a></li>
               <li><a href="#" className="hover:text-white transition-colors">Loyalty Rewards</a></li>

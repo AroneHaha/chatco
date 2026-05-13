@@ -4,9 +4,21 @@ import { useEffect, useRef, useState, useCallback } from "react";
 
 export default function HowItWorks() {
   const steps = [
-    { step: "01", title: "Load Your Wallet", desc: "Create your commuter account and top up your digital wallet via GCash or over-the-counter loading. Your personal QR code is ready instantly." },
-    { step: "02", title: "Show & Pay", desc: "Board the jeepney and show your QR code to the conductor. They scan it, enter the fare, and your balance is deducted — no WiFi needed." },
-    { step: "03", title: "Track & Arrive", desc: "Follow your jeepney in real-time on the map. Share your ride with family for safety. Receive a digital receipt instantly after every cashless trip." },
+    {
+      step: "01",
+      title: "Open & Hail",
+      desc: "Open CHATCO and tap Hail Me to alert nearby conductors. Your location is sent automatically — no need to flag down a jeep manually.",
+    },
+    {
+      step: "02",
+      title: "Show & Pay",
+      desc: "Board the jeepney and show your QR code to the conductor. They scan it, select your pickup and drop-off points, and fare is paid directly via GCash — no WiFi needed on your end.",
+    },
+    {
+      step: "03",
+      title: "Track & Arrive",
+      desc: "Follow your jeepney in real-time on the map. Share your ride with family for safety. Get a digital receipt instantly after every cashless trip.",
+    },
   ];
 
   const [revealed, setRevealed] = useState([false, false, false]);
@@ -19,14 +31,7 @@ export default function HowItWorks() {
 
     const rect = section.getBoundingClientRect();
     const viewportCenter = window.innerHeight / 2;
-
-    // How far the section top has scrolled ABOVE the viewport center
-    // Positive = section top is above center (user has scrolled past it)
     const scrollPast = viewportCenter - rect.top;
-
-    // Step 1: as soon as section top reaches viewport center
-    // Step 2: needs ~250px more scrolling
-    // Step 3: needs ~500px more scrolling
     const thresholds = [0, 250, 500];
 
     thresholds.forEach((threshold, idx) => {
@@ -48,19 +53,24 @@ export default function HowItWorks() {
   }, [checkPositions]);
 
   return (
-    <section id="how-it-works" ref={sectionRef} className="py-20 md:py-28 bg-white text-gray-900">
+    <section
+      id="how-it-works"
+      ref={sectionRef}
+      className="py-20 md:py-28 bg-white text-gray-900"
+    >
       <div className="max-w-7xl mx-auto px-5 md:px-8">
         <div className="text-center mb-14">
-          <span className="text-xs font-semibold text-[#1A5FB4] uppercase tracking-widest">How It Works</span>
-          <h2 className="mt-3 text-3xl md:text-4xl font-extrabold tracking-tight">Three Steps to Smarter Commuting</h2>
+          <span className="text-xs font-semibold text-[#1A5FB4] uppercase tracking-widest">
+            How It Works
+          </span>
+          <h2 className="mt-3 text-3xl md:text-4xl font-extrabold tracking-tight">
+            Three Steps to Smarter Commuting
+          </h2>
         </div>
         <div className="relative grid md:grid-cols-3 gap-8">
           <div className="hidden md:block absolute top-12 left-[20%] right-[20%] h-[2px] bg-gradient-to-r from-[#DAEEFF] via-[#1A5FB4]/30 to-[#DAEEFF]" />
           {steps.map((s, idx) => (
-            <div
-              key={s.step}
-              className="relative text-center"
-            >
+            <div key={s.step} className="relative text-center">
               <div
                 className={`inline-flex items-center justify-center w-24 h-24 rounded-2xl mb-5 transition-all duration-700 ease-out ${
                   revealed[idx]
@@ -76,14 +86,28 @@ export default function HowItWorks() {
                     stroke="currentColor"
                     strokeWidth={3}
                   >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="m4.5 12.75 6 6 9-13.5"
+                    />
                   </svg>
                 ) : (
-                  <span className="text-3xl font-extrabold text-[#1A5FB4]">{s.step}</span>
+                  <span className="text-3xl font-extrabold text-[#1A5FB4]">
+                    {s.step}
+                  </span>
                 )}
               </div>
-              <h3 className={`text-lg font-bold mb-2 transition-colors duration-500 ${revealed[idx] ? "text-green-700" : ""}`}>{s.title}</h3>
-              <p className="text-sm text-gray-500 leading-relaxed max-w-xs mx-auto">{s.desc}</p>
+              <h3
+                className={`text-lg font-bold mb-2 transition-colors duration-500 ${
+                  revealed[idx] ? "text-green-700" : ""
+                }`}
+              >
+                {s.title}
+              </h3>
+              <p className="text-sm text-gray-500 leading-relaxed max-w-xs mx-auto">
+                {s.desc}
+              </p>
             </div>
           ))}
         </div>

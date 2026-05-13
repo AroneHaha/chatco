@@ -10,27 +10,30 @@ const MOCK_USER: CommuterProfile = {
   gender: "Male",
   email: "arone.delacruz@gmail.com",
   contactNumber: "09123456789",
-  commuterType: "REGULAR", // Admin downgraded them to Regular
+  commuterType: "REGULAR",
   username: "arone_dc",
   languagePreference: "English",
-  accountStatus: "DISCOUNT_REJECTED", // Try changing to ACTIVE or PENDING_VERIFICATION
+  accountStatus: "DISCOUNT_REJECTED",
   idImageUrl: "/mock-id.jpg",
   verifiedAt: null,
   createdAt: "2026-03-10T10:00:00Z",
-  balance: 487.50,
-  appliedType: "STUDENT" // They originally applied as Student
+  appliedType: "STUDENT",
 };
 
 export function useProfile() {
   const [profile, setProfile] = useState<CommuterProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<CommuterProfile>>({});
   const [isSaving, setIsSaving] = useState(false);
 
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [passwordData, setPasswordData] = useState<PasswordPayload>({ oldPassword: "", newPassword: "", confirmNewPassword: "" });
+  const [passwordData, setPasswordData] = useState<PasswordPayload>({
+    oldPassword: "",
+    newPassword: "",
+    confirmNewPassword: "",
+  });
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
@@ -42,12 +45,16 @@ export function useProfile() {
   }, []);
 
   const handleEditChange = (field: string, value: string) => {
-    setEditData(prev => ({ ...prev, [field]: value }));
+    setEditData((prev) => ({ ...prev, [field]: value }));
   };
 
   const startEditing = () => {
     if (!profile) return;
-    setEditData({ email: profile.email, contactNumber: profile.contactNumber, languagePreference: profile.languagePreference });
+    setEditData({
+      email: profile.email,
+      contactNumber: profile.contactNumber,
+      languagePreference: profile.languagePreference,
+    });
     setIsEditing(true);
   };
 
@@ -58,8 +65,8 @@ export function useProfile() {
 
   const saveProfile = async () => {
     setIsSaving(true);
-    await new Promise(r => setTimeout(r, 800));
-    setProfile(prev => prev ? { ...prev, ...editData } : null);
+    await new Promise((r) => setTimeout(r, 800));
+    setProfile((prev) => (prev ? { ...prev, ...editData } : null));
     setIsSaving(false);
     setIsEditing(false);
   };
@@ -76,22 +83,25 @@ export function useProfile() {
     }
 
     setIsChangingPassword(true);
-    // Mock API: POST /api/commuter/change-password
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise((r) => setTimeout(r, 1000));
     setIsChangingPassword(false);
     setShowPasswordModal(false);
-    setPasswordData({ oldPassword: "", newPassword: "", confirmNewPassword: "" });
+    setPasswordData({
+      oldPassword: "",
+      newPassword: "",
+      confirmNewPassword: "",
+    });
     alert("Password changed successfully!");
   };
 
   const handleReuploadId = async () => {
-    // Mock API: POST /api/commuter/upload-id
-    // This would also change accountStatus back to PENDING_VERIFICATION
     alert("ID Re-uploaded. Waiting for admin verification.");
   };
 
   const handleLogout = () => {
     localStorage.removeItem("chatco_user");
+    localStorage.removeItem("chatco_payment_history");
+    localStorage.removeItem("chatco_refund_requests");
     localStorage.removeItem("conductor_active_shift");
     localStorage.removeItem("conductor_transactions");
     localStorage.removeItem("remittance_history");
@@ -101,14 +111,32 @@ export function useProfile() {
   const closePasswordModal = () => {
     setShowPasswordModal(false);
     setPasswordError(null);
-    setPasswordData({ oldPassword: "", newPassword: "", confirmNewPassword: "" }); // Clears the inputs!
+    setPasswordData({
+      oldPassword: "",
+      newPassword: "",
+      confirmNewPassword: "",
+    });
   };
 
   return {
-    profile, isLoading, isEditing, editData, startEditing, cancelEditing, 
-    saveProfile, isSaving, handleEditChange,
-    showPasswordModal, setShowPasswordModal, passwordData, setPasswordData, 
-    isChangingPassword, handleChangePassword, passwordError, closePasswordModal,
-    handleReuploadId, handleLogout
+    profile,
+    isLoading,
+    isEditing,
+    editData,
+    startEditing,
+    cancelEditing,
+    saveProfile,
+    isSaving,
+    handleEditChange,
+    showPasswordModal,
+    setShowPasswordModal,
+    passwordData,
+    setPasswordData,
+    isChangingPassword,
+    handleChangePassword,
+    passwordError,
+    closePasswordModal,
+    handleReuploadId,
+    handleLogout,
   };
 }

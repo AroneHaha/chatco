@@ -19,76 +19,76 @@ export const faqCategories: FAQCategory[] = [
       {
         question: "How do I create a CHATCO account?",
         answer:
-          "Super easy! Sign up with your email or phone, pick \"Commuter,\" and you're in. You'll get your QR code right away — no ID needed. Welcome aboard! 🎉",
+          "Super easy! Sign up with your email or phone, pick \"Commuter,\" and you're in. You'll get your QR code right away — no ID needed. Welcome aboard!",
       },
       {
         question: "What is my CHATCO QR code for?",
         answer:
-          "It's your digital boarding pass! Show it to the conductor, they scan it, and your fare is processed. No cash, no card — just your phone!",
+          "It's your digital boarding pass! Show it to the conductor, they scan it, and your fare is processed through GCash. No cash, no card — just your phone!",
       },
       {
         question: "Is CHATCO free to use?",
         answer:
-          "Yep, totally free! You only load money into your wallet when you're ready to ride. No subscriptions, no hidden fees!",
+          "Yep, totally free! You only pay when you ride — fares go directly through GCash. No subscriptions, no hidden fees, no wallet to maintain!",
       },
       {
         question: "Where does CHATCO operate?",
         answer:
-          "We're currently on the Calumpit–Meycauayan route in Bulacan. More routes coming soon! 🚌",
+          "We're currently on the Calumpit–Meycauayan route in Bulacan with 34 official stop points. More routes coming soon!",
       },
     ],
   },
   {
     id: "payments",
-    label: "Payments & Wallet",
+    label: "Payments & GCash",
     emoji: "💰",
     items: [
       {
-        question: "How do I load my wallet?",
+        question: "How do I pay for my ride?",
         answer:
-          "Go to Wallet → Top Up! Load via GCash, Maya, bank transfer, or over-the-counter at partner terminals. Minimum is just ₱50!",
+          "When you ride, show your QR code to the conductor. They scan it, select your fare based on your pickup and drop-off points, and you pay directly through GCash. No need to load a wallet beforehand!",
       },
       {
         question: "How is my fare calculated?",
         answer:
-          "It's based on distance — from your pick-up to drop-off point along the route. The app auto-computes it when you board, so no math needed!",
+          "Fares are based on official CHATCO point areas, not GPS distance. The route has 34 predefined stops, each with a set fare. Your fare depends on which point area you board from and where you get off. The conductor selects the nearest official point for computation.",
       },
       {
-        question: "What happens if my balance is insufficient?",
+        question: "Do I need a GCash account?",
         answer:
-          "You'll get a heads-up before boarding so you can top up right away. Conductors will also see a low-balance flag — no awkward moments!",
+          "Yes, for cashless payments you'll need a GCash account. When the conductor scans your QR, you'll receive a GCash payment prompt to confirm. You can also pay with cash directly to the conductor.",
       },
       {
         question: "Can I get a refund?",
         answer:
-          "Of course! Report it through Feedback and our team will review it. Refunds are credited back to your wallet within 24–48 hours. We've got your back!",
+          "Yes! If your trip is interrupted due to engine breakdown, an incomplete ride, or similar issues, you can submit a refund request through the app. GCash payments are reversed back to your account. Cash refunds are processed manually by the conductor.",
       },
     ],
   },
   {
     id: "riding",
     label: "Riding & Tracking",
-    emoji: "🚌",
+    emoji: "🚐",
     items: [
       {
         question: "How do I hail a jeepney?",
         answer:
-          "Open the map, tap Hail, and your location goes out to nearby conductors. When one accepts, you'll see them approach in real-time! 😄",
+          "Open the map, tap Hail, and your location goes out to nearby conductors. When a CHATCO jeep is within 1km of your location, it appears on your map and you'll get a sound notification!",
       },
       {
-        question: "Can I see where the jeepney is?",
+        question: "Why can't I see all jeeps on the map?",
         answer:
-          "Absolutely! Once accepted, their live location shows up on your map. No more guessing if they're 2 or 20 minutes away.",
+          "We only show CHATCO jeeps within 1km of your location to reduce map clutter, save bandwidth, and keep the app running smoothly. When a jeep approaches, you'll see it appear and hear a notification sound.",
       },
       {
         question: "How do I pay when I ride?",
         answer:
-          "Two options! Show your QR code to the conductor — they scan it and fare is auto-deducted. Or use Pay Fare in the app to pay yourself by picking your stops. Whatever's easier for you!",
+          "Two options! Show your QR code to the conductor — they scan it and fare is paid via GCash. Or pay with cash directly. Either way, the fare is the same based on the official point area rates.",
       },
       {
         question: "Can I share my ride with someone?",
         answer:
-          "Yep! Tap Share My Ride to send a live tracking link to family or friends. They'll see your location even without the app. 💙",
+          "Yep! Tap Share My Ride to send a live tracking link to family or friends. They'll see your location even without the app.",
       },
     ],
   },
@@ -110,7 +110,7 @@ export const faqCategories: FAQCategory[] = [
       {
         question: "Is my personal data safe?",
         answer:
-          "Absolutely! We use encrypted connections and secure storage. Your QR code only has a unique ID — no personal info is exposed when scanned. 🔒",
+          "Absolutely! We use encrypted connections and secure storage through PayMongo for payments. Your QR code only has a unique ID — no personal info or payment details are exposed when scanned.",
       },
       {
         question: "How do I report a concern?",
@@ -127,7 +127,7 @@ export const faqCategories: FAQCategory[] = [
       {
         question: "How does the loyalty program work?",
         answer:
-          "Every ride earns you points! The more you ride, the more you earn. Unlock perks like discounted fares, priority hailing, and exclusive vouchers. 🎁",
+          "Every ride earns you points! The more you ride, the more you earn. Unlock perks like discounted fares, priority hailing, and exclusive vouchers.",
       },
       {
         question: "How do I check my rewards?",
@@ -137,7 +137,7 @@ export const faqCategories: FAQCategory[] = [
       {
         question: "Do points expire?",
         answer:
-          "Nope! Your points are yours forever. No expiration, no pressure! 🙌",
+          "Nope! Your points are yours forever. No expiration, no pressure!",
       },
     ],
   },

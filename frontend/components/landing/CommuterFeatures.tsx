@@ -7,7 +7,7 @@ import {
   MapPin,
   Calculator,
   Megaphone,
-  Smartphone,
+  RotateCcw,
   ShieldCheck,
   Gift,
 } from "lucide-react";
@@ -15,20 +15,20 @@ import {
 const row1 = [
   {
     icon: QrCode,
-    title: "QR Wallet Payment",
-    desc: "No WiFi needed. Show your wallet QR to the conductor — they scan it, input the fare, and your balance is deducted instantly.",
+    title: "GCash Cashless Payment",
+    desc: "Show your QR to the conductor — they scan it and fare is paid directly via GCash. No wallet needed.",
     color: "bg-blue-50 text-blue-600",
   },
   {
     icon: MapPin,
     title: "Live GPS Tracking",
-    desc: "See exactly where your ride is on the map. Know arrival times before you step out.",
+    desc: "See nearby jeepneys on the map when they're within 1km. Get a sound alert when one approaches.",
     color: "bg-green-50 text-green-600",
   },
   {
     icon: Calculator,
-    title: "Auto Fare Calculator",
-    desc: "Enter your destination and get exact LTFRB-compliant fares instantly.",
+    title: "Point-Area Fare Calculator",
+    desc: "Fares based on 34 official CHATCO stop points — same rates whether you pay GCash or cash.",
     color: "bg-purple-50 text-purple-600",
   },
   {
@@ -41,9 +41,9 @@ const row1 = [
 
 const row2 = [
   {
-    icon: Wallet,
-    title: "Digital Wallet & GCash",
-    desc: "Top up seamlessly or generate GCash proofs for manual verification.",
+    icon: RotateCcw,
+    title: "Refund Requests",
+    desc: "Trip interrupted? Submit a refund request for engine breakdowns, incomplete rides, or overcharges.",
     color: "bg-cyan-50 text-cyan-600",
   },
   {
@@ -104,7 +104,6 @@ function MarqueeRow({
     return () => obs.disconnect();
   }, []);
 
-  // IMPORTANT: 3 copies for smooth infinite loop
   const loopItems = [...items, ...items, ...items];
 
   return (
@@ -116,7 +115,6 @@ function MarqueeRow({
           direction === "left" ? "rotate(-1.5deg)" : "rotate(1.5deg)",
       }}
     >
-      {/* fade edges */}
       <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-24 z-10 bg-gradient-to-r from-white to-transparent" />
       <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-24 z-10 bg-gradient-to-l from-white to-transparent" />
 
@@ -138,7 +136,6 @@ function MarqueeRow({
         </div>
       </div>
 
-      {/* KEYFRAMES FIX */}
       <style jsx>{`
         @keyframes marquee-left {
           0% {
@@ -175,7 +172,7 @@ export default function CommuterFeatures() {
             in one tap.
           </h2>
           <p className="mt-4 text-lg text-gray-500">
-            From hailing to payment to safety—we've digitized every step of
+            From hailing to payment to safety — we've digitized every step of
             your jeepney journey.
           </p>
         </div>
