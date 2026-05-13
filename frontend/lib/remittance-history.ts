@@ -7,6 +7,7 @@ export interface RemittanceRecord {
   totalPassengers: number;
   cashlessBreakdown: {
     gcashScanned: number;
+    gcashDirect: number;
     voucher: number;
   };
   totalCashless: number;
@@ -34,13 +35,10 @@ function save(records: RemittanceRecord[]) {
   localStorage.setItem(KEY, JSON.stringify(records));
 }
 
-/** Save a new remittance record (newest first) */
 export function saveRemittance(record: RemittanceRecord) {
   const records = getAll();
-
   const alreadyExists = records.some((r) => r.shiftId === record.shiftId);
   if (alreadyExists) return records;
-
   records.unshift(record);
   save(records);
   return records;

@@ -1,5 +1,4 @@
 // lib/fare-matrix-data.ts
-<<<<<<< HEAD
 // Single source of truth for the CHATCO fare matrix.
 // 34 operational point areas along the Calumpit–Meycauayan jeepney route.
 //
@@ -325,7 +324,7 @@ export function getFareByPoints(
     succeedingCount,
   };
 }
-=======
+
 // Single source of truth for CHATCO fare computation
 // Based on official CHATCO TSC fare matrix (Calumpit–Meycauayan route)
 //
@@ -922,4 +921,4 @@ function haversineDistance(
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
->>>>>>> 7d5b32eba05b562d8a52da1935cec7f13637dd50
+
