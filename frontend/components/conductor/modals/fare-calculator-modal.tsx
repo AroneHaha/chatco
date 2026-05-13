@@ -1,748 +1,817 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { Html5Qrcode } from "html5-qrcode";
-import { saveTransaction } from "@/lib/conductor-transactions";
-import { MapContainer, TileLayer, Polyline, Marker, Popup, useMapEvents } from "react-leaflet";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
+import { useState, useMemo } from "react";
+import {
+  FARE_MATRIX,
+  getFareBetween,
+  getBarangaysTraversed,
+  FARE_CONFIG,
+  type PointArea,
+} from "@/lib/fare-matrix-data";
+import {
+  formatCurrency,
+  getCommuterTypeLabel,
+  type CommuterType,
+} from "@/lib/fare-calculator";
+import {
+  createPaymentIntent,
+  verifyPayment,
+  type PaymentStatus,
+  type GCashPaymentIntent,
+} from "@/lib/gcash-payment";
 
-// --- ROUTE DATA ---
-const ROUTE_COORDS: L.LatLngTuple[] = [
-  [14.925460996033356, 120.76512235423647], [14.92420402124189, 120.76528787872712],
-  [14.920152600670095, 120.76571706129354], [14.915220582966443, 120.76619717003261],
-  [14.901323759501945, 120.7719224852731], [14.886458903875173, 120.78596796657541],
-  [14.874990764897628, 120.79618423260841], [14.87207763773181, 120.79878589058617],
-  [14.865745283697539, 120.80435407290116], [14.860501402001871, 120.80901802051571],
-  [14.85778433148678, 120.81163478600241], [14.855388331987022, 120.81368996254061],
-  [14.852693386081329, 120.81600207219617], [14.851497406805521, 120.81765988586791],
-  [14.849417900874624, 120.8235248577769], [14.845945790029823, 120.83422329239757],
-  [14.844320234352493, 120.83905948176812], [14.842383282603786, 120.84506982184078],
-  [14.841893283760905, 120.84698408093634], [14.840375174197046, 120.85413496987503],
-  [14.839623777400517, 120.85750998638694], [14.838634008132473, 120.86201040680506],
-  [14.8371385749864, 120.86297382674883], [14.83612807323988, 120.86333412418747],
-  [14.835254069547146, 120.86366551171416], [14.833295288398967, 120.8661891975047],
-  [14.8324975199314, 120.86740282879738], [14.831810284552892, 120.86868877790535],
-  [14.83035944532852, 120.87094580599025], [14.828506904517909, 120.87400904071411],
-  [14.828161518510791, 120.87659402671414], [14.828232464378223, 120.88095495481001],
-  [14.828293590064265, 120.88426507598852], [14.828333307002257, 120.886565917288],
-  [14.827864597760719, 120.89053477186802], [14.827464358080183, 120.89241460779954],
-  [14.826703652032982, 120.89503763480697], [14.826129391774803, 120.89676317509107],
-  [14.824720294651351, 120.89902058487867], [14.822990488146456, 120.90083394930517],
-  [14.820845909007058, 120.90316146076532], [14.819825636767673, 120.90421208848784],
-  [14.818163498638592, 120.90600984388941], [14.81713926187142, 120.90792339416925],
-  [14.817003259236085, 120.90825980129833], [14.815860883789151, 120.90986972578348],
-  [14.815234108397684, 120.91047524129526], [14.81440037604567, 120.91144161960287],
-  [14.813099510668458, 120.91283614016609], [14.811588723108294, 120.91413585780512],
-  [14.809543338082284, 120.9159455873501], [14.806525108118892, 120.91850689602882],
-  [14.801946360221512, 120.92201682737273], [14.800215165075755, 120.9231979150914],
-  [14.798804712598924, 120.92456195413324], [14.798451222604799, 120.92693781063585],
-  [14.797677687963592, 120.92897276863408], [14.79630282892156, 120.92974647714638],
-  [14.794082971006238, 120.9309174591896], [14.792193992873402, 120.9319309517239],
-  [14.789984757130886, 120.93194351724061], [14.786542900321203, 120.93179853039794],
-  [14.782758056853037, 120.93416554556896], [14.78116722012781, 120.93525425025881],
-  [14.778139275650638, 120.93709526206992], [14.773104742636574, 120.93960422042926],
-  [14.766525006702839, 120.94320546363049], [14.765525492192376, 120.94401383576125],
-  [14.76072862621141, 120.94974045073359], [14.757057921030993, 120.95282600874056],
-  [14.754092913022339, 120.95430633290394], [14.749614776242218, 120.95648776807238],
-  [14.743004859115217, 120.95912082860627], [14.738243986091819, 120.96064278809952],
-  [14.73118850798765, 120.96137476925526], [14.729202256905156, 120.96135109408412],
-  [14.725646764905104, 120.9604838112117]
-];
-
-// --- FARE CONSTANTS ---
-const BASE_FARE = 13.0;
-const BASE_KM = 1;
-const ADDITIONAL_RATE = 1.5;
-const DISCOUNT_PERCENT = 0.20;
-const MAX_CLICK_DISTANCE_METERS = 500;
-
-// --- REVERSE GEOCODING ---
-const geocodeCache = new Map<string, string>();
-
-async function reverseGeocode(lat: number, lng: number): Promise<string> {
-  const cacheKey = `${lat.toFixed(4)},${lng.toFixed(4)}`;
-  if (geocodeCache.has(cacheKey)) return geocodeCache.get(cacheKey)!;
-
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=14&addressdetails=1`,
-      { headers: { "Accept-Language": "en" } }
-    );
-    const data = await res.json();
-    const addr = data.address || {};
-
-    const name =
-      addr.city || addr.town || addr.municipality || addr.village || addr.suburb || addr.barangay || data.display_name?.split(",")[0] || "Unknown Location";
-
-    geocodeCache.set(cacheKey, name);
-    return name;
-  } catch {
-    return "Unknown Location";
-  }
-}
-
-// --- DISTANCE CALCULATOR ---
-function calcDistanceKm(fromIndex: number, toIndex: number): number {
-  const start = Math.min(fromIndex, toIndex);
-  const end = Math.max(fromIndex, toIndex);
-  let totalMeters = 0;
-  for (let i = start; i < end; i++) {
-    totalMeters += L.latLng(ROUTE_COORDS[i]).distanceTo(L.latLng(ROUTE_COORDS[i + 1]));
-  }
-  return totalMeters / 1000;
-}
-
-// --- MAP CLICK HANDLER ---
-function MapClickHandler({ onRouteClick }: { onRouteClick: (latlng: L.LatLng, index: number) => void }) {
-  useMapEvents({
-    async click(e) {
-      const clickPoint = e.latlng;
-      try {
-        const GeoUtil = await import("leaflet-geometryutil");
-        const routePolyline = L.polyline(ROUTE_COORDS);
-        const rawClosestPoint = GeoUtil.closest(e.target, routePolyline, clickPoint, true);
-
-        if (rawClosestPoint) {
-          const closestPoint = L.latLng(rawClosestPoint.lat, rawClosestPoint.lng);
-          const distanceToRoute = clickPoint.distanceTo(closestPoint);
-          if (distanceToRoute > MAX_CLICK_DISTANCE_METERS) return;
-
-          let closestIndex = 0;
-          let minDist = Infinity;
-          for (let i = 0; i < ROUTE_COORDS.length; i++) {
-            const dist = closestPoint.distanceTo(L.latLng(ROUTE_COORDS[i]));
-            if (dist < minDist) {
-              minDist = dist;
-              closestIndex = i;
-            }
-          }
-          onRouteClick(closestPoint, closestIndex);
-        }
-      } catch (error) {
-        console.error("Failed to load geometry util or calculate distance", error);
-      }
-    },
-  });
-  return null;
-}
-
-// --- MAIN MODAL ---
-interface FareCalculatorModalProps {
-  isOpen: boolean;
+interface FareCalcModalProps {
   onClose: () => void;
-  shiftId: string;
-  conductorName: string;
-  unitNumber: string;
-  driverName: string;
 }
 
-const AUTO_REDIRECT_SECONDS = 3;
+type Step = "select" | "confirm" | "processing" | "success" | "failed";
 
-export default function FareCalculatorModal({ isOpen, onClose, shiftId, conductorName, unitNumber, driverName }: FareCalculatorModalProps) {
-  const [step, setStep] = useState<'scanning' | 'set-locations' | 'review' | 'success'>('scanning');
-  const [passenger, setPassenger] = useState<{ name: string; id: string; role: string } | null>(null);
+export default function FareCalcModal({ onClose }: FareCalcModalProps) {
+  const [step, setStep] = useState<Step>("select");
+  const [pickupPoint, setPickupPoint] = useState<PointArea | null>(null);
+  const [dropoffPoint, setDropoffPoint] = useState<PointArea | null>(null);
+  const [commuterType, setCommuterType] = useState<CommuterType>("REGULAR");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectingField, setSelectingField] = useState<
+    "pickup" | "dropoff" | null
+  >("pickup");
+  const [expandedBarangay, setExpandedBarangay] = useState<number | null>(null);
+  const [pickupLandmark, setPickupLandmark] = useState<string | null>(null);
+  const [dropoffLandmark, setDropoffLandmark] = useState<string | null>(null);
+  const [paymentIntent, setPaymentIntent] =
+    useState<GCashPaymentIntent | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(
+    null
+  );
 
-  // Map pins
-  const [boardingPoint, setBoardingPoint] = useState<L.LatLng | null>(null);
-  const [boardingIndex, setBoardingIndex] = useState<number>(0);
-  const [dropoffPoint, setDropoffPoint] = useState<L.LatLng | null>(null);
-  const [dropoffIndex, setDropoffIndex] = useState<number>(0);
+  // ─── Fare Calculation using FARE_MATRIX (correct data source) ───
+  const fareInfo = useMemo(() => {
+    if (!pickupPoint || !dropoffPoint) return null;
 
-  // Location names from reverse geocoding
-  const [boardingName, setBoardingName] = useState<string>("");
-  const [dropoffName, setDropoffName] = useState<string>("");
-  const [, setIsGeocoding] = useState(false);
-  const [boardingLoading, setBoardingLoading] = useState(false);
+    const isDiscounted = commuterType !== "REGULAR";
+    const barangaysTraveled = getBarangaysTraversed(
+      pickupPoint.pointNumber,
+      dropoffPoint.pointNumber
+    );
+    const regularFare = getFareBetween(
+      pickupPoint.pointNumber,
+      dropoffPoint.pointNumber,
+      false
+    );
+    const discountedFare = getFareBetween(
+      pickupPoint.pointNumber,
+      dropoffPoint.pointNumber,
+      true
+    );
+    const finalFare = isDiscounted ? discountedFare : regularFare;
+    const discountAmount = regularFare - discountedFare;
+    const succeedingCount = Math.max(
+      0,
+      barangaysTraveled - FARE_CONFIG.BASE_BARANGAY_COUNT
+    );
 
-  const [receiptId, setReceiptId] = useState("");
-  const [cameraError, setCameraError] = useState(false);
-  const [scanSuccess, setScanSuccess] = useState(false);
+    return {
+      barangaysTraveled,
+      regularFare,
+      discountedFare,
+      finalFare,
+      hasDiscount: isDiscounted,
+      discountAmount,
+      succeedingCount,
+      baseBarangayCount: FARE_CONFIG.BASE_BARANGAY_COUNT,
+    };
+  }, [pickupPoint, dropoffPoint, commuterType]);
 
-  const scannerRef = useRef<Html5Qrcode | null>(null);
-  const isScanningActiveRef = useRef(false);
-  const autoRedirectTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const filteredPoints = searchQuery
+    ? FARE_MATRIX.filter(
+        (p) =>
+          p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          p.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          p.landmarks.some((l) =>
+            l.toLowerCase().includes(searchQuery.toLowerCase())
+          )
+      )
+    : FARE_MATRIX;
 
-  // FARE CALCULATION
-  const distance = boardingPoint && dropoffPoint ? calcDistanceKm(boardingIndex, dropoffIndex) : 0;
-  const succeedingKm = distance > BASE_KM ? distance - BASE_KM : 0;
-  const succeedingFare = succeedingKm * ADDITIONAL_RATE;
-  const grossFare = BASE_FARE + succeedingFare;
-  const hasDiscount = passenger?.role !== "Regular";
-  const discountAmount = hasDiscount ? grossFare * DISCOUNT_PERCENT : 0;
-  const totalFare = grossFare - discountAmount;
+  const handlePayWithGCash = async () => {
+    if (!fareInfo || !pickupPoint || !dropoffPoint) return;
 
-  // Helper: clear auto-redirect timer
-  const clearAutoRedirect = useCallback(() => {
-    if (autoRedirectTimerRef.current) {
-      clearTimeout(autoRedirectTimerRef.current);
-      autoRedirectTimerRef.current = null;
-    }
-  }, []);
+    setStep("processing");
 
-  // Helper: proceed to set-locations step
-  const proceedToSetLocations = useCallback((passengerData: { name: string; id: string; role: string }) => {
-    isScanningActiveRef.current = false;
-    setScanSuccess(true);
-    clearAutoRedirect();
-
-    // Small delay for the success animation to show
-    setTimeout(() => {
-      setPassenger(passengerData);
-      setStep('set-locations');
-    }, 400);
-  }, [clearAutoRedirect]);
-
-  // QR SCANNER
-  useEffect(() => {
-    let scannerInstance: Html5Qrcode | null = null;
-
-    if (isOpen && step === 'scanning') {
-      setCameraError(false);
-      setScanSuccess(false);
-      isScanningActiveRef.current = false;
-
-      scannerInstance = new Html5Qrcode("fare-scanner");
-      scannerRef.current = scannerInstance;
-
-      scannerInstance.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 220, height: 220 }, aspectRatio: 1.0 },
-        (decodedText) => {
-          try {
-            const data = JSON.parse(decodedText);
-            if (data.userId && data.name) {
-              proceedToSetLocations({
-                name: data.name,
-                id: data.userId,
-                role: data.role || "Regular",
-              });
-              scannerInstance?.stop().catch(() => {});
-            }
-          } catch (e) { console.log("Invalid QR"); }
-        },
-        () => {}
-      ).then(() => {
-        isScanningActiveRef.current = true;
-      }).catch(err => {
-        console.error("Camera error:", err);
-        isScanningActiveRef.current = false;
-        if (err.toString().includes("NotAllowedError")) {
-          setCameraError(true);
-        }
+    try {
+      const intent = await createPaymentIntent({
+        amount: fareInfo.finalFare,
+        commuterId: "c_001",
+        commuterName: "Arone Dela Cruz",
+        pickupPoint: pickupPoint.pointNumber,
+        dropoffPoint: dropoffPoint.pointNumber,
       });
-    }
 
-    return () => {
-      try {
-        if (scannerInstance && isScanningActiveRef.current) {
-          scannerInstance.stop().then(() => {
-            try { scannerInstance.clear(); } catch (e) {}
-          }).catch(() => {
-            try { scannerInstance.clear(); } catch (e) {}
-          });
-        } else if (scannerInstance) {
-          try { scannerInstance.clear(); } catch (e) {}
-        }
-      } catch (e) {}
-      scannerRef.current = null;
-      isScanningActiveRef.current = false;
-    };
-  }, [isOpen, step, proceedToSetLocations]);
+      setPaymentIntent(intent);
 
-  // AUTO-REDIRECT: Always auto-redirect after AUTO_REDIRECT_SECONDS
-  useEffect(() => {
-    if (!isOpen || step !== 'scanning') return;
+      // In sandbox mode, simulate GCash payment flow
+      const status = await verifyPayment(intent.id);
+      setPaymentStatus(status);
 
-    autoRedirectTimerRef.current = setTimeout(() => {
-      proceedToSetLocations({ name: "Juan Dela Cruz", id: "USR-TEST-999", role: "Student" });
-    }, AUTO_REDIRECT_SECONDS * 1000);
-
-    return () => {
-      clearAutoRedirect();
-    };
-  }, [isOpen, step, clearAutoRedirect, proceedToSetLocations]);
-
-  // SNAP A LATLNG TO THE NEAREST ROUTE POINT
-  const snapToRoute = (latlng: L.LatLng): { point: L.LatLng; index: number } => {
-    let closestIndex = 0;
-    let minDist = Infinity;
-    for (let i = 0; i < ROUTE_COORDS.length; i++) {
-      const dist = latlng.distanceTo(L.latLng(ROUTE_COORDS[i]));
-      if (dist < minDist) {
-        minDist = dist;
-        closestIndex = i;
+      if (status === "paid") {
+        setStep("success");
+      } else {
+        setStep("failed");
       }
+    } catch {
+      setStep("failed");
     }
-    return { point: L.latLng(ROUTE_COORDS[closestIndex]), index: closestIndex };
   };
 
-  // AUTO-DETECT BOARDING LOCATION FROM GPS
-  useEffect(() => {
-    if (step !== 'set-locations' || boardingPoint || boardingLoading) return;
+  // ─── STEP: Point Area Selection ─────────────────────────────────
 
-    setBoardingLoading(true);
-
-    const setBoardingFromCoords = async (lat: number, lng: number) => {
-      const userLatLng = L.latLng(lat, lng);
-      const { point, index } = snapToRoute(userLatLng);
-      setBoardingPoint(point);
-      setBoardingIndex(index);
-      setIsGeocoding(true);
-      const name = await reverseGeocode(point.lat, point.lng);
-      setBoardingName(name);
-      setIsGeocoding(false);
-      setBoardingLoading(false);
-    };
-
-    if (typeof navigator !== 'undefined' && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setBoardingFromCoords(position.coords.latitude, position.coords.longitude);
-        },
-        () => {
-          // Fallback: use the middle of the route
-          const midIdx = Math.floor(ROUTE_COORDS.length / 2);
-          const midCoord = ROUTE_COORDS[midIdx];
-          setBoardingFromCoords(midCoord[0], midCoord[1]);
-        },
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
-      );
-    } else {
-      // No geolocation API: fallback to route midpoint
-      const midIdx = Math.floor(ROUTE_COORDS.length / 2);
-      const midCoord = ROUTE_COORDS[midIdx];
-      setBoardingFromCoords(midCoord[0], midCoord[1]);
-    }
-  }, [step, boardingPoint, boardingLoading]);
-
-  // MAP CLICK HANDLER — only for drop-off point
-  const handleRouteClick = async (latlng: L.LatLng, index: number) => {
-    setDropoffPoint(latlng);
-    setDropoffIndex(index);
-    setIsGeocoding(true);
-    const name = await reverseGeocode(latlng.lat, latlng.lng);
-    setDropoffName(name);
-    setIsGeocoding(false);
-  };
-
-  const handleConfirmPayment = () => {
-    const txId = `TXN-${Date.now()}`;
-    setReceiptId(txId);
-
-    saveTransaction(shiftId, {
-      paymentMethod: "Wallet_Scanned" as const,
-      finalAmount: totalFare,
-      passengerName: passenger?.name || "Unknown",
-      passengerId: passenger?.id || "",
-      passengerRole: passenger?.role || "Regular",
-      from: boardingName || `Point ${boardingIndex}`,
-      to: dropoffName || `Point ${dropoffIndex}`,
-      distance,
-      baseFare: BASE_FARE,
-      succeedingKm: succeedingKm,
-      discountAmount: discountAmount,
-      conductorName: conductorName,
-      unitNumber: unitNumber,
-      driverName: driverName,
-    });
-
-    setStep('success');
-  };
-
-  const handleClose = () => {
-    clearAutoRedirect();
-    setStep('scanning');
-    setPassenger(null);
-    setBoardingPoint(null);
-    setDropoffPoint(null);
-    setBoardingIndex(0);
-    setDropoffIndex(0);
-    setBoardingName("");
-    setDropoffName("");
-    setBoardingLoading(false);
-    setCameraError(false);
-    setScanSuccess(false);
-    onClose();
-  };
-
-  // --- CUSTOM MARKER ICONS ---
-  const boardingIcon = L.divIcon({
-    className: "custom-boarding-icon",
-    html: `<div style="background: #4ADE80; width: 26px; height: 26px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 10px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 11px;">A</div>`,
-    iconSize: [26, 26],
-    iconAnchor: [13, 13],
-  });
-
-  const dropoffIcon = L.divIcon({
-    className: "custom-dropoff-icon",
-    html: `<div style="background: #FF6D3A; width: 26px; height: 26px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 10px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 11px;">B</div>`,
-    iconSize: [26, 26],
-    iconAnchor: [13, 13],
-  });
-
-  // ==================== RENDER STEPS ====================
-
-  // --- STEP 1: QR SCANNING (Centered Card with Auto-Redirect) ---
-  const renderScanning = () => (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#050F1A]/95 backdrop-blur-sm">
-      <div
-        className={`w-full max-w-xs mx-4 bg-[#0B1D33] border border-white/10 rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 ${
-          scanSuccess ? 'scale-95 opacity-0' : 'scale-100 opacity-100'
-        }`}
-      >
-        {/* Close button */}
-        <button
-          onClick={handleClose}
-          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors z-20"
-        >
-          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-          </svg>
-        </button>
-
-        <div className="p-5 space-y-4">
+  if (step === "select") {
+    return (
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
+        <div className="w-full sm:max-w-md bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-white/10 shadow-2xl max-h-[90vh] flex flex-col">
           {/* Header */}
-          <div className="text-center">
-            <div className="w-14 h-14 rounded-full bg-[#62A0EA]/20 flex items-center justify-center mx-auto mb-3">
-              <svg className="w-7 h-7 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75ZM6.75 16.5h.75v.75h-.75v-.75ZM16.5 6.75h.75v.75h-.75v-.75ZM13.5 13.5h.75v.75h-.75v-.75ZM13.5 19.5h.75v.75h-.75v-.75ZM19.5 13.5h.75v.75h-.75v-.75ZM19.5 19.5h.75v.75h-.75v-.75ZM16.5 16.5h.75v.75h-.75v-.75Z" />
-              </svg>
-            </div>
-            <h2 className="text-lg font-bold text-white">Scan Passenger QR</h2>
-            <p className="text-white/40 text-xs mt-1">Align the passenger&apos;s QR code within the frame</p>
-          </div>
-
-          {/* Scanner Area - Square container with overlay */}
-          <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-black/40 border border-white/5">
-            {cameraError ? (
-              /* Camera denied placeholder */
-              <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center">
-                <svg className="w-10 h-10 text-white/20 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" />
+          <div className="p-5 border-b border-white/10">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-white">Calculate Fare</h2>
+              <button
+                onClick={onClose}
+                className="text-white/40 hover:text-white transition-colors"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M6 18 18 6M6 6l12 12"
+                  />
                 </svg>
-                <p className="text-white/30 text-xs">Camera not available</p>
-              </div>
-            ) : (
-              <div
-                id="fare-scanner"
-                className="w-full h-full"
-              />
-            )}
+              </button>
+            </div>
 
-            {/* Scanning overlay with corner brackets */}
-            <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-              <div className="relative w-3/5 h-3/5">
-                {/* Top-left corner */}
-                <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-[#62A0EA] rounded-tl-md" />
-                {/* Top-right corner */}
-                <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-[#62A0EA] rounded-tr-md" />
-                {/* Bottom-left corner */}
-                <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-[#62A0EA] rounded-bl-md" />
-                {/* Bottom-right corner */}
-                <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-[#62A0EA] rounded-br-md" />
-                {/* Animated scan line */}
-                <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#62A0EA] to-transparent scan-line" />
+            {/* Pickup & Dropoff Selection */}
+            <div className="space-y-3">
+              {/* Pickup */}
+              <button
+                onClick={() => setSelectingField("pickup")}
+                className={`w-full text-left p-3 rounded-xl border transition-colors ${
+                  selectingField === "pickup"
+                    ? "border-[#62A0EA] bg-[#62A0EA]/10"
+                    : "border-white/10 bg-white/5"
+                }`}
+              >
+                <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">
+                  Pickup Barangay
+                </span>
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-sm text-white font-medium">
+                    {pickupPoint
+                      ? pickupLandmark
+                        ? `${pickupPoint.name} · ${pickupLandmark}`
+                        : pickupPoint.name
+                      : "Select pickup"}
+                  </span>
+                  {pickupPoint && (
+                    <span className="text-[10px] text-[#62A0EA] bg-[#62A0EA]/10 px-2 py-0.5 rounded-full">
+                      Brgy {pickupPoint.pointNumber}
+                    </span>
+                  )}
+                </div>
+              </button>
+
+              {/* Swap icon */}
+              <div className="flex justify-center">
+                <button
+                  onClick={() => {
+                    if (pickupPoint && dropoffPoint) {
+                      const tmpPoint = pickupPoint;
+                      const tmpLandmark = pickupLandmark;
+                      setPickupPoint(dropoffPoint);
+                      setPickupLandmark(dropoffLandmark);
+                      setDropoffPoint(tmpPoint);
+                      setDropoffLandmark(tmpLandmark);
+                    }
+                  }}
+                  className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors"
+                >
+                  <svg
+                    className="w-4 h-4 text-white/40"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Dropoff */}
+              <button
+                onClick={() => setSelectingField("dropoff")}
+                className={`w-full text-left p-3 rounded-xl border transition-colors ${
+                  selectingField === "dropoff"
+                    ? "border-[#FF6D3A] bg-[#FF6D3A]/10"
+                    : "border-white/10 bg-white/5"
+                }`}
+              >
+                <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">
+                  Drop-off Barangay
+                </span>
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-sm text-white font-medium">
+                    {dropoffPoint
+                      ? dropoffLandmark
+                        ? `${dropoffPoint.name} · ${dropoffLandmark}`
+                        : dropoffPoint.name
+                      : "Select destination"}
+                  </span>
+                  {dropoffPoint && (
+                    <span className="text-[10px] text-[#FF6D3A] bg-[#FF6D3A]/10 px-2 py-0.5 rounded-full">
+                      Brgy {dropoffPoint.pointNumber}
+                    </span>
+                  )}
+                </div>
+              </button>
+            </div>
+
+            {/* Commuter Type */}
+            <div className="mt-3">
+              <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">
+                Commuter Type
+              </span>
+              <div className="flex gap-2 mt-2">
+                {(
+                  ["REGULAR", "STUDENT", "SENIOR_CITIZEN", "PWD"] as CommuterType[]
+                ).map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => setCommuterType(type)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      commuterType === type
+                        ? "bg-[#1A5FB4] text-white"
+                        : "bg-white/5 text-white/50 hover:bg-white/10"
+                    }`}
+                  >
+                    {getCommuterTypeLabel(type)}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
 
-          {/* Scanning status */}
-          <div className="flex items-center justify-center gap-1.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-[#62A0EA] animate-pulse" />
-            <span className="text-[#62A0EA] text-xs font-medium">
-              {scanSuccess ? 'Scan successful!' : 'Scanning...'}
-            </span>
+          {/* Barangay List */}
+          <div className="flex-1 overflow-hidden flex flex-col">
+            <div className="px-5 pt-3 pb-2">
+              <div className="relative">
+                <svg
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+                  />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search barangay or landmark..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg pl-9 pr-3 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#62A0EA]"
+                />
+              </div>
+              <p className="text-[10px] text-white/30 mt-2">
+                {selectingField === "pickup"
+                  ? "Select your boarding barangay"
+                  : "Select your drop-off barangay"}
+                {" "}&middot; Landmarks are reference points within each zone
+              </p>
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 pb-3">
+              {filteredPoints.map((point) => {
+                // Show BOTH pickup and dropoff selections with distinct indicators
+                const isPickup = pickupPoint?.pointNumber === point.pointNumber;
+                const isDropoff = dropoffPoint?.pointNumber === point.pointNumber;
+                const isSelected = isPickup || isDropoff;
+
+                const isExpanded = expandedBarangay === point.pointNumber;
+
+                return (
+                  <div key={point.pointNumber} className="mb-1">
+                    <button
+                      onClick={() => {
+                        if (selectingField === "pickup") {
+                          setPickupPoint(point);
+                          setPickupLandmark(null);
+                          setSelectingField("dropoff");
+                        } else {
+                          setDropoffPoint(point);
+                          setDropoffLandmark(null);
+                        }
+                        setSearchQuery("");
+                      }}
+                      className={`w-full text-left p-3 rounded-xl transition-colors ${
+                        isSelected
+                          ? isPickup && isDropoff
+                            ? "bg-purple-500/20 border border-purple-500/40"
+                            : isPickup
+                              ? "bg-[#62A0EA]/15 border border-[#62A0EA]/40"
+                              : "bg-[#FF6D3A]/15 border border-[#FF6D3A]/40"
+                          : "hover:bg-white/5 border border-transparent"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
+                              isPickup && isDropoff
+                                ? "bg-purple-500 text-white"
+                                : isPickup
+                                  ? "bg-[#62A0EA] text-white"
+                                  : isDropoff
+                                    ? "bg-[#FF6D3A] text-white"
+                                    : "bg-white/5 text-white/40"
+                            }`}
+                          >
+                            {point.pointNumber}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-white">
+                              {point.name}
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-[10px] text-white/30">
+                                {point.landmarks.length} landmark{point.landmarks.length !== 1 ? "s" : ""}
+                              </p>
+                              {/* Show pickup/dropoff tag in the list */}
+                              {isPickup && (
+                                <span className="text-[9px] font-semibold text-[#62A0EA] bg-[#62A0EA]/10 px-1.5 py-0.5 rounded">
+                                  PICKUP
+                                </span>
+                              )}
+                              {isDropoff && (
+                                <span className="text-[9px] font-semibold text-[#FF6D3A] bg-[#FF6D3A]/10 px-1.5 py-0.5 rounded">
+                                  DROP-OFF
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-right">
+                            <p className="text-xs font-semibold text-white/60">
+                              {formatCurrency(point.regularFare)}
+                            </p>
+                            <p className="text-[10px] text-white/30">
+                              Disc: {formatCurrency(point.discountedFare)}
+                            </p>
+                          </div>
+                          {/* Expand/collapse landmarks */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedBarangay(
+                                isExpanded ? null : point.pointNumber
+                              );
+                            }}
+                            className="w-6 h-6 rounded-md bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors"
+                          >
+                            <svg
+                              className={`w-3 h-3 text-white/40 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="m19.5 8.25-7.5 7.5-7.5-7.5"
+                              />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Expanded landmarks */}
+                    {isExpanded && (
+                      <div className="ml-11 mt-1 mb-2 space-y-1">
+                        <p className="text-[10px] text-white/20 uppercase tracking-wider font-medium mb-1.5">
+                          Landmarks in {point.name} <span className="text-white/10">· tap to select</span>
+                        </p>
+                        {point.landmarks.map((landmark, idx) => {
+                          const isLandmarkPickup = pickupPoint?.pointNumber === point.pointNumber && pickupLandmark === landmark;
+                          const isLandmarkDropoff = dropoffPoint?.pointNumber === point.pointNumber && dropoffLandmark === landmark;
+                          const isLandmarkSelected = isLandmarkPickup || isLandmarkDropoff;
+                          return (
+                            <button
+                              key={idx}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (selectingField === "pickup") {
+                                  if (pickupPoint?.pointNumber !== point.pointNumber) {
+                                    setPickupPoint(point);
+                                  }
+                                  setPickupLandmark(landmark);
+                                  setSelectingField("dropoff");
+                                } else {
+                                  if (dropoffPoint?.pointNumber !== point.pointNumber) {
+                                    setDropoffPoint(point);
+                                  }
+                                  setDropoffLandmark(landmark);
+                                }
+                              }}
+                              className={`flex items-center gap-2 px-2 py-1.5 rounded-md w-full text-left transition-colors border ${
+                                isLandmarkSelected
+                                  ? isLandmarkPickup && isLandmarkDropoff
+                                    ? "bg-purple-500/15 border-purple-500/30"
+                                    : isLandmarkPickup
+                                      ? "bg-[#62A0EA]/10 border-[#62A0EA]/30"
+                                      : "bg-[#FF6D3A]/10 border-[#FF6D3A]/30"
+                                  : "bg-white/[0.02] border-transparent hover:bg-white/5"
+                              }`}
+                            >
+                              <div className={`w-1.5 h-1.5 rounded-full ${
+                                isLandmarkSelected
+                                  ? isLandmarkPickup ? "bg-[#62A0EA]" : "bg-[#FF6D3A]"
+                                  : "bg-white/20"
+                              }`} />
+                              <span className={`text-[11px] ${
+                                isLandmarkSelected
+                                  ? isLandmarkPickup ? "text-[#62A0EA]" : "text-[#FF6D3A]"
+                                  : "text-white/40"
+                              }`}>
+                                {landmark}
+                              </span>
+                              {isLandmarkPickup && !isLandmarkDropoff && (
+                                <span className="text-[8px] font-bold text-[#62A0EA] bg-[#62A0EA]/10 px-1 py-0.5 rounded ml-auto">PICKUP</span>
+                              )}
+                              {isLandmarkDropoff && !isLandmarkPickup && (
+                                <span className="text-[8px] font-bold text-[#FF6D3A] bg-[#FF6D3A]/10 px-1 py-0.5 rounded ml-auto">DROP-OFF</span>
+                              )}
+                              {isLandmarkPickup && isLandmarkDropoff && (
+                                <span className="text-[8px] font-bold text-purple-400 bg-purple-500/10 px-1 py-0.5 rounded ml-auto">BOTH</span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Fare Summary & Pay Button */}
+          {fareInfo && (
+            <div className="p-5 border-t border-white/10 bg-[#050F1A]">
+              {/* Route confirmation with colored indicators */}
+              <div className="mb-2 flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#62A0EA]" />
+                  <span className="text-xs text-white/70 font-medium">{pickupPoint?.name}{pickupLandmark ? ` · ${pickupLandmark}` : ""}</span>
+                </div>
+                <svg className="w-3 h-3 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                </svg>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#FF6D3A]" />
+                  <span className="text-xs text-white/70 font-medium">{dropoffPoint?.name}{dropoffLandmark ? ` · ${dropoffLandmark}` : ""}</span>
+                </div>
+              </div>
+
+              {/* Fare Explanation */}
+              <div className="mb-3 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/5">
+                <p className="text-[10px] text-white/30 leading-relaxed">
+                  {fareInfo.barangaysTraveled} barangay{fareInfo.barangaysTraveled !== 1 ? "s" : ""} traversed
+                  {fareInfo.succeedingCount > 0 &&
+                    ` · Base fare covers first ${fareInfo.baseBarangayCount} + ${fareInfo.succeedingCount} succeeding`}
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-[10px] text-white/40 uppercase tracking-wider">
+                    {pickupPoint?.name}{pickupLandmark ? ` · ${pickupLandmark}` : ""} →{" "}
+                    {dropoffPoint?.name}{dropoffLandmark ? ` · ${dropoffLandmark}` : ""}
+                  </p>
+                </div>
+                <div className="text-right">
+                  {fareInfo.hasDiscount && (
+                    <p className="text-xs text-white/30 line-through">
+                      {formatCurrency(fareInfo.regularFare)}
+                    </p>
+                  )}
+                  <p className="text-2xl font-extrabold text-white">
+                    {formatCurrency(fareInfo.finalFare)}
+                  </p>
+                  {fareInfo.hasDiscount && (
+                    <p className="text-[10px] text-green-400">
+                      You save {formatCurrency(fareInfo.discountAmount)}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => setStep("confirm")}
+                className="w-full py-3.5 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] text-white font-bold text-sm transition-colors shadow-lg shadow-[#1A5FB4]/30"
+              >
+                Pay with GCash
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ─── STEP: Confirm Payment ──────────────────────────────────────
+
+  if (step === "confirm" && fareInfo) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="w-full sm:max-w-sm bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl">
+          <div className="p-6">
+            <h2 className="text-lg font-bold text-white mb-4">
+              Confirm Payment
+            </h2>
+
+            <div className="space-y-3 mb-6">
+              <div className="flex justify-between text-sm">
+                <span className="text-white/50">Route</span>
+                <span className="text-white">
+                  {pickupPoint?.name}{pickupLandmark ? ` · ${pickupLandmark}` : ""} →{" "}
+                  {dropoffPoint?.name}{dropoffLandmark ? ` · ${dropoffLandmark}` : ""}
+                </span>
+              </div>
+              {pickupLandmark && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-white/50">Pickup Landmark</span>
+                  <span className="text-[#62A0EA]">{pickupLandmark}</span>
+                </div>
+              )}
+              {dropoffLandmark && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-white/50">Drop-off Landmark</span>
+                  <span className="text-[#FF6D3A]">{dropoffLandmark}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm">
+                <span className="text-white/50">Barangays Traveled</span>
+                <span className="text-white">
+                  {fareInfo.barangaysTraveled}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-white/50">Fare Basis</span>
+                <span className="text-white/70 text-xs">
+                  {fareInfo.succeedingCount > 0
+                    ? `Base fare covers first ${fareInfo.baseBarangayCount} + ${fareInfo.succeedingCount} succeeding`
+                    : "Base fare (within first 4 barangays)"}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-white/50">Commuter Type</span>
+                <span className="text-white">
+                  {getCommuterTypeLabel(commuterType)}
+                </span>
+              </div>
+              {fareInfo.hasDiscount && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-white/50">Regular Fare</span>
+                  <span className="text-white/30 line-through">
+                    {formatCurrency(fareInfo.regularFare)}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm">
+                <span className="text-white/50">Discount</span>
+                <span className="text-green-400">
+                  -{formatCurrency(fareInfo.discountAmount)}
+                </span>
+              </div>
+              <div className="border-t border-white/10 pt-3 flex justify-between">
+                <span className="text-white font-semibold">Total</span>
+                <span className="text-xl font-extrabold text-white">
+                  {formatCurrency(fareInfo.finalFare)}
+                </span>
+              </div>
+            </div>
+
+            {/* GCash Payment Notice */}
+            <div className="bg-[#1A5FB4]/10 border border-[#1A5FB4]/20 rounded-xl p-3 mb-6">
+              <div className="flex items-center gap-2 mb-1">
+                <svg
+                  className="w-4 h-4 text-[#62A0EA]"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"
+                  />
+                </svg>
+                <span className="text-xs font-semibold text-[#62A0EA]">
+                  GCash Secure Payment
+                </span>
+              </div>
+              <p className="text-[10px] text-white/40">
+                You will be redirected to GCash to confirm payment. No wallet
+                balance needed — pay directly.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setStep("select")}
+                className="flex-1 py-3 rounded-xl border border-white/10 text-white/60 text-sm font-semibold hover:bg-white/5 transition-colors"
+              >
+                Back
+              </button>
+              <button
+                onClick={handlePayWithGCash}
+                className="flex-1 py-3 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] text-white text-sm font-bold transition-colors shadow-lg shadow-[#1A5FB4]/30"
+              >
+                Pay {formatCurrency(fareInfo.finalFare)}
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
 
-  // --- STEP 2: SET LOCATIONS ON MAP ---
-  const renderSetLocations = () => (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-[#050F1A]">
-      {/* Header */}
-      <div className="flex-shrink-0 flex items-center justify-between p-4 bg-[#071A2E] border-b border-white/10 z-20">
-        <div>
-          <h2 className="text-white font-bold text-lg">
-            Set Drop-off Point
+  // ─── STEP: Processing ───────────────────────────────────────────
+
+  if (step === "processing") {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="w-full max-w-xs bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl p-8 text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-[#1A5FB4] border-t-transparent animate-spin" />
+          <h2 className="text-lg font-bold text-white mb-2">
+            Processing Payment
           </h2>
-          <p className="text-white/40 text-[10px] mt-0.5">
-            Tap on the route to pin where the passenger will alight
+          <p className="text-sm text-white/40">
+            Confirming your GCash payment...
           </p>
         </div>
-        <button onClick={handleClose} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
-          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-        </button>
       </div>
+    );
+  }
 
-      {/* Map */}
-      <div className="flex-1 relative z-0">
-        <MapContainer center={[14.81, 120.87]} zoom={12} zoomControl={false} attributionControl={false} className="w-full h-full" style={{ background: '#050F1A' }}>
-          <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
-          <Polyline positions={ROUTE_COORDS} pathOptions={{ color: '#62A0EA', weight: 8, opacity: 0.2, lineCap: 'round' }} />
-          <Polyline positions={ROUTE_COORDS} pathOptions={{ color: '#62A0EA', weight: 4, opacity: 0.9, dashArray: '10 10', lineCap: 'round' }} />
-          <MapClickHandler onRouteClick={handleRouteClick} />
-          {boardingPoint && (
-            <Marker position={boardingPoint} icon={boardingIcon}>
-              <Popup>
-                <div className="font-bold text-[#071A2E]">Boarding (A)</div>
-                <div className="text-xs text-gray-500">{boardingName || "Loading name..."}</div>
-              </Popup>
-            </Marker>
-          )}
-          {dropoffPoint && (
-            <Marker position={dropoffPoint} icon={dropoffIcon}>
-              <Popup>
-                <div className="font-bold text-[#071A2E]">Drop-off (B)</div>
-                <div className="text-xs text-gray-500">{dropoffName || "Loading name..."}</div>
-              </Popup>
-            </Marker>
-          )}
-        </MapContainer>
+  // ─── STEP: Success ──────────────────────────────────────────────
 
-        {/* Boarding location auto-detected badge */}
-        {boardingPoint && (
-          <div className="absolute top-4 right-4 z-10">
-            <div className="px-3 py-2 rounded-xl text-xs font-bold shadow-lg bg-green-500/90 text-white shadow-green-500/30 flex items-center gap-1.5">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" /></svg>
-              Boarding: Auto
+  if (step === "success" && fareInfo) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="w-full sm:max-w-sm bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl">
+          <div className="p-6 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center">
+              <svg
+                className="w-8 h-8 text-green-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2.5}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="m4.5 12.75 6 6 9-13.5"
+                />
+              </svg>
             </div>
-          </div>
-        )}
-      </div>
+            <h2 className="text-lg font-bold text-white mb-1">
+              Payment Successful!
+            </h2>
+            <p className="text-sm text-white/40 mb-4">
+              Your fare has been paid via GCash
+            </p>
 
-      {/* Bottom Sheet - Fare Breakdown */}
-      <div className="flex-shrink-0 bg-[#071A2E] border-t border-white/10 p-5 pb-6 shadow-2xl z-20">
-        {/* Location Chips */}
-        <div className="flex items-center gap-2 mb-3">
-          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${boardingPoint ? "bg-green-500/20 text-green-400" : boardingLoading ? "bg-green-500/10 text-green-400/60" : "bg-white/5 text-white/30"}`}>
-            <span className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center text-[9px] font-bold">A</span>
-            {boardingLoading ? (
-              <span className="flex items-center gap-1">
-                <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                Detecting...
-              </span>
-            ) : boardingPoint ? (boardingName || "Loading...") : "—"}
-          </div>
-          <svg className="w-4 h-4 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
-          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${dropoffPoint ? "bg-orange-500/20 text-orange-400" : "bg-white/5 text-white/30"}`}>
-            <span className="w-4 h-4 rounded-full bg-[#FF6D3A] text-white flex items-center justify-center text-[9px] font-bold">B</span>
-            {dropoffPoint ? (dropoffName || "Loading...") : "Tap to set"}
-          </div>
-        </div>
-
-        {/* Fare Preview */}
-        <h3 className="text-[10px] font-bold text-white/30 uppercase tracking-wider mb-3">
-          {boardingPoint && dropoffPoint ? "Fare Breakdown" : "Set both points to calculate"}
-        </h3>
-
-        {boardingPoint && dropoffPoint ? (
-          <div className="space-y-1.5 mb-4">
-            <div className="flex justify-between text-sm">
-              <span className="text-white/60">Total Distance</span>
-              <span className="font-semibold text-white">{distance.toFixed(2)} km</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-white/60">Base Fare (first {BASE_KM}km)</span>
-              <span className="font-semibold text-white">₱ {BASE_FARE.toFixed(2)}</span>
-            </div>
-            {succeedingKm > 0 && (
+            <div className="bg-white/5 rounded-xl p-4 text-left space-y-2 mb-6">
               <div className="flex justify-between text-sm">
-                <span className="text-white/60">Succeeding ({succeedingKm.toFixed(2)} km x ₱{ADDITIONAL_RATE})</span>
-                <span className="font-semibold text-white">₱ {succeedingFare.toFixed(2)}</span>
-            </div>
-            )}
-            {hasDiscount && (
+                <span className="text-white/40">Amount Paid</span>
+                <span className="text-white font-bold">
+                  {formatCurrency(fareInfo.finalFare)}
+                </span>
+              </div>
               <div className="flex justify-between text-sm">
-                <span className="text-emerald-400">Discount (20%)</span>
-                <span className="font-semibold text-emerald-400">- ₱ {discountAmount.toFixed(2)}</span>
+                <span className="text-white/40">Route</span>
+                <span className="text-white/70">
+                  {pickupPoint?.name}{pickupLandmark ? ` · ${pickupLandmark}` : ""} →{" "}
+                  {dropoffPoint?.name}{dropoffLandmark ? ` · ${dropoffLandmark}` : ""}
+                </span>
               </div>
-            )}
-            <div className="border-t border-dashed border-white/10 my-2" />
-            <div className="flex justify-between items-center pt-1">
-              <span className="font-bold text-white text-base">Total Fare</span>
-              <span className="font-extrabold text-[#62A0EA] text-2xl">₱ {totalFare.toFixed(2)}</span>
-            </div>
-          </div>
-        ) : boardingLoading ? (
-          <div className="mb-4 text-white/30 text-xs text-center py-3">
-            Detecting your current location...
-          </div>
-        ) : (
-          <div className="mb-4 text-white/20 text-xs text-center py-3">
-            Tap on the route to set the drop-off point
-          </div>
-        )}
-
-        {/* Action Buttons */}
-        <div className="flex gap-3">
-          <button
-            onClick={() => {
-              if (dropoffPoint) {
-                setDropoffPoint(null);
-                setDropoffIndex(0);
-                setDropoffName("");
-              } else {
-                handleClose();
-              }
-            }}
-            className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold border border-white/10 text-white/60 hover:bg-white/5 transition-colors"
-          >
-            {dropoffPoint ? "Reset Drop-off" : "Cancel"}
-          </button>
-          <button
-            onClick={() => boardingPoint && dropoffPoint ? setStep('review') : null}
-            disabled={!boardingPoint || !dropoffPoint}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold bg-[#1A5FB4] disabled:bg-gray-700 disabled:text-gray-500 text-white hover:bg-[#165a9f] transition-colors shadow-lg"
-          >
-            Review
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
-  // --- STEP 3: REVIEW ---
-  const renderReview = () => (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="relative backdrop-blur-md bg-gray-900/90 border border-white/20 rounded-xl shadow-2xl w-full max-w-md mx-4">
-        <div className="p-6">
-          <div className="p-2 space-y-4">
-            <h2 className="text-xl font-bold text-white text-center">Review Payment</h2>
-
-            {/* Passenger Info */}
-            <div className="bg-white/5 rounded-xl p-4 border border-white/10 space-y-1">
-              <p className="text-white font-semibold">{passenger?.name}</p>
-              <div className="flex justify-between text-xs text-white/50">
-                <span>ID: {passenger?.id}</span>
-                <span className={`font-semibold px-2 py-0.5 rounded ${hasDiscount ? 'bg-green-500/20 text-green-400' : 'bg-white/10 text-white/60'}`}>{passenger?.role}</span>
+              {pickupLandmark && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-white/40">Pickup Landmark</span>
+                  <span className="text-[#62A0EA]">{pickupLandmark}</span>
+                </div>
+              )}
+              {dropoffLandmark && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-white/40">Drop-off Landmark</span>
+                  <span className="text-[#FF6D3A]">{dropoffLandmark}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm">
+                <span className="text-white/40">Barangays</span>
+                <span className="text-white/70">
+                  {fareInfo.barangaysTraveled} traveled
+                </span>
               </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-white/40">Method</span>
+                <span className="text-[#62A0EA]">GCash</span>
+              </div>
+              {paymentIntent && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-white/40">Ref ID</span>
+                  <span className="text-white/50 text-xs font-mono">
+                    {paymentIntent.id}
+                  </span>
+                </div>
+              )}
             </div>
 
-            {/* Route */}
-            <div className="bg-white/5 rounded-2xl p-4 border border-white/10 space-y-2 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-green-500 text-white flex items-center justify-center text-[9px] font-bold">A</span>
-                <span className="text-white font-medium">{boardingName}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-[#FF6D3A] text-white flex items-center justify-center text-[9px] font-bold">B</span>
-                <span className="text-white font-medium">{dropoffName}</span>
-              </div>
-            </div>
-
-            {/* Fare Breakdown */}
-            <div className="bg-white/5 rounded-2xl p-4 border border-white/10 space-y-2 text-sm">
-              <div className="flex justify-between"><span className="text-gray-400">Distance</span><span className="text-white font-medium">{distance.toFixed(2)} km</span></div>
-              <div className="border-t border-white/10 pt-2 flex justify-between"><span className="text-gray-400">First Kilometer</span><span className="text-white">₱ {BASE_FARE.toFixed(2)}</span></div>
-              {succeedingKm > 0 && <div className="flex justify-between"><span className="text-gray-400">Succeeding ({succeedingKm.toFixed(2)} km x ₱{ADDITIONAL_RATE})</span><span className="text-white">₱ {succeedingFare.toFixed(2)}</span></div>}
-              {hasDiscount && <div className="flex justify-between text-green-400"><span>Discount (Auto - 20%)</span><span>- ₱ {discountAmount.toFixed(2)}</span></div>}
-              <div className="border-t border-white/10 pt-2 flex justify-between items-center">
-                <span className="text-white font-bold">Total</span>
-                <span className="text-2xl font-extrabold text-[#62A0EA]">₱ {totalFare.toFixed(2)}</span>
-              </div>
-            </div>
-
-            <p className="text-center text-purple-400 text-xs font-medium">Payment method: Wallet (Scanned)</p>
-
-            <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => setStep('set-locations')} className="py-3 rounded-xl text-sm font-semibold border border-white/10 text-gray-300 hover:bg-white/5 transition-colors">Back</button>
-              <button onClick={handleConfirmPayment} className="py-3 rounded-xl text-sm font-bold bg-green-600 text-white hover:bg-green-700 transition-colors">Confirm</button>
-            </div>
+            <button
+              onClick={onClose}
+              className="w-full py-3 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] text-white text-sm font-bold transition-colors"
+            >
+              Done
+            </button>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
 
-  // --- STEP 4: SUCCESS / RECEIPT ---
-  const renderSuccess = () => (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="relative backdrop-blur-md bg-gray-900/90 border border-white/20 rounded-xl shadow-2xl w-full max-w-md mx-4">
-        <div className="p-6">
-          <div className="p-2 space-y-4 text-center">
-            <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto">
-              <svg className="w-8 h-8 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+  // ─── STEP: Failed ───────────────────────────────────────────────
+
+  if (step === "failed") {
+    return (
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="w-full sm:max-w-sm bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl">
+          <div className="p-6 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+              <svg
+                className="w-8 h-8 text-red-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2.5}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M6 18 18 6M6 6l12 12"
+                />
+              </svg>
             </div>
-            <h2 className="text-xl font-bold text-white">Payment Successful</h2>
-            <div className="bg-white/5 rounded-2xl p-4 border border-white/10 text-left text-xs space-y-2 font-mono">
-              <p className="text-center text-white/40 border-b border-dashed border-white/10 pb-2">RECEIPT</p>
-              <div className="flex justify-between"><span className="text-gray-400">Txn ID:</span><span className="text-white">{receiptId}</span></div>
-              <div className="flex justify-between"><span className="text-gray-400">Date:</span><span className="text-white">{new Date().toLocaleString()}</span></div>
-              <div className="border-t border-dashed border-white/10 pt-2 space-y-1">
-                <p className="text-white/50 font-bold uppercase text-[10px] mt-1">Passenger</p>
-                <div className="flex justify-between"><span className="text-gray-400">Name:</span><span className="text-white">{passenger?.name}</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">ID:</span><span className="text-white">{passenger?.id}</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">Role:</span><span className="text-white">{passenger?.role}</span></div>
-              </div>
-              <div className="border-t border-dashed border-white/10 pt-2 space-y-1">
-                <p className="text-white/50 font-bold uppercase text-[10px] mt-1">Route &amp; Fare</p>
-                <div className="flex justify-between"><span className="text-gray-400">From:</span><span className="text-white">{boardingName}</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">To:</span><span className="text-white">{dropoffName}</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">Distance:</span><span className="text-white">{distance.toFixed(2)} km</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">First Km:</span><span className="text-white">₱{BASE_FARE.toFixed(2)}</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">Succeeding ({succeedingKm.toFixed(2)}km):</span><span className="text-white">₱{succeedingFare.toFixed(2)}</span></div>
-                {hasDiscount && <div className="flex justify-between text-green-400"><span>Discount:</span><span>-₱{discountAmount.toFixed(2)}</span></div>}
-                <div className="flex justify-between font-bold text-base text-[#62A0EA] border-t border-white/10 pt-2"><span>Total Paid:</span><span>₱{totalFare.toFixed(2)}</span></div>
-              </div>
-              <div className="border-t border-dashed border-white/10 pt-2 space-y-1">
-                <p className="text-white/50 font-bold uppercase text-[10px] mt-1">Unit Info</p>
-                <div className="flex justify-between"><span className="text-gray-400">Conductor:</span><span className="text-white">{conductorName}</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">Driver:</span><span className="text-white">{driverName}</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">Unit No:</span><span className="text-white">{unitNumber}</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">Method:</span><span className="text-purple-400 font-medium">Wallet (Scanned)</span></div>
-              </div>
+            <h2 className="text-lg font-bold text-white mb-1">
+              Payment Failed
+            </h2>
+            <p className="text-sm text-white/40 mb-6">
+              Could not process your GCash payment. Please try again or pay
+              cash to the conductor.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={onClose}
+                className="flex-1 py-3 rounded-xl border border-white/10 text-white/60 text-sm font-semibold hover:bg-white/5 transition-colors"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => setStep("confirm")}
+                className="flex-1 py-3 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] text-white text-sm font-bold transition-colors"
+              >
+                Try Again
+              </button>
             </div>
-            <button onClick={handleClose} className="w-full py-3 rounded-xl text-sm font-bold bg-[#1A5FB4] text-white hover:bg-[#165a9f] transition-colors">Done</button>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
 
-  // --- MAIN RENDER ---
-  if (!isOpen) return null;
-
-  return (
-    <>
-      {step === 'scanning' && renderScanning()}
-      {step === 'set-locations' && renderSetLocations()}
-      {step === 'review' && renderReview()}
-      {step === 'success' && renderSuccess()}
-
-      <style jsx global>{`
-        .custom-boarding-icon { background: transparent !important; border: none !important; }
-        .custom-dropoff-icon { background: transparent !important; border: none !important; }
-        .leaflet-container { background: #050F1A !important; font-family: inherit !important; }
-        .leaflet-popup-content-wrapper { background: #071A2E !important; border-radius: 12px !important; box-shadow: 0 4px 12px rgba(0,0,0,0.4) !important; padding: 0 !important; border: 1px solid rgba(255,255,255,0.1) !important;}
-        .leaflet-popup-content { margin: 12px 16px !important; color: white !important; line-height: 1.4 !important; }
-        .leaflet-popup-tip { background: #071A2E !important; }
-        .leaflet-popup-close-button { color: white !important; }
-
-        /* ─── QR Scanner: Mobile-friendly overrides ─── */
-        #fare-scanner { width: 100% !important; height: 100% !important; overflow: hidden !important; }
-        #fare-scanner video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
-        #fare-scanner img[alt="Info icon"] { display: none !important; }
-        #fare-scanner > div { width: 100% !important; height: 100% !important; }
-        #fare-scanner .qr-shaded-region { border-width: 3px !important; }
-        /* Hide the "Info" link that html5-qrcode injects */
-        #fare-scanner a[href*="info"] { display: none !important; }
-
-        /* ─── Scan Line Animation ─── */
-        @keyframes scanLine {
-          0% { top: 10%; opacity: 0; }
-          10% { opacity: 1; }
-          90% { opacity: 1; }
-          100% { top: 90%; opacity: 0; }
-        }
-        .scan-line {
-          animation: scanLine 2s ease-in-out infinite;
-        }
-      `}</style>
-    </>
-  );
+  return null;
 }

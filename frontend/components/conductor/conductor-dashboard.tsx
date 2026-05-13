@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
-const FareCalculatorModal = dynamic(
+const FareCalcModal = dynamic(
   () => import("@/components/conductor/modals/fare-calculator-modal"),
   { ssr: false }
 );
@@ -196,7 +196,7 @@ export default function ConductorDashboard() {
           <div className="grid grid-cols-2 gap-3">
             <button onClick={() => setShowFareCalc(true)} className="bg-[#1A5FB4] text-white py-4 rounded-2xl font-bold shadow-lg shadow-blue-500/30 hover:bg-[#165a9f] transition-colors flex flex-col items-center justify-center gap-1">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" /></svg>
-              <span className="text-xs">Scan QR</span>
+              <span className="text-xs">Pay Fare</span>
             </button>
             <button onClick={() => setShowHistory(true)} className="bg-white/5 border border-white/10 text-white py-4 rounded-2xl font-bold hover:bg-white/10 transition-colors flex flex-col items-center justify-center gap-1">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
@@ -273,14 +273,7 @@ export default function ConductorDashboard() {
         <ConductorMap />
       </div>
 
-      <FareCalculatorModal
-        isOpen={showFareCalc}
-        onClose={() => setShowFareCalc(false)}
-        shiftId={shift?.shiftId || ""}
-        conductorName={conductorName}
-        unitNumber={unitNumber}
-        driverName={driverName}
-      />
+      {showFareCalc && <FareCalcModal onClose={() => setShowFareCalc(false)} />}
       <HistoryLogModal isOpen={showHistory} onClose={() => setShowHistory(false)} shiftId={shift?.shiftId || ""} />
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -59,23 +59,36 @@ const mapBoundsArray: [[number, number], [number, number]] = [
 ];
 const MAP_CENTER: L.LatLngTuple = [rawBounds.getCenter().lat, rawBounds.getCenter().lng];
 
-// --- MOCK HAILING DATA (positions on the route) ---
-// Conductor's vehicle at route index 35, hailing commuters at nearby indices
+// --- MOCK HAILING DATA ---
 const CONDUCTOR_ROUTE_INDEX = 35;
 const HAIL_1_ROUTE_INDEX = 30;
 const HAIL_2_ROUTE_INDEX = 42;
 
 export default function ConductorMap() {
   const [isDomReady, setIsDomReady] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsDomReady(true);
-    }, 150);
-    return () => clearTimeout(timer);
+    // Use double requestAnimationFrame to ensure the DOM has fully painted
+    // before Leaflet tries to access container.appendChild.
+    // This prevents "Cannot read properties of undefined (reading 'appendChild')"
+    // which happens when React Strict Mode double-invokes effects and Leaflet
+    // tries to init before the container DOM node is stable.
+    let cancelled = false;
+    const raf1 = requestAnimationFrame(() => {
+      const raf2 = requestAnimationFrame(() => {
+        if (!cancelled && typeof document !== "undefined") {
+          setIsDomReady(true);
+        }
+      });
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf1);
+    };
   }, []);
 
-  // Conductor's Vehicle Marker (matches commuter's jeepney marker style — dark circle with blue border)
+  // Conductor's Vehicle Marker
   const vehicleIcon = useMemo(() => new L.DivIcon({
     className: "custom-vehicle-icon",
     html: `
@@ -90,7 +103,7 @@ export default function ConductorMap() {
     popupAnchor: [0, -25],
   }), []);
 
-  // Hailing Commuter Marker (orange pulsing dot — matches commuter hail style on dark theme)
+  // Hailing Commuter Marker
   const hailingIcon = useMemo(() => new L.DivIcon({
     className: "custom-hailing-icon",
     html: `
@@ -105,7 +118,7 @@ export default function ConductorMap() {
   }), []);
 
   if (!isDomReady) {
-    return <div className="absolute inset-0 bg-[#050F1A]" />;
+    return <div ref={containerRef} className="absolute inset-0 bg-[#050F1A]" />;
   }
 
   return (
@@ -121,15 +134,11 @@ export default function ConductorMap() {
         maxBoundsViscosity={1.0}
         minZoom={11}
       >
-        {/* Dark map tiles — matches commuter map design */}
         <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
 
-        {/* Route polyline — glow layer */}
         <Polyline positions={ROUTE_COORDS} pathOptions={{ color: '#62A0EA', weight: 8, opacity: 0.2, lineCap: 'round', lineJoin: 'round' }} />
-        {/* Route polyline — dashed line */}
         <Polyline positions={ROUTE_COORDS} pathOptions={{ color: '#62A0EA', weight: 4, opacity: 0.9, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }} />
 
-        {/* Conductor's Current Location */}
         <Marker position={ROUTE_COORDS[CONDUCTOR_ROUTE_INDEX]} icon={vehicleIcon}>
           <Popup>
             <div className="space-y-2 min-w-[180px]">
@@ -144,7 +153,6 @@ export default function ConductorMap() {
           </Popup>
         </Marker>
 
-        {/* Hailing Commuter 1 */}
         <Marker position={ROUTE_COORDS[HAIL_1_ROUTE_INDEX]} icon={hailingIcon}>
           <Popup>
             <div className="font-bold text-[#FF6D3A]">Passenger Waiting</div>
@@ -152,7 +160,6 @@ export default function ConductorMap() {
           </Popup>
         </Marker>
 
-        {/* Hailing Commuter 2 */}
         <Marker position={ROUTE_COORDS[HAIL_2_ROUTE_INDEX]} icon={hailingIcon}>
           <Popup>
             <div className="font-bold text-[#FF6D3A]">Passenger Waiting</div>
