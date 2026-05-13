@@ -33,7 +33,7 @@ export default function Hero() {
           </h1>
           
           <p className="mt-6 text-lg text-white/50 leading-relaxed">
-            Experience seamless commuting with real-time tracking, cashless QR payments, and AI-powered safety features—all in your pocket.
+            Experience seamless commuting with real-time tracking, cashless QR payments, and smart safety features—all in your pocket.
           </p>
 
           <div className="mt-10 flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start">
@@ -114,7 +114,7 @@ export default function Hero() {
             </div>
           </motion.div>
 
-          {/* 2. Digital Wallet Card - Top Right */}
+          {/* 2. GCash Payment Card - Top Right */}
           <motion.div 
             className="absolute top-12 -right-12 z-30"
             initial={{ opacity: 0, x: 40, scale: 0.9 }}
@@ -123,16 +123,16 @@ export default function Hero() {
           >
             <div className="w-60 bg-[#071A2E]/95 backdrop-blur-md rounded-2xl shadow-xl shadow-black/20 p-4 border border-white/10 text-white">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">Digital Wallet</span>
+                <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">GCash Payment</span>
                 <div className="w-5 h-5 rounded-full bg-[#1A5FB4] flex items-center justify-center">
-                  <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" /></svg>
+                  <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" /></svg>
                 </div>
               </div>
-              <div className="text-2xl font-bold tracking-tight">₱487.50</div>
-              <div className="text-[11px] text-white/40 mt-1">Available Balance</div>
+              <div className="text-lg font-bold tracking-tight">Pay Directly</div>
+              <div className="text-[11px] text-white/40 mt-1">No wallet needed — pay per ride</div>
               <div className="mt-3 pt-3 border-t border-white/10 flex gap-2">
-                <span className="px-2.5 py-1 rounded-lg bg-white/10 text-[10px] font-medium text-white/70">Top Up</span>
-                <span className="px-2.5 py-1 rounded-lg bg-[#1A5FB4] text-[10px] font-medium text-white">History</span>
+                <span className="px-2.5 py-1 rounded-lg bg-white/10 text-[10px] font-medium text-white/70">Show QR</span>
+                <span className="px-2.5 py-1 rounded-lg bg-[#1A5FB4] text-[10px] font-medium text-white">Receipts</span>
               </div>
             </div>
           </motion.div>

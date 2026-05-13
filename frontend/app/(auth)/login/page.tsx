@@ -55,7 +55,7 @@ export default function LoginPage() {
               <span className="text-[#62A0EA]">Reimagined.</span>
             </h1>
             <p className="mt-6 text-lg text-white/50 max-w-lg leading-relaxed">
-              Access your digital wallet, track your rides in real-time, and commute smarter every day.
+              Pay with GCash, track your rides in real-time, and commute smarter every day.
             </p>
 
             {/* Stats Row */}
@@ -84,7 +84,7 @@ export default function LoginPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                   </svg>
                 </div>
-                <div className="text-sm font-semibold text-white">Digital Wallet</div>
+                <div className="text-sm font-semibold text-white">GCash Payment</div>
                 <div className="text-xs text-white/40 mt-1">Tap & pay seamlessly</div>
               </div>
               <div className="bg-white/[0.06] backdrop-blur-sm border border-white/[0.08] rounded-2xl p-5">

@@ -3,5 +3,4 @@ export interface User {
   firstName: string;
   surname: string;
   commuterType: "Regular" | "Student" | "Senior Citizen" | "PWD";
-  balance: number;
 }

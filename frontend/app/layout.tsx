@@ -11,7 +11,7 @@ const poppins = Poppins({
 export const metadata: Metadata = {
   title: "CHATCO — Smart Jeepney Commuting Platform",
   description:
-    "Revolutionizing Philippine jeepney transport with digital payments, real-time tracking, offline QR wallets, and smart fleet management.",
+    "Revolutionizing Philippine jeepney transport with GCash payments, real-time tracking, smart hailing, and fleet management.",
 };
 
 export default function RootLayout({

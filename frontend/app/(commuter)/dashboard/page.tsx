@@ -5,7 +5,6 @@ import dynamic from "next/dynamic";
 import { User } from "@/app/types/user.types";
 
 import ShowQRModal from "@/components/commuter/modals/show-qr-modal";
-import TopUpModal from "@/components/commuter/modals/top-up-modal";
 import PaymentHistoryModal from "@/components/commuter/modals/payment-history-modal";
 import ShareRideModal from "@/components/commuter/modals/share-ride-modal";
 import SosModal from "@/components/commuter/modals/sos-modal"; 
@@ -24,8 +23,7 @@ const mockUser: User = {
   id: "c_001",
   firstName: "Arone",
   surname: "Dela Cruz",
-  commuterType: "Regular",
-  balance: 487.5,
+  commuterType: "Regular"
 };
 
 export default function CommuterHome() {
@@ -81,7 +79,6 @@ export default function CommuterHome() {
           <div className="bg-gradient-to-br from-[#1A5FB4] to-[#164A8F] rounded-2xl p-5 shadow-xl shadow-[#1A5FB4]/20 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
             <p className="text-white/70 text-xs font-medium mb-1">My Wallet Balance</p>
-            <h2 className="text-white text-3xl font-extrabold tracking-tight">₱ {mockUser.balance.toLocaleString()}</h2>
             <div className="mt-4 flex gap-3">
               <button onClick={() => setShowTopUp(true)} className="flex-1 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white text-xs font-semibold py-2.5 rounded-lg transition-colors">+ Top Up</button>
               <button onClick={() => setShowHistory(true)} className="flex-1 bg-white text-[#071A2E] text-xs font-semibold py-2.5 rounded-lg hover:bg-gray-100 transition-colors">View History</button>
@@ -115,7 +112,6 @@ export default function CommuterHome() {
           <div className="bg-gradient-to-br from-[#1A5FB4] to-[#164A8F] rounded-2xl p-5 shadow-xl shadow-[#1A5FB4]/20 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
             <p className="text-white/70 text-xs font-medium mb-1">My Wallet Balance</p>
-            <h2 className="text-white text-3xl font-extrabold tracking-tight">₱ {mockUser.balance.toLocaleString()}</h2>
             <div className="mt-4 flex gap-3">
               <button onClick={() => setShowTopUp(true)} className="flex-1 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white text-sm font-semibold py-2.5 rounded-lg transition-colors">+ Top Up</button>
               <button onClick={() => setShowHistory(true)} className="flex-1 bg-white text-[#071A2E] text-sm font-semibold py-2.5 rounded-lg hover:bg-gray-100 transition-colors">View History</button>
@@ -145,7 +141,6 @@ export default function CommuterHome() {
       {/* --- MODALS --- */}
       {showQR && <ShowQRModal user={mockUser} onClose={() => setShowQR(false)} />}
       {showFareCalc && <FareCalcModal onClose={() => setShowFareCalc(false)} />}
-      {showTopUp && <TopUpModal currentBalance={mockUser.balance} onClose={() => setShowTopUp(false)} />}
       {showHistory && <PaymentHistoryModal onClose={() => setShowHistory(false)} />}
       {showShareRide && <ShareRideModal commuterName={mockUser.firstName} onClose={() => setShowShareRide(false)} />}
       {showSOS && <SosModal commuterId={mockUser.id} commuterName={mockUser.firstName} onClose={() => setShowSOS(false)} />}
