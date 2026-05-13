@@ -249,3 +249,47 @@ The current CHATCO frontend repository structure and component patterns
 The updated operational decisions (no wallet, GCash direct, point-area fares, 1km radius, refunds, separate remittance)
 The CHATCO fare matrix with 34 operational point areas
 The existing dark-mode Tailwind CSS design system already in use
+
+--------------- lagay niyo uli image nung fare na may mga barangay na bold text ----------------------
+
+in addition
+
+btw this is from documentation prompt
+
+The explanation must clearly establish the following operational logic:
+
+The bold texts in the fare matrix represent BARANGAYS or operational fare zones.
+The indented items under each barangay represent landmarks, establishments, terminals, pickup points, or key locations within that barangay.
+Fare computation is not based on exact GPS distance or unrestricted point-to-point map calculation.
+The system follows a barangay-based fare progression model.
+
+The fare logic works as follows:
+
+The first four (4) barangays traveled are covered by the base fare.
+Every succeeding barangay after the fourth barangay is treated as one (1) succeeding kilometer or fare increment.
+The succeeding fare is added on top of the base fare.
+This operational rule applies regardless of route direction or starting point.
+The same logic applies whether the trip starts from Calumpit, Banga, Meycauayan, or any other operational zone along the route.
+
+Provide a clear and formal explanation using this sample scenario:
+
+Example:
+
+A commuter starts from Calumpit and travels to Longos.
+Assume the base fare is PHP 18.
+Longos is considered the 5th barangay from the commuter’s origin point.
+Since the first four barangays are already covered by the base fare, the 5th barangay becomes one succeeding kilometer/fare increment.
+If the succeeding fare rate is PHP 2, then the total fare becomes:
+PHP 18 base fare
+PHP 2 succeeding fare
+= PHP 20 total fare
+
+Also explain:
+
+how landmarks under each barangay are only reference points belonging to that fare zone
+how conductors manually select the operational barangay/zone during fare processing
+how this keeps fare computation aligned with the actual operational practices of CHATCO Cooperative
+
+now this prompt is for documentation, but i instruct u to follow to rule/logic for fare and areas base on the image u sccan BOLD TEXT == barangay, indented text, areas on that barangay
+
+update all related to _____ role if needed using this detail, if not then just say you dont have to 
