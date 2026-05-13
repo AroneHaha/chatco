@@ -1,8 +1,4 @@
-// lib/gcash-payment.ts
-// PayMongo GCash payment service layer
-// Structured for easy swap between sandbox and production
-
-export type PaymentStatus = "pending" | "processing" | "paid" | "failed" | "refunded";
+export type PaymentStatus = "pending" | "processing" | "paid" | "failed";
 export type PaymentMethod = "GCash_Scanned" | "GCash_Direct" | "Cash" | "Voucher";
 
 export interface GCashPaymentIntent {
@@ -36,11 +32,6 @@ export interface CreatePaymentParams {
   shiftId?: string;
 }
 
-export interface RefundResult {
-  success: boolean;
-  refundId?: string;
-  message?: string;
-}
 
 /**
  * PayMongo configuration.
@@ -141,46 +132,6 @@ export async function verifyPayment(
   return newStatus;
 }
 
-// ─── Refund Processing ───────────────────────────────────────────────
-
-/**
- * Process a refund for a GCash payment.
- * In production, this calls the PayMongo refund API.
- * For cash payments, this is marked as manual.
- */
-export async function processRefund(
-  paymentId: string,
-  reason: string,
-  amount?: number
-): Promise<RefundResult> {
-  if (!PAYMONGO_CONFIG.isSandbox) {
-    try {
-      const response = await fetch("/api/payments/refund", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentId, reason, amount }),
-      });
-      const data = await response.json();
-      return {
-        success: data.success,
-        refundId: data.refundId,
-        message: data.message,
-      };
-    } catch (error) {
-      return { success: false, message: "Refund request failed" };
-    }
-  }
-
-  // Sandbox: simulate refund
-  await new Promise((r) => setTimeout(r, 1000));
-  updatePaymentStatus(paymentId, "refunded");
-  return {
-    success: true,
-    refundId: `REF-${Date.now()}`,
-    message: "Refund processed (sandbox)",
-  };
-}
-
 // ─── Payment History ─────────────────────────────────────────────────
 
 /**
@@ -249,7 +200,6 @@ export function getPaymentStatusColor(status: PaymentStatus): string {
     processing: "text-blue-400",
     paid: "text-green-400",
     failed: "text-red-400",
-    refunded: "text-purple-400",
   };
   return colors[status];
 }
@@ -260,7 +210,6 @@ export function getPaymentStatusLabel(status: PaymentStatus): string {
     processing: "Processing",
     paid: "Paid",
     failed: "Failed",
-    refunded: "Refunded",
   };
   return labels[status];
 }

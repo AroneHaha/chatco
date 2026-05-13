@@ -29,7 +29,6 @@ const mockUser: User = {
 export default function CommuterHome() {
   const [showQR, setShowQR] = useState(false);
   const [showFareCalc, setShowFareCalc] = useState(false);
-  const [showTopUp, setShowTopUp] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showShareRide, setShowShareRide] = useState(false);
   const [showSOS, setShowSOS] = useState(false); 
@@ -73,15 +72,39 @@ export default function CommuterHome() {
         </div>
         <div className="h-16 flex flex-col items-center justify-center cursor-pointer flex-shrink-0" onClick={() => setShowSheet(!showSheet)}>
           <div className={`w-10 h-1 rounded-full transition-colors duration-300 ${showSheet ? "bg-white/30" : "bg-white/60"}`} />
-          {!showSheet && (<div className="flex items-center gap-1.5 mt-2 text-white/50"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg><span className="text-[10px] font-semibold uppercase tracking-wider">Wallet & Tools</span></div>)}
+          {!showSheet && (<div className="flex items-center gap-1.5 mt-2 text-white/50"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg><span className="text-[10px] font-semibold uppercase tracking-wider">Tools</span></div>)}
         </div>
         <div className="px-5 pb-24 overflow-y-auto max-h-[60vh]">
-          <div className="bg-gradient-to-br from-[#1A5FB4] to-[#164A8F] rounded-2xl p-5 shadow-xl shadow-[#1A5FB4]/20 relative overflow-hidden">
+          {/* GCash Payment Card */}
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setShowFareCalc(true)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowFareCalc(true); } }}
+            className="w-full bg-gradient-to-br from-[#1A5FB4] to-[#0D3B6E] rounded-2xl p-5 shadow-xl shadow-[#1A5FB4]/20 relative overflow-hidden text-left group cursor-pointer"
+          >
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
-            <p className="text-white/70 text-xs font-medium mb-1">My Wallet Balance</p>
-            <div className="mt-4 flex gap-3">
-              <button onClick={() => setShowTopUp(true)} className="flex-1 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white text-xs font-semibold py-2.5 rounded-lg transition-colors">+ Top Up</button>
-              <button onClick={() => setShowHistory(true)} className="flex-1 bg-white text-[#071A2E] text-xs font-semibold py-2.5 rounded-lg hover:bg-gray-100 transition-colors">View History</button>
+            <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/[0.03] rounded-full translate-y-1/2 -translate-x-1/2" />
+            <div className="relative flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur-sm">
+                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" /></svg>
+              </div>
+              <div>
+                <p className="text-white font-bold text-sm">Pay with GCash</p>
+                <p className="text-white/50 text-[11px]">Calculate fare & pay directly</p>
+              </div>
+              <svg className="w-5 h-5 text-white/30 ml-auto group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+            </div>
+            <div className="relative flex items-center gap-2">
+              <div className="flex items-center gap-1.5 bg-white/10 rounded-lg px-2.5 py-1.5">
+                <div className="w-3 h-3 rounded-full bg-[#00A9E0]" />
+                <span className="text-white/80 text-[11px] font-semibold">GCash</span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-white/10 rounded-lg px-2.5 py-1.5">
+                <div className="w-3 h-3 rounded-full bg-green-400" />
+                <span className="text-white/80 text-[11px] font-semibold">Secure</span>
+              </div>
+              <button onClick={(e) => { e.stopPropagation(); setShowHistory(true); }} className="ml-auto text-white/40 hover:text-white/60 text-[11px] font-medium transition-colors underline underline-offset-2">History</button>
             </div>
           </div>
           <div className="grid grid-cols-4 gap-4 mt-5">
@@ -109,12 +132,36 @@ export default function CommuterHome() {
           <div className="w-11 h-11 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold shadow-lg border-2 border-white/20 text-base">{mockUser.firstName[0]}</div>
         </div>
         <div className="flex-1 p-6 overflow-y-auto space-y-6">
-          <div className="bg-gradient-to-br from-[#1A5FB4] to-[#164A8F] rounded-2xl p-5 shadow-xl shadow-[#1A5FB4]/20 relative overflow-hidden">
+          {/* GCash Payment Card */}
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setShowFareCalc(true)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowFareCalc(true); } }}
+            className="w-full bg-gradient-to-br from-[#1A5FB4] to-[#0D3B6E] rounded-2xl p-5 shadow-xl shadow-[#1A5FB4]/20 relative overflow-hidden text-left group cursor-pointer"
+          >
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
-            <p className="text-white/70 text-xs font-medium mb-1">My Wallet Balance</p>
-            <div className="mt-4 flex gap-3">
-              <button onClick={() => setShowTopUp(true)} className="flex-1 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white text-sm font-semibold py-2.5 rounded-lg transition-colors">+ Top Up</button>
-              <button onClick={() => setShowHistory(true)} className="flex-1 bg-white text-[#071A2E] text-sm font-semibold py-2.5 rounded-lg hover:bg-gray-100 transition-colors">View History</button>
+            <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/[0.03] rounded-full translate-y-1/2 -translate-x-1/2" />
+            <div className="relative flex items-center gap-3 mb-4">
+              <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur-sm">
+                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" /></svg>
+              </div>
+              <div>
+                <p className="text-white font-bold text-base">Pay with GCash</p>
+                <p className="text-white/50 text-xs">Calculate fare & pay directly</p>
+              </div>
+              <svg className="w-5 h-5 text-white/30 ml-auto group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+            </div>
+            <div className="relative flex items-center gap-3">
+              <div className="flex items-center gap-1.5 bg-white/10 rounded-lg px-3 py-1.5">
+                <div className="w-3.5 h-3.5 rounded-full bg-[#00A9E0]" />
+                <span className="text-white/80 text-xs font-semibold">GCash</span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-white/10 rounded-lg px-3 py-1.5">
+                <div className="w-3.5 h-3.5 rounded-full bg-green-400" />
+                <span className="text-white/80 text-xs font-semibold">Secure</span>
+              </div>
+              <button onClick={(e) => { e.stopPropagation(); setShowHistory(true); }} className="ml-auto text-white/40 hover:text-white/60 text-xs font-medium transition-colors underline underline-offset-2">View History</button>
             </div>
           </div>
           <div>
