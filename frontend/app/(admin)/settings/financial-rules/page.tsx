@@ -24,45 +24,12 @@ export default function FinancialRulesPage() {
     <div className="min-h-screen pb-12 px-4 sm:px-6">
       <div className="mx-auto w-full max-w-3xl space-y-6">
 
-        {/* Left-aligned Back Button */}
-
-        {/* Title */}
         <div className="text-center">
           <h1 className="text-2xl sm:text-3xl font-bold text-white">Financial Rules</h1>
         </div>
 
         <form onSubmit={handleSave} className="space-y-6">
 
-          {/* Wallet Limits */}
-          <div className="bg-[#131C2E] border border-[#1E2D45] p-4 sm:p-6 rounded-lg">
-            <h2 className="text-lg sm:text-xl font-semibold text-white mb-4">Wallet Load Limits</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">Minimum Load (₱)</label>
-                <input
-                  type="number"
-                  name="minLoad"
-                  value={rules.minLoad}
-                  onChange={handleChange}
-                  required
-                  className="block w-full px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">Maximum Load (₱)</label>
-                <input
-                  type="number"
-                  name="maxLoad"
-                  value={rules.maxLoad}
-                  onChange={handleChange}
-                  required
-                  className="block w-full px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Commuter Discounts */}
           <div className="bg-[#131C2E] border border-[#1E2D45] p-4 sm:p-6 rounded-lg">
             <h2 className="text-lg sm:text-xl font-semibold text-white mb-4">Commuter Discount Rates (%)</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
@@ -113,7 +80,6 @@ export default function FinancialRulesPage() {
             </div>
           </div>
 
-          {/* Loyalty Program */}
           <div className="bg-[#131C2E] border border-[#1E2D45] p-4 sm:p-6 rounded-lg">
             <h2 className="text-lg sm:text-xl font-semibold text-white mb-4">Loyalty Program (Rewards)</h2>
             <div className="max-w-sm w-full">
@@ -129,7 +95,6 @@ export default function FinancialRulesPage() {
             </div>
           </div>
 
-          {/* Mobile-Friendly Save Button */}
           <div className="flex justify-center pt-2 pb-8">
             <button
               type="submit"

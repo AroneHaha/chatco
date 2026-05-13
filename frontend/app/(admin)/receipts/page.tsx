@@ -17,7 +17,7 @@ export default function ReceiptsPage() {
   const [paymentFilter, setPaymentFilter] = useState<PaymentMethod | 'All'>('All');
   const [currentPage, setCurrentPage] = useState(1);
 
-  const paymentOptions: (PaymentMethod | 'All')[] = ['All', 'Wallet', 'Voucher'];
+  const paymentOptions: (PaymentMethod | 'All')[] = ['All', 'Gcash', 'Voucher'];
 
   // Filtered data
   const filteredData = useMemo(() => {
@@ -44,7 +44,7 @@ export default function ReceiptsPage() {
 
   // Summary stats
   const totalFare = filteredData.reduce((sum: number, item: Receipt) => sum + item.fare, 0);
-  const walletCount = filteredData.filter((item: Receipt) => item.paymentMethod === 'Wallet').length;
+  const walletCount = filteredData.filter((item: Receipt) => item.paymentMethod === 'Gcash').length;
   const voucherCount = filteredData.filter((item: Receipt) => item.paymentMethod === 'Voucher').length;
 
   const columns = [
@@ -60,10 +60,10 @@ export default function ReceiptsPage() {
       label: 'Payment',
       render: (value: PaymentMethod) => (
         <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${
-          value === 'Wallet' ? 'bg-[#62A0EA]/15 text-[#62A0EA]'
+          value === 'Gcash' ? 'bg-[#62A0EA]/15 text-[#62A0EA]'
           : 'bg-pink-500/15 text-pink-400'
         }`}>
-          {value === 'Wallet' && <Wallet size={12} />}
+          {value === 'Gcash' && <Wallet size={12} />}
           {value === 'Voucher' && <Ticket size={12} />}
           {value}
         </span>
@@ -95,7 +95,7 @@ export default function ReceiptsPage() {
           <p className="text-xl lg:text-2xl font-bold text-[#62A0EA]">&#8369;{totalFare.toFixed(2)}</p>
         </div>
         <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4">
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Wallet</p>
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Gcash</p>
           <p className="text-xl lg:text-2xl font-bold text-[#62A0EA]">{walletCount}</p>
         </div>
         <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4">

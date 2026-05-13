@@ -2,7 +2,7 @@
 
 // --- Types ---
 
-export type VoucherType = 'FREE_RIDE' | 'WALLET';
+export type VoucherType = 'FREE_RIDE' | 'DISCOUNT';
 
 export type VoucherStatus = 'Active' | 'Used' | 'Expired';
 
@@ -40,15 +40,7 @@ export interface Voucher {
   status: VoucherStatus;
 }
 
-export interface FareConfig {
-  baseFare: string;
-  baseDistanceKm: string;
-  succeedingRatePerKm: string;
-}
-
 export interface FinancialRulesConfig {
-  minLoad: string;
-  maxLoad: string;
   ridesForFreeReward: string;
   regularDiscount: string;
   studentDiscount: string;
@@ -76,7 +68,7 @@ export interface SafetyConfig {
 // --- FAQ Data ---
 
 export const initialFaqs: FaqItem[] = [
-  { id: '1', question: 'How do I top-up my wallet?', answer: 'Go to the Wallet tab, click "Load Wallet", and enter the amount. You can pay via GCash or over-the-counter.', displayOrder: 1 },
+  { id: '1', question: 'How do I pay with GCash?', answer: 'Simply show your QR code to the conductor when boarding. They scan it and payment is processed instantly via GCash.', displayOrder: 1 },
   { id: '2', question: 'I left my item on the jeep. How do I report it?', answer: 'Go to the "Lost & Found" section in the app menu and fill out the item report form with the details of your trip.', displayOrder: 2 },
 ];
 
@@ -91,13 +83,6 @@ export const initialNotificationTemplates: NotificationTemplate[] = [
     variables: ['{vehiclePlate}', '{conductorName}', '{latitude}', '{longitude}', '{timestamp}'],
   },
   {
-    id: 'wallet-loaded',
-    title: 'Wallet Loaded (To Commuter)',
-    description: 'Sent to the commuter when they successfully top up their wallet.',
-    content: 'Hi {commuterName}! 💵\n\nYour Chatco wallet has been successfully loaded with ₱{amount}. Your new balance is ₱{newBalance}.\n\nKeep safe on your ride!',
-    variables: ['{commuterName}', '{amount}', '{newBalance}'],
-  },
-  {
     id: 'ride-receipt',
     title: 'Digital Receipt (To Commuter)',
     description: 'Sent after a cashless transaction is completed.',
@@ -107,7 +92,7 @@ export const initialNotificationTemplates: NotificationTemplate[] = [
 ];
 
 export const initialAccountApprovedTemplate: string =
-  `Dear {commuterName},\n\nCongratulations! 🎉 Your Chatco Commuter account has been successfully approved and verified.\n\nYou can now log in to the app using your registered credentials and start enjoying seamless cashless rides across the Chatco network.\n\nIf you did not request this account, please contact support immediately.\n\nSafe travels!\nThe Chatco Team`;
+  `Dear {commuterName},\n\nCongratulations! Your Chatco Commuter account has been successfully approved and verified.\n\nYou can now log in to the app using your registered credentials and start enjoying seamless cashless rides across the Chatco network.\n\nIf you did not request this account, please contact support immediately.\n\nSafe travels!\nThe Chatco Team`;
 
 export const initialAccountRejectedTemplate: string =
   `Dear {commuterName},\n\nWe regret to inform you that your Chatco Commuter account registration has been rejected.\n\nReason: {rejectionReason}\n\nIf you believe this is a mistake, you may re-apply with valid and updated identification documents through the app or visit our local office.\n\nThank you for your understanding.\nThe Chatco Team`;
@@ -115,7 +100,7 @@ export const initialAccountRejectedTemplate: string =
 export const approvedTemplateVariables: string[] = ['{commuterName}'];
 export const rejectedTemplateVariables: string[] = ['{commuterName}', '{rejectionReason}'];
 
-// --- Routes Data (placeholder for future multi-route support) ---
+// --- Routes Data ---
 
 export const initialRoutes: Route[] = [
   { id: 1, name: 'Malolos - Meycauayan - Calumpit', status: 'Active', waypoints: 'Malolos Terminal, Guiguinto, Meycauayan Crossing, Calumpit Town Proper' },
@@ -140,15 +125,7 @@ export const initialExpenseCategories: string[] = [
 
 // --- Default Config Values ---
 
-export const defaultFareConfig: FareConfig = {
-  baseFare: '18',
-  baseDistanceKm: '4',
-  succeedingRatePerKm: '2',
-};
-
 export const defaultFinancialRules: FinancialRulesConfig = {
-  minLoad: '20',
-  maxLoad: '1000',
   ridesForFreeReward: '10',
   regularDiscount: '0',
   studentDiscount: '20',

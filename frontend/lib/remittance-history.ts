@@ -6,8 +6,7 @@ export interface RemittanceRecord {
   unitNumber: string;
   totalPassengers: number;
   cashlessBreakdown: {
-    scanned: number;
-    prepaid: number;
+    gcashScanned: number;
     voucher: number;
   };
   totalCashless: number;
@@ -15,6 +14,8 @@ export interface RemittanceRecord {
   remittanceStatus: "Pending" | "Remitted";
   timeIn: string;
   timeOut: string;
+  cashTotal?: number;
+  gcashTotal?: number;
 }
 
 const KEY = "conductor_remittance_history";
@@ -37,7 +38,6 @@ function save(records: RemittanceRecord[]) {
 export function saveRemittance(record: RemittanceRecord) {
   const records = getAll();
 
-  // Prevent duplicate entries for the same shift
   const alreadyExists = records.some((r) => r.shiftId === record.shiftId);
   if (alreadyExists) return records;
 
@@ -46,12 +46,10 @@ export function saveRemittance(record: RemittanceRecord) {
   return records;
 }
 
-/** Get all remittance records */
 export function getRemittanceHistory(): RemittanceRecord[] {
   return getAll();
 }
 
-/** Get remittance records for a specific unit */
 export function getUnitRemittanceHistory(unitNumber: string): RemittanceRecord[] {
   return getAll().filter((r) => r.unitNumber === unitNumber);
 }

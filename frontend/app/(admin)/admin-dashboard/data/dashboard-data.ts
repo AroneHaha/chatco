@@ -8,6 +8,7 @@ import {
   Ticket,
   Bell,
   SlidersHorizontal,
+  User2Icon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -71,9 +72,9 @@ export const recentUsers: UserItem[] = [
 ];
 
 export const quickStats: StatItem[] = [
-  { label: "Total Top Up Today", value: "₱14,500", icon: TrendingUp, color: "text-sky-400 bg-[#62A0EA]/15", link: "/analytics" },
-  { label: "Total Rides Using Wallet", value: "9,500", icon: MapPin, color: "text-[#62A0EA] bg-[#62A0EA]/15", link: "/analytics" },
-  { label: "Active Wallets", value: "2,340", icon: Wallet, color: "text-violet-400 bg-violet-400/15", link: "/analytics" },
+  { label: "Total Revenue Today", value: "₱14,500", icon: TrendingUp, color: "text-sky-400 bg-[#62A0EA]/15", link: "/analytics" },
+  { label: "Total Rides Using E-Chatco", value: "9,500", icon: MapPin, color: "text-[#62A0EA] bg-[#62A0EA]/15", link: "/analytics" },
+  { label: "Active Users", value: "2,340", icon: User2Icon, color: "text-violet-400 bg-violet-400/15", link: "/analytics" },
   { label: "Pending Remittance", value: "₱8,400", icon: Banknote, color: "text-amber-400 bg-amber-400/15", link: "/remittance" },
 ];
 

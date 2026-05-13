@@ -34,8 +34,6 @@ export default function UsersPage() {
   
   const [selectedRequest, setSelectedRequest] = useState<PendingRequest | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  
-  // NEW: Selected User Details State
   const [selectedUser, setSelectedUser] = useState<ActiveUser | RejectedUser | null>(null);
 
   const handleOpenRegisterModal = () => setIsRegisterModalOpen(true);

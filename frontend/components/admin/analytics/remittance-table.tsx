@@ -10,7 +10,7 @@ export function RemittanceTable() {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedConductor, setSelectedConductor] = useState<string | null>(null);
 
-  const activeData: AnalyticsRemittance[] = selectedConductor 
+  const activeData: AnalyticsRemittance[] = selectedConductor
     ? initialRemittanceData.filter((row: AnalyticsRemittance) => row.conductor === selectedConductor)
     : initialRemittanceData;
 
@@ -22,6 +22,8 @@ export function RemittanceTable() {
   );
 
   const totalAmount = activeData.reduce((sum: number, row: AnalyticsRemittance) => sum + row.remittedAmount, 0);
+  const totalCash = activeData.reduce((sum: number, row: AnalyticsRemittance) => sum + row.cashAmount, 0);
+  const totalGCash = activeData.reduce((sum: number, row: AnalyticsRemittance) => sum + row.gcashAmount, 0);
   const remittedAmount = activeData.filter((row: AnalyticsRemittance) => row.status === "Remitted").reduce((sum: number, row: AnalyticsRemittance) => sum + row.remittedAmount, 0);
   const pendingAmount = activeData.filter((row: AnalyticsRemittance) => row.status === "Pending").reduce((sum: number, row: AnalyticsRemittance) => sum + row.remittedAmount, 0);
 
@@ -43,7 +45,7 @@ export function RemittanceTable() {
           <h3 className="text-sm font-semibold text-white">
             {selectedConductor ? `History: ${selectedConductor}` : "Conductor Remittance"}
           </h3>
-        
+
           {selectedConductor && (
             <button
               onClick={handleBackToAll}
@@ -56,28 +58,32 @@ export function RemittanceTable() {
             </button>
           )}
         </div>
-        
+
         <span className="text-[10px] bg-[#0E1628] text-slate-500 px-2 py-0.5 rounded">
           {activeData.length} Shifts
         </span>
       </div>
 
       {/* Mini Summary Cards */}
-      <div className="grid grid-cols-3 gap-3 mb-4 flex-shrink-0">
+      <div className="grid grid-cols-4 gap-2 mb-4 flex-shrink-0">
         <div className="bg-[#0E1628] rounded-lg p-2.5 border border-[#1E2D45]">
-          <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">Total Collected</p>
+          <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">Total</p>
           <p className="text-sm font-bold text-white mt-0.5">₱{totalAmount.toLocaleString()}</p>
         </div>
         <div className="bg-[#0E1628] rounded-lg p-2.5 border border-[#1E2D45]">
-          <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">Remitted</p>
-          <p className="text-sm font-bold text-sky-400 mt-0.5">₱{remittedAmount.toLocaleString()}</p>
+          <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">Cash</p>
+          <p className="text-sm font-bold text-emerald-400 mt-0.5">₱{totalCash.toLocaleString()}</p>
+        </div>
+        <div className="bg-[#0E1628] rounded-lg p-2.5 border border-[#1E2D45]">
+          <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">GCash</p>
+          <p className="text-sm font-bold text-blue-400 mt-0.5">₱{totalGCash.toLocaleString()}</p>
         </div>
         <div className="bg-[#0E1628] rounded-lg p-2.5 border border-[#1E2D45]">
           <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">Pending</p>
           <p className="text-sm font-bold text-red-400 mt-0.5">₱{pendingAmount.toLocaleString()}</p>
         </div>
       </div>
-      
+
       {/* Table Container */}
       <div className="flex-1 overflow-hidden">
         <table className="w-full text-left h-full">
@@ -86,14 +92,16 @@ export function RemittanceTable() {
               <th className="pb-3 pr-2 font-medium">Shift ID</th>
               <th className="pb-3 pr-2 font-medium">{selectedConductor ? "Vehicle Plate" : "Conductor"}</th>
               <th className="pb-3 pr-2 font-medium hidden md:table-cell">Date</th>
-              <th className="pb-3 pr-2 font-medium text-right">Amount</th>
+              <th className="pb-3 pr-2 font-medium text-right">Cash</th>
+              <th className="pb-3 pr-2 font-medium text-right">GCash</th>
+              <th className="pb-3 pr-2 font-medium text-right">Total</th>
               <th className="pb-3 font-medium text-center">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#1E2D45]">
             {currentTableData.map((row: AnalyticsRemittance) => (
-              <tr 
-                key={row.shiftId} 
+              <tr
+                key={row.shiftId}
                 onClick={() => !selectedConductor && handleRowClick(row.conductor)}
                 className={`transition-colors ${!selectedConductor ? "hover:bg-[#0E1628] cursor-pointer" : "hover:bg-[#0E1628]"}`}
               >
@@ -109,11 +117,13 @@ export function RemittanceTable() {
                   )}
                 </td>
                 <td className="py-3 pr-2 text-xs text-slate-500 hidden md:table-cell">{row.date}</td>
-                <td className="py-3 pr-2 text-xs text-slate-300 font-semibold text-right">₱{row.remittedAmount.toLocaleString()}</td>
+                <td className="py-3 pr-2 text-xs text-emerald-400 font-semibold text-right">₱{row.cashAmount.toLocaleString()}</td>
+                <td className="py-3 pr-2 text-xs text-blue-400 font-semibold text-right">₱{row.gcashAmount.toLocaleString()}</td>
+                <td className="py-3 pr-2 text-xs text-white font-semibold text-right">₱{row.remittedAmount.toLocaleString()}</td>
                 <td className="py-3 text-center">
                   <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                    row.status === "Remitted" 
-                      ? "bg-sky-400/15 text-sky-400" 
+                    row.status === "Remitted"
+                      ? "bg-sky-400/15 text-sky-400"
                       : "bg-red-500/15 text-red-400"
                   }`}>
                     {row.status}
@@ -130,7 +140,7 @@ export function RemittanceTable() {
         <p className="text-xs text-slate-500">
           Page <span className="text-white font-medium">{currentPage}</span> of <span className="text-white font-medium">{totalPages}</span>
         </p>
-        
+
         <div className="flex items-center gap-2">
           <button
             onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
@@ -139,7 +149,7 @@ export function RemittanceTable() {
           >
             Previous
           </button>
-          
+
           <button
             onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
             disabled={currentPage === totalPages}
