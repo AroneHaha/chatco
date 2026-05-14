@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import {
   FARE_MATRIX,
   getFareBetween,
@@ -20,6 +21,10 @@ import {
   type GCashPaymentIntent,
 } from "@/lib/gcash-payment";
 import { saveTransaction, type PaymentMethodType } from "@/lib/conductor-transactions";
+import {
+  encodeQRTransaction,
+  type QRTransactionPayload,
+} from "@/lib/qr-transaction";
 
 interface FareCalcModalProps {
   isOpen: boolean;
@@ -864,60 +869,60 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     );
   }
 
-  // ─── STEP: QR Code (GCash only) ─────────────────────────────────
+  // ─── STEP: QR Code (GCash only — commuter scans this) ────────────
 
   if (step === "qr_code" && fareInfo) {
+    // Build the QR payload with real transaction data for commuter scanning
+    const qrPayload: QRTransactionPayload = {
+      version: 1,
+      transactionId: paymentIntent?.id || `TXN-${Date.now()}`,
+      amount: fareInfo.finalFare,
+      from: pickupPoint?.name || "",
+      to: dropoffPoint?.name || "",
+      barangaysTraveled: fareInfo.barangaysTraveled,
+      commuterType,
+      paymentMethod: "GCash",
+      conductorId: conductorName || "—",
+      shiftId: shiftId || "",
+      unitNumber: unitNumber || "—",
+      createdAt: new Date().toISOString(),
+      regularFare: fareInfo.regularFare,
+      discountAmount: fareInfo.discountAmount,
+    };
+    const qrData = encodeQRTransaction(qrPayload);
+
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
-        <div className="w-full max-w-xs bg-[#071A2E] border border-blue-500/20 rounded-3xl p-6 text-center shadow-2xl space-y-4 animate-fade-in">
+        <div className="w-full max-w-xs bg-[#071A2E] border border-blue-500/20 rounded-3xl p-6 text-center shadow-2xl space-y-4 animate-in zoom-in-95 fade-in duration-200">
           <div className="flex justify-center">
             <div className="w-14 h-14 rounded-full bg-blue-500/15 border-2 border-blue-500/30 flex items-center justify-center">
               <svg className="w-7 h-7 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75ZM6.75 16.5h.75v.75h-.75v-.75ZM16.5 6.75h.75v.75h-.75v-.75ZM13.5 13.5h.75v.75h-.75v-.75ZM13.5 19.5h.75v.75h-.75v-.75ZM19.5 13.5h.75v.75h-.75v-.75ZM19.5 19.5h.75v.75h-.75v-.75ZM16.5 16.5h.75v.75h-.75v-.75Z" />
               </svg>
             </div>
           </div>
           <div>
             <h2 className="text-white font-bold text-lg">Scan to Pay</h2>
-            <p className="text-[11px] text-white/40 mt-1 leading-relaxed">Commuter, scan this QR code with your GCash app to confirm payment</p>
+            <p className="text-[11px] text-white/40 mt-1 leading-relaxed">Commuter, scan this QR code with your Chatco app to confirm payment</p>
           </div>
           <div className="bg-white rounded-2xl p-4 flex justify-center">
-            <svg viewBox="0 0 100 100" className="w-44 h-44">
-              <rect width="100" height="100" fill="white" rx="4" />
-              <rect x="5" y="5" width="25" height="25" fill="#071A2E" rx="2" />
-              <rect x="8" y="8" width="19" height="19" fill="white" rx="1" />
-              <rect x="11" y="11" width="13" height="13" fill="#071A2E" rx="1" />
-              <rect x="70" y="5" width="25" height="25" fill="#071A2E" rx="2" />
-              <rect x="73" y="8" width="19" height="19" fill="white" rx="1" />
-              <rect x="76" y="11" width="13" height="13" fill="#071A2E" rx="1" />
-              <rect x="5" y="70" width="25" height="25" fill="#071A2E" rx="2" />
-              <rect x="8" y="73" width="19" height="19" fill="white" rx="1" />
-              <rect x="11" y="76" width="13" height="13" fill="#071A2E" rx="1" />
-              {[
-                [35,10],[40,10],[50,10],[55,10],[60,10],
-                [35,15],[45,15],[50,15],[60,15],
-                [35,20],[40,20],[45,20],[55,20],
-                [35,25],[50,25],[55,25],[60,25],
-                [10,35],[15,35],[25,35],[35,35],[40,35],[50,35],[55,35],[65,35],[75,35],[80,35],[90,35],
-                [10,40],[20,40],[30,40],[45,40],[55,40],[70,40],[85,40],
-                [10,45],[25,45],[35,45],[40,45],[50,45],[60,45],[75,45],[80,45],
-                [10,50],[20,50],[30,50],[45,50],[55,50],[70,50],[90,50],
-                [10,55],[25,55],[40,55],[50,55],[65,55],[80,55],[85,55],
-                [10,60],[15,60],[30,60],[35,60],[45,60],[60,60],[75,60],[90,60],
-                [35,70],[40,70],[50,70],[55,70],[65,70],[70,70],[80,70],[90,70],
-                [35,75],[45,75],[60,75],[75,75],[85,75],
-                [35,80],[40,80],[50,80],[65,80],[70,80],[80,80],[90,80],
-                [35,85],[45,85],[55,85],[60,85],[75,85],[85,85],
-                [35,90],[40,90],[50,90],[65,90],[80,90],
-              ].map(([x,y], i) => <rect key={i} x={x} y={y} width="4" height="4" fill="#071A2E" />)}
-            </svg>
+            <QRCodeSVG
+              value={qrData}
+              size={180}
+              bgColor="#ffffff"
+              fgColor="#071A2E"
+              level="H"
+              includeMargin={false}
+            />
           </div>
           <div className="space-y-2">
             <p className="text-2xl font-extrabold text-white">{formatCurrency(fareInfo.finalFare)}</p>
+            <p className="text-xs text-white/40">
+              {pickupPoint?.name} → {dropoffPoint?.name}
+            </p>
             <div className="flex items-center justify-center gap-2">
               <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-              <p className="text-xs text-blue-400/70 font-medium">Processing payment…</p>
+              <p className="text-xs text-blue-400/70 font-medium">Waiting for commuter scan…</p>
             </div>
           </div>
         </div>

@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { User } from "@/app/types/user.types";
 
 import ShowQRModal from "@/components/commuter/modals/show-qr-modal";
 import PaymentHistoryModal from "@/components/commuter/modals/payment-history-modal";
 import ShareRideModal from "@/components/commuter/modals/share-ride-modal";
-import SosModal from "@/components/commuter/modals/sos-modal"; 
+import SosModal from "@/components/commuter/modals/sos-modal";
 
 
 const CommuterMap = dynamic(() => import("@/components/commuter/commuter-map/commuter-map"), {
@@ -15,7 +16,7 @@ const CommuterMap = dynamic(() => import("@/components/commuter/commuter-map/com
   loading: () => <div className="absolute inset-0 bg-[#050F1A]" />,
 });
 
-const FareCalcModal = dynamic(() => import("@/components/commuter/modals/fare-calc-modal"), {
+const ScanModal = dynamic(() => import("@/components/commuter/modals/scan-modal"), {
   ssr: false,
 });
 
@@ -26,18 +27,26 @@ const mockUser: User = {
   commuterType: "Regular"
 };
 
-export default function CommuterHome() {
+function CommuterHomeContent() {
+  const searchParams = useSearchParams();
   const [showQR, setShowQR] = useState(false);
-  const [showFareCalc, setShowFareCalc] = useState(false);
+  const [showScan, setShowScan] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showShareRide, setShowShareRide] = useState(false);
   const [showSOS, setShowSOS] = useState(false); 
   const [isHailing, setIsHailing] = useState(false);
   const [showSheet, setShowSheet] = useState(true);
 
+  // Auto-open Scan modal when navigating via the Scan tab
+  useEffect(() => {
+    if (searchParams.get("scan") === "true") {
+      setShowScan(true);
+    }
+  }, [searchParams]);
+
   const quickActions = [
     { label: "Show QR", iconPath: "M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z", action: () => setShowQR(true), isSos: false },
-    { label: "Pay Fare", iconPath: "M15.75 15.75V18m-7.5-6.75h.008v.008H8.25v-.008Zm0 2.25h.008v.008H8.25v-.008Zm0 2.25h.008v.008H8.25v-.008Zm0 2.25h.008v.008H8.25v-.008Zm2.498-6.75h.007v.008h-.007v-.008Zm0 2.25h.007v.008h-.007v-.008Zm0 2.25h.007v.008h-.007v-.008Zm0 2.25h.007v.008h-.007v-.008Zm2.504-6.75h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008v-.008Zm2.498-6.75h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008v-.008ZM8.25 6h7.5v2.25h-7.5V6ZM12 2.25c-1.892 0-3.758.11-5.593.322C5.307 2.7 4.5 3.65 4.5 4.757V19.5a2.25 2.25 0 0 0 2.25 2.25h10.5a2.25 2.25 0 0 0 2.25-2.25V4.757c0-1.108-.806-2.057-1.907-2.185A48.507 48.507 0 0 0 12 2.25Z", action: () => setShowFareCalc(true), isSos: false },
+    { label: "Scan", iconPath: "M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5ZM13.5 13.5h.75v.75h-.75v-.75ZM13.5 19.5h.75v.75h-.75v-.75ZM19.5 13.5h.75v.75h-.75v-.75ZM19.5 19.5h.75v.75h-.75v-.75ZM16.5 16.5h.75v.75h-.75v-.75Z", action: () => setShowScan(true), isSos: false },
     { label: "Share Ride", iconPath: "M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z", action: () => setShowShareRide(true), isSos: false },
     { label: "SOS", iconPath: "M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z", action: () => setShowSOS(true), isSos: true }
   ];
@@ -46,7 +55,6 @@ export default function CommuterHome() {
     <div className="relative h-full w-full bg-[#050F1A]">
       
       {/* --- ACTUAL MAP --- */}
-      {/* Shrinks right side on desktop to perfectly center the map in the remaining space */}
       <div className="absolute inset-0 z-0 lg:right-[336px] xl:right-[400px]">
         <CommuterMap />
       </div>
@@ -75,23 +83,23 @@ export default function CommuterHome() {
           {!showSheet && (<div className="flex items-center gap-1.5 mt-2 text-white/50"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg><span className="text-[10px] font-semibold uppercase tracking-wider">Tools</span></div>)}
         </div>
         <div className="px-5 pb-24 overflow-y-auto max-h-[60vh]">
-          {/* GCash Payment Card */}
+          {/* Scan to Pay Card */}
           <div
             role="button"
             tabIndex={0}
-            onClick={() => setShowFareCalc(true)}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowFareCalc(true); } }}
+            onClick={() => setShowScan(true)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowScan(true); } }}
             className="w-full bg-gradient-to-br from-[#1A5FB4] to-[#0D3B6E] rounded-2xl p-5 shadow-xl shadow-[#1A5FB4]/20 relative overflow-hidden text-left group cursor-pointer"
           >
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
             <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/[0.03] rounded-full translate-y-1/2 -translate-x-1/2" />
             <div className="relative flex items-center gap-3 mb-3">
               <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur-sm">
-                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" /></svg>
+                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" /></svg>
               </div>
               <div>
-                <p className="text-white font-bold text-sm">Pay with GCash</p>
-                <p className="text-white/50 text-[11px]">Calculate fare & pay directly</p>
+                <p className="text-white font-bold text-sm">Scan to Pay</p>
+                <p className="text-white/50 text-[11px]">Scan conductor QR to confirm payment</p>
               </div>
               <svg className="w-5 h-5 text-white/30 ml-auto group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
             </div>
@@ -132,23 +140,23 @@ export default function CommuterHome() {
           <div className="w-11 h-11 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold shadow-lg border-2 border-white/20 text-base">{mockUser.firstName[0]}</div>
         </div>
         <div className="flex-1 p-6 overflow-y-auto space-y-6">
-          {/* GCash Payment Card */}
+          {/* Scan to Pay Card */}
           <div
             role="button"
             tabIndex={0}
-            onClick={() => setShowFareCalc(true)}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowFareCalc(true); } }}
+            onClick={() => setShowScan(true)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowScan(true); } }}
             className="w-full bg-gradient-to-br from-[#1A5FB4] to-[#0D3B6E] rounded-2xl p-5 shadow-xl shadow-[#1A5FB4]/20 relative overflow-hidden text-left group cursor-pointer"
           >
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
             <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/[0.03] rounded-full translate-y-1/2 -translate-x-1/2" />
             <div className="relative flex items-center gap-3 mb-4">
               <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur-sm">
-                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" /></svg>
+                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" /></svg>
               </div>
               <div>
-                <p className="text-white font-bold text-base">Pay with GCash</p>
-                <p className="text-white/50 text-xs">Calculate fare & pay directly</p>
+                <p className="text-white font-bold text-base">Scan to Pay</p>
+                <p className="text-white/50 text-xs">Scan conductor QR to confirm payment</p>
               </div>
               <svg className="w-5 h-5 text-white/30 ml-auto group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
             </div>
@@ -187,10 +195,18 @@ export default function CommuterHome() {
 
       {/* --- MODALS --- */}
       {showQR && <ShowQRModal user={mockUser} onClose={() => setShowQR(false)} />}
-      {showFareCalc && <FareCalcModal onClose={() => setShowFareCalc(false)} />}
+      {showScan && <ScanModal onClose={() => setShowScan(false)} commuterId={mockUser.id} commuterName={`${mockUser.firstName} ${mockUser.surname}`} />}
       {showHistory && <PaymentHistoryModal onClose={() => setShowHistory(false)} />}
       {showShareRide && <ShareRideModal commuterName={mockUser.firstName} onClose={() => setShowShareRide(false)} />}
       {showSOS && <SosModal commuterId={mockUser.id} commuterName={mockUser.firstName} onClose={() => setShowSOS(false)} />}
     </div>
+  );
+}
+
+export default function CommuterHome() {
+  return (
+    <Suspense fallback={<div className="h-full w-full bg-[#050F1A]" />}>
+      <CommuterHomeContent />
+    </Suspense>
   );
 }
