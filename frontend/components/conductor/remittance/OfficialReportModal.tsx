@@ -9,6 +9,10 @@ export function buildPrintHTML(report: RemittanceRecord, route: string): string 
   const statusColor = report.remittanceStatus === "Remitted" ? "#16a34a" : "#d97706";
   const statusBg = report.remittanceStatus === "Remitted" ? "#f0fdf4" : "#fffbeb";
 
+  const gcashTotal = report.gcashTotal ?? 0;
+  const cashTotal = report.cashTotal ?? 0;
+  const grandTotal = gcashTotal + cashTotal + (report.totalCashless ?? 0);
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -111,7 +115,6 @@ export function buildPrintHTML(report: RemittanceRecord, route: string): string 
       align-items: center;
       padding: 8px 0;
     }
-    .summary-row.cash { border-top: 1px solid #e2e8f0; }
     .summary-row.grand {
       border-top: 2px solid #1A5FB4;
       margin-top: 4px;
@@ -119,7 +122,6 @@ export function buildPrintHTML(report: RemittanceRecord, route: string): string 
     }
     .summary-row .label { font-size: 12px; color: #475569; }
     .summary-row .value { font-weight: 700; font-variant-numeric: tabular-nums; }
-    .summary-row.cash .value { color: #b45309; font-size: 14px; }
     .summary-row.grand .label { font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; font-size: 11px; }
     .summary-row.grand .value { color: #1A5FB4; font-size: 22px; font-weight: 800; }
     .status-box {
@@ -182,6 +184,8 @@ export function buildPrintHTML(report: RemittanceRecord, route: string): string 
     .dot-blue { background: #3b82f6; }
     .dot-green { background: #22c55e; }
     .dot-amber { background: #f59e0b; }
+    .dot-purple { background: #a855f7; }
+    .dot-pink { background: #ec4899; }
   </style>
 </head>
 <body>
@@ -203,42 +207,37 @@ export function buildPrintHTML(report: RemittanceRecord, route: string): string 
 
   <hr class="divider" />
 
-  <p class="section-title">Cashless Collection</p>
+  <p class="section-title">Payment Breakdown</p>
   <table>
     <thead>
       <tr><th>Method</th><th style="text-align:right">Amount</th></tr>
     </thead>
     <tbody>
       <tr>
-        <td><span class="dot dot-blue"></span>QR Scanned</td>
-        <td style="color:#2563eb">${fmt(report.cashlessBreakdown.gcashScanned)}</td>
+        <td><span class="dot dot-blue"></span>GCash</td>
+        <td style="color:#2563eb">${fmt(gcashTotal)}</td>
       </tr>
       <tr>
-        <td><span class="dot dot-green"></span>Prepaid</td>
-        <td style="color:#16a34a">${fmt(report.cashlessBreakdown.gcashDirect)}</td>
+        <td><span class="dot dot-green"></span>Cash</td>
+        <td style="color:#16a34a">${fmt(cashTotal)}</td>
       </tr>
-      <tr>
-        <td><span class="dot dot-amber"></span>Voucher</td>
-        <td style="color:#b45309">${fmt(report.cashlessBreakdown.voucher)}</td>
-      </tr>
+      ${report.cashlessBreakdown.gcashScanned > 0 ? `<tr><td><span class="dot dot-purple"></span>QR Scanned</td><td style="color:#a855f7">${fmt(report.cashlessBreakdown.gcashScanned)}</td></tr>` : ""}
+      ${report.cashlessBreakdown.gcashDirect > 0 ? `<tr><td><span class="dot dot-green"></span>Prepaid</td><td style="color:#22c55e">${fmt(report.cashlessBreakdown.gcashDirect)}</td></tr>` : ""}
+      ${report.cashlessBreakdown.voucher > 0 ? `<tr><td><span class="dot dot-amber"></span>Voucher</td><td style="color:#b45309">${fmt(report.cashlessBreakdown.voucher)}</td></tr>` : ""}
     </tbody>
     <tfoot>
       <tr>
-        <td>SUBTOTAL</td>
-        <td>${fmt(report.totalCashless)}</td>
+        <td>GRAND TOTAL</td>
+        <td>${fmt(grandTotal)}</td>
       </tr>
     </tfoot>
   </table>
 
   <hr class="divider" />
 
-  <div class="summary-row cash">
-    <span class="label">Cash Collected</span>
-    <span class="value">${fmt(report.cashDeclared)}</span>
-  </div>
   <div class="summary-row grand">
     <span class="label">Grand Total</span>
-    <span class="value">${fmt(report.totalCashless + report.cashDeclared)}</span>
+    <span class="value">${fmt(grandTotal)}</span>
   </div>
 
   <hr class="divider" />
@@ -261,6 +260,10 @@ export function buildPrintHTML(report: RemittanceRecord, route: string): string 
 export default function OfficialReportModal({ show, onClose, activeReport, route }: OfficialReportModalProps) {
   if (!show) return null;
 
+  const gcashTotal = activeReport.gcashTotal ?? 0;
+  const cashTotal = activeReport.cashTotal ?? 0;
+  const grandTotal = gcashTotal + cashTotal + (activeReport.totalCashless ?? 0);
+
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
@@ -271,9 +274,30 @@ export default function OfficialReportModal({ show, onClose, activeReport, route
           <div className="grid grid-cols-2 gap-x-4 gap-y-3">
             <div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Date</p><p className="text-xs font-semibold text-white/80 mt-0.5">{fmtDate(activeReport.date)}</p></div><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Shift ID</p><p className="text-xs font-semibold text-white/80 mt-0.5 font-mono">{activeReport.shiftId}</p></div><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Conductor</p><p className="text-xs font-semibold text-white/80 mt-0.5">{activeReport.conductorName}</p></div><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Driver</p><p className="text-xs font-semibold text-white/80 mt-0.5">{activeReport.driverName}</p></div><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Time In</p><p className="text-xs font-semibold text-emerald-400/80 mt-0.5">{formatTime(activeReport.timeIn)}</p></div><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Time Out</p><p className="text-xs font-semibold text-red-400/80 mt-0.5">{formatTime(activeReport.timeOut)}</p></div><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Unit Number</p><p className="text-xs font-semibold text-white/80 mt-0.5">{activeReport.unitNumber}</p></div><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Route</p><p className="text-xs font-semibold text-white/80 mt-0.5">{route}</p></div>
           </div>
-          <div className="space-y-2"><p className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Cashless Collection</p><div className="bg-white/[0.03] border border-white/[0.05] rounded-xl overflow-hidden"><table className="w-full"><thead><tr className="border-b border-white/[0.06]"><th className="text-left text-[9px] font-bold text-white/30 uppercase tracking-wider px-3.5 py-2.5">Method</th><th className="text-right text-[9px] font-bold text-white/30 uppercase tracking-wider px-3.5 py-2.5">Amount</th></tr></thead><tbody className="divide-y divide-white/[0.03]"><tr><td className="px-3.5 py-2.5 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-[#62A0EA]" /><span className="text-xs text-white/60">QR Scanned</span></td><td className="px-3.5 py-2.5 text-right text-xs font-bold text-[#62A0EA] tabular-nums">{fmt(activeReport.cashlessBreakdown.gcashScanned)}</td></tr><tr><td className="px-3.5 py-2.5 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><span className="text-xs text-white/60">GCash Direct</span></td><td className="px-3.5 py-2.5 text-right text-xs font-bold text-emerald-400 tabular-nums">{fmt(activeReport.cashlessBreakdown.gcashDirect)}</td></tr><tr><td className="px-3.5 py-2.5 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-amber-400" /><span className="text-xs text-white/60">Voucher</span></td><td className="px-3.5 py-2.5 text-right text-xs font-bold text-amber-400 tabular-nums">{fmt(activeReport.cashlessBreakdown.voucher)}</td></tr></tbody><tfoot><tr className="bg-white/[0.03]"><td className="px-3.5 py-2.5 text-[10px] font-bold text-white/50 uppercase tracking-wider">Subtotal</td><td className="px-3.5 py-2.5 text-right text-sm font-extrabold text-white tabular-nums">{fmt(activeReport.totalCashless)}</td></tr></tfoot></table></div></div>
+
+          {/* Payment Breakdown table */}
+          <div className="space-y-2">
+            <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Payment Breakdown</p>
+            <div className="bg-white/[0.03] border border-white/[0.05] rounded-xl overflow-hidden">
+              <table className="w-full">
+                <thead><tr className="border-b border-white/[0.06]"><th className="text-left text-[9px] font-bold text-white/30 uppercase tracking-wider px-3.5 py-2.5">Method</th><th className="text-right text-[9px] font-bold text-white/30 uppercase tracking-wider px-3.5 py-2.5">Amount</th></tr></thead>
+                <tbody className="divide-y divide-white/[0.03]">
+                  <tr><td className="px-3.5 py-2.5 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-blue-400" /><span className="text-xs text-white/60">GCash</span></td><td className="px-3.5 py-2.5 text-right text-xs font-bold text-blue-400 tabular-nums">{fmt(gcashTotal)}</td></tr>
+                  <tr><td className="px-3.5 py-2.5 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><span className="text-xs text-white/60">Cash</span></td><td className="px-3.5 py-2.5 text-right text-xs font-bold text-emerald-400 tabular-nums">{fmt(cashTotal)}</td></tr>
+                  {activeReport.cashlessBreakdown.gcashScanned > 0 && <tr><td className="px-3.5 py-2.5 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-purple-400" /><span className="text-xs text-white/60">QR Scanned</span></td><td className="px-3.5 py-2.5 text-right text-xs font-bold text-purple-400 tabular-nums">{fmt(activeReport.cashlessBreakdown.gcashScanned)}</td></tr>}
+                  {activeReport.cashlessBreakdown.gcashDirect > 0 && <tr><td className="px-3.5 py-2.5 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><span className="text-xs text-white/60">Prepaid</span></td><td className="px-3.5 py-2.5 text-right text-xs font-bold text-emerald-400 tabular-nums">{fmt(activeReport.cashlessBreakdown.gcashDirect)}</td></tr>}
+                  {activeReport.cashlessBreakdown.voucher > 0 && <tr><td className="px-3.5 py-2.5 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-amber-400" /><span className="text-xs text-white/60">Voucher</span></td><td className="px-3.5 py-2.5 text-right text-xs font-bold text-amber-400 tabular-nums">{fmt(activeReport.cashlessBreakdown.voucher)}</td></tr>}
+                </tbody>
+                <tfoot><tr className="bg-white/[0.03]"><td className="px-3.5 py-2.5 text-[10px] font-bold text-white/50 uppercase tracking-wider">Grand Total</td><td className="px-3.5 py-2.5 text-right text-sm font-extrabold text-white tabular-nums">{fmt(grandTotal)}</td></tr></tfoot>
+              </table>
+            </div>
+          </div>
+
           <div className="h-px bg-white/[0.06]" />
-          <div className="space-y-3"><div className="flex items-center justify-between"><span className="text-xs text-white/50">Cash Collected</span><span className="text-sm font-bold text-amber-400 tabular-nums">{fmt(activeReport.cashDeclared)}</span></div><div className="h-px bg-white/10" /><div className="flex items-center justify-between"><div><span className="text-xs font-bold text-white/70 uppercase tracking-wider">Grand Total</span></div><span className="text-2xl font-extrabold text-[#62A0EA] tabular-nums">{fmt(activeReport.totalCashless + activeReport.cashDeclared)}</span></div></div>
+          <div className="flex items-center justify-between">
+            <div><span className="text-xs font-bold text-white/70 uppercase tracking-wider">Grand Total</span></div>
+            <span className="text-2xl font-extrabold text-[#62A0EA] tabular-nums">{fmt(grandTotal)}</span>
+          </div>
           <div className="h-px bg-white/[0.06]" />
           <div className="flex items-center justify-between bg-white/[0.03] border border-white/[0.05] rounded-xl px-4 py-3"><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Remittance Status</p><p className="text-xs font-semibold text-white/60 mt-0.5">Remitted to Admin</p></div><span className={`text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${activeReport.remittanceStatus === "Remitted" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-amber-500/10 text-amber-400 border border-amber-500/20"}`}>{activeReport.remittanceStatus}</span></div>
           <p className="text-[10px] text-white/15 text-center font-mono">Generated: {fmtDateTime()}</p>

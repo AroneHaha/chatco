@@ -11,12 +11,12 @@ export interface RemittanceRecord {
     voucher: number;
   };
   totalCashless: number;
-  cashDeclared: number;
+  cashDeclared: number; // legacy — kept for backward compat with old records
   remittanceStatus: "Pending" | "Remitted";
   timeIn: string;
   timeOut: string;
-  cashTotal?: number;
-  gcashTotal?: number;
+  cashTotal: number;    // system-tracked cash from Payment module
+  gcashTotal: number;   // system-tracked GCash from Payment module
 }
 
 const KEY = "conductor_remittance_history";
@@ -25,7 +25,14 @@ function getAll(): RemittanceRecord[] {
   const raw = localStorage.getItem(KEY);
   if (!raw) return [];
   try {
-    return JSON.parse(raw) as RemittanceRecord[];
+    const records = JSON.parse(raw) as RemittanceRecord[];
+    // Backfill gcashTotal/cashTotal for old records that didn't have them
+    return records.map((r) => ({
+      ...r,
+      gcashTotal: r.gcashTotal ?? 0,
+      cashTotal: r.cashTotal ?? 0,
+      cashDeclared: r.cashDeclared ?? 0,
+    }));
   } catch {
     return [];
   }

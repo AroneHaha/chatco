@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
-import { getShiftTransactions, type Transaction } from "@/lib/conductor-transactions";
+import { getShiftTransactions, type Transaction, type PaymentMethodType } from "@/lib/conductor-transactions";
 
 interface HistoryLogModalProps {
   isOpen: boolean;
@@ -10,12 +10,12 @@ interface HistoryLogModalProps {
   shiftId: string;
 }
 
-type PaymentMethod = "Wallet_Prepay" | "Wallet_Scanned" | "Voucher";
+type PaymentMethod = PaymentMethodType;
 
-const PAYMENT_METHOD_DISPLAY: Record<PaymentMethod, { label: string; color: string }> = {
-  Wallet_Prepay: { label: "Prepaid", color: "text-emerald-400" },
-  Wallet_Scanned: { label: "Scanned", color: "text-purple-400" },
+const PAYMENT_METHOD_DISPLAY: Record<string, { label: string; color: string }> = {
   Voucher: { label: "Voucher", color: "text-pink-400" },
+  GCash: { label: "GCash", color: "text-blue-400" },
+  Cash: { label: "Cash", color: "text-green-400" },
 };
 
 export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLogModalProps) {
@@ -53,8 +53,9 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
 
   const filteredTotal = filteredHistory.reduce((sum, tx) => sum + tx.finalAmount, 0);
 
-  const prepaidCount = history.filter(tx => tx.paymentMethod === "Wallet_Prepay").length;
-  const scannedCount = history.filter(tx => tx.paymentMethod === "Wallet_Scanned").length;
+  const gcashCount = history.filter(tx => tx.paymentMethod === "GCash").length;
+  const cashCount = history.filter(tx => tx.paymentMethod === "Cash").length;
+  const voucherCount = history.filter(tx => tx.paymentMethod === "Voucher").length;
 
   const clearDateFilter = () => {
     setDateFrom("");
@@ -62,6 +63,36 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
   };
 
   if (!isOpen) return null;
+
+  // Get the border color for a transaction based on payment method
+  const getMethodBorderColor = (method: string) => {
+    switch (method) {
+      case "GCash": return "border-blue-500/20";
+      case "Cash": return "border-green-500/20";
+      case "Voucher": return "border-pink-500/20";
+      default: return "border-white/10";
+    }
+  };
+
+  // Get the badge for a transaction based on payment method
+  const getMethodBadge = (method: string) => {
+    switch (method) {
+      case "GCash": return <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-blue-500/20 text-blue-400 border border-blue-500/30 leading-none">GCash</span>;
+      case "Cash": return <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-green-500/20 text-green-400 border border-green-500/30 leading-none">Cash</span>;
+      case "Voucher": return <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-pink-500/20 text-pink-400 border border-pink-500/30 leading-none">Voucher</span>;
+      default: return null;
+    }
+  };
+
+  // Get method description
+  const getMethodDescription = (method: string) => {
+    switch (method) {
+      case "GCash": return "Digital payment via GCash";
+      case "Cash": return "Physical cash collected";
+      case "Voucher": return "Ride voucher used";
+      default: return "";
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50">
@@ -81,10 +112,9 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
           <h2 className="text-xl font-bold text-white">Transaction History</h2>
           <p className="text-white/40 text-xs mt-0.5">
             {history.length} total
-            <span className="mx-1.5 text-white/20">·</span>
-            <span className="text-purple-400 font-medium">{scannedCount} scanned</span>
-            <span className="mx-1.5 text-white/20">·</span>
-            <span className="text-emerald-400 font-medium">{prepaidCount} prepaid</span>
+            {gcashCount > 0 && (<><span className="mx-1.5 text-white/20">·</span><span className="text-blue-400 font-medium">{gcashCount} GCash</span></>)}
+            {cashCount > 0 && (<><span className="mx-1.5 text-white/20">·</span><span className="text-green-400 font-medium">{cashCount} cash</span></>)}
+            {voucherCount > 0 && (<><span className="mx-1.5 text-white/20">·</span><span className="text-pink-400 font-medium">{voucherCount} voucher</span></>)}
           </p>
         </div>
 
@@ -149,23 +179,28 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
 
         {/* ── Filter Pills ─────────────────────── */}
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
-          {(["ALL", "Wallet_Prepay", "Wallet_Scanned"] as const).map((method) => (
-            <button
-              key={method}
-              onClick={() => setFilterMethod(method as PaymentMethod)}
-              className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
-                filterMethod === method
-                  ? method === "Wallet_Prepay"
-                    ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400"
-                    : method === "Wallet_Scanned"
-                      ? "bg-purple-500/20 border-purple-500/40 text-purple-400"
-                      : "bg-[#1A5FB4]/20 border-[#1A5FB4]/40 text-[#62A0EA]"
-                  : "bg-transparent border-white/10 text-white/40 hover:bg-white/5"
-              }`}
-            >
-              {method === "ALL" ? "All" : PAYMENT_METHOD_DISPLAY[method]?.label}
-            </button>
-          ))}
+          {(["ALL", "GCash", "Cash", "Voucher"] as const).map((method) => {
+            const display = method === "ALL" ? "All" : PAYMENT_METHOD_DISPLAY[method]?.label || method;
+            const isActive = filterMethod === method;
+            let activeStyle = "bg-[#1A5FB4]/20 border-[#1A5FB4]/40 text-[#62A0EA]";
+            if (method === "GCash") activeStyle = "bg-blue-500/20 border-blue-500/40 text-blue-400";
+            else if (method === "Cash") activeStyle = "bg-green-500/20 border-green-500/40 text-green-400";
+            else if (method === "Voucher") activeStyle = "bg-pink-500/20 border-pink-500/40 text-pink-400";
+
+            return (
+              <button
+                key={method}
+                onClick={() => setFilterMethod(method as PaymentMethod | "ALL")}
+                className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
+                  isActive
+                    ? activeStyle
+                    : "bg-transparent border-white/10 text-white/40 hover:bg-white/5"
+                }`}
+              >
+                {display}
+              </button>
+            );
+          })}
         </div>
 
         {/* ── Filtered Summary ─────────────────── */}
@@ -195,9 +230,7 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
         ) : (
           <div className="flex-1 overflow-y-auto space-y-2 pr-1">
             {filteredHistory.map((tx) => {
-              const methodDisplay = PAYMENT_METHOD_DISPLAY[tx.paymentMethod as PaymentMethod] || PAYMENT_METHOD_DISPLAY.Wallet_Scanned;
-              const isPrepaid = tx.paymentMethod === "Wallet_Prepay";
-              const isScanned = tx.paymentMethod === "Wallet_Scanned";
+              const methodDisplay = PAYMENT_METHOD_DISPLAY[tx.paymentMethod] || { label: tx.paymentMethod, color: "text-white/50" };
 
               const displayDate = new Date(tx.timestamp).toLocaleDateString("en-CA", {
                 month: "short",
@@ -215,10 +248,12 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
                 ? (tx.baseFare + (tx.succeedingKm * (tx.distance - 1))) - tx.baseFare
                 : 0;
 
+              const borderColor = getMethodBorderColor(tx.paymentMethod);
+              const methodBadge = getMethodBadge(tx.paymentMethod);
+              const methodDesc = getMethodDescription(tx.paymentMethod);
+
               return (
-                <div key={tx.transactionId} className={`border rounded-xl overflow-hidden transition-colors ${
-                  isPrepaid ? "border-emerald-500/20" : isScanned ? "border-purple-500/20" : "border-white/10"
-                }`}>
+                <div key={tx.transactionId} className={`border rounded-xl overflow-hidden transition-colors ${borderColor}`}>
                   <button
                     onClick={() => toggleExpand(tx.transactionId)}
                     className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors text-left"
@@ -226,12 +261,7 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
                     <div className="min-w-0 flex-1 mr-3">
                       <div className="flex items-center gap-2">
                         <p className="text-white text-sm font-semibold truncate">{tx.passengerName}</p>
-                        {isPrepaid && (
-                          <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 leading-none">Prepaid</span>
-                        )}
-                        {isScanned && (
-                          <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-purple-500/20 text-purple-400 border border-purple-500/30 leading-none">Scanned</span>
-                        )}
+                        {methodBadge}
                       </div>
                       <p className="text-white/40 text-xs mt-0.5 truncate">{displayDate} • {tx.from} → {tx.to}</p>
                     </div>
@@ -266,17 +296,14 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
                         <div className="flex justify-between"><span className="text-gray-400">Driver:</span><span className="text-white">{tx.driverName}</span></div>
                         <div className="flex justify-between"><span className="text-gray-400">Unit No:</span><span className="text-white">{tx.unitNumber}</span></div>
                       </div>
-                      <div className={`border-t border-dashed pt-2 mt-1 ${isPrepaid ? "border-emerald-500/30" : isScanned ? "border-purple-500/30" : "border-white/10"}`}>
+                      <div className={`border-t border-dashed pt-2 mt-1 ${borderColor}`}>
                         <div className="flex justify-between items-center">
                           <span className="text-gray-400">Payment Method:</span>
                           <span className={`font-bold text-sm ${methodDisplay.color}`}>
-                            {isPrepaid && (<svg className="w-3.5 h-3.5 inline mr-1 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>)}
-                            {isScanned && (<svg className="w-3.5 h-3.5 inline mr-1 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5ZM13.5 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5Z" /></svg>)}
                             {methodDisplay.label}
                           </span>
                         </div>
-                        {isPrepaid && (<p className="text-emerald-400/60 text-[10px] mt-1 text-right">Passenger paid via self-scan</p>)}
-                        {isScanned && (<p className="text-purple-400/60 text-[10px] mt-1 text-right">Conductor scanned passenger wallet</p>)}
+                        {methodDesc && (<p className={`${methodDisplay.color}/60 text-[10px] mt-1 text-right`}>{methodDesc}</p>)}
                       </div>
                     </div>
                   )}

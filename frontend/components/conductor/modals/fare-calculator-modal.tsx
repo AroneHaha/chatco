@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   FARE_MATRIX,
   getFareBetween,
@@ -19,6 +19,7 @@ import {
   type PaymentStatus,
   type GCashPaymentIntent,
 } from "@/lib/gcash-payment";
+import { saveTransaction, type PaymentMethodType } from "@/lib/conductor-transactions";
 
 interface FareCalcModalProps {
   isOpen: boolean;
@@ -29,10 +30,12 @@ interface FareCalcModalProps {
   driverName?: string;
 }
 
-type Step = "select" | "confirm" | "processing" | "success" | "failed";
+type Step = "method" | "select" | "confirm" | "processing" | "qr_code" | "success" | "failed";
+type SelectedPaymentMethod = "GCash" | "Cash";
 
 export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName, unitNumber, driverName }: FareCalcModalProps) {
-  const [step, setStep] = useState<Step>("select");
+  const [step, setStep] = useState<Step>("method");
+  const [selectedMethod, setSelectedMethod] = useState<SelectedPaymentMethod | null>(null);
   const [pickupPoint, setPickupPoint] = useState<PointArea | null>(null);
   const [dropoffPoint, setDropoffPoint] = useState<PointArea | null>(null);
   const [commuterType, setCommuterType] = useState<CommuterType>("REGULAR");
@@ -98,6 +101,30 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
       )
     : FARE_MATRIX;
 
+  // ─── Save transaction to shift tracking (backend-proof) ───
+  const recordTransaction = (method: SelectedPaymentMethod) => {
+    if (!fareInfo || !pickupPoint || !dropoffPoint || !shiftId) return;
+
+    const paymentMethodType: PaymentMethodType = method === "GCash" ? "GCash" : "Cash";
+
+    saveTransaction(shiftId, {
+      paymentMethod: paymentMethodType,
+      finalAmount: fareInfo.finalFare,
+      passengerName: "Commuter",
+      passengerId: "c_001",
+      passengerRole: commuterType,
+      from: pickupPoint.name,
+      to: dropoffPoint.name,
+      distance: fareInfo.barangaysTraveled,
+      baseFare: fareInfo.regularFare,
+      succeedingKm: fareInfo.succeedingCount,
+      discountAmount: fareInfo.discountAmount,
+      conductorName: conductorName || "—",
+      unitNumber: unitNumber || "—",
+      driverName: driverName || "—",
+    });
+  };
+
   const handlePayWithGCash = async () => {
     if (!fareInfo || !pickupPoint || !dropoffPoint) return;
 
@@ -110,6 +137,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
         commuterName: "Arone Dela Cruz",
         pickupPoint: pickupPoint.pointNumber,
         dropoffPoint: dropoffPoint.pointNumber,
+        shiftId,
+        conductorId: conductorName,
       });
 
       setPaymentIntent(intent);
@@ -119,7 +148,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
       setPaymentStatus(status);
 
       if (status === "paid") {
-        setStep("success");
+        recordTransaction("GCash");
+        setStep("qr_code");
       } else {
         setStep("failed");
       }
@@ -128,9 +158,30 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     }
   };
 
+  const handlePayWithCash = async () => {
+    if (!fareInfo || !pickupPoint || !dropoffPoint) return;
+
+    setStep("processing");
+
+    // Cash payment: brief processing (just recording), then success
+    await new Promise((r) => setTimeout(r, 800));
+
+    recordTransaction("Cash");
+    setStep("success");
+  };
+
+  const handleConfirmPayment = () => {
+    if (selectedMethod === "GCash") {
+      handlePayWithGCash();
+    } else {
+      handlePayWithCash();
+    }
+  };
+
   // ─── RESET STATE & CLOSE ──────────────────────────────────────
   const handleClose = () => {
-    setStep("select");
+    setStep("method");
+    setSelectedMethod(null);
     setPickupPoint(null);
     setDropoffPoint(null);
     setPickupLandmark(null);
@@ -144,8 +195,99 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     onClose();
   };
 
+  // ─── Auto-advance from QR code to success after 1s ──────────
+  useEffect(() => {
+    if (step !== "qr_code") return;
+    const timer = setTimeout(() => setStep("success"), 1000);
+    return () => clearTimeout(timer);
+  }, [step]);
+
   // ─── HIDDEN UNTIL CLICKED ──────────────────────────────────────
   if (!isOpen) return null;
+
+  // ─── STEP: Payment Method Selection ────────────────────────────
+
+  if (step === "method") {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
+        <div className="w-full sm:max-w-md bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-white/10 shadow-2xl">
+          {/* Header */}
+          <div className="p-5 border-b border-white/10">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-white">Collect Payment</h2>
+              <button
+                onClick={handleClose}
+                className="text-white/40 hover:text-white transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <p className="text-sm text-white/40 mt-1">Choose how the commuter is paying</p>
+          </div>
+
+          {/* Method Options */}
+          <div className="p-5 space-y-3">
+            {/* Cash Option */}
+            <button
+              onClick={() => {
+                setSelectedMethod("Cash");
+                setStep("select");
+              }}
+              className="w-full text-left p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-emerald-500/10 hover:border-emerald-500/30 transition-all duration-200 group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-500/25 transition-colors">
+                  <svg className="w-6 h-6 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-white font-bold text-sm group-hover:text-emerald-300 transition-colors">Cash Payment</h3>
+                  <p className="text-[11px] text-white/40 mt-0.5 leading-relaxed">Collect physical cash from the commuter and record the transaction</p>
+                </div>
+                <svg className="w-5 h-5 text-white/20 group-hover:text-emerald-400 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                </svg>
+              </div>
+            </button>
+
+            {/* GCash Option */}
+            <button
+              onClick={() => {
+                setSelectedMethod("GCash");
+                setStep("select");
+              }}
+              className="w-full text-left p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-blue-500/10 hover:border-blue-500/30 transition-all duration-200 group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-blue-500/15 border border-blue-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-blue-500/25 transition-colors">
+                  <svg className="w-6 h-6 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-white font-bold text-sm group-hover:text-blue-300 transition-colors">GCash Payment</h3>
+                  <p className="text-[11px] text-white/40 mt-0.5 leading-relaxed">Digital payment via GCash — no wallet balance needed, pay directly</p>
+                </div>
+                <svg className="w-5 h-5 text-white/20 group-hover:text-blue-400 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                </svg>
+              </div>
+            </button>
+          </div>
+
+          {/* Footer info */}
+          <div className="px-5 pb-5">
+            <p className="text-[10px] text-white/20 leading-relaxed text-center">
+              Both methods will be recorded in the shift transaction log for end-of-day remittance.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ─── STEP: Point Area Selection ─────────────────────────────────
 
@@ -156,25 +298,35 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
           {/* Header */}
           <div className="p-5 border-b border-white/10">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-white">Calculate Fare</h2>
-              <button
-                onClick={handleClose}
-                className="text-white/40 hover:text-white transition-colors"
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setStep("method")}
+                  className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-colors"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M6 18 18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+                  </svg>
+                </button>
+                <h2 className="text-lg font-bold text-white">Calculate Fare</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                {/* Method badge */}
+                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full ${
+                  selectedMethod === "GCash"
+                    ? "bg-blue-500/15 text-blue-400 border border-blue-500/25"
+                    : "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25"
+                }`}>
+                  {selectedMethod}
+                </span>
+                <button
+                  onClick={handleClose}
+                  className="text-white/40 hover:text-white transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
             {/* Pickup & Dropoff Selection */}
@@ -222,18 +374,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                   }}
                   className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors"
                 >
-                  <svg
-                    className="w-4 h-4 text-white/40"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"
-                    />
+                  <svg className="w-4 h-4 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
                   </svg>
                 </button>
               </div>
@@ -326,11 +468,9 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
             </div>
             <div className="flex-1 overflow-y-auto px-5 pb-3">
               {filteredPoints.map((point) => {
-                // Show BOTH pickup and dropoff selections with distinct indicators
                 const isPickup = pickupPoint?.pointNumber === point.pointNumber;
                 const isDropoff = dropoffPoint?.pointNumber === point.pointNumber;
                 const isSelected = isPickup || isDropoff;
-
                 const isExpanded = expandedBarangay === point.pointNumber;
 
                 return (
@@ -383,7 +523,6 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                               <p className="text-[10px] text-white/30">
                                 {point.landmarks.length} landmark{point.landmarks.length !== 1 ? "s" : ""}
                               </p>
-                              {/* Show pickup/dropoff tag in the list */}
                               {isPickup && (
                                 <span className="text-[9px] font-semibold text-[#62A0EA] bg-[#62A0EA]/10 px-1.5 py-0.5 rounded">
                                   PICKUP
@@ -406,7 +545,6 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                               Disc: {formatCurrency(point.discountedFare)}
                             </p>
                           </div>
-                          {/* Expand/collapse landmarks */}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -559,9 +697,13 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
               </div>
               <button
                 onClick={() => setStep("confirm")}
-                className="w-full py-3.5 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] text-white font-bold text-sm transition-colors shadow-lg shadow-[#1A5FB4]/30"
+                className={`w-full py-3.5 rounded-xl font-bold text-sm transition-colors shadow-lg ${
+                  selectedMethod === "GCash"
+                    ? "bg-[#1A5FB4] hover:bg-[#164A8F] text-white shadow-[#1A5FB4]/30"
+                    : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30"
+                }`}
               >
-                Pay with GCash
+                Pay with {selectedMethod}
               </button>
             </div>
           )}
@@ -643,31 +785,38 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
               </div>
             </div>
 
-            {/* GCash Payment Notice */}
-            <div className="bg-[#1A5FB4]/10 border border-[#1A5FB4]/20 rounded-xl p-3 mb-6">
-              <div className="flex items-center gap-2 mb-1">
-                <svg
-                  className="w-4 h-4 text-[#62A0EA]"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"
-                  />
-                </svg>
-                <span className="text-xs font-semibold text-[#62A0EA]">
-                  GCash Secure Payment
-                </span>
+            {/* Payment Method Notice */}
+            {selectedMethod === "GCash" ? (
+              <div className="bg-[#1A5FB4]/10 border border-[#1A5FB4]/20 rounded-xl p-3 mb-6">
+                <div className="flex items-center gap-2 mb-1">
+                  <svg className="w-4 h-4 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
+                  </svg>
+                  <span className="text-xs font-semibold text-[#62A0EA]">
+                    GCash Secure Payment
+                  </span>
+                </div>
+                <p className="text-[10px] text-white/40">
+                  You will be redirected to GCash to confirm payment. No wallet
+                  balance needed — pay directly.
+                </p>
               </div>
-              <p className="text-[10px] text-white/40">
-                You will be redirected to GCash to confirm payment. No wallet
-                balance needed — pay directly.
-              </p>
-            </div>
+            ) : (
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 mb-6">
+                <div className="flex items-center gap-2 mb-1">
+                  <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
+                  </svg>
+                  <span className="text-xs font-semibold text-emerald-400">
+                    Cash Payment
+                  </span>
+                </div>
+                <p className="text-[10px] text-white/40">
+                  Collect the exact fare amount from the commuter in cash. This
+                  transaction will be recorded in your shift log.
+                </p>
+              </div>
+            )}
 
             <div className="flex gap-3">
               <button
@@ -677,8 +826,12 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                 Back
               </button>
               <button
-                onClick={handlePayWithGCash}
-                className="flex-1 py-3 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] text-white text-sm font-bold transition-colors shadow-lg shadow-[#1A5FB4]/30"
+                onClick={handleConfirmPayment}
+                className={`flex-1 py-3 rounded-xl text-white text-sm font-bold transition-colors shadow-lg ${
+                  selectedMethod === "GCash"
+                    ? "bg-[#1A5FB4] hover:bg-[#164A8F] shadow-[#1A5FB4]/30"
+                    : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/30"
+                }`}
               >
                 Pay {formatCurrency(fareInfo.finalFare)}
               </button>
@@ -695,13 +848,78 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
         <div className="w-full max-w-xs bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl p-8 text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-[#1A5FB4] border-t-transparent animate-spin" />
+          <div className={`w-16 h-16 mx-auto mb-4 rounded-full border-4 border-t-transparent animate-spin ${
+            selectedMethod === "GCash" ? "border-[#1A5FB4]" : "border-emerald-500"
+          }`} />
           <h2 className="text-lg font-bold text-white mb-2">
             Processing Payment
           </h2>
           <p className="text-sm text-white/40">
-            Confirming your GCash payment...
+            {selectedMethod === "GCash"
+              ? "Confirming your GCash payment..."
+              : "Recording cash payment..."}
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── STEP: QR Code (GCash only) ─────────────────────────────────
+
+  if (step === "qr_code" && fareInfo) {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
+        <div className="w-full max-w-xs bg-[#071A2E] border border-blue-500/20 rounded-3xl p-6 text-center shadow-2xl space-y-4 animate-fade-in">
+          <div className="flex justify-center">
+            <div className="w-14 h-14 rounded-full bg-blue-500/15 border-2 border-blue-500/30 flex items-center justify-center">
+              <svg className="w-7 h-7 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75ZM6.75 16.5h.75v.75h-.75v-.75ZM16.5 6.75h.75v.75h-.75v-.75ZM13.5 13.5h.75v.75h-.75v-.75ZM13.5 19.5h.75v.75h-.75v-.75ZM19.5 13.5h.75v.75h-.75v-.75ZM19.5 19.5h.75v.75h-.75v-.75ZM16.5 16.5h.75v.75h-.75v-.75Z" />
+              </svg>
+            </div>
+          </div>
+          <div>
+            <h2 className="text-white font-bold text-lg">Scan to Pay</h2>
+            <p className="text-[11px] text-white/40 mt-1 leading-relaxed">Commuter, scan this QR code with your GCash app to confirm payment</p>
+          </div>
+          <div className="bg-white rounded-2xl p-4 flex justify-center">
+            <svg viewBox="0 0 100 100" className="w-44 h-44">
+              <rect width="100" height="100" fill="white" rx="4" />
+              <rect x="5" y="5" width="25" height="25" fill="#071A2E" rx="2" />
+              <rect x="8" y="8" width="19" height="19" fill="white" rx="1" />
+              <rect x="11" y="11" width="13" height="13" fill="#071A2E" rx="1" />
+              <rect x="70" y="5" width="25" height="25" fill="#071A2E" rx="2" />
+              <rect x="73" y="8" width="19" height="19" fill="white" rx="1" />
+              <rect x="76" y="11" width="13" height="13" fill="#071A2E" rx="1" />
+              <rect x="5" y="70" width="25" height="25" fill="#071A2E" rx="2" />
+              <rect x="8" y="73" width="19" height="19" fill="white" rx="1" />
+              <rect x="11" y="76" width="13" height="13" fill="#071A2E" rx="1" />
+              {[
+                [35,10],[40,10],[50,10],[55,10],[60,10],
+                [35,15],[45,15],[50,15],[60,15],
+                [35,20],[40,20],[45,20],[55,20],
+                [35,25],[50,25],[55,25],[60,25],
+                [10,35],[15,35],[25,35],[35,35],[40,35],[50,35],[55,35],[65,35],[75,35],[80,35],[90,35],
+                [10,40],[20,40],[30,40],[45,40],[55,40],[70,40],[85,40],
+                [10,45],[25,45],[35,45],[40,45],[50,45],[60,45],[75,45],[80,45],
+                [10,50],[20,50],[30,50],[45,50],[55,50],[70,50],[90,50],
+                [10,55],[25,55],[40,55],[50,55],[65,55],[80,55],[85,55],
+                [10,60],[15,60],[30,60],[35,60],[45,60],[60,60],[75,60],[90,60],
+                [35,70],[40,70],[50,70],[55,70],[65,70],[70,70],[80,70],[90,70],
+                [35,75],[45,75],[60,75],[75,75],[85,75],
+                [35,80],[40,80],[50,80],[65,80],[70,80],[80,80],[90,80],
+                [35,85],[45,85],[55,85],[60,85],[75,85],[85,85],
+                [35,90],[40,90],[50,90],[65,90],[80,90],
+              ].map(([x,y], i) => <rect key={i} x={x} y={y} width="4" height="4" fill="#071A2E" />)}
+            </svg>
+          </div>
+          <div className="space-y-2">
+            <p className="text-2xl font-extrabold text-white">{formatCurrency(fareInfo.finalFare)}</p>
+            <div className="flex items-center justify-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+              <p className="text-xs text-blue-400/70 font-medium">Processing payment…</p>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -715,25 +933,17 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
         <div className="w-full sm:max-w-sm bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl">
           <div className="p-6 text-center">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center">
-              <svg
-                className="w-8 h-8 text-green-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="m4.5 12.75 6 6 9-13.5"
-                />
+              <svg className="w-8 h-8 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
               </svg>
             </div>
             <h2 className="text-lg font-bold text-white mb-1">
               Payment Successful!
             </h2>
             <p className="text-sm text-white/40 mb-4">
-              Your fare has been paid via GCash
+              {selectedMethod === "GCash"
+                ? "Your fare has been paid via GCash"
+                : "Cash payment has been recorded"}
             </p>
 
             <div className="bg-white/5 rounded-xl p-4 text-left space-y-2 mb-6">
@@ -770,9 +980,11 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-white/40">Method</span>
-                <span className="text-[#62A0EA]">GCash</span>
+                <span className={selectedMethod === "GCash" ? "text-[#62A0EA]" : "text-emerald-400"}>
+                  {selectedMethod}
+                </span>
               </div>
-              {paymentIntent && (
+              {paymentIntent && selectedMethod === "GCash" && (
                 <div className="flex justify-between text-sm">
                   <span className="text-white/40">Ref ID</span>
                   <span className="text-white/50 text-xs font-mono">
@@ -784,7 +996,11 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
 
             <button
               onClick={handleClose}
-              className="w-full py-3 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] text-white text-sm font-bold transition-colors"
+              className={`w-full py-3 rounded-xl text-white text-sm font-bold transition-colors ${
+                selectedMethod === "GCash"
+                  ? "bg-[#1A5FB4] hover:bg-[#164A8F]"
+                  : "bg-emerald-600 hover:bg-emerald-700"
+              }`}
             >
               Done
             </button>
@@ -802,26 +1018,17 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
         <div className="w-full sm:max-w-sm bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl">
           <div className="p-6 text-center">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-              <svg
-                className="w-8 h-8 text-red-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M6 18 18 6M6 6l12 12"
-                />
+              <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>
             </div>
             <h2 className="text-lg font-bold text-white mb-1">
               Payment Failed
             </h2>
             <p className="text-sm text-white/40 mb-6">
-              Could not process your GCash payment. Please try again or pay
-              cash to the conductor.
+              {selectedMethod === "GCash"
+                ? "Could not process your GCash payment. Please try again or pay cash to the conductor."
+                : "Could not record the payment. Please try again."}
             </p>
             <div className="flex gap-3">
               <button
@@ -832,7 +1039,11 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
               </button>
               <button
                 onClick={() => setStep("confirm")}
-                className="flex-1 py-3 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] text-white text-sm font-bold transition-colors"
+                className={`flex-1 py-3 rounded-xl text-white text-sm font-bold transition-colors ${
+                  selectedMethod === "GCash"
+                    ? "bg-[#1A5FB4] hover:bg-[#164A8F]"
+                    : "bg-emerald-600 hover:bg-emerald-700"
+                }`}
               >
                 Try Again
               </button>

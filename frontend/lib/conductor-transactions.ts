@@ -1,6 +1,8 @@
+export type PaymentMethodType = "Wallet_Scanned" | "Wallet_Prepay" | "Voucher" | "GCash" | "Cash";
+
 export interface Transaction {
   transactionId: string;
-  paymentMethod: "Wallet_Scanned" | "Wallet_Prepay" | "Voucher";
+  paymentMethod: PaymentMethodType;
   finalAmount: number;
   passengerName: string;
   passengerId: string;

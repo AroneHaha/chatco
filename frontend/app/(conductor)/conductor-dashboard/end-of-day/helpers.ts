@@ -1,5 +1,5 @@
 // app/(conductor)/conductor-dashboard/end-of-day/helpers.ts
-export const fmt = (n: number) => `₱${n.toFixed(2)}`;
+export const fmt = (n: number | undefined | null) => `₱${(n ?? 0).toFixed(2)}`;
 
 export const fmtDate = (d: string) =>
   new Date(d + "T00:00:00").toLocaleDateString("en-PH", {
@@ -22,4 +22,6 @@ export const methodConfig: Record<string, { label: string; color: string; dot: s
   Wallet_Scanned: { label: "QR Scanned", color: "text-[#62A0EA]", dot: "bg-[#62A0EA]" },
   Wallet_Prepay: { label: "Prepaid", color: "text-emerald-400", dot: "bg-emerald-400" },
   Voucher: { label: "Voucher", color: "text-amber-400", dot: "bg-amber-400" },
+  GCash: { label: "GCash", color: "text-blue-400", dot: "bg-blue-400" },
+  Cash: { label: "Cash", color: "text-green-400", dot: "bg-green-400" },
 };

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -63,6 +63,19 @@ const MAP_CENTER: L.LatLngTuple = [rawBounds.getCenter().lat, rawBounds.getCente
 const CONDUCTOR_ROUTE_INDEX = 35;
 const HAIL_1_ROUTE_INDEX = 30;
 const HAIL_2_ROUTE_INDEX = 42;
+const HAIL_3_ROUTE_INDEX = 45;
+const RADIUS_M = 1000; // 1 km
+
+function getDistanceMeters(a: [number, number], b: [number, number]): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b[0] - a[0]);
+  const dLon = toRad(b[1] - a[1]);
+  const lat1 = toRad(a[0]);
+  const lat2 = toRad(b[0]);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
 
 export default function ConductorMap() {
   const [isDomReady, setIsDomReady] = useState(false);
@@ -139,6 +152,9 @@ export default function ConductorMap() {
         <Polyline positions={ROUTE_COORDS} pathOptions={{ color: '#62A0EA', weight: 8, opacity: 0.2, lineCap: 'round', lineJoin: 'round' }} />
         <Polyline positions={ROUTE_COORDS} pathOptions={{ color: '#62A0EA', weight: 4, opacity: 0.9, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }} />
 
+        {/* 1km Radius Circle */}
+        <Circle center={ROUTE_COORDS[CONDUCTOR_ROUTE_INDEX]} radius={RADIUS_M} pathOptions={{ color: '#1A5FB4', fillColor: '#1A5FB4', fillOpacity: 0.05, weight: 1.5, opacity: 0.3, dashArray: '8 4' }} />
+
         <Marker position={ROUTE_COORDS[CONDUCTOR_ROUTE_INDEX]} icon={vehicleIcon}>
           <Popup>
             <div className="space-y-2 min-w-[180px]">
@@ -148,24 +164,25 @@ export default function ConductorMap() {
               </div>
               <div className="text-xs text-gray-500 space-y-0.5 pt-1 border-t border-gray-100">
                 <p><span className="font-medium text-gray-700">Status:</span> Available</p>
+                <p><span className="font-medium text-gray-700">Radius:</span> 1 km pickup zone</p>
               </div>
             </div>
           </Popup>
         </Marker>
 
-        <Marker position={ROUTE_COORDS[HAIL_1_ROUTE_INDEX]} icon={hailingIcon}>
-          <Popup>
-            <div className="font-bold text-[#FF6D3A]">Passenger Waiting</div>
-            <div className="text-xs text-gray-500">Near Jollibee &bull; 2 min away</div>
-          </Popup>
-        </Marker>
-
-        <Marker position={ROUTE_COORDS[HAIL_2_ROUTE_INDEX]} icon={hailingIcon}>
-          <Popup>
-            <div className="font-bold text-[#FF6D3A]">Passenger Waiting</div>
-            <div className="text-xs text-gray-500">Corner Street &bull; 5 min away</div>
-          </Popup>
-        </Marker>
+        {/* Hailing commuters — only show those within 1km radius */}
+        {[
+          { index: HAIL_1_ROUTE_INDEX, label: "Near Jollibee", time: "2 min away" },
+          { index: HAIL_2_ROUTE_INDEX, label: "Corner Street", time: "5 min away" },
+          { index: HAIL_3_ROUTE_INDEX, label: "Market Area", time: "8 min away" },
+        ].filter(h => getDistanceMeters(ROUTE_COORDS[CONDUCTOR_ROUTE_INDEX], ROUTE_COORDS[h.index]) <= RADIUS_M).map((h) => (
+          <Marker key={h.index} position={ROUTE_COORDS[h.index]} icon={hailingIcon}>
+            <Popup>
+              <div className="font-bold text-[#FF6D3A]">Passenger Waiting</div>
+              <div className="text-xs text-gray-500">{h.label} &bull; {h.time}</div>
+            </Popup>
+          </Marker>
+        ))}
       </MapContainer>
 
       <style jsx global>{`
