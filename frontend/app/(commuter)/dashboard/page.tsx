@@ -37,10 +37,13 @@ function CommuterHomeContent() {
   const [isHailing, setIsHailing] = useState(false);
   const [showSheet, setShowSheet] = useState(true);
 
-  // Auto-open Scan modal when navigating via the Scan tab
+  // Auto-open modals when navigating via nav tabs
   useEffect(() => {
     if (searchParams.get("scan") === "true") {
       setShowScan(true);
+    }
+    if (searchParams.get("share-ride") === "true") {
+      setShowShareRide(true);
     }
   }, [searchParams]);
 
@@ -115,15 +118,16 @@ function CommuterHomeContent() {
               <button onClick={(e) => { e.stopPropagation(); setShowHistory(true); }} className="ml-auto text-white/40 hover:text-white/60 text-[11px] font-medium transition-colors underline underline-offset-2">History</button>
             </div>
           </div>
-          <div className="grid grid-cols-4 gap-4 mt-5">
-            {quickActions.map((action) => (
-              <button key={action.label} onClick={action.action} className="flex flex-col items-center gap-1.5 group">
-                <div className={`w-12 h-12 rounded-2xl border flex items-center justify-center transition-colors ${action.isSos ? "bg-red-500/10 border-red-500/30 group-hover:bg-red-500/20" : "bg-white/5 border-white/10 group-hover:bg-white/10"}`}>
-                  <svg className={`w-6 h-6 transition-colors ${action.isSos ? "text-red-400" : "text-white/60"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d={action.iconPath} /></svg>
-                </div>
-                <span className={`text-[10px] font-medium ${action.isSos ? "text-red-400" : "text-white/40"}`}>{action.label}</span>
-              </button>
-            ))}
+          {/* Quick Actions — 2 items, horizontal fill */}
+          <div className="grid grid-cols-2 gap-3 mt-5">
+            <button onClick={() => setShowShareRide(true)} className="flex items-center justify-center gap-2 py-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
+              <svg className="w-5 h-5 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" /></svg>
+              <span className="text-white/70 text-xs font-semibold">Share Ride</span>
+            </button>
+            <button onClick={() => setShowSOS(true)} className="flex items-center justify-center gap-2 py-3 rounded-xl bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 transition-colors">
+              <svg className="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
+              <span className="text-red-400 text-xs font-semibold">SOS</span>
+            </button>
           </div>
         </div>
       </div>
@@ -172,18 +176,20 @@ function CommuterHomeContent() {
               <button onClick={(e) => { e.stopPropagation(); setShowHistory(true); }} className="ml-auto text-white/40 hover:text-white/60 text-xs font-medium transition-colors underline underline-offset-2">View History</button>
             </div>
           </div>
-          <div>
-            <h3 className="text-xs font-semibold text-white/30 uppercase tracking-wider mb-3">Quick Actions</h3>
-            <div className="grid grid-cols-2 gap-3">
-              {quickActions.map((action) => (
-                <button key={action.label} onClick={action.action} className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${action.isSos ? "bg-red-500/10 border-red-500/30 hover:bg-red-500/20" : "bg-white/5 border-white/10 hover:bg-white/10"}`}>
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${action.isSos ? "bg-red-500/20" : "bg-white/5"}`}>
-                    <svg className={`w-5 h-5 ${action.isSos ? "text-red-400" : "text-white/60"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d={action.iconPath} /></svg>
-                  </div>
-                  <span className={`text-sm font-medium ${action.isSos ? "text-red-400" : "text-white/80"}`}>{action.label}</span>
-                </button>
-              ))}
-            </div>
+          {/* Quick Actions — 2 items, horizontal fill */}
+          <div className="grid grid-cols-2 gap-3">
+            <button onClick={() => setShowShareRide(true)} className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-white/5">
+                <svg className="w-5 h-5 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" /></svg>
+              </div>
+              <span className="text-sm font-medium text-white/80">Share Ride</span>
+            </button>
+            <button onClick={() => setShowSOS(true)} className="flex items-center gap-3 p-3 rounded-xl bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 transition-colors">
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-red-500/20">
+                <svg className="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
+              </div>
+              <span className="text-sm font-medium text-red-400">SOS</span>
+            </button>
           </div>
         </div>
         <div className="p-6 border-t border-white/10">

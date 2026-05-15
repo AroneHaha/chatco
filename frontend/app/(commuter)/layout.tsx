@@ -86,12 +86,12 @@ export default function CommuterLayout({ children }: { children: React.ReactNode
         {/* --- MOBILE BOTTOM NAV --- */}
         <nav className="absolute bottom-0 inset-x-0 z-50 bg-[#071A2E]/95 backdrop-blur-xl border-t border-white/10 lg:hidden">
           {/* Changed to Grid for perfect math alignment */}
-          <div className="relative grid grid-cols-6 h-20 max-w-lg mx-auto">
+          <div className="relative grid grid-cols-5 h-20 max-w-lg mx-auto">
             
             {/* Sliding Dot Indicator - Math is now exactly centered per column */}
             <div 
               className="absolute top-1.5 w-1.5 h-1.5 rounded-full bg-[#62A0EA] transition-all duration-300 ease-in-out"
-              style={{ left: `calc(${activeDotIndex * (100/6) + (100/12)}% - 3px)` }}
+              style={{ left: `calc(${activeDotIndex * (100/5) + (100/10)}% - 3px)` }}
             />
 
             {navItemsWithBadges.map((item, index) => {
@@ -136,12 +136,12 @@ const ScanIcon = ({ className }: { className?: string }) => (<svg className={cla
 const LostFoundIcon = ({ className }: { className?: string }) => (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" /></svg>);
 const GiftIcon = ({ className }: { className?: string }) => (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M21 11.25v8.25a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 1 0 9.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1 1 14.625 7.5H12m0 0V21m-8.625-9.75h18c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125h-18c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" /></svg>);
 const BellIcon = ({ className }: { className?: string }) => (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" /></svg>);
+const ShareRideIcon = ({ className }: { className?: string }) => (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" /></svg>);
 const UserIcon = ({ className }: { className?: string }) => (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>);
 
-// Navigation items with Scan tab
+// Navigation items — 5 tabs (Share Ride moved to Quick Actions)
 const navItems = [
   { href: "/dashboard", label: "Home", shortLabel: "Home", icon: HomeIcon },  
-  { href: "/dashboard?scan=true", label: "Scan", shortLabel: "Scan", icon: ScanIcon },
   { href: "/lost-and-found", label: "Lost & Found", shortLabel: "Lost & Found", icon: LostFoundIcon },
   { href: "/rewards", label: "Rewards & Announcements", shortLabel: "Rewards", icon: GiftIcon },
   { href: "/feedback", label: "Feedback", shortLabel: "Feedback", icon: BellIcon },
