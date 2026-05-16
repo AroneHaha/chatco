@@ -15,8 +15,8 @@ import { formatCurrency } from "@/lib/fare-calculator";
 
 interface ScanModalProps {
   onClose: () => void;
-  commuterId?: string;
-  commuterName?: string;
+  commuterId: string;
+  commuterName: string;
 }
 
 type Step = "scanning" | "verifying" | "confirm" | "processing" | "success" | "failed";
@@ -38,7 +38,7 @@ type Step = "scanning" | "verifying" | "confirm" | "processing" | "success" | "f
  *  - All states are backend-ready: replace simulate*() with real API calls
  *  - CommuterPaymentRecord stored for history
  */
-export default function ScanModal({ onClose, commuterId = "c_001", commuterName = "Commuter" }: ScanModalProps) {
+export default function ScanModal({ onClose, commuterId, commuterName }: ScanModalProps) {
   const [step, setStep] = useState<Step>("scanning");
   const [payload, setPayload] = useState<QRTransactionPayload | null>(null);
   const [scanAnimFrame, setScanAnimFrame] = useState(0);

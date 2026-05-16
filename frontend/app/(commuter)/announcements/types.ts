@@ -1,11 +1,4 @@
 // app/(commuter)/announcements/types.ts
-export type AnnouncementType = "SYSTEM" | "PROMO" | "MAINTENANCE" | "SAFETY";
+// Re-exports from canonical @/types to avoid duplication.
 
-export interface Announcement {
-  id: string;
-  type: AnnouncementType;
-  title: string;
-  message: string;
-  createdAt: string;
-  isRead: boolean;
-}
+export type { AnnouncementType, Announcement } from "@/types";

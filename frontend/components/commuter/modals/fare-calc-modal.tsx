@@ -14,6 +14,7 @@ import {
   type CommuterType,
   type FareCalculation,
 } from "@/lib/fare-calculator";
+import { useAuth } from "@/contexts/auth-context";
 import {
   createPaymentIntent,
   verifyPayment,
@@ -28,10 +29,17 @@ interface FareCalcModalProps {
 type Step = "select" | "confirm" | "processing" | "success" | "failed";
 
 export default function FareCalcModal({ onClose }: FareCalcModalProps) {
+  const { commuterProfile, user } = useAuth();
+  const commuterId = user?.id ?? "";
+  const commuterName = commuterProfile ? `${commuterProfile.firstName} ${commuterProfile.surname}` : "";
+
+  // Pre-fill commuter type from auth profile
   const [step, setStep] = useState<Step>("select");
   const [pickupPoint, setPickupPoint] = useState<PointArea | null>(null);
   const [dropoffPoint, setDropoffPoint] = useState<PointArea | null>(null);
-  const [commuterType, setCommuterType] = useState<CommuterType>("REGULAR");
+  const [commuterType, setCommuterType] = useState<CommuterType>(
+    commuterProfile?.commuterType ?? "REGULAR"
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [selectingField, setSelectingField] = useState<
     "pickup" | "dropoff" | null
@@ -96,8 +104,8 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
     try {
       const intent = await createPaymentIntent({
         amount: fareCalc.finalFare,
-        commuterId: "c_001",
-        commuterName: "Arone Dela Cruz",
+        commuterId,
+        commuterName,
         pickupPoint: fareCalc.fareResult.fromPoint.pointNumber,
         dropoffPoint: fareCalc.fareResult.toPoint.pointNumber,
       });

@@ -4,16 +4,20 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
+import { AuthProvider, useAuth } from "@/contexts/auth-context";
+import { getCommuterTypeLabel } from "@/types";
 
-// --- MOCK BADGE FETCH (Backend Proof) ---
+// --- BADGE FETCH (Backend Proof) ---
+// TODO: Replace with GET /api/commuter/badges
 const fetchBadgeCounts = () => {
   return {
-    rewards: 2,    // e.g., 2 available vouchers + unread announcements
+    rewards: 2, // e.g., 2 available vouchers + unread announcements
   };
 };
 
-export default function CommuterLayout({ children }: { children: React.ReactNode }) {
+function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { commuterProfile, isLoading: authLoading } = useAuth();
   const [activeDotIndex, setActiveDotIndex] = useState(
     navItems.findIndex((item) => item.href === pathname)
   );
@@ -32,9 +36,18 @@ export default function CommuterLayout({ children }: { children: React.ReactNode
     return { ...item, badge: 0 };
   });
 
+  // Derive user info from auth context
+  const userInitial = commuterProfile?.firstName?.[0] ?? "?";
+  const userName = commuterProfile
+    ? `${commuterProfile.firstName} ${commuterProfile.surname}`
+    : authLoading ? "Loading..." : "Guest";
+  const userTypeLabel = commuterProfile
+    ? getCommuterTypeLabel(commuterProfile.commuterType)
+    : "";
+
   return (
     <div className="fixed inset-0 bg-[#050F1A] flex font-sans overflow-hidden">
-      
+
       {/* --- DESKTOP SIDEBAR --- */}
       <aside className="hidden lg:flex flex-col w-64 xl:w-72 bg-[#071A2E] border-r border-white/10 z-50 flex-shrink-0">
         <div className="h-20 flex items-center px-6 border-b border-white/10">
@@ -70,10 +83,10 @@ export default function CommuterLayout({ children }: { children: React.ReactNode
 
         <div className="p-4 border-t border-white/10">
           <div className="flex items-center gap-3 px-2">
-            <div className="w-9 h-9 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold text-sm border-2 border-white/20">A</div>
+            <div className="w-9 h-9 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold text-sm border-2 border-white/20">{userInitial}</div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-white truncate">Arone Dela Cruz</p>
-              <p className="text-[10px] text-white/40">Commuter</p>
+              <p className="text-sm font-semibold text-white truncate">{userName}</p>
+              <p className="text-[10px] text-white/40">{userTypeLabel}</p>
             </div>
           </div>
         </div>
@@ -82,14 +95,11 @@ export default function CommuterLayout({ children }: { children: React.ReactNode
       {/* --- MAIN CONTENT AREA --- */}
       <main className="flex-1 relative overflow-hidden">
         {children}
-        
+
         {/* --- MOBILE BOTTOM NAV --- */}
         <nav className="absolute bottom-0 inset-x-0 z-50 bg-[#071A2E]/95 backdrop-blur-xl border-t border-white/10 lg:hidden">
-          {/* Changed to Grid for perfect math alignment */}
           <div className="relative grid grid-cols-5 h-20 max-w-lg mx-auto">
-            
-            {/* Sliding Dot Indicator - Math is now exactly centered per column */}
-            <div 
+            <div
               className="absolute top-1.5 w-1.5 h-1.5 rounded-full bg-[#62A0EA] transition-all duration-300 ease-in-out"
               style={{ left: `calc(${activeDotIndex * (100/5) + (100/10)}% - 3px)` }}
             />
@@ -103,20 +113,20 @@ export default function CommuterLayout({ children }: { children: React.ReactNode
                   onClick={() => handleNav(item.href, index)}
                   className="flex flex-col items-center justify-center pt-2 pb-1 relative group"
                 >
-                  <div 
+                  <div
                     className={`relative w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 ease-out ${
                       isActive ? "bg-[#1A5FB4] scale-100 shadow-lg shadow-[#1A5FB4]/40" : "bg-transparent scale-75 group-hover:scale-90"
                     }`}
                   >
                     <item.icon className={`w-5 h-5 transition-colors duration-300 ${isActive ? "text-white" : "text-white/50 group-hover:text-white/80"}`} />
-                    
+
                     {item.badge > 0 && (
                       <span className="absolute top-0.5 right-0.5 w-4 h-4 bg-[#FF6D3A] rounded-full text-[9px] font-bold text-white flex items-center justify-center ring-2 ring-[#071A2E]/95">
                         {item.badge}
                       </span>
                     )}
                   </div>
-                  
+
                   <span className={`mt-1 text-[9px] font-medium transition-colors duration-300 truncate max-w-[56px] text-center ${isActive ? "text-[#62A0EA]" : "text-white/40"}`}>
                     {item.shortLabel || item.label}
                   </span>
@@ -130,18 +140,25 @@ export default function CommuterLayout({ children }: { children: React.ReactNode
   );
 }
 
+// Wrap with AuthProvider so all commuter pages have access to auth context
+export default function CommuterLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <AuthProvider>
+      <CommuterLayoutInner>{children}</CommuterLayoutInner>
+    </AuthProvider>
+  );
+}
+
 // --- ICONS ---
 const HomeIcon = ({ className }: { className?: string }) => (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>);
-const ScanIcon = ({ className }: { className?: string }) => (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5ZM13.5 13.5h.75v.75h-.75v-.75ZM13.5 19.5h.75v.75h-.75v-.75ZM19.5 13.5h.75v.75h-.75v-.75ZM19.5 19.5h.75v.75h-.75v-.75ZM16.5 16.5h.75v.75h-.75v-.75Z" /></svg>);
 const LostFoundIcon = ({ className }: { className?: string }) => (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" /></svg>);
 const GiftIcon = ({ className }: { className?: string }) => (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M21 11.25v8.25a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 1 0 9.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1 1 14.625 7.5H12m0 0V21m-8.625-9.75h18c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125h-18c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" /></svg>);
 const BellIcon = ({ className }: { className?: string }) => (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" /></svg>);
-const ShareRideIcon = ({ className }: { className?: string }) => (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" /></svg>);
-const UserIcon = ({ className }: { className?: string }) => (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>);
+const UserIcon = ({ className }: { className?: string }) => (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>);
 
-// Navigation items — 5 tabs (Share Ride moved to Quick Actions)
+// Navigation items — 5 tabs
 const navItems = [
-  { href: "/dashboard", label: "Home", shortLabel: "Home", icon: HomeIcon },  
+  { href: "/dashboard", label: "Home", shortLabel: "Home", icon: HomeIcon },
   { href: "/lost-and-found", label: "Lost & Found", shortLabel: "Lost & Found", icon: LostFoundIcon },
   { href: "/rewards", label: "Rewards & Announcements", shortLabel: "Rewards", icon: GiftIcon },
   { href: "/feedback", label: "Feedback", shortLabel: "Feedback", icon: BellIcon },

@@ -8,6 +8,7 @@ import {
   type PaymentMethod,
 } from "@/lib/gcash-payment";
 import { getPointByNumber } from "@/lib/fare-matrix-data";
+import { useAuth } from "@/contexts/auth-context";
 
 interface PaymentHistoryModalProps {
   onClose: () => void;
@@ -146,6 +147,8 @@ function seedMockData(): GCashPaymentIntent[] {
 }
 
 export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProps) {
+  const { user } = useAuth();
+  const commuterId = user?.id ?? "";
   const [history, setHistory] = useState<GCashPaymentIntent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
@@ -154,15 +157,19 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
   useEffect(() => {
     // Seed mock data first, then load from service
     seedMockData();
-    getPaymentHistory("c_001").then((data) => {
-      // Only show GCash transactions (no cash)
-      const gcashOnly = data.filter(
-        (tx) => tx.paymentMethod === "GCash_Scanned" || tx.paymentMethod === "GCash_Direct"
-      );
-      setHistory(gcashOnly);
+    if (commuterId) {
+      getPaymentHistory(commuterId).then((data) => {
+        // Only show GCash transactions (no cash)
+        const gcashOnly = data.filter(
+          (tx) => tx.paymentMethod === "GCash_Scanned" || tx.paymentMethod === "GCash_Direct"
+        );
+        setHistory(gcashOnly);
+        setIsLoading(false);
+      });
+    } else {
       setIsLoading(false);
-    });
-  }, []);
+    }
+  }, [commuterId]);
 
   const filteredHistory = history.filter((tx) => {
     if (timeFilter === "all") return true;

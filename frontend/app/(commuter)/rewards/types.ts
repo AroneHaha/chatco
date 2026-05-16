@@ -1,4 +1,9 @@
 // app/(commuter)/rewards/types.ts
+// Re-exports Announcement from canonical @/types to avoid duplication.
+// Only Reward/Voucher types are local to this module.
+
+export type { AnnouncementType, Announcement } from "@/types";
+
 export type VoucherStatus = "AVAILABLE" | "ACTIVE" | "USED" | "EXPIRED";
 
 export interface Voucher {
@@ -14,16 +19,4 @@ export interface RewardData {
   ridesNeeded: number; // The threshold (e.g., 10)
   currentCycleRides: number; // Rides in the current cycle (e.g., 7)
   vouchers: Voucher[];
-}
-
-// --- ANNOUNCEMENT TYPES ---
-export type AnnouncementType = "SYSTEM" | "PROMO" | "MAINTENANCE" | "SAFETY";
-
-export interface Announcement {
-  id: string;
-  type: AnnouncementType;
-  title: string;
-  message: string;
-  createdAt: string;
-  isRead: boolean;
 }

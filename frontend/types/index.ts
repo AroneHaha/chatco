@@ -17,6 +17,8 @@ export type {
 export {
   COMMUTER_TYPE_LABELS,
   getCommuterTypeLabel,
+  DISCOUNTED_TYPES,
+  DISCOUNT_RATE,
 } from "./user";
 
 export type {

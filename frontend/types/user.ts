@@ -55,6 +55,15 @@ export const COMMUTER_TYPE_LABELS: Record<CommuterType, string> = {
   PWD: "PWD",
 };
 
+/** Commuter types eligible for 20% discount */
+export const DISCOUNTED_TYPES = new Set<CommuterType>([
+  "STUDENT",
+  "SENIOR_CITIZEN",
+  "PWD",
+]);
+
+export const DISCOUNT_RATE = 0.2;
+
 export function getCommuterTypeLabel(type: CommuterType): string {
   return COMMUTER_TYPE_LABELS[type];
 }

@@ -2,10 +2,11 @@
 
 import { useRef } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { User } from "@/app/types/user.types";
+import type { CommuterProfile } from "@/types";
+import { getCommuterTypeLabel } from "@/types";
 
 interface ShowQRModalProps {
-  user: User;
+  user: Pick<CommuterProfile, "id" | "firstName" | "surname" | "commuterType">;
   onClose: () => void;
 }
 
@@ -102,7 +103,7 @@ export default function ShowQRModal({ user, onClose }: ShowQRModalProps) {
 
           <div className="mt-4 mb-2">
             <span className="text-xs font-semibold text-[#1A5FB4] bg-[#1A5FB4]/10 px-3 py-1 rounded-full uppercase tracking-wider">
-              {user.commuterType}
+              {getCommuterTypeLabel(user.commuterType)}
             </span>
           </div>
           <p className="text-sm font-semibold text-[#071A2E]">

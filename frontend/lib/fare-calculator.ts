@@ -1,5 +1,8 @@
 // lib/fare-calculator.ts
 // Shared fare calculation with commuter-type discounts and GPS-based nearest-point lookup.
+//
+// CommuterType is imported from @/types (canonical source).
+// Haversine is imported from @/lib/utils/geo (canonical source).
 
 import {
   initialFarePoints,
@@ -7,14 +10,12 @@ import {
   type FarePoint,
   type FareResult,
 } from "./fare-matrix-data";
+import { haversineMeters } from "./utils/geo";
+import type { CommuterType } from "@/types";
+import { DISCOUNTED_TYPES, DISCOUNT_RATE } from "@/types/user";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-export type CommuterType =
-  | "REGULAR"
-  | "STUDENT"
-  | "SENIOR_CITIZEN"
-  | "PWD";
+// Re-export CommuterType for backward compatibility with existing consumers
+export type { CommuterType } from "@/types";
 
 export interface FareCalculation {
   fareResult: FareResult;
@@ -22,16 +23,6 @@ export interface FareCalculation {
   hasDiscount: boolean;
   discountAmount: number;
 }
-
-// ─── Constants ───────────────────────────────────────────────────────────────
-
-const DISCOUNTED_TYPES = new Set<CommuterType>([
-  "STUDENT",
-  "SENIOR_CITIZEN",
-  "PWD",
-]);
-
-const DISCOUNT_RATE = 0.2;
 
 // ─── GPS Coordinates ─────────────────────────────────────────────────────────
 
@@ -77,30 +68,6 @@ const POINT_COORDINATES: PointCoordinate[] = [
   { pointNumber: 33, latitude: 14.9140, longitude: 120.8020 },
   { pointNumber: 34, latitude: 14.9210, longitude: 120.7960 },
 ];
-
-// ─── Haversine Distance ──────────────────────────────────────────────────────
-
-const EARTH_RADIUS_M = 6_371_000;
-
-function haversineMeters(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number
-): number {
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return EARTH_RADIUS_M * c;
-}
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
@@ -154,17 +121,7 @@ export type { FarePoint, FareResult };
 // ─── Utility Exports (used by commuter UI components) ───────────────────────
 
 /** Format a number as Philippine peso string */
-export function formatCurrency(amount: number): string {
-  return `\u20B1${amount.toFixed(2)}`;
-}
+export { formatCurrency } from "./utils/format";
 
 /** Get the display label for a commuter type */
-export function getCommuterTypeLabel(type: CommuterType): string {
-  const labels: Record<CommuterType, string> = {
-    REGULAR: "Regular",
-    STUDENT: "Student",
-    SENIOR_CITIZEN: "Senior Citizen",
-    PWD: "PWD",
-  };
-  return labels[type];
-}
+export { getCommuterTypeLabel } from "@/types/user";

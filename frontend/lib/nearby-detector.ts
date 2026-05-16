@@ -1,6 +1,10 @@
 // lib/nearby-detector.ts
 // 1km radius vehicle filter for real-time tracking optimization
 // Only shows vehicles within 1km of commuter's current location
+//
+// Haversine imported from @/lib/utils/geo (canonical source).
+
+import { haversineMeters, formatDistance } from "./utils/geo";
 
 export interface VehicleLocation {
   id: string;
@@ -58,8 +62,8 @@ export function filterNearbyVehicles(
 }
 
 /**
- * Haversine formula — calculates the great-circle distance
- * between two points on Earth. Returns distance in meters.
+ * Calculate distance using shared haversine implementation.
+ * Re-exported for backward compatibility.
  */
 export function calculateDistance(
   lat1: number,
@@ -67,20 +71,7 @@ export function calculateDistance(
   lat2: number,
   lng2: number
 ): number {
-  const R = 6_371_000; // Earth's radius in meters
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) *
-      Math.cos(toRad(lat2)) *
-      Math.sin(dLng / 2) ** 2;
-
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
+  return haversineMeters(lat1, lng1, lat2, lng2);
 }
 
 /**
@@ -122,13 +113,5 @@ export function isVehicleApproaching(
   return currentDist < prevDist;
 }
 
-/**
- * Format distance for display.
- * Shows meters if < 1000m, otherwise kilometers.
- */
-export function formatDistance(meters: number): string {
-  if (meters < 1000) {
-    return `${Math.round(meters)}m`;
-  }
-  return `${(meters / 1000).toFixed(1)}km`;
-}
+// Re-export formatDistance for backward compatibility
+export { formatDistance };

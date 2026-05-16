@@ -1,15 +1,13 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import dynamic from "next/dynamic";
-import { User } from "@/app/types/user.types";
+import { useDashboard } from "./use-dashboard";
 
 import ShowQRModal from "@/components/commuter/modals/show-qr-modal";
 import PaymentHistoryModal from "@/components/commuter/modals/payment-history-modal";
 import ShareRideModal from "@/components/commuter/modals/share-ride-modal";
 import SosModal from "@/components/commuter/modals/sos-modal";
-
 
 const CommuterMap = dynamic(() => import("@/components/commuter/commuter-map/commuter-map"), {
   ssr: false,
@@ -20,43 +18,30 @@ const ScanModal = dynamic(() => import("@/components/commuter/modals/scan-modal"
   ssr: false,
 });
 
-const mockUser: User = {
-  id: "c_001",
-  firstName: "Arone",
-  surname: "Dela Cruz",
-  commuterType: "Regular"
-};
-
 function CommuterHomeContent() {
-  const searchParams = useSearchParams();
-  const [showQR, setShowQR] = useState(false);
-  const [showScan, setShowScan] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
-  const [showShareRide, setShowShareRide] = useState(false);
-  const [showSOS, setShowSOS] = useState(false); 
-  const [isHailing, setIsHailing] = useState(false);
-  const [showSheet, setShowSheet] = useState(true);
+  const {
+    user, authLoading, commuterTypeLabel, commuterName,
+    showQR, setShowQR,
+    showScan, setShowScan,
+    showHistory, setShowHistory,
+    showShareRide, setShowShareRide,
+    showSOS, setShowSOS,
+    isHailing, setIsHailing,
+    showSheet, setShowSheet,
+  } = useDashboard();
 
-  // Auto-open modals when navigating via nav tabs
-  useEffect(() => {
-    if (searchParams.get("scan") === "true") {
-      setShowScan(true);
-    }
-    if (searchParams.get("share-ride") === "true") {
-      setShowShareRide(true);
-    }
-  }, [searchParams]);
-
-  const quickActions = [
-    { label: "Show QR", iconPath: "M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z", action: () => setShowQR(true), isSos: false },
-    { label: "Scan", iconPath: "M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5ZM13.5 13.5h.75v.75h-.75v-.75ZM13.5 19.5h.75v.75h-.75v-.75ZM19.5 13.5h.75v.75h-.75v-.75ZM19.5 19.5h.75v.75h-.75v-.75ZM16.5 16.5h.75v.75h-.75v-.75Z", action: () => setShowScan(true), isSos: false },
-    { label: "Share Ride", iconPath: "M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z", action: () => setShowShareRide(true), isSos: false },
-    { label: "SOS", iconPath: "M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z", action: () => setShowSOS(true), isSos: true }
-  ];
+  // Wait for auth to load
+  if (authLoading || !user) {
+    return (
+      <div className="h-full w-full bg-[#050F1A] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-white/20 border-t-[#62A0EA] rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="relative h-full w-full bg-[#050F1A]">
-      
+
       {/* --- ACTUAL MAP --- */}
       <div className="absolute inset-0 z-0 lg:right-[336px] xl:right-[400px]">
         <CommuterMap />
@@ -65,13 +50,13 @@ function CommuterHomeContent() {
       {/* ========================================== */}
       {/* --- MOBILE UI (Hidden on Desktop) --- */}
       {/* ========================================== */}
-      
+
       <div className="lg:hidden absolute top-0 inset-x-0 z-20 p-4 flex items-center justify-between pointer-events-none">
         <div className="pointer-events-auto bg-black/40 backdrop-blur-md rounded-2xl px-4 py-3 border border-white/10">
-          <h1 className="text-white font-bold text-base">Good morning, {mockUser.firstName}!</h1>
-          <span className="text-[10px] font-semibold text-[#62A0EA] bg-[#62A0EA]/10 px-2 py-0.5 rounded-full mt-1 inline-block">{mockUser.commuterType}</span>
+          <h1 className="text-white font-bold text-base">Good morning, {user.firstName}!</h1>
+          <span className="text-[10px] font-semibold text-[#62A0EA] bg-[#62A0EA]/10 px-2 py-0.5 rounded-full mt-1 inline-block">{commuterTypeLabel}</span>
         </div>
-        <div className="pointer-events-auto w-10 h-10 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold shadow-lg border-2 border-white/20">{mockUser.firstName[0]}</div>
+        <div className="pointer-events-auto w-10 h-10 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold shadow-lg border-2 border-white/20">{user.firstName[0]}</div>
       </div>
 
       <div className={`lg:hidden absolute bottom-0 inset-x-0 z-20 bg-[#071A2E] rounded-t-3xl border-t border-white/10 transition-transform duration-300 ease-in-out ${showSheet ? "translate-y-0" : "translate-y-[calc(80%-64px)]"}`}>
@@ -138,10 +123,10 @@ function CommuterHomeContent() {
       <div className="hidden lg:flex absolute right-4 top-4 bottom-4 w-80 xl:w-96 z-20 bg-[#071A2E]/95 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl flex-col overflow-hidden">
         <div className="p-6 border-b border-white/10 flex items-center justify-between">
           <div>
-            <h1 className="text-white font-bold text-lg">Good morning, {mockUser.firstName}!</h1>
-            <span className="text-xs font-semibold text-[#62A0EA] bg-[#62A0EA]/10 px-2 py-0.5 rounded-full mt-1 inline-block">{mockUser.commuterType}</span>
+            <h1 className="text-white font-bold text-lg">Good morning, {user.firstName}!</h1>
+            <span className="text-xs font-semibold text-[#62A0EA] bg-[#62A0EA]/10 px-2 py-0.5 rounded-full mt-1 inline-block">{commuterTypeLabel}</span>
           </div>
-          <div className="w-11 h-11 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold shadow-lg border-2 border-white/20 text-base">{mockUser.firstName[0]}</div>
+          <div className="w-11 h-11 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold shadow-lg border-2 border-white/20 text-base">{user.firstName[0]}</div>
         </div>
         <div className="flex-1 p-6 overflow-y-auto space-y-6">
           {/* Scan to Pay Card */}
@@ -200,11 +185,11 @@ function CommuterHomeContent() {
       </div>
 
       {/* --- MODALS --- */}
-      {showQR && <ShowQRModal user={mockUser} onClose={() => setShowQR(false)} />}
-      {showScan && <ScanModal onClose={() => setShowScan(false)} commuterId={mockUser.id} commuterName={`${mockUser.firstName} ${mockUser.surname}`} />}
+      {showQR && <ShowQRModal user={user} onClose={() => setShowQR(false)} />}
+      {showScan && <ScanModal onClose={() => setShowScan(false)} commuterId={user.id} commuterName={commuterName} />}
       {showHistory && <PaymentHistoryModal onClose={() => setShowHistory(false)} />}
-      {showShareRide && <ShareRideModal commuterName={mockUser.firstName} onClose={() => setShowShareRide(false)} />}
-      {showSOS && <SosModal commuterId={mockUser.id} commuterName={mockUser.firstName} onClose={() => setShowSOS(false)} />}
+      {showShareRide && <ShareRideModal commuterName={user.firstName} onClose={() => setShowShareRide(false)} />}
+      {showSOS && <SosModal commuterId={user.id} commuterName={user.firstName} onClose={() => setShowSOS(false)} />}
     </div>
   );
 }
