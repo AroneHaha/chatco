@@ -57,14 +57,14 @@ export default function EndOfDayPage() {
 
   // ─── Computed breakdown from system-tracked transactions ───
   const summary = useMemo(() => {
-    const keys = ["GCash", "Cash", "Wallet_Scanned", "Wallet_Prepay", "Voucher"] as const;
+    const keys = ["GCash_Scanned", "GCash_Direct", "Voucher", "Cash"] as const;
     const breakdown: Record<string, { count: number; amount: number }> = {};
     for (const key of keys) {
       const txns = transactions.filter((t) => t.paymentMethod === key);
       breakdown[key] = { count: txns.length, amount: txns.reduce((s, t) => s + t.finalAmount, 0) };
     }
 
-    const gcashTotal = breakdown["GCash"]?.amount ?? 0;
+    const gcashTotal = (breakdown["GCash_Scanned"]?.amount ?? 0) + (breakdown["GCash_Direct"]?.amount ?? 0);
     const cashTotal = breakdown["Cash"]?.amount ?? 0;
     const grandTotal = transactions.reduce((s, t) => s + t.finalAmount, 0);
 
@@ -89,11 +89,11 @@ export default function EndOfDayPage() {
     unitNumber: shiftInfo.unitNumber,
     totalPassengers: summary.totalPassengers,
     cashlessBreakdown: {
-      gcashScanned: summary.breakdown["Wallet_Scanned"]?.amount ?? 0,
-      gcashDirect: summary.breakdown["Wallet_Prepay"]?.amount ?? 0,
+      gcashScanned: summary.breakdown["GCash_Scanned"]?.amount ?? 0,
+      gcashDirect: summary.breakdown["GCash_Direct"]?.amount ?? 0,
       voucher: summary.breakdown["Voucher"]?.amount ?? 0,
     },
-    totalCashless: (summary.breakdown["Wallet_Scanned"]?.amount ?? 0) + (summary.breakdown["Wallet_Prepay"]?.amount ?? 0) + (summary.breakdown["Voucher"]?.amount ?? 0),
+    totalCashless: (summary.breakdown["GCash_Scanned"]?.amount ?? 0) + (summary.breakdown["GCash_Direct"]?.amount ?? 0) + (summary.breakdown["Voucher"]?.amount ?? 0),
     cashDeclared: 0,
     gcashTotal: summary.gcashTotal,
     cashTotal: summary.cashTotal,
@@ -113,11 +113,11 @@ export default function EndOfDayPage() {
       unitNumber: shiftInfo.unitNumber,
       totalPassengers: summary.totalPassengers,
       cashlessBreakdown: {
-        gcashScanned: summary.breakdown["Wallet_Scanned"]?.amount ?? 0,
-        gcashDirect: summary.breakdown["Wallet_Prepay"]?.amount ?? 0,
+        gcashScanned: summary.breakdown["GCash_Scanned"]?.amount ?? 0,
+        gcashDirect: summary.breakdown["GCash_Direct"]?.amount ?? 0,
         voucher: summary.breakdown["Voucher"]?.amount ?? 0,
       },
-      totalCashless: (summary.breakdown["Wallet_Scanned"]?.amount ?? 0) + (summary.breakdown["Wallet_Prepay"]?.amount ?? 0) + (summary.breakdown["Voucher"]?.amount ?? 0),
+      totalCashless: (summary.breakdown["GCash_Scanned"]?.amount ?? 0) + (summary.breakdown["GCash_Direct"]?.amount ?? 0) + (summary.breakdown["Voucher"]?.amount ?? 0),
       cashDeclared: 0,
       gcashTotal: summary.gcashTotal,
       cashTotal: summary.cashTotal,

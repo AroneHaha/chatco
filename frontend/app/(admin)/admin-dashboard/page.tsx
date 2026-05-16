@@ -96,16 +96,16 @@ export default function DashboardHome() {
             <div className="space-y-3">
               <div>
                 <div className="flex justify-between mb-1">
-                  <span className="text-xs text-slate-300">Chatco Wallet</span>
-                  <span className="text-xs font-bold text-slate-200">{paymentTendencies.chatcoWallet}%</span>
+                  <span className="text-xs text-slate-300">GCash</span>
+                  <span className="text-xs font-bold text-slate-200">{paymentTendencies.gcash}%</span>
                 </div>
                 <div className="h-2 bg-[#0E1628] rounded-full overflow-hidden">
-                  <div className="h-full bg-[#62A0EA] rounded-full" style={{ width: `${paymentTendencies.chatcoWallet}%` }} />
+                  <div className="h-full bg-[#62A0EA] rounded-full" style={{ width: `${paymentTendencies.gcash}%` }} />
                 </div>
               </div>
               <div>
                 <div className="flex justify-between mb-1">
-                  <span className="text-xs text-slate-300">Prepaid</span>
+                  <span className="text-xs text-slate-300">Cash</span>
                   <span className="text-xs font-bold text-slate-200">{paymentTendencies.cash}%</span>
                 </div>
                 <div className="h-2 bg-[#0E1628] rounded-full overflow-hidden">

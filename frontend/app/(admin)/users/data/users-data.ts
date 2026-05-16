@@ -60,32 +60,32 @@ export const initialRejectedUsers: RejectedUser[] = [
 
 export const initialHistoryLogs: Record<string, HistoryLog[]> = {
   "1": [
-    { id: 'H9', date: '2024-04-20 07:15 AM', action: 'Trip Payment', details: 'Malolos Terminal → Meycauayan Crossing. Paid ₱25.00 via Chatco Wallet.' },
-    { id: 'H7', date: '2024-03-15 08:20 AM', action: 'Trip Payment', details: 'Malolos Terminal → Calumpit Town Proper. Paid ₱35.00 via Chatco Wallet.' },
-    { id: 'H5', date: '2024-02-10 06:30 PM', action: 'Trip Payment', details: 'Meycauayan Crossing → Calumpit Town Proper. Paid ₱20.00 via Chatco Wallet.' },
-    { id: 'H4', date: '2024-02-05 08:10 AM', action: 'Trip Payment', details: 'Malolos Terminal → Meycauayan Crossing. Paid ₱25.00 via Chatco Wallet.' },
-    { id: 'H3', date: '2024-02-20 07:00 AM', action: 'Wallet Top-up', details: 'Loaded ₱200.00 via GCash.' },
+    { id: 'H9', date: '2024-04-20 07:15 AM', action: 'Trip Payment', details: 'Malolos Terminal → Meycauayan Crossing. Paid ₱25.00 via GCash.' },
+    { id: 'H7', date: '2024-03-15 08:20 AM', action: 'Trip Payment', details: 'Malolos Terminal → Calumpit Town Proper. Paid ₱35.00 via GCash.' },
+    { id: 'H5', date: '2024-02-10 06:30 PM', action: 'Trip Payment', details: 'Meycauayan Crossing → Calumpit Town Proper. Paid ₱20.00 via Cash.' },
+    { id: 'H4', date: '2024-02-05 08:10 AM', action: 'Trip Payment', details: 'Malolos Terminal → Meycauayan Crossing. Paid ₱25.00 via GCash.' },
+    { id: 'H3', date: '2024-02-20 07:00 AM', action: 'Voucher Redeemed', details: 'Free ride voucher earned after 10 rides.' },
 
   ],
 
   "4": [
-    { id: 'H8', date: '2024-04-15 06:50 AM', action: 'Trip Payment', details: 'Calumpit Town Proper → Malolos Terminal. Paid ₱30.00 (Student Discount) via Chatco Wallet.' },
-    { id: 'H7', date: '2024-04-01 07:10 AM', action: 'Trip Payment', details: 'Malolos Terminal → Calumpit Town Proper. Paid ₱30.00 (Student Discount) via Chatco Wallet.' },
-    { id: 'H6', date: '2024-03-20 10:30 AM', action: 'Wallet Top-up', details: 'Loaded ₱500.00 via GCash.' },
-    { id: 'H5', date: '2024-03-05 08:45 AM', action: 'Trip Payment', details: 'Meycauayan Crossing → Calumpit Town Proper. Paid ₱15.00 (Student Discount) via Chatco Wallet.' },
-    { id: 'H4', date: '2024-02-25 07:30 AM', action: 'Trip Payment', details: 'Malolos Terminal → Meycauayan Crossing. Paid ₱20.00 (Student Discount) via Chatco Wallet.' },
-    { id: 'H3', date: '2024-02-20 07:00 AM', action: 'Wallet Top-up', details: 'Loaded ₱200.00 via GCash.' },
+    { id: 'H8', date: '2024-04-15 06:50 AM', action: 'Trip Payment', details: 'Calumpit Town Proper → Malolos Terminal. Paid ₱30.00 (Student Discount) via GCash.' },
+    { id: 'H7', date: '2024-04-01 07:10 AM', action: 'Trip Payment', details: 'Malolos Terminal → Calumpit Town Proper. Paid ₱30.00 (Student Discount) via GCash.' },
+    { id: 'H6', date: '2024-03-20 10:30 AM', action: 'Voucher Redeemed', details: 'Free ride voucher earned after 10 rides.' },
+    { id: 'H5', date: '2024-03-05 08:45 AM', action: 'Trip Payment', details: 'Meycauayan Crossing → Calumpit Town Proper. Paid ₱15.00 (Student Discount) via Cash.' },
+    { id: 'H4', date: '2024-02-25 07:30 AM', action: 'Trip Payment', details: 'Malolos Terminal → Meycauayan Crossing. Paid ₱20.00 (Student Discount) via GCash.' },
+    { id: 'H3', date: '2024-02-20 07:00 AM', action: 'Voucher Redeemed', details: 'Free ride voucher earned after 10 rides.' },
   ],
   "5": [
-    { id: 'H4', date: '2024-03-12 07:30 AM', action: 'Trip Payment', details: 'Malolos Terminal → Meycauayan Crossing. Paid ₱25.00 via Chatco Wallet.' },
-    { id: 'H3', date: '2024-02-20 07:00 AM', action: 'Wallet Top-up', details: 'Loaded ₱200.00 via GCash.' },
+    { id: 'H4', date: '2024-03-12 07:30 AM', action: 'Trip Payment', details: 'Malolos Terminal → Meycauayan Crossing. Paid ₱25.00 via GCash.' },
+    { id: 'H3', date: '2024-02-20 07:00 AM', action: 'Voucher Redeemed', details: 'Free ride voucher earned after 10 rides.' },
   ],
   "REQ-101": [
-    { id: 'H3', date: '2024-03-20 07:00 AM', action: 'Wallet Top-up', details: 'Loaded ₱500.00 via GCash.' },
+    { id: 'H3', date: '2024-03-20 07:00 AM', action: 'Voucher Redeemed', details: 'Free ride voucher earned after 10 rides.' },
 
   ],
   "REQ-102": [
-    { id: 'H3', date: '2024-03-20 07:00 AM', action: 'Wallet Top-up', details: 'Loaded ₱500.00 via GCash.' },
+    { id: 'H3', date: '2024-03-20 07:00 AM', action: 'Voucher Redeemed', details: 'Free ride voucher earned after 10 rides.' },
   ],
   "REQ-099": [
   ],

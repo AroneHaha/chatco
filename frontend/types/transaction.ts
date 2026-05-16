@@ -13,10 +13,9 @@
 
 // ─── Payment Method ──────────────────────────────────────────────────
 export type PaymentMethodType =
-  | "Wallet_Scanned"
-  | "Wallet_Prepay"
+  | "GCash_Scanned"
+  | "GCash_Direct"
   | "Voucher"
-  | "GCash"
   | "Cash";
 
 export type QRPaymentMethod = "GCash" | "Cash";

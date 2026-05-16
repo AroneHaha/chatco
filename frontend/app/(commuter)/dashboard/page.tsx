@@ -4,7 +4,6 @@ import { Suspense } from "react";
 import dynamic from "next/dynamic";
 import { useDashboard } from "./use-dashboard";
 
-import ShowQRModal from "@/components/commuter/modals/show-qr-modal";
 import PaymentHistoryModal from "@/components/commuter/modals/payment-history-modal";
 import ShareRideModal from "@/components/commuter/modals/share-ride-modal";
 import SosModal from "@/components/commuter/modals/sos-modal";
@@ -21,12 +20,11 @@ const ScanModal = dynamic(() => import("@/components/commuter/modals/scan-modal"
 function CommuterHomeContent() {
   const {
     user, authLoading, commuterTypeLabel, commuterName,
-    showQR, setShowQR,
     showScan, setShowScan,
     showHistory, setShowHistory,
     showShareRide, setShowShareRide,
     showSOS, setShowSOS,
-    isHailing, setIsHailing,
+    isHailing, canHail, handleHail,
     showSheet, setShowSheet,
   } = useDashboard();
 
@@ -61,10 +59,10 @@ function CommuterHomeContent() {
 
       <div className={`lg:hidden absolute bottom-0 inset-x-0 z-20 bg-[#071A2E] rounded-t-3xl border-t border-white/10 transition-transform duration-300 ease-in-out ${showSheet ? "translate-y-0" : "translate-y-[calc(80%-64px)]"}`}>
         <div className="absolute -top-23 right-4 z-30">
-          <button onClick={() => setIsHailing(!isHailing)} className={`w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 border-4 ${isHailing ? "bg-red-500 border-red-300 shadow-red-500/50 animate-bounce" : "bg-[#FF6D3A] border-[#FF9A76] hover:bg-[#e55a2b] shadow-[#FF6D3A]/50"}`}>
+          <button onClick={handleHail} disabled={!canHail} className={`w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 border-4 ${!canHail ? "bg-gray-500/50 border-gray-400/30 cursor-not-allowed opacity-50" : isHailing ? "bg-red-500 border-red-300 shadow-red-500/50 animate-bounce" : "bg-[#FF6D3A] border-[#FF9A76] hover:bg-[#e55a2b] shadow-[#FF6D3A]/50"}`}>
             {isHailing ? (<svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>) : (<svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" /></svg>)}
           </button>
-          <span className="block text-center text-[10px] font-extrabold text-white mt-2 drop-shadow-lg uppercase tracking-wider">{isHailing ? "Cancel" : "Hail Me"}</span>
+          <span className="block text-center text-[10px] font-extrabold text-white mt-2 drop-shadow-lg uppercase tracking-wider">{!canHail ? "No Units Nearby" : isHailing ? "Cancel" : "Hail Me"}</span>
         </div>
         <div className="h-16 flex flex-col items-center justify-center cursor-pointer flex-shrink-0" onClick={() => setShowSheet(!showSheet)}>
           <div className={`w-10 h-1 rounded-full transition-colors duration-300 ${showSheet ? "bg-white/30" : "bg-white/60"}`} />
@@ -178,14 +176,13 @@ function CommuterHomeContent() {
           </div>
         </div>
         <div className="p-6 border-t border-white/10">
-          <button onClick={() => setIsHailing(!isHailing)} className={`w-full flex items-center justify-center gap-3 py-4 rounded-xl text-base font-bold transition-all duration-300 ${isHailing ? "bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/40" : "bg-[#FF6D3A] hover:bg-[#e55a2b] shadow-lg shadow-[#FF6D3A]/40 text-white"}`}>
-            {isHailing ? (<><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg> Cancel Hail</>) : (<><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" /></svg> Hail Me</>)}
+          <button onClick={handleHail} disabled={!canHail} className={`w-full flex items-center justify-center gap-3 py-4 rounded-xl text-base font-bold transition-all duration-300 ${!canHail ? "bg-white/10 text-white/30 cursor-not-allowed" : isHailing ? "bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/40" : "bg-[#FF6D3A] hover:bg-[#e55a2b] shadow-lg shadow-[#FF6D3A]/40 text-white"}`}>
+            {isHailing ? (<><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg> Cancel Hail</>) : !canHail ? (<><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" /></svg> No Units Nearby (1KM)</>) : (<><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" /></svg> Hail Me</>)}
           </button>
         </div>
       </div>
 
       {/* --- MODALS --- */}
-      {showQR && <ShowQRModal user={user} onClose={() => setShowQR(false)} />}
       {showScan && <ScanModal onClose={() => setShowScan(false)} commuterId={user.id} commuterName={commuterName} />}
       {showHistory && <PaymentHistoryModal onClose={() => setShowHistory(false)} />}
       {showShareRide && <ShareRideModal commuterName={user.firstName} onClose={() => setShowShareRide(false)} />}

@@ -1,4 +1,4 @@
-export type PaymentMethodType = "Wallet_Scanned" | "Wallet_Prepay" | "Voucher" | "GCash" | "Cash";
+export type PaymentMethodType = "GCash_Scanned" | "GCash_Direct" | "Voucher" | "Cash";
 
 export interface Transaction {
   transactionId: string;

@@ -110,7 +110,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   const recordTransaction = (method: SelectedPaymentMethod) => {
     if (!fareInfo || !pickupPoint || !dropoffPoint || !shiftId) return;
 
-    const paymentMethodType: PaymentMethodType = method === "GCash" ? "GCash" : "Cash";
+    const paymentMethodType: PaymentMethodType = method === "GCash" ? "GCash_Scanned" : "Cash";
 
     saveTransaction(shiftId, {
       paymentMethod: paymentMethodType,

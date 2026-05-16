@@ -136,8 +136,8 @@ export const topPickupPoints: PickupPoint[] = [
 ];
 /* ─── FINANCIAL SUMMARY DATA ─── */
 export const todayRevenue = 15450.50;
-export const todayEwallet = 11500.00;
-export const todayCash = todayRevenue - todayEwallet;
+export const todayGCash = 11500.00;
+export const todayCash = todayRevenue - todayGCash;
 
 export const profitAndLoss = {
   totalRevenue: "₱25,000.00",
@@ -148,17 +148,17 @@ export const profitAndLoss = {
 
 /* ─── PAYMENT METHODS CHART DATA ─── */
 export const weeklyPaymentData = [
-  { day: 'Mon', cash: 800, ewallet: 2200 },
-  { day: 'Tue', cash: 950, ewallet: 2500 },
-  { day: 'Wed', cash: 700, ewallet: 2800 },
-  { day: 'Thu', cash: 1100, ewallet: 3100 },
-  { day: 'Fri', cash: 1200, ewallet: 3500 },
-  { day: 'Sat', cash: 500, ewallet: 1900 },
-  { day: 'Sun', cash: 400, ewallet: 1500 },
+  { day: 'Mon', cash: 800, gcash: 2200 },
+  { day: 'Tue', cash: 950, gcash: 2500 },
+  { day: 'Wed', cash: 700, gcash: 2800 },
+  { day: 'Thu', cash: 1100, gcash: 3100 },
+  { day: 'Fri', cash: 1200, gcash: 3500 },
+  { day: 'Sat', cash: 500, gcash: 1900 },
+  { day: 'Sun', cash: 400, gcash: 1500 },
 ];
 
 export const totalCash = weeklyPaymentData.reduce((sum, day) => sum + day.cash, 0);
-export const totalEwallet = weeklyPaymentData.reduce((sum, day) => sum + day.ewallet, 0);
+export const totalGCash = weeklyPaymentData.reduce((sum, day) => sum + day.gcash, 0);
 
 /* ─── RECENT ALERTS DATA ─── */
 export const recentAlerts = [
@@ -168,6 +168,6 @@ export const recentAlerts = [
 
 /* ─── PAYMENT TENDENCIES DATA ─── */
 export const paymentTendencies = {
-  chatcoWallet: 78,
+  gcash: 78,
   cash: 22,
 };

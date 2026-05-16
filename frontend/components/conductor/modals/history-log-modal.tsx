@@ -53,7 +53,7 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
 
   const filteredTotal = filteredHistory.reduce((sum, tx) => sum + tx.finalAmount, 0);
 
-  const gcashCount = history.filter(tx => tx.paymentMethod === "GCash").length;
+  const gcashCount = history.filter(tx => tx.paymentMethod === "GCash_Scanned" || tx.paymentMethod === "GCash_Direct").length;
   const cashCount = history.filter(tx => tx.paymentMethod === "Cash").length;
   const voucherCount = history.filter(tx => tx.paymentMethod === "Voucher").length;
 

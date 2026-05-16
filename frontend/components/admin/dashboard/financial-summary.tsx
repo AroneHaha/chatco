@@ -1,7 +1,7 @@
 // components/admin/dashboard/financial-summary.tsx
 import { GlassCard } from '@/components/admin/ui/glass-card';
 import { DollarSign, Smartphone } from 'lucide-react';
-import { todayRevenue, todayEwallet, todayCash, profitAndLoss } from '@/app/(admin)/admin-dashboard/data/dashboard-data';
+import { todayRevenue, todayGCash, todayCash, profitAndLoss } from '@/app/(admin)/admin-dashboard/data/dashboard-data';
 
 export function FinancialSummary() {
   return (
@@ -14,9 +14,9 @@ export function FinancialSummary() {
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-2">
               <Smartphone className="text-blue-400" size={16} />
-              <span className="text-sm text-gray-300">eWallet Payments</span>
+              <span className="text-sm text-gray-300">GCash Payments</span>
             </div>
-            <span className="font-medium text-white">₱{todayEwallet.toLocaleString()}</span>
+            <span className="font-medium text-white">₱{todayGCash.toLocaleString()}</span>
           </div>
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-2">

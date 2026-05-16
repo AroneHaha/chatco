@@ -44,7 +44,7 @@ export default function ReceiptsPage() {
 
   // Summary stats
   const totalFare = filteredData.reduce((sum: number, item: Receipt) => sum + item.fare, 0);
-  const walletCount = filteredData.filter((item: Receipt) => item.paymentMethod === 'Gcash').length;
+  const gcashCount = filteredData.filter((item: Receipt) => item.paymentMethod === 'Gcash').length;
   const voucherCount = filteredData.filter((item: Receipt) => item.paymentMethod === 'Voucher').length;
 
   const columns = [
@@ -96,7 +96,7 @@ export default function ReceiptsPage() {
         </div>
         <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4">
           <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Gcash</p>
-          <p className="text-xl lg:text-2xl font-bold text-[#62A0EA]">{walletCount}</p>
+          <p className="text-xl lg:text-2xl font-bold text-[#62A0EA]">{gcashCount}</p>
         </div>
         <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4">
           <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Voucher</p>

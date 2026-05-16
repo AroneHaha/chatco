@@ -30,11 +30,11 @@ export default function SettingsPage() {
     const hasPendingRemit = history.some((r) => r.remittanceStatus === "Pending" && r.totalCashless > 0);
     if (hasPendingRemit) return true;
 
-    // Check 2: Current shift has un-remitted wallet transactions (wallet value not zero)
+    // Check 2: Current shift has un-remitted transactions (collections not zero)
     const transactions = getShiftTransactions(shift.shiftId);
-    const totalWallet = transactions.reduce((sum, t) => sum + t.finalAmount, 0);
+    const totalCollections = transactions.reduce((sum, t) => sum + t.finalAmount, 0);
     const hasRemitted = history.some((r) => r.shiftId === shift.shiftId && r.remittanceStatus === "Remitted");
-    if (totalWallet > 0 && !hasRemitted) return true;
+    if (totalCollections > 0 && !hasRemitted) return true;
 
     return false;
   }, [shift]);
@@ -349,7 +349,7 @@ export default function SettingsPage() {
                 />
               </svg>
               <p className="text-xs text-amber-400/70 font-medium">
-                Remit all pending collections and zero out wallet before logging out.
+                Remit all pending collections before logging out.
               </p>
             </div>
           )}

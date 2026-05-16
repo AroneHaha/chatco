@@ -50,7 +50,7 @@ export default function ConductorDashboard() {
       if (s) {
         setElapsed(getElapsed(s));
         const txns = getShiftTransactions(s.shiftId);
-        const gcash = txns.filter((t) => t.paymentMethod === "GCash").reduce((sum, t) => sum + t.finalAmount, 0);
+        const gcash = txns.filter((t) => t.paymentMethod === "GCash_Scanned" || t.paymentMethod === "GCash_Direct").reduce((sum, t) => sum + t.finalAmount, 0);
         const cash = txns.filter((t) => t.paymentMethod === "Cash").reduce((sum, t) => sum + t.finalAmount, 0);
         const voucher = txns.filter((t) => t.paymentMethod === "Voucher").reduce((sum, t) => sum + t.finalAmount, 0);
         setLiveTransactions({ gcash, cash, voucher, total: gcash + cash + voucher });
@@ -66,7 +66,7 @@ export default function ConductorDashboard() {
       const s = getActiveShift();
       if (s) {
         const txns = getShiftTransactions(s.shiftId);
-        const gcash = txns.filter((t) => t.paymentMethod === "GCash").reduce((sum, t) => sum + t.finalAmount, 0);
+        const gcash = txns.filter((t) => t.paymentMethod === "GCash_Scanned" || t.paymentMethod === "GCash_Direct").reduce((sum, t) => sum + t.finalAmount, 0);
         const cash = txns.filter((t) => t.paymentMethod === "Cash").reduce((sum, t) => sum + t.finalAmount, 0);
         const voucher = txns.filter((t) => t.paymentMethod === "Voucher").reduce((sum, t) => sum + t.finalAmount, 0);
         setLiveTransactions({ gcash, cash, voucher, total: gcash + cash + voucher });
