@@ -240,15 +240,19 @@ export default function CommuterMap({ isDesktop = false }: { isDesktop?: boolean
     iconSize: [20, 20], iconAnchor: [10, 10],
   }), []);
 
-  // Dynamic Jeepney Icon Generator based on Capacity
-  const getJeepneyIcon = useMemo(() => (capacity: VehicleCapacity) => {
+  // Dynamic Jeepney Icon Generator based on Capacity + Nearby indicator
+  const getJeepneyIcon = useMemo(() => (capacity: VehicleCapacity, isNearby: boolean = false) => {
     const config = getCapacityConfig(capacity);
+    const greenDot = isNearby
+      ? `<div style="position: absolute; top: -2px; right: -2px; width: 14px; height: 14px; background: #22c55e; border-radius: 50%; border: 2px solid #071A2E; box-shadow: 0 0 6px rgba(34,197,94,0.6); z-index: 2;"></div>`
+      : '';
     return new L.DivIcon({
       className: "custom-jeepney-icon",
-      html: `<div style="width: 44px; height: 44px; background: #071A2E; border-radius: 50%; border: 2.5px solid ${config.color}; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 12px rgba(0,0,0,0.5), 0 0 8px ${config.color}40;">
+      html: `<div style="position: relative; width: 44px; height: 44px; background: #071A2E; border-radius: 50%; border: 2.5px solid ${config.color}; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 12px rgba(0,0,0,0.5), 0 0 8px ${config.color}40;">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${config.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H18.75m-7.5-10.5H6.375c-.621 0-1.125.504-1.125 1.125v6.75m12-6.75h-3.375c-.621 0-1.125.504-1.125 1.125v6.75m0 0H5.625m12-6.75h-1.5m-1.5 0h-1.5" />
                 </svg>
+                ${greenDot}
               </div>`,
       iconSize: [44, 44], iconAnchor: [22, 22], popupAnchor: [0, -25],
     });
@@ -295,57 +299,50 @@ export default function CommuterMap({ isDesktop = false }: { isDesktop?: boolean
           />
         )}
 
-        {/* --- NEARBY JEEPNEY MARKERS (1km only) --- */}
-        {userActualLocation
-          ? nearbyVehicles.map((nearby) => {
-              const original = MOCK_ACTIVE_VEHICLES.find((v) => v.id === nearby.id);
-              if (!original) return null;
-              const config = getCapacityConfig(original.capacity);
-              return (
-                <Marker key={nearby.id} position={[nearby.lat, nearby.lng]} icon={getJeepneyIcon(original.capacity)}>
-                  <Popup>
-                    <div className="space-y-2 min-w-[180px]">
-                      <div className="flex items-center justify-between">
-                        <div className="font-bold text-[#071A2E]">{nearby.plateNumber}</div>
-                        <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${config.twBg} ${config.twText} ${config.twBorder} border`}>{config.label}</span>
-                      </div>
-                      <div className="text-xs text-gray-500 space-y-0.5 pt-1 border-t border-gray-100">
-                        <p><span className="font-medium text-gray-700">Driver:</span> {original.driverName}</p>
-                        <p><span className="font-medium text-gray-700">Conductor:</span> {original.conductorName}</p>
-                        <p><span className="font-medium text-gray-700">Distance:</span> {formatDistance(nearby.distanceInMeters)}</p>
-                        <p><span className="font-medium text-gray-700">ETA:</span> ~{nearby.estimatedArrivalMinutes} min</p>
-                      </div>
-                      {original.capacity === "FULL" && (
-                        <div className="text-[10px] font-medium text-red-500 bg-red-50 p-1.5 rounded text-center border border-red-100">
-                          Not accepting passengers
-                        </div>
+        {/* --- ALL JEEPNEY MARKERS (commuters see all; nearby ones get green dot + extra info) --- */}
+        {(() => {
+          // Build a Set of nearby vehicle IDs for O(1) lookup
+          const nearbyIds = new Set(nearbyVehicles.map((v) => v.id));
+          const nearbyMap = new Map(nearbyVehicles.map((v) => [v.id, v]));
+
+          return MOCK_ACTIVE_VEHICLES.map((vehicle) => {
+            const config = getCapacityConfig(vehicle.capacity);
+            const isNearby = userActualLocation ? nearbyIds.has(vehicle.id) : false;
+            const nearbyInfo = isNearby ? nearbyMap.get(vehicle.id) : null;
+
+            return (
+              <Marker
+                key={vehicle.id}
+                position={ROUTE_COORDS[vehicle.routeIndex]}
+                icon={getJeepneyIcon(vehicle.capacity, isNearby)}
+              >
+                <Popup>
+                  <div className="space-y-2 min-w-[180px]">
+                    <div className="flex items-center justify-between">
+                      <div className="font-bold text-[#071A2E]">{vehicle.plateNumber}</div>
+                      <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${config.twBg} ${config.twText} ${config.twBorder} border`}>{config.label}</span>
+                    </div>
+                    <div className="text-xs text-gray-500 space-y-0.5 pt-1 border-t border-gray-100">
+                      <p><span className="font-medium text-gray-700">Driver:</span> {vehicle.driverName}</p>
+                      <p><span className="font-medium text-gray-700">Conductor:</span> {vehicle.conductorName}</p>
+                      {isNearby && nearbyInfo && (
+                        <>
+                          <p><span className="font-medium text-gray-700">Distance:</span> {formatDistance(nearbyInfo.distanceInMeters)}</p>
+                          <p><span className="font-medium text-gray-700">ETA:</span> ~{nearbyInfo.estimatedArrivalMinutes} min</p>
+                        </>
                       )}
                     </div>
-                  </Popup>
-                </Marker>
-              );
-            })
-          : // Fallback: show all vehicles if location not yet available
-            MOCK_ACTIVE_VEHICLES.map((vehicle) => {
-              const config = getCapacityConfig(vehicle.capacity);
-              return (
-                <Marker key={vehicle.id} position={ROUTE_COORDS[vehicle.routeIndex]} icon={getJeepneyIcon(vehicle.capacity)}>
-                  <Popup>
-                    <div className="space-y-2 min-w-[180px]">
-                      <div className="flex items-center justify-between">
-                        <div className="font-bold text-[#071A2E]">{vehicle.plateNumber}</div>
-                        <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${config.twBg} ${config.twText} ${config.twBorder} border`}>{config.label}</span>
+                    {vehicle.capacity === "FULL" && (
+                      <div className="text-[10px] font-medium text-red-500 bg-red-50 p-1.5 rounded text-center border border-red-100">
+                        Not accepting passengers
                       </div>
-                      <div className="text-xs text-gray-500 space-y-0.5 pt-1 border-t border-gray-100">
-                        <p><span className="font-medium text-gray-700">Driver:</span> {vehicle.driverName}</p>
-                        <p><span className="font-medium text-gray-700">Conductor:</span> {vehicle.conductorName}</p>
-                      </div>
-                    </div>
-                  </Popup>
-                </Marker>
-              );
-            })
-        }
+                    )}
+                  </div>
+                </Popup>
+              </Marker>
+            );
+          });
+        })()}
       </MapContainer>
 
       <style jsx global>{`

@@ -1,4 +1,8 @@
-export type PaymentMethodType = "GCash_Scanned" | "GCash_Direct" | "Voucher" | "Cash";
+// lib/conductor-transactions.ts
+// Conductor-side transaction storage for the current shift.
+// Uses canonical PaymentMethodType from @/types — wallet methods removed.
+
+import type { PaymentMethodType } from "@/types";
 
 export interface Transaction {
   transactionId: string;
@@ -6,16 +10,16 @@ export interface Transaction {
   finalAmount: number;
   passengerName: string;
   passengerId: string;
-  passengerRole: string;
+  passengerRole?: string;
   from: string;
   to: string;
   distance: number;
   baseFare: number;
   succeedingKm: number;
-  discountAmount: number;
-  conductorName: string;
-  unitNumber: string;
-  driverName: string;
+  discountAmount?: number;
+  conductorName?: string;
+  unitNumber?: string;
+  driverName?: string;
   timestamp: number;
 }
 
