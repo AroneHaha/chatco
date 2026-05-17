@@ -1,14 +1,28 @@
-// app/(commuter)/profile/use-profile.ts
-// Uses auth context for profile data instead of hardcoded MOCK_USER.
-// When Laravel backend is live, the auth context will provide real data.
-
 import { useState, useEffect } from "react";
+import { CommuterProfile, PasswordPayload } from "./types";
 import { useAuth } from "@/contexts/auth-context";
-import type { CommuterProfile, AccountStatus } from "@/types";
-import type { PasswordPayload } from "./types";
+
+const MOCK_USER: CommuterProfile = {
+  id: "c_001",
+  firstName: "Arone",
+  middleName: "Santos",
+  surname: "Dela Cruz",
+  birthdate: "2001-05-15",
+  gender: "Male",
+  email: "arone.delacruz@gmail.com",
+  contactNumber: "09123456789",
+  commuterType: "REGULAR",
+  username: "arone_dc",
+  languagePreference: "English",
+  accountStatus: "DISCOUNT_REJECTED",
+  idImageUrl: "/mock-id.jpg",
+  verifiedAt: null,
+  createdAt: "2026-03-10T10:00:00Z",
+  appliedType: "STUDENT",
+};
 
 export function useProfile() {
-  const { commuterProfile: authProfile, isLoading: authLoading, logout } = useAuth();
+  const { logout: authLogout, commuterProfile: authProfile } = useAuth();
   const [profile, setProfile] = useState<CommuterProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -25,16 +39,19 @@ export function useProfile() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
-  // Load profile from auth context
   useEffect(() => {
+    // If auth context has a profile, use it instead of mock
     if (authProfile) {
       setProfile(authProfile);
       setIsLoading(false);
-    } else if (!authLoading) {
-      // Auth finished but no profile — still loading or error
-      setIsLoading(false);
+      return;
     }
-  }, [authProfile, authLoading]);
+    // Fallback: load mock profile (prototype phase)
+    setTimeout(() => {
+      setProfile(MOCK_USER);
+      setIsLoading(false);
+    }, 500);
+  }, [authProfile]);
 
   const handleEditChange = (field: string, value: string) => {
     setEditData((prev) => ({ ...prev, [field]: value }));
@@ -57,7 +74,6 @@ export function useProfile() {
 
   const saveProfile = async () => {
     setIsSaving(true);
-    // TODO: Replace with real API call: PUT /api/commuter/profile
     await new Promise((r) => setTimeout(r, 800));
     setProfile((prev) => (prev ? { ...prev, ...editData } : null));
     setIsSaving(false);
@@ -76,7 +92,6 @@ export function useProfile() {
     }
 
     setIsChangingPassword(true);
-    // TODO: Replace with real API call: POST /api/commuter/change-password
     await new Promise((r) => setTimeout(r, 1000));
     setIsChangingPassword(false);
     setShowPasswordModal(false);
@@ -89,8 +104,12 @@ export function useProfile() {
   };
 
   const handleReuploadId = async () => {
-    // TODO: Replace with real API call: POST /api/commuter/reupload-id
     alert("ID Re-uploaded. Waiting for admin verification.");
+  };
+
+  const handleLogout = () => {
+    // Use auth context for proper session cleanup (clears httpOnly cookie too)
+    authLogout();
   };
 
   const closePasswordModal = () => {
@@ -105,7 +124,7 @@ export function useProfile() {
 
   return {
     profile,
-    isLoading: isLoading || authLoading,
+    isLoading,
     isEditing,
     editData,
     startEditing,
@@ -122,6 +141,6 @@ export function useProfile() {
     passwordError,
     closePasswordModal,
     handleReuploadId,
-    handleLogout: logout,
+    handleLogout,
   };
 }

@@ -2,7 +2,7 @@
 "use client";
 
 import { useRewards } from "./use-rewards";
-import { useAnnouncements } from "./use-announcements";
+import { useAnnouncements } from "../announcements/use-announcements";
 import { Voucher, AnnouncementType } from "./types";
 
 const announcementConfig: Record<AnnouncementType, { color: string; bg: string; label: string }> = {

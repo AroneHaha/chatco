@@ -12,15 +12,14 @@ import {
   formatCurrency,
   getCommuterTypeLabel,
   type CommuterType,
-  type FareCalculation,
 } from "@/lib/fare-calculator";
-import { useAuth } from "@/contexts/auth-context";
 import {
   createPaymentIntent,
   verifyPayment,
   type PaymentStatus,
   type GCashPaymentIntent,
 } from "@/lib/gcash-payment";
+import { useAuth } from "@/contexts/auth-context";
 
 interface FareCalcModalProps {
   onClose: () => void;
@@ -29,11 +28,7 @@ interface FareCalcModalProps {
 type Step = "select" | "confirm" | "processing" | "success" | "failed";
 
 export default function FareCalcModal({ onClose }: FareCalcModalProps) {
-  const { commuterProfile, user } = useAuth();
-  const commuterId = user?.id ?? "";
-  const commuterName = commuterProfile ? `${commuterProfile.firstName} ${commuterProfile.surname}` : "";
-
-  // Pre-fill commuter type from auth profile
+  const { user, commuterProfile } = useAuth();
   const [step, setStep] = useState<Step>("select");
   const [pickupPoint, setPickupPoint] = useState<PointArea | null>(null);
   const [dropoffPoint, setDropoffPoint] = useState<PointArea | null>(null);
@@ -80,7 +75,7 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
     }
   };
 
-  const fareCalc =
+  const fareBreakdown =
     pickupPoint && dropoffPoint
       ? calculateFare(pickupPoint.pointNumber, dropoffPoint.pointNumber, commuterType)
       : null;
@@ -97,17 +92,23 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
     : FARE_MATRIX;
 
   const handlePayWithGCash = async () => {
-    if (!fareCalc) return;
+    if (!fareBreakdown) return;
 
     setStep("processing");
 
+    // Use auth context for commuter identity — never hardcoded
+    const payerId = commuterProfile?.id ?? user?.id ?? "unknown";
+    const payerName = commuterProfile
+      ? `${commuterProfile.firstName} ${commuterProfile.surname}`
+      : user?.email ?? "Unknown Commuter";
+
     try {
       const intent = await createPaymentIntent({
-        amount: fareCalc.finalFare,
-        commuterId,
-        commuterName,
-        pickupPoint: fareCalc.fareResult.fromPoint.pointNumber,
-        dropoffPoint: fareCalc.fareResult.toPoint.pointNumber,
+        amount: fareBreakdown.fare,
+        commuterId: payerId,
+        commuterName: payerName,
+        pickupPoint: fareBreakdown.pickupPoint.pointNumber,
+        dropoffPoint: fareBreakdown.dropoffPoint.pointNumber,
       });
 
       setPaymentIntent(intent);
@@ -130,10 +131,10 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
 
   if (step === "select") {
     return (
-      <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
-        <div className="w-full sm:max-w-md bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-white/10 shadow-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col">
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
+        <div className="w-full sm:max-w-md bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-white/10 shadow-2xl max-h-[90vh] flex flex-col">
           {/* Header */}
-          <div className="p-4 sm:p-5 border-b border-white/10 flex-shrink-0">
+          <div className="p-5 border-b border-white/10">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-white">Calculate Fare</h2>
               <button
@@ -157,26 +158,26 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
             </div>
 
             {/* Pickup & Dropoff Selection */}
-            <div className="space-y-2 sm:space-y-3">
+            <div className="space-y-3">
               {/* Pickup */}
               <button
                 onClick={() => setSelectingField("pickup")}
-                className={`w-full text-left p-2.5 sm:p-3 rounded-xl border transition-colors ${
+                className={`w-full text-left p-3 rounded-xl border transition-colors ${
                   selectingField === "pickup"
                     ? "border-[#62A0EA] bg-[#62A0EA]/10"
                     : "border-white/10 bg-white/5"
                 }`}
               >
                 <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">
-                  Pickup
+                  Pickup Barangay
                 </span>
-                <div className="flex items-center justify-between mt-0.5">
+                <div className="flex items-center justify-between mt-1">
                   <span className="text-sm text-white font-medium">
                     {pickupPoint
                       ? pickupPoint.name
                       : detectingLocation
-                        ? "Detecting..."
-                        : "Select"}
+                        ? "Detecting location..."
+                        : "Select pickup"}
                   </span>
                   {pickupPoint && (
                     <span className="text-[10px] text-[#62A0EA] bg-[#62A0EA]/10 px-2 py-0.5 rounded-full">
@@ -216,16 +217,16 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
               {/* Dropoff */}
               <button
                 onClick={() => setSelectingField("dropoff")}
-                className={`w-full text-left p-2.5 sm:p-3 rounded-xl border transition-colors ${
+                className={`w-full text-left p-3 rounded-xl border transition-colors ${
                   selectingField === "dropoff"
                     ? "border-[#FF6D3A] bg-[#FF6D3A]/10"
                     : "border-white/10 bg-white/5"
                 }`}
               >
                 <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">
-                  Drop-off
+                  Drop-off Barangay
                 </span>
-                <div className="flex items-center justify-between mt-0.5">
+                <div className="flex items-center justify-between mt-1">
                   <span className="text-sm text-white font-medium">
                     {dropoffPoint
                       ? dropoffPoint.name
@@ -241,24 +242,24 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
             </div>
 
             {/* Commuter Type */}
-            <div className="mt-2 sm:mt-3">
+            <div className="mt-3">
               <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">
-                Type
+                Commuter Type
               </span>
-              <div className="flex gap-1.5 sm:gap-2 mt-1.5 sm:mt-2 flex-wrap">
+              <div className="flex gap-2 mt-2">
                 {(
                   ["REGULAR", "STUDENT", "SENIOR_CITIZEN", "PWD"] as CommuterType[]
                 ).map((type) => (
                   <button
                     key={type}
                     onClick={() => setCommuterType(type)}
-                    className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-medium transition-colors ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                       commuterType === type
                         ? "bg-[#1A5FB4] text-white"
                         : "bg-white/5 text-white/50 hover:bg-white/10"
                     }`}
                   >
-                    {type === "SENIOR_CITIZEN" ? "Senior" : type === "PWD" ? "PWD" : getCommuterTypeLabel(type)}
+                    {getCommuterTypeLabel(type)}
                   </button>
                 ))}
               </div>
@@ -266,8 +267,8 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
           </div>
 
           {/* Barangay List */}
-          <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-            <div className="px-4 sm:px-5 pt-2 sm:pt-3 pb-2 flex-shrink-0">
+          <div className="flex-1 overflow-hidden flex flex-col">
+            <div className="px-5 pt-3 pb-2">
               <div className="relative">
                 <svg
                   className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30"
@@ -284,10 +285,10 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
                 </svg>
                 <input
                   type="text"
-                  placeholder="Search barangay..."
+                  placeholder="Search barangay or landmark..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#62A0EA]"
+                  className="w-full bg-white/5 border border-white/10 rounded-lg pl-9 pr-3 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#62A0EA]"
                 />
               </div>
               <p className="text-[10px] text-white/30 mt-2">
@@ -297,7 +298,7 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
                 {" "}&middot; Landmarks are reference points within each zone
               </p>
             </div>
-            <div className="flex-1 overflow-y-auto px-4 sm:px-5 pb-3 min-h-0">
+            <div className="flex-1 overflow-y-auto px-5 pb-3">
               {filteredPoints.map((point) => {
                 const isSelected =
                   (selectingField === "pickup" &&
@@ -308,10 +309,8 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
                 const isExpanded = expandedBarangay === point.pointNumber;
 
                 return (
-                  <div key={point.pointNumber} className="mb-0.5">
-                    <div
-                      role="button"
-                      tabIndex={0}
+                  <div key={point.pointNumber} className="mb-1">
+                    <button
                       onClick={() => {
                         if (selectingField === "pickup") {
                           setPickupPoint(point);
@@ -321,17 +320,16 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
                         }
                         setSearchQuery("");
                       }}
-                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); (e.target as HTMLElement).click(); } }}
-                      className={`w-full text-left p-2.5 sm:p-3 rounded-xl transition-colors cursor-pointer ${
+                      className={`w-full text-left p-3 rounded-xl transition-colors ${
                         isSelected
                           ? "bg-[#1A5FB4]/20 border border-[#1A5FB4]/40"
                           : "hover:bg-white/5 border border-transparent"
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="flex items-center gap-3">
                           <div
-                            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-[11px] sm:text-xs font-bold flex-shrink-0 ${
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
                               isSelected
                                 ? "bg-[#1A5FB4] text-white"
                                 : "bg-white/5 text-white/40"
@@ -339,8 +337,8 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
                           >
                             {point.pointNumber}
                           </div>
-                          <div className="min-w-0">
-                            <p className="text-[13px] sm:text-sm font-medium text-white truncate">
+                          <div>
+                            <p className="text-sm font-medium text-white">
                               {point.name}
                             </p>
                             <p className="text-[10px] text-white/30">
@@ -348,12 +346,12 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                        <div className="flex items-center gap-2">
                           <div className="text-right">
-                            <p className="text-[11px] sm:text-xs font-semibold text-white/60">
+                            <p className="text-xs font-semibold text-white/60">
                               {formatCurrency(point.regularFare)}
                             </p>
-                            <p className="text-[9px] sm:text-[10px] text-white/30">
+                            <p className="text-[10px] text-white/30">
                               Disc: {formatCurrency(point.discountedFare)}
                             </p>
                           </div>
@@ -383,7 +381,7 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
                           </button>
                         </div>
                       </div>
-                    </div>
+                    </button>
 
                     {/* Expanded landmarks */}
                     {isExpanded && (
@@ -410,43 +408,44 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
             </div>
           </div>
 
-          {/* Fare Summary & Pay Button - Sticky Footer */}
-          {fareCalc && (
-            <div className="flex-shrink-0 p-4 sm:p-5 border-t border-white/10 bg-[#050F1A]">
+          {/* Fare Summary & Pay Button */}
+          {fareBreakdown && (
+            <div className="p-5 border-t border-white/10 bg-[#050F1A]">
+              {/* Fare Explanation */}
+              <div className="mb-3 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/5">
+                <p className="text-[10px] text-white/30 leading-relaxed">
+                  {fareBreakdown.barangaysTraversed} barangay{fareBreakdown.barangaysTraversed !== 1 ? "s" : ""} traversed
+                  {" "}&middot; {fareBreakdown.fareExplanation}
+                </p>
+              </div>
+
               <div className="flex items-center justify-between mb-3">
-                <div className="min-w-0 flex-1 mr-3">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <div className="w-2 h-2 rounded-full bg-[#62A0EA] flex-shrink-0" />
-                    <p className="text-[11px] sm:text-xs text-white/50 truncate">{fareCalc.fareResult.fromPoint.name}</p>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-[#FF6D3A] flex-shrink-0" />
-                    <p className="text-[11px] sm:text-xs text-white/50 truncate">{fareCalc.fareResult.toPoint.name}</p>
-                  </div>
+                <div>
+                  <p className="text-[10px] text-white/40 uppercase tracking-wider">
+                    {fareBreakdown.pickupPoint.name} →{" "}
+                    {fareBreakdown.dropoffPoint.name}
+                  </p>
                 </div>
-                <div className="text-right flex-shrink-0">
-                  {fareCalc.hasDiscount && (
-                    <p className="text-[11px] sm:text-xs text-white/30 line-through">
-                      {formatCurrency(fareCalc.fareResult.regularFare)}
+                <div className="text-right">
+                  {fareBreakdown.isDiscounted && (
+                    <p className="text-xs text-white/30 line-through">
+                      {formatCurrency(fareBreakdown.regularFare)}
                     </p>
                   )}
-                  <p className="text-2xl sm:text-3xl font-extrabold text-white">
-                    {formatCurrency(fareCalc.finalFare)}
+                  <p className="text-2xl font-extrabold text-white">
+                    {formatCurrency(fareBreakdown.fare)}
                   </p>
-                  {fareCalc.hasDiscount && (
-                    <p className="text-[10px] text-green-400 font-medium">
-                      You save {formatCurrency(fareCalc.discountAmount)}
+                  {fareBreakdown.isDiscounted && (
+                    <p className="text-[10px] text-green-400">
+                      You save {formatCurrency(fareBreakdown.discountAmount)}
                     </p>
                   )}
                 </div>
               </div>
               <button
                 onClick={() => setStep("confirm")}
-                className="w-full py-3 sm:py-3.5 rounded-xl bg-gradient-to-r from-[#1A5FB4] to-[#1A6FB4] hover:from-[#164A8F] hover:to-[#165A9F] text-white font-bold text-sm transition-all shadow-lg shadow-[#1A5FB4]/30 flex items-center justify-center gap-2"
+                className="w-full py-3.5 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] text-white font-bold text-sm transition-colors shadow-lg shadow-[#1A5FB4]/30"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
-                </svg>
                 Pay with GCash
               </button>
             </div>
@@ -458,60 +457,65 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
 
   // ─── STEP: Confirm Payment ──────────────────────────────────────
 
-  if (step === "confirm" && fareCalc) {
+  if (step === "confirm" && fareBreakdown) {
     return (
-      <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
-        <div className="w-full sm:max-w-sm bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-white/10 shadow-2xl max-h-[95vh] sm:max-h-none flex flex-col">
-          <div className="p-5 sm:p-6 overflow-y-auto">
-            <h2 className="text-lg font-bold text-white mb-3 sm:mb-4">
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="w-full sm:max-w-sm bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl">
+          <div className="p-6">
+            <h2 className="text-lg font-bold text-white mb-4">
               Confirm Payment
             </h2>
 
-            <div className="space-y-2 sm:space-y-3 mb-4 sm:mb-6">
+            <div className="space-y-3 mb-6">
               <div className="flex justify-between text-sm">
                 <span className="text-white/50">Route</span>
-                <span className="text-white text-right max-w-[60%] truncate">
-                  {fareCalc.fareResult.fromPoint.name} → {fareCalc.fareResult.toPoint.name}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-white/50">Barangays</span>
                 <span className="text-white">
-                  {fareCalc.fareResult.barangaysTraveled}
+                  {fareBreakdown.pickupPoint.name} →{" "}
+                  {fareBreakdown.dropoffPoint.name}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-white/50">Type</span>
+                <span className="text-white/50">Barangays Traversed</span>
+                <span className="text-white">
+                  {fareBreakdown.barangaysTraversed}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-white/50">Fare Basis</span>
+                <span className="text-white/70 text-xs">
+                  {fareBreakdown.fareExplanation}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-white/50">Commuter Type</span>
                 <span className="text-white">
                   {getCommuterTypeLabel(commuterType)}
                 </span>
               </div>
-              {fareCalc.hasDiscount && (
+              {fareBreakdown.isDiscounted && (
                 <div className="flex justify-between text-sm">
                   <span className="text-white/50">Regular Fare</span>
                   <span className="text-white/30 line-through">
-                    {formatCurrency(fareCalc.fareResult.regularFare)}
+                    {formatCurrency(fareBreakdown.regularFare)}
                   </span>
                 </div>
               )}
-              {fareCalc.hasDiscount && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/50">Discount</span>
-                  <span className="text-green-400">
-                    -{formatCurrency(fareCalc.discountAmount)}
-                  </span>
-                </div>
-              )}
-              <div className="border-t border-white/10 pt-2 sm:pt-3 flex justify-between">
+              <div className="flex justify-between text-sm">
+                <span className="text-white/50">Discount</span>
+                <span className="text-green-400">
+                  -{formatCurrency(fareBreakdown.discountAmount)}
+                </span>
+              </div>
+              <div className="border-t border-white/10 pt-3 flex justify-between">
                 <span className="text-white font-semibold">Total</span>
-                <span className="text-xl sm:text-2xl font-extrabold text-white">
-                  {formatCurrency(fareCalc.finalFare)}
+                <span className="text-xl font-extrabold text-white">
+                  {formatCurrency(fareBreakdown.fare)}
                 </span>
               </div>
             </div>
 
             {/* GCash Payment Notice */}
-            <div className="bg-[#1A5FB4]/10 border border-[#1A5FB4]/20 rounded-xl p-3 mb-4 sm:mb-6">
+            <div className="bg-[#1A5FB4]/10 border border-[#1A5FB4]/20 rounded-xl p-3 mb-6">
               <div className="flex items-center gap-2 mb-1">
                 <svg
                   className="w-4 h-4 text-[#62A0EA]"
@@ -531,7 +535,8 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
                 </span>
               </div>
               <p className="text-[10px] text-white/40">
-                Pay directly via GCash — no wallet balance needed.
+                You will be redirected to GCash to confirm payment. No wallet
+                balance needed — pay directly.
               </p>
             </div>
 
@@ -544,9 +549,9 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
               </button>
               <button
                 onClick={handlePayWithGCash}
-                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-[#1A5FB4] to-[#1A6FB4] hover:from-[#164A8F] hover:to-[#165A9F] text-white text-sm font-bold transition-all shadow-lg shadow-[#1A5FB4]/30"
+                className="flex-1 py-3 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] text-white text-sm font-bold transition-colors shadow-lg shadow-[#1A5FB4]/30"
               >
-                Pay {formatCurrency(fareCalc.finalFare)}
+                Pay {formatCurrency(fareBreakdown.fare)}
               </button>
             </div>
           </div>
@@ -559,8 +564,8 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
 
   if (step === "processing") {
     return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-        <div className="w-full max-w-xs bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl p-6 sm:p-8 text-center">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="w-full max-w-xs bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl p-8 text-center">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-[#1A5FB4] border-t-transparent animate-spin" />
           <h2 className="text-lg font-bold text-white mb-2">
             Processing Payment
@@ -575,14 +580,14 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
 
   // ─── STEP: Success ──────────────────────────────────────────────
 
-  if (step === "success" && fareCalc) {
+  if (step === "success" && fareBreakdown) {
     return (
-      <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
-        <div className="w-full sm:max-w-sm bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-white/10 shadow-2xl max-h-[95vh] sm:max-h-none overflow-y-auto">
-          <div className="p-5 sm:p-6 text-center">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center">
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="w-full sm:max-w-sm bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl">
+          <div className="p-6 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center">
               <svg
-                className="w-7 h-7 sm:w-8 sm:h-8 text-green-400"
+                className="w-8 h-8 text-green-400"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -595,31 +600,31 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
                 />
               </svg>
             </div>
-            <h2 className="text-base sm:text-lg font-bold text-white mb-1">
+            <h2 className="text-lg font-bold text-white mb-1">
               Payment Successful!
             </h2>
-            <p className="text-xs sm:text-sm text-white/40 mb-3 sm:mb-4">
+            <p className="text-sm text-white/40 mb-4">
               Your fare has been paid via GCash
             </p>
 
-            <div className="bg-white/5 rounded-xl p-3 sm:p-4 text-left space-y-1.5 sm:space-y-2 mb-4 sm:mb-6">
+            <div className="bg-white/5 rounded-xl p-4 text-left space-y-2 mb-6">
               <div className="flex justify-between text-sm">
                 <span className="text-white/40">Amount Paid</span>
                 <span className="text-white font-bold">
-                  {formatCurrency(fareCalc.finalFare)}
+                  {formatCurrency(fareBreakdown.fare)}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-white/40">Route</span>
                 <span className="text-white/70">
-                  {fareCalc.fareResult.fromPoint.name} →{" "}
-                  {fareCalc.fareResult.toPoint.name}
+                  {fareBreakdown.pickupPoint.name} →{" "}
+                  {fareBreakdown.dropoffPoint.name}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-white/40">Barangays</span>
                 <span className="text-white/70">
-                  {fareCalc.fareResult.barangaysTraveled} traveled
+                  {fareBreakdown.barangaysTraversed} traversed
                 </span>
               </div>
               <div className="flex justify-between text-sm">
@@ -638,7 +643,7 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
 
             <button
               onClick={onClose}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-[#1A5FB4] to-[#1A6FB4] hover:from-[#164A8F] hover:to-[#165A9F] text-white text-sm font-bold transition-all shadow-lg shadow-[#1A5FB4]/30"
+              className="w-full py-3 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] text-white text-sm font-bold transition-colors"
             >
               Done
             </button>
@@ -652,12 +657,12 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
 
   if (step === "failed") {
     return (
-      <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
-        <div className="w-full sm:max-w-sm bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-white/10 shadow-2xl max-h-[95vh] sm:max-h-none overflow-y-auto">
-          <div className="p-5 sm:p-6 text-center">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="w-full sm:max-w-sm bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl">
+          <div className="p-6 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
               <svg
-                className="w-7 h-7 sm:w-8 sm:h-8 text-red-400"
+                className="w-8 h-8 text-red-400"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -670,10 +675,10 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
                 />
               </svg>
             </div>
-            <h2 className="text-base sm:text-lg font-bold text-white mb-1">
+            <h2 className="text-lg font-bold text-white mb-1">
               Payment Failed
             </h2>
-            <p className="text-xs sm:text-sm text-white/40 mb-4 sm:mb-6">
+            <p className="text-sm text-white/40 mb-6">
               Could not process your GCash payment. Please try again or pay
               cash to the conductor.
             </p>

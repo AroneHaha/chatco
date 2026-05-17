@@ -181,7 +181,13 @@ function LocationFinder({
 }
 
 // --- 4. MAIN COMPONENT ---
-export default function CommuterMap({ isDesktop = false }: { isDesktop?: boolean }) {
+interface CommuterMapProps {
+  isDesktop?: boolean;
+  /** Callback fired when nearby vehicles change — used by dashboard for 1KM hail restriction */
+  onNearbyVehiclesChange?: (vehicles: NearbyVehicle[]) => void;
+}
+
+export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange }: CommuterMapProps) {
   const [isDomReady, setIsDomReady] = useState(false);
   const [userActualLocation, setUserActualLocation] = useState<[number, number] | null>(null);
   const [showMapPin, setShowMapPin] = useState(false);
@@ -220,11 +226,14 @@ export default function CommuterMap({ isDesktop = false }: { isDesktop?: boolean
 
     setNearbyVehicles(nearby);
 
+    // Notify parent (dashboard) of nearby vehicles for 1KM hail restriction
+    onNearbyVehiclesChange?.(nearby);
+
     // Send proximity notifications for newly detected vehicles
     nearby.forEach((v) => {
       sendProximityNotification(v.plateNumber, formatDistance(v.distanceInMeters));
     });
-  }, [userActualLocation]);
+  }, [userActualLocation, onNearbyVehiclesChange]);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsDomReady(true), 200);

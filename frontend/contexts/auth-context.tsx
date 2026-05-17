@@ -1,21 +1,17 @@
 "use client";
 
-/**
- * Auth Context — Single Source of Truth for the authenticated user.
- *
- * Architecture (Laravel + Supabase):
- * ─────────────────────────────────────────────────────────────
- * - Login: POST /api/auth/login → Laravel Sanctum issues session cookie
- * - User:  GET /api/user → Returns authenticated AuthUser + role
- * - Logout: POST /api/auth/logout → Invalidates Sanctum session
- * - Commuter profile: GET /api/commuter/profile → CommuterProfile from Supabase
- *
- * This context replaces ALL hardcoded `"c_001"` commuter IDs
- * and `mockUser` objects throughout the codebase.
- *
- * Usage:
- *   const { user, commuterProfile, isLoading } = useAuth();
- */
+// contexts/auth-context.tsx
+// Canonical authentication context for the Chatco application.
+//
+// BACKEND-PROOFING:
+// - Reads user from /api/auth/me (Laravel Sanctum) or falls back to
+//   the session cookie payload for the prototype phase.
+// - Does NOT trust client-side localStorage for role claims.
+// - Properly handles COMMUTER / ADMIN / CONDUCTOR roles from server.
+// - 401 responses trigger automatic redirect to /login.
+//
+// IMPORTANT: This is the SINGLE SOURCE OF TRUTH for auth state.
+// Do NOT read auth info from localStorage directly elsewhere.
 
 import {
   createContext,
@@ -25,211 +21,272 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import type {
-  AuthUser,
-  CommuterProfile,
-  UserRole,
-} from "@/types/user";
+import type { AuthUser, CommuterProfile, UserRole } from "@/types";
+import { api } from "@/lib/api/client";
+import { AUTH } from "@/lib/api/endpoints";
 
-// ─── Auth State ──────────────────────────────────────────────────────
+// ─── Context Shape ────────────────────────────────────────────────────
 
-interface AuthState {
-  /** The authenticated user (from Sanctum) */
+interface AuthContextValue {
+  /** The authenticated user (from server). null = not logged in. */
   user: AuthUser | null;
-  /** The commuter's full profile (from Supabase) — null for admin/conductor */
+  /** Full commuter profile — only populated for COMMUTER role. */
   commuterProfile: CommuterProfile | null;
-  /** Whether auth state is still loading */
+  /** True while the initial auth check is in progress. */
   isLoading: boolean;
-  /** Whether the user is authenticated */
+  /** Shortcut: true when user is non-null. */
   isAuthenticated: boolean;
-}
-
-interface AuthActions {
-  /** Login with email + password */
-  login: (email: string, password: string) => Promise<{ redirectPath: string }>;
-  /** Logout and clear session */
-  logout: () => void;
-  /** Refresh the user + profile data */
+  /** Login with email + password. Returns redirect path based on role. */
+  login: (email: string, password: string) => Promise<string>;
+  /** Logout — clears server session + client state. */
+  logout: () => Promise<void>;
+  /** Force-refresh the user from /api/user. */
   refresh: () => Promise<void>;
 }
 
-type AuthContextType = AuthState & AuthActions;
+const AuthContext = createContext<AuthContextValue | null>(null);
 
-const AuthContext = createContext<AuthContextType | null>(null);
+// ─── Mock User Fallback ──────────────────────────────────────────────
+// During the prototype phase (no real backend yet), we derive the user
+// from the chatco_session cookie that the login API route sets.
+// When the real Laravel backend is integrated, this fallback is unnecessary.
 
-// ─── Mock Data (temporary — replaced when Laravel backend is live) ───
-
-const MOCK_AUTH_USER: AuthUser = {
-  id: "c_001",
-  email: "arone.delacruz@gmail.com",
-  role: "COMMUTER",
+const MOCK_PROFILES: Record<
+  string,
+  { user: AuthUser; profile: CommuterProfile }
+> = {
+  u_1: {
+    user: { id: "u_1", email: "commuter@gmail.com", role: "COMMUTER" },
+    profile: {
+      id: "c_001",
+      firstName: "Arone",
+      middleName: "Santos",
+      surname: "Dela Cruz",
+      birthdate: "2001-05-15",
+      gender: "Male",
+      email: "arone.delacruz@gmail.com",
+      contactNumber: "09123456789",
+      commuterType: "REGULAR",
+      username: "arone_dc",
+      languagePreference: "English",
+      accountStatus: "ACTIVE",
+      idImageUrl: null,
+      verifiedAt: "2026-03-10T10:00:00Z",
+      createdAt: "2026-03-10T10:00:00Z",
+      updatedAt: "2026-03-10T10:00:00Z",
+    },
+  },
+  a_1: {
+    user: { id: "a_1", email: "admin@chatco.com", role: "ADMIN" },
+    profile: {
+      id: "a_001",
+      firstName: "Admin",
+      middleName: null,
+      surname: "Chatco",
+      birthdate: "1990-01-01",
+      gender: "Prefer not to say",
+      email: "admin@chatco.com",
+      contactNumber: "09111111111",
+      commuterType: "REGULAR",
+      username: "admin",
+      languagePreference: "English",
+      accountStatus: "ACTIVE",
+      idImageUrl: null,
+      verifiedAt: null,
+      createdAt: "2026-01-01T00:00:00Z",
+    },
+  },
+  c_1: {
+    user: { id: "c_1", email: "conductor@chatco.com", role: "CONDUCTOR" },
+    profile: {
+      id: "cond_001",
+      firstName: "Pedro",
+      middleName: null,
+      surname: "Penduko",
+      birthdate: "1985-06-20",
+      gender: "Male",
+      email: "conductor@chatco.com",
+      contactNumber: "09222222222",
+      commuterType: "REGULAR",
+      username: "pedro_penduko",
+      languagePreference: "English",
+      accountStatus: "ACTIVE",
+      idImageUrl: null,
+      verifiedAt: null,
+      createdAt: "2026-01-01T00:00:00Z",
+    },
+  },
 };
 
-const MOCK_COMMUTER_PROFILE: CommuterProfile = {
-  id: "c_001",
-  firstName: "Arone",
-  middleName: "Santos",
-  surname: "Dela Cruz",
-  birthdate: "2001-05-15",
-  gender: "Male",
-  email: "arone.delacruz@gmail.com",
-  contactNumber: "09123456789",
-  commuterType: "REGULAR",
-  username: "arone_dc",
-  languagePreference: "English",
-  accountStatus: "DISCOUNT_REJECTED",
-  idImageUrl: "/mock-id.jpg",
-  verifiedAt: null,
-  createdAt: "2026-03-10T10:00:00Z",
-  appliedType: "STUDENT",
-};
-
-// ─── Helpers ─────────────────────────────────────────────────────────
-
-function getDashboardPath(role: UserRole): string {
-  switch (role) {
-    case "COMMUTER":
-      return "/dashboard";
-    case "ADMIN":
-      return "/admin-dashboard";
-    case "CONDUCTOR":
-      return "/unit-verification";
-    default:
-      return "/login";
-  }
+/**
+ * Parse the prototype session cookie to get user info.
+ * Cookie format: "chatco:{id}:{role}:{timestamp}:{hmac}"
+ * The HMAC is verified by middleware, so if we reach this point the cookie is valid.
+ */
+function parseSessionCookie(): { id: string; role: UserRole } | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(/(?:^|;\s*)chatco_session=([^;]+)/);
+  if (!match) return null;
+  const token = decodeURIComponent(match[1]);
+  const parts = token.split(":");
+  if (parts.length !== 5 || parts[0] !== "chatco") return null;
+  const [, id, role] = parts;
+  if (!["COMMUTER", "ADMIN", "CONDUCTOR"].includes(role)) return null;
+  return { id, role: role as UserRole };
 }
 
-// ─── Provider ────────────────────────────────────────────────────────
+// ─── Provider Component ───────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [commuterProfile, setCommuterProfile] = useState<CommuterProfile | null>(null);
+  const [commuterProfile, setCommuterProfile] =
+    useState<CommuterProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch user on mount (checks session cookie)
-  useEffect(() => {
-    async function initAuth() {
-      try {
-        // ── FUTURE: Real API calls ──
-        // const res = await fetch("/api/user", { credentials: "include" });
-        // if (res.ok) {
-        //   const data = await res.json();
-        //   setUser(data.user);
-        //   if (data.user.role === "COMMUTER") {
-        //     const profileRes = await fetch("/api/commuter/profile", { credentials: "include" });
-        //     if (profileRes.ok) setCommuterProfile(await profileRes.json());
-        //   }
-        // }
-
-        // ── MOCK: Read from localStorage for prototype ──
-        const stored = localStorage.getItem("chatco_user");
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored);
-            setUser(parsed.user || MOCK_AUTH_USER);
-            setCommuterProfile(parsed.profile || MOCK_COMMUTER_PROFILE);
-          } catch {
-            setUser(MOCK_AUTH_USER);
-            setCommuterProfile(MOCK_COMMUTER_PROFILE);
-          }
-        } else {
-          // Default to mock user for development
-          setUser(MOCK_AUTH_USER);
-          setCommuterProfile(MOCK_COMMUTER_PROFILE);
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    initAuth();
-  }, []);
-
-  const login = useCallback(
-    async (email: string, password: string): Promise<{ redirectPath: string }> => {
-      setIsLoading(true);
-
-      try {
-        // ── FUTURE: Real API call ──
-        // const res = await fetch("/api/auth/login", {
-        //   method: "POST",
-        //   headers: { "Content-Type": "application/json" },
-        //   body: JSON.stringify({ email, password }),
-        //   credentials: "include",
-        // });
-        // const data = await res.json();
-        // if (!res.ok) throw new Error(data.message || "Login failed");
-        // setUser(data.user);
-        // if (data.user.role === "COMMUTER") setCommuterProfile(data.profile);
-        // localStorage.setItem("chatco_user", JSON.stringify({ user: data.user, profile: data.profile }));
-        // return { redirectPath: getDashboardPath(data.user.role) };
-
-        // ── MOCK: Simulate login ──
-        await new Promise((r) => setTimeout(r, 500));
-        const mockUser: AuthUser = { id: "c_001", email, role: "COMMUTER" };
-        const mockProfile = { ...MOCK_COMMUTER_PROFILE, email };
-        setUser(mockUser);
-        setCommuterProfile(mockProfile);
-        localStorage.setItem(
-          "chatco_user",
-          JSON.stringify({ user: mockUser, profile: mockProfile })
-        );
-        return { redirectPath: getDashboardPath(mockUser.role) };
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    []
-  );
-
-  const logout = useCallback(() => {
-    // ── FUTURE: Real API call ──
-    // fetch("/api/auth/logout", { method: "POST", credentials: "include" }).finally(() => { ... });
-
-    setUser(null);
-    setCommuterProfile(null);
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("chatco_user");
-      localStorage.removeItem("conductor_active_shift");
-      localStorage.removeItem("conductor_transactions");
-      localStorage.removeItem("remittance_history");
-      window.location.href = "/login";
-    }
-  }, []);
-
+  // ── Fetch current user from server or cookie ──
   const refresh = useCallback(async () => {
     setIsLoading(true);
+
     try {
-      // ── FUTURE: Re-fetch /api/user ──
-      await new Promise((r) => setTimeout(r, 300));
+      // Try the real backend endpoint first (Laravel Sanctum /api/user)
+      const result = await api.get<AuthUser>(AUTH.ME, { skipAuth: true });
+
+      if (result.data) {
+        setUser(result.data);
+
+        // If commuter, fetch profile
+        if (result.data.role === "COMMUTER") {
+          const profileResult = await api.get<CommuterProfile>(
+            `${AUTH.ME.replace("/user", "")}/commuter-profile/${result.data.id}`
+          );
+          if (profileResult.data) {
+            setCommuterProfile(profileResult.data);
+          }
+        }
+      } else {
+        // Fallback: parse session cookie (prototype phase)
+        const parsed = parseSessionCookie();
+        if (parsed) {
+          const mock = MOCK_PROFILES[parsed.id];
+          if (mock) {
+            setUser(mock.user);
+            if (parsed.role === "COMMUTER") {
+              setCommuterProfile(mock.profile);
+            }
+          }
+        } else {
+          setUser(null);
+          setCommuterProfile(null);
+        }
+      }
+    } catch {
+      // Fallback: parse session cookie (prototype phase)
+      const parsed = parseSessionCookie();
+      if (parsed) {
+        const mock = MOCK_PROFILES[parsed.id];
+        if (mock) {
+          setUser(mock.user);
+          if (parsed.role === "COMMUTER") {
+            setCommuterProfile(mock.profile);
+          }
+        }
+      } else {
+        setUser(null);
+        setCommuterProfile(null);
+      }
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        commuterProfile,
-        isLoading,
-        isAuthenticated: !!user,
-        login,
-        logout,
-        refresh,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  // ── Login ──
+  const login = useCallback(
+    async (email: string, password: string): Promise<string> => {
+      // Use the Next.js API route for now (sets httpOnly cookie).
+      // When Laravel is integrated, this will call AUTH.LOGIN directly.
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Login failed.");
+      }
+
+      // The login route returns: { user: { id, email, role }, redirectPath }
+      const authUser: AuthUser = {
+        id: data.user.id,
+        email: data.user.email,
+        role: data.user.role,
+      };
+
+      setUser(authUser);
+
+      // Load mock profile for prototype
+      const mock = MOCK_PROFILES[authUser.id];
+      if (mock && authUser.role === "COMMUTER") {
+        setCommuterProfile(mock.profile);
+      }
+
+      return data.redirectPath;
+    },
+    []
   );
+
+  // ── Logout ──
+  const logout = useCallback(async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      // Clear client state regardless of API success
+      setUser(null);
+      setCommuterProfile(null);
+
+      // Clear any leftover client-side storage
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("chatco_user");
+        localStorage.removeItem("chatco_payment_history");
+        localStorage.removeItem("chatco_refund_requests");
+        localStorage.removeItem("conductor_active_shift");
+        localStorage.removeItem("conductor_transactions");
+        localStorage.removeItem("remittance_history");
+      }
+
+      window.location.href = "/login";
+    }
+  }, []);
+
+  // ── Initial auth check on mount ──
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const value: AuthContextValue = {
+    user,
+    commuterProfile,
+    isLoading,
+    isAuthenticated: user !== null,
+    login,
+    logout,
+    refresh,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-// ─── Hook ────────────────────────────────────────────────────────────
+// ─── Hook ─────────────────────────────────────────────────────────────
 
-export function useAuth(): AuthContextType {
+/**
+ * Access the current auth state.
+ * Must be used inside <AuthProvider>.
+ */
+export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) {
-    throw new Error("useAuth must be used within an <AuthProvider>");
+    throw new Error("useAuth must be used within <AuthProvider>");
   }
   return ctx;
 }
