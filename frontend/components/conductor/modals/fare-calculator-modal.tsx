@@ -20,7 +20,8 @@ import {
   type PaymentStatus,
   type GCashPaymentIntent,
 } from "@/lib/gcash-payment";
-import { saveTransaction, type PaymentMethodType } from "@/lib/conductor-transactions";
+import { saveTransaction } from "@/lib/conductor-transactions";
+import type { PaymentMethodType } from "@/types";
 import {
   encodeQRTransaction,
   type QRTransactionPayload,

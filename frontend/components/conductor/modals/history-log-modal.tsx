@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
-import { getShiftTransactions, type Transaction, type PaymentMethodType } from "@/lib/conductor-transactions";
+import { getShiftTransactions, type Transaction } from "@/lib/conductor-transactions";
+import type { PaymentMethodType } from "@/types";
 
 interface HistoryLogModalProps {
   isOpen: boolean;
@@ -287,7 +288,7 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
                         <div className="flex justify-between"><span className="text-gray-400">Distance:</span><span className="text-white">{tx.distance} km</span></div>
                         <div className="flex justify-between"><span className="text-gray-400">First Km:</span><span className="text-white">₱{tx.baseFare.toFixed(2)}</span></div>
                         <div className="flex justify-between"><span className="text-gray-400">Succeeding:</span><span className="text-white">₱{succeedingFare.toFixed(2)}</span></div>
-                        {tx.discountAmount > 0 && <div className="flex justify-between text-green-400"><span>Discount:</span><span>-₱{tx.discountAmount.toFixed(2)}</span></div>}
+                        {(tx.discountAmount ?? 0) > 0 && <div className="flex justify-between text-green-400"><span>Discount:</span><span>-₱{(tx.discountAmount ?? 0).toFixed(2)}</span></div>}
                         <div className="flex justify-between font-bold text-base text-[#62A0EA] border-t border-white/10 pt-2 mt-1"><span>Total:</span><span>₱{tx.finalAmount.toFixed(2)}</span></div>
                       </div>
                       <div className="border-t border-dashed border-white/10 pt-2 space-y-1">

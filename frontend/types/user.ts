@@ -44,6 +44,7 @@ export interface CommuterProfile {
   idImageUrl: string | null;
   verifiedAt: string | null;
   createdAt: string;
+  updatedAt?: string;
   appliedType?: CommuterType;
 }
 

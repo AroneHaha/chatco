@@ -149,18 +149,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       // Try the real backend endpoint first (Laravel Sanctum /api/user)
-      const result = await api.get<AuthUser>(AUTH.ME, { skipAuth: true });
+      // api.get<T>() returns T directly (not wrapped in { data: T })
+      const result = await api.get<AuthUser>(AUTH.ME);
 
-      if (result.data) {
-        setUser(result.data);
+      if (result) {
+        setUser(result);
 
         // If commuter, fetch profile
-        if (result.data.role === "COMMUTER") {
+        if (result.role === "COMMUTER") {
           const profileResult = await api.get<CommuterProfile>(
-            `${AUTH.ME.replace("/user", "")}/commuter-profile/${result.data.id}`
+            `${AUTH.ME.replace("/user", "")}/commuter-profile/${result.id}`
           );
-          if (profileResult.data) {
-            setCommuterProfile(profileResult.data);
+          if (profileResult) {
+            setCommuterProfile(profileResult);
           }
         }
       } else {

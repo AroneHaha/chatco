@@ -4,6 +4,9 @@
 
 import type { PaymentMethodType } from "@/types";
 
+// Re-export for backward compat — but prefer importing from @/types directly
+export type { PaymentMethodType } from "@/types";
+
 export interface Transaction {
   transactionId: string;
   paymentMethod: PaymentMethodType;

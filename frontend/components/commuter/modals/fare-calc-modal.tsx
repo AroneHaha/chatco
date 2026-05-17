@@ -5,6 +5,7 @@ import {
   FARE_MATRIX,
   findNearestPoint,
   getPointByNumber,
+  getFareExplanation,
   type PointArea,
 } from "@/lib/fare-matrix-data";
 import {
@@ -12,6 +13,7 @@ import {
   formatCurrency,
   getCommuterTypeLabel,
   type CommuterType,
+  type FareCalculation,
 } from "@/lib/fare-calculator";
 import {
   createPaymentIntent,
@@ -20,6 +22,24 @@ import {
   type GCashPaymentIntent,
 } from "@/lib/gcash-payment";
 import { useAuth } from "@/contexts/auth-context";
+
+// Helper to derive display-friendly fare info from FareCalculation + selected points
+function getFareDisplay(
+  fc: FareCalculation,
+  pickup: PointArea,
+  dropoff: PointArea
+) {
+  return {
+    fare: fc.finalFare,
+    regularFare: fc.fareResult.regularFare,
+    hasDiscount: fc.hasDiscount,
+    discountAmount: fc.discountAmount,
+    barangaysTraversed: fc.fareResult.barangaysTraveled,
+    pickupPoint: pickup,
+    dropoffPoint: dropoff,
+    fareExplanation: getFareExplanation(pickup.pointNumber, dropoff.pointNumber),
+  };
+}
 
 interface FareCalcModalProps {
   onClose: () => void;
@@ -91,8 +111,13 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
       )
     : FARE_MATRIX;
 
+  const fareDisplay =
+    fareBreakdown && pickupPoint && dropoffPoint
+      ? getFareDisplay(fareBreakdown, pickupPoint, dropoffPoint)
+      : null;
+
   const handlePayWithGCash = async () => {
-    if (!fareBreakdown) return;
+    if (!fareBreakdown || !pickupPoint || !dropoffPoint) return;
 
     setStep("processing");
 
@@ -104,11 +129,11 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
 
     try {
       const intent = await createPaymentIntent({
-        amount: fareBreakdown.fare,
+        amount: fareBreakdown.finalFare,
         commuterId: payerId,
         commuterName: payerName,
-        pickupPoint: fareBreakdown.pickupPoint.pointNumber,
-        dropoffPoint: fareBreakdown.dropoffPoint.pointNumber,
+        pickupPoint: pickupPoint.pointNumber,
+        dropoffPoint: dropoffPoint.pointNumber,
       });
 
       setPaymentIntent(intent);
@@ -409,35 +434,35 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
           </div>
 
           {/* Fare Summary & Pay Button */}
-          {fareBreakdown && (
+          {fareDisplay && (
             <div className="p-5 border-t border-white/10 bg-[#050F1A]">
               {/* Fare Explanation */}
               <div className="mb-3 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/5">
                 <p className="text-[10px] text-white/30 leading-relaxed">
-                  {fareBreakdown.barangaysTraversed} barangay{fareBreakdown.barangaysTraversed !== 1 ? "s" : ""} traversed
-                  {" "}&middot; {fareBreakdown.fareExplanation}
+                  {fareDisplay.barangaysTraversed} barangay{fareDisplay.barangaysTraversed !== 1 ? "s" : ""} traversed
+                  {" "}&middot; {fareDisplay.fareExplanation}
                 </p>
               </div>
 
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <p className="text-[10px] text-white/40 uppercase tracking-wider">
-                    {fareBreakdown.pickupPoint.name} →{" "}
-                    {fareBreakdown.dropoffPoint.name}
+                    {fareDisplay.pickupPoint.name} →{" "}
+                    {fareDisplay.dropoffPoint.name}
                   </p>
                 </div>
                 <div className="text-right">
-                  {fareBreakdown.isDiscounted && (
+                  {fareDisplay.hasDiscount && (
                     <p className="text-xs text-white/30 line-through">
-                      {formatCurrency(fareBreakdown.regularFare)}
+                      {formatCurrency(fareDisplay.regularFare)}
                     </p>
                   )}
                   <p className="text-2xl font-extrabold text-white">
-                    {formatCurrency(fareBreakdown.fare)}
+                    {formatCurrency(fareDisplay.fare)}
                   </p>
-                  {fareBreakdown.isDiscounted && (
+                  {fareDisplay.hasDiscount && (
                     <p className="text-[10px] text-green-400">
-                      You save {formatCurrency(fareBreakdown.discountAmount)}
+                      You save {formatCurrency(fareDisplay.discountAmount)}
                     </p>
                   )}
                 </div>
@@ -457,7 +482,7 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
 
   // ─── STEP: Confirm Payment ──────────────────────────────────────
 
-  if (step === "confirm" && fareBreakdown) {
+  if (step === "confirm" && fareDisplay) {
     return (
       <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
         <div className="w-full sm:max-w-sm bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl">
@@ -470,20 +495,20 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
               <div className="flex justify-between text-sm">
                 <span className="text-white/50">Route</span>
                 <span className="text-white">
-                  {fareBreakdown.pickupPoint.name} →{" "}
-                  {fareBreakdown.dropoffPoint.name}
+                  {fareDisplay.pickupPoint.name} →{" "}
+                  {fareDisplay.dropoffPoint.name}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-white/50">Barangays Traversed</span>
                 <span className="text-white">
-                  {fareBreakdown.barangaysTraversed}
+                  {fareDisplay.barangaysTraversed}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-white/50">Fare Basis</span>
                 <span className="text-white/70 text-xs">
-                  {fareBreakdown.fareExplanation}
+                  {fareDisplay.fareExplanation}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
@@ -492,24 +517,24 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
                   {getCommuterTypeLabel(commuterType)}
                 </span>
               </div>
-              {fareBreakdown.isDiscounted && (
+              {fareDisplay.hasDiscount && (
                 <div className="flex justify-between text-sm">
                   <span className="text-white/50">Regular Fare</span>
                   <span className="text-white/30 line-through">
-                    {formatCurrency(fareBreakdown.regularFare)}
+                    {formatCurrency(fareDisplay.regularFare)}
                   </span>
                 </div>
               )}
               <div className="flex justify-between text-sm">
                 <span className="text-white/50">Discount</span>
                 <span className="text-green-400">
-                  -{formatCurrency(fareBreakdown.discountAmount)}
+                  -{formatCurrency(fareDisplay.discountAmount)}
                 </span>
               </div>
               <div className="border-t border-white/10 pt-3 flex justify-between">
                 <span className="text-white font-semibold">Total</span>
                 <span className="text-xl font-extrabold text-white">
-                  {formatCurrency(fareBreakdown.fare)}
+                  {formatCurrency(fareDisplay.fare)}
                 </span>
               </div>
             </div>
@@ -551,7 +576,7 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
                 onClick={handlePayWithGCash}
                 className="flex-1 py-3 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] text-white text-sm font-bold transition-colors shadow-lg shadow-[#1A5FB4]/30"
               >
-                Pay {formatCurrency(fareBreakdown.fare)}
+                Pay {formatCurrency(fareDisplay.fare)}
               </button>
             </div>
           </div>
@@ -580,7 +605,7 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
 
   // ─── STEP: Success ──────────────────────────────────────────────
 
-  if (step === "success" && fareBreakdown) {
+  if (step === "success" && fareDisplay) {
     return (
       <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
         <div className="w-full sm:max-w-sm bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl">
@@ -611,20 +636,20 @@ export default function FareCalcModal({ onClose }: FareCalcModalProps) {
               <div className="flex justify-between text-sm">
                 <span className="text-white/40">Amount Paid</span>
                 <span className="text-white font-bold">
-                  {formatCurrency(fareBreakdown.fare)}
+                  {formatCurrency(fareDisplay.fare)}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-white/40">Route</span>
                 <span className="text-white/70">
-                  {fareBreakdown.pickupPoint.name} →{" "}
-                  {fareBreakdown.dropoffPoint.name}
+                  {fareDisplay.pickupPoint.name} →{" "}
+                  {fareDisplay.dropoffPoint.name}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-white/40">Barangays</span>
                 <span className="text-white/70">
-                  {fareBreakdown.barangaysTraversed} traversed
+                  {fareDisplay.barangaysTraversed} traversed
                 </span>
               </div>
               <div className="flex justify-between text-sm">

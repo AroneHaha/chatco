@@ -19,11 +19,6 @@ const FareCalcModal = dynamic(
   { ssr: false }
 );
 
-const RefundRequestModal = dynamic(
-  () => import("@/components/commuter/modals/refund-request-modal"),
-  { ssr: false }
-);
-
 export default function CommuterHome() {
   const { user, commuterProfile, isLoading: authLoading } = useAuth();
 
@@ -338,13 +333,6 @@ export default function CommuterHome() {
           commuterId={commuterId}
           commuterName={displayName}
           onClose={() => setShowSOS(false)}
-        />
-      )}
-      {showRefund && (
-        <RefundRequestModal
-          commuterId={commuterId}
-          commuterName={commuterProfile ? `${commuterProfile.firstName} ${commuterProfile.surname}` : displayName}
-          onClose={() => setShowRefund(false)}
         />
       )}
     </div>
