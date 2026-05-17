@@ -22,8 +22,6 @@ import {
   type ReactNode,
 } from "react";
 import type { AuthUser, CommuterProfile, UserRole } from "@/types";
-import { api } from "@/lib/api/client";
-import { AUTH } from "@/lib/api/endpoints";
 
 // ─── Context Shape ────────────────────────────────────────────────────
 
@@ -40,7 +38,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<string>;
   /** Logout — clears server session + client state. */
   logout: () => Promise<void>;
-  /** Force-refresh the user from /api/user. */
+  /** Force-refresh the user from /api/auth/me. */
   refresh: () => Promise<void>;
 }
 
@@ -149,62 +147,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       // Try the real backend endpoint first (Laravel Sanctum /api/user)
-      // api.get<T>() returns T directly (not wrapped in { data: T })
-      const result = await api.get<AuthUser>(AUTH.ME);
+      const response = await fetch("/api/auth/me", {
+        method: "GET",
+        credentials: "include",
+      });
 
-      if (result) {
-        setUser(result);
+      if (response.ok) {
+        const data = await response.json();
+        const authUser: AuthUser = {
+          id: data.user.id,
+          email: data.user.email,
+          role: data.user.role,
+        };
+        setUser(authUser);
 
         // If commuter, fetch profile
-        if (result.role === "COMMUTER") {
-          const profileResult = await api.get<CommuterProfile>(
-            `${AUTH.ME.replace("/user", "")}/commuter-profile/${result.id}`
-          );
-          if (profileResult) {
-            setCommuterProfile(profileResult);
-          }
+        if (authUser.role === "COMMUTER" && data.profile) {
+          setCommuterProfile(data.profile);
         }
-      } else {
-        // Fallback: parse session cookie (prototype phase)
-        const parsed = parseSessionCookie();
-        if (parsed) {
-          const mock = MOCK_PROFILES[parsed.id];
-          if (mock) {
-            setUser(mock.user);
-            if (parsed.role === "COMMUTER") {
-              setCommuterProfile(mock.profile);
-            }
-          }
-        } else {
-          setUser(null);
-          setCommuterProfile(null);
-        }
+
+        setIsLoading(false);
+        return;
       }
     } catch {
-      // Fallback: parse session cookie (prototype phase)
-      const parsed = parseSessionCookie();
-      if (parsed) {
-        const mock = MOCK_PROFILES[parsed.id];
-        if (mock) {
-          setUser(mock.user);
-          if (parsed.role === "COMMUTER") {
-            setCommuterProfile(mock.profile);
-          }
-        }
-      } else {
-        setUser(null);
-        setCommuterProfile(null);
-      }
-    } finally {
-      setIsLoading(false);
+      // API not available — fall back to cookie
     }
+
+    // Fallback: parse session cookie (prototype phase)
+    const parsed = parseSessionCookie();
+    if (parsed) {
+      const mock = MOCK_PROFILES[parsed.id];
+      if (mock) {
+        setUser(mock.user);
+        if (parsed.role === "COMMUTER") {
+          setCommuterProfile(mock.profile);
+        }
+      }
+    } else {
+      setUser(null);
+      setCommuterProfile(null);
+    }
+
+    setIsLoading(false);
   }, []);
 
   // ── Login ──
   const login = useCallback(
     async (email: string, password: string): Promise<string> => {
       // Use the Next.js API route for now (sets httpOnly cookie).
-      // When Laravel is integrated, this will call AUTH.LOGIN directly.
+      // When Laravel is integrated, this will call /api/auth/login directly.
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -250,7 +241,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (typeof window !== "undefined") {
         localStorage.removeItem("chatco_user");
         localStorage.removeItem("chatco_payment_history");
-        localStorage.removeItem("chatco_refund_requests");
         localStorage.removeItem("conductor_active_shift");
         localStorage.removeItem("conductor_transactions");
         localStorage.removeItem("remittance_history");

@@ -134,8 +134,10 @@ function LocationFinder({
       }
       // If completely outside map bounds, don't move camera. The arrow will point towards them.
     },
-    locationerror(e) {
-      console.error("Location access denied:", e.message);
+    locationerror() {
+      // Silently handle — user may deny location access, which is normal.
+      // The map still works; they just won't see their position pin
+      // or the 1KM hail radius until they grant permission.
     },
     move() {
       const userCoords = userLocationRef.current;
