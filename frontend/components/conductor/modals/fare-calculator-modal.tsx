@@ -184,6 +184,39 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     }
   };
 
+  // ─── Color state logic ──────────────────────────────────────────
+  // Default: GREEN for pickup & dropoff
+  // Special: VIOLET/PURPLE when pickup == dropoff (same barangay)
+  const isSameBarangay = !!(pickupPoint && dropoffPoint && pickupPoint.pointNumber === dropoffPoint.pointNumber);
+
+  const pickupColor = isSameBarangay ? "violet" : "green";
+  const dropoffColor = isSameBarangay ? "violet" : "green";
+
+  // Color utility classes for pickup/dropoff indicators
+  const pickupDotClass = isSameBarangay ? "bg-violet-500" : "bg-emerald-500";
+  const dropoffDotClass = isSameBarangay ? "bg-violet-500" : "bg-emerald-500";
+  const pickupBorderClass = isSameBarangay ? "border-violet-500/50 bg-violet-500/10" : "border-emerald-500/50 bg-emerald-500/10";
+  const dropoffBorderClass = isSameBarangay ? "border-violet-500/50 bg-violet-500/10" : "border-emerald-500/50 bg-emerald-500/10";
+  const pickupBadgeClass = isSameBarangay ? "text-violet-400 bg-violet-500/10" : "text-emerald-400 bg-emerald-500/10";
+  const dropoffBadgeClass = isSameBarangay ? "text-violet-400 bg-violet-500/10" : "text-emerald-400 bg-emerald-500/10";
+  const pickupTagClass = isSameBarangay ? "bg-violet-500 text-white" : "bg-emerald-500 text-white";
+  const dropoffTagClass = isSameBarangay ? "bg-violet-500 text-white" : "bg-emerald-500 text-white";
+  const pickupLabelClass = isSameBarangay ? "text-violet-400" : "text-emerald-400";
+  const dropoffLabelClass = isSameBarangay ? "text-violet-400" : "text-emerald-400";
+
+  // ─── Clear location handlers (only reset location, NOT payment) ──
+  const clearPickup = () => {
+    setPickupPoint(null);
+    setPickupLandmark(null);
+    setSelectingField("pickup");
+  };
+
+  const clearDropoff = () => {
+    setDropoffPoint(null);
+    setDropoffLandmark(null);
+    setSelectingField("dropoff");
+  };
+
   // ─── RESET STATE & CLOSE ──────────────────────────────────────
   const handleClose = () => {
     setStep("method");
@@ -295,29 +328,30 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     );
   }
 
-  // ─── STEP: Point Area Selection ─────────────────────────────────
+  // ─── STEP: Point Area Selection (FULLSCREEN LOCATION PICKER) ──────
 
   if (step === "select") {
     return (
-      <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
-        <div className="w-full sm:max-w-md bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-white/10 shadow-2xl max-h-[90vh] flex flex-col">
-          {/* Header */}
-          <div className="p-5 border-b border-white/10">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
+      <div className="fixed inset-0 z-[100] flex flex-col bg-[#050F1A] safe-area-inset">
+        <div className="flex flex-col h-full w-full max-w-lg mx-auto">
+          {/* ── Fullscreen Header ── */}
+          <div className="flex-shrink-0 bg-[#071A2E] border-b border-white/10 pt-safe">
+            {/* Top bar: back + title + method badge + close */}
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center gap-2 min-w-0">
                 <button
                   onClick={() => setStep("method")}
-                  className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+                  className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
                   </svg>
                 </button>
-                <h2 className="text-lg font-bold text-white">Calculate Fare</h2>
+                <h2 className="text-base sm:text-lg font-bold text-white truncate">Select Location</h2>
               </div>
-              <div className="flex items-center gap-2">
-                {/* Method badge */}
-                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full ${
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {/* Method badge — preserves payment state visibility */}
+                <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${
                   selectedMethod === "GCash"
                     ? "bg-blue-500/15 text-blue-400 border border-blue-500/25"
                     : "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25"
@@ -326,44 +360,63 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                 </span>
                 <button
                   onClick={handleClose}
-                  className="text-white/40 hover:text-white transition-colors"
+                  className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-colors"
                 >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
             </div>
 
-            {/* Pickup & Dropoff Selection */}
-            <div className="space-y-3">
-              {/* Pickup */}
-              <button
-                onClick={() => setSelectingField("pickup")}
-                className={`w-full text-left p-3 rounded-xl border transition-colors ${
-                  selectingField === "pickup"
-                    ? "border-[#62A0EA] bg-[#62A0EA]/10"
-                    : "border-white/10 bg-white/5"
-                }`}
-              >
-                <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">
-                  Pickup Barangay
-                </span>
-                <div className="flex items-center justify-between mt-1">
-                  <span className="text-sm text-white font-medium">
-                    {pickupPoint
-                      ? pickupLandmark
-                        ? `${pickupPoint.name} · ${pickupLandmark}`
-                        : pickupPoint.name
-                      : "Select pickup"}
-                  </span>
-                  {pickupPoint && (
-                    <span className="text-[10px] text-[#62A0EA] bg-[#62A0EA]/10 px-2 py-0.5 rounded-full">
-                      Brgy {pickupPoint.pointNumber}
+            {/* ── Pickup & Dropoff Cards with Clear Buttons ── */}
+            <div className="px-4 pb-3 space-y-2.5">
+              {/* Pickup Card */}
+              <div className="relative">
+                <button
+                  onClick={() => setSelectingField("pickup")}
+                  className={`w-full text-left p-3 rounded-xl border transition-all duration-200 pr-9 ${
+                    selectingField === "pickup"
+                      ? pickupBorderClass + " border"
+                      : pickupPoint
+                        ? "border-white/10 bg-white/5"
+                        : "border-white/10 bg-white/5"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${pickupPoint ? pickupDotClass + ' shadow-sm' : 'bg-white/20'}`} />
+                    <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">
+                      Pickup
                     </span>
-                  )}
-                </div>
-              </button>
+                  </div>
+                  <div className="flex items-center justify-between mt-1 ml-[18px]">
+                    <span className={`text-sm font-medium ${pickupPoint ? 'text-white' : 'text-white/30'}`}>
+                      {pickupPoint
+                        ? pickupLandmark
+                          ? `${pickupPoint.name} · ${pickupLandmark}`
+                          : pickupPoint.name
+                        : "Select pickup location"}
+                    </span>
+                    {pickupPoint && (
+                      <span className={`text-[10px] ${pickupBadgeClass} px-2 py-0.5 rounded-full ml-2 flex-shrink-0`}>
+                        Brgy {pickupPoint.pointNumber}
+                      </span>
+                    )}
+                  </div>
+                </button>
+                {/* Clear Pickup Button (X) */}
+                {pickupPoint && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); clearPickup(); }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/30 hover:text-white hover:bg-red-500/20 hover:border-red-500/30 transition-colors"
+                    title="Clear pickup"
+                  >
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
 
               {/* Swap icon */}
               <div className="flex justify-center">
@@ -378,293 +431,340 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                       setDropoffLandmark(tmpLandmark);
                     }
                   }}
-                  className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors"
+                  className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors"
                 >
-                  <svg className="w-4 h-4 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="w-3.5 h-3.5 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
                   </svg>
                 </button>
               </div>
 
-              {/* Dropoff */}
-              <button
-                onClick={() => setSelectingField("dropoff")}
-                className={`w-full text-left p-3 rounded-xl border transition-colors ${
-                  selectingField === "dropoff"
-                    ? "border-[#FF6D3A] bg-[#FF6D3A]/10"
-                    : "border-white/10 bg-white/5"
-                }`}
-              >
-                <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">
-                  Drop-off Barangay
-                </span>
-                <div className="flex items-center justify-between mt-1">
-                  <span className="text-sm text-white font-medium">
-                    {dropoffPoint
-                      ? dropoffLandmark
-                        ? `${dropoffPoint.name} · ${dropoffLandmark}`
-                        : dropoffPoint.name
-                      : "Select destination"}
-                  </span>
-                  {dropoffPoint && (
-                    <span className="text-[10px] text-[#FF6D3A] bg-[#FF6D3A]/10 px-2 py-0.5 rounded-full">
-                      Brgy {dropoffPoint.pointNumber}
-                    </span>
-                  )}
-                </div>
-              </button>
-            </div>
-
-            {/* Commuter Type */}
-            <div className="mt-3">
-              <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">
-                Commuter Type
-              </span>
-              <div className="flex gap-2 mt-2">
-                {(
-                  ["REGULAR", "STUDENT", "SENIOR_CITIZEN", "PWD"] as CommuterType[]
-                ).map((type) => (
-                  <button
-                    key={type}
-                    onClick={() => setCommuterType(type)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                      commuterType === type
-                        ? "bg-[#1A5FB4] text-white"
-                        : "bg-white/5 text-white/50 hover:bg-white/10"
-                    }`}
-                  >
-                    {getCommuterTypeLabel(type)}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Barangay List */}
-          <div className="flex-1 overflow-hidden flex flex-col">
-            <div className="px-5 pt-3 pb-2">
+              {/* Dropoff Card */}
               <div className="relative">
-                <svg
-                  className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
+                <button
+                  onClick={() => setSelectingField("dropoff")}
+                  className={`w-full text-left p-3 rounded-xl border transition-all duration-200 pr-9 ${
+                    selectingField === "dropoff"
+                      ? dropoffBorderClass + " border"
+                      : dropoffPoint
+                        ? "border-white/10 bg-white/5"
+                        : "border-white/10 bg-white/5"
+                  }`}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
-                  />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Search barangay or landmark..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg pl-9 pr-3 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#62A0EA]"
-                />
-              </div>
-              <p className="text-[10px] text-white/30 mt-2">
-                {selectingField === "pickup"
-                  ? "Select your boarding barangay"
-                  : "Select your drop-off barangay"}
-                {" "}&middot; Landmarks are reference points within each zone
-              </p>
-            </div>
-            <div className="flex-1 overflow-y-auto px-5 pb-3">
-              {filteredPoints.map((point) => {
-                const isPickup = pickupPoint?.pointNumber === point.pointNumber;
-                const isDropoff = dropoffPoint?.pointNumber === point.pointNumber;
-                const isSelected = isPickup || isDropoff;
-                const isExpanded = expandedBarangay === point.pointNumber;
-
-                return (
-                  <div key={point.pointNumber} className="mb-1">
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => {
-                        if (selectingField === "pickup") {
-                          setPickupPoint(point);
-                          setPickupLandmark(null);
-                          setSelectingField("dropoff");
-                        } else {
-                          setDropoffPoint(point);
-                          setDropoffLandmark(null);
-                        }
-                        setSearchQuery("");
-                      }}
-                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); (e.target as HTMLElement).click(); } }}
-                      className={`w-full text-left p-3 rounded-xl transition-colors cursor-pointer ${
-                        isSelected
-                          ? isPickup && isDropoff
-                            ? "bg-purple-500/20 border border-purple-500/40"
-                            : isPickup
-                              ? "bg-[#62A0EA]/15 border border-[#62A0EA]/40"
-                              : "bg-[#FF6D3A]/15 border border-[#FF6D3A]/40"
-                          : "hover:bg-white/5 border border-transparent"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
-                              isPickup && isDropoff
-                                ? "bg-purple-500 text-white"
-                                : isPickup
-                                  ? "bg-[#62A0EA] text-white"
-                                  : isDropoff
-                                    ? "bg-[#FF6D3A] text-white"
-                                    : "bg-white/5 text-white/40"
-                            }`}
-                          >
-                            {point.pointNumber}
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-white">
-                              {point.name}
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <p className="text-[10px] text-white/30">
-                                {point.landmarks.length} landmark{point.landmarks.length !== 1 ? "s" : ""}
-                              </p>
-                              {isPickup && (
-                                <span className="text-[9px] font-semibold text-[#62A0EA] bg-[#62A0EA]/10 px-1.5 py-0.5 rounded">
-                                  PICKUP
-                                </span>
-                              )}
-                              {isDropoff && (
-                                <span className="text-[9px] font-semibold text-[#FF6D3A] bg-[#FF6D3A]/10 px-1.5 py-0.5 rounded">
-                                  DROP-OFF
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="text-right">
-                            <p className="text-xs font-semibold text-white/60">
-                              {formatCurrency(point.regularFare)}
-                            </p>
-                            <p className="text-[10px] text-white/30">
-                              Disc: {formatCurrency(point.discountedFare)}
-                            </p>
-                          </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setExpandedBarangay(
-                                isExpanded ? null : point.pointNumber
-                              );
-                            }}
-                            className="w-6 h-6 rounded-md bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors"
-                          >
-                            <svg
-                              className={`w-3 h-3 text-white/40 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                              strokeWidth={2}
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="m19.5 8.25-7.5 7.5-7.5-7.5"
-                              />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Expanded landmarks */}
-                    {isExpanded && (
-                      <div className="ml-11 mt-1 mb-2 space-y-1">
-                        <p className="text-[10px] text-white/20 uppercase tracking-wider font-medium mb-1.5">
-                          Landmarks in {point.name} <span className="text-white/10">· tap to select</span>
-                        </p>
-                        {point.landmarks.map((landmark, idx) => {
-                          const isLandmarkPickup = pickupPoint?.pointNumber === point.pointNumber && pickupLandmark === landmark;
-                          const isLandmarkDropoff = dropoffPoint?.pointNumber === point.pointNumber && dropoffLandmark === landmark;
-                          const isLandmarkSelected = isLandmarkPickup || isLandmarkDropoff;
-                          return (
-                            <div
-                              role="button"
-                              tabIndex={0}
-                              key={idx}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (selectingField === "pickup") {
-                                  if (pickupPoint?.pointNumber !== point.pointNumber) {
-                                    setPickupPoint(point);
-                                  }
-                                  setPickupLandmark(landmark);
-                                  setSelectingField("dropoff");
-                                } else {
-                                  if (dropoffPoint?.pointNumber !== point.pointNumber) {
-                                    setDropoffPoint(point);
-                                  }
-                                  setDropoffLandmark(landmark);
-                                }
-                              }}
-                              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); (e.target as HTMLElement).click(); } }}
-                              className={`flex items-center gap-2 px-2 py-1.5 rounded-md w-full text-left transition-colors border cursor-pointer ${
-                                isLandmarkSelected
-                                  ? isLandmarkPickup && isLandmarkDropoff
-                                    ? "bg-purple-500/15 border-purple-500/30"
-                                    : isLandmarkPickup
-                                      ? "bg-[#62A0EA]/10 border-[#62A0EA]/30"
-                                      : "bg-[#FF6D3A]/10 border-[#FF6D3A]/30"
-                                  : "bg-white/[0.02] border-transparent hover:bg-white/5"
-                              }`}
-                            >
-                              <div className={`w-1.5 h-1.5 rounded-full ${
-                                isLandmarkSelected
-                                  ? isLandmarkPickup ? "bg-[#62A0EA]" : "bg-[#FF6D3A]"
-                                  : "bg-white/20"
-                              }`} />
-                              <span className={`text-[11px] ${
-                                isLandmarkSelected
-                                  ? isLandmarkPickup ? "text-[#62A0EA]" : "text-[#FF6D3A]"
-                                  : "text-white/40"
-                              }`}>
-                                {landmark}
-                              </span>
-                              {isLandmarkPickup && !isLandmarkDropoff && (
-                                <span className="text-[8px] font-bold text-[#62A0EA] bg-[#62A0EA]/10 px-1 py-0.5 rounded ml-auto">PICKUP</span>
-                              )}
-                              {isLandmarkDropoff && !isLandmarkPickup && (
-                                <span className="text-[8px] font-bold text-[#FF6D3A] bg-[#FF6D3A]/10 px-1 py-0.5 rounded ml-auto">DROP-OFF</span>
-                              )}
-                              {isLandmarkPickup && isLandmarkDropoff && (
-                                <span className="text-[8px] font-bold text-purple-400 bg-purple-500/10 px-1 py-0.5 rounded ml-auto">BOTH</span>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${dropoffDotClass} ${dropoffPoint ? 'shadow-sm' : 'bg-white/20'}`} />
+                    <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">
+                      Drop-off
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between mt-1 ml-[18px]">
+                    <span className={`text-sm font-medium ${dropoffPoint ? 'text-white' : 'text-white/30'}`}>
+                      {dropoffPoint
+                        ? dropoffLandmark
+                          ? `${dropoffPoint.name} · ${dropoffLandmark}`
+                          : dropoffPoint.name
+                        : "Select drop-off location"}
+                    </span>
+                    {dropoffPoint && (
+                      <span className={`text-[10px] ${dropoffBadgeClass} px-2 py-0.5 rounded-full ml-2 flex-shrink-0`}>
+                        Brgy {dropoffPoint.pointNumber}
+                      </span>
                     )}
                   </div>
-                );
-              })}
+                </button>
+                {/* Clear Dropoff Button (X) */}
+                {dropoffPoint && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); clearDropoff(); }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/30 hover:text-white hover:bg-red-500/20 hover:border-red-500/30 transition-colors"
+                    title="Clear drop-off"
+                  >
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
+              {/* Same barangay warning */}
+              {isSameBarangay && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-500/10 border border-violet-500/20">
+                  <div className="w-2 h-2 rounded-full bg-violet-400 animate-pulse flex-shrink-0" />
+                  <span className="text-[10px] text-violet-300 font-medium">Same pickup & drop-off — both locations shown in violet</span>
+                </div>
+              )}
+
+              {/* Commuter Type */}
+              <div className="mt-1">
+                <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">
+                  Commuter Type
+                </span>
+                <div className="flex gap-1.5 mt-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+                  {(
+                    ["REGULAR", "STUDENT", "SENIOR_CITIZEN", "PWD"] as CommuterType[]
+                  ).map((type) => (
+                    <button
+                      key={type}
+                      onClick={() => setCommuterType(type)}
+                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
+                        commuterType === type
+                          ? "bg-[#1A5FB4] text-white"
+                          : "bg-white/5 text-white/50 hover:bg-white/10"
+                      }`}
+                    >
+                      {getCommuterTypeLabel(type)}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Fare Summary & Pay Button */}
+          {/* ── Search Bar ── */}
+          <div className="flex-shrink-0 px-4 pt-3 pb-2 bg-[#050F1A]">
+            <div className="relative">
+              <svg
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+                />
+              </svg>
+              <input
+                type="text"
+                placeholder="Search barangay or landmark..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-emerald-500/50 transition-colors"
+              />
+            </div>
+            <p className="text-[10px] text-white/30 mt-2">
+              {selectingField === "pickup"
+                ? "Tap your boarding barangay"
+                : "Tap your drop-off barangay"}
+              {" "}&middot; Expand for landmarks
+            </p>
+          </div>
+
+          {/* ── Barangay List (fills remaining space) ── */}
+          <div className="flex-1 overflow-y-auto px-4 pb-3 overscroll-contain">
+            {filteredPoints.map((point) => {
+              const isPickup = pickupPoint?.pointNumber === point.pointNumber;
+              const isDropoff = dropoffPoint?.pointNumber === point.pointNumber;
+              const isSelected = isPickup || isDropoff;
+              const isExpanded = expandedBarangay === point.pointNumber;
+
+              // Color classes for barangay list items (green default, violet when same)
+              const itemPickupBg = isSameBarangay ? "bg-violet-500/15 border-violet-500/40" : "bg-emerald-500/15 border-emerald-500/40";
+              const itemDropoffBg = isSameBarangay ? "bg-violet-500/15 border-violet-500/40" : "bg-emerald-500/15 border-emerald-500/40";
+              const itemBothBg = "bg-violet-500/20 border-violet-500/40";
+              const itemPickupTag = isSameBarangay ? pickupTagClass : pickupTagClass;
+              const itemDropoffTag = isSameBarangay ? dropoffTagClass : dropoffTagClass;
+              const itemPickupLabel = isSameBarangay ? pickupLabelClass : pickupLabelClass;
+              const itemDropoffLabel = isSameBarangay ? dropoffLabelClass : dropoffLabelClass;
+
+              return (
+                <div key={point.pointNumber} className="mb-1">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      if (selectingField === "pickup") {
+                        setPickupPoint(point);
+                        setPickupLandmark(null);
+                        setSelectingField("dropoff");
+                      } else {
+                        setDropoffPoint(point);
+                        setDropoffLandmark(null);
+                      }
+                      setSearchQuery("");
+                    }}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); (e.target as HTMLElement).click(); } }}
+                    className={`w-full text-left p-3 rounded-xl transition-colors cursor-pointer border ${
+                      isSelected
+                        ? isPickup && isDropoff
+                          ? itemBothBg
+                          : isPickup
+                            ? itemPickupBg
+                            : itemDropoffBg
+                        : "hover:bg-white/5 border-transparent"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold transition-colors duration-200 ${
+                            isPickup && isDropoff
+                              ? "bg-violet-500 text-white"
+                              : isPickup
+                                ? itemPickupTag
+                                : isDropoff
+                                  ? itemDropoffTag
+                                  : "bg-white/5 text-white/40"
+                          }`}
+                        >
+                          {point.pointNumber}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-white truncate">
+                            {point.name}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-[10px] text-white/30">
+                              {point.landmarks.length} landmark{point.landmarks.length !== 1 ? "s" : ""}
+                            </p>
+                            {isPickup && (
+                              <span className={`text-[9px] font-semibold ${itemPickupLabel} px-1.5 py-0.5 rounded bg-white/5`}>
+                                PICKUP
+                              </span>
+                            )}
+                            {isDropoff && (
+                              <span className={`text-[9px] font-semibold ${itemDropoffLabel} px-1.5 py-0.5 rounded bg-white/5`}>
+                                DROP-OFF
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <div className="text-right hidden xs:block">
+                          <p className="text-xs font-semibold text-white/60">
+                            {formatCurrency(point.regularFare)}
+                          </p>
+                          <p className="text-[10px] text-white/30">
+                            Disc: {formatCurrency(point.discountedFare)}
+                          </p>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExpandedBarangay(
+                              isExpanded ? null : point.pointNumber
+                            );
+                          }}
+                          className="w-7 h-7 rounded-md bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors"
+                        >
+                          <svg
+                            className={`w-3 h-3 text-white/40 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="m19.5 8.25-7.5 7.5-7.5-7.5"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expanded landmarks */}
+                  {isExpanded && (
+                    <div className="ml-11 mt-1 mb-2 space-y-1">
+                      <p className="text-[10px] text-white/20 uppercase tracking-wider font-medium mb-1.5">
+                        Landmarks in {point.name} <span className="text-white/10">· tap to select</span>
+                      </p>
+                      {point.landmarks.map((landmark, idx) => {
+                        const isLandmarkPickup = pickupPoint?.pointNumber === point.pointNumber && pickupLandmark === landmark;
+                        const isLandmarkDropoff = dropoffPoint?.pointNumber === point.pointNumber && dropoffLandmark === landmark;
+                        const isLandmarkSelected = isLandmarkPickup || isLandmarkDropoff;
+
+                        // Landmark color classes with green/violet logic
+                        const lmPickupColor = isSameBarangay ? "violet" : "emerald";
+                        const lmDropoffColor = isSameBarangay ? "violet" : "emerald";
+                        const lmPickupBgCls = isSameBarangay ? "bg-violet-500/10 border-violet-500/30" : "bg-emerald-500/10 border-emerald-500/30";
+                        const lmDropoffBgCls = isSameBarangay ? "bg-violet-500/10 border-violet-500/30" : "bg-emerald-500/10 border-emerald-500/30";
+                        const lmPickupDotCls = isSameBarangay ? "bg-violet-400" : "bg-emerald-400";
+                        const lmDropoffDotCls = isSameBarangay ? "bg-violet-400" : "bg-emerald-400";
+                        const lmPickupTextCls = isSameBarangay ? "text-violet-400" : "text-emerald-400";
+                        const lmDropoffTextCls = isSameBarangay ? "text-violet-400" : "text-emerald-400";
+
+                        return (
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            key={idx}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (selectingField === "pickup") {
+                                if (pickupPoint?.pointNumber !== point.pointNumber) {
+                                  setPickupPoint(point);
+                                }
+                                setPickupLandmark(landmark);
+                                setSelectingField("dropoff");
+                              } else {
+                                if (dropoffPoint?.pointNumber !== point.pointNumber) {
+                                  setDropoffPoint(point);
+                                }
+                                setDropoffLandmark(landmark);
+                              }
+                            }}
+                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); (e.target as HTMLElement).click(); } }}
+                            className={`flex items-center gap-2 px-2 py-1.5 rounded-md w-full text-left transition-colors border cursor-pointer ${
+                              isLandmarkSelected
+                                ? isLandmarkPickup && isLandmarkDropoff
+                                  ? "bg-violet-500/15 border-violet-500/30"
+                                  : isLandmarkPickup
+                                    ? lmPickupBgCls
+                                    : lmDropoffBgCls
+                                : "bg-white/[0.02] border-transparent hover:bg-white/5"
+                            }`}
+                          >
+                            <div className={`w-1.5 h-1.5 rounded-full ${
+                              isLandmarkSelected
+                                ? isLandmarkPickup ? lmPickupDotCls : lmDropoffDotCls
+                                : "bg-white/20"
+                            }`} />
+                            <span className={`text-[11px] ${
+                              isLandmarkSelected
+                                ? isLandmarkPickup ? lmPickupTextCls : lmDropoffTextCls
+                                : "text-white/40"
+                            }`}>
+                              {landmark}
+                            </span>
+                            {isLandmarkPickup && !isLandmarkDropoff && (
+                              <span className={`text-[8px] font-bold ${lmPickupTextCls} bg-white/5 px-1 py-0.5 rounded ml-auto`}>PICKUP</span>
+                            )}
+                            {isLandmarkDropoff && !isLandmarkPickup && (
+                              <span className={`text-[8px] font-bold ${lmDropoffTextCls} bg-white/5 px-1 py-0.5 rounded ml-auto`}>DROP-OFF</span>
+                            )}
+                            {isLandmarkPickup && isLandmarkDropoff && (
+                              <span className="text-[8px] font-bold text-violet-400 bg-violet-500/10 px-1 py-0.5 rounded ml-auto">BOTH</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* ── Fare Summary & Pay Button (sticky bottom) ── */}
           {fareInfo && (
-            <div className="p-5 border-t border-white/10 bg-[#050F1A]">
-              {/* Route confirmation with colored indicators */}
-              <div className="mb-2 flex items-center gap-2">
+            <div className="flex-shrink-0 p-4 border-t border-white/10 bg-[#050F1A] pb-safe">
+              {/* Route confirmation with dynamic color indicators */}
+              <div className="mb-2 flex items-center gap-2 flex-wrap">
                 <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#62A0EA]" />
+                  <div className={`w-2.5 h-2.5 rounded-full ${pickupDotClass}`} />
                   <span className="text-xs text-white/70 font-medium">{pickupPoint?.name}{pickupLandmark ? ` · ${pickupLandmark}` : ""}</span>
                 </div>
-                <svg className="w-3 h-3 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-3 h-3 text-white/20 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
                 </svg>
                 <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#FF6D3A]" />
+                  <div className={`w-2.5 h-2.5 rounded-full ${dropoffDotClass}`} />
                   <span className="text-xs text-white/70 font-medium">{dropoffPoint?.name}{dropoffLandmark ? ` · ${dropoffLandmark}` : ""}</span>
                 </div>
               </div>
@@ -679,13 +779,13 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
               </div>
 
               <div className="flex items-center justify-between mb-3">
-                <div>
-                  <p className="text-[10px] text-white/40 uppercase tracking-wider">
+                <div className="min-w-0">
+                  <p className="text-[10px] text-white/40 uppercase tracking-wider truncate">
                     {pickupPoint?.name}{pickupLandmark ? ` · ${pickupLandmark}` : ""} →{" "}
                     {dropoffPoint?.name}{dropoffLandmark ? ` · ${dropoffLandmark}` : ""}
                   </p>
                 </div>
-                <div className="text-right">
+                <div className="text-right flex-shrink-0 ml-2">
                   {fareInfo.hasDiscount && (
                     <p className="text-xs text-white/30 line-through">
                       {formatCurrency(fareInfo.regularFare)}
@@ -703,14 +803,23 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
               </div>
               <button
                 onClick={() => setStep("confirm")}
-                className={`w-full py-3.5 rounded-xl font-bold text-sm transition-colors shadow-lg ${
+                className={`w-full py-3.5 rounded-xl font-bold text-sm transition-colors shadow-lg active:scale-[0.98] ${
                   selectedMethod === "GCash"
                     ? "bg-[#1A5FB4] hover:bg-[#164A8F] text-white shadow-[#1A5FB4]/30"
                     : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30"
                 }`}
               >
-                Pay with {selectedMethod}
+                Pay {formatCurrency(fareInfo.finalFare)} with {selectedMethod}
               </button>
+            </div>
+          )}
+
+          {/* No fare info yet — show hint */}
+          {!fareInfo && (
+            <div className="flex-shrink-0 p-4 border-t border-white/10 bg-[#050F1A] pb-safe">
+              <div className="text-center py-2">
+                <p className="text-[11px] text-white/30">Select both pickup and drop-off to calculate fare</p>
+              </div>
             </div>
           )}
         </div>
@@ -740,13 +849,13 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
               {pickupLandmark && (
                 <div className="flex justify-between text-sm">
                   <span className="text-white/50">Pickup Landmark</span>
-                  <span className="text-[#62A0EA]">{pickupLandmark}</span>
+                  <span className={pickupLabelClass}>{pickupLandmark}</span>
                 </div>
               )}
               {dropoffLandmark && (
                 <div className="flex justify-between text-sm">
                   <span className="text-white/50">Drop-off Landmark</span>
-                  <span className="text-[#FF6D3A]">{dropoffLandmark}</span>
+                  <span className={dropoffLabelClass}>{dropoffLandmark}</span>
                 </div>
               )}
               <div className="flex justify-between text-sm">
@@ -969,13 +1078,13 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
               {pickupLandmark && (
                 <div className="flex justify-between text-sm">
                   <span className="text-white/40">Pickup Landmark</span>
-                  <span className="text-[#62A0EA]">{pickupLandmark}</span>
+                  <span className={pickupLabelClass}>{pickupLandmark}</span>
                 </div>
               )}
               {dropoffLandmark && (
                 <div className="flex justify-between text-sm">
                   <span className="text-white/40">Drop-off Landmark</span>
-                  <span className="text-[#FF6D3A]">{dropoffLandmark}</span>
+                  <span className={dropoffLabelClass}>{dropoffLandmark}</span>
                 </div>
               )}
               <div className="flex justify-between text-sm">
