@@ -182,8 +182,23 @@ function LocationFinder({
   });
 
   useEffect(() => {
+    // FIX: Increased timeout from 10000ms to 30000ms for mobile GPS cold starts.
+    // Mobile GPS (especially iOS) can take 10-30+ seconds for a cold start,
+    // while desktop browsers use instant WiFi-based location.
     // watch: true makes it continuously track the user's location instead of just asking once
-    map.locate({ setView: false, maxZoom: 16, enableHighAccuracy: true, timeout: 10000, watch: true });
+    map.locate({ setView: false, maxZoom: 16, enableHighAccuracy: true, timeout: 30000, watch: true });
+  }, [map]);
+
+  // FIX: Force Leaflet to recalculate container dimensions after mount.
+  // On mobile, the bottom sheet and bottom nav overlap the map container,
+  // and Leaflet may cache incorrect dimensions from before those elements
+  // rendered. invalidateSize() forces a recalculation so map.locate()
+  // and all coordinate calculations work correctly.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 500);
+    return () => clearTimeout(timer);
   }, [map]);
 
   return null;
@@ -312,9 +327,24 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
     }
   }, [radiusResult, gpsStatus, onNearbyVehiclesChange]);
 
+  // FIX: Use double-RAF instead of setTimeout(200) for DOM readiness.
+  // On slow mobile devices, a fixed 200ms timeout may fire before the
+  // container has computed its layout dimensions. Double-RAF guarantees
+  // the browser has completed at least one paint cycle, ensuring Leaflet
+  // receives accurate container dimensions at mount time.
   useEffect(() => {
-    const timer = setTimeout(() => setIsDomReady(true), 200);
-    return () => clearTimeout(timer);
+    let cancelled = false;
+    const raf1 = requestAnimationFrame(() => {
+      const raf2 = requestAnimationFrame(() => {
+        if (!cancelled && typeof document !== "undefined") {
+          setIsDomReady(true);
+        }
+      });
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf1);
+    };
   }, []);
 
   const commuterIcon = useMemo(() => new L.DivIcon({
@@ -353,7 +383,7 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
   const allVehiclesMap = new Map((radiusResult?.allVehiclesWithDistance || []).map((v) => [v.id, v]));
 
   return (
-    <>
+    <div className="commuter-map-wrapper w-full h-full">
       {arrowPos && (
         <div
           className="absolute z-[1000] flex flex-col items-center pointer-events-none select-none"
@@ -366,7 +396,7 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
         </div>
       )}
 
-      <MapContainer center={MAP_CENTER} zoom={12} zoomControl={false} attributionControl={false} className="w-full h-full" style={{ background: '#050F1A' }} maxBounds={mapBoundsArray} maxBoundsViscosity={1.0} minZoom={isDesktop ? 13 : 11}>
+      <MapContainer center={MAP_CENTER} zoom={12} zoomControl={false} attributionControl={false} className="commuter-map-container" style={{ background: '#050F1A' }} maxBounds={mapBoundsArray} maxBoundsViscosity={1.0} minZoom={isDesktop ? 13 : 11}>
         <LocationFinder
           userLocationRef={userLocationRef}
           setUserActualLocation={setUserActualLocation}
@@ -462,6 +492,29 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
       </MapContainer>
 
       <style jsx global>{`
+        /* FIX: Wrapper styles matching admin-commuter-map.tsx for mobile compatibility.
+         * touch-action: none prevents iOS Safari from intercepting touch events
+         * before Leaflet can process them, which would block map.locate() on mobile.
+         * isolation: isolate traps Leaflet's internal z-indexes within the container,
+         * preventing conflicts with overlapping UI elements (bottom sheet, nav bar). */
+        .commuter-map-wrapper {
+          position: relative;
+          touch-action: none;
+        }
+
+        /* FIX: Force absolute positioning with explicit dimensions.
+         * On mobile, the Tailwind w-full/h-full classes may not resolve correctly
+         * when the parent uses absolute positioning with overlapping siblings.
+         * This ensures Leaflet always gets accurate container dimensions. */
+        .commuter-map-container {
+          width: 100% !important;
+          height: 100% !important;
+          position: absolute !important;
+          inset: 0 !important;
+          z-index: 0 !important;
+          isolation: isolate !important;
+        }
+
         .custom-commuter-icon, .custom-jeepney-icon { background: transparent !important; border: none !important; }
         .leaflet-container { background: #050F1A !important; font-family: inherit !important; }
         .leaflet-popup-content-wrapper { background: white !important; border-radius: 12px !important; box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important; padding: 0 !important; }
@@ -470,6 +523,6 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
         .leaflet-popup-close-button { color: #071A2E !important; }
         @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(2.5); opacity: 0; } }
       `}</style>
-    </>
+    </div>
   );
 }
