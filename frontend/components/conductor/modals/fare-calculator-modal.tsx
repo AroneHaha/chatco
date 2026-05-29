@@ -58,6 +58,13 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     null
   );
 
+  // ─── Landmark validation ────────────────────────────────────────────────
+  // Both pickup and dropoff landmarks MUST be selected before proceeding.
+  // The "Pay" button and step transition to "confirm" are blocked until
+  // landmarks are chosen. This is enforced silently — no visible "Required"
+  // label is added; the button is simply disabled with existing patterns.
+  const isLandmarkValid = !!(pickupLandmark && dropoffLandmark);
+
   // ─── Fare Calculation using FARE_MATRIX (correct data source) ───
   const fareInfo = useMemo(() => {
     if (!pickupPoint || !dropoffPoint) return null;
@@ -132,7 +139,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   };
 
   const handlePayWithGCash = async () => {
-    if (!fareInfo || !pickupPoint || !dropoffPoint) return;
+    if (!fareInfo || !pickupPoint || !dropoffPoint || !pickupLandmark || !dropoffLandmark) return;
 
     setStep("processing");
 
@@ -165,7 +172,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   };
 
   const handlePayWithCash = async () => {
-    if (!fareInfo || !pickupPoint || !dropoffPoint) return;
+    if (!fareInfo || !pickupPoint || !dropoffPoint || !pickupLandmark || !dropoffLandmark) return;
 
     setStep("processing");
 
@@ -576,12 +583,25 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                     tabIndex={0}
                     onClick={() => {
                       if (selectingField === "pickup") {
+                        // If user changes pickup to a different barangay,
+                        // the previously selected pickup landmark is invalid
+                        // (it belongs to a different zone) — reset it.
+                        if (pickupPoint?.pointNumber !== point.pointNumber) {
+                          setPickupLandmark(null);
+                        }
                         setPickupPoint(point);
-                        setPickupLandmark(null);
-                        setSelectingField("dropoff");
+                        // Only auto-advance if a landmark was already selected
+                        // for this barangay, otherwise keep focus so user selects
+                        // a landmark first.
+                        if (pickupPoint?.pointNumber === point.pointNumber && pickupLandmark) {
+                          setSelectingField("dropoff");
+                        }
                       } else {
+                        // Same logic for dropoff — reset landmark if barangay changes
+                        if (dropoffPoint?.pointNumber !== point.pointNumber) {
+                          setDropoffLandmark(null);
+                        }
                         setDropoffPoint(point);
-                        setDropoffLandmark(null);
                       }
                       setSearchQuery("");
                     }}
@@ -802,14 +822,20 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                 </div>
               </div>
               <button
-                onClick={() => setStep("confirm")}
+                onClick={() => { if (isLandmarkValid) setStep("confirm"); }}
+                disabled={!isLandmarkValid}
                 className={`w-full py-3.5 rounded-xl font-bold text-sm transition-colors shadow-lg active:scale-[0.98] ${
-                  selectedMethod === "GCash"
-                    ? "bg-[#1A5FB4] hover:bg-[#164A8F] text-white shadow-[#1A5FB4]/30"
-                    : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30"
+                  isLandmarkValid
+                    ? selectedMethod === "GCash"
+                      ? "bg-[#1A5FB4] hover:bg-[#164A8F] text-white shadow-[#1A5FB4]/30"
+                      : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30"
+                    : "bg-gray-600 text-gray-300 cursor-not-allowed shadow-none"
                 }`}
               >
-                Pay {formatCurrency(fareInfo.finalFare)} with {selectedMethod}
+                {isLandmarkValid
+                  ? `Pay ${formatCurrency(fareInfo.finalFare)} with ${selectedMethod}`
+                  : "Select landmarks to continue"
+                }
               </button>
             </div>
           )}
@@ -819,6 +845,21 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
             <div className="flex-shrink-0 p-4 border-t border-white/10 bg-[#050F1A] pb-safe">
               <div className="text-center py-2">
                 <p className="text-[11px] text-white/30">Select both pickup and drop-off to calculate fare</p>
+              </div>
+            </div>
+          )}
+
+          {/* Fare info exists but landmarks are missing — show hint */}
+          {fareInfo && !isLandmarkValid && (
+            <div className="flex-shrink-0 p-4 border-t border-white/10 bg-[#050F1A] pb-safe">
+              <div className="text-center py-2">
+                <p className="text-[11px] text-white/30">
+                  {!pickupLandmark && !dropoffLandmark
+                    ? "Select a pickup and drop-off landmark to continue"
+                    : !pickupLandmark
+                      ? "Select a pickup landmark to continue"
+                      : "Select a drop-off landmark to continue"}
+                </p>
               </div>
             </div>
           )}
@@ -1102,7 +1143,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
               {paymentIntent && selectedMethod === "GCash" && (
                 <div className="flex justify-between text-sm">
                   <span className="text-white/40">Ref ID</span>
-                  <span className="text-white/50 text-xs font-mono">
+                  <span className="text-white/70 font-mono text-xs">
                     {paymentIntent.id}
                   </span>
                 </div>
@@ -1111,11 +1152,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
 
             <button
               onClick={handleClose}
-              className={`w-full py-3 rounded-xl text-white text-sm font-bold transition-colors ${
-                selectedMethod === "GCash"
-                  ? "bg-[#1A5FB4] hover:bg-[#164A8F]"
-                  : "bg-emerald-600 hover:bg-emerald-700"
-              }`}
+              className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition-colors shadow-lg shadow-emerald-600/30"
             >
               Done
             </button>
@@ -1125,7 +1162,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     );
   }
 
-  // ─── STEP: Failed ───────────────────────────────────────────────
+  // ─── STEP: Failed ──────────────────────────────────────────────
 
   if (step === "failed") {
     return (
@@ -1133,36 +1170,24 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
         <div className="w-full sm:max-w-sm bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl">
           <div className="p-6 text-center">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-              <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
               </svg>
             </div>
             <h2 className="text-lg font-bold text-white mb-1">
               Payment Failed
             </h2>
-            <p className="text-sm text-white/40 mb-6">
+            <p className="text-sm text-white/40 mb-4">
               {selectedMethod === "GCash"
-                ? "Could not process your GCash payment. Please try again or pay cash to the conductor."
-                : "Could not record the payment. Please try again."}
+                ? "GCash payment was not completed. Please try again."
+                : "Cash recording failed. Please try again."}
             </p>
-            <div className="flex gap-3">
-              <button
-                onClick={handleClose}
-                className="flex-1 py-3 rounded-xl border border-white/10 text-white/60 text-sm font-semibold hover:bg-white/5 transition-colors"
-              >
-                Close
-              </button>
-              <button
-                onClick={() => setStep("confirm")}
-                className={`flex-1 py-3 rounded-xl text-white text-sm font-bold transition-colors ${
-                  selectedMethod === "GCash"
-                    ? "bg-[#1A5FB4] hover:bg-[#164A8F]"
-                    : "bg-emerald-600 hover:bg-emerald-700"
-                }`}
-              >
-                Try Again
-              </button>
-            </div>
+            <button
+              onClick={handleClose}
+              className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-bold transition-colors shadow-lg shadow-red-600/30"
+            >
+              Close
+            </button>
           </div>
         </div>
       </div>

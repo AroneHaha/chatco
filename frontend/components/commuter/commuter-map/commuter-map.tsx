@@ -101,13 +101,17 @@ const getCapacityConfig = (capacity: VehicleCapacity) => {
 };
 
 function LocationFinder({
-  userLocationRef, setUserActualLocation, setShowMapPin, setArrowPos, setGpsStatus
+  userLocationRef, setUserActualLocation, setShowMapPin, setArrowPos, setGpsStatus, hasInitialCenteredRef, userInteractedRef
 }: {
   userLocationRef: React.MutableRefObject<[number, number] | null>;
   setUserActualLocation: (loc: [number, number] | null) => void;
   setShowMapPin: (val: boolean) => void;
   setArrowPos: (pos: { x: number; y: number; angle: number } | null) => void;
   setGpsStatus: (status: GpsStatus) => void;
+  /** Ref shared with parent to track if the map has been initially centered */
+  hasInitialCenteredRef: React.MutableRefObject<boolean>;
+  /** Ref shared with parent to track if the user has manually interacted with the map */
+  userInteractedRef: React.MutableRefObject<boolean>;
 }) {
   const map = useMap();
 
@@ -124,17 +128,26 @@ function LocationFinder({
       // ALWAYS show the pin when location is found
       setShowMapPin(true);
 
-      // Fly to user if they are near the route (smooth animation, high zoom)
-      if (routeBounds.contains(userLatLng)) {
-        setArrowPos(null);
-        map.flyTo([lat, lng], 16, { duration: 1.5 });
+      // Only auto-center the map on the FIRST successful GPS acquisition.
+      // After that, respect the user's manual navigation (drag/zoom/pan).
+      // The user's position still updates in the background for GPS tracking,
+      // vehicle markers, ETA logic, and the off-screen arrow indicator.
+      if (!hasInitialCenteredRef.current) {
+        // Fly to user if they are near the route (smooth animation, high zoom)
+        if (routeBounds.contains(userLatLng)) {
+          setArrowPos(null);
+          map.flyTo([lat, lng], 16, { duration: 1.5 });
+        }
+        // If in the general map area but not on the route, use setView.
+        else if (mapBounds.contains(userLatLng)) {
+          setArrowPos(null);
+          map.setView([lat, lng], 13, { animate: true });
+        }
+        // Mark that we've done the initial centering.
+        // Even if the user was outside bounds (no camera move), we still mark it
+        // so that subsequent GPS updates don't attempt to force-center.
+        hasInitialCenteredRef.current = true;
       }
-      // If in the general map area but not on the route, use setView.
-      else if (mapBounds.contains(userLatLng)) {
-        setArrowPos(null);
-        map.setView([lat, lng], 13, { animate: true });
-      }
-      // If completely outside map bounds, don't move camera. The arrow will point towards them.
     },
     locationerror(e: any) {
       // Map GeolocationPositionError codes to GpsStatus
@@ -178,7 +191,16 @@ function LocationFinder({
 
       setArrowPos({ x: 50 + (t * dx), y: 50 + (t * dy), angle: angle });
     },
-    dragstart() { map.closePopup(); }
+    dragstart() {
+      map.closePopup();
+      // Mark that the user has manually interacted with the map.
+      // This prevents any future auto-centering from overriding their position.
+      userInteractedRef.current = true;
+    },
+    zoomstart() {
+      // Zoom interactions also count as manual interaction.
+      userInteractedRef.current = true;
+    },
   });
 
   useEffect(() => {
@@ -238,6 +260,16 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
 
   const userLocationRef = useRef<[number, number] | null>(null);
   const lastCalcRef = useRef(0);
+
+  // Track whether the map has done its initial centering on the user's GPS position.
+  // After the first successful locationfound → flyTo/setView, this becomes true
+  // and subsequent GPS updates will NOT re-center the map viewport.
+  const hasInitialCenteredRef = useRef(false);
+
+  // Track whether the user has manually interacted with the map (drag/zoom).
+  // This is an additional safety layer — even if initial centering hasn't happened
+  // yet, user interaction takes priority and prevents auto-centering.
+  const userInteractedRef = useRef(false);
 
   // Request notification permission on mount
   useEffect(() => {
@@ -403,6 +435,8 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
           setShowMapPin={setShowMapPin}
           setArrowPos={setArrowPos}
           setGpsStatus={setGpsStatus}
+          hasInitialCenteredRef={hasInitialCenteredRef}
+          userInteractedRef={userInteractedRef}
         />
         <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
 
