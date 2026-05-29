@@ -57,3 +57,18 @@ export type {
   ClaimData,
   PaginatedAPIResponse,
 } from "./lost-found";
+
+// ─── Tracking Types (from nearby-detector.ts) ─────────────────────────
+// Re-exported for convenient access via "@/types" barrel.
+// These types are used by commuter-map, dashboard, and notification modules.
+
+export type {
+  VehicleLocation,
+  NearbyVehicle,
+  ConductorRadiusResult,
+  GpsStatus,
+} from "../lib/nearby-detector";
+
+export {
+  NEARBY_RADIUS_KM,
+} from "../lib/nearby-detector";

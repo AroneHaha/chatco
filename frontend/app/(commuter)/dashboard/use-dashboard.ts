@@ -1,16 +1,25 @@
 // app/(commuter)/dashboard/use-dashboard.ts
-// Dashboard hook — follows the same pattern as use-profile, use-feedback, etc.
-// Extracts all state & logic from the dashboard page component.
-// Uses auth context for user data instead of hardcoded mockUser.
-// Includes 1KM proximity check for hail feature.
+// Dashboard hook — extracts modal state & commuter profile logic.
+//
+// ARCHITECTURE NOTE:
+// GPS tracking, conductor-radius validation, and ETA computation are
+// handled inside CommuterMap — the map has direct access to Leaflet's
+// location API and vehicle simulation state. The map communicates
+// results upward via the onNearbyVehiclesChange callback.
+//
+// This hook does NOT duplicate GPS tracking. The previous version ran
+// a separate navigator.geolocation.watchPosition here, which:
+//   1. Duplicated the map's GPS tracking (wasted resources)
+//   2. Couldn't access vehicle positions (only map has them)
+//   3. Hardcoded setCanHail(true) regardless of radius
+// All of that has been removed. canHail and nearbyVehicles are now
+// received from the map component via the page callback.
 
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { getCommuterTypeLabel } from "@/types";
-
-// 1KM radius for hail restriction — commuters can only hail if a vehicle is within this range
-const HAIL_RADIUS_KM = 1;
+import type { NearbyVehicle, GpsStatus } from "@/lib/nearby-detector";
 
 export function useDashboard() {
   const searchParams = useSearchParams();
@@ -25,10 +34,13 @@ export function useDashboard() {
   // Hail state
   const [isHailing, setIsHailing] = useState(false);
 
-  // 1KM proximity — tracks whether any vehicle is within hail range
-  const [canHail, setCanHail] = useState(false);
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [nearbyCount, setNearbyCount] = useState(0);
+  // Conductor-radius tracking — populated by CommuterMap via callback
+  const [nearbyVehicles, setNearbyVehicles] = useState<NearbyVehicle[]>([]);
+  const [gpsStatus, setGpsStatus] = useState<GpsStatus>("loading");
+
+  // canHail requires BOTH: GPS available AND commuter within conductor radius
+  const canHail = gpsStatus === "available" && nearbyVehicles.length > 0;
+  const nearestVehicle = canHail ? nearbyVehicles[0] : null;
 
   // Bottom sheet
   const [showSheet, setShowSheet] = useState(true);
@@ -43,51 +55,20 @@ export function useDashboard() {
     }
   }, [searchParams]);
 
-  // Track user location for 1KM hail restriction
-  useEffect(() => {
-    if (!("geolocation" in navigator)) return;
+  // Callback for CommuterMap to push tracking results upward
+  const handleNearbyVehiclesChange = useCallback(
+    (vehicles: NearbyVehicle[], status: GpsStatus) => {
+      setNearbyVehicles(vehicles);
+      setGpsStatus(status);
+    },
+    []
+  );
 
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        setUserLocation({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-        });
-      },
-      () => {
-        // Location denied or unavailable — can't determine proximity
-        setCanHail(false);
-        setNearbyCount(0);
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
-    );
-
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, []);
-
-  // Check 1KM proximity when user location changes
-  // This will be replaced by a real API call when backend is live:
-  // GET /api/vehicles/nearby?lat=X&lng=Y&radius=1
-  useEffect(() => {
-    if (!userLocation) {
-      setCanHail(false);
-      setNearbyCount(0);
-      return;
-    }
-
-    // TODO: Replace with real API call
-    // For now, enable hail if user location is available (proximity check
-    // will be enforced server-side when backend is live)
-    // The commuter map component also filters by 1KM and shows only nearby vehicles
-    setCanHail(true);
-    setNearbyCount(0); // Will be populated by real API
-  }, [userLocation]);
-
-  // Hail handler with 1KM check
+  // Hail handler with conductor-radius check
   const handleHail = useCallback(() => {
-    if (!canHail) return;
+    if (!isHailing && !canHail) return;
     setIsHailing((prev) => !prev);
-  }, [canHail]);
+  }, [canHail, isHailing]);
 
   // Derived values from auth context
   const user = commuterProfile
@@ -119,11 +100,15 @@ export function useDashboard() {
     showShareRide, setShowShareRide,
     showSOS, setShowSOS,
 
-    // Hail (with 1KM restriction)
-    isHailing,
-    setIsHailing,
+    // Conductor-radius tracking (from map)
+    nearbyVehicles,
+    gpsStatus,
     canHail,
-    nearbyCount,
+    nearestVehicle,
+    handleNearbyVehiclesChange,
+
+    // Hail (with conductor-radius restriction)
+    isHailing,
     handleHail,
 
     // Bottom sheet

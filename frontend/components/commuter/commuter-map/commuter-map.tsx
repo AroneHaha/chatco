@@ -1,26 +1,25 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { filterNearbyVehicles, formatDistance, type VehicleLocation, type NearbyVehicle } from "@/lib/nearby-detector";
+import {
+  validateConductorRadius,
+  formatDistance,
+  type VehicleLocation,
+  type NearbyVehicle,
+  type ConductorRadiusResult,
+  type GpsStatus,
+} from "@/lib/nearby-detector";
 import { sendProximityNotification, requestNotificationPermission, clearNotifiedVehicles } from "@/lib/proximity-notification";
+import { advanceAllVehicles, type SimulatedVehicle } from "@/lib/vehicle-simulation";
 
-// --- 1. BACKEND PROOFING: Types & Mock Data ---
-type VehicleCapacity = "AVAILABLE" | "STANDING" | "FULL"; // Green, Yellow, Red
+// --- 1. MOCK DATA ---
+// Uses SimulatedVehicle from vehicle-simulation module.
+// This replaces the local ActiveVehicle type — same shape, shared across modules.
 
-interface ActiveVehicle {
-  id: string;
-  plateNumber: string;
-  driverName: string;
-  conductorName: string;
-  routeIndex: number; // Index in ROUTE_COORDS array representing current location
-  capacity: VehicleCapacity;
-}
-
-// This array simulates a real-time API response: GET /api/vehicles/active
-const MOCK_ACTIVE_VEHICLES: ActiveVehicle[] = [
+const MOCK_ACTIVE_VEHICLES: SimulatedVehicle[] = [
   { id: "v_01", plateNumber: "ABC 1234", driverName: "Juan Dela Cruz", conductorName: "Pedro Penduko", routeIndex: 8, capacity: "AVAILABLE" },
   { id: "v_02", plateNumber: "XYZ 5678", driverName: "Mario Speedwagon", conductorName: "Luigi Mansion", routeIndex: 42, capacity: "STANDING" },
   { id: "v_03", plateNumber: "DEF 9012", driverName: "Crisostomo Ibarra", conductorName: "Sisa Doe", routeIndex: 68, capacity: "FULL" },
@@ -70,7 +69,7 @@ const ROUTE_COORDS: [number, number][] = [
 ];
 
 const rawBounds = L.latLngBounds(ROUTE_COORDS);
-const routeBounds = rawBounds.pad(0.008); 
+const routeBounds = rawBounds.pad(0.008);
 const mapBounds = L.latLngBounds(
   [rawBounds.getSouth() - 0.04, rawBounds.getWest() - 0.10],
   [rawBounds.getNorth() + 0.015, rawBounds.getEast() + 0.10]
@@ -91,6 +90,8 @@ function getBearing(start: [number, number], end: [number, number]): number {
   return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
 
+type VehicleCapacity = "AVAILABLE" | "STANDING" | "FULL";
+
 const getCapacityConfig = (capacity: VehicleCapacity) => {
   switch (capacity) {
     case "AVAILABLE": return { color: "#22c55e", label: "Maluwag / Available", twBg: "bg-green-500/10", twText: "text-green-400", twBorder: "border-green-500/30" };
@@ -99,13 +100,14 @@ const getCapacityConfig = (capacity: VehicleCapacity) => {
   }
 };
 
-function LocationFinder({ 
-  userLocationRef, setUserActualLocation, setShowMapPin, setArrowPos
-}: { 
+function LocationFinder({
+  userLocationRef, setUserActualLocation, setShowMapPin, setArrowPos, setGpsStatus
+}: {
   userLocationRef: React.MutableRefObject<[number, number] | null>;
   setUserActualLocation: (loc: [number, number] | null) => void;
   setShowMapPin: (val: boolean) => void;
   setArrowPos: (pos: { x: number; y: number; angle: number } | null) => void;
+  setGpsStatus: (status: GpsStatus) => void;
 }) {
   const map = useMap();
 
@@ -115,29 +117,34 @@ function LocationFinder({
       const userCoords: [number, number] = [lat, lng];
       setUserActualLocation(userCoords);
       userLocationRef.current = userCoords;
-      
+      setGpsStatus("available");
+
       const userLatLng = L.latLng(lat, lng);
-      
+
       // ALWAYS show the pin when location is found
       setShowMapPin(true);
 
       // Fly to user if they are near the route (smooth animation, high zoom)
       if (routeBounds.contains(userLatLng)) {
-        setArrowPos(null); 
+        setArrowPos(null);
         map.flyTo([lat, lng], 16, { duration: 1.5 });
-      } 
-      // If in the general map area but not on the route, use setView. 
-      // setView forces the camera to move to you without getting blocked by maxBounds.
+      }
+      // If in the general map area but not on the route, use setView.
       else if (mapBounds.contains(userLatLng)) {
         setArrowPos(null);
-        map.setView([lat, lng], 13, { animate: true }); 
+        map.setView([lat, lng], 13, { animate: true });
       }
       // If completely outside map bounds, don't move camera. The arrow will point towards them.
     },
-    locationerror() {
-      // Silently handle — user may deny location access, which is normal.
-      // The map still works; they just won't see their position pin
-      // or the 1KM hail radius until they grant permission.
+    locationerror(e: any) {
+      // Map GeolocationPositionError codes to GpsStatus
+      // code 1 = PERMISSION_DENIED, code 2 = POSITION_UNAVAILABLE, code 3 = TIMEOUT
+      const code = e?.code;
+      if (code === 1) {
+        setGpsStatus("denied");
+      } else {
+        setGpsStatus("unavailable");
+      }
     },
     move() {
       const userCoords = userLocationRef.current;
@@ -145,7 +152,7 @@ function LocationFinder({
 
       const userLatLng = L.latLng(userCoords[0], userCoords[1]);
       const bounds = map.getBounds();
-      
+
       if (bounds.contains(userLatLng)) {
         setArrowPos(null);
         return;
@@ -185,57 +192,125 @@ function LocationFinder({
 // --- 4. MAIN COMPONENT ---
 interface CommuterMapProps {
   isDesktop?: boolean;
-  /** Callback fired when nearby vehicles change — used by dashboard for 1KM hail restriction */
-  onNearbyVehiclesChange?: (vehicles: NearbyVehicle[]) => void;
+  /** Callback fired when tracking data updates — used by dashboard for ETA + hail restriction */
+  onNearbyVehiclesChange?: (vehicles: NearbyVehicle[], gpsStatus: GpsStatus) => void;
 }
+
+// Minimum interval (ms) between distance/ETA recalculations.
+// Prevents excessive rerenders from high-frequency GPS updates.
+// Spec requires 3–5 seconds; 3500ms ensures we stay within that range
+// while allowing the 4s simulation tick to always trigger a recalculation.
+const CALC_THROTTLE_MS = 3500;
+
+// Vehicle simulation tick interval (ms).
+// Each tick advances all vehicles one step along the route.
+const SIMULATION_TICK_MS = 4000;
 
 export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange }: CommuterMapProps) {
   const [isDomReady, setIsDomReady] = useState(false);
   const [userActualLocation, setUserActualLocation] = useState<[number, number] | null>(null);
   const [showMapPin, setShowMapPin] = useState(false);
   const [arrowPos, setArrowPos] = useState<{ x: number; y: number; angle: number } | null>(null);
-  const [nearbyVehicles, setNearbyVehicles] = useState<NearbyVehicle[]>([]);
+
+  // Vehicle simulation state — replaces static MOCK_ACTIVE_VEHICLES
+  const [activeVehicles, setActiveVehicles] = useState<SimulatedVehicle[]>(MOCK_ACTIVE_VEHICLES);
+
+  // Conductor radius validation result — replaces nearbyVehicles
+  const [radiusResult, setRadiusResult] = useState<ConductorRadiusResult | null>(null);
+
+  // GPS status tracking — communicated to dashboard for UI state
+  const [gpsStatus, setGpsStatus] = useState<GpsStatus>("loading");
+
   const userLocationRef = useRef<[number, number] | null>(null);
+  const lastCalcRef = useRef(0);
 
   // Request notification permission on mount
   useEffect(() => {
     requestNotificationPermission();
   }, []);
 
-  // Filter vehicles by 1km radius when user location changes
+  // --- Cleanup: clear notification dedup set on unmount ---
+  // WHY: The proximity-notification module keeps a Set of notified vehicle plates
+  // to avoid spamming the same notification. Without clearing on unmount, this Set
+  // grows indefinitely during a session. If the user navigates away and back, they
+  // would never receive notifications for vehicles they were already notified about.
+  // Clearing on unmount ensures a fresh start each time the map mounts.
+  useEffect(() => {
+    return () => {
+      clearNotifiedVehicles();
+    };
+  }, []);
+
+  // --- Vehicle simulation interval ---
+  // WHY: Vehicles are currently static. ETA is meaningless without movement.
+  // This interval advances all vehicles along the route every 4 seconds.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveVehicles((prev) => advanceAllVehicles(prev, ROUTE_COORDS.length));
+    }, SIMULATION_TICK_MS);
+    return () => clearInterval(interval);
+  }, []);
+
+  // --- Throttled distance/ETA recalculation ---
+  // WHY: GPS fires ~1s, but spec requires 3–5s update interval.
+  // Throttle prevents excessive recalculations and rerenders.
+  // The simulation tick (4s) drives most updates; GPS updates between
+  // ticks are throttled away.
   useEffect(() => {
     if (!userActualLocation) return;
 
-    const vehicleLocations: VehicleLocation[] = MOCK_ACTIVE_VEHICLES.map((v) => {
+    const now = Date.now();
+    if (now - lastCalcRef.current < CALC_THROTTLE_MS) return;
+    lastCalcRef.current = now;
+
+    const vehicleLocations: VehicleLocation[] = activeVehicles.map((v) => {
       const coord = ROUTE_COORDS[v.routeIndex];
       return {
         id: v.id,
         plateNumber: v.plateNumber,
         lat: coord[0],
         lng: coord[1],
-        capacityStatus: v.capacity === "AVAILABLE" ? "Available" : "Full",
-        speed: 30,
+        capacityStatus: v.capacity === "AVAILABLE" ? "Available" : v.capacity === "STANDING" ? "Standing" : "Full",
+        speed: 25,
         lastUpdated: new Date(),
       };
     });
 
-    const nearby = filterNearbyVehicles(
+    const result = validateConductorRadius(
       vehicleLocations,
       userActualLocation[0],
-      userActualLocation[1],
-      1 // 1km radius
+      userActualLocation[1]
     );
 
-    setNearbyVehicles(nearby);
+    setRadiusResult(result);
 
-    // Notify parent (dashboard) of nearby vehicles for 1KM hail restriction
-    onNearbyVehiclesChange?.(nearby);
-
-    // Send proximity notifications for newly detected vehicles
-    nearby.forEach((v) => {
+    // Send proximity notifications for newly detected within-radius vehicles
+    result.withinRadius.forEach((v) => {
       sendProximityNotification(v.plateNumber, formatDistance(v.distanceInMeters));
     });
-  }, [userActualLocation, onNearbyVehiclesChange]);
+
+    // Clear notification dedup when commuter exits ALL conductor radii.
+    // WHY: If the commuter walks out of range and back in, they should
+    // receive fresh notifications. Without clearing, the Set would still
+    // contain the old plate numbers and suppress the re-notification.
+    if (result.withinRadius.length === 0) {
+      clearNotifiedVehicles();
+    }
+  }, [userActualLocation, activeVehicles]);
+
+  // --- Notify parent of tracking updates ---
+  // WHY: Dashboard needs both the within-radius vehicles AND the GPS status
+  // to correctly render ETA panel, hail button state, and status messages.
+  // Separated from the computation effect to keep concerns clean.
+  useEffect(() => {
+    if (gpsStatus === "available") {
+      onNearbyVehiclesChange?.(radiusResult?.withinRadius || [], gpsStatus);
+    } else {
+      // When GPS is not available, send empty vehicles with current status
+      // so the dashboard can show the appropriate GPS error state
+      onNearbyVehiclesChange?.([], gpsStatus);
+    }
+  }, [radiusResult, gpsStatus, onNearbyVehiclesChange]);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsDomReady(true), 200);
@@ -251,10 +326,11 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
     iconSize: [20, 20], iconAnchor: [10, 10],
   }), []);
 
-  // Dynamic Jeepney Icon Generator based on Capacity + Nearby indicator
-  const getJeepneyIcon = useMemo(() => (capacity: VehicleCapacity, isNearby: boolean = false) => {
+  // Dynamic Jeepney Icon Generator based on Capacity + Within-radius indicator
+  const getJeepneyIcon = useMemo(() => (capacity: VehicleCapacity, isWithinRadius: boolean = false) => {
     const config = getCapacityConfig(capacity);
-    const greenDot = isNearby
+    // Green dot indicates commuter is within THIS conductor's 1km radius
+    const greenDot = isWithinRadius
       ? `<div style="position: absolute; top: -2px; right: -2px; width: 14px; height: 14px; background: #22c55e; border-radius: 50%; border: 2px solid #071A2E; box-shadow: 0 0 6px rgba(34,197,94,0.6); z-index: 2;"></div>`
       : '';
     return new L.DivIcon({
@@ -271,10 +347,15 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
 
   if (!isDomReady) return <div className="absolute inset-0 bg-[#050F1A]" />;
 
+  // Build lookup sets for O(1) within-radius checks
+  const withinRadiusIds = new Set((radiusResult?.withinRadius || []).map((v) => v.id));
+  const withinRadiusMap = new Map((radiusResult?.withinRadius || []).map((v) => [v.id, v]));
+  const allVehiclesMap = new Map((radiusResult?.allVehiclesWithDistance || []).map((v) => [v.id, v]));
+
   return (
     <>
       {arrowPos && (
-        <div 
+        <div
           className="absolute z-[1000] flex flex-col items-center pointer-events-none select-none"
           style={{ left: `${arrowPos.x}%`, top: `${arrowPos.y}%`, transform: `translate(-50%, -50%)` }}
         >
@@ -286,12 +367,19 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
       )}
 
       <MapContainer center={MAP_CENTER} zoom={12} zoomControl={false} attributionControl={false} className="w-full h-full" style={{ background: '#050F1A' }} maxBounds={mapBoundsArray} maxBoundsViscosity={1.0} minZoom={isDesktop ? 13 : 11}>
-        <LocationFinder userLocationRef={userLocationRef} setUserActualLocation={setUserActualLocation} setShowMapPin={setShowMapPin} setArrowPos={setArrowPos} />
+        <LocationFinder
+          userLocationRef={userLocationRef}
+          setUserActualLocation={setUserActualLocation}
+          setShowMapPin={setShowMapPin}
+          setArrowPos={setArrowPos}
+          setGpsStatus={setGpsStatus}
+        />
         <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
-        
+
         <Polyline positions={ROUTE_COORDS} pathOptions={{ color: '#62A0EA', weight: 8, opacity: 0.2, lineCap: 'round', lineJoin: 'round' }} />
         <Polyline positions={ROUTE_COORDS} pathOptions={{ color: '#62A0EA', weight: 4, opacity: 0.9, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }} />
 
+        {/* --- COMMUTER LOCATION PIN --- */}
         {showMapPin && userActualLocation && (
           <Marker position={userActualLocation} icon={commuterIcon}>
             <Popup>
@@ -301,59 +389,76 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
           </Marker>
         )}
 
-        {/* --- 1KM RADIUS CIRCLE --- */}
-        {showMapPin && userActualLocation && (
-          <Circle
-            center={userActualLocation}
-            radius={1000}
-            pathOptions={{ color: '#62A0EA', weight: 1, opacity: 0.3, fillColor: '#62A0EA', fillOpacity: 0.03 }}
-          />
-        )}
+        {/* --- CONDUCTOR 1KM RADIUS CIRCLES --- */}
+        {/* WHY: The 1km radius now belongs to each conductor/unit.
+            Commuters see these circles to understand which vehicles they can hail.
+            Green = commuter is within this conductor's radius (can hail).
+            Blue = commuter is outside this conductor's radius (cannot hail). */}
+        {activeVehicles.map((vehicle) => {
+          const isWithinRadius = withinRadiusIds.has(vehicle.id);
+          const vehicleCoord = ROUTE_COORDS[vehicle.routeIndex];
+          return (
+            <Circle
+              key={`radius-${vehicle.id}`}
+              center={vehicleCoord}
+              radius={1000}
+              pathOptions={{
+                color: isWithinRadius ? "#22c55e" : "#62A0EA",
+                weight: 1,
+                opacity: isWithinRadius ? 0.4 : 0.15,
+                fillColor: isWithinRadius ? "#22c55e" : "#62A0EA",
+                fillOpacity: isWithinRadius ? 0.04 : 0.01,
+                dashArray: "4 8",
+              }}
+            />
+          );
+        })}
 
-        {/* --- ALL JEEPNEY MARKERS (commuters see all; nearby ones get green dot + extra info) --- */}
-        {(() => {
-          // Build a Set of nearby vehicle IDs for O(1) lookup
-          const nearbyIds = new Set(nearbyVehicles.map((v) => v.id));
-          const nearbyMap = new Map(nearbyVehicles.map((v) => [v.id, v]));
+        {/* --- ALL JEEPNEY MARKERS (always visible; within-radius ones get green dot + ETA) --- */}
+        {activeVehicles.map((vehicle) => {
+          const config = getCapacityConfig(vehicle.capacity);
+          const isWithinRadius = userActualLocation ? withinRadiusIds.has(vehicle.id) : false;
+          const withinRadiusInfo = isWithinRadius ? withinRadiusMap.get(vehicle.id) : null;
+          const distanceInfo = userActualLocation ? allVehiclesMap.get(vehicle.id) : null;
 
-          return MOCK_ACTIVE_VEHICLES.map((vehicle) => {
-            const config = getCapacityConfig(vehicle.capacity);
-            const isNearby = userActualLocation ? nearbyIds.has(vehicle.id) : false;
-            const nearbyInfo = isNearby ? nearbyMap.get(vehicle.id) : null;
-
-            return (
-              <Marker
-                key={vehicle.id}
-                position={ROUTE_COORDS[vehicle.routeIndex]}
-                icon={getJeepneyIcon(vehicle.capacity, isNearby)}
-              >
-                <Popup>
-                  <div className="space-y-2 min-w-[180px]">
-                    <div className="flex items-center justify-between">
-                      <div className="font-bold text-[#071A2E]">{vehicle.plateNumber}</div>
-                      <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${config.twBg} ${config.twText} ${config.twBorder} border`}>{config.label}</span>
-                    </div>
-                    <div className="text-xs text-gray-500 space-y-0.5 pt-1 border-t border-gray-100">
-                      <p><span className="font-medium text-gray-700">Driver:</span> {vehicle.driverName}</p>
-                      <p><span className="font-medium text-gray-700">Conductor:</span> {vehicle.conductorName}</p>
-                      {isNearby && nearbyInfo && (
-                        <>
-                          <p><span className="font-medium text-gray-700">Distance:</span> {formatDistance(nearbyInfo.distanceInMeters)}</p>
-                          <p><span className="font-medium text-gray-700">ETA:</span> ~{nearbyInfo.estimatedArrivalMinutes} min</p>
-                        </>
-                      )}
-                    </div>
-                    {vehicle.capacity === "FULL" && (
-                      <div className="text-[10px] font-medium text-red-500 bg-red-50 p-1.5 rounded text-center border border-red-100">
-                        Not accepting passengers
-                      </div>
+          return (
+            <Marker
+              key={vehicle.id}
+              position={ROUTE_COORDS[vehicle.routeIndex]}
+              icon={getJeepneyIcon(vehicle.capacity, isWithinRadius)}
+            >
+              <Popup>
+                <div className="space-y-2 min-w-[180px]">
+                  <div className="flex items-center justify-between">
+                    <div className="font-bold text-[#071A2E]">{vehicle.plateNumber}</div>
+                    <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${config.twBg} ${config.twText} ${config.twBorder} border`}>{config.label}</span>
+                  </div>
+                  <div className="text-xs text-gray-500 space-y-0.5 pt-1 border-t border-gray-100">
+                    <p><span className="font-medium text-gray-700">Driver:</span> {vehicle.driverName}</p>
+                    <p><span className="font-medium text-gray-700">Conductor:</span> {vehicle.conductorName}</p>
+                    {/* Distance shown for ALL vehicles when GPS is available */}
+                    {distanceInfo && (
+                      <p><span className="font-medium text-gray-700">Distance:</span> {formatDistance(distanceInfo.distanceInMeters)}</p>
+                    )}
+                    {/* ETA shown ONLY when commuter is within conductor radius */}
+                    {isWithinRadius && withinRadiusInfo && (
+                      <p className="text-green-700 font-medium"><span className="font-medium text-gray-700">ETA:</span> ~{withinRadiusInfo.estimatedArrivalMinutes} min</p>
+                    )}
+                    {/* Status message when outside conductor radius */}
+                    {distanceInfo && !isWithinRadius && vehicle.capacity !== "FULL" && (
+                      <p className="text-yellow-600 text-[10px] italic">Outside pickup radius</p>
                     )}
                   </div>
-                </Popup>
-              </Marker>
-            );
-          });
-        })()}
+                  {vehicle.capacity === "FULL" && (
+                    <div className="text-[10px] font-medium text-red-500 bg-red-50 p-1.5 rounded text-center border border-red-100">
+                      Not accepting passengers
+                    </div>
+                  )}
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
       </MapContainer>
 
       <style jsx global>{`

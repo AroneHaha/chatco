@@ -5,6 +5,7 @@
  *   - lib/fare-calculator.ts (getNearestPoint)
  *   - lib/fare-matrix-data.ts (findNearestPoint)
  *   - lib/nearby-detector.ts (calculateDistance)
+ *   - components/conductor/conductor-map.tsx (getDistanceMeters)
  *
  * All consumers should import from "@/lib/utils/geo".
  */

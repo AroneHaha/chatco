@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import dynamic from "next/dynamic";
-import type { NearbyVehicle } from "@/lib/nearby-detector";
+import type { NearbyVehicle, GpsStatus } from "@/lib/nearby-detector";
 import { useAuth } from "@/contexts/auth-context";
 
 import PaymentHistoryModal from "@/components/commuter/modals/payment-history-modal";
@@ -30,12 +30,17 @@ export default function CommuterHome() {
   const [isHailing, setIsHailing] = useState(false);
   const [showSheet, setShowSheet] = useState(true);
 
-  // ─── 1KM HAIL RESTRICTION ───────────────────────────────────────────
+  // ─── CONDUCTOR RADIUS + GPS TRACKING ────────────────────────────────
   const [nearbyVehicles, setNearbyVehicles] = useState<NearbyVehicle[]>([]);
-  const canHail = nearbyVehicles.length > 0;
+  const [gpsStatus, setGpsStatus] = useState<GpsStatus>("loading");
 
-  const handleNearbyVehiclesChange = useCallback((vehicles: NearbyVehicle[]) => {
+  // canHail requires BOTH: GPS available AND commuter within conductor radius
+  const canHail = gpsStatus === "available" && nearbyVehicles.length > 0;
+  const nearestVehicle = canHail ? nearbyVehicles[0] : null;
+
+  const handleNearbyVehiclesChange = useCallback((vehicles: NearbyVehicle[], status: GpsStatus) => {
     setNearbyVehicles(vehicles);
+    setGpsStatus(status);
   }, []);
 
   const handleHailToggle = () => {
@@ -127,7 +132,7 @@ export default function CommuterHome() {
             )}
           </button>
           <span className="block text-center text-[10px] font-extrabold text-white mt-2 drop-shadow-lg uppercase tracking-wider">
-            {isHailing ? "Cancel" : canHail ? "Hail Me" : "Too Far"}
+            {isHailing ? "Cancel" : canHail ? "Hail Me" : gpsStatus === "loading" ? "Locating..." : gpsStatus === "denied" ? "No GPS" : "Too Far"}
           </span>
         </div>
         <div
@@ -145,6 +150,66 @@ export default function CommuterHome() {
           )}
         </div>
         <div className="px-5 pb-24 overflow-y-auto max-h-[60vh]">
+          {/* --- ETA / STATUS SECTION (Mobile) --- */}
+          {gpsStatus === "loading" && (
+            <div className="bg-white/5 border border-white/10 rounded-xl p-3 mb-3 flex items-center gap-2.5">
+              <div className="w-4 h-4 rounded-full border-2 border-[#62A0EA] border-t-transparent animate-spin flex-shrink-0" />
+              <span className="text-xs text-white/50">Locating you...</span>
+            </div>
+          )}
+
+          {gpsStatus === "denied" && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 mb-3">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                </svg>
+                <span className="text-xs font-semibold text-red-400">Location access denied</span>
+              </div>
+              <p className="text-[10px] text-white/40 mt-1">Enable location to see ETA and hail vehicles.</p>
+            </div>
+          )}
+
+          {gpsStatus === "unavailable" && (
+            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 mb-3">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-yellow-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                </svg>
+                <span className="text-xs font-semibold text-yellow-400">Location unavailable</span>
+              </div>
+              <p className="text-[10px] text-white/40 mt-1">GPS is not available on this device.</p>
+            </div>
+          )}
+
+          {gpsStatus === "available" && canHail && nearestVehicle && (
+            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 mb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Live</span>
+                </div>
+                <span className="text-lg font-extrabold text-white">~{nearestVehicle.estimatedArrivalMinutes} min</span>
+              </div>
+              <div className="flex items-center justify-between mt-1.5">
+                <span className="text-[10px] text-white/40">{nearestVehicle.plateNumber}</span>
+                <span className="text-[10px] text-white/50">{(nearestVehicle.distanceInMeters / 1000).toFixed(1)} km away</span>
+              </div>
+            </div>
+          )}
+
+          {gpsStatus === "available" && !canHail && (
+            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 mb-3">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-yellow-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                </svg>
+                <span className="text-xs font-semibold text-yellow-400">Outside service radius</span>
+              </div>
+              <p className="text-[10px] text-white/40 mt-1">Move within 1km of a conductor unit to hail.</p>
+            </div>
+          )}
+
           {/* GCash Pay Card — commuter SCANS conductor's QR */}
           <div
             onClick={() => setShowScan(true)}
@@ -265,16 +330,69 @@ export default function CommuterHome() {
             </div>
           </div>
 
-          {/* Nearby Vehicles Indicator */}
-          {!canHail && (
-            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3">
+          {/* --- ETA / STATUS SECTION (Desktop) --- */}
+          {gpsStatus === "loading" && (
+            <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center gap-3">
+              <div className="w-5 h-5 rounded-full border-2 border-[#62A0EA] border-t-transparent animate-spin flex-shrink-0" />
+              <div>
+                <span className="text-sm text-white/60">Locating you...</span>
+                <p className="text-[10px] text-white/30 mt-0.5">Waiting for GPS signal</p>
+              </div>
+            </div>
+          )}
+
+          {gpsStatus === "denied" && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
               <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-5 h-5 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
                 </svg>
-                <span className="text-xs font-semibold text-yellow-400">No vehicles within 1KM</span>
+                <span className="text-sm font-semibold text-red-400">Location access denied</span>
               </div>
-              <p className="text-[10px] text-white/40 mt-1">Hail is disabled until a vehicle is within range.</p>
+              <p className="text-xs text-white/40 mt-1.5">Enable location permission to see ETA and hail vehicles.</p>
+            </div>
+          )}
+
+          {gpsStatus === "unavailable" && (
+            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-yellow-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                </svg>
+                <span className="text-sm font-semibold text-yellow-400">Location unavailable</span>
+              </div>
+              <p className="text-xs text-white/40 mt-1.5">GPS is not available on this device.</p>
+            </div>
+          )}
+
+          {gpsStatus === "available" && canHail && nearestVehicle && (
+            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Live Tracking</span>
+                </div>
+                <span className="text-2xl font-extrabold text-white">~{nearestVehicle.estimatedArrivalMinutes} min</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-white/40">{nearestVehicle.plateNumber}</span>
+                <span className="text-xs text-white/50">{(nearestVehicle.distanceInMeters / 1000).toFixed(1)} km away</span>
+              </div>
+              {nearbyVehicles.length > 1 && (
+                <p className="text-[10px] text-emerald-400/60 mt-2">+{nearbyVehicles.length - 1} more vehicle{nearbyVehicles.length > 2 ? "s" : ""} in range</p>
+              )}
+            </div>
+          )}
+
+          {gpsStatus === "available" && !canHail && (
+            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-yellow-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                </svg>
+                <span className="text-sm font-semibold text-yellow-400">You are outside the conductor service radius</span>
+              </div>
+              <p className="text-xs text-white/40 mt-1.5">Move within 1km of a conductor unit to see ETA and hail. Vehicle locations are still visible on the map.</p>
             </div>
           )}
 
@@ -318,7 +436,7 @@ export default function CommuterHome() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
                 </svg>{" "}
-                {canHail ? "Hail Me" : "No Vehicle in Range"}
+                {gpsStatus === "loading" ? "Locating..." : gpsStatus === "denied" || gpsStatus === "unavailable" ? "No GPS Access" : canHail ? "Hail Me" : "Outside Service Radius"}
               </>
             )}
           </button>
