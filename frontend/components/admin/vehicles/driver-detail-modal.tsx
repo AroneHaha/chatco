@@ -15,16 +15,13 @@ import {
   CheckCircle,
   MessageCircle,
 } from "lucide-react";
-import {
-  driverProfiles,
-  driverRatings,
-  type DriverProfile,
-  type DriverRating,
-} from "@/app/(admin)/vehicles/data/vehicles-data";
+import type { DriverProfile, DriverRating } from "@/app/(admin)/vehicles/data/vehicles-data";
 
 interface DriverDetailModalProps {
   driverId: number | null;
   onClose: () => void;
+  driverProfiles: Record<string, DriverProfile>;
+  driverRatings: Record<string, DriverRating[]>;
 }
 
 // ─── Star Rating Display ───
@@ -78,7 +75,7 @@ function RatingBar({
   );
 }
 
-export function DriverDetailModal({ driverId, onClose }: DriverDetailModalProps) {
+export function DriverDetailModal({ driverId, onClose, driverProfiles, driverRatings }: DriverDetailModalProps) {
   const profile: DriverProfile | undefined = driverId
     ? driverProfiles[String(driverId)]
     : undefined;

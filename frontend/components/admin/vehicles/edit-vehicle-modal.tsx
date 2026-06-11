@@ -1,15 +1,16 @@
 // components/admin/vehicles/edit-vehicle-modal.tsx
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
+import type { Vehicle, Personnel } from '@/app/(admin)/vehicles/data/vehicles-data';
 
 interface EditVehicleModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: any) => void;
-  editingVehicle: any;
-  allPersonnel: { id: number; name: string; role: string }[];
+  onSave: (data: Partial<Vehicle>) => void;
+  editingVehicle: Vehicle | null;
+  allPersonnel: Personnel[];
 }
 
 export function EditVehicleModal({ isOpen, onClose, onSave, editingVehicle, allPersonnel }: EditVehicleModalProps) {
@@ -18,7 +19,7 @@ export function EditVehicleModal({ isOpen, onClose, onSave, editingVehicle, allP
     route: '',
     driver: '',
     conductor: '',
-    status: 'Operating',
+    status: 'Operating' as Vehicle['status'],
   });
 
   // When modal opens or vehicle changes, populate form
@@ -34,15 +35,6 @@ export function EditVehicleModal({ isOpen, onClose, onSave, editingVehicle, allP
     }
   }, [editingVehicle]);
 
-  // Calculate available options: Unassigned + Currently assigned to THIS vehicle
-  const assignedToOtherVehicles = useMemo(() => {
-    if (!editingVehicle) return { drivers: new Set(), conductors: new Set() };
-    // In pure UI, we can't easily know who is assigned to what without passing the whole list.
-    // To keep it safe and simple: Show ALL personnel, but indicate who is assigned elsewhere if needed, 
-    // OR just show everyone for editing flexibility (admin overrides).
-    return { drivers: new Set<string>(), conductors: new Set<string>() };
-  }, [editingVehicle]);
-
   const availableDrivers = allPersonnel.filter(p => p.role === 'Driver');
   const availableConductors = allPersonnel.filter(p => p.role === 'Conductor');
 
@@ -54,7 +46,7 @@ export function EditVehicleModal({ isOpen, onClose, onSave, editingVehicle, allP
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // Convert empty strings back to null for unassigned state
-    const payload = {
+    const payload: Partial<Vehicle> = {
       ...formData,
       driver: formData.driver || null,
       conductor: formData.conductor || null,

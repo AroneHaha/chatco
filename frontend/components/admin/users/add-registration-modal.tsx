@@ -1,3 +1,4 @@
+// components/admin/users/add-registration-modal.tsx
 'use client';
 
 import { useState } from 'react';
@@ -7,7 +8,19 @@ import { Upload, X } from 'lucide-react';
 interface AddRegistrationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: any) => void;
+  onSave: (data: {
+    firstName: string;
+    middleInitial: string;
+    lastName: string;
+    birthday: string;
+    username: string;
+    password: string;
+    email: string;
+    phoneNumber: string;
+    commuterType: string;
+    idImageFile: File | null;
+    idImagePreview: string | null;
+  }) => void;
 }
 
 export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistrationModalProps) {

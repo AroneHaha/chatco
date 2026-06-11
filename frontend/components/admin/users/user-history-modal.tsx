@@ -1,11 +1,12 @@
 // components/admin/users/user-history-modal.tsx
 import { Modal } from '@/components/admin/ui/modal';
 import { Clock } from 'lucide-react';
+import type { HistoryLog } from '@/app/(admin)/users/data/users-data';
 
 interface UserHistoryModalProps {
   isOpen: boolean;
   onClose: () => void;
-  logs: { id: string; date: string; action: string; details: string }[];
+  logs: HistoryLog[];
 }
 
 export function UserHistoryModal({ isOpen, onClose, logs }: UserHistoryModalProps) {

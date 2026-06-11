@@ -8,9 +8,19 @@ import { UserPlus, MapPin, Upload, Check, User, Phone } from 'lucide-react';
 interface AddPersonnelModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSave: (data: {
+    firstName: string;
+    middleName: string;
+    lastName: string;
+    birthday: string;
+    contact: string;
+    route: string;
+    role: 'Driver';
+    profilePicture: string | null;
+  }) => void;
 }
 
-export function AddPersonnelModal({ isOpen, onClose }: AddPersonnelModalProps) {
+export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState({
@@ -55,12 +65,11 @@ export function AddPersonnelModal({ isOpen, onClose }: AddPersonnelModalProps) {
     
     const payload = {
       ...formData,
-      role: 'Driver',
+      role: 'Driver' as const,
       profilePicture: useDefaultPicture ? null : profilePicture, // Send null if default is used
     };
 
-    console.log('New Driver Data:', payload);
-    alert('Driver added! (Check console for data)');
+    onSave(payload);
     onClose();
     
     // Reset form

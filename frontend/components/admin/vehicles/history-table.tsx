@@ -1,30 +1,12 @@
+// components/admin/vehicles/history-table.tsx
 "use client";
 
 import { useState } from "react";
 import { ChevronDown, UserX, FileText } from "lucide-react";
-
-interface TerminatedPerson {
-  id: number;
-  name: string;
-  role: string;
-  contact: string;
-  status: 'Terminated' | 'Resigned';
-  reason: string;
-  terminatedDate: string;
-  lastVehicle: string;
-}
-
-interface ShiftLog {
-  id: string;
-  personnelName: string;
-  role: string;
-  vehicle: string;
-  shiftDate: string;
-  details: string;
-}
+import type { TerminatedPersonnel, ShiftLog } from "@/app/(admin)/vehicles/data/vehicles-data";
 
 interface HistoryTableProps {
-  terminatedPersonnel: TerminatedPerson[];
+  terminatedPersonnel: TerminatedPersonnel[];
   shiftHistoryLog: ShiftLog[];
   searchQuery: string;
 }

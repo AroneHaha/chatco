@@ -1,3 +1,4 @@
+// app/(admin)/users/page.tsx
 'use client';
 
 import { useState } from 'react';
@@ -5,37 +6,72 @@ import { UsersTable } from '@/components/admin/users/users-table';
 import { RegistrationRequestsTable } from '@/components/admin/users/registration-requests-table';
 import { ReviewRequestModal } from '@/components/admin/users/review-request-modal';
 import { AddRegistrationModal } from '@/components/admin/users/add-registration-modal';
+import { EditUserModal } from '@/components/admin/users/edit-user-modal';
 import { UserHistoryModal } from '@/components/admin/users/user-history-modal';
 import { SearchBar } from '@/components/admin/ui/search-bar';
-import { Plus, UserCheck, Users, XCircle } from 'lucide-react';
-import {
-  initialActiveUsers,
-  initialPendingRequests,
-  initialRejectedUsers,
-  initialHistoryLogs,
-  type ActiveUser,
-  type PendingRequest,
-  type RejectedUser,
-} from './data/users-data';
+import { Plus, UserCheck, Users, XCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { useUsersData } from './data/users-data';
+import type { ActiveUser, PendingRequest, RejectedUser } from './data/users-data';
+import { SkeletonTable } from '@/components/admin/ui/skeleton';
 
 export default function UsersPage() {
+  const { data, isLoading, error, refetch, setData } = useUsersData();
+
   const [activeTab, setActiveTab] = useState<'active' | 'pending' | 'rejected'>('active');
   const [searchQuery, setSearchQuery] = useState('');
   
-  const [activeUsers, setActiveUsers] = useState<ActiveUser[]>(initialActiveUsers);
-  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>(initialPendingRequests);
-  const [rejectedUsers, setRejectedUsers] = useState<RejectedUser[]>(initialRejectedUsers);
-  const [historyLogs, setHistoryLogs] = useState(initialHistoryLogs);
+  const [activeUsers, setActiveUsers] = useState<ActiveUser[]>(data.activeUsers);
+  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>(data.pendingRequests);
+  const [rejectedUsers, setRejectedUsers] = useState<RejectedUser[]>(data.rejectedUsers);
+  const [historyLogs, setHistoryLogs] = useState(data.historyLogs);
   
   // Modal States
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   
   const [selectedRequest, setSelectedRequest] = useState<PendingRequest | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<ActiveUser | RejectedUser | null>(null);
+  const [editingUser, setEditingUser] = useState<ActiveUser | null>(null);
 
+  // ─── Loading State ───
+  if (isLoading) {
+    return (
+      <>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+          <h1 className="text-2xl font-bold text-white">Commuter Management</h1>
+        </div>
+        <div className="flex space-x-1 mb-6 border-b border-[#1E2D45]">
+          <div className="py-2 px-4"><span className="text-sm text-slate-500">Active Commuters</span></div>
+          <div className="py-2 px-4"><span className="text-sm text-slate-500">Pending Verification</span></div>
+          <div className="py-2 px-4"><span className="text-sm text-slate-500">Rejected</span></div>
+        </div>
+        <SkeletonTable rows={5} columns={5} />
+      </>
+    );
+  }
+
+  // ─── Error State ───
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-4">
+        <AlertCircle size={40} className="text-red-400" />
+        <p className="text-slate-300 text-center">Failed to load commuter data.</p>
+        <p className="text-slate-500 text-sm text-center">{error}</p>
+        <button
+          onClick={refetch}
+          className="flex items-center gap-2 px-4 py-2 bg-[#62A0EA] text-white rounded-md hover:bg-[#4A8BD4] transition-colors"
+        >
+          <RefreshCw size={16} />
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  // Modal Handlers
   const handleOpenRegisterModal = () => setIsRegisterModalOpen(true);
   const handleCloseRegisterModal = () => setIsRegisterModalOpen(false);
 
@@ -57,8 +93,48 @@ export default function UsersPage() {
     setIsHistoryModalOpen(false);
   };
 
-  const handleSaveRegistration = (data: any) => {
-    const newRequest = { id: `REQ-${Date.now()}`, ...data, status: 'Pending Verification' };
+  const handleOpenEditModal = (user: ActiveUser) => {
+    setEditingUser(user);
+    setIsEditModalOpen(true);
+  };
+  const handleCloseEditModal = () => {
+    setEditingUser(null);
+    setIsEditModalOpen(false);
+  };
+  const handleSaveEditUser = (updatedData: Partial<ActiveUser>) => {
+    // TODO: Replace with API call when backend is ready
+    if (!editingUser) return;
+    setActiveUsers(prev => prev.map(u => u.id === editingUser.id ? { ...u, ...updatedData } : u));
+    setData(prev => ({
+      ...prev,
+      activeUsers: prev.activeUsers.map(u => u.id === editingUser.id ? { ...u, ...updatedData } : u),
+    }));
+    handleCloseEditModal();
+  };
+
+  const handleSaveRegistration = (formData: {
+    firstName: string;
+    middleInitial: string;
+    lastName: string;
+    birthday: string;
+    username: string;
+    password: string;
+    email: string;
+    phoneNumber: string;
+    commuterType: string;
+    idImageFile: File | null;
+    idImagePreview: string | null;
+  }) => {
+    const newRequest: PendingRequest = {
+      id: `REQ-${Date.now()}`,
+      name: `${formData.firstName} ${formData.middleInitial ? formData.middleInitial + '. ' : ''}${formData.lastName}`,
+      email: formData.email,
+      phoneNumber: formData.phoneNumber,
+      commuterType: formData.commuterType as PendingRequest['commuterType'],
+      languagePreference: 'English',
+      idImageUrl: formData.idImagePreview || 'https://placehold.co/150x150/0A1E33/FFFFFF?text=ID',
+      status: 'Pending Verification',
+    };
     setPendingRequests(prev => [newRequest, ...prev]);
     handleCloseRegisterModal();
   };
@@ -127,6 +203,7 @@ export default function UsersPage() {
           users={activeUsers} 
           searchQuery={searchQuery} 
           onDeactivate={handleDeactivateUser} 
+          onEdit={handleOpenEditModal}
           onViewHistory={handleOpenHistoryModal} 
           isRejectedTab={false}
           selectedUser={selectedUser}
@@ -141,6 +218,7 @@ export default function UsersPage() {
           users={rejectedUsers} 
           searchQuery={searchQuery} 
           onDeactivate={() => {}} 
+          onEdit={() => {}}
           onViewHistory={() => {}} 
           isRejectedTab={true}
           selectedUser={null}
@@ -157,6 +235,13 @@ export default function UsersPage() {
         request={selectedRequest} 
         onApprove={handleApproveRequest} 
         onReject={handleRejectRequest} 
+      />
+
+      <EditUserModal
+        isOpen={isEditModalOpen}
+        onClose={handleCloseEditModal}
+        onSave={handleSaveEditUser}
+        editingUser={editingUser}
       />
 
       <UserHistoryModal isOpen={isHistoryModalOpen} onClose={handleCloseHistoryModal} logs={historyLogs[selectedUserId || ''] || []} />
