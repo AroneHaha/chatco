@@ -5,8 +5,16 @@ import { useState, useMemo, useCallback } from 'react';
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { initialRemittanceData, type Remittance, type RemittanceStatus } from '@/app/(admin)/remittance/data/remittance-data';
+import {
+  useRemittanceData,
+  type RemittanceRow,
+  type RemittanceStatus,
+} from '@/app/(admin)/remittance/data/remittance-data';
 import { ConductorDetailModal } from '@/components/admin/remittance/conductor-detail-modal';
+
+// ─── Helper: format PHP currency ───────────────────────────────────────
+const fmtPHP = (n: number) =>
+  `₱${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 interface RemittanceTableProps {
   searchQuery: string;
@@ -18,52 +26,59 @@ interface RemittanceTableProps {
 const ROWS_PER_PAGE = 10;
 
 export function RemittanceTable({ searchQuery, startDate, endDate, statusFilter }: RemittanceTableProps) {
+  const { records, isLoading, error, refresh } = useRemittanceData();
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedConductor, setSelectedConductor] = useState<Remittance | null>(null);
+  const [selectedRecord, setSelectedRecord] = useState<RemittanceRow | null>(null);
 
-  const handleRowClick = useCallback((item: Remittance) => {
-    setSelectedConductor(item);
+  const handleRowClick = useCallback((item: RemittanceRow) => {
+    setSelectedRecord(item);
   }, []);
 
+  // Column definitions now reference canonical RemittanceRecord field names
   const columns = [
-    { key: 'id', label: 'Shift ID' },
-    { key: 'conductor', label: 'Conductor' },
-    { key: 'vehicle', label: 'Vehicle Plate' },
+    { key: 'shiftId', label: 'Shift ID' },
+    { key: 'conductorName', label: 'Conductor' },
+    { key: 'unitNumber', label: 'Vehicle Plate' },
     { key: 'date', label: 'Date' },
-    { key: 'amount', label: 'Remitted Amount' },
     {
-      key: 'status',
+      key: '_totalAmount' as const,
+      label: 'Remitted Amount',
+      // Computed column — grand total of cash + GCash
+      render: (_: unknown, row: RemittanceRow) =>
+        fmtPHP(row.cashTotal + row.gcashTotal),
+    },
+    {
+      key: 'remittanceStatus',
       label: 'Status',
-      render: (value: Remittance['status']) => (
+      render: (value: RemittanceStatus) => (
         <Badge variant={value === 'Remitted' ? 'success' : 'warning'}>{value}</Badge>
       ),
     },
   ];
 
-  // Combined Filter logic (Prepped for backend integration)
+  // Combined filter logic — now uses live hook data instead of static import
   const filteredData = useMemo(() => {
-    return initialRemittanceData.filter((item: Remittance) => {
-      // Quick Status Filter
-      const matchesStatus = statusFilter === 'All' || item.status === statusFilter;
+    return records.filter((item) => {
+      // Status filter
+      const matchesStatus = statusFilter === 'All' || item.remittanceStatus === statusFilter;
 
-      // Search Filter
+      // Search filter — match on conductor name or shift ID
+      const q = searchQuery.toLowerCase();
       const matchesSearch =
-        item.conductor.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.id.toLowerCase().includes(searchQuery.toLowerCase());
+        item.conductorName.toLowerCase().includes(q) ||
+        item.shiftId.toLowerCase().includes(q);
 
-      // Date Range Filter
+      // Date range filter
       const itemDate = new Date(item.date);
       const matchesStart = !startDate || itemDate >= new Date(startDate);
       const matchesEnd = !endDate || itemDate <= new Date(endDate);
 
       return matchesStatus && matchesSearch && matchesStart && matchesEnd;
     });
-  }, [searchQuery, startDate, endDate, statusFilter]);
+  }, [records, searchQuery, startDate, endDate, statusFilter]);
 
-  // Pagination Logic
+  // Pagination
   const totalPages = Math.max(1, Math.ceil(filteredData.length / ROWS_PER_PAGE));
-
-  // Reset to page 1 if filters change and current page is now out of bounds
   const safeCurrentPage = currentPage > totalPages ? 1 : currentPage;
 
   const paginatedData = useMemo(() => {
@@ -78,6 +93,29 @@ export function RemittanceTable({ searchQuery, startDate, endDate, statusFilter 
   const handleNextPage = () => {
     if (safeCurrentPage < totalPages) setCurrentPage(safeCurrentPage + 1);
   };
+
+  // Loading & error states
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <p className="text-sm text-slate-400">Loading remittances...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 gap-3">
+        <p className="text-sm text-red-400">{error}</p>
+        <button
+          onClick={refresh}
+          className="px-4 py-2 bg-[#1A2540] border border-[#1E2D45] rounded-md text-xs text-slate-300 hover:text-white hover:bg-[#1E2D45]"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -121,9 +159,9 @@ export function RemittanceTable({ searchQuery, startDate, endDate, statusFilter 
 
       {/* Conductor Detail Modal */}
       <ConductorDetailModal
-        isOpen={selectedConductor !== null}
-        onClose={() => setSelectedConductor(null)}
-        conductor={selectedConductor}
+        isOpen={selectedRecord !== null}
+        onClose={() => setSelectedRecord(null)}
+        record={selectedRecord}
       />
     </div>
   );

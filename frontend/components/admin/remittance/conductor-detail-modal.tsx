@@ -4,25 +4,67 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import { Badge } from '@/components/admin/ui/badge';
-import { type Remittance } from '@/app/(admin)/remittance/data/remittance-data';
+import type {
+  RemittanceRecord,
+  RemittanceStatus,
+} from '@/app/(admin)/remittance/data/remittance-data';
+import {
+  getStaticRemittanceHistory,
+  getStaticShiftLogs,
+  getStaticShiftTransactions,
+  formatLogTime,
+  type Transaction,
+  type ShiftLog,
+} from '@/lib/static-conductor-data';
 import {
   User, Truck, Calendar, Clock, Banknote,
-  ChevronDown, ChevronUp, MapPin, Hash, X
+  ChevronDown, ChevronUp, MapPin, Hash, X,
 } from 'lucide-react';
-import {
-  getStaticRemittanceHistory, getStaticShiftLogs, getStaticShiftTransactions,
-  formatLogTime, type RemittanceRecord, type Transaction, type ShiftLog,
-} from '@/lib/static-conductor-data';
 
+// ─── Helper ────────────────────────────────────────────────────────────
+const fmt = (n: number) =>
+  `₱${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+// ─── Normalize any static record to canonical RemittanceRecord ─────────
+// static-conductor-data may return records with a different shape.
+// This ensures every record matches the canonical type from @/types.
+function normalizeRemittance(r: Record<string, unknown>): RemittanceRecord {
+  const cb = (r.cashlessBreakdown as RemittanceRecord['cashlessBreakdown']) ?? { gcashScanned: 0, gcashDirect: 0, voucher: 0 };
+  const gcashTotal = (r.gcashTotal as number) ?? cb.gcashScanned + cb.gcashDirect + cb.voucher;
+  const cashTotal = (r.cashTotal as number) ?? 0;
+  return {
+    shiftId: r.shiftId as string,
+    date: r.date as string,
+    conductorName: r.conductorName as string,
+    driverName: r.driverName as string,
+    unitNumber: r.unitNumber as string,
+    totalPassengers: r.totalPassengers as number,
+    cashlessBreakdown: cb,
+    totalCashless: (r.totalCashless as number) ?? cb.gcashScanned + cb.gcashDirect + cb.voucher,
+    cashDeclared: (r.cashDeclared as number) ?? 0,
+    remittanceStatus: (r.remittanceStatus as RemittanceStatus) ?? 'Pending',
+    timeIn: r.timeIn as string,
+    timeOut: r.timeOut as string,
+    cashTotal,
+    gcashTotal,
+  };
+}
+
+// ─── Props ─────────────────────────────────────────────────────────────
 interface ConductorDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
-  conductor: Remittance | null;
+  /** Full remittance record for the selected row (canonical shape) */
+  record: RemittanceRecord | null;
 }
 
-export function ConductorDetailModal({ isOpen, onClose, conductor }: ConductorDetailModalProps) {
+// ─── Component ─────────────────────────────────────────────────────────
+export function ConductorDetailModal({ isOpen, onClose, record }: ConductorDetailModalProps) {
   const [activeTab, setActiveTab] = useState<'remittance' | 'transactions'>('remittance');
   const [expandedShift, setExpandedShift] = useState<string | null>(null);
+
+  // Additional remittance history for the conductor (still from static
+  // data until backend API is wired — same conductor, broader history).
   const [remittanceRecords, setRemittanceRecords] = useState<RemittanceRecord[]>([]);
   const [shiftLogs, setShiftLogs] = useState<ShiftLog[]>([]);
   const [shiftTransactions, setShiftTransactions] = useState<Record<string, Transaction[]>>({});
@@ -30,15 +72,45 @@ export function ConductorDetailModal({ isOpen, onClose, conductor }: ConductorDe
   const [endDate, setEndDate] = useState('');
 
   useEffect(() => {
-    if (!conductor || !isOpen) { setRemittanceRecords([]); setShiftLogs([]); setShiftTransactions({}); return; }
-    const name = conductor.conductor;
-    setRemittanceRecords(getStaticRemittanceHistory(name));
-    const logs = getStaticShiftLogs(name); setShiftLogs(logs);
+    if (!record || !isOpen) {
+      setRemittanceRecords([]);
+      setShiftLogs([]);
+      setShiftTransactions({});
+      return;
+    }
+
+    // Seed the modal with the selected record plus any static history
+    // available for the same conductor.  When the API is ready this will
+    // be replaced with a real fetch.
+    const name = record.conductorName;
+    const staticHistory = getStaticRemittanceHistory(name);
+
+    // Merge: put the live record first, then deduplicate with static.
+    // Normalize static records to canonical shape.
+    const seen = new Set<string>([record.shiftId]);
+    const merged: RemittanceRecord[] = [record];
+    for (const r of staticHistory) {
+      if (!seen.has(r.shiftId)) {
+        seen.add(r.shiftId);
+        merged.push(normalizeRemittance(r as unknown as Record<string, unknown>));
+      }
+    }
+    setRemittanceRecords(merged);
+
+    const logs = getStaticShiftLogs(name);
+    setShiftLogs(logs);
+
     const txnsMap: Record<string, Transaction[]> = {};
-    logs.forEach((l: ShiftLog) => { txnsMap[l.shiftId] = getStaticShiftTransactions(l.shiftId, name); });
+    logs.forEach((l: ShiftLog) => {
+      txnsMap[l.shiftId] = getStaticShiftTransactions(l.shiftId, name);
+    });
     setShiftTransactions(txnsMap);
-    setActiveTab('remittance'); setExpandedShift(null); setStartDate(''); setEndDate('');
-  }, [conductor, isOpen]);
+
+    setActiveTab('remittance');
+    setExpandedShift(null);
+    setStartDate('');
+    setEndDate('');
+  }, [record, isOpen]);
 
   const filterByDate = (d: string): boolean => {
     if (!startDate && !endDate) return true;
@@ -62,28 +134,38 @@ export function ConductorDetailModal({ isOpen, onClose, conductor }: ConductorDe
     if (!startDate && !endDate) return shiftTransactions;
     const ids = new Set(filteredShiftLogs.map((l) => l.shiftId));
     const r: Record<string, Transaction[]> = {};
-    Object.entries(shiftTransactions).forEach(([id, txns]) => { if (ids.has(id)) r[id] = txns; });
+    Object.entries(shiftTransactions).forEach(([id, txns]) => {
+      if (ids.has(id)) r[id] = txns;
+    });
     return r;
   }, [shiftTransactions, filteredShiftLogs, startDate, endDate]);
 
   const hasDate = startDate || endDate;
   const clearDate = () => { setStartDate(''); setEndDate(''); };
 
-  if (!conductor) return null;
+  if (!record) return null;
 
-  const totalRemitted = filteredRemittance.filter((r) => r.remittanceStatus === 'Remitted').reduce((s, r) => s + r.gcashAmount + r.cashAmount, 0);
-  const totalPending = filteredRemittance.filter((r) => r.remittanceStatus === 'Pending').reduce((s, r) => s + r.gcashAmount + r.cashAmount, 0);
-  const totalGCash = filteredRemittance.reduce((s, r) => s + r.gcashAmount, 0);
-  const totalCash = filteredRemittance.reduce((s, r) => s + r.cashAmount, 0);
+  // ─── Aggregate totals from canonical fields ────────────────────────
+  const totalRemitted = filteredRemittance
+    .filter((r) => r.remittanceStatus === 'Remitted')
+    .reduce((s, r) => s + r.gcashTotal + r.cashTotal, 0);
+  const totalPending = filteredRemittance
+    .filter((r) => r.remittanceStatus === 'Pending')
+    .reduce((s, r) => s + r.gcashTotal + r.cashTotal, 0);
+  const totalGCash = filteredRemittance.reduce((s, r) => s + r.gcashTotal, 0);
+  const totalCash = filteredRemittance.reduce((s, r) => s + r.cashTotal, 0);
   const totalPassengers = filteredRemittance.reduce((s, r) => s + r.totalPassengers, 0);
   const totalShifts = filteredShiftLogs.length;
   const allTxns = Object.values(filteredShiftTxns).flat();
 
-  const fmt = (n: number) => `₱${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
   const getBadge = (m: string) => {
-    if (m === 'GCash') return <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400">GCash</span>;
+    // Handle canonical PaymentMethodType values
+    if (m === 'GCash_Scanned') return <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400">GCash Scan</span>;
+    if (m === 'GCash_Direct') return <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-400">GCash Direct</span>;
+    if (m === 'Voucher') return <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400">Voucher</span>;
     if (m === 'Cash') return <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">Cash</span>;
+    // Fallback for legacy 'GCash' value
+    if (m === 'GCash') return <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400">GCash</span>;
     return <span className="text-xs text-slate-400">{m}</span>;
   };
 
@@ -93,10 +175,10 @@ export function ConductorDetailModal({ isOpen, onClose, conductor }: ConductorDe
       <div className="mb-5">
         <div className="flex items-center gap-4 mb-5">
           <div className="w-14 h-14 rounded-full bg-[#62A0EA]/15 flex items-center justify-center"><User size={24} className="text-[#62A0EA]" /></div>
-          <div><h2 className="text-xl font-bold text-white">{conductor.conductor}</h2><p className="text-sm text-slate-400">Conductor Profile</p></div>
+          <div><h2 className="text-xl font-bold text-white">{record.conductorName}</h2><p className="text-sm text-slate-400">Conductor Profile</p></div>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="flex items-center gap-2.5 p-3 bg-[#0E1628] rounded-lg border border-[#1E2D45]"><Truck size={16} className="text-[#62A0EA]" /><div><p className="text-[10px] text-slate-500 uppercase">Vehicle</p><p className="text-sm text-white font-medium">{conductor.vehicle}</p></div></div>
+          <div className="flex items-center gap-2.5 p-3 bg-[#0E1628] rounded-lg border border-[#1E2D45]"><Truck size={16} className="text-[#62A0EA]" /><div><p className="text-[10px] text-slate-500 uppercase">Vehicle</p><p className="text-sm text-white font-medium">{record.unitNumber}</p></div></div>
           <div className="flex items-center gap-2.5 p-3 bg-[#0E1628] rounded-lg border border-[#1E2D45]"><Calendar size={16} className="text-sky-400" /><div><p className="text-[10px] text-slate-500 uppercase">Shifts</p><p className="text-sm text-white font-medium">{totalShifts}</p></div></div>
           <div className="flex items-center gap-2.5 p-3 bg-[#0E1628] rounded-lg border border-[#1E2D45]"><Banknote size={16} className="text-[#62A0EA]" /><div><p className="text-[10px] text-slate-500 uppercase">Remitted</p><p className="text-sm text-[#62A0EA] font-medium">{fmt(totalRemitted)}</p></div></div>
           <div className="flex items-center gap-2.5 p-3 bg-[#0E1628] rounded-lg border border-[#1E2D45]"><Clock size={16} className="text-amber-400" /><div><p className="text-[10px] text-slate-500 uppercase">Pending</p><p className="text-sm text-orange-400 font-medium">{fmt(totalPending)}</p></div></div>
@@ -144,9 +226,9 @@ export function ConductorDetailModal({ isOpen, onClose, conductor }: ConductorDe
                 <Badge variant={rec.remittanceStatus==='Remitted'?'success':'warning'}>{rec.remittanceStatus}</Badge>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <div className="bg-[#131C2E] rounded-md p-2.5 border border-[#1E2D45]"><p className="text-[10px] text-slate-500 uppercase">GCash</p><p className="text-sm text-blue-400 font-medium">{fmt(rec.gcashAmount)}</p></div>
-                <div className="bg-[#131C2E] rounded-md p-2.5 border border-[#1E2D45]"><p className="text-[10px] text-slate-500 uppercase">Cash</p><p className="text-sm text-emerald-400 font-medium">{fmt(rec.cashAmount)}</p></div>
-                <div className="bg-[#131C2E] rounded-md p-2.5 border border-[#1E2D45]"><p className="text-[10px] text-slate-500 uppercase">Total</p><p className="text-sm text-[#62A0EA] font-medium">{fmt(rec.gcashAmount + rec.cashAmount)}</p></div>
+                <div className="bg-[#131C2E] rounded-md p-2.5 border border-[#1E2D45]"><p className="text-[10px] text-slate-500 uppercase">GCash</p><p className="text-sm text-blue-400 font-medium">{fmt(rec.gcashTotal)}</p></div>
+                <div className="bg-[#131C2E] rounded-md p-2.5 border border-[#1E2D45]"><p className="text-[10px] text-slate-500 uppercase">Cash</p><p className="text-sm text-emerald-400 font-medium">{fmt(rec.cashTotal)}</p></div>
+                <div className="bg-[#131C2E] rounded-md p-2.5 border border-[#1E2D45]"><p className="text-[10px] text-slate-500 uppercase">Total</p><p className="text-sm text-[#62A0EA] font-medium">{fmt(rec.gcashTotal + rec.cashTotal)}</p></div>
               </div>
               <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#1E2D45]">
                 <p className="text-xs text-slate-500">{rec.totalPassengers} passengers</p>
