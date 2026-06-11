@@ -2,7 +2,7 @@
 'use client';
 
 import { Modal } from '@/components/admin/ui/modal';
-import { LogOut, AlertTriangle } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 
 interface SignOutModalProps {
   isOpen: boolean;

@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { initialHeatmapZones } from "@/app/(admin)/analytics/data/analytics-data";
 import type { HeatmapZone } from "@/app/(admin)/analytics/data/analytics-data";
 
-export function DemandHeatmapData() {
+interface DemandHeatmapDataProps {
+  zones: HeatmapZone[];
+}
+
+export function DemandHeatmapData({ zones }: DemandHeatmapDataProps) {
   const [selectedDate, setSelectedDate] = useState<string>("");
 
   return (
@@ -49,22 +52,28 @@ export function DemandHeatmapData() {
       </div>
 
       <div className="space-y-2 flex-1 overflow-hidden">
-        {initialHeatmapZones.map((zone: HeatmapZone) => (
-          <div
-            key={zone.zone}
-            className="flex items-center justify-between p-2.5 rounded-lg bg-[#0E1628] border border-[#1E2D45]"
-          >
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-8 rounded-full ${zone.color}`}></div>
-              <span className="text-xs text-slate-300 font-medium">{zone.zone}</span>
-            </div>
-
-            <div className="text-right">
-              <p className="text-sm font-bold text-white">{zone.commuters}</p>
-              <p className="text-[10px] text-slate-500">waiting</p>
-            </div>
+        {zones.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-slate-600 text-xs">
+            No heatmap data available.
           </div>
-        ))}
+        ) : (
+          zones.map((zone) => (
+            <div
+              key={zone.zone}
+              className="flex items-center justify-between p-2.5 rounded-lg bg-[#0E1628] border border-[#1E2D45]"
+            >
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-8 rounded-full ${zone.color}`}></div>
+                <span className="text-xs text-slate-300 font-medium">{zone.zone}</span>
+              </div>
+
+              <div className="text-right">
+                <p className="text-sm font-bold text-white">{zone.commuters}</p>
+                <p className="text-[10px] text-slate-500">waiting</p>
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

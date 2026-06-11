@@ -1,31 +1,35 @@
 "use client";
 
 import { useState } from "react";
-import { initialRemittanceData } from "@/app/(admin)/analytics/data/analytics-data";
 import type { AnalyticsRemittance } from "@/app/(admin)/analytics/data/analytics-data";
 
 const ROWS_PER_PAGE = 7;
 
-export function RemittanceTable() {
+interface RemittanceTableProps {
+  data: AnalyticsRemittance[];
+}
+
+export function RemittanceTable({ data }: RemittanceTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedConductor, setSelectedConductor] = useState<string | null>(null);
 
-  const activeData: AnalyticsRemittance[] = selectedConductor
-    ? initialRemittanceData.filter((row: AnalyticsRemittance) => row.conductor === selectedConductor)
-    : initialRemittanceData;
+  const activeData = selectedConductor
+    ? data.filter((row) => row.conductor === selectedConductor)
+    : data;
 
   const totalPages = Math.max(1, Math.ceil(activeData.length / ROWS_PER_PAGE));
 
-  const currentTableData: AnalyticsRemittance[] = activeData.slice(
+  const currentTableData = activeData.slice(
     (currentPage - 1) * ROWS_PER_PAGE,
     currentPage * ROWS_PER_PAGE
   );
 
-  const totalAmount = activeData.reduce((sum: number, row: AnalyticsRemittance) => sum + row.remittedAmount, 0);
-  const totalCash = activeData.reduce((sum: number, row: AnalyticsRemittance) => sum + row.cashAmount, 0);
-  const totalGCash = activeData.reduce((sum: number, row: AnalyticsRemittance) => sum + row.gcashAmount, 0);
-  const remittedAmount = activeData.filter((row: AnalyticsRemittance) => row.status === "Remitted").reduce((sum: number, row: AnalyticsRemittance) => sum + row.remittedAmount, 0);
-  const pendingAmount = activeData.filter((row: AnalyticsRemittance) => row.status === "Pending").reduce((sum: number, row: AnalyticsRemittance) => sum + row.remittedAmount, 0);
+  const totalAmount = activeData.reduce((sum, row) => sum + row.remittedAmount, 0);
+  const totalCash = activeData.reduce((sum, row) => sum + row.cashAmount, 0);
+  const totalGCash = activeData.reduce((sum, row) => sum + row.gcashAmount, 0);
+  const pendingAmount = activeData
+    .filter((row) => row.status === "Pending")
+    .reduce((sum, row) => sum + row.remittedAmount, 0);
 
   const handleRowClick = (conductorName: string) => {
     setSelectedConductor(conductorName);
@@ -86,53 +90,59 @@ export function RemittanceTable() {
 
       {/* Table Container */}
       <div className="flex-1 overflow-hidden">
-        <table className="w-full text-left h-full">
-          <thead className="sticky top-0 bg-[#131C2E] z-10">
-            <tr className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold border-b border-[#1E2D45]">
-              <th className="pb-3 pr-2 font-medium">Shift ID</th>
-              <th className="pb-3 pr-2 font-medium">{selectedConductor ? "Vehicle Plate" : "Conductor"}</th>
-              <th className="pb-3 pr-2 font-medium hidden md:table-cell">Date</th>
-              <th className="pb-3 pr-2 font-medium text-right">Cash</th>
-              <th className="pb-3 pr-2 font-medium text-right">GCash</th>
-              <th className="pb-3 pr-2 font-medium text-right">Total</th>
-              <th className="pb-3 font-medium text-center">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#1E2D45]">
-            {currentTableData.map((row: AnalyticsRemittance) => (
-              <tr
-                key={row.shiftId}
-                onClick={() => !selectedConductor && handleRowClick(row.conductor)}
-                className={`transition-colors ${!selectedConductor ? "hover:bg-[#0E1628] cursor-pointer" : "hover:bg-[#0E1628]"}`}
-              >
-                <td className="py-3 pr-2 text-xs text-[#62A0EA] font-mono font-medium">{row.shiftId}</td>
-                <td className="py-3 pr-2 text-xs text-slate-300 font-medium">
-                  {selectedConductor ? row.vehiclePlate : (
-                    <span className="flex items-center gap-2">
-                      {row.conductor}
-                      <svg className="w-3 h-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                      </svg>
-                    </span>
-                  )}
-                </td>
-                <td className="py-3 pr-2 text-xs text-slate-500 hidden md:table-cell">{row.date}</td>
-                <td className="py-3 pr-2 text-xs text-emerald-400 font-semibold text-right">₱{row.cashAmount.toLocaleString()}</td>
-                <td className="py-3 pr-2 text-xs text-blue-400 font-semibold text-right">₱{row.gcashAmount.toLocaleString()}</td>
-                <td className="py-3 pr-2 text-xs text-white font-semibold text-right">₱{row.remittedAmount.toLocaleString()}</td>
-                <td className="py-3 text-center">
-                  <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                    row.status === "Remitted"
-                      ? "bg-sky-400/15 text-sky-400"
-                      : "bg-red-500/15 text-red-400"
-                  }`}>
-                    {row.status}
-                  </span>
-                </td>
+        {activeData.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-slate-600 text-xs">
+            No remittance data available.
+          </div>
+        ) : (
+          <table className="w-full text-left h-full">
+            <thead className="sticky top-0 bg-[#131C2E] z-10">
+              <tr className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold border-b border-[#1E2D45]">
+                <th className="pb-3 pr-2 font-medium">Shift ID</th>
+                <th className="pb-3 pr-2 font-medium">{selectedConductor ? "Vehicle Plate" : "Conductor"}</th>
+                <th className="pb-3 pr-2 font-medium hidden md:table-cell">Date</th>
+                <th className="pb-3 pr-2 font-medium text-right">Cash</th>
+                <th className="pb-3 pr-2 font-medium text-right">GCash</th>
+                <th className="pb-3 pr-2 font-medium text-right">Total</th>
+                <th className="pb-3 font-medium text-center">Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-[#1E2D45]">
+              {currentTableData.map((row) => (
+                <tr
+                  key={row.shiftId}
+                  onClick={() => !selectedConductor && handleRowClick(row.conductor)}
+                  className={`transition-colors ${!selectedConductor ? "hover:bg-[#0E1628] cursor-pointer" : "hover:bg-[#0E1628]"}`}
+                >
+                  <td className="py-3 pr-2 text-xs text-[#62A0EA] font-mono font-medium">{row.shiftId}</td>
+                  <td className="py-3 pr-2 text-xs text-slate-300 font-medium">
+                    {selectedConductor ? row.vehiclePlate : (
+                      <span className="flex items-center gap-2">
+                        {row.conductor}
+                        <svg className="w-3 h-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                        </svg>
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-3 pr-2 text-xs text-slate-500 hidden md:table-cell">{row.date}</td>
+                  <td className="py-3 pr-2 text-xs text-emerald-400 font-semibold text-right">₱{row.cashAmount.toLocaleString()}</td>
+                  <td className="py-3 pr-2 text-xs text-blue-400 font-semibold text-right">₱{row.gcashAmount.toLocaleString()}</td>
+                  <td className="py-3 pr-2 text-xs text-white font-semibold text-right">₱{row.remittedAmount.toLocaleString()}</td>
+                  <td className="py-3 text-center">
+                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                      row.status === "Remitted"
+                        ? "bg-sky-400/15 text-sky-400"
+                        : "bg-red-500/15 text-red-400"
+                    }`}>
+                      {row.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {/* Pagination Controls */}

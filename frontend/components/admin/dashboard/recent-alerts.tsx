@@ -1,12 +1,21 @@
 // components/admin/dashboard/recent-alerts.tsx
 import { GlassCard } from '@/components/admin/ui/glass-card';
 import { AlertTriangle, Clock } from 'lucide-react';
+import type { AlertItem } from '@/app/(admin)/admin-dashboard/data/dashboard-data';
 
-export function RecentAlerts() {
-  const alerts = [
-    { id: 1, type: 'Emergency', message: 'Panic button triggered on Unit ABC-123', time: '2 mins ago' },
-    { id: 2, type: 'Overspeeding', message: 'Unit XYZ-789 detected at 85 kph', time: '15 mins ago' },
-  ];
+interface RecentAlertsProps {
+  alerts: AlertItem[];
+}
+
+export function RecentAlerts({ alerts }: RecentAlertsProps) {
+  if (alerts.length === 0) {
+    return (
+      <GlassCard className="p-6">
+        <h2 className="text-lg font-semibold text-white mb-4">Recent Alerts</h2>
+        <p className="text-sm text-slate-500">No recent alerts.</p>
+      </GlassCard>
+    );
+  }
 
   return (
     <GlassCard className="p-6">
