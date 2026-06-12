@@ -4,7 +4,7 @@ import {
   getGaugeColor,
   getGaugeTextClass,
   type RatingMetrics,
-} from "@/lib/conductor-ratings";
+} from "@/lib/conductor/services/ratings.service";
 import { useConductorRatings } from "@/app/(conductor)/hooks/use-conductor-ratings";
 
 // ─── Constants ───────────────────────────────────────────────────────

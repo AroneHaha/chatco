@@ -5,6 +5,7 @@
 const SHIFT_LOGS_KEY = "conductor_shift_logs";
 
 export interface ShiftLog {
+  duration: string | null;
   shiftId: string;
   unitNumber: string;
   plateNumber: string;
