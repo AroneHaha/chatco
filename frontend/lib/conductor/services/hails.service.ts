@@ -1,23 +1,20 @@
-import { api, NetworkError } from "@/lib/api/client";
+import { api, ApiError, NetworkError } from "@/lib/api/client";
 import { CONDUCTOR_API } from "@/lib/conductor/endpoints";
+import { shouldUseConductorApi } from "@/lib/conductor/services/api-mode";
 import type { ConductorHailRequest } from "@/lib/conductor/types";
-
-function hasRemoteApi(): boolean {
-  return Boolean(process.env.NEXT_PUBLIC_API_URL);
-}
 
 export async function fetchActiveHails(): Promise<{
   hails: ConductorHailRequest[];
   error: string | null;
 }> {
-  if (hasRemoteApi()) {
+  if (shouldUseConductorApi()) {
     try {
       const response = await api.get<{ data: ConductorHailRequest[] }>(
         CONDUCTOR_API.hails
       );
       return { hails: response.data ?? [], error: null };
     } catch (error) {
-      if (error instanceof NetworkError) {
+      if (error instanceof NetworkError || error instanceof ApiError) {
         return {
           hails: [],
           error: "Unable to load hail requests. Please try again.",

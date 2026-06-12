@@ -169,9 +169,9 @@ export const API_ROUTES = {
     profile: "/api/conductor/profile",
     startShift: "/api/conductor/shifts/start",
     endShift: "/api/conductor/shifts/end",
-    transactions: (shiftId: string) => `/api/conductor/transactions?shiftId=${shiftId}`,
+    transactions: (shiftId: string) => `/api/conductor/transactions?shift_id=${shiftId}`,
     saveTransaction: "/api/conductor/transactions",
-    remittance: "/api/conductor/remittance",
+    remittance: "/api/conductor/remittances",
     shiftLogs: "/api/conductor/shift-logs",
   },
   admin: {

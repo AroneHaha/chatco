@@ -1,5 +1,6 @@
-import { api, NetworkError } from "@/lib/api/client";
+import { api, ApiError, NetworkError } from "@/lib/api/client";
 import { CONDUCTOR_API } from "@/lib/conductor/endpoints";
+import { shouldUseConductorApi } from "@/lib/conductor/services/api-mode";
 
 export interface ConductorRating {
   ratingId: string;
@@ -24,22 +25,18 @@ export interface RatingMetrics {
   distribution: [number, number, number, number, number];
 }
 
-function hasRemoteApi(): boolean {
-  return Boolean(process.env.NEXT_PUBLIC_API_URL);
-}
-
 export async function fetchRatingsForShift(shiftId: string): Promise<{
   ratings: ConductorRating[];
   error: string | null;
 }> {
-  if (hasRemoteApi()) {
+  if (shouldUseConductorApi()) {
     try {
       const response = await api.get<{ data: ConductorRating[] }>(
         CONDUCTOR_API.ratings(shiftId)
       );
       return { ratings: response.data ?? [], error: null };
     } catch (error) {
-      if (error instanceof NetworkError) {
+      if (error instanceof NetworkError || error instanceof ApiError) {
         return {
           ratings: [],
           error: "Unable to load ratings. Please try again.",

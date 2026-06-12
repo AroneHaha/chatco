@@ -20,7 +20,7 @@ import {
   type PaymentStatus,
   type GCashPaymentIntent,
 } from "@/lib/gcash-payment";
-import { saveTransaction } from "@/lib/conductor-transactions";
+import { createTransaction } from "@/lib/conductor-transactions";
 import type { PaymentMethodType } from "@/types";
 import {
   encodeQRTransaction,
@@ -108,12 +108,12 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     : FARE_MATRIX;
 
   // ─── Save transaction to shift tracking (backend-proof) ───
-  const recordTransaction = (method: SelectedPaymentMethod) => {
+  const recordTransaction = async (method: SelectedPaymentMethod) => {
     if (!fareInfo || !pickupPoint || !dropoffPoint || !shiftId) return;
 
     const paymentMethodType: PaymentMethodType = method === "GCash" ? "GCash_Scanned" : "Cash";
 
-    saveTransaction(shiftId, {
+    await createTransaction(shiftId, {
       paymentMethod: paymentMethodType,
       finalAmount: fareInfo.finalFare,
       passengerName: "Commuter",
@@ -154,7 +154,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
       setPaymentStatus(status);
 
       if (status === "paid") {
-        recordTransaction("GCash");
+        await recordTransaction("GCash");
         setStep("qr_code");
       } else {
         setStep("failed");
@@ -172,7 +172,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     // Cash payment: brief processing (just recording), then success
     await new Promise((r) => setTimeout(r, 800));
 
-    recordTransaction("Cash");
+    await recordTransaction("Cash");
     setStep("success");
   };
 

@@ -1,23 +1,22 @@
-import { api, NetworkError } from "@/lib/api/client";
+import { api, ApiError, NetworkError } from "@/lib/api/client";
 import { CONDUCTOR_API } from "@/lib/conductor/endpoints";
+import { shouldUseConductorApi } from "@/lib/conductor/services/api-mode";
 import * as shiftStore from "@/lib/conductor/persistence/shift.store";
 import type { ConductorShift } from "@/lib/conductor/persistence/shift.store";
 
 export type { ConductorShift };
 
-function hasRemoteApi(): boolean {
-  return Boolean(process.env.NEXT_PUBLIC_API_URL);
-}
-
 export async function fetchActiveShift(): Promise<ConductorShift | null> {
-  if (hasRemoteApi()) {
+  if (shouldUseConductorApi()) {
     try {
       const response = await api.get<{ data: ConductorShift | null }>(
         CONDUCTOR_API.shifts.active
       );
-      return response.data ?? null;
+      const shift = response.data ?? null;
+      if (shift) shiftStore.cacheShift(shift);
+      return shift;
     } catch (error) {
-      if (!(error instanceof NetworkError)) throw error;
+      if (!(error instanceof NetworkError) && !(error instanceof ApiError)) throw error;
     }
   }
 
@@ -30,15 +29,16 @@ export async function startShift(data: {
   route: string;
   driverName: string;
 }): Promise<ConductorShift> {
-  if (hasRemoteApi()) {
+  if (shouldUseConductorApi()) {
     try {
       const response = await api.post<{ data: ConductorShift }>(
         CONDUCTOR_API.shifts.start,
         data
       );
+      shiftStore.cacheShift(response.data);
       return response.data;
     } catch (error) {
-      if (!(error instanceof NetworkError)) throw error;
+      if (!(error instanceof NetworkError) && !(error instanceof ApiError)) throw error;
     }
   }
 
@@ -46,14 +46,15 @@ export async function startShift(data: {
 }
 
 export async function endShift(): Promise<ConductorShift | null> {
-  if (hasRemoteApi()) {
+  if (shouldUseConductorApi()) {
     try {
       const response = await api.post<{ data: ConductorShift | null }>(
         CONDUCTOR_API.shifts.end
       );
+      if (response.data) shiftStore.cacheShift(response.data);
       return response.data ?? null;
     } catch (error) {
-      if (!(error instanceof NetworkError)) throw error;
+      if (!(error instanceof NetworkError) && !(error instanceof ApiError)) throw error;
     }
   }
 
@@ -93,7 +94,6 @@ export function formatTime(iso: string): string {
   });
 }
 
-// Sync helpers for event listeners and legacy imports.
 export function getActiveShift(): ConductorShift | null {
   return shiftStore.getActiveShift();
 }

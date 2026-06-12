@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { startShift, fetchActiveShift } from "@/lib/conductor/services/shift.service";
-import type { Driver, Unit } from "./data";
+import type { ConductorDriver, ConductorUnit } from "@/lib/conductor/types";
 import { useUnitVerification } from "@/app/(conductor)/hooks/use-unit-verification";
 import UnitList from "@/components/conductor/unit-verification/UnitList";
 import DriverList from "@/components/conductor/unit-verification/DriverList";
@@ -17,8 +17,8 @@ export default function ConductorLoginPage() {
   const { profile, units, drivers, status, error, refresh } = useUnitVerification();
 
   const [step, setStep] = useState<Step>("select-unit");
-  const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
-  const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
+  const [selectedUnit, setSelectedUnit] = useState<ConductorUnit | null>(null);
+  const [selectedDriver, setSelectedDriver] = useState<ConductorDriver | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -38,12 +38,12 @@ export default function ConductorLoginPage() {
     return <UnitVerificationSkeleton />;
   }
 
-  const handleSelectUnit = (unit: Unit) => {
+  const handleSelectUnit = (unit: ConductorUnit) => {
     setSelectedUnit(unit);
     setStep("select-driver");
   };
 
-  const handleSelectDriver = (driver: Driver) => {
+  const handleSelectDriver = (driver: ConductorDriver) => {
     setSelectedDriver(driver);
     setShowConfirmModal(true);
   };
@@ -181,6 +181,7 @@ export default function ConductorLoginPage() {
         show={showConfirmModal}
         unit={selectedUnit}
         driver={selectedDriver}
+        conductorName={profile?.name ?? "Conductor"}
         isProcessing={isProcessing}
         onConfirm={handleConfirmShift}
         onCancel={() => setShowConfirmModal(false)}

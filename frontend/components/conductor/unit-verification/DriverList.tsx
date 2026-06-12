@@ -1,7 +1,13 @@
 // app/components/conductor/unit-verification/DriverList.tsx
-import { Driver } from "@/app/(conductor)/unit-verification/data";
+import type { ConductorDriver } from "@/lib/conductor/types";
 
-export default function DriverList({ drivers, onSelect }: { drivers: Driver[]; onSelect: (driver: Driver) => void }) {
+export default function DriverList({
+  drivers,
+  onSelect,
+}: {
+  drivers: ConductorDriver[];
+  onSelect: (driver: ConductorDriver) => void;
+}) {
   return (
     <div className="space-y-2.5">
       {drivers.map((driver) => {

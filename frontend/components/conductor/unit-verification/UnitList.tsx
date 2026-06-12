@@ -1,13 +1,19 @@
 // app/components/conductor/unit-verification/UnitList.tsx
-import { Unit } from "@/app/(conductor)/unit-verification/data";
+import type { ConductorUnit } from "@/lib/conductor/types";
 
-const statusConfig: Record<Unit["status"], { label: string; color: string; bg: string }> = {
+const statusConfig: Record<ConductorUnit["status"], { label: string; color: string; bg: string }> = {
   available: { label: "Available", color: "text-emerald-400", bg: "bg-emerald-500/15 border-emerald-500/25" },
   "in-use": { label: "In Use", color: "text-white/30", bg: "bg-white/5 border-white/10" },
   maintenance: { label: "Maintenance", color: "text-amber-400", bg: "bg-amber-500/15 border-amber-500/25" },
 };
 
-export default function UnitList({ units, onSelect }: { units: Unit[]; onSelect: (unit: Unit) => void }) {
+export default function UnitList({
+  units,
+  onSelect,
+}: {
+  units: ConductorUnit[];
+  onSelect: (unit: ConductorUnit) => void;
+}) {
   return (
     <div className="space-y-2.5">
       {units.map((unit) => {

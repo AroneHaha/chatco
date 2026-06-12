@@ -59,3 +59,14 @@ export function getShiftTransactions(shiftId: string): Transaction[] {
 export function clearShiftTransactions(shiftId: string) {
   localStorage.removeItem(getKey(shiftId));
 }
+
+/** Cache a transaction returned from the API for offline fallback reads. */
+export function cacheTransaction(shiftId: string, txn: Transaction): void {
+  if (typeof window === "undefined") return;
+  const key = getKey(shiftId);
+  const existing: Transaction[] = JSON.parse(localStorage.getItem(key) || "[]");
+  if (existing.some((item) => item.transactionId === txn.transactionId)) return;
+  existing.push(txn);
+  localStorage.setItem(key, JSON.stringify(existing));
+  window.dispatchEvent(new CustomEvent("conductor:transaction-updated"));
+}

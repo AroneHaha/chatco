@@ -71,3 +71,9 @@ export function endShift(): ConductorShift | null {
 export function clearShift() {
   localStorage.removeItem(SHIFT_KEY);
 }
+
+/** Cache shift state returned from the API for offline fallback reads. */
+export function cacheShift(shift: ConductorShift): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(SHIFT_KEY, JSON.stringify(shift));
+}
