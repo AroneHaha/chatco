@@ -4,7 +4,7 @@
 import { useState, useMemo } from 'react';
 import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Save, X, MapPin, Search, Route } from 'lucide-react';
 import { initialFarePoints, type FarePoint } from '@/lib/shared/fare/fare-matrix-data';
-import { calculateFare } from '@/lib/fare-calculator';
+import { calculateFare } from '@/lib/shared/fare/fare-calculator';
 
 export default function FareMatrixPage() {
   const [farePoints, setFarePoints] = useState<FarePoint[]>(initialFarePoints.map(p => ({ ...p, subStops: p.subStops ? [...p.subStops] : undefined })));

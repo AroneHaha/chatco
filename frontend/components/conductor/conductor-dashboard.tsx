@@ -18,7 +18,7 @@ const FareCalculatorModal = dynamic<FareCalculatorModalProps>(
   { ssr: false }
 );
 import HistoryLogModal from "@/components/conductor/modals/history-log-modal";
-import { formatTime } from "@/lib/conductor-shift";
+import { formatTime } from "@/lib/conductor/services/shift.service";
 import { useConductorShift } from "@/app/(conductor)/hooks/use-conductor-shift";
 import { useConductorTransactions } from "@/app/(conductor)/hooks/use-conductor-transactions";
 import { useConductorHails } from "@/app/(conductor)/hooks/use-conductor-hails";

@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { RemittanceRecord } from "@/lib/remittance-history";
+import { type RemittanceRecord } from "@/lib/conductor/services/remittance.service";
 import { fmtDate, fmt } from "@/app/(conductor)/conductor-dashboard/end-of-day/helpers";
 
 const RECORDS_PER_PAGE = 5;

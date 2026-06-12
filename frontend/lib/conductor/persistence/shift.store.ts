@@ -1,4 +1,4 @@
-import { logShiftEnd, logShiftStart } from "@/lib/conductor-shift-history";
+import { logShiftEnd, logShiftStart } from "./shift-history";
 
 export interface ConductorShift {
   shiftId: string;

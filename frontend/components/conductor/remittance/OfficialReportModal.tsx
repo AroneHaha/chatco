@@ -1,6 +1,6 @@
 // components/conductor/remittance/OfficialReportModal.tsx
-import { RemittanceRecord } from "@/lib/remittance-history";
-import { formatTime } from "@/lib/conductor-shift";
+import { type RemittanceRecord } from "@/lib/conductor/services/remittance.service";
+import { formatTime } from "@/lib/conductor/services/shift.service";
 import { fmt, fmtDate, fmtDateTime } from "@/app/(conductor)/conductor-dashboard/end-of-day/helpers";
 
 interface OfficialReportModalProps { show: boolean; onClose: () => void; activeReport: RemittanceRecord; route: string; }

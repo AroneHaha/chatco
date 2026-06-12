@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
-import { getShiftTransactions, type Transaction } from "@/lib/conductor-transactions";
+import { getShiftTransactions, type Transaction } from "@/lib/conductor/services/transactions.service";
 import type { PaymentMethodType } from "@/types";
 
 interface HistoryLogModalProps {
