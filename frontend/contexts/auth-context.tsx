@@ -153,21 +153,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (response.ok) {
-        const data = await response.json();
-        const authUser: AuthUser = {
-          id: data.user.id,
-          email: data.user.email,
-          role: data.user.role,
-        };
-        setUser(authUser);
+        // Guard: ensure the response is JSON before parsing.
+        // Without this, a non-JSON response (e.g. HTML 404 from a missing route)
+        // causes response.json() to throw "Unexpected token '<'".
+        const contentType = response.headers.get("content-type") || "";
+        if (!contentType.includes("application/json")) {
+          // Not JSON — fall back to cookie parsing below
+        } else {
+          const data = await response.json();
+          const authUser: AuthUser = {
+            id: data.user.id,
+            email: data.user.email,
+            role: data.user.role,
+          };
+          setUser(authUser);
 
-        // If commuter, fetch profile
-        if (authUser.role === "COMMUTER" && data.profile) {
-          setCommuterProfile(data.profile);
+          // If commuter, fetch profile
+          if (authUser.role === "COMMUTER" && data.profile) {
+            setCommuterProfile(data.profile);
+          }
+
+          setIsLoading(false);
+          return;
         }
-
-        setIsLoading(false);
-        return;
       }
     } catch {
       // API not available — fall back to cookie
