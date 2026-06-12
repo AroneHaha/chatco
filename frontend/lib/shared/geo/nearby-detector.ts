@@ -12,7 +12,7 @@
 //
 // Haversine imported from @/lib/utils/geo (canonical source).
 
-import { haversineMeters, formatDistance } from "./utils/geo";
+import { haversineMeters, formatDistance } from "../../utils/geo";
 
 // ─── Fixed Speed Constant ────────────────────────────────────────────
 // Average jeepney speed = 25 km/h as specified.

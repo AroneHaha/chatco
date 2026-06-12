@@ -15,7 +15,7 @@ import {
   formatLogTime,
   type Transaction,
   type ShiftLog,
-} from '@/lib/static-conductor-data';
+} from '@/lib/shared/data/static-conductor-data';
 import {
   User, Truck, Calendar, Clock, Banknote,
   ChevronDown, ChevronUp, MapPin, Hash, X,

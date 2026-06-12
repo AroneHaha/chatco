@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import dynamic from "next/dynamic";
-import type { NearbyVehicle, GpsStatus } from "@/lib/nearby-detector";
+import type { NearbyVehicle, GpsStatus } from "@/lib/shared/geo/nearby-detector";
 import { useAuth } from "@/contexts/auth-context";
 
 import PaymentHistoryModal from "@/components/commuter/modals/payment-history-modal";

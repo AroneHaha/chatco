@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { faqCategories, FAQItem } from "@/lib/faq-data";
+import { faqCategories, FAQItem } from "@/lib/shared/data/faq-data";
 
 interface ChatMessage {
   id: number;

@@ -19,13 +19,13 @@ import {
   type NearbyVehicle,
   type ConductorRadiusResult,
   type GpsStatus,
-} from "@/lib/nearby-detector";
+} from "@/lib/shared/geo/nearby-detector";
 import {
   sendProximityNotification,
   requestNotificationPermission,
   clearNotifiedVehicles,
-} from "@/lib/proximity-notification";
-import { advanceAllVehicles, type SimulatedVehicle } from "@/lib/vehicle-simulation";
+} from "@/lib/shared/geo/proximity-notification";
+import { advanceAllVehicles, type SimulatedVehicle } from "@/lib/shared/simulation/vehicle-simulation";
 import { ROUTE_COORDS, CALC_THROTTLE_MS, SIMULATION_TICK_MS, routeBounds, mapBounds } from "./commuter-map-constants";
 import { getBearing } from "./commuter-map-icons";
 

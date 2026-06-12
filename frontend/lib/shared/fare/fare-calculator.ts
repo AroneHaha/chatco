@@ -10,7 +10,7 @@ import {
   type FarePoint,
   type FareResult,
 } from "./fare-matrix-data";
-import { haversineMeters } from "./utils/geo";
+import { haversineMeters } from "../../utils/geo";
 import type { CommuterType } from "@/types";
 import { DISCOUNTED_TYPES, DISCOUNT_RATE } from "@/types/user";
 
@@ -121,7 +121,7 @@ export type { FarePoint, FareResult };
 // ─── Utility Exports (used by commuter UI components) ───────────────────────
 
 /** Format a number as Philippine peso string */
-export { formatCurrency } from "./utils/format";
+export { formatCurrency } from "../../utils/format";
 
 /** Get the display label for a commuter type */
 export { getCommuterTypeLabel } from "@/types/user";

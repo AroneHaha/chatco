@@ -18,7 +18,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { formatDistance } from "@/lib/nearby-detector";
+import { formatDistance } from "@/lib/shared/geo/nearby-detector";
 import { ROUTE_COORDS, mapBoundsArray, MAP_CENTER } from "./commuter-map-constants";
 import { getCapacityConfig, createCommuterIcon, createJeepneyIcon, type VehicleCapacity } from "./commuter-map-icons";
 import { useCommuterTracking } from "./use-commuter-tracking";
@@ -29,7 +29,7 @@ import LocationFinder from "./location-finder";
 interface CommuterMapProps {
   isDesktop?: boolean;
   /** Callback fired when tracking data updates — used by dashboard for ETA + hail restriction */
-  onNearbyVehiclesChange?: (vehicles: import("@/lib/nearby-detector").NearbyVehicle[], gpsStatus: import("@/lib/nearby-detector").GpsStatus) => void;
+  onNearbyVehiclesChange?: (vehicles: import("@/lib/shared/geo/nearby-detector").NearbyVehicle[], gpsStatus: import("@/lib/shared/geo/nearby-detector").GpsStatus) => void;
 }
 
 export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange }: CommuterMapProps) {

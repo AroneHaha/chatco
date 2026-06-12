@@ -19,7 +19,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { getCommuterTypeLabel } from "@/types";
-import type { NearbyVehicle, GpsStatus } from "@/lib/nearby-detector";
+import type { NearbyVehicle, GpsStatus } from "@/lib/shared/geo/nearby-detector";
 
 export function useDashboard() {
   const searchParams = useSearchParams();

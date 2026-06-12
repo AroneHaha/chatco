@@ -8,24 +8,24 @@ import {
   getBarangaysTraversed,
   FARE_CONFIG,
   type PointArea,
-} from "@/lib/fare-matrix-data";
+} from "@/lib/shared/fare/fare-matrix-data";
 import {
   formatCurrency,
   getCommuterTypeLabel,
   type CommuterType,
-} from "@/lib/fare-calculator";
+} from "@/lib/shared/fare/fare-calculator";
 import {
   createPaymentIntent,
   verifyPayment,
   type PaymentStatus,
   type GCashPaymentIntent,
-} from "@/lib/gcash-payment";
+} from "@/lib/shared/payment/gcash-payment";
 import { createTransaction } from "@/lib/conductor-transactions";
 import type { PaymentMethodType } from "@/types";
 import {
   encodeQRTransaction,
   type QRTransactionPayload,
-} from "@/lib/qr-transaction";
+} from "@/lib/shared/payment/qr-transaction";
 
 interface FareCalcModalProps {
   isOpen: boolean;

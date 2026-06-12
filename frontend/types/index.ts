@@ -67,8 +67,8 @@ export type {
   NearbyVehicle,
   ConductorRadiusResult,
   GpsStatus,
-} from "../lib/nearby-detector";
+} from "../lib/shared/geo/nearby-detector";
 
 export {
   NEARBY_RADIUS_KM,
-} from "../lib/nearby-detector";
+} from "../lib/shared/geo/nearby-detector";

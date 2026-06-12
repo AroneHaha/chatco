@@ -6,8 +6,8 @@ import {
   getPaymentMethodLabel,
   type GCashPaymentIntent,
   type PaymentMethod,
-} from "@/lib/gcash-payment";
-import { getPointByNumber } from "@/lib/fare-matrix-data";
+} from "@/lib/shared/payment/gcash-payment";
+import { getPointByNumber } from "@/lib/shared/fare/fare-matrix-data";
 import { useAuth } from "@/contexts/auth-context";
 
 interface PaymentHistoryModalProps {

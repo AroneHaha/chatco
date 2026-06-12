@@ -10,8 +10,8 @@ import {
   type PaymentState,
   type QRTransactionPayload,
   type CommuterPaymentRecord,
-} from "@/lib/qr-transaction";
-import { formatCurrency } from "@/lib/fare-calculator";
+} from "@/lib/shared/payment/qr-transaction";
+import { formatCurrency } from "@/lib/shared/fare/fare-calculator";
 
 interface ScanModalProps {
   onClose: () => void;

@@ -12,7 +12,7 @@
 import { useEffect } from "react";
 import { useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
-import type { GpsStatus } from "@/lib/nearby-detector";
+import type { GpsStatus } from "@/lib/shared/geo/nearby-detector";
 import { routeBounds, mapBounds } from "./commuter-map-constants";
 import { getBearing } from "./commuter-map-icons";
 

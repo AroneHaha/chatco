@@ -4,7 +4,7 @@
 //
 // When Laravel backend is integrated, these types represent the API contract.
 
-import type { GpsStatus } from "@/lib/nearby-detector";
+import type { GpsStatus } from "../shared/geo/nearby-detector";
 
 // ─── Async State Helpers (same pattern as conductor) ─────────────────
 
@@ -140,7 +140,7 @@ export interface CommuterFeedback {
 
 export interface CommuterTrackingState {
   gpsStatus: GpsStatus;
-  nearbyVehicles: import("@/lib/nearby-detector").NearbyVehicle[];
+  nearbyVehicles: import("../shared/geo/nearby-detector").NearbyVehicle[];
   canHail: boolean;
-  nearestVehicle: import("@/lib/nearby-detector").NearbyVehicle | null;
+  nearestVehicle: import("../shared/geo/nearby-detector").NearbyVehicle | null;
 }

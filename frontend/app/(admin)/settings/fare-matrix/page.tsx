@@ -3,7 +3,7 @@
 
 import { useState, useMemo } from 'react';
 import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Save, X, MapPin, Search, Route } from 'lucide-react';
-import { initialFarePoints, type FarePoint } from '@/lib/fare-matrix-data';
+import { initialFarePoints, type FarePoint } from '@/lib/shared/fare/fare-matrix-data';
 import { calculateFare } from '@/lib/fare-calculator';
 
 export default function FareMatrixPage() {

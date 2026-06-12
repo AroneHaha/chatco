@@ -7,7 +7,7 @@
 import { api, ApiError, NetworkError } from "@/lib/api/client";
 import { COMMUTER_API } from "../commuter/endpoints";
 import { shouldUseCommuterApi } from "./api-mode";
-import type { NearbyVehicle } from "@/lib/nearby-detector";
+import type { NearbyVehicle } from "../shared/geo/nearby-detector";
 
 export async function fetchNearbyVehicles(
   lat: number,
