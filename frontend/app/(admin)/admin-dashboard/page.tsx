@@ -11,28 +11,19 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowRight,
+  AlertCircle,
 } from "lucide-react";
 
-import {
-  recentVehicles,
-  recentLostFound,
-  recentUsers,
-  quickStats,
-  settingsModules,
-  topPickupPoints,
-  paymentTendencies,
-} from "./data/dashboard-data";
+import { useDashboardData } from "./data/dashboard-data";
+import { SkeletonMetric, SkeletonCard, SkeletonMap } from "@/components/admin/ui/skeleton";
 
 const AdminCommuterMap = dynamic(() => import("@/components/admin/admin-commuter-map"), {
   ssr: false,
-  loading: () => (
-    <div className="w-full h-full bg-[#050F1A] rounded-lg animate-pulse flex items-center justify-center border border-[#1E2D45]">
-      <p className="text-slate-600 text-sm">Loading map...</p>
-    </div>
-  ),
+  loading: () => <SkeletonMap height="100%" label="Live Map Loading…" />,
 });
 
 export default function DashboardHome() {
+  const { data, isLoading, error, refetch } = useDashboardData();
   const carouselRef = useRef<HTMLDivElement>(null);
 
   const scroll = (direction: "left" | "right") => {
@@ -41,6 +32,62 @@ export default function DashboardHome() {
       carouselRef.current.scrollBy({ left: direction === "left" ? -scrollAmount : scrollAmount, behavior: "smooth" });
     }
   };
+
+  // ── Loading State ──
+  if (isLoading) {
+    return (
+      <div className="space-y-6 pb-8">
+        {/* Header skeleton */}
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+          <div className="space-y-2">
+            <div className="h-7 w-40 rounded bg-gray-700 animate-pulse" />
+            <div className="h-4 w-72 rounded bg-gray-700 animate-pulse" />
+          </div>
+        </div>
+        {/* Stats skeleton */}
+        <SkeletonMetric count={4} />
+        {/* Map + analytics skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <SkeletonCard count={1} height="380px" />
+          <div className="space-y-6">
+            <SkeletonCard count={1} height="160px" />
+            <SkeletonCard count={1} height="160px" />
+          </div>
+        </div>
+        {/* Preview cards skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <SkeletonCard count={3} height="200px" />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Error State ──
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <AlertCircle className="h-12 w-12 text-red-400 mb-4" />
+        <h2 className="text-lg font-semibold text-white mb-2">Failed to load dashboard</h2>
+        <p className="text-sm text-slate-400 mb-4">{error}</p>
+        <button
+          onClick={() => refetch()}
+          className="px-4 py-2 bg-[#62A0EA] hover:bg-[#99C1F1] text-white rounded-md text-sm font-medium transition-colors"
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
+
+  const {
+    recentVehicles,
+    recentLostFound,
+    recentUsers,
+    quickStats,
+    settingsModules,
+    topPickupPoints,
+    paymentTendencies,
+  } = data;
 
   return (
     <div className="space-y-6 pb-8">

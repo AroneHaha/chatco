@@ -1,23 +1,38 @@
 // components/admin/ui/settings-drawer.tsx
 'use client';
 
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode, Suspense, lazy, useMemo } from 'react';
+import { usePathname } from 'next/navigation';
 import {
   X, Calculator, MapPin, Wallet, PiggyBank, Ticket, Gauge,
   Shield, MessageCircleQuestion, Settings2, Sliders, ArrowLeft
 } from 'lucide-react';
 
+// ─── Lazy-loaded settings page components ───
+// Instead of iframes (which lose the session cookie and redirect to /login),
+// we import the page components directly and render them inside the drawer.
+// This eliminates all iframe/cookie/auth issues.
+
+const FareMatrixPage = lazy(() => import('@/app/(admin)/settings/fare-matrix/page'));
+const RoutesPage = lazy(() => import('@/app/(admin)/settings/routes/page'));
+const RemittanceOptionsPage = lazy(() => import('@/app/(admin)/settings/remittance-options/page'));
+const FinancialRulesPage = lazy(() => import('@/app/(admin)/settings/financial-rules/page'));
+const VoucherGeneratorPage = lazy(() => import('@/app/(admin)/settings/voucher-generator/page'));
+const OperationsRulesPage = lazy(() => import('@/app/(admin)/settings/operations-rules/page'));
+const SafetyNotificationsPage = lazy(() => import('@/app/(admin)/settings/safety-notifications/page'));
+const FaqManagementPage = lazy(() => import('@/app/(admin)/settings/faq-management/page'));
+const AppConfigurationPage = lazy(() => import('@/app/(admin)/settings/app-configuration/page'));
+
 const settingsOptions = [
-  { title: 'Fare Matrix', description: 'Set base fares and per-kilometer rates.', icon: Calculator, href: '/settings/fare-matrix', color: 'text-blue-400', bgColor: 'bg-blue-500/15' },
-  { title: 'Routes', description: 'Define and edit route waypoints.', icon: MapPin, href: '/settings/routes', color: 'text-green-400', bgColor: 'bg-green-500/15' },
-  { title: 'Remittance Options', description: 'Manage conductor remittance recipients.', icon: Wallet, href: '/settings/remittance-options', color: 'text-purple-400', bgColor: 'bg-purple-500/15' },
-  { title: 'Financial Rules', description: 'Wallet limits, discounts, loyalty.', icon: PiggyBank, href: '/settings/financial-rules', color: 'text-yellow-400', bgColor: 'bg-yellow-500/15' },
-  { title: 'Voucher Generator', description: 'Generate bulk promo codes.', icon: Ticket, href: '/settings/voucher-generator', color: 'text-pink-400', bgColor: 'bg-pink-500/15' },
-  { title: 'Operations Rules', description: 'Speed limits, shifts, expenses.', icon: Gauge, href: '/settings/operations-rules', color: 'text-orange-400', bgColor: 'bg-orange-500/15' },
-  { title: 'Safety & Notifications', description: 'Emergency contacts, push templates.', icon: Shield, href: '/settings/safety-notifications', color: 'text-red-400', bgColor: 'bg-red-500/15' },
-  { title: 'FAQ Management', description: 'Manage commuter FAQ questions and answers.', icon: MessageCircleQuestion, href: '/settings/faq-management', color: 'text-[#62A0EA]', bgColor: 'bg-[#62A0EA]/15' },
-  { title: 'App Configuration', description: 'Maintenance mode, registration.', icon: Settings2, href: '/settings/app-configuration', color: 'text-slate-300', bgColor: 'bg-slate-500/15' },
+  { title: 'Fare Matrix', description: 'Set base fares and per-kilometer rates.', icon: Calculator, href: '/settings/fare-matrix', color: 'text-blue-400', bgColor: 'bg-blue-500/15', component: FareMatrixPage },
+  { title: 'Routes', description: 'Define and edit route waypoints.', icon: MapPin, href: '/settings/routes', color: 'text-green-400', bgColor: 'bg-green-500/15', component: RoutesPage },
+  { title: 'Remittance Options', description: 'Manage conductor remittance recipients.', icon: Wallet, href: '/settings/remittance-options', color: 'text-purple-400', bgColor: 'bg-purple-500/15', component: RemittanceOptionsPage },
+  { title: 'Financial Rules', description: 'Wallet limits, discounts, loyalty.', icon: PiggyBank, href: '/settings/financial-rules', color: 'text-yellow-400', bgColor: 'bg-yellow-500/15', component: FinancialRulesPage },
+  { title: 'Voucher Generator', description: 'Generate bulk promo codes.', icon: Ticket, href: '/settings/voucher-generator', color: 'text-pink-400', bgColor: 'bg-pink-500/15', component: VoucherGeneratorPage },
+  { title: 'Operations Rules', description: 'Speed limits, shifts, expenses.', icon: Gauge, href: '/settings/operations-rules', color: 'text-orange-400', bgColor: 'bg-orange-500/15', component: OperationsRulesPage },
+  { title: 'Safety & Notifications', description: 'Emergency contacts, push templates.', icon: Shield, href: '/settings/safety-notifications', color: 'text-red-400', bgColor: 'bg-red-500/15', component: SafetyNotificationsPage },
+  { title: 'FAQ Management', description: 'Manage commuter FAQ questions and answers.', icon: MessageCircleQuestion, href: '/settings/faq-management', color: 'text-[#62A0EA]', bgColor: 'bg-[#62A0EA]/15', component: FaqManagementPage },
+  { title: 'App Configuration', description: 'Maintenance mode, registration.', icon: Settings2, href: '/settings/app-configuration', color: 'text-slate-300', bgColor: 'bg-slate-500/15', component: AppConfigurationPage },
 ];
 
 // ─── Context ───
@@ -53,15 +68,10 @@ export function useSettingsDrawer() {
   return useContext(SettingsDrawerContext);
 }
 
-// ─── Settings Nav Button (replaces BackButton on settings sub-pages) ───
-// When inside the drawer iframe (?embed=1), this button is hidden
-// because the drawer has its own back arrow in the header.
+// ─── Settings Nav Button ───
+// Opens the settings drawer when clicked (used on direct-access settings pages).
 export function SettingsNavButton() {
   const { toggleSettingsDrawer } = useSettingsDrawer();
-  const searchParams = useSearchParams();
-  const isEmbed = searchParams.get('embed') === '1';
-
-  if (isEmbed) return null;
 
   return (
     <button
@@ -75,10 +85,22 @@ export function SettingsNavButton() {
   );
 }
 
+// ─── Loading Spinner ───
+function DrawerLoader() {
+  return (
+    <div className="flex items-center justify-center h-full bg-[#0B1120]">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 border-2 border-[#62A0EA]/30 border-t-[#62A0EA] rounded-full animate-spin" />
+        <p className="text-xs text-slate-500">Loading…</p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Drawer Component ───
 // The drawer has TWO internal views managed by React state (NO page navigation):
 //   1. Menu view  – shows all 9 settings options
-//   2. Sub-page view – loads the selected settings sub-page inside an iframe
+//   2. Sub-page view – renders the selected settings component directly (no iframe)
 // Clicking "Go Back" in sub-page view returns to the menu view.
 // The main page behind the drawer stays completely untouched.
 export function SettingsDrawer() {
@@ -109,8 +131,13 @@ export function SettingsDrawer() {
     setActiveHref(null);
   };
 
-  // Resolve the selected option for the header title
-  const activeOption = activeHref ? settingsOptions.find(o => o.href === activeHref) : null;
+  // Resolve the selected option for the header title + component
+  const activeOption = useMemo(
+    () => (activeHref ? settingsOptions.find(o => o.href === activeHref) : null),
+    [activeHref]
+  );
+
+  const ActiveComponent = activeOption?.component ?? null;
 
   return (
     <>
@@ -189,31 +216,12 @@ export function SettingsDrawer() {
           </nav>
         )}
 
-        {/* ── View 2: Sub-page Content (loaded via iframe) ── */}
-        {activeHref && (
-          <div key={activeHref} className="flex-1 bg-[#0B1120] overflow-hidden relative">
-            {/* Loading shimmer while iframe loads */}
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0B1120] pointer-events-none transition-opacity duration-300" id="drawer-iframe-loader">
-              <div className="flex flex-col items-center gap-3">
-                <div className="w-8 h-8 border-2 border-[#62A0EA]/30 border-t-[#62A0EA] rounded-full animate-spin" />
-                <p className="text-xs text-slate-500">Loading…</p>
-              </div>
-            </div>
-            <iframe
-              src={`${activeHref}?embed=1`}
-              className="w-full h-full border-0"
-              title={activeOption?.title || 'Settings'}
-              onLoad={() => {
-                // Hide the loading spinner once the iframe has finished loading
-                const loader = document.getElementById('drawer-iframe-loader');
-                if (loader) {
-                  (loader as HTMLElement).style.opacity = '0';
-                  setTimeout(() => {
-                    (loader as HTMLElement).style.display = 'none';
-                  }, 300);
-                }
-              }}
-            />
+        {/* ── View 2: Sub-page Content (rendered directly, no iframe) ── */}
+        {activeHref && ActiveComponent && (
+          <div key={activeHref} className="flex-1 bg-[#0B1120] overflow-y-auto">
+            <Suspense fallback={<DrawerLoader />}>
+              <ActiveComponent />
+            </Suspense>
           </div>
         )}
       </aside>

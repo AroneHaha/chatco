@@ -3,8 +3,9 @@
 
 import { useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import { Gauge, Clock, MapPin, AlertTriangle, Archive, Filter, CalendarDays } from 'lucide-react';
-import { liveVehicleTracking } from './data/data-monitoring';
+import { Gauge, Clock, MapPin, AlertTriangle, Archive, CalendarDays, AlertCircle } from 'lucide-react';
+import { useMonitoringData, type SosAlert, type SosHistoryLog, type DemandZone } from './data/data-monitoring';
+import { SkeletonMetric, SkeletonTable, SkeletonMap } from '@/components/admin/ui/skeleton';
 
 // Dynamically import the map and disable SSR (Leaflet requires the window object)
 interface CommuterMapProps {
@@ -15,106 +16,35 @@ interface CommuterMapProps {
 
 const CommuterMap = dynamic<CommuterMapProps>(() => import('@/components/admin/admin-commuter-map'), {
   ssr: false,
-  loading: () => <p className="text-white text-center">Loading map...</p>
+  loading: () => <SkeletonMap height="100%" label="Live Map Loading…" />,
 });
 
-interface SosAlert {
-  id: string;
-  conductor: string;
-  vehicle: string;
-  message: string;
-  time: string;
-  triggeredDate: string; // Added for proper filtering
-  coordinates: [number, number];
-}
-
-interface SosHistoryLog {
-  id: string;
-  conductor: string;
-  vehicle: string;
-  message: string;
-  triggeredAt: string;
-  resolvedAt: string;
-  triggeredDate: string; // Added for proper filtering
-  coordinates: [number, number];
-}
-
-interface OverspeedLog {
-  id: string;
-  unit: string;
-  driver: string;
-  speed: number;
-  zone: string;
-  loggedAt: string;
-  loggedDate: string; // Added for proper filtering
-}
-
-interface DemandZone {
-  id: string;
-  coords: [number, number];
-  radiusMeters: number;
-  commuterCount: number;
-  intensity: 'LOW' | 'MEDIUM' | 'HIGH';
-}
-
-const mockDemandHeatmap: DemandZone[] = [
-  { id: 'zone-1', coords: [14.88645, 120.78596], radiusMeters: 400, commuterCount: 120, intensity: 'HIGH' },
-  { id: 'zone-2', coords: [14.84941, 120.82352], radiusMeters: 300, commuterCount: 85, intensity: 'MEDIUM' },
-  { id: 'zone-3', coords: [14.81816, 120.90600], radiusMeters: 500, commuterCount: 150, intensity: 'HIGH' },
-  { id: 'zone-4', coords: [14.77813, 120.93709], radiusMeters: 250, commuterCount: 40, intensity: 'LOW' },
-  { id: 'zone-5', coords: [14.74300, 120.95912], radiusMeters: 350, commuterCount: 95, intensity: 'MEDIUM' },
-];
-
-const initialSosHistory: SosHistoryLog[] = [
-  { id: 'sos-old-001', conductor: 'Mario Speedwagon', vehicle: 'DEF-456', message: 'Panic button triggered by conductor!', triggeredAt: 'Oct 24, 2023 - 10:15 AM', resolvedAt: 'Oct 24, 2023 - 10:22 AM', triggeredDate: '2023-10-24', coordinates: [14.5980, 120.9830] },
-  { id: 'sos-old-002', conductor: 'Crisostomo Ibarra', vehicle: 'GHI-789', message: 'Medical emergency reported.', triggeredAt: 'Oct 23, 2023 - 02:40 PM', resolvedAt: 'Oct 23, 2023 - 03:10 PM', triggeredDate: '2023-10-23', coordinates: [14.6010, 120.9860] },
-  { id: 'sos-old-003', conductor: 'Sisa Doe', vehicle: 'JKL-012', message: 'Panic button triggered by conductor!', triggeredAt: 'Oct 22, 2023 - 08:05 AM', resolvedAt: 'Oct 22, 2023 - 08:12 AM', triggeredDate: '2023-10-22', coordinates: [14.5970, 120.9810] },
-];
-
-// Mock Overspeeding History
-const initialOverspeedHistory: OverspeedLog[] = [
-  { id: 'ov-001', unit: 'VMY 9183', driver: 'Mark Arone Dela Cruz', speed: 72, zone: 'Malolos–Meycauayan', loggedAt: 'Nov 15, 2023 - 09:12 AM', loggedDate: '2023-11-15' },
-  { id: 'ov-002', unit: 'TNB 8462', driver: 'Nardong Putik', speed: 68, zone: 'Meycauayan–Calumpit', loggedAt: 'Nov 14, 2023 - 04:30 PM', loggedDate: '2023-11-14' },
-  { id: 'ov-003', unit: 'VMY 9183', driver: 'Mark Arone Dela Cruz', speed: 65, zone: 'Calumpit', loggedAt: 'Nov 10, 2023 - 08:45 AM', loggedDate: '2023-11-10' },
-];
-
 export default function MonitoringPage() {
-  const today = new Date().toISOString().split('T')[0];
+  const { data, isLoading, error, refetch } = useMonitoringData();
 
-  const [sosAlerts, setSosAlerts] = useState<SosAlert[]>([
-    {
-      id: 'sos-001',
-      conductor: 'Juan Dela Cruz',
-      vehicle: 'ABC-123',
-      message: 'Panic button triggered by conductor!',
-      time: 'Just now',
-      triggeredDate: today,
-      coordinates: [14.5995, 120.9842]
-    },
-  ]);
-
-  const [sosHistory, setSosHistory] = useState<SosHistoryLog[]>(initialSosHistory);
-  const [overspeedHistory, setOverspeedHistory] = useState<OverspeedLog[]>(initialOverspeedHistory);
+  const [sosAlerts, setSosAlerts] = useState<SosAlert[]>(data.sosAlerts);
+  const [sosHistory, setSosHistory] = useState<SosHistoryLog[]>(data.sosHistory);
 
   // Pagination States
   const [sosPage, setSosPage] = useState(1);
   const [overspeedPage, setOverspeedPage] = useState(1);
   const ROWS_PER_PAGE = 5;
 
-  // NEW: Filter States
+  // Filter States
   const [filterSosDate, setFilterSosDate] = useState('');
   const [filterOverspeedDate, setFilterOverspeedDate] = useState('');
   const [showOverspeedOnly, setShowOverspeedOnly] = useState(false);
 
-  const overspeedCount = liveVehicleTracking.filter(v => v.status === "overspeeding").length;
-  const idleCount = liveVehicleTracking.filter(v => v.status === "idle").length;
+  const overspeedCount = data.liveVehicles.filter(v => v.status === "overspeeding").length;
+  const idleCount = data.liveVehicles.filter(v => v.status === "idle").length;
 
   const metrics = [
     { title: 'Overspeeding', value: overspeedCount.toString(), icon: Gauge, color: 'text-red-400' },
     { title: 'Idle Vehicles', value: idleCount.toString(), icon: Clock, color: 'text-amber-400' },
-    { title: 'Demand Heatmap', value: mockDemandHeatmap.length.toString(), icon: MapPin, color: 'text-[#62A0EA]' },
+    { title: 'Demand Heatmap', value: data.demandZones.length.toString(), icon: MapPin, color: 'text-[#62A0EA]' },
   ];
 
+  // TODO: Replace with API call to resolve SOS
   const handleConfirmSos = (alertId: string) => {
     const alertToResolve = sosAlerts.find(a => a.id === alertId);
     if (!alertToResolve) return;
@@ -139,11 +69,44 @@ export default function MonitoringPage() {
     setSosAlerts(prev => prev.filter(alert => alert.id !== alertId));
   };
 
+  // ── Loading State ──
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-8 w-48 rounded bg-gray-700 animate-pulse" />
+        <SkeletonMetric count={3} />
+        <SkeletonMap height="calc(100vh - 280px)" label="Loading Monitoring Map…" />
+        <SkeletonTable rows={5} columns={5} title="Active Vehicle Tracking" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <SkeletonTable rows={3} columns={4} title="SOS History" />
+          <SkeletonTable rows={3} columns={5} title="Overspeeding History" />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Error State ──
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <AlertCircle className="h-12 w-12 text-red-400 mb-4" />
+        <h2 className="text-lg font-semibold text-white mb-2">Failed to load monitoring data</h2>
+        <p className="text-sm text-slate-400 mb-4">{error}</p>
+        <button
+          onClick={() => refetch()}
+          className="px-4 py-2 bg-[#62A0EA] hover:bg-[#99C1F1] text-white rounded-md text-sm font-medium transition-colors"
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
+
   // Filtered Data Logic
   const filteredVehicles = useMemo(() => {
-    if (!showOverspeedOnly) return liveVehicleTracking;
-    return liveVehicleTracking.filter(v => v.status === "overspeeding");
-  }, [showOverspeedOnly]);
+    if (!showOverspeedOnly) return data.liveVehicles;
+    return data.liveVehicles.filter(v => v.status === "overspeeding");
+  }, [showOverspeedOnly, data.liveVehicles]);
 
   const filteredSosHistory = useMemo(() => {
     if (!filterSosDate) return sosHistory;
@@ -151,9 +114,9 @@ export default function MonitoringPage() {
   }, [filterSosDate, sosHistory]);
 
   const filteredOverspeedHistory = useMemo(() => {
-    if (!filterOverspeedDate) return overspeedHistory;
-    return overspeedHistory.filter(log => log.loggedDate === filterOverspeedDate);
-  }, [filterOverspeedDate, overspeedHistory]);
+    if (!filterOverspeedDate) return data.overspeedHistory;
+    return data.overspeedHistory.filter(log => log.loggedDate === filterOverspeedDate);
+  }, [filterOverspeedDate, data.overspeedHistory]);
 
   // Pagination Logic
   const totalSosPages = Math.max(1, Math.ceil(filteredSosHistory.length / ROWS_PER_PAGE));
@@ -242,7 +205,7 @@ export default function MonitoringPage() {
       <div className="h-[calc(100vh-280px)]">
         <CommuterMap
           isDesktop={true}
-          demandZones={mockDemandHeatmap}
+          demandZones={data.demandZones}
           sosLocations={sosAlerts.map(a => a.coordinates)}
         />
       </div>
@@ -253,7 +216,7 @@ export default function MonitoringPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
             <h2 className="text-lg font-bold text-white">Active Vehicle Tracking</h2>
 
-            {/* NEW: Overspeed Toggle Filter */}
+            {/* Overspeed Toggle Filter */}
             <div className="flex items-center gap-2 bg-[#0E1628] p-1 rounded-md border border-[#1E2D45]">
               <button
                 onClick={() => setShowOverspeedOnly(false)}
@@ -352,7 +315,7 @@ export default function MonitoringPage() {
               <h2 className="text-lg font-bold text-white">SOS History</h2>
             </div>
 
-            {/* NEW: SOS Date Filter */}
+            {/* SOS Date Filter */}
             <div className="relative flex items-center">
               <CalendarDays size={14} className="absolute left-2.5 text-slate-500 pointer-events-none" />
               <input
@@ -418,7 +381,7 @@ export default function MonitoringPage() {
           )}
         </div>
 
-        {/* NEW: OVERSPEEDING HISTORY LOG TABLE */}
+        {/* OVERSPEEDING HISTORY LOG TABLE */}
         <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div className="flex items-center gap-2">
@@ -426,7 +389,7 @@ export default function MonitoringPage() {
               <h2 className="text-lg font-bold text-white">Overspeeding History</h2>
             </div>
 
-            {/* NEW: Overspeed Date Filter */}
+            {/* Overspeed Date Filter */}
             <div className="relative flex items-center">
               <CalendarDays size={14} className="absolute left-2.5 text-slate-500 pointer-events-none" />
               <input

@@ -5,10 +5,10 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents,
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-// --- 1. BACKEND PROOFING: Types & Mock Data ---
+// --- 1. TYPES (kept — these define the API contract) ---
 type VehicleCapacity = "AVAILABLE" | "STANDING" | "FULL";
 
-interface ActiveVehicle {
+export interface ActiveVehicle {
   id: string;
   plateNumber: string;
   driverName: string;
@@ -17,28 +17,14 @@ interface ActiveVehicle {
   capacity: VehicleCapacity;
 }
 
-const MOCK_ACTIVE_VEHICLES: ActiveVehicle[] = [
-  { id: "v_01", plateNumber: "ABC 1234", driverName: "Juan Dela Cruz", conductorName: "Pedro Penduko", routeIndex: 8, capacity: "AVAILABLE" },
-  { id: "v_02", plateNumber: "XYZ 5678", driverName: "Mario Speedwagon", conductorName: "Luigi Mansion", routeIndex: 42, capacity: "STANDING" },
-  { id: "v_03", plateNumber: "DEF 9012", driverName: "Crisostomo Ibarra", conductorName: "Sisa Doe", routeIndex: 68, capacity: "FULL" },
-];
-
-interface CommuterData {
+export interface CommuterData {
   id: number;
   name: string;
   latlng: [number, number];
   locationDetail: string;
 }
 
-const MOCK_COMMUTERS: CommuterData[] = [
-  { id: 1, name: 'Ana', latlng: [14.9013, 120.7719], locationDetail: 'Near 7-Eleven • 2 min away' },
-  { id: 2, name: 'Ben', latlng: [14.8282, 120.8809], locationDetail: 'Corner Street • 5 min away' },
-  { id: 3, name: 'Cris', latlng: [14.7963, 120.9297], locationDetail: 'Near Jollibee • 1 min away' },
-  { id: 4, name: 'Diana', latlng: [14.8208, 120.9042], locationDetail: 'Waiting at Shed • 3 min away' },
-  { id: 5, name: 'Erik', latlng: [14.8605, 120.8090], locationDetail: 'Across School • 4 min away' },
-];
-
-interface DemandZone {
+export interface DemandZone {
   id: string;
   coords: [number, number];
   radiusMeters: number;
@@ -46,15 +32,7 @@ interface DemandZone {
   intensity: 'LOW' | 'MEDIUM' | 'HIGH';
 }
 
-const MOCK_DEMAND_HEATMAP: DemandZone[] = [
-  { id: 'zone-1', coords: [14.88645, 120.78596], radiusMeters: 400, commuterCount: 120, intensity: 'HIGH' },
-  { id: 'zone-2', coords: [14.84941, 120.82352], radiusMeters: 300, commuterCount: 85, intensity: 'MEDIUM' },
-  { id: 'zone-3', coords: [14.81816, 120.90600], radiusMeters: 500, commuterCount: 150, intensity: 'HIGH' },
-  { id: 'zone-4', coords: [14.77813, 120.93709], radiusMeters: 250, commuterCount: 40, intensity: 'LOW' },
-  { id: 'zone-5', coords: [14.74300, 120.95912], radiusMeters: 350, commuterCount: 95, intensity: 'MEDIUM' },
-];
-
-// --- 2. ROUTE DATA ---
+// --- 2. ROUTE DATA (static geometry — stays) ---
 const ROUTE_COORDS: [number, number][] = [
   [14.925460996033356, 120.76512235423647], [14.92420402124189, 120.76528787872712],
   [14.920152600670095, 120.76571706129354], [14.915220582966443, 120.76619717003261],
@@ -203,10 +181,14 @@ function LocationFinder({
 // --- 4. MAIN COMPONENT ---
 export default function AdminCommuterMap({ 
   isDesktop = false, 
-  demandZones, 
+  vehicles = [],
+  commuters = [],
+  demandZones = [],
   sosLocations 
 }: { 
   isDesktop?: boolean;
+  vehicles?: ActiveVehicle[];
+  commuters?: CommuterData[];
   demandZones?: DemandZone[];
   sosLocations?: [number, number][];
 }) {
@@ -256,8 +238,6 @@ export default function AdminCommuterMap({
     popupAnchor: [0, -15],
   }), []);
 
-  const zonesToRender = demandZones || MOCK_DEMAND_HEATMAP;
-
   if (!isDomReady) return <div className="w-full h-full bg-[#050F1A] rounded-xl" />;
 
   return (
@@ -282,7 +262,7 @@ export default function AdminCommuterMap({
         <Polyline positions={ROUTE_COORDS} pathOptions={{ color: '#62A0EA', weight: 4, opacity: 0.9, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }} />
 
         {/* --- DEMAND HEATMAP CIRCLES --- */}
-        {zonesToRender.map((zone) => {
+        {demandZones.map((zone) => {
           const colorMap = {
             LOW: { fill: '#22c55e', border: '#16a34a' },
             MEDIUM: { fill: '#eab308', border: '#ca8a04' },
@@ -344,7 +324,8 @@ export default function AdminCommuterMap({
           </Marker>
         )}
 
-        {MOCK_COMMUTERS.map((commuter) => (
+        {/* --- WAITING COMMUTERS --- */}
+        {commuters.map((commuter) => (
           <Marker key={commuter.id} position={commuter.latlng} icon={hailingCommuterIcon} zIndexOffset={500}>
             <Popup>
               <div className="font-bold text-[#FF6D3A]">Passenger Waiting ({commuter.name})</div>
@@ -353,7 +334,8 @@ export default function AdminCommuterMap({
           </Marker>
         ))}
 
-        {MOCK_ACTIVE_VEHICLES.map((vehicle) => {
+        {/* --- ACTIVE VEHICLES --- */}
+        {vehicles.map((vehicle) => {
           const config = getCapacityConfig(vehicle.capacity);
           return (
             <Marker key={vehicle.id} position={ROUTE_COORDS[vehicle.routeIndex]} icon={getJeepneyIcon(vehicle.capacity)} zIndexOffset={800}>

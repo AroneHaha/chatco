@@ -1,8 +1,9 @@
+// components/admin/users/users-table.tsx
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
 import { GlassCard } from '@/components/admin/ui/glass-card';
 import { Modal } from '@/components/admin/ui/modal';
-import { Clock, UserIcon, Mail, Phone, CreditCard } from 'lucide-react';
+import { Clock, UserIcon, Mail, Phone, CreditCard, Pencil } from 'lucide-react';
 import type { ActiveUser, RejectedUser } from '@/app/(admin)/users/data/users-data';
 
 type User = ActiveUser | RejectedUser;
@@ -11,13 +12,14 @@ interface UsersTableProps {
   users: User[];
   searchQuery: string;
   onDeactivate: (userId: number) => void;
+  onEdit: (user: ActiveUser) => void;
   onViewHistory: (userId: string) => void;
   isRejectedTab: boolean;
   selectedUser: User | null;
   onSelectUser: (user: User | null) => void;
 }
 
-export function UsersTable({ users, searchQuery, onDeactivate, onViewHistory, isRejectedTab, selectedUser, onSelectUser }: UsersTableProps) {
+export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onViewHistory, isRejectedTab, selectedUser, onSelectUser }: UsersTableProps) {
   const columns = [
     { key: 'name', label: 'Name' },
     { key: 'email', label: 'Email' },
@@ -44,6 +46,13 @@ export function UsersTable({ users, searchQuery, onDeactivate, onViewHistory, is
                 title="View Details"
               >
                 <UserIcon size={18} />
+              </button>
+              <button 
+                onClick={(e) => { e.stopPropagation(); onEdit(item as ActiveUser); }} 
+                className="text-slate-400 hover:text-[#62A0EA] p-1 rounded-md hover:bg-[#62A0EA]/10 transition-colors" 
+                title="Edit Commuter"
+              >
+                <Pencil size={18} />
               </button>
               <button 
                 onClick={(e) => { e.stopPropagation(); onViewHistory(String(item.id)); }} 
