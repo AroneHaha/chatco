@@ -5,8 +5,9 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle } from "react-
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { haversineMeters } from "@/lib/utils/geo";
+import type { ConductorHailRequest } from "@/lib/conductor/types";
 
-// --- ROUTE DATA (same route as commuter map) ---
+const RADIUS_M = 1000;
 const ROUTE_COORDS: [number, number][] = [
   [14.925460996033356, 120.76512235423647], [14.92420402124189, 120.76528787872712],
   [14.920152600670095, 120.76571706129354], [14.915220582966443, 120.76619717003261],
@@ -60,29 +61,18 @@ const mapBoundsArray: [[number, number], [number, number]] = [
 ];
 const MAP_CENTER: L.LatLngTuple = [rawBounds.getCenter().lat, rawBounds.getCenter().lng];
 
-// --- MOCK HAILING DATA ---
-const CONDUCTOR_ROUTE_INDEX = 35;
-const HAIL_1_ROUTE_INDEX = 30;
-const HAIL_2_ROUTE_INDEX = 42;
-const HAIL_3_ROUTE_INDEX = 45;
-const RADIUS_M = 1000; // 1 km
+interface ConductorMapProps {
+  unitNumber?: string;
+  hails?: ConductorHailRequest[];
+}
 
-/**
- * Compute distance between two route coordinates using the canonical
- * haversine formula from @/lib/utils/geo.
- *
- * WHY CHANGED: The old getDistanceMeters was a local Haversine reimplementation.
- * This created a DRY violation — if the canonical formula is ever corrected or
- * improved, this copy would be out of sync. Now delegates to the single source
- * of truth in geo.ts, which is also used by nearby-detector.ts and
- * fare-calculator.ts.
- */
 function getDistanceMeters(a: [number, number], b: [number, number]): number {
   return haversineMeters(a[0], a[1], b[0], b[1]);
 }
 
-export default function ConductorMap() {
+export default function ConductorMap({ unitNumber = "—", hails = [] }: ConductorMapProps) {
   const [isDomReady, setIsDomReady] = useState(false);
+  const [vehiclePosition, setVehiclePosition] = useState<L.LatLngTuple>(MAP_CENTER);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -99,6 +89,34 @@ export default function ConductorMap() {
       cancelAnimationFrame(raf1);
     };
   }, []);
+
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        setVehiclePosition([position.coords.latitude, position.coords.longitude]);
+      },
+      () => {
+        setVehiclePosition(MAP_CENTER);
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, []);
+
+  const visibleHails = useMemo(
+    () =>
+      hails.filter(
+        (hail) =>
+          getDistanceMeters(
+            [vehiclePosition[0], vehiclePosition[1]],
+            [hail.latitude, hail.longitude]
+          ) <= RADIUS_M
+      ),
+    [hails, vehiclePosition]
+  );
 
   // Conductor's Vehicle Marker
   const vehicleIcon = useMemo(() => new L.DivIcon({
@@ -152,13 +170,13 @@ export default function ConductorMap() {
         <Polyline positions={ROUTE_COORDS} pathOptions={{ color: '#62A0EA', weight: 4, opacity: 0.9, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }} />
 
         {/* 1km Radius Circle — conductor's operational pickup zone */}
-        <Circle center={ROUTE_COORDS[CONDUCTOR_ROUTE_INDEX]} radius={RADIUS_M} pathOptions={{ color: '#1A5FB4', fillColor: '#1A5FB4', fillOpacity: 0.05, weight: 1.5, opacity: 0.3, dashArray: '8 4' }} />
+        <Circle center={vehiclePosition} radius={RADIUS_M} pathOptions={{ color: '#1A5FB4', fillColor: '#1A5FB4', fillOpacity: 0.05, weight: 1.5, opacity: 0.3, dashArray: '8 4' }} />
 
-        <Marker position={ROUTE_COORDS[CONDUCTOR_ROUTE_INDEX]} icon={vehicleIcon}>
+        <Marker position={vehiclePosition} icon={vehicleIcon}>
           <Popup>
             <div className="space-y-2 min-w-[180px]">
               <div className="flex items-center justify-between">
-                <div className="font-bold text-[#1A5FB4]">RIZ 2024 (You)</div>
+                <div className="font-bold text-[#1A5FB4]">{unitNumber} (You)</div>
                 <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-[#1A5FB4]/10 text-[#1A5FB4] border border-[#1A5FB4]/30">Active</span>
               </div>
               <div className="text-xs text-gray-500 space-y-0.5 pt-1 border-t border-gray-100">
@@ -169,16 +187,14 @@ export default function ConductorMap() {
           </Popup>
         </Marker>
 
-        {/* Hailing commuters — only show those within 1km radius */}
-        {[
-          { index: HAIL_1_ROUTE_INDEX, label: "Near Jollibee", time: "2 min away" },
-          { index: HAIL_2_ROUTE_INDEX, label: "Corner Street", time: "5 min away" },
-          { index: HAIL_3_ROUTE_INDEX, label: "Market Area", time: "8 min away" },
-        ].filter(h => getDistanceMeters(ROUTE_COORDS[CONDUCTOR_ROUTE_INDEX], ROUTE_COORDS[h.index]) <= RADIUS_M).map((h) => (
-          <Marker key={h.index} position={ROUTE_COORDS[h.index]} icon={hailingIcon}>
+        {visibleHails.map((hail) => (
+          <Marker key={hail.id} position={[hail.latitude, hail.longitude]} icon={hailingIcon}>
             <Popup>
-              <div className="font-bold text-[#FF6D3A]">Passenger Waiting</div>
-              <div className="text-xs text-gray-500">{h.label} &bull; {h.time}</div>
+              <div className="font-bold text-[#FF6D3A]">{hail.commuterName}</div>
+              <div className="text-xs text-gray-500">
+                {hail.label || "Passenger waiting"}
+                {hail.etaMinutes ? ` · ${hail.etaMinutes} min away` : ""}
+              </div>
             </Popup>
           </Marker>
         ))}

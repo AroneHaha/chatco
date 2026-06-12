@@ -1,43 +1,40 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { getActiveShift, clearShift } from "@/lib/conductor-shift";
-import { getRemittanceHistory } from "@/lib/remittance-history";
-import { getShiftTransactions } from "@/lib/conductor-transactions";
-import type { ConductorShift } from "@/lib/conductor-shift";
+import { clearShift } from "@/lib/conductor/services/shift.service";
+import { useConductorShift } from "@/app/(conductor)/hooks/use-conductor-shift";
+import { useRemittanceData } from "@/app/(conductor)/hooks/use-remittance-data";
+import { SettingsSkeleton } from "@/components/conductor/ui/skeleton";
 import ClearCacheModal from "@/components/conductor/modals/clear-cache-modal";
 import SosConfirmModal from "@/components/conductor/modals/sos-confirm-modal";
 
 export default function SettingsPage() {
   const router = useRouter();
-  const [shift, setShift] = useState<ConductorShift | null>(null);
+  const { shift, status: shiftStatus, error: shiftError } = useConductorShift();
+  const { history, transactions, status: remitStatus, error: remitError } = useRemittanceData();
   const [scanSound, setScanSound] = useState(true);
 
   const [showClearCache, setShowClearCache] = useState(false);
   const [showSOS, setShowSOS] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  useEffect(() => {
-    setShift(getActiveShift());
-  }, []);
-
   const logoutLocked = useMemo(() => {
     if (!shift) return false;
-    const history = getRemittanceHistory();
 
-    // Check 1: Any pending remittance across all records
-    const hasPendingRemit = history.some((r) => r.remittanceStatus === "Pending" && r.totalCashless > 0);
+    const hasPendingRemit = history.some(
+      (record) => record.remittanceStatus === "Pending" && record.totalCashless > 0
+    );
     if (hasPendingRemit) return true;
 
-    // Check 2: Current shift has un-remitted transactions (collections not zero)
-    const transactions = getShiftTransactions(shift.shiftId);
-    const totalCollections = transactions.reduce((sum, t) => sum + t.finalAmount, 0);
-    const hasRemitted = history.some((r) => r.shiftId === shift.shiftId && r.remittanceStatus === "Remitted");
+    const totalCollections = transactions.reduce((sum, txn) => sum + txn.finalAmount, 0);
+    const hasRemitted = history.some(
+      (record) => record.shiftId === shift.shiftId && record.remittanceStatus === "Remitted"
+    );
     if (totalCollections > 0 && !hasRemitted) return true;
 
     return false;
-  }, [shift]);
+  }, [shift, history, transactions]);
 
   const handleClearCache = () => {
     localStorage.removeItem("conductor_app_cache");
@@ -54,6 +51,20 @@ export default function SettingsPage() {
     clearShift();
     router.push("/login");
   };
+
+  if (shiftStatus === "loading" || remitStatus === "loading") {
+    return <SettingsSkeleton />;
+  }
+
+  if (shiftStatus === "error" || remitStatus === "error") {
+    return (
+      <div className="min-h-screen bg-[#050F1A] flex items-center justify-center px-6 lg:pl-64">
+        <div className="max-w-sm text-center">
+          <p className="text-red-300 text-sm">{shiftError || remitError}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#050F1A] pb-24 lg:pb-8 lg:pl-64">

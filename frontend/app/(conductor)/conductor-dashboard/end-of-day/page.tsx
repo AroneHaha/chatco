@@ -19,9 +19,11 @@ const FareCalculatorModal = dynamic<FareCalculatorModalProps>(
   () => import("@/components/conductor/modals/fare-calculator-modal"),
   { ssr: false }
 );
-import { endShift, getActiveShift, formatTime } from "@/lib/conductor-shift";
-import { saveRemittance, getRemittanceHistory, type RemittanceRecord } from "@/lib/remittance-history";
-import { getShiftTransactions, type Transaction } from "@/lib/conductor-transactions";
+import { endShift, formatTime } from "@/lib/conductor/services/shift.service";
+import { submitRemittance, type RemittanceRecord } from "@/lib/conductor/services/remittance.service";
+import type { Transaction } from "@/lib/conductor/services/transactions.service";
+import { useRemittanceData } from "@/app/(conductor)/hooks/use-remittance-data";
+import { EndOfDaySkeleton } from "@/components/conductor/ui/skeleton";
 import { fmt, methodConfig } from "./helpers";
 
 // Extracted UI Components
@@ -32,6 +34,8 @@ import OfficialReportModal, { buildPrintHTML } from "@/components/conductor/remi
 
 export default function EndOfDayPage() {
   const router = useRouter();
+  const { shift, transactions, history, status, error, refresh } = useRemittanceData();
+
   const [showConfirm, setShowConfirm] = useState(false);
   const [isRemitting, setIsRemitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -41,18 +45,17 @@ export default function EndOfDayPage() {
   const [reportForRecord, setReportForRecord] = useState<RemittanceRecord | null>(null);
   const [showFareCalc, setShowFareCalc] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [history, setHistory] = useState<RemittanceRecord[]>([]);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const [shiftInfo, setShiftInfo] = useState({ conductorName: "Mark", driverName: "Ramon", unitNumber: "RIZ 2024", route: "Quiapo - Taytay", shiftId: "SHF-001", timeIn: new Date().toISOString(), timeOut: new Date().toISOString() });
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-
-  useEffect(() => {
-    const shift = getActiveShift();
-    if (shift) { setShiftInfo({ conductorName: shift.conductorName, driverName: shift.driverName, unitNumber: shift.unitNumber, route: shift.route, shiftId: shift.shiftId, timeIn: shift.timeIn, timeOut: shift.timeOut || new Date().toISOString() }); setTransactions(getShiftTransactions(shift.shiftId)); }
-    setHistory(getRemittanceHistory());
-  }, []);
-
-  useEffect(() => { const handler = () => { const shift = getActiveShift(); if (shift) setTransactions(getShiftTransactions(shift.shiftId)); }; window.addEventListener("conductor:transaction-updated", handler); return () => window.removeEventListener("conductor:transaction-updated", handler); }, []);
+  const shiftInfo = {
+    conductorName: shift?.conductorName || "—",
+    driverName: shift?.driverName || "—",
+    unitNumber: shift?.unitNumber || "—",
+    route: shift?.route || "—",
+    shiftId: shift?.shiftId || "",
+    timeIn: shift?.timeIn || new Date().toISOString(),
+    timeOut: shift?.timeOut || new Date().toISOString(),
+  };
   useEffect(() => { const handler = () => setShowFareCalc(true); window.addEventListener("conductor:open-payment", handler); return () => window.removeEventListener("conductor:open-payment", handler); }, []);
 
   // ─── Computed breakdown from system-tracked transactions ───
@@ -103,30 +106,51 @@ export default function EndOfDayPage() {
   };
 
   const handleRemit = async () => {
-    setIsRemitting(true); await new Promise((r) => setTimeout(r, 1800)); setIsRemitting(false); setShowConfirm(false);
-    const endedShift = endShift();
-    const record: RemittanceRecord = {
-      shiftId: shiftInfo.shiftId,
-      date: new Date().toISOString().split("T")[0],
-      conductorName: shiftInfo.conductorName,
-      driverName: shiftInfo.driverName,
-      unitNumber: shiftInfo.unitNumber,
-      totalPassengers: summary.totalPassengers,
-      cashlessBreakdown: {
-        gcashScanned: summary.breakdown["GCash_Scanned"]?.amount ?? 0,
-        gcashDirect: summary.breakdown["GCash_Direct"]?.amount ?? 0,
-        voucher: summary.breakdown["Voucher"]?.amount ?? 0,
-      },
-      totalCashless: (summary.breakdown["GCash_Scanned"]?.amount ?? 0) + (summary.breakdown["GCash_Direct"]?.amount ?? 0) + (summary.breakdown["Voucher"]?.amount ?? 0),
-      cashDeclared: 0,
-      gcashTotal: summary.gcashTotal,
-      cashTotal: summary.cashTotal,
-      remittanceStatus: "Remitted",
-      timeIn: shiftInfo.timeIn,
-      timeOut: endedShift?.timeOut || new Date().toISOString(),
-    };
-    setHistory(saveRemittance(record)); setShowSuccess(true); setHasRemittedToday(true);
-    setTimeout(() => { setShowSuccess(false); router.replace("/login"); }, 3000);
+    setIsRemitting(true);
+    setSubmitError(null);
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 1800));
+      const endedShift = await endShift();
+      const record: RemittanceRecord = {
+        shiftId: shiftInfo.shiftId,
+        date: new Date().toISOString().split("T")[0],
+        conductorName: shiftInfo.conductorName,
+        driverName: shiftInfo.driverName,
+        unitNumber: shiftInfo.unitNumber,
+        totalPassengers: summary.totalPassengers,
+        cashlessBreakdown: {
+          gcashScanned: summary.breakdown["GCash_Scanned"]?.amount ?? 0,
+          gcashDirect: summary.breakdown["GCash_Direct"]?.amount ?? 0,
+          voucher: summary.breakdown["Voucher"]?.amount ?? 0,
+        },
+        totalCashless:
+          (summary.breakdown["GCash_Scanned"]?.amount ?? 0) +
+          (summary.breakdown["GCash_Direct"]?.amount ?? 0) +
+          (summary.breakdown["Voucher"]?.amount ?? 0),
+        cashDeclared: 0,
+        gcashTotal: summary.gcashTotal,
+        cashTotal: summary.cashTotal,
+        remittanceStatus: "Remitted",
+        timeIn: shiftInfo.timeIn,
+        timeOut: endedShift?.timeOut || new Date().toISOString(),
+      };
+      await submitRemittance(record);
+      await refresh();
+      setShowConfirm(false);
+      setShowSuccess(true);
+      setHasRemittedToday(true);
+      setTimeout(() => {
+        setShowSuccess(false);
+        router.replace("/login");
+      }, 3000);
+    } catch (err) {
+      setSubmitError(
+        err instanceof Error ? err.message : "Unable to submit remittance."
+      );
+    } finally {
+      setIsRemitting(false);
+    }
   };
 
   const openOfficialReport = (record?: RemittanceRecord) => { setReportForRecord(record || null); if (!record) setReportForRecord({ ...activeReport, remittanceStatus: hasRemittedToday ? "Remitted" : "Pending" }); setShowOfficialReport(true); };
@@ -151,6 +175,20 @@ export default function EndOfDayPage() {
       }, 300);
     };
   };
+
+  if (status === "loading") {
+    return <EndOfDaySkeleton />;
+  }
+
+  if (status === "error") {
+    return (
+      <div className="min-h-screen bg-[#050F1A] flex items-center justify-center px-6">
+        <div className="max-w-sm text-center">
+          <p className="text-red-300 text-sm">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#050F1A] pb-28">
@@ -263,6 +301,12 @@ export default function EndOfDayPage() {
 
         <HistorySection showHistory={showHistory} setShowHistory={setShowHistory} filteredHistory={filteredHistory} historyFilter={historyFilter} setHistoryFilter={setHistoryFilter} openOfficialReport={openOfficialReport} onPrintReport={printReport} />
       </div>
+
+      {submitError && (
+        <div className="px-4 pb-4">
+          <p className="text-center text-xs text-red-300">{submitError}</p>
+        </div>
+      )}
 
       <ConfirmModal show={showConfirm} onClose={() => setShowConfirm(false)} onConfirm={handleRemit} isRemitting={isRemitting} shiftInfo={shiftInfo} gcashTotal={summary.gcashTotal} cashTotal={summary.cashTotal} grandTotal={summary.grandTotal} totalPassengers={summary.totalPassengers} />
       <SuccessOverlay show={showSuccess} onClose={() => { setShowSuccess(false); router.replace("/login"); }} gcashTotal={summary.gcashTotal} cashTotal={summary.cashTotal} grandTotal={summary.grandTotal} unitNumber={shiftInfo.unitNumber} />

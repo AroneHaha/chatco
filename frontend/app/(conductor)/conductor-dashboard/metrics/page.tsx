@@ -1,15 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { getActiveShift, type ConductorShift } from "@/lib/conductor-shift";
 import {
-  seedRatingsForShift,
-  calculateMetrics,
   getGaugeColor,
   getGaugeTextClass,
-  type ConductorRating,
   type RatingMetrics,
 } from "@/lib/conductor-ratings";
+import { useConductorRatings } from "@/app/(conductor)/hooks/use-conductor-ratings";
 
 // ─── Constants ───────────────────────────────────────────────────────
 const RADIUS = 80;
@@ -348,36 +344,23 @@ function LoadingSkeleton() {
 // ─── Main Page ───────────────────────────────────────────────────────
 
 export default function MetricsPage() {
-  const [ratings, setRatings] = useState<ConductorRating[]>([]);
-  const [shift, setShift] = useState<ConductorShift | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { shift, metrics, status, error } = useConductorRatings();
 
-  useEffect(() => {
-    // Use the real getActiveShift() which checks the correct key
-    // AND validates isActive === true
-    const activeShift = getActiveShift();
+  if (status === "loading") return <LoadingSkeleton />;
 
-    if (!activeShift) {
-      setLoading(false);
-      return;
-    }
-
-    setShift(activeShift);
-
-    // Pass names as IDs since ConductorShift doesn't carry UUIDs
-    const seeded = seedRatingsForShift(
-      activeShift.shiftId,
-      activeShift.conductorName,
-      activeShift.driverName
+  if (status === "error") {
+    return (
+      <div className="lg:pl-64 min-h-screen bg-[#050F1A] pb-28 lg:pb-8">
+        <div className="max-w-4xl mx-auto px-4 pt-6">
+          <PageHeader />
+          <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-6 py-8 text-center">
+            <p className="text-sm text-red-300">{error}</p>
+          </div>
+        </div>
+      </div>
     );
-    setRatings(seeded);
-    setLoading(false);
-  }, []);
+  }
 
-  // ── Loading ──
-  if (loading) return <LoadingSkeleton />;
-
-  // ── No active shift ──
   if (!shift) {
     return (
       <div className="lg:pl-64 min-h-screen bg-[#050F1A] pb-28 lg:pb-8">
@@ -388,9 +371,6 @@ export default function MetricsPage() {
     );
   }
 
-  const metrics = calculateMetrics(ratings);
-
-  // ── Empty state (0 ratings) ──
   if (metrics.totalRatings === 0) {
     return (
       <div className="lg:pl-64 min-h-screen bg-[#050F1A] pb-28 lg:pb-8">
@@ -402,7 +382,6 @@ export default function MetricsPage() {
     );
   }
 
-  // ── Main content ──
   return (
     <div className="lg:pl-64 min-h-screen bg-[#050F1A] pb-28 lg:pb-8">
       <div className="max-w-4xl mx-auto px-4 pt-6 space-y-6">

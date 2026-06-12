@@ -18,9 +18,11 @@ const FareCalculatorModal = dynamic<FareCalculatorModalProps>(
   { ssr: false }
 );
 import HistoryLogModal from "@/components/conductor/modals/history-log-modal";
-import { getActiveShift, getElapsed, formatTime } from "@/lib/conductor-shift";
-import type { ConductorShift } from "@/lib/conductor-shift";
-import { getShiftTransactions } from "@/lib/conductor-transactions";
+import { formatTime } from "@/lib/conductor-shift";
+import { useConductorShift } from "@/app/(conductor)/hooks/use-conductor-shift";
+import { useConductorTransactions } from "@/app/(conductor)/hooks/use-conductor-transactions";
+import { useConductorHails } from "@/app/(conductor)/hooks/use-conductor-hails";
+import { ConductorDashboardSkeleton } from "@/components/conductor/ui/skeleton";
 
 const ConductorMap = dynamic(() => import("@/components/conductor/conductor-map"), {
   ssr: false,
@@ -28,53 +30,15 @@ const ConductorMap = dynamic(() => import("@/components/conductor/conductor-map"
 });
 
 export default function ConductorDashboard() {
-  const [shift, setShift] = useState<ConductorShift | null>(null);
-  const [elapsed, setElapsed] = useState("");
-  const [isAvailable, setIsAvailable] = useState(true);
+  const { shift, elapsed, status: shiftStatus, error: shiftError } = useConductorShift();
+  const { summary: liveTransactions, status: txnStatus, error: txnError } =
+    useConductorTransactions(shift?.shiftId ?? null);
+  const { hails } = useConductorHails();
+
   const [status, setStatus] = useState<"Available" | "Standing" | "Full">("Available");
   const [showFareCalc, setShowFareCalc] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [mobileCardExpanded, setMobileCardExpanded] = useState(true);
-
-  const [liveTransactions, setLiveTransactions] = useState<{ gcash: number; cash: number; voucher: number; total: number }>({
-    gcash: 0,
-    cash: 0,
-    voucher: 0,
-    total: 0,
-  });
-
-  useEffect(() => {
-    const load = () => {
-      const s = getActiveShift();
-      setShift(s);
-      if (s) {
-        setElapsed(getElapsed(s));
-        const txns = getShiftTransactions(s.shiftId);
-        const gcash = txns.filter((t) => t.paymentMethod === "GCash_Scanned" || t.paymentMethod === "GCash_Direct").reduce((sum, t) => sum + t.finalAmount, 0);
-        const cash = txns.filter((t) => t.paymentMethod === "Cash").reduce((sum, t) => sum + t.finalAmount, 0);
-        const voucher = txns.filter((t) => t.paymentMethod === "Voucher").reduce((sum, t) => sum + t.finalAmount, 0);
-        setLiveTransactions({ gcash, cash, voucher, total: gcash + cash + voucher });
-      }
-    };
-    load();
-    const interval = setInterval(load, 3000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    const handler = () => {
-      const s = getActiveShift();
-      if (s) {
-        const txns = getShiftTransactions(s.shiftId);
-        const gcash = txns.filter((t) => t.paymentMethod === "GCash_Scanned" || t.paymentMethod === "GCash_Direct").reduce((sum, t) => sum + t.finalAmount, 0);
-        const cash = txns.filter((t) => t.paymentMethod === "Cash").reduce((sum, t) => sum + t.finalAmount, 0);
-        const voucher = txns.filter((t) => t.paymentMethod === "Voucher").reduce((sum, t) => sum + t.finalAmount, 0);
-        setLiveTransactions({ gcash, cash, voucher, total: gcash + cash + voucher });
-      }
-    };
-    window.addEventListener("conductor:transaction-updated", handler);
-    return () => window.removeEventListener("conductor:transaction-updated", handler);
-  }, []);
 
   useEffect(() => {
     const handler = () => setShowFareCalc(true);
@@ -86,6 +50,33 @@ export default function ConductorDashboard() {
   const unitNumber = shift?.unitNumber || "—";
   const route = shift?.route || "—";
   const driverName = shift?.driverName || "—";
+
+  if (shiftStatus === "loading" || txnStatus === "loading") {
+    return <ConductorDashboardSkeleton />;
+  }
+
+  if (shiftStatus === "empty") {
+    return (
+      <div className="min-h-screen bg-[#050F1A] flex items-center justify-center px-6">
+        <div className="max-w-sm text-center">
+          <p className="text-white font-semibold text-base">No active shift</p>
+          <p className="text-white/40 text-sm mt-2">
+            Start a shift from unit verification to access the dashboard.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (shiftStatus === "error" || txnStatus === "error") {
+    return (
+      <div className="min-h-screen bg-[#050F1A] flex items-center justify-center px-6">
+        <div className="max-w-sm text-center">
+          <p className="text-red-300 text-sm">{shiftError || txnError}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative h-full w-full bg-[#050F1A] flex flex-col lg:block">
@@ -287,7 +278,7 @@ export default function ConductorDashboard() {
       </div>
 
       <div className="fixed inset-0 z-0 lg:left-64">
-        <ConductorMap />
+        <ConductorMap unitNumber={unitNumber} hails={hails} />
       </div>
 
       <FareCalculatorModal
