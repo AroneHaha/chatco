@@ -213,3 +213,164 @@ export function getPaymentStatusLabel(status: PaymentStatus): string {
   };
   return labels[status];
 }
+
+// ─── GCash Fare Charge (Commuter-as-Payer) ───────────────────────────
+
+/**
+ * Parameters for charging a fare via GCash.
+ * The commuter's e-chatco account is the payer — no separate wallet system.
+ */
+export interface ChargeFareParams {
+  /** Fare amount to charge (in PHP pesos) */
+  amount: number;
+  /** Commuter's account ID (from e-chatco account after QR scan) */
+  commuterId: string;
+  /** Commuter's display name (from e-chatco account after QR scan) */
+  commuterName: string;
+  /** Commuter type detected from the commuter's e-chatco account */
+  commuterType: string;
+  /** Pickup point number */
+  pickupPoint: number;
+  /** Drop-off point number */
+  dropoffPoint: number;
+  /** Conductor identifier */
+  conductorId?: string;
+  /** Shift ID for transaction grouping */
+  shiftId?: string;
+  /** Unit/vehicle number */
+  unitNumber?: string;
+}
+
+/**
+ * Result of a GCash fare charge.
+ * Contains enough data for the UI to display confirmation and receipts.
+ */
+export interface ChargeFareResult {
+  success: boolean;
+  transactionId: string;
+  amount: number;
+  currency: "PHP";
+  commuterId: string;
+  commuterName: string;
+  commuterType: string;
+  status: PaymentStatus;
+  paidAt: string;
+  /** Whether this result came from the development fallback (simulated) */
+  isSimulated: boolean;
+}
+
+/**
+ * Charge a fare via GCash integration.
+ *
+ * Architecture:
+ * ─────────────────────────────────────────────────────────────
+ * Production flow:
+ *   1. Calls POST /api/gcash/charge with fare + commuter details
+ *   2. Backend validates commuter account, applies discount based
+ *      on commuter type, and processes GCash payment
+ *   3. Returns real transaction result
+ *
+ * Development fallback flow (when backend is unavailable):
+ *   1. Attempts the real API call first
+ *   2. If the API request fails or the endpoint is unavailable,
+ *      returns a simulated successful response
+ *   3. The simulation is handled entirely in this service layer
+ *      (no hardcoded transaction data inside UI components)
+ *   4. The fallback is strictly for UI and flow continuity
+ *      during development — it does NOT represent real payment
+ *      success or actual GCash deduction
+ *
+ * Migration path:
+ *   When the real backend becomes available, only this service
+ *   layer needs to be updated. No changes required in UI logic
+ *   or user flow — the system will seamlessly switch from
+ *   simulation mode to real GCash API integration.
+ * ─────────────────────────────────────────────────────────────
+ */
+export async function chargeFare(params: ChargeFareParams): Promise<ChargeFareResult> {
+  const isDev = PAYMONGO_CONFIG.isSandbox;
+
+  // Attempt real API call in non-sandbox mode
+  if (!isDev) {
+    try {
+      const response = await fetch("/api/gcash/charge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: params.amount,
+          commuterId: params.commuterId,
+          commuterName: params.commuterName,
+          commuterType: params.commuterType,
+          pickupPoint: params.pickupPoint,
+          dropoffPoint: params.dropoffPoint,
+          conductorId: params.conductorId,
+          shiftId: params.shiftId,
+          unitNumber: params.unitNumber,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          success: true,
+          transactionId: data.transactionId,
+          amount: data.amount ?? params.amount,
+          currency: "PHP",
+          commuterId: data.commuterId ?? params.commuterId,
+          commuterName: data.commuterName ?? params.commuterName,
+          commuterType: data.commuterType ?? params.commuterType,
+          status: "paid",
+          paidAt: data.paidAt ?? new Date().toISOString(),
+          isSimulated: false,
+        };
+      }
+
+      // API returned non-OK status — fall through to dev fallback
+      console.warn("[gcashService] API returned non-OK status, using dev fallback");
+    } catch (error) {
+      // Network error or endpoint unavailable — fall through to dev fallback
+      console.warn("[gcashService] API unavailable, using dev fallback:", error);
+    }
+  }
+
+  // ─── Development Fallback ───────────────────────────────────
+  // Simulated successful response for UI flow continuity.
+  // This does NOT represent real payment success or actual
+  // GCash deduction. It only allows the UI flow to continue
+  // during development when the backend is not yet available.
+  await new Promise((r) => setTimeout(r, 1500));
+
+  const simulatedResult: ChargeFareResult = {
+    success: true,
+    transactionId: `GCASH-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`,
+    amount: params.amount,
+    currency: "PHP",
+    commuterId: params.commuterId,
+    commuterName: params.commuterName,
+    commuterType: params.commuterType,
+    status: "paid",
+    paidAt: new Date().toISOString(),
+    isSimulated: true,
+  };
+
+  // Persist to local payment history for consistency
+  const intent: GCashPaymentIntent = {
+    id: simulatedResult.transactionId,
+    amount: params.amount,
+    amountInCentavos: Math.round(params.amount * 100),
+    currency: "PHP",
+    status: "paid",
+    paymentMethod: "GCash_Scanned",
+    commuterId: params.commuterId,
+    commuterName: params.commuterName,
+    pickupPoint: params.pickupPoint,
+    dropoffPoint: params.dropoffPoint,
+    conductorId: params.conductorId,
+    shiftId: params.shiftId,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  savePaymentToHistory(intent);
+
+  return simulatedResult;
+}

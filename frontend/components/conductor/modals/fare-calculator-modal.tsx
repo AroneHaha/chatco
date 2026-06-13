@@ -17,8 +17,10 @@ import {
 import {
   createPaymentIntent,
   verifyPayment,
+  chargeFare,
   type PaymentStatus,
   type GCashPaymentIntent,
+  type ChargeFareResult,
 } from "@/lib/shared/payment/gcash-payment";
 import { createTransaction } from "@/lib/conductor/services/transactions.service";
 import type { PaymentMethodType } from "@/types";
@@ -36,7 +38,12 @@ interface FareCalcModalProps {
   driverName?: string;
 }
 
-type Step = "method" | "select" | "confirm" | "processing" | "qr_code" | "success" | "failed";
+/**
+ * Step flow:
+ * - Cash:  method → select (with commuter type + fare overview) → confirm → processing → success/failed
+ * - GCash: method → select (locations only, NO fare) → qr_code → scan_result (fare breakdown after scan) → confirm → processing → success/failed
+ */
+type Step = "method" | "select" | "confirm" | "processing" | "qr_code" | "scan_result" | "success" | "failed";
 type SelectedPaymentMethod = "GCash" | "Cash";
 
 export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName, unitNumber, driverName }: FareCalcModalProps) {
@@ -57,6 +64,11 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(
     null
   );
+  // GCash scan result state
+  const [chargeResult, setChargeResult] = useState<ChargeFareResult | null>(null);
+  const [scannedCommuterType, setScannedCommuterType] = useState<CommuterType>("REGULAR");
+  const [scannedCommuterName, setScannedCommuterName] = useState("Commuter");
+  const [scannedCommuterId, setScannedCommuterId] = useState("c_001");
 
   // ─── Fare Calculation using FARE_MATRIX (correct data source) ───
   const fareInfo = useMemo(() => {
@@ -96,6 +108,44 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     };
   }, [pickupPoint, dropoffPoint, commuterType]);
 
+  // ─── Fare calculation for GCash after scan (uses scanned commuter type) ───
+  const gcashFareInfo = useMemo(() => {
+    if (!pickupPoint || !dropoffPoint) return null;
+
+    const isDiscounted = scannedCommuterType !== "REGULAR";
+    const barangaysTraveled = getBarangaysTraversed(
+      pickupPoint.pointNumber,
+      dropoffPoint.pointNumber
+    );
+    const regularFare = getFareBetween(
+      pickupPoint.pointNumber,
+      dropoffPoint.pointNumber,
+      false
+    );
+    const discountedFare = getFareBetween(
+      pickupPoint.pointNumber,
+      dropoffPoint.pointNumber,
+      true
+    );
+    const finalFare = isDiscounted ? discountedFare : regularFare;
+    const discountAmount = regularFare - discountedFare;
+    const succeedingCount = Math.max(
+      0,
+      barangaysTraveled - FARE_CONFIG.BASE_BARANGAY_COUNT
+    );
+
+    return {
+      barangaysTraveled,
+      regularFare,
+      discountedFare,
+      finalFare,
+      hasDiscount: isDiscounted,
+      discountAmount,
+      succeedingCount,
+      baseBarangayCount: FARE_CONFIG.BASE_BARANGAY_COUNT,
+    };
+  }, [pickupPoint, dropoffPoint, scannedCommuterType]);
+
   const filteredPoints = searchQuery
     ? FARE_MATRIX.filter(
         (p) =>
@@ -108,23 +158,27 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     : FARE_MATRIX;
 
   // ─── Save transaction to shift tracking (backend-proof) ───
-  const recordTransaction = async (method: SelectedPaymentMethod) => {
-    if (!fareInfo || !pickupPoint || !dropoffPoint || !shiftId) return;
+  const recordTransaction = async (method: SelectedPaymentMethod, overrideFare?: { finalFare: number; regularFare: number; discountAmount: number; barangaysTraveled: number; succeedingCount: number }, overrideCommuterType?: CommuterType) => {
+    if (!pickupPoint || !dropoffPoint || !shiftId) return;
+
+    const fareData = overrideFare || fareInfo;
+    if (!fareData) return;
 
     const paymentMethodType: PaymentMethodType = method === "GCash" ? "GCash_Scanned" : "Cash";
+    const effectiveCommuterType = overrideCommuterType || commuterType;
 
     await createTransaction(shiftId, {
       paymentMethod: paymentMethodType,
-      finalAmount: fareInfo.finalFare,
-      passengerName: "Commuter",
-      passengerId: "c_001",
-      passengerRole: commuterType,
+      finalAmount: fareData.finalFare,
+      passengerName: method === "GCash" ? scannedCommuterName : "Commuter",
+      passengerId: method === "GCash" ? scannedCommuterId : "c_001",
+      passengerRole: effectiveCommuterType,
       from: pickupPoint.name,
       to: dropoffPoint.name,
-      distance: fareInfo.barangaysTraveled,
-      baseFare: fareInfo.regularFare,
-      succeedingKm: fareInfo.succeedingCount,
-      discountAmount: fareInfo.discountAmount,
+      distance: fareData.barangaysTraveled,
+      baseFare: fareData.regularFare,
+      succeedingKm: fareData.succeedingCount,
+      discountAmount: fareData.discountAmount,
       conductorName: conductorName || "—",
       unitNumber: unitNumber || "—",
       driverName: driverName || "—",
@@ -132,30 +186,30 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   };
 
   const handlePayWithGCash = async () => {
-    if (!fareInfo || !pickupPoint || !dropoffPoint) return;
+    if (!gcashFareInfo || !pickupPoint || !dropoffPoint) return;
 
     setStep("processing");
 
     try {
-      const intent = await createPaymentIntent({
-        amount: fareInfo.finalFare,
-        commuterId: "c_001",
-        commuterName: "Arone Dela Cruz",
+      // Use gcashService.chargeFare() which internally calls /api/gcash/charge
+      // with dev fallback for when the backend is unavailable
+      const result = await chargeFare({
+        amount: gcashFareInfo.finalFare,
+        commuterId: scannedCommuterId,
+        commuterName: scannedCommuterName,
+        commuterType: scannedCommuterType,
         pickupPoint: pickupPoint.pointNumber,
         dropoffPoint: dropoffPoint.pointNumber,
-        shiftId,
         conductorId: conductorName,
+        shiftId,
+        unitNumber: unitNumber,
       });
 
-      setPaymentIntent(intent);
+      setChargeResult(result);
 
-      // In sandbox mode, simulate GCash payment flow
-      const status = await verifyPayment(intent.id);
-      setPaymentStatus(status);
-
-      if (status === "paid") {
-        await recordTransaction("GCash");
-        setStep("qr_code");
+      if (result.success) {
+        await recordTransaction("GCash", gcashFareInfo, scannedCommuterType);
+        setStep("success");
       } else {
         setStep("failed");
       }
@@ -182,6 +236,36 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     } else {
       handlePayWithCash();
     }
+  };
+
+  // ─── Handle locations selected in GCash mode ────────────────────
+  // After selecting pickup & dropoff for GCash, go directly to QR code
+  // (no fare display at this step)
+  const handleGCashLocationsSelected = () => {
+    setStep("qr_code");
+  };
+
+  // ─── Simulate commuter QR scan ──────────────────────────────────
+  // In production, the commuter scans the conductor's QR code and the
+  // system detects the commuter type from their e-chatco account.
+  // For now, simulate this with a brief delay.
+  const handleSimulateScan = async () => {
+    setStep("processing");
+
+    // Simulate the commuter scanning and the system detecting their type
+    await new Promise((r) => setTimeout(r, 1500));
+
+    // Simulated detected commuter type from e-chatco account
+    // In production, this comes from the commuter's account after scanning
+    const detectedType: CommuterType = "STUDENT";
+    const detectedName = "Arone Dela Cruz";
+    const detectedId = "c_001";
+
+    setScannedCommuterType(detectedType);
+    setScannedCommuterName(detectedName);
+    setScannedCommuterId(detectedId);
+
+    setStep("scan_result");
   };
 
   // ─── Color state logic ──────────────────────────────────────────
@@ -239,13 +323,19 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     setExpandedBarangay(null);
     setPaymentIntent(null);
     setPaymentStatus(null);
+    setChargeResult(null);
+    setScannedCommuterType("REGULAR");
+    setScannedCommuterName("Commuter");
+    setScannedCommuterId("c_001");
     onClose();
   };
 
-  // ─── Auto-advance from QR code to success after 1s ──────────
+  // ─── Auto-advance from QR code to simulate scan after 1s ──────
+  // In production, this would wait for a real-time event from the
+  // commuter's app confirming the scan. For development, we auto-simulate.
   useEffect(() => {
     if (step !== "qr_code") return;
-    const timer = setTimeout(() => setStep("success"), 1000);
+    const timer = setTimeout(() => handleSimulateScan(), 1000);
     return () => clearTimeout(timer);
   }, [step]);
 
@@ -329,7 +419,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-white font-bold text-sm group-hover:text-blue-300 transition-colors">GCash Payment</h3>
-                  <p className="text-[11px] text-white/40 mt-0.5 leading-relaxed">Digital payment via GCash — no wallet balance needed, pay directly</p>
+                  <p className="text-[11px] text-white/40 mt-0.5 leading-relaxed">Digital payment via GCash — commuter scans QR to pay from their account</p>
                 </div>
                 <svg className="w-5 h-5 text-white/20 group-hover:text-blue-400 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
@@ -352,6 +442,11 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   // ─── STEP: Point Area Selection (FULLSCREEN LOCATION PICKER) ──────
 
   if (step === "select") {
+    // For GCash: no fare display, no commuter type selector
+    // For Cash: full existing flow with commuter type + fare overview
+    const isGCash = selectedMethod === "GCash";
+    const bothLocationsSelected = !!(pickupPoint && dropoffPoint);
+
     return (
       <div className="fixed inset-0 z-[100] flex flex-col bg-[#050F1A] safe-area-inset">
         <div className="flex flex-col h-full w-full max-w-lg mx-auto">
@@ -515,29 +610,31 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                 </div>
               )}
 
-              {/* Commuter Type */}
-              <div className="mt-1">
-                <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">
-                  Commuter Type
-                </span>
-                <div className="flex gap-1.5 mt-1.5 overflow-x-auto pb-1 -mx-1 px-1">
-                  {(
-                    ["REGULAR", "STUDENT", "SENIOR_CITIZEN", "PWD"] as CommuterType[]
-                  ).map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => setCommuterType(type)}
-                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
-                        commuterType === type
-                          ? "bg-[#1A5FB4] text-white"
-                          : "bg-white/5 text-white/50 hover:bg-white/10"
-                      }`}
-                    >
-                      {getCommuterTypeLabel(type)}
-                    </button>
-                  ))}
+              {/* Commuter Type — ONLY shown for Cash payments */}
+              {!isGCash && (
+                <div className="mt-1">
+                  <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">
+                    Commuter Type
+                  </span>
+                  <div className="flex gap-1.5 mt-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+                    {(
+                      ["REGULAR", "STUDENT", "SENIOR_CITIZEN", "PWD"] as CommuterType[]
+                    ).map((type) => (
+                      <button
+                        key={type}
+                        onClick={() => setCommuterType(type)}
+                        className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
+                          commuterType === type
+                            ? "bg-[#1A5FB4] text-white"
+                            : "bg-white/5 text-white/50 hover:bg-white/10"
+                        }`}
+                      >
+                        {getCommuterTypeLabel(type)}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
@@ -599,13 +696,6 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                       if (selectingField === "pickup") {
                         setPickupPoint(point);
                         setPickupLandmark(null);
-                        // AUTO-LANDMARK FLOW: Do NOT auto-advance selectingField
-                        // to "dropoff" here. Instead, auto-expand the landmark
-                        // list so the user is guided to pick a landmark first.
-                        // The selectingField will advance AFTER the user selects
-                        // a landmark or clicks "Skip landmark".
-                        // Exception: if the barangay has NO landmarks, advance
-                        // immediately since there is nothing to select.
                         if (point.landmarks.length > 0) {
                           setExpandedBarangay(point.pointNumber);
                         } else {
@@ -614,9 +704,6 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                       } else {
                         setDropoffPoint(point);
                         setDropoffLandmark(null);
-                        // AUTO-LANDMARK FLOW: Same for dropoff — auto-expand
-                        // landmarks and wait for user to pick one. No further
-                        // field to advance to, but we still expand for UX.
                         if (point.landmarks.length > 0) {
                           setExpandedBarangay(point.pointNumber);
                         }
@@ -631,65 +718,45 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                           : isPickup
                             ? itemPickupBg
                             : itemDropoffBg
-                        : "hover:bg-white/5 border-transparent"
+                        : "border-white/[0.04] hover:bg-white/[0.04]"
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold transition-colors duration-200 ${
-                            isPickup && isDropoff
-                              ? "bg-violet-500 text-white"
-                              : isPickup
-                                ? itemPickupTag
-                                : isDropoff
-                                  ? itemDropoffTag
-                                  : "bg-white/5 text-white/40"
-                          }`}
-                        >
-                          {point.pointNumber}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex flex-col items-center flex-shrink-0">
+                          <span className="text-[9px] font-bold text-white/25 leading-none">PT</span>
+                          <span className="text-sm font-bold text-white/60 leading-none mt-0.5">{point.pointNumber}</span>
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-medium text-white truncate">
-                            {point.name}
-                          </p>
-                          <div className="flex items-center gap-2">
-                            <p className="text-[10px] text-white/30">
-                              {point.landmarks.length} landmark{point.landmarks.length !== 1 ? "s" : ""}
-                            </p>
-                            {isPickup && (
-                              <span className={`text-[9px] font-semibold ${itemPickupLabel} px-1.5 py-0.5 rounded bg-white/5`}>
-                                PICKUP
-                              </span>
-                            )}
-                            {isDropoff && (
-                              <span className={`text-[9px] font-semibold ${itemDropoffLabel} px-1.5 py-0.5 rounded bg-white/5`}>
-                                DROP-OFF
-                              </span>
-                            )}
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-semibold text-white truncate">{point.name}</span>
+                            <span className="text-[9px] font-semibold text-white/20 flex-shrink-0">Brgy {point.pointNumber}</span>
                           </div>
+                          {point.landmarks.length > 0 && (
+                            <p className="text-[10px] text-white/30 mt-0.5 truncate">
+                              {point.landmarks.join(" · ")}
+                            </p>
+                          )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <div className="text-right hidden xs:block">
-                          <p className="text-xs font-semibold text-white/60">
-                            {formatCurrency(point.regularFare)}
-                          </p>
-                          <p className="text-[10px] text-white/30">
-                            Disc: {formatCurrency(point.discountedFare)}
-                          </p>
-                        </div>
+
+                      <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                        {isPickup && (
+                          <span className={`text-[8px] font-bold ${itemPickupLabel} ${pickupTagClass} px-1.5 py-0.5 rounded`}>PICKUP</span>
+                        )}
+                        {isDropoff && (
+                          <span className={`text-[8px] font-bold ${itemDropoffLabel} ${dropoffTagClass} px-1.5 py-0.5 rounded`}>DROP-OFF</span>
+                        )}
+
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setExpandedBarangay(
-                              isExpanded ? null : point.pointNumber
-                            );
+                            setExpandedBarangay(isExpanded ? null : point.pointNumber);
                           }}
-                          className="w-7 h-7 rounded-md bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors"
+                          className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors"
                         >
                           <svg
-                            className={`w-3 h-3 text-white/40 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                            className={`w-3.5 h-3.5 text-white/40 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
@@ -712,9 +779,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                       <p className="text-[10px] text-white/20 uppercase tracking-wider font-medium mb-1.5">
                         Landmarks in {point.name} <span className="text-white/10">· tap to select</span>
                       </p>
-                      {/* Skip landmark button — allows user to confirm barangay
-                          without selecting a specific landmark, then advances
-                          to the next selection step. */}
+                      {/* Skip landmark button */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -736,8 +801,6 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                         const isLandmarkSelected = isLandmarkPickup || isLandmarkDropoff;
 
                         // Landmark color classes with green/violet logic
-                        const lmPickupColor = isSameBarangay ? "violet" : "emerald";
-                        const lmDropoffColor = isSameBarangay ? "violet" : "emerald";
                         const lmPickupBgCls = isSameBarangay ? "bg-violet-500/10 border-violet-500/30" : "bg-emerald-500/10 border-emerald-500/30";
                         const lmDropoffBgCls = isSameBarangay ? "bg-violet-500/10 border-violet-500/30" : "bg-emerald-500/10 border-emerald-500/30";
                         const lmPickupDotCls = isSameBarangay ? "bg-violet-400" : "bg-emerald-400";
@@ -757,10 +820,6 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                                   setPickupPoint(point);
                                 }
                                 setPickupLandmark(landmark);
-                                // AUTO-ADVANCE: After selecting a pickup landmark,
-                                // advance to dropoff selection. This is the correct
-                                // point to advance — the user has completed the
-                                // pickup selection flow (barangay + landmark).
                                 setSelectingField("dropoff");
                               } else {
                                 if (dropoffPoint?.pointNumber !== point.pointNumber) {
@@ -768,9 +827,6 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                                 }
                                 setDropoffLandmark(landmark);
                               }
-                              // AUTO-COLLAPSE: After selecting a landmark,
-                              // collapse the expanded section to keep the UI clean
-                              // and prepare for the next selection step.
                               setExpandedBarangay(null);
                             }}
                             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); (e.target as HTMLElement).click(); } }}
@@ -815,8 +871,39 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
             })}
           </div>
 
-          {/* ── Fare Summary & Pay Button (sticky bottom) ── */}
-          {fareInfo && (
+          {/* ── Bottom Action Area ── */}
+          {/* GCash mode: Show "Generate QR Code" button when both locations selected, NO fare display */}
+          {isGCash && bothLocationsSelected && (
+            <div className="flex-shrink-0 p-4 border-t border-white/10 bg-[#050F1A] pb-safe">
+              {/* Route confirmation only, NO fare */}
+              <div className="mb-3 flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <div className={`w-2.5 h-2.5 rounded-full ${pickupDotClass}`} />
+                  <span className="text-xs text-white/70 font-medium">{pickupPoint?.name}{pickupLandmark ? ` · ${pickupLandmark}` : ""}</span>
+                </div>
+                <svg className="w-3 h-3 text-white/20 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                </svg>
+                <div className="flex items-center gap-1.5">
+                  <div className={`w-2.5 h-2.5 rounded-full ${dropoffDotClass}`} />
+                  <span className="text-xs text-white/70 font-medium">{dropoffPoint?.name}{dropoffLandmark ? ` · ${dropoffLandmark}` : ""}</span>
+                </div>
+              </div>
+
+              <button
+                onClick={handleGCashLocationsSelected}
+                className="w-full py-3.5 rounded-xl font-bold text-sm transition-colors shadow-lg active:scale-[0.98] bg-[#1A5FB4] hover:bg-[#164A8F] text-white shadow-[#1A5FB4]/30"
+              >
+                Generate QR Code
+              </button>
+              <p className="text-[10px] text-white/25 text-center mt-2">
+                Fare will be calculated after the commuter scans the QR code
+              </p>
+            </div>
+          )}
+
+          {/* Cash mode: Show fare summary & pay button (existing behavior) */}
+          {!isGCash && fareInfo && (
             <div className="flex-shrink-0 p-4 border-t border-white/10 bg-[#050F1A] pb-safe">
               {/* Route confirmation with dynamic color indicators */}
               <div className="mb-2 flex items-center gap-2 flex-wrap">
@@ -867,19 +954,23 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
               </div>
               <button
                 onClick={() => setStep("confirm")}
-                className={`w-full py-3.5 rounded-xl font-bold text-sm transition-colors shadow-lg active:scale-[0.98] ${
-                  selectedMethod === "GCash"
-                    ? "bg-[#1A5FB4] hover:bg-[#164A8F] text-white shadow-[#1A5FB4]/30"
-                    : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30"
-                }`}
+                className="w-full py-3.5 rounded-xl font-bold text-sm transition-colors shadow-lg active:scale-[0.98] bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30"
               >
-                Pay {formatCurrency(fareInfo.finalFare)} with {selectedMethod}
+                Pay {formatCurrency(fareInfo.finalFare)} with Cash
               </button>
             </div>
           )}
 
-          {/* No fare info yet — show hint */}
-          {!fareInfo && (
+          {/* No locations selected yet — show hint */}
+          {isGCash && !bothLocationsSelected && (
+            <div className="flex-shrink-0 p-4 border-t border-white/10 bg-[#050F1A] pb-safe">
+              <div className="text-center py-2">
+                <p className="text-[11px] text-white/30">Select both pickup and drop-off locations to generate QR code</p>
+              </div>
+            </div>
+          )}
+
+          {!isGCash && !fareInfo && (
             <div className="flex-shrink-0 p-4 border-t border-white/10 bg-[#050F1A] pb-safe">
               <div className="text-center py-2">
                 <p className="text-[11px] text-white/30">Select both pickup and drop-off to calculate fare</p>
@@ -891,9 +982,198 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     );
   }
 
+  // ─── STEP: QR Code (GCash only — commuter scans this) ────────────
+  // This step now appears BEFORE fare calculation. The QR only contains
+  // location info — fare is determined after the commuter scans and
+  // their commuter type is detected.
+
+  if (step === "qr_code" && pickupPoint && dropoffPoint) {
+    // Build the QR payload with location data only — no fare yet
+    const qrPayload: QRTransactionPayload = {
+      version: 1,
+      transactionId: `TXN-${Date.now()}`,
+      amount: 0, // Fare not yet determined — will be calculated after scan
+      from: pickupPoint.name || "",
+      to: dropoffPoint.name || "",
+      barangaysTraveled: getBarangaysTraversed(pickupPoint.pointNumber, dropoffPoint.pointNumber),
+      commuterType: "PENDING", // Will be filled after scan
+      paymentMethod: "GCash",
+      conductorId: conductorName || "—",
+      shiftId: shiftId || "",
+      unitNumber: unitNumber || "—",
+      createdAt: new Date().toISOString(),
+      regularFare: 0,
+      discountAmount: 0,
+    };
+    const qrData = encodeQRTransaction(qrPayload);
+
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
+        <div className="w-full max-w-xs bg-[#071A2E] border border-blue-500/20 rounded-3xl p-6 text-center shadow-2xl space-y-4 animate-in zoom-in-95 fade-in duration-200">
+          <div className="flex justify-center">
+            <div className="w-14 h-14 rounded-full bg-blue-500/15 border-2 border-blue-500/30 flex items-center justify-center">
+              <svg className="w-7 h-7 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" />
+              </svg>
+            </div>
+          </div>
+          <div>
+            <h2 className="text-white font-bold text-lg">Scan to Pay</h2>
+            <p className="text-[11px] text-white/40 mt-1 leading-relaxed">Commuter, scan this QR code with your e-Chatco app to confirm payment</p>
+          </div>
+          <div className="bg-white rounded-2xl p-4 flex justify-center">
+            <QRCodeSVG
+              value={qrData}
+              size={180}
+              bgColor="#ffffff"
+              fgColor="#071A2E"
+              level="H"
+              includeMargin={false}
+            />
+          </div>
+          <div className="space-y-2">
+            <p className="text-xs text-white/40">
+              {pickupPoint.name} → {dropoffPoint.name}
+            </p>
+            <div className="flex items-center justify-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+              <p className="text-xs text-blue-400/70 font-medium">Waiting for commuter scan…</p>
+            </div>
+          </div>
+          {/* Back button to return to location selection */}
+          <button
+            onClick={() => setStep("select")}
+            className="w-full py-2.5 rounded-xl border border-white/10 text-white/50 text-sm font-semibold hover:bg-white/5 transition-colors"
+          >
+            Back to Locations
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── STEP: Scan Result (GCash only — after commuter scans) ────────
+  // Commuter type is auto-detected from their e-chatco account.
+  // Fare is now calculated based on the detected type.
+  if (step === "scan_result" && gcashFareInfo) {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="w-full sm:max-w-sm bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl">
+          <div className="p-6">
+            <h2 className="text-lg font-bold text-white mb-4">
+              Fare Breakdown
+            </h2>
+
+            {/* Commuter info detected from scan */}
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 mb-4">
+              <div className="flex items-center gap-2 mb-1">
+                <svg className="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                </svg>
+                <span className="text-xs font-semibold text-blue-400">
+                  Commuter Detected
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-white/70">{scannedCommuterName}</span>
+                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                  scannedCommuterType !== "REGULAR"
+                    ? "bg-amber-500/15 text-amber-400 border border-amber-500/25"
+                    : "bg-white/5 text-white/40 border border-white/10"
+                }`}>
+                  {getCommuterTypeLabel(scannedCommuterType)}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              <div className="flex justify-between text-sm">
+                <span className="text-white/50">Route</span>
+                <span className="text-white">
+                  {pickupPoint?.name}{pickupLandmark ? ` · ${pickupLandmark}` : ""} →{" "}
+                  {dropoffPoint?.name}{dropoffLandmark ? ` · ${dropoffLandmark}` : ""}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-white/50">Barangays Traveled</span>
+                <span className="text-white">
+                  {gcashFareInfo.barangaysTraveled}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-white/50">Fare Basis</span>
+                <span className="text-white/70 text-xs">
+                  {gcashFareInfo.succeedingCount > 0
+                    ? `Base fare covers first ${gcashFareInfo.baseBarangayCount} + ${gcashFareInfo.succeedingCount} succeeding`
+                    : "Base fare (within first 4 barangays)"}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-white/50">Regular Fare</span>
+                <span className={gcashFareInfo.hasDiscount ? "text-white/30 line-through" : "text-white"}>
+                  {formatCurrency(gcashFareInfo.regularFare)}
+                </span>
+              </div>
+              {gcashFareInfo.hasDiscount && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-white/50">Discount ({getCommuterTypeLabel(scannedCommuterType)})</span>
+                  <span className="text-green-400">
+                    -{formatCurrency(gcashFareInfo.discountAmount)}
+                  </span>
+                </div>
+              )}
+              <div className="border-t border-white/10 pt-3 flex justify-between">
+                <span className="text-white font-semibold">Total</span>
+                <span className="text-xl font-extrabold text-white">
+                  {formatCurrency(gcashFareInfo.finalFare)}
+                </span>
+              </div>
+            </div>
+
+            {/* GCash Payment Notice */}
+            <div className="bg-[#1A5FB4]/10 border border-[#1A5FB4]/20 rounded-xl p-3 mb-6">
+              <div className="flex items-center gap-2 mb-1">
+                <svg className="w-4 h-4 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
+                </svg>
+                <span className="text-xs font-semibold text-[#62A0EA]">
+                  GCash Secure Payment
+                </span>
+              </div>
+              <p className="text-[10px] text-white/40">
+                Fare will be charged to the commuter&apos;s GCash account. No wallet balance needed — pay directly.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setStep("qr_code")}
+                className="flex-1 py-3 rounded-xl border border-white/10 text-white/60 text-sm font-semibold hover:bg-white/5 transition-colors"
+              >
+                Back
+              </button>
+              <button
+                onClick={() => setStep("confirm")}
+                className="flex-1 py-3 rounded-xl text-white text-sm font-bold transition-colors shadow-lg bg-[#1A5FB4] hover:bg-[#164A8F] shadow-[#1A5FB4]/30"
+              >
+                Confirm Payment
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ─── STEP: Confirm Payment ──────────────────────────────────────
 
-  if (step === "confirm" && fareInfo) {
+  if (step === "confirm") {
+    // GCash confirmation: uses gcashFareInfo + scanned commuter type
+    const activeFareInfo = selectedMethod === "GCash" ? gcashFareInfo : fareInfo;
+    const activeCommuterType = selectedMethod === "GCash" ? scannedCommuterType : commuterType;
+
+    if (!activeFareInfo) return null;
+
     return (
       <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
         <div className="w-full sm:max-w-sm bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl">
@@ -925,41 +1205,41 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
               <div className="flex justify-between text-sm">
                 <span className="text-white/50">Barangays Traveled</span>
                 <span className="text-white">
-                  {fareInfo.barangaysTraveled}
+                  {activeFareInfo.barangaysTraveled}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-white/50">Fare Basis</span>
                 <span className="text-white/70 text-xs">
-                  {fareInfo.succeedingCount > 0
-                    ? `Base fare covers first ${fareInfo.baseBarangayCount} + ${fareInfo.succeedingCount} succeeding`
+                  {activeFareInfo.succeedingCount > 0
+                    ? `Base fare covers first ${activeFareInfo.baseBarangayCount} + ${activeFareInfo.succeedingCount} succeeding`
                     : "Base fare (within first 4 barangays)"}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-white/50">Commuter Type</span>
                 <span className="text-white">
-                  {getCommuterTypeLabel(commuterType)}
+                  {getCommuterTypeLabel(activeCommuterType)}
                 </span>
               </div>
-              {fareInfo.hasDiscount && (
+              {activeFareInfo.hasDiscount && (
                 <div className="flex justify-between text-sm">
                   <span className="text-white/50">Regular Fare</span>
                   <span className="text-white/30 line-through">
-                    {formatCurrency(fareInfo.regularFare)}
+                    {formatCurrency(activeFareInfo.regularFare)}
                   </span>
                 </div>
               )}
               <div className="flex justify-between text-sm">
                 <span className="text-white/50">Discount</span>
                 <span className="text-green-400">
-                  -{formatCurrency(fareInfo.discountAmount)}
+                  -{formatCurrency(activeFareInfo.discountAmount)}
                 </span>
               </div>
               <div className="border-t border-white/10 pt-3 flex justify-between">
                 <span className="text-white font-semibold">Total</span>
                 <span className="text-xl font-extrabold text-white">
-                  {formatCurrency(fareInfo.finalFare)}
+                  {formatCurrency(activeFareInfo.finalFare)}
                 </span>
               </div>
             </div>
@@ -976,7 +1256,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                   </span>
                 </div>
                 <p className="text-[10px] text-white/40">
-                  You will be redirected to GCash to confirm payment. No wallet
+                  Fare will be charged to the commuter&apos;s GCash account. No wallet
                   balance needed — pay directly.
                 </p>
               </div>
@@ -999,7 +1279,13 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
 
             <div className="flex gap-3">
               <button
-                onClick={() => setStep("select")}
+                onClick={() => {
+                  if (selectedMethod === "GCash") {
+                    setStep("scan_result");
+                  } else {
+                    setStep("select");
+                  }
+                }}
                 className="flex-1 py-3 rounded-xl border border-white/10 text-white/60 text-sm font-semibold hover:bg-white/5 transition-colors"
               >
                 Back
@@ -1012,7 +1298,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                     : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/30"
                 }`}
               >
-                Pay {formatCurrency(fareInfo.finalFare)}
+                Pay {formatCurrency(activeFareInfo.finalFare)}
               </button>
             </div>
           </div>
@@ -1035,7 +1321,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
           </h2>
           <p className="text-sm text-white/40">
             {selectedMethod === "GCash"
-              ? "Confirming your GCash payment..."
+              ? "Charging fare via GCash..."
               : "Recording cash payment..."}
           </p>
         </div>
@@ -1043,70 +1329,12 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     );
   }
 
-  // ─── STEP: QR Code (GCash only — commuter scans this) ────────────
-
-  if (step === "qr_code" && fareInfo) {
-    // Build the QR payload with real transaction data for commuter scanning
-    const qrPayload: QRTransactionPayload = {
-      version: 1,
-      transactionId: paymentIntent?.id || `TXN-${Date.now()}`,
-      amount: fareInfo.finalFare,
-      from: pickupPoint?.name || "",
-      to: dropoffPoint?.name || "",
-      barangaysTraveled: fareInfo.barangaysTraveled,
-      commuterType,
-      paymentMethod: "GCash",
-      conductorId: conductorName || "—",
-      shiftId: shiftId || "",
-      unitNumber: unitNumber || "—",
-      createdAt: new Date().toISOString(),
-      regularFare: fareInfo.regularFare,
-      discountAmount: fareInfo.discountAmount,
-    };
-    const qrData = encodeQRTransaction(qrPayload);
-
-    return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
-        <div className="w-full max-w-xs bg-[#071A2E] border border-blue-500/20 rounded-3xl p-6 text-center shadow-2xl space-y-4 animate-in zoom-in-95 fade-in duration-200">
-          <div className="flex justify-center">
-            <div className="w-14 h-14 rounded-full bg-blue-500/15 border-2 border-blue-500/30 flex items-center justify-center">
-              <svg className="w-7 h-7 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" />
-              </svg>
-            </div>
-          </div>
-          <div>
-            <h2 className="text-white font-bold text-lg">Scan to Pay</h2>
-            <p className="text-[11px] text-white/40 mt-1 leading-relaxed">Commuter, scan this QR code with your Chatco app to confirm payment</p>
-          </div>
-          <div className="bg-white rounded-2xl p-4 flex justify-center">
-            <QRCodeSVG
-              value={qrData}
-              size={180}
-              bgColor="#ffffff"
-              fgColor="#071A2E"
-              level="H"
-              includeMargin={false}
-            />
-          </div>
-          <div className="space-y-2">
-            <p className="text-2xl font-extrabold text-white">{formatCurrency(fareInfo.finalFare)}</p>
-            <p className="text-xs text-white/40">
-              {pickupPoint?.name} → {dropoffPoint?.name}
-            </p>
-            <div className="flex items-center justify-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-              <p className="text-xs text-blue-400/70 font-medium">Waiting for commuter scan…</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // ─── STEP: Success ──────────────────────────────────────────────
 
-  if (step === "success" && fareInfo) {
+  if (step === "success") {
+    const activeFareInfo = selectedMethod === "GCash" ? gcashFareInfo : fareInfo;
+    if (!activeFareInfo) return null;
+
     return (
       <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
         <div className="w-full sm:max-w-sm bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl">
@@ -1121,7 +1349,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
             </h2>
             <p className="text-sm text-white/40 mb-4">
               {selectedMethod === "GCash"
-                ? "Your fare has been paid via GCash"
+                ? "Fare has been charged via GCash"
                 : "Cash payment has been recorded"}
             </p>
 
@@ -1129,7 +1357,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
               <div className="flex justify-between text-sm">
                 <span className="text-white/40">Amount Paid</span>
                 <span className="text-white font-bold">
-                  {formatCurrency(fareInfo.finalFare)}
+                  {formatCurrency(activeFareInfo.finalFare)}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
@@ -1154,7 +1382,13 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
               <div className="flex justify-between text-sm">
                 <span className="text-white/40">Barangays</span>
                 <span className="text-white/70">
-                  {fareInfo.barangaysTraveled} traveled
+                  {activeFareInfo.barangaysTraveled} traveled
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-white/40">Commuter Type</span>
+                <span className="text-white/70">
+                  {getCommuterTypeLabel(selectedMethod === "GCash" ? scannedCommuterType : commuterType)}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
@@ -1163,11 +1397,19 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                   {selectedMethod}
                 </span>
               </div>
-              {paymentIntent && selectedMethod === "GCash" && (
+              {chargeResult && selectedMethod === "GCash" && (
                 <div className="flex justify-between text-sm">
                   <span className="text-white/40">Ref ID</span>
                   <span className="text-white/50 text-xs font-mono">
-                    {paymentIntent.id}
+                    {chargeResult.transactionId}
+                  </span>
+                </div>
+              )}
+              {chargeResult && selectedMethod === "GCash" && chargeResult.isSimulated && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-white/40">Mode</span>
+                  <span className="text-amber-400/60 text-xs font-medium">
+                    Simulated (Dev)
                   </span>
                 </div>
               )}
@@ -1206,7 +1448,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
             </h2>
             <p className="text-sm text-white/40 mb-6">
               {selectedMethod === "GCash"
-                ? "Could not process your GCash payment. Please try again or pay cash to the conductor."
+                ? "Could not process the GCash payment. Please try again or pay cash to the conductor."
                 : "Could not record the payment. Please try again."}
             </p>
             <div className="flex gap-3">

@@ -69,7 +69,7 @@ export default function ConductorBottomNav({ pathname }: { pathname: string }) {
           {/* Center Payment */}
           <button
             onClick={() => window.dispatchEvent(new CustomEvent("conductor:open-payment"))}
-            className="flex flex-col items-center justify-center relative -mt-[50px] mb-0.5 md:mb-1 group"
+            className="flex flex-col items-center justify-center relative -mt-[50px] mb-0.5 md:mb-1 group z-10 pointer-events-auto"
           >
             <div className="w-[52px] h-[52px] md:w-[56px] md:h-[56px] rounded-full bg-[#1A5FB4] flex items-center justify-center shadow-lg shadow-[#1A5FB4]/30 hover:bg-[#165a9f] active:scale-[0.92] transition-all duration-200 ring-4 ring-[#0B1E33]/80">
               <PaymentIcon className="w-5 h-5 md:w-6 md:h-6 text-white" />

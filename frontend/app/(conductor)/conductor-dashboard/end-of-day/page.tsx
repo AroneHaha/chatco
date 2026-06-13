@@ -1,24 +1,8 @@
 // app/(conductor)/conductor-dashboard/end-of-day/page.tsx
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import dynamic from "next/dynamic";
-
-// Explicit type for dynamic import — prevents Vercel build type inference errors
-interface FareCalculatorModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  shiftId: string;
-  conductorName: string;
-  unitNumber: string;
-  driverName: string;
-}
-
-const FareCalculatorModal = dynamic<FareCalculatorModalProps>(
-  () => import("@/components/conductor/modals/fare-calculator-modal"),
-  { ssr: false }
-);
 import { endShift, formatTime } from "@/lib/conductor/services/shift.service";
 import { submitRemittance, type RemittanceRecord } from "@/lib/conductor/services/remittance.service";
 import type { Transaction } from "@/lib/conductor/services/transactions.service";
@@ -43,7 +27,6 @@ export default function EndOfDayPage() {
   const [historyFilter, setHistoryFilter] = useState<"all" | "week" | "month">("all");
   const [showOfficialReport, setShowOfficialReport] = useState(false);
   const [reportForRecord, setReportForRecord] = useState<RemittanceRecord | null>(null);
-  const [showFareCalc, setShowFareCalc] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -56,8 +39,6 @@ export default function EndOfDayPage() {
     timeIn: shift?.timeIn || new Date().toISOString(),
     timeOut: shift?.timeOut || new Date().toISOString(),
   };
-  useEffect(() => { const handler = () => setShowFareCalc(true); window.addEventListener("conductor:open-payment", handler); return () => window.removeEventListener("conductor:open-payment", handler); }, []);
-
   // ─── Computed breakdown from system-tracked transactions ───
   const summary = useMemo(() => {
     const keys = ["GCash_Scanned", "GCash_Direct", "Voucher", "Cash"] as const;
@@ -311,7 +292,7 @@ export default function EndOfDayPage() {
       <ConfirmModal show={showConfirm} onClose={() => setShowConfirm(false)} onConfirm={handleRemit} isRemitting={isRemitting} shiftInfo={shiftInfo} gcashTotal={summary.gcashTotal} cashTotal={summary.cashTotal} grandTotal={summary.grandTotal} totalPassengers={summary.totalPassengers} />
       <SuccessOverlay show={showSuccess} onClose={() => { setShowSuccess(false); router.replace("/login"); }} gcashTotal={summary.gcashTotal} cashTotal={summary.cashTotal} grandTotal={summary.grandTotal} unitNumber={shiftInfo.unitNumber} />
       <OfficialReportModal show={showOfficialReport} onClose={() => setShowOfficialReport(false)} activeReport={activeReport} route={shiftInfo.route} />
-      <FareCalculatorModal isOpen={showFareCalc} onClose={() => setShowFareCalc(false)} shiftId={shiftInfo.shiftId} conductorName={shiftInfo.conductorName} unitNumber={shiftInfo.unitNumber} driverName={shiftInfo.driverName} />
+
     </div>
   );
 }
