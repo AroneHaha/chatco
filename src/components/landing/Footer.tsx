@@ -1,5 +1,5 @@
 import Image from "next/image";
-const logoSrc = "/logo-transparent.png";
+import logo from "../../assets/logo-transparent.png";
 
 export default function Footer({ compact = false }: { compact?: boolean }) {
   // --- COMPACT MODE (For Login / Signup pages) ---
@@ -23,7 +23,7 @@ export default function Footer({ compact = false }: { compact?: boolean }) {
           <div className="sm:col-span-2 lg:col-span-1">
             <div className="flex items-center gap-2 mb-4">
               <Image
-                src={logoSrc}
+                src={logo}
                 alt="CHATCO"
                 width={57}
                 height={57}

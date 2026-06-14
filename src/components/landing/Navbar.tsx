@@ -2,8 +2,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Image from "next/image";
-// Logo served from /public
-const logoSrc = "/logo-transparent.png";
+import logo from "../../assets/logo-transparent.png";
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -22,7 +21,7 @@ export default function Navbar() {
           
           <a href="#" className="flex items-center gap-3">
             <Image
-              src={logoSrc}
+              src={logo}
               alt="CHATCO"
               width={70}
               height={70}

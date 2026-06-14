@@ -1,9 +1,11 @@
-// Shift log history — persists shift start/end events.
-// Used by store.ts for audit trail logging.
+// frontend/lib/conductor/persistence/shift-history.ts
+// Shift log history — persists shift start/end events to localStorage.
+// Used by shift.store.ts for audit trail logging.
 
 const SHIFT_LOGS_KEY = "conductor_shift_logs";
 
 export interface ShiftLog {
+  duration: string | null;
   shiftId: string;
   unitNumber: string;
   plateNumber: string;
@@ -11,24 +13,19 @@ export interface ShiftLog {
   driverName: string;
   route: string;
   timeIn: string;
-  timeOut: string | null;
-  duration: string | null;
+  timeOut?: string;
 }
 
-export function logShiftStart(log: Omit<ShiftLog, "timeOut" | "duration">): void {
+export function logShiftStart(log: ShiftLog): void {
   if (typeof window === "undefined") return;
-  const logs: ShiftLog[] = JSON.parse(
-    localStorage.getItem(SHIFT_LOGS_KEY) || "[]"
-  );
-  logs.unshift({ ...log, timeOut: null, duration: null });
+  const logs: ShiftLog[] = JSON.parse(localStorage.getItem(SHIFT_LOGS_KEY) || "[]");
+  logs.unshift(log);
   localStorage.setItem(SHIFT_LOGS_KEY, JSON.stringify(logs));
 }
 
 export function logShiftEnd(shiftId: string): void {
   if (typeof window === "undefined") return;
-  const logs: ShiftLog[] = JSON.parse(
-    localStorage.getItem(SHIFT_LOGS_KEY) || "[]"
-  );
+  const logs: ShiftLog[] = JSON.parse(localStorage.getItem(SHIFT_LOGS_KEY) || "[]");
   const idx = logs.findIndex((l) => l.shiftId === shiftId);
   if (idx !== -1) {
     logs[idx].timeOut = new Date().toISOString();

@@ -1,4 +1,7 @@
 // Conductor-scoped API endpoint registry.
+// Relative paths target Next.js route stubs by default.
+// When migrating to Laravel, point NEXT_PUBLIC_API_URL at the gateway and
+// update these paths to match the backend contract.
 
 export const CONDUCTOR_API = {
   profile: "/api/conductor/profile",

@@ -1,6 +1,20 @@
 /**
  * API Client — Centralized fetch wrapper for Laravel + Supabase backend.
+ *
+ * Architecture:
+ * ─────────────────────────────────────────────────────────────
+ * - Laravel serves as the API gateway (sanctum auth, business logic)
+ * - Supabase (Postgres) is the database behind Laravel's Eloquent models
+ * - All API calls go through this client for consistent error handling,
+ *   auth headers, and base URL configuration
+ *
+ * Usage:
+ *   import { api } from "@/lib/api/client";
+ *   const data = await api.get<CommuterProfile>("/api/commuter/profile");
+ *   const result = await api.post<Transaction>("/api/transactions", payload);
  */
+
+// ─── Configuration ───────────────────────────────────────────────────
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -12,12 +26,14 @@ interface ApiConfig {
 
 const defaultConfig: ApiConfig = {
   baseUrl: API_BASE_URL,
-  credentials: "include",
+  credentials: "include", // Sanctum uses cookie-based auth
   defaultHeaders: {
     "Content-Type": "application/json",
     Accept: "application/json",
   },
 };
+
+// ─── Error Types ─────────────────────────────────────────────────────
 
 export class ApiError extends Error {
   constructor(
@@ -37,6 +53,8 @@ export class NetworkError extends Error {
   }
 }
 
+// ─── Response Types ──────────────────────────────────────────────────
+
 export interface ApiResponse<T> {
   data: T;
   meta?: {
@@ -46,6 +64,8 @@ export interface ApiResponse<T> {
     totalPages: number;
   };
 }
+
+// ─── Client ──────────────────────────────────────────────────────────
 
 class ApiClient {
   private config: ApiConfig;
@@ -72,6 +92,7 @@ class ApiClient {
         credentials: this.config.credentials,
       });
 
+      // Handle non-JSON responses (e.g., 204 No Content)
       if (response.status === 204) {
         return undefined as T;
       }
@@ -124,4 +145,64 @@ class ApiClient {
   }
 }
 
+// ─── Singleton Export ────────────────────────────────────────────────
+
 export const api = new ApiClient();
+
+// ─── API Route Constants ─────────────────────────────────────────────
+// Centralized route definitions — when Laravel is wired up,
+// these are the endpoints the frontend will call.
+
+export const API_ROUTES = {
+  auth: {
+    login: "/api/auth/login",
+    logout: "/api/auth/logout",
+    user: "/api/user",
+  },
+  commuter: {
+    profile: "/api/commuter/profile",
+    updateProfile: "/api/commuter/profile",
+    changePassword: "/api/commuter/change-password",
+    paymentHistory: "/api/commuter/payments",
+  },
+  conductor: {
+    profile: "/api/conductor/profile",
+    startShift: "/api/conductor/shifts/start",
+    endShift: "/api/conductor/shifts/end",
+    transactions: (shiftId: string) => `/api/conductor/transactions?shift_id=${shiftId}`,
+    saveTransaction: "/api/conductor/transactions",
+    remittance: "/api/conductor/remittances",
+    shiftLogs: "/api/conductor/shift-logs",
+  },
+  admin: {
+    users: "/api/admin/users",
+    vehicles: "/api/admin/vehicles",
+    lostFound: "/api/admin/lost-found",
+    monitoring: "/api/admin/monitoring",
+    analytics: "/api/admin/analytics",
+    settings: "/api/admin/settings",
+  },
+  payments: {
+    create: "/api/payments/create",
+    verify: (id: string) => `/api/payments/verify?id=${id}`,
+  },
+  feedback: {
+    submit: "/api/feedback",
+  },
+  announcements: {
+    list: "/api/announcements",
+    markRead: (id: string) => `/api/announcements/${id}/read`,
+    markAllRead: "/api/announcements/read-all",
+  },
+  lostFound: {
+    list: "/api/lost-found",
+    claim: (id: string) => `/api/lost-found/${id}/claim`,
+  },
+  rewards: {
+    status: "/api/rewards/status",
+    vouchers: "/api/rewards/vouchers",
+  },
+  sos: {
+    alert: "/api/sos/alert",
+  },
+} as const;

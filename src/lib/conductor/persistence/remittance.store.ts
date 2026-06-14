@@ -1,12 +1,55 @@
-// src/lib/conductor/persistence/remittance.store.ts
-
 export interface RemittanceRecord {
-  remittanceId: string;
   shiftId: string;
-  totalFare: number;
-  totalCargo: number;
-  totalSpecial: number;
-  grandTotal: number;
-  submittedAt: number;
-  status: "pending" | "verified" | "flagged";
+  date: string;
+  conductorName: string;
+  driverName: string;
+  unitNumber: string;
+  totalPassengers: number;
+  cashlessBreakdown: {
+    gcashScanned: number;
+    gcashDirect: number;
+    voucher: number;
+  };
+  totalCashless: number;
+  cashDeclared: number;
+  remittanceStatus: "Pending" | "Remitted";
+  timeIn: string;
+  timeOut: string;
+  cashTotal: number;
+  gcashTotal: number;
+}
+
+const KEY = "conductor_remittance_history";
+
+function getAll(): RemittanceRecord[] {
+  const raw = localStorage.getItem(KEY);
+  if (!raw) return [];
+  try {
+    const records = JSON.parse(raw) as RemittanceRecord[];
+    return records.map((r) => ({
+      ...r,
+      gcashTotal: r.gcashTotal ?? 0,
+      cashTotal: r.cashTotal ?? 0,
+      cashDeclared: r.cashDeclared ?? 0,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function save(records: RemittanceRecord[]) {
+  localStorage.setItem(KEY, JSON.stringify(records));
+}
+
+export function saveRemittance(record: RemittanceRecord): RemittanceRecord[] {
+  const records = getAll();
+  const alreadyExists = records.some((r) => r.shiftId === record.shiftId);
+  if (alreadyExists) return records;
+  records.unshift(record);
+  save(records);
+  return records;
+}
+
+export function getRemittanceHistory(): RemittanceRecord[] {
+  return getAll();
 }

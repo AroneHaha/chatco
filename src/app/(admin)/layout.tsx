@@ -1,14 +1,78 @@
 // app/(admin)/layout.tsx
 'use client';
 
-import { ReactNode, useState, useEffect, Suspense } from 'react';
+import { ReactNode, useState, useEffect, useRef, Suspense } from 'react';
+import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
+import Image from 'next/image';
+import { Menu, LogOut, X, Bus, Settings, Shield, Eye } from 'lucide-react';
+import {
+  operationsNav,
+  managementNav,
+  systemNav,
+  mobileMainItems,
+  mobileOverflowItems,
+  mobileMoreItems,
+} from '@/config/admin-nav';
 import { SignOutModal } from '@/components/admin/ui/sign-out-modal';
 import { SettingsDrawerProvider, SettingsDrawer, useSettingsDrawer } from '@/components/admin/ui/settings-drawer';
-import { AdminSidebar } from '@/components/admin/layout/admin-sidebar';
-import { AdminBottomNav } from '@/components/admin/layout/admin-bottom-nav';
-import { SidebarSkeleton, ContentSkeleton, MobileSkeleton } from '@/components/admin/layout/admin-layout-skeleton';
+import { SkeletonCard } from '@/components/admin/ui/skeleton';
 import { useAuth } from '@/contexts/auth-context';
+
+// ─── Layout Skeletons (composed from shared blocks) ───
+
+function SidebarSkeleton() {
+  return (
+    <div className="w-64 bg-[#0D1424] border-r border-[#1E2D45] flex flex-col animate-pulse">
+      {/* Logo area */}
+      <div className="p-5 flex items-center gap-3">
+        <div className="w-9 h-9 rounded bg-gray-700" />
+        <div className="space-y-2">
+          <div className="h-4 w-20 rounded bg-gray-700" />
+          <div className="h-2 w-14 rounded bg-gray-700" />
+        </div>
+      </div>
+      {/* Nav groups */}
+      <div className="flex-1 px-3 space-y-6 pt-2">
+        <SkeletonCard count={3} height="36px" />
+        <SkeletonCard count={3} height="36px" />
+        <SkeletonCard count={2} height="36px" />
+      </div>
+      {/* Bottom */}
+      <div className="px-3 pb-5 border-t border-[#1E2D45] pt-3">
+        <SkeletonCard count={1} height="36px" />
+      </div>
+    </div>
+  );
+}
+
+function ContentSkeleton() {
+  return (
+    <div className="flex-1 p-6 lg:p-8 space-y-6 animate-pulse">
+      <SkeletonCard count={1} height="32px" />
+      <SkeletonCard count={3} height="100px" />
+    </div>
+  );
+}
+
+function MobileSkeleton() {
+  return (
+    <div className="min-h-screen bg-[#0B1120] flex flex-col">
+      <div className="flex-1 p-4 space-y-4 animate-pulse">
+        <SkeletonCard count={2} height="80px" />
+      </div>
+      {/* Bottom nav bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-[#0D1424]/95 border-t border-[#1E2D45] h-16 flex justify-around items-center animate-pulse">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="flex flex-col items-center gap-1">
+            <div className="w-5 h-5 rounded bg-gray-700" />
+            <div className="w-8 h-2 rounded bg-gray-700" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // ─── Inner Layout (uses context) ───
 
@@ -16,9 +80,14 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { isLoading: authLoading, isAuthenticated } = useAuth();
-  const { closeSettingsDrawer } = useSettingsDrawer();
+  const { isSettingsOpen, openSettingsDrawer, closeSettingsDrawer } = useSettingsDrawer();
   const [isMobile, setIsMobile] = useState(false);
+  const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [isSignOutOpen, setIsSignOutOpen] = useState(false);
+
+  // Refs for the mobile bottom nav animation (HTMLElement allows both <a> and <button>)
+  const indicatorRef = useRef<HTMLDivElement>(null);
+  const navItemRefs = useRef<(HTMLElement | null)[]>([]);
 
   // Detect screen size
   useEffect(() => {
@@ -29,6 +98,11 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
     window.addEventListener('resize', checkScreenSize);
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
+
+  // Close "More" menu when route changes
+  useEffect(() => {
+    setIsMoreOpen(false);
+  }, [pathname]);
 
   // Close Settings drawer when route changes
   useEffect(() => {
@@ -60,6 +134,29 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
     return null;
   }
 
+  // Mobile: Animate the bottom nav indicator (Only for the 4 main items + 1 More button)
+  useEffect(() => {
+    if (!isMobile) return;
+
+    // Check if current route is in the main 4 items
+    const mainIndex = mobileMainItems.findIndex(item => item.href === pathname);
+    let activeIndex = mainIndex;
+
+    // If it's not in the main 4, it must be in the "More" menu, so highlight the "More" button (index 4)
+    if (mainIndex === -1) {
+      activeIndex = 4;
+    }
+
+    if (activeIndex !== -1) {
+      const activeItem = navItemRefs.current[activeIndex];
+      if (indicatorRef.current && activeItem) {
+        const { offsetLeft, offsetWidth } = activeItem;
+        indicatorRef.current.style.width = `${offsetWidth}px`;
+        indicatorRef.current.style.left = `${offsetLeft}px`;
+      }
+    }
+  }, [pathname, isMobile]);
+
   // Sign Out Handler
   const handleSignOut = () => {
     console.log("User signed out");
@@ -68,7 +165,7 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
   };
 
   // ── EMBED MODE ──
-  // When the page is loaded inside the settings drawer (?embed=1),
+  // When the page is loaded inside the settings drawer iframe (?embed=1),
   // render ONLY the content area — no sidebar, no bottom nav, no modals.
   const isEmbed = searchParams.get('embed') === '1';
 
@@ -86,7 +183,133 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
   if (!isMobile) {
     return (
       <div className="flex h-screen bg-[#0B1120]">
-        <AdminSidebar onSignOutClick={() => setIsSignOutOpen(true)} />
+        <nav className="w-64 bg-[#0D1424] border-r border-[#1E2D45] flex flex-col">
+          {/* Logo */}
+          <div className="p-5 flex items-center gap-3">
+            <Image src="/logo-transparent.png" alt="CHATCO" width={36} height={36} className="flex-shrink-0" />
+            <div>
+              <h2 className="text-base font-bold text-white leading-tight">CHATCO</h2>
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider">Admin Panel</p>
+            </div>
+          </div>
+
+          {/* Nav Links — grouped */}
+          <div className="flex-1 px-3 overflow-y-auto space-y-6">
+
+            {/* Operations */}
+            <div>
+              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-3 mb-2">Operations</p>
+              {operationsNav.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center space-x-3 px-3 py-2.5 my-0.5 rounded-md transition-colors duration-200 ${
+                      isActive
+                        ? 'bg-[#62A0EA]/10 text-[#62A0EA]'
+                        : 'text-slate-400 hover:bg-[#1A2540] hover:text-white'
+                    }`}
+                  >
+                    {isActive && <span className="w-1.5 h-1.5 rounded-full bg-[#62A0EA] flex-shrink-0" />}
+                    {!isActive && <span className="w-1.5 h-1.5 flex-shrink-0" />}
+                    <Icon size={18} />
+                    <span className="text-sm font-medium">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Management */}
+            <div>
+              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-3 mb-2">Management</p>
+              {managementNav.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center space-x-3 px-3 py-2.5 my-0.5 rounded-md transition-colors duration-200 ${
+                      isActive
+                        ? 'bg-[#62A0EA]/10 text-[#62A0EA]'
+                        : 'text-slate-400 hover:bg-[#1A2540] hover:text-white'
+                    }`}
+                  >
+                    {isActive && <span className="w-1.5 h-1.5 rounded-full bg-[#62A0EA] flex-shrink-0" />}
+                    {!isActive && <span className="w-1.5 h-1.5 flex-shrink-0" />}
+                    <Icon size={18} />
+                    <span className="text-sm font-medium">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* System */}
+            <div>
+              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-3 mb-2">System</p>
+              {systemNav.map((item) => {
+                const Icon = item.icon;
+                const isSettings = item.href === '/settings';
+                const isActive = isSettings ? pathname.startsWith('/settings') : pathname === item.href;
+
+                // Settings opens drawer instead of navigating
+                if (isSettings) {
+                  return (
+                    <button
+                      key={item.href}
+                      onClick={openSettingsDrawer}
+                      className={`flex items-center space-x-3 px-3 py-2.5 my-0.5 rounded-md transition-colors duration-200 w-full ${
+                        isSettingsOpen || isActive
+                          ? 'bg-[#62A0EA]/10 text-[#62A0EA]'
+                          : 'text-slate-400 hover:bg-[#1A2540] hover:text-white'
+                      }`}
+                    >
+                      {isActive && <span className="w-1.5 h-1.5 rounded-full bg-[#62A0EA] flex-shrink-0" />}
+                      {!isActive && <span className="w-1.5 h-1.5 flex-shrink-0" />}
+                      <Icon size={18} />
+                      <span className="text-sm font-medium">{item.label}</span>
+                    </button>
+                  );
+                }
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center space-x-3 px-3 py-2.5 my-0.5 rounded-md transition-colors duration-200 ${
+                      isActive
+                        ? 'bg-[#62A0EA]/10 text-[#62A0EA]'
+                        : 'text-slate-400 hover:bg-[#1A2540] hover:text-white'
+                    }`}
+                  >
+                    {isActive && <span className="w-1.5 h-1.5 rounded-full bg-[#62A0EA] flex-shrink-0" />}
+                    {!isActive && <span className="w-1.5 h-1.5 flex-shrink-0" />}
+                    <Icon size={18} />
+                    <span className="text-sm font-medium">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+
+          </div>
+
+          {/* --- Bottom Section (Sign Out & Branding) --- */}
+          <div className="px-3 pb-5 border-t border-[#1E2D45] pt-3 mt-2 space-y-2">
+            <button
+              onClick={() => setIsSignOutOpen(true)}
+              className="flex items-center space-x-3 px-3 py-2.5 w-full rounded-md text-red-400 hover:bg-red-400/10 transition-colors duration-200"
+            >
+              <LogOut size={18} />
+              <span className="text-sm font-medium">Sign Out</span>
+            </button>
+
+            <div className="px-3 pt-1">
+              <p className="text-[10px] text-slate-600 font-medium tracking-wide">CHATCO ADMIN v1.0</p>
+            </div>
+          </div>
+        </nav>
 
         <main className="flex-1 overflow-y-auto p-6 lg:p-8 text-white">
           {children}
@@ -108,7 +331,140 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
         {children}
       </main>
 
-      <AdminBottomNav onSignOutClick={() => setIsSignOutOpen(true)} />
+      {/* Bottom Navigation */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-[#0D1424]/95 backdrop-blur-sm border-t border-[#1E2D45] z-50 md:hidden">
+        <div className="relative flex justify-around items-center h-16 max-w-screen-xl mx-auto">
+          {/* Thin top-line indicator */}
+          <div
+            ref={indicatorRef}
+            className="absolute top-0 h-0.5 bg-[#62A0EA] transition-all duration-300 ease-in-out"
+          />
+
+          {/* Main 4 Items */}
+          {mobileMainItems.map((item, index) => {
+            const Icon = item.icon;
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                ref={el => { navItemRefs.current[index] = el; }}
+                className={`relative z-10 flex flex-col items-center justify-center w-full h-full text-xs font-medium transition-colors duration-200 ${
+                  isActive ? 'text-[#62A0EA]' : 'text-slate-500'
+                }`}
+              >
+                <Icon size={20} />
+                <span className="mt-1">{item.label}</span>
+              </Link>
+            );
+          })}
+
+          {/* "More" Button */}
+          <button
+            ref={el => { navItemRefs.current[4] = el; }}
+            onClick={() => setIsMoreOpen(!isMoreOpen)}
+            className={`relative z-10 flex flex-col items-center justify-center w-full h-full text-xs font-medium transition-colors duration-200 ${
+              isMoreOpen || mobileMoreItems.some(i => i.href === pathname) ? 'text-[#62A0EA]' : 'text-slate-500'
+            }`}
+          >
+            <Menu size={20} />
+            <span className="mt-1">More</span>
+          </button>
+        </div>
+
+        {/* "More" Menu Popup */}
+        {isMoreOpen && (
+          <>
+            {/* Invisible backdrop to close menu when tapping outside */}
+            <div
+              className="fixed inset-0 bg-black/20 z-40"
+              onClick={() => setIsMoreOpen(false)}
+            />
+
+            {/* Actual Menu */}
+            <div className="absolute bottom-20 right-4 left-4 bg-[#1A2540] border border-[#2A3A55] rounded-lg p-4 shadow-2xl z-50">
+              <div className="grid grid-cols-2 gap-3">
+                {/* Overflow items (Receipts, etc.) */}
+                {mobileOverflowItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = pathname === item.href;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setIsMoreOpen(false)}
+                      className={`flex flex-col items-center justify-center p-3 rounded-md transition-colors ${
+                        isActive
+                          ? 'bg-[#62A0EA]/10 text-[#62A0EA]'
+                          : 'text-slate-300 hover:bg-[#131C2E]'
+                      }`}
+                    >
+                      <Icon size={22} />
+                      <span className="mt-2 text-xs text-center leading-tight">{item.label}</span>
+                    </Link>
+                  );
+                })}
+
+                {/* More menu items (Fleet, Lost & Found, Users, Settings) */}
+                {mobileMoreItems.map((item) => {
+                  const Icon = item.icon;
+                  const isSettings = item.href === '/settings';
+                  const isActive = isSettings ? pathname.startsWith('/settings') : pathname === item.href;
+
+                  // Settings opens drawer instead of navigating
+                  if (isSettings) {
+                    return (
+                      <button
+                        key={item.href}
+                        onClick={() => {
+                          setIsMoreOpen(false);
+                          openSettingsDrawer();
+                        }}
+                        className={`flex flex-col items-center justify-center p-3 rounded-md transition-colors w-full ${
+                          isActive
+                            ? 'bg-[#62A0EA]/10 text-[#62A0EA]'
+                            : 'text-slate-300 hover:bg-[#131C2E]'
+                        }`}
+                      >
+                        <Icon size={22} />
+                        <span className="mt-2 text-xs text-center leading-tight">{item.label}</span>
+                      </button>
+                    );
+                  }
+
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setIsMoreOpen(false)}
+                      className={`flex flex-col items-center justify-center p-3 rounded-md transition-colors ${
+                        isActive
+                          ? 'bg-[#62A0EA]/10 text-[#62A0EA]'
+                          : 'text-slate-300 hover:bg-[#131C2E]'
+                      }`}
+                    >
+                      <Icon size={22} />
+                      <span className="mt-2 text-xs text-center leading-tight">{item.label}</span>
+                    </Link>
+                  );
+                })}
+
+                {/* Mobile Sign Out Button */}
+                <button
+                  onClick={() => {
+                    setIsMoreOpen(false);
+                    setIsSignOutOpen(true);
+                  }}
+                  className="col-span-2 flex items-center justify-center gap-2 p-3 rounded-md text-red-400 hover:bg-red-400/10 transition-colors border border-red-400/20"
+                >
+                  <LogOut size={20} />
+                  <span className="text-sm font-medium">Sign Out</span>
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </nav>
 
       {/* Mobile Sign Out Modal */}
       <SignOutModal isOpen={isSignOutOpen} onClose={() => setIsSignOutOpen(false)} onConfirm={handleSignOut} />

@@ -1,7 +1,3 @@
-// src/lib/conductor/server/store.ts
-// In-memory global store for conductor state (server-side).
-// All shift, transaction, remittance, rating, and hail data lives here.
-
 import type { ConductorShift } from "@/lib/conductor/persistence/shift.store";
 import type { Transaction } from "@/lib/conductor/persistence/transactions.store";
 import type { RemittanceRecord } from "@/lib/conductor/persistence/remittance.store";
@@ -49,7 +45,7 @@ function getUserState(userId: string): ConductorUserState {
   return store.get(userId)!;
 }
 
-function computeDuration(timeIn: string, timeOut: string | null): string | null {
+function computeDuration(timeIn: string, timeOut: string | null | undefined): string | null {
   const start = new Date(timeIn).getTime();
   const end = timeOut ? new Date(timeOut).getTime() : Date.now();
   const diff = Math.floor((end - start) / 1000);
@@ -114,7 +110,7 @@ export function startShift(
     driverName: shift.driverName,
     route: shift.route,
     timeIn: shift.timeIn,
-    timeOut: null,
+    timeOut: undefined,
     duration: null,
   };
   state.shiftLogs.unshift(logEntry);
@@ -132,7 +128,7 @@ export function endShift(userId: string): ConductorShift | null {
   state.activeShift = null;
 
   const log = state.shiftLogs.find(
-    (entry) => entry.shiftId === shift.shiftId && entry.timeOut === null
+    (entry) => entry.shiftId === shift.shiftId && entry.timeOut == null
   );
   if (log) {
     log.timeOut = shift.timeOut;
