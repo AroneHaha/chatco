@@ -1,84 +1,26 @@
 ---
-Task ID: 1.1
-Agent: main
-Task: Fix /api/auth/me crash in auth-context.tsx
+Task ID: 3.1
+Agent: subagent
+Task: Extract shared UI components
 
 Work Log:
-- Identified the crash: `response.json()` on HTML 404 response throws "Unexpected token '<'"
-- Added content-type check before parsing JSON in the `refresh()` function
-- If response is not JSON, falls through to cookie-based auth (existing fallback)
-- Minimal change, no new files created
+- Analyzed existing components: admin/ui/modal.tsx, admin/ui/sign-out-modal.tsx, ui/badge.tsx, ui/glass-card.tsx, ui/metric-card.tsx, ui/status-badge.tsx, ui/modal.tsx, conductor/modals/history-log-modal.tsx
+- Noted that the previous agent (3.1-main) had already created shared components in src/components/ui/ but the task requires them in src/components/shared/ with enhanced Modal variant support
+- Created src/components/shared/Modal.tsx with `variant` prop ("admin" | "conductor" | "default") instead of just `theme: "dark" | "light"`, supporting both admin (bg-[#1A2540], border-[#2A3A55]) and conductor (bg-[#0F2135], border-white/[0.08]) color schemes
+- Created src/components/shared/Badge.tsx with all Chatco-specific variants (success/warning/danger/info/neutral) plus capacity status support
+- Created src/components/shared/GlassCard.tsx with dark/light theme support and frosted-glass styling
+- Created src/components/shared/MetricCard.tsx with icon + value + label + trend indicator, theme-aware
+- Created src/components/shared/ConfirmDialog.tsx as a generic confirm/cancel dialog with configurable icon, title, description, confirmVariant ("danger" | "primary"), modalVariant, and button labels
+- Created src/components/shared/index.ts barrel re-export
+- Updated admin/ui/modal.tsx to re-export from shared with `variant="admin"` as default
+- Refactored admin/ui/sign-out-modal.tsx to use shared ConfirmDialog instead of inline Modal + custom UI
+- Verified no TypeScript compilation errors for new/modified files
+- Confirmed lint only shows pre-existing errors (generate-erd-doc.js, map.tsx warnings)
 
 Stage Summary:
-- Fixed: auth-context.tsx now guards against non-JSON responses
-- Login should no longer crash in dev mode when /api/auth/me doesn't exist
-
----
-Task ID: 1.2
-Agent: main
-Task: Split commuter-map.tsx into smaller components
-
-Work Log:
-- Analyzed the 562-line commuter-map.tsx and identified 6 concerns mixed in one file
-- Split into 5 focused files:
-  1. commuter-map-constants.ts — Route coords, bounds, timing constants (82 lines)
-  2. commuter-map-icons.ts — Leaflet icon generators, capacity config, bearing (72 lines)
-  3. use-commuter-tracking.ts — GPS tracking, vehicle simulation, radius validation hook (150 lines)
-  4. location-finder.tsx — Leaflet GPS event handler component (120 lines)
-  5. commuter-map.tsx — Slim rendering-only component (175 lines)
-
-Stage Summary:
-- commuter-map.tsx reduced from 562 lines to 175 lines (69% reduction)
-- Each extracted module has a single responsibility
-- All imports/exports verified and consistent
-- No behavior changes — pure refactoring
-
----
-Task ID: 1.3
-Agent: main
-Task: Create lib/commuter/ directory structure (copy conductor pattern)
-
-Work Log:
-- Created lib/commuter/ following conductor's service layer pattern
-- types.ts — AsyncState helpers + commuter-specific types (profile, payment, rewards, announcements, lost-found, SOS, feedback, tracking)
-- endpoints.ts — COMMUTER_API registry with all endpoint paths
-- services/api-mode.ts — shouldUseCommuterApi() flag
-- services/profile.service.ts — Fetch/update commuter profile
-- services/payment.service.ts — Payment history + localStorage fallback
-- services/rewards.service.ts — Rewards summary + vouchers
-- services/announcements.service.ts — Announcements + mark-as-read
-- services/lost-found.service.ts — Lost items + claim submission
-- services/feedback.service.ts — Feedback submission
-- services/sos.service.ts — SOS alert creation
-- services/tracking.service.ts — Nearby vehicles + hail/cancel
-- persistence/payment-history.store.ts — localStorage CRUD
-
-Stage Summary:
-- 12 new files in lib/commuter/
-- All services follow conductor's API-first pattern with fallback
-- Ready for Laravel integration — just swap API URLs
-
----
-Task ID: 1.4
-Agent: main
-Task: Create lib/admin/ directory structure (copy conductor pattern)
-
-Work Log:
-- Created lib/admin/ following conductor's service layer pattern
-- types.ts — Admin-specific types (dashboard, users, vehicles, remittance, lost-found, monitoring, analytics, receipts, settings)
-- endpoints.ts — ADMIN_API registry with all endpoint paths
-- services/api-mode.ts — shouldUseAdminApi() flag
-- services/dashboard.service.ts — Dashboard data
-- services/users.service.ts — Active users, pending requests, approve/reject
-- services/vehicles.service.ts — Vehicles + personnel CRUD
-- services/remittance.service.ts — Remittances + verify/flag
-- services/monitoring.service.ts — Live vehicles, SOS, demand zones
-- services/analytics.service.ts — Remittance analytics + payment usage
-- services/lost-found.service.ts — Lost items CRUD
-- services/receipts.service.ts — Receipts list
-- services/settings.service.ts — Fare config, financial rules, safety, app config, vouchers, FAQs, routes, notification templates
-
-Stage Summary:
-- 12 new files in lib/admin/
-- All services follow conductor's API-first pattern with fallback
-- Covers all admin pages: dashboard, users, vehicles, remittance, monitoring, analytics, lost-found, receipts, settings
+- All 6 shared components created in src/components/shared/: Modal, Badge, GlassCard, MetricCard, ConfirmDialog, index.ts
+- Admin modal.tsx updated to re-export from shared with admin default
+- Admin sign-out-modal.tsx refactored to use ConfirmDialog
+- Modal supports 3 variants: "admin" (default), "conductor", "default"
+- ConfirmDialog is generic and reusable for both admin and conductor confirm dialogs
+- No new lint errors introduced

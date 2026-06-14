@@ -1,4 +1,3 @@
-// src/lib/conductor/persistence/shift-history.ts
 // Shift log history — persists shift start/end events.
 // Used by store.ts for audit trail logging.
 
@@ -16,12 +15,12 @@ export interface ShiftLog {
   duration: string | null;
 }
 
-export function logShiftStart(log: ShiftLog): void {
+export function logShiftStart(log: Omit<ShiftLog, "timeOut" | "duration">): void {
   if (typeof window === "undefined") return;
   const logs: ShiftLog[] = JSON.parse(
     localStorage.getItem(SHIFT_LOGS_KEY) || "[]"
   );
-  logs.unshift(log);
+  logs.unshift({ ...log, timeOut: null, duration: null });
   localStorage.setItem(SHIFT_LOGS_KEY, JSON.stringify(logs));
 }
 
