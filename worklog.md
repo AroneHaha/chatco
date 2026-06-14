@@ -62,3 +62,110 @@ Stage Summary:
 - Dev server running, GET / returns 200
 - All existing imports remain backward-compatible via re-exports
 - Lint issues are pre-existing from original repo code, not from Batch 3 changes
+
+---
+Task ID: 2
+Agent: subagent
+Task: Batch 3.1 — Shared UI Components (fix barrel export + re-export cleanup)
+
+Work Log:
+- Read worklog.md for context on prior Batch 3 work
+- Verified shared/ components exist and are identical to admin/ui/ originals
+- Step 1: Fixed barrel export typo in components/shared/index.ts: `'./Badge'` → `'./badge'` (lowercase to match actual filename)
+- Step 2: Converted 4 admin/ui/ files to re-export from shared:
+  - admin/ui/modal.tsx → `export { Modal } from '@/components/shared/modal'`
+  - admin/ui/badge.tsx → `export { Badge } from '@/components/shared/badge'`
+  - admin/ui/glass-card.tsx → `export { GlassCard } from '@/components/shared/glass-card'`
+  - admin/ui/metric-card.tsx → `export { MetricCard } from '@/components/shared/metric-card'`
+- Step 3: Verified all existing imports (e.g. `from '@/components/admin/ui/modal'`) still work because re-exports preserve the same API
+- Ran lint — only pre-existing errors, no new issues from changes
+
+Stage Summary:
+- 5 files modified total (1 index.ts fix + 4 admin/ui/ re-export replacements)
+- Shared components are now the single source of truth
+- admin/ui/ files are thin re-export wrappers, backward-compatible
+- No consumer imports need changing
+
+---
+Task ID: 4
+Agent: main
+Task: Batch 3.3 — Conductor Dashboard Split
+
+Work Log:
+- Read existing conductor-dashboard.tsx (266 lines) and related types
+- Verified ConductorHailRequest type from /src/lib/conductor/types.ts (has id, commuterName, latitude, longitude, label?, etaMinutes?)
+- Verified useConductorHails returns ConductorHailRequest[] — matches ConductorMap expected prop type
+- Created src/components/conductor/dashboard/ directory
+- Created use-dashboard-state.ts — extracted hook combining useConductorShift, useConductorTransactions, useConductorHails with local state (status, showHistory, mobileCardExpanded) and derived values (conductorName, unitNumber, route, driverName). Exported ConductorStatus type.
+- Created mobile-dashboard-card.tsx — extracted the lg:hidden top card with unit info header, expandable section (status selector, history button, payment totals with GCash/Cash/Voucher breakdown), and collapse toggle
+- Created desktop-dashboard-card.tsx — extracted the hidden lg:block floating card with header, payment/history buttons, status selector, payment breakdown, and shift start time using formatTime()
+- Created dashboard-map-container.tsx — extracted dynamic import of ConductorMap with ssr:false, wrapping in fixed inset container with lg:left-64. Uses ConductorHailRequest[] type for hails prop.
+- Rewrote conductor-dashboard.tsx as slim orchestrator (~80 lines) — imports and uses useDashboardState, renders MobileDashboardCard, DesktopDashboardCard, DashboardMapContainer, and HistoryLogModal. Preserves all 3 render states (loading skeleton, empty shift, error).
+- Ran lint — no new errors from the 5 modified/created files
+- Dev server running, GET / returns 200
+
+Stage Summary:
+- conductor-dashboard.tsx reduced from 266 lines to ~80 lines
+- 4 new files created in components/conductor/dashboard/:
+  - use-dashboard-state.ts (custom hook, 39 lines)
+  - mobile-dashboard-card.tsx (mobile top card, 107 lines)
+  - desktop-dashboard-card.tsx (desktop floating card, 144 lines)
+  - dashboard-map-container.tsx (map wrapper, 20 lines)
+- UI output is identical to original — no visual or behavioral changes
+- All existing imports remain backward-compatible
+- No new lint errors introduced
+
+---
+Task ID: 3.2
+Agent: subagent
+Task: Admin Layout Split — Extract 3 component files and slim down layout to orchestrator
+
+Work Log:
+- Read worklog.md for context; confirmed layout.tsx is still 488 lines (unsplit)
+- Created directory src/components/admin/layout/
+- Created src/components/admin/layout/admin-sidebar.tsx (148 lines) — desktop sidebar with logo, nav groups (Operations/Management/System), settings drawer button, sign-out button
+- Created src/components/admin/layout/admin-bottom-nav.tsx (174 lines) — mobile bottom nav with animated indicator, 4 main items, "More" button, overflow/more menu popup, sign-out button
+- Created src/components/admin/layout/admin-layout-skeleton.tsx (50 lines) — SidebarSkeleton, ContentSkeleton, MobileSkeleton (pure presentational)
+- Rewrote src/app/(admin)/layout.tsx (129 lines) — slim orchestrator importing the 3 extracted components, keeping only state management, effects, auth guard, embed mode, and render branching
+- Removed unused eslint-disable comment in admin-bottom-nav.tsx (was triggering unused-directive warning)
+- Verified dev server still serving pages (GET / 200)
+- Lint: only pre-existing error (setIsMoreOpen in useEffect — same as original), no new errors from extracted components
+
+Stage Summary:
+- Layout reduced from 488 lines → 129 lines (74% reduction)
+- 3 new component files created in components/admin/layout/
+- UI is identical to original — same JSX, same behavior, same props flow
+- AdminBottomNav receives isMoreOpen/setIsMoreOpen as props (parent controls state)
+- Sign-out flow preserved: buttons call onSignOut prop → parent opens SignOutModal
+- No other files modified
+
+---
+Task ID: 5
+Agent: subagent
+Task: Batch 3.4 — Admin Dashboard Split
+
+Work Log:
+- Read worklog.md for context on prior Batch 3 work
+- Read existing page.tsx (319 lines) and dashboard-data.ts to understand types and data flow
+- Verified components/admin/dashboard/ directory already exists with financial-summary.tsx and recent-alerts.tsx
+- Created src/components/admin/dashboard/dashboard-quick-stats.tsx — extracted Quick Stats grid section (4 stat cards with Link wrappers)
+- Created src/components/admin/dashboard/dashboard-map-preview.tsx — extracted Live Map Preview with dynamic import of AdminCommuterMap (ssr: false) and SkeletonMap loading fallback
+- Created src/components/admin/dashboard/dashboard-analytics-preview.tsx — extracted Payment Tendencies (GCash/Cash progress bars) and Top Pickup Points (ranked list with progress bars)
+- Created src/components/admin/dashboard/dashboard-preview-cards.tsx — extracted Vehicles, Lost & Found, Users preview cards (3-column grid with status badges)
+- Created src/components/admin/dashboard/dashboard-settings-carousel.tsx — extracted System Settings carousel with scroll buttons (useRef + scrollBy), includes global CSS for scrollbar hiding
+- Rewrote src/app/(admin)/admin-dashboard/page.tsx (96 lines) — slim orchestrator importing all 5 sub-components, keeping only header, loading skeleton, error state, and component composition
+- Ran lint — no new errors from the 6 modified/created files (all lint errors are pre-existing from original repo code)
+- Dev server running, GET / returns 200
+
+Stage Summary:
+- page.tsx reduced from 319 lines → 96 lines (70% reduction)
+- 5 new component files created in components/admin/dashboard/:
+  - dashboard-quick-stats.tsx (stats grid, 22 lines)
+  - dashboard-map-preview.tsx (live map with dynamic import, 28 lines)
+  - dashboard-analytics-preview.tsx (payment + pickup analytics, 62 lines)
+  - dashboard-preview-cards.tsx (vehicles/Lost&Found/users cards, 93 lines)
+  - dashboard-settings-carousel.tsx (settings carousel with scroll, 76 lines)
+- UI output is identical to original — no visual or behavioral changes
+- Existing files (financial-summary.tsx, recent-alerts.tsx) left untouched
+- Global scrollbar-hiding CSS moved from page.tsx into dashboard-settings-carousel.tsx (where it's needed)
+- No new lint errors introduced
