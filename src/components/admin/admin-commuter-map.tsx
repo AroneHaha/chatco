@@ -362,9 +362,13 @@ export default function AdminCommuterMap({
       </MapContainer>
 
       <style jsx global>{`
+        /* 
+         * SCOPED WRAPPER FIX
+         * Prevents Leaflet from escaping its bounds and hijacking parent scroll 
+         */
         .admin-map-wrapper {
           position: relative;
-          touch-action: none;
+          touch-action: none; /* Forces Leaflet to handle touch, not iOS Safari */
         }
 
         .admin-map-container {
@@ -373,7 +377,7 @@ export default function AdminCommuterMap({
           position: absolute !important;
           inset: 0 !important;
           z-index: 0 !important;
-          isolation: isolate !important;
+          isolation: isolate !important; /* Traps Leaflet's internal z-indexes */
         }
 
         .leaflet-container {

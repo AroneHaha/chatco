@@ -1,7 +1,29 @@
-'use client'
-
-import ConductorDashboard from "@/components/conductor/conductor-dashboard";
+import Navbar from "@/components/landing/Navbar";
+import Hero from "@/components/landing/Hero";
+import TrustBar from "@/components/landing/TrustBar";
+import HowItWorks from "@/components/landing/HowItWorks";
+import CommuterFeatures from "@/components/landing/CommuterFeatures";
+import HeatmapShowcase from "@/components/landing/HeatmapShowcase";
+import SafetySupport from "@/components/landing/SafetySupport";
+import LoyaltyPerks from "@/components/landing/LoyaltyPerks";
+import FinalCTA from "@/components/landing/FinalCTA";
+import Footer from "@/components/landing/Footer";
+import FAQChatBubble from "@/components/landing/FAQChatBubble";
 
 export default function Home() {
-  return <ConductorDashboard />;
+  return (
+    <main>
+      <Navbar />
+      <Hero />
+      <TrustBar />
+      <HowItWorks />
+      <CommuterFeatures />
+      <SafetySupport />
+      <LoyaltyPerks />
+      <HeatmapShowcase />
+      <FinalCTA />
+      <Footer />
+      <FAQChatBubble />
+    </main>
+  );
 }

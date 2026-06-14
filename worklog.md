@@ -24,3 +24,41 @@ Stage Summary:
 - Modal supports 3 variants: "admin" (default), "conductor", "default"
 - ConfirmDialog is generic and reusable for both admin and conductor confirm dialogs
 - No new lint errors introduced
+
+---
+Task ID: 3.1-3.4
+Agent: main
+Task: Batch 3 — Shared UI & Component Quality (3.1-3.4)
+
+Work Log:
+- Reset project to match exact state of https://github.com/AroneHaha/chatco repo
+- Synced all repo frontend/ files to src/ (components, app, lib, config, contexts, types, hooks)
+- Fixed landing page asset imports (Navbar.tsx, Footer.tsx) to use /public instead of ../../assets/
+- Added missing hooks/useInView.ts from repo
+- Copied logo-transparent.png to public/
+- 3.1: Created components/shared/ with Modal, Badge, GlassCard, MetricCard (extracted from admin/ui/)
+- 3.1: Updated admin/ui/ modal, badge, glass-card, metric-card to re-export from shared (backward compatible)
+- 3.2: Split app/(admin)/layout.tsx (487 lines) into:
+  - components/admin/layout/admin-sidebar.tsx (desktop sidebar)
+  - components/admin/layout/admin-bottom-nav.tsx (mobile bottom nav)
+  - components/admin/layout/admin-layout-skeleton.tsx (skeleton loaders)
+  - app/(admin)/layout.tsx (slim orchestrator ~100 lines)
+- 3.3: Split components/conductor/conductor-dashboard.tsx (265 lines) into:
+  - components/conductor/dashboard/use-dashboard-state.ts (custom hook)
+  - components/conductor/dashboard/mobile-dashboard-card.tsx (mobile top card)
+  - components/conductor/dashboard/desktop-dashboard-card.tsx (desktop floating card)
+  - components/conductor/dashboard/dashboard-map-container.tsx (map wrapper)
+  - components/conductor/conductor-dashboard.tsx (slim orchestrator ~80 lines)
+- 3.4: Split app/(admin)/admin-dashboard/page.tsx (318 lines) into:
+  - components/admin/dashboard/dashboard-quick-stats.tsx (stats grid)
+  - components/admin/dashboard/dashboard-map-preview.tsx (live map)
+  - components/admin/dashboard/dashboard-analytics-preview.tsx (payment + pickup)
+  - components/admin/dashboard/dashboard-preview-cards.tsx (vehicles, lost&found, users)
+  - components/admin/dashboard/dashboard-settings-carousel.tsx (settings carousel)
+  - app/(admin)/admin-dashboard/page.tsx (slim orchestrator ~100 lines)
+
+Stage Summary:
+- All 4 Batch 3 tasks completed successfully
+- Dev server running, GET / returns 200
+- All existing imports remain backward-compatible via re-exports
+- Lint issues are pre-existing from original repo code, not from Batch 3 changes

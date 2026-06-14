@@ -1,0 +1,158 @@
+// app/(admin)/lost-found/page.tsx
+'use client';
+
+import { useState, useMemo } from 'react';
+import { LostFoundGrid } from '@/components/admin/lost-found/lost-found-grid';
+import { AddLostFoundModal } from '@/components/admin/lost-found/add-lost-found-modal';
+import { ViewItemModal } from '@/components/admin/lost-found/view-item-modal';
+import { ClaimsListModal } from '@/components/admin/lost-found/claims-list-modal';
+import { HistoryModal } from '@/components/admin/lost-found/history-modal';
+import { Plus } from 'lucide-react';
+import {
+  initialLostFoundItems,
+  initialClaims,
+  initialHistoryLog,
+  itemCategoriesWithAll,
+  type LostFoundItem,
+  type Claim,
+  type HistoryEvent,
+  type ItemCategory,
+  type ItemStatus,
+  type ClaimStatus,
+} from '@/app/(admin)/lost-found/data/lost-found-data';
+import type { LostFoundFormData } from '@/components/admin/lost-found/add-lost-found-modal';
+
+export default function LostFoundPage() {
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isClaimsModalOpen, setIsClaimsModalOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [items, setItems] = useState<LostFoundItem[]>(initialLostFoundItems);
+  const [claims, setClaims] = useState<Claim[]>(initialClaims);
+  const [history, setHistory] = useState<HistoryEvent[]>(initialHistoryLog);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+
+  const [activeTab, setActiveTab] = useState<'ALL' | 'PENDING_CLAIMS'>('ALL');
+  const [activeCategory, setActiveCategory] = useState<ItemCategory | 'ALL'>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 15;
+
+  const filteredItems = useMemo(() => {
+    let result = items;
+    if (activeTab === 'PENDING_CLAIMS') result = result.filter((item: LostFoundItem) => item.status === 'Unmatched');
+    if (activeCategory !== 'ALL') result = result.filter((item: LostFoundItem) => item.category === activeCategory);
+    if (searchQuery.trim()) result = result.filter((item: LostFoundItem) => item.itemName.toLowerCase().includes(searchQuery.toLowerCase()) || item.description.toLowerCase().includes(searchQuery.toLowerCase()));
+    return result;
+  }, [items, activeTab, activeCategory, searchQuery]);
+
+  const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
+  const displayItems = filteredItems.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  const handleOpenAddModal = () => setIsAddModalOpen(true);
+  const handleCloseAddModal = () => setIsAddModalOpen(false);
+  const handleOpenClaimsModal = (itemId: string) => { setSelectedItemId(itemId); setIsClaimsModalOpen(true); };
+  const handleCloseClaimsModal = () => { setSelectedItemId(null); setIsClaimsModalOpen(false); };
+  const handleOpenHistoryModal = (itemId: string) => { setSelectedItemId(itemId); setIsHistoryModalOpen(true); };
+  const handleCloseHistoryModal = () => { setSelectedItemId(null); setIsHistoryModalOpen(false); };
+  const handleOpenDetailModal = (itemId: string) => { setSelectedItemId(itemId); setIsDetailModalOpen(true); };
+  const handleCloseDetailModal = () => { setSelectedItemId(null); setIsDetailModalOpen(false); };
+
+  const handleSaveItem = (newItem: LostFoundFormData) => {
+    const nextId = `lf_${String(items.length + 1).padStart(3, '0')}`;
+    setItems(prev => [...prev, {
+      id: nextId,
+      itemName: newItem.itemName,
+      description: newItem.description,
+      imageUrl: newItem.imagePreview || `https://placehold.co/400x300/0A1E33/62A0EA?text=${encodeURIComponent(newItem.itemName)}`,
+      plateNumber: newItem.plateNumber,
+      driverName: newItem.driverName,
+      conductorName: newItem.conductorName,
+      estimatedTimeLost: newItem.estimatedTimeLost,
+      category: newItem.category,
+      datePosted: new Date().toISOString(),
+      reporterName: newItem.reporterName,
+      status: 'Unmatched',
+      claimedBy: null,
+    }]);
+    handleCloseAddModal();
+  };
+
+  const handleClaimAction = (itemId: string, action: 'Release' | 'Return' | 'Reject', claimantName: string) => {
+    const newStatus: ItemStatus = action === 'Release' ? 'Released' : action === 'Return' ? 'Returned' : 'Rejected';
+    const newClaimStatus: ClaimStatus = newStatus as ClaimStatus;
+    setItems(prev => prev.map((item: LostFoundItem) => item.id === itemId ? { ...item, status: newStatus, claimedBy: claimantName } : item));
+    setHistory(prev => [...prev, {
+      id: `H-${String(prev.length + 1).padStart(3, '0')}`,
+      itemId,
+      action: `Claim ${newStatus}`,
+      details: `Claim for item ${itemId} was ${newStatus.toLowerCase()} by admin for ${claimantName}.`,
+      timestamp: new Date().toLocaleString(),
+    }]);
+    setClaims(prev => prev.map((claim: Claim) => claim.itemId === itemId ? { ...claim, status: newClaimStatus } : claim));
+    handleCloseClaimsModal();
+  };
+
+  return (
+    <div className="h-full w-full flex flex-col overflow-hidden relative">
+      <div className="flex-shrink-0 bg-[#131C2E] border border-[#1E2D45] p-4 lg:px-8 lg:py-6 z-10 rounded-lg mb-6">
+        <div className="flex flex-col sm:flex-row lg:flex-row lg:items-center lg:justify-between gap-4 mb-5">
+          <div className="min-w-0">
+            <h1 className="text-white font-bold text-xl lg:text-2xl">Lost & Found Management</h1>
+            <p className="text-slate-500 text-xs mt-1">{filteredItems.length} items reported • Page {currentPage} of {totalPages || 1}</p>
+          </div>
+          <div className="flex items-center gap-2 w-full lg:w-fit flex-shrink-0">
+            <div className="flex bg-[#0E1628] rounded-md p-1 border border-[#1E2D45] flex-1 lg:flex-none">
+              {([ ["ALL", "All Items"], ["PENDING_CLAIMS", "Pending Claims"] ] as const).map(([key, label]) => (
+                <button key={key} onClick={() => setActiveTab(key)} className={`flex-1 lg:flex-none px-3 py-2 rounded-md text-xs font-semibold transition-all text-center ${activeTab === key ? "bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/30" : "text-slate-500 hover:text-slate-300 hover:bg-[#1A2540]"}`}>{label}</button>
+              ))}
+            </div>
+            <button onClick={handleOpenAddModal} className="flex items-center justify-center gap-2 px-4 py-2 bg-[#62A0EA] text-white text-xs font-semibold rounded-md hover:bg-[#4A8BD4] transition-colors shadow-lg shadow-[#62A0EA]/30 flex-shrink-0">
+              <Plus size={16} /><span className="hidden xs:inline">Add Item</span>
+            </button>
+          </div>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
+            <input type="text" placeholder="Search items, plates..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }} className="w-full bg-[#0E1628] border border-[#1E2D45] rounded-md pl-12 pr-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors" />
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+            {itemCategoriesWithAll.map(cat => (
+              <button key={cat.value} onClick={() => { setActiveCategory(cat.value); setCurrentPage(1); }} className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-semibold border transition-colors ${activeCategory === cat.value ? "bg-[#62A0EA] border-[#62A0EA] text-white" : "bg-transparent border-[#1E2D45] text-slate-500 hover:bg-[#1A2540]"}`}>{cat.label}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto pb-28 lg:pb-8">
+        {displayItems.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-center px-4">
+            <h3 className="text-slate-300 font-semibold mb-1">No items found</h3>
+            <p className="text-slate-500 text-sm">Try adjusting your search or filters.</p>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
+              <LostFoundGrid items={displayItems} onViewClaims={handleOpenClaimsModal} onViewHistory={handleOpenHistoryModal} onViewDetails={handleOpenDetailModal} />
+            </div>
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 mt-8 mb-4">
+                <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} className={`px-4 py-2 rounded-md text-sm font-semibold ${currentPage === 1 ? "bg-[#0E1628] text-slate-600 cursor-not-allowed" : "bg-[#0E1628] border border-[#1E2D45] text-slate-400 hover:bg-[#1A2540]"}`}>Prev</button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                  <button key={page} onClick={() => setCurrentPage(page)} className={`w-9 h-9 rounded-md text-sm font-semibold ${currentPage === page ? "bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/30" : "bg-[#0E1628] border border-[#1E2D45] text-slate-400 hover:bg-[#1A2540]"}`}>{page}</button>
+                ))}
+                <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} className={`px-4 py-2 rounded-md text-sm font-semibold ${currentPage === totalPages ? "bg-[#0E1628] text-slate-600 cursor-not-allowed" : "bg-[#0E1628] border border-[#1E2D45] text-slate-400 hover:bg-[#1A2540]"}`}>Next</button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      <ViewItemModal isOpen={isDetailModalOpen} onClose={handleCloseDetailModal} item={items.find((i: LostFoundItem) => i.id === selectedItemId) ?? null} />
+      <AddLostFoundModal isOpen={isAddModalOpen} onClose={handleCloseAddModal} onSave={handleSaveItem} />
+      <ClaimsListModal isOpen={isClaimsModalOpen} onClose={handleCloseClaimsModal} itemId={selectedItemId || ''} claims={claims.filter((c: Claim) => c.itemId === selectedItemId)} onClaimAction={handleClaimAction} />
+      <HistoryModal isOpen={isHistoryModalOpen} onClose={handleCloseHistoryModal} itemId={selectedItemId || ''} history={history.filter((h: HistoryEvent) => h.itemId === selectedItemId)} />
+    </div>
+  );
+}

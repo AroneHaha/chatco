@@ -41,36 +41,10 @@ export function useConductorShift(options?: { pollMs?: number }): UseConductorSh
   }, []);
 
   useEffect(() => {
-    const controller = new AbortController();
-    const doRefresh = async () => {
-      if (controller.signal.aborted) return;
-      try {
-        const activeShift = await fetchActiveShift();
-        if (controller.signal.aborted) return;
-        setShift(activeShift);
-        setElapsed(activeShift ? getElapsed(activeShift) : "");
-        setStatus(activeShift ? "success" : "empty");
-        setError(null);
-      } catch (err) {
-        if (controller.signal.aborted) return;
-        const localShift = getActiveShift();
-        setShift(localShift);
-        setElapsed(localShift ? getElapsed(localShift) : "");
-        setStatus(localShift ? "success" : "error");
-        setError(
-          err instanceof Error ? err.message : "Unable to load active shift."
-        );
-      }
-    };
-
-    doRefresh();
-    const interval = window.setInterval(doRefresh, options?.pollMs ?? 3000);
-
-    return () => {
-      controller.abort();
-      window.clearInterval(interval);
-    };
-  }, [options?.pollMs]);
+    void refresh();
+    const interval = window.setInterval(refresh, options?.pollMs ?? 3000);
+    return () => window.clearInterval(interval);
+  }, [options?.pollMs, refresh]);
 
   return { shift, elapsed, status, error, refresh };
 }
