@@ -1,0 +1,1755 @@
+diff --git a/frontend/app/(admin)/admin-dashboard/page.tsx b/frontend/app/(admin)/admin-dashboard/page.tsx
+new file mode 100644
+index 0000000..4fed344
+--- /dev/null
++++ b/frontend/app/(admin)/admin-dashboard/page.tsx
+@@ -0,0 +1,112 @@
++"use client";
++
++// app/(admin)/admin-dashboard/page.tsx
++// Slim orchestrator — delegates to extracted sub-components.
++
++import Link from "next/link";
++import { ArrowRight, AlertCircle } from "lucide-react";
++
++import { useDashboardData } from "./data/dashboard-data";
++import { SkeletonMetric, SkeletonCard } from "@/components/admin/ui/skeleton";
++import { DashboardQuickStats } from "@/components/admin/dashboard/dashboard-quick-stats";
++import { DashboardMapPreview } from "@/components/admin/dashboard/dashboard-map-preview";
++import { DashboardAnalyticsPreview } from "@/components/admin/dashboard/dashboard-analytics-preview";
++import { DashboardPreviewCards } from "@/components/admin/dashboard/dashboard-preview-cards";
++import { DashboardSettingsCarousel } from "@/components/admin/dashboard/dashboard-settings-carousel";
++
++export default function DashboardHome() {
++  const { data, isLoading, error, refetch } = useDashboardData();
++
++  // ── Loading State ──
++  if (isLoading) {
++    return (
++      <div className="space-y-6 pb-8">
++        {/* Header skeleton */}
++        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
++          <div className="space-y-2">
++            <div className="h-7 w-40 rounded bg-gray-700 animate-pulse" />
++            <div className="h-4 w-72 rounded bg-gray-700 animate-pulse" />
++          </div>
++        </div>
++        {/* Stats skeleton */}
++        <SkeletonMetric count={4} />
++        {/* Map + analytics skeleton */}
++        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
++          <SkeletonCard count={1} height="380px" />
++          <div className="space-y-6">
++            <SkeletonCard count={1} height="160px" />
++            <SkeletonCard count={1} height="160px" />
++          </div>
++        </div>
++        {/* Preview cards skeleton */}
++        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
++          <SkeletonCard count={3} height="200px" />
++        </div>
++      </div>
++    );
++  }
++
++  // ── Error State ──
++  if (error) {
++    return (
++      <div className="flex flex-col items-center justify-center py-20 text-center">
++        <AlertCircle className="h-12 w-12 text-red-400 mb-4" />
++        <h2 className="text-lg font-semibold text-white mb-2">Failed to load dashboard</h2>
++        <p className="text-sm text-slate-400 mb-4">{error}</p>
++        <button
++          onClick={() => refetch()}
++          className="px-4 py-2 bg-[#62A0EA] hover:bg-[#99C1F1] text-white rounded-md text-sm font-medium transition-colors"
++        >
++          Try Again
++        </button>
++      </div>
++    );
++  }
++
++  const {
++    recentVehicles,
++    recentLostFound,
++    recentUsers,
++    quickStats,
++    settingsModules,
++    topPickupPoints,
++    paymentTendencies,
++  } = data;
++
++  return (
++    <div className="space-y-6 pb-8">
++      {/* Header */}
++      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
++        <div>
++          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
++          <p className="text-sm text-slate-400 mt-1">Welcome back. Here&apos;s what&apos;s happening across your network today.</p>
++        </div>
++        <Link href="/settings" className="group flex items-center gap-2 text-sm font-medium text-[#62A0EA] hover:text-[#99C1F1] transition-colors w-fit">
++          Open Full Settings
++          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
++        </Link>
++      </div>
++
++      {/* Quick Stats */}
++      <DashboardQuickStats quickStats={quickStats} />
++
++      {/* Main Grid: Map & Analytics */}
++      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
++        <DashboardMapPreview />
++        <DashboardAnalyticsPreview paymentTendencies={paymentTendencies} topPickupPoints={topPickupPoints} />
++      </div>
++
++      {/* Previews: Vehicles, Lost & Found, Users */}
++      <DashboardPreviewCards recentVehicles={recentVehicles} recentLostFound={recentLostFound} recentUsers={recentUsers} />
++
++      {/* System Settings Carousel */}
++      <DashboardSettingsCarousel settingsModules={settingsModules} />
++
++      <style jsx global>{`
++        div::-webkit-scrollbar {
++          display: none;
++        }
++      `}</style>
++    </div>
++  );
++}
+diff --git a/frontend/app/(admin)/layout.tsx b/frontend/app/(admin)/layout.tsx
+new file mode 100644
+index 0000000..944a4db
+--- /dev/null
++++ b/frontend/app/(admin)/layout.tsx
+@@ -0,0 +1,132 @@
++// app/(admin)/layout.tsx
++'use client';
++
++import { ReactNode, useState, useEffect, Suspense } from 'react';
++import { usePathname, useSearchParams } from 'next/navigation';
++import { SignOutModal } from '@/components/admin/ui/sign-out-modal';
++import { SettingsDrawerProvider, SettingsDrawer, useSettingsDrawer } from '@/components/admin/ui/settings-drawer';
++import { AdminSidebar } from '@/components/admin/layout/admin-sidebar';
++import { AdminBottomNav } from '@/components/admin/layout/admin-bottom-nav';
++import { SidebarSkeleton, ContentSkeleton, MobileSkeleton } from '@/components/admin/layout/admin-layout-skeleton';
++import { useAuth } from '@/contexts/auth-context';
++
++// ─── Inner Layout (uses context) ───
++
++function AdminLayoutInner({ children }: { children: ReactNode }) {
++  const pathname = usePathname();
++  const searchParams = useSearchParams();
++  const { isLoading: authLoading, isAuthenticated } = useAuth();
++  const { closeSettingsDrawer } = useSettingsDrawer();
++  const [isMobile, setIsMobile] = useState(false);
++  const [isSignOutOpen, setIsSignOutOpen] = useState(false);
++
++  // Detect screen size
++  useEffect(() => {
++    const checkScreenSize = () => {
++      setIsMobile(window.innerWidth < 768);
++    };
++    checkScreenSize();
++    window.addEventListener('resize', checkScreenSize);
++    return () => window.removeEventListener('resize', checkScreenSize);
++  }, []);
++
++  // Close Settings drawer when route changes
++  useEffect(() => {
++    closeSettingsDrawer();
++  }, [pathname, closeSettingsDrawer]);
++
++  // ── Auth Guard ──
++  useEffect(() => {
++    if (!authLoading && !isAuthenticated) {
++      window.location.href = '/login';
++    }
++  }, [authLoading, isAuthenticated]);
++
++  // Show skeleton while auth is checking
++  if (authLoading) {
++    if (isMobile) {
++      return <MobileSkeleton />;
++    }
++    return (
++      <div className="flex h-screen bg-[#0B1120]">
++        <SidebarSkeleton />
++        <ContentSkeleton />
++      </div>
++    );
++  }
++
++  // Not authenticated — redirect will happen via useEffect
++  if (!isAuthenticated) {
++    return null;
++  }
++
++  // Sign Out Handler
++  const handleSignOut = () => {
++    console.log("User signed out");
++    setIsSignOutOpen(false);
++    window.location.href = '/login';
++  };
++
++  // ── EMBED MODE ──
++  // When the page is loaded inside the settings drawer (?embed=1),
++  // render ONLY the content area — no sidebar, no bottom nav, no modals.
++  const isEmbed = searchParams.get('embed') === '1';
++
++  if (isEmbed) {
++    return (
++      <div className="min-h-screen bg-[#0B1120] text-white">
++        <main className="p-5 lg:p-6 overflow-y-auto h-screen">
++          {children}
++        </main>
++      </div>
++    );
++  }
++
++  // --- DESKTOP SIDE NAVIGATION ---
++  if (!isMobile) {
++    return (
++      <div className="flex h-screen bg-[#0B1120]">
++        <AdminSidebar onSignOutClick={() => setIsSignOutOpen(true)} />
++
++        <main className="flex-1 overflow-y-auto p-6 lg:p-8 text-white">
++          {children}
++        </main>
++
++        {/* Desktop Sign Out Modal */}
++        <SignOutModal isOpen={isSignOutOpen} onClose={() => setIsSignOutOpen(false)} onConfirm={handleSignOut} />
++
++        {/* Desktop Settings Drawer */}
++        <SettingsDrawer />
++      </div>
++    );
++  }
++
++  // --- MOBILE BOTTOM NAVIGATION ---
++  return (
++    <div className="min-h-screen bg-[#0B1120] text-white flex flex-col">
++      <main className="flex-1 p-4 md:p-6 lg:p-8 pb-24 overflow-y-auto">
++        {children}
++      </main>
++
++      <AdminBottomNav onSignOutClick={() => setIsSignOutOpen(true)} />
++
++      {/* Mobile Sign Out Modal */}
++      <SignOutModal isOpen={isSignOutOpen} onClose={() => setIsSignOutOpen(false)} onConfirm={handleSignOut} />
++
++      {/* Mobile Settings Drawer */}
++      <SettingsDrawer />
++    </div>
++  );
++}
++
++// ─── Outer Layout  ───
++
++export default function AdminLayout({ children }: { children: ReactNode }) {
++  return (
++    <SettingsDrawerProvider>
++      <Suspense fallback={<div className="min-h-screen bg-[#0B1120]" />}>
++        <AdminLayoutInner>{children}</AdminLayoutInner>
++      </Suspense>
++    </SettingsDrawerProvider>
++  );
++}
+diff --git a/frontend/components/admin/dashboard/dashboard-analytics-preview.tsx b/frontend/components/admin/dashboard/dashboard-analytics-preview.tsx
+new file mode 100644
+index 0000000..8a8a5b7
+--- /dev/null
++++ b/frontend/components/admin/dashboard/dashboard-analytics-preview.tsx
+@@ -0,0 +1,65 @@
++// components/admin/dashboard/dashboard-analytics-preview.tsx
++// Payment tendencies + top pickup points — extracted from admin-dashboard/page.tsx
++
++import Link from "next/link";
++import type { PaymentTendencies, PickupPoint } from "@/app/(admin)/admin-dashboard/data/dashboard-data";
++
++interface DashboardAnalyticsPreviewProps {
++  paymentTendencies: PaymentTendencies;
++  topPickupPoints: PickupPoint[];
++}
++
++export function DashboardAnalyticsPreview({ paymentTendencies, topPickupPoints }: DashboardAnalyticsPreviewProps) {
++  return (
++    <div className="flex flex-col gap-6">
++      {/* Payment Tendencies */}
++      <div className="flex-1 bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5">
++        <div className="flex items-center justify-between mb-4">
++          <h3 className="text-sm font-semibold text-white">Payment Tendencies (Today)</h3>
++          <Link href="/analytics" className="text-xs text-[#62A0EA] hover:underline">More Analytics</Link>
++        </div>
++        <div className="space-y-3">
++          <div>
++            <div className="flex justify-between mb-1">
++              <span className="text-xs text-slate-300">GCash</span>
++              <span className="text-xs font-bold text-slate-200">{paymentTendencies.gcash}%</span>
++            </div>
++            <div className="h-2 bg-[#0E1628] rounded-full overflow-hidden">
++              <div className="h-full bg-[#62A0EA] rounded-full" style={{ width: `${paymentTendencies.gcash}%` }} />
++            </div>
++          </div>
++          <div>
++            <div className="flex justify-between mb-1">
++              <span className="text-xs text-slate-300">Cash</span>
++              <span className="text-xs font-bold text-slate-200">{paymentTendencies.cash}%</span>
++            </div>
++            <div className="h-2 bg-[#0E1628] rounded-full overflow-hidden">
++              <div className="h-full bg-slate-500 rounded-full" style={{ width: `${paymentTendencies.cash}%` }} />
++            </div>
++          </div>
++        </div>
++      </div>
++
++      {/* Top Pickup Points */}
++      <div className="flex-1 bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5">
++        <h3 className="text-sm font-semibold text-white mb-4">Top Pickup Points</h3>
++        <div className="space-y-3">
++          {topPickupPoints.map((p, i) => (
++            <div key={p.name} className="flex items-center gap-3">
++              <span className="text-xs font-bold text-slate-500 w-3">{i + 1}</span>
++              <div className="flex-1">
++                <div className="flex justify-between mb-1">
++                  <span className="text-xs text-slate-300">{p.name}</span>
++                  <span className="text-xs text-slate-500">{p.val}</span>
++                </div>
++                <div className="h-1.5 bg-[#0E1628] rounded-full overflow-hidden">
++                  <div className="h-full bg-[#62A0EA] rounded-full" style={{ width: `${(p.val / 1420) * 100}%` }} />
++                </div>
++              </div>
++            </div>
++          ))}
++        </div>
++      </div>
++    </div>
++  );
++}
+diff --git a/frontend/components/admin/dashboard/dashboard-map-preview.tsx b/frontend/components/admin/dashboard/dashboard-map-preview.tsx
+new file mode 100644
+index 0000000..2024a87
+--- /dev/null
++++ b/frontend/components/admin/dashboard/dashboard-map-preview.tsx
+@@ -0,0 +1,30 @@
++// components/admin/dashboard/dashboard-map-preview.tsx
++// Live map preview section — extracted from admin-dashboard/page.tsx
++
++"use client";
++
++import dynamic from "next/dynamic";
++import Link from "next/link";
++import { MapPin } from "lucide-react";
++import { SkeletonMap } from "@/components/admin/ui/skeleton";
++
++const AdminCommuterMap = dynamic(() => import("@/components/admin/admin-commuter-map"), {
++  ssr: false,
++  loading: () => <SkeletonMap height="100%" label="Live Map Loading…" />,
++});
++
++export function DashboardMapPreview() {
++  return (
++    <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-1 h-[380px] flex flex-col">
++      <div className="px-4 pt-3 pb-2 flex items-center justify-between">
++        <h3 className="text-sm font-semibold text-white flex items-center gap-2">
++          <MapPin className="w-4 h-4 text-[#62A0EA]" /> Live Monitoring
++        </h3>
++        <Link href="/monitoring" className="text-xs text-[#62A0EA] hover:underline">View Full Map</Link>
++      </div>
++      <div className="flex-1 rounded-md overflow-hidden border border-[#162033] mx-1 mb-1">
++        <AdminCommuterMap isDesktop={false} />
++      </div>
++    </div>
++  );
++}
+diff --git a/frontend/components/admin/dashboard/dashboard-preview-cards.tsx b/frontend/components/admin/dashboard/dashboard-preview-cards.tsx
+new file mode 100644
+index 0000000..040f8c0
+--- /dev/null
++++ b/frontend/components/admin/dashboard/dashboard-preview-cards.tsx
+@@ -0,0 +1,91 @@
++// components/admin/dashboard/dashboard-preview-cards.tsx
++// Vehicles, Lost & Found, Users preview cards — extracted from admin-dashboard/page.tsx
++
++import Link from "next/link";
++import { Truck, Search, Users } from "lucide-react";
++import type { VehicleItem, LostFoundItem, UserItem } from "@/app/(admin)/admin-dashboard/data/dashboard-data";
++
++interface DashboardPreviewCardsProps {
++  recentVehicles: VehicleItem[];
++  recentLostFound: LostFoundItem[];
++  recentUsers: UserItem[];
++}
++
++export function DashboardPreviewCards({ recentVehicles, recentLostFound, recentUsers }: DashboardPreviewCardsProps) {
++  return (
++    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
++      {/* Vehicles / Fleet */}
++      <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5 flex flex-col">
++        <div className="flex items-center justify-between mb-4">
++          <h3 className="text-sm font-semibold text-white flex items-center gap-2">
++            <Truck className="w-4 h-4 text-[#62A0EA]" /> Vehicles
++          </h3>
++          <Link href="/vehicles" className="text-xs text-[#62A0EA] hover:underline">View All</Link>
++        </div>
++        <div className="space-y-3 flex-1">
++          {recentVehicles.map((v) => (
++            <div key={v.unit} className="flex items-center justify-between bg-[#0E1628] rounded-md p-2.5">
++              <div>
++                <p className="text-xs font-semibold text-slate-200">{v.unit}</p>
++                <p className="text-xs text-slate-500">{v.driver}</p>
++              </div>
++              <span className={`text-xs font-medium px-2 py-0.5 rounded-md ${
++                v.status === "Active" ? "bg-sky-400/15 text-sky-400" : "bg-amber-400/15 text-amber-400"
++              }`}>
++                {v.status}
++              </span>
++            </div>
++          ))}
++        </div>
++      </div>
++
++      {/* Lost & Found */}
++      <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5 flex flex-col">
++        <div className="flex items-center justify-between mb-4">
++          <h3 className="text-sm font-semibold text-white flex items-center gap-2">
++            <Search className="w-4 h-4 text-[#62A0EA]" /> Lost & Found
++          </h3>
++          <Link href="/lost-found" className="text-xs text-[#62A0EA] hover:underline">View All</Link>
++        </div>
++        <div className="space-y-3 flex-1">
++          {recentLostFound.map((item) => (
++            <div key={item.item} className="flex items-center justify-between bg-[#0E1628] rounded-md p-2.5">
++              <p className="text-xs text-slate-200">{item.item}</p>
++              <span className={`text-xs font-medium px-2 py-0.5 rounded-md ${
++                item.status === "Returned" ? "bg-sky-400/15 text-sky-400" : 
++                item.status === "Under Review" ? "bg-[#62A0EA]/15 text-[#62A0EA]" : "bg-amber-400/15 text-amber-400"
++              }`}>
++                {item.status}
++              </span>
++            </div>
++          ))}
++        </div>
++      </div>
++
++      {/* User Management */}
++      <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5 flex flex-col">
++        <div className="flex items-center justify-between mb-4">
++          <h3 className="text-sm font-semibold text-white flex items-center gap-2">
++            <Users className="w-4 h-4 text-[#62A0EA]" /> Users
++          </h3>
++          <Link href="/users" className="text-xs text-[#62A0EA] hover:underline">View All</Link>
++        </div>
++        <div className="space-y-3 flex-1">
++          {recentUsers.map((u) => (
++            <div key={u.name} className="flex items-center justify-between bg-[#0E1628] rounded-md p-2.5">
++              <div>
++                <p className="text-xs font-semibold text-slate-200">{u.name}</p>
++                <p className="text-xs text-slate-500">{u.role}</p>
++              </div>
++              <span className={`text-xs font-medium px-2 py-0.5 rounded-md ${
++                u.status === "Active" ? "bg-sky-400/15 text-sky-400" : "bg-slate-500/15 text-slate-500"
++              }`}>
++                {u.status}
++              </span>
++            </div>
++          ))}
++        </div>
++      </div>
++    </div>
++  );
++}
+diff --git a/frontend/components/admin/dashboard/dashboard-quick-stats.tsx b/frontend/components/admin/dashboard/dashboard-quick-stats.tsx
+new file mode 100644
+index 0000000..b51b1be
+--- /dev/null
++++ b/frontend/components/admin/dashboard/dashboard-quick-stats.tsx
+@@ -0,0 +1,27 @@
++// components/admin/dashboard/dashboard-quick-stats.tsx
++// Quick stats grid — extracted from admin-dashboard/page.tsx
++
++import Link from "next/link";
++import type { StatItem } from "@/app/(admin)/admin-dashboard/data/dashboard-data";
++
++interface DashboardQuickStatsProps {
++  quickStats: StatItem[];
++}
++
++export function DashboardQuickStats({ quickStats }: DashboardQuickStatsProps) {
++  return (
++    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
++      {quickStats.map((stat) => (
++        <Link key={stat.label} href={stat.link} className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4 flex items-center gap-4 hover:border-[#2A3A55] transition-all">
++          <div className={`w-10 h-10 rounded-lg ${stat.color} flex items-center justify-center flex-shrink-0`}>
++            <stat.icon className="w-5 h-5" />
++          </div>
++          <div>
++            <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">{stat.label}</p>
++            <p className="text-xl font-bold text-white mt-0.5">{stat.value}</p>
++          </div>
++        </Link>
++      ))}
++    </div>
++  );
++}
+diff --git a/frontend/components/admin/dashboard/dashboard-settings-carousel.tsx b/frontend/components/admin/dashboard/dashboard-settings-carousel.tsx
+new file mode 100644
+index 0000000..bb57dbc
+--- /dev/null
++++ b/frontend/components/admin/dashboard/dashboard-settings-carousel.tsx
+@@ -0,0 +1,73 @@
++// components/admin/dashboard/dashboard-settings-carousel.tsx
++// System settings carousel — extracted from admin-dashboard/page.tsx
++
++"use client";
++
++import { useRef } from "react";
++import Link from "next/link";
++import { ChevronLeft, ChevronRight } from "lucide-react";
++import type { SettingsModule } from "@/app/(admin)/admin-dashboard/data/dashboard-data";
++
++interface DashboardSettingsCarouselProps {
++  settingsModules: SettingsModule[];
++}
++
++export function DashboardSettingsCarousel({ settingsModules }: DashboardSettingsCarouselProps) {
++  const carouselRef = useRef<HTMLDivElement>(null);
++
++  const scroll = (direction: "left" | "right") => {
++    if (carouselRef.current) {
++      const scrollAmount = 300;
++      carouselRef.current.scrollBy({ left: direction === "left" ? -scrollAmount : scrollAmount, behavior: "smooth" });
++    }
++  };
++
++  return (
++    <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-6 relative">
++      <div className="flex items-center justify-between mb-5">
++        <div>
++          <h2 className="text-base font-bold text-white">System Settings</h2>
++          <p className="text-xs text-slate-400 mt-0.5">Quick access to core configurations.</p>
++        </div>
++        
++        <div className="flex gap-2">
++          <button
++            onClick={() => scroll("left")}
++            className="w-8 h-8 rounded-md bg-[#0E1628] hover:bg-[#1A2540] flex items-center justify-center text-slate-400 hover:text-white transition-colors border border-[#1E2D45]"
++          >
++            <ChevronLeft className="w-4 h-4" />
++          </button>
++          <button
++            onClick={() => scroll("right")}
++            className="w-8 h-8 rounded-md bg-[#0E1628] hover:bg-[#1A2540] flex items-center justify-center text-slate-400 hover:text-white transition-colors border border-[#1E2D45]"
++          >
++            <ChevronRight className="w-4 h-4" />
++          </button>
++        </div>
++      </div>
++
++      <div 
++        ref={carouselRef} 
++        className="flex gap-5 overflow-x-auto scroll-smooth pb-2 snap-x snap-mandatory" 
++        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
++      >
++        {settingsModules.map((mod) => (
++          <Link 
++            key={mod.title} 
++            href={mod.href}
++            className="flex-shrink-0 w-[280px] h-[140px] rounded-md p-5 flex flex-col justify-between group hover:border-[#2A3A55] transition-all snap-start border border-[#1E2D45]"
++            style={{ background: mod.gradient }}
++          >
++            <div className={`w-10 h-10 rounded-md bg-white/10 flex items-center justify-center ${mod.iconColor} group-hover:scale-110 transition-transform`}>
++              <mod.icon className="w-5 h-5" />
++            </div>
++            <div>
++              <h3 className="text-sm font-semibold text-white">{mod.title}</h3>
++              <p className="text-xs text-slate-400 mt-1 leading-relaxed">{mod.desc}</p>
++            </div>
++          </Link>
++        ))}
++      </div>
++    </div>
++  );
++}
+diff --git a/frontend/components/admin/dashboard/financial-summary.tsx b/frontend/components/admin/dashboard/financial-summary.tsx
+new file mode 100644
+index 0000000..5f20c61
+--- /dev/null
++++ b/frontend/components/admin/dashboard/financial-summary.tsx
+@@ -0,0 +1,54 @@
++// components/admin/dashboard/financial-summary.tsx
++import { GlassCard } from '@/components/admin/ui/glass-card';
++import { DollarSign, Smartphone } from 'lucide-react';
++
++interface FinancialData {
++  todayGCash: number;
++  todayCash: number;
++  totalRevenue: string;
++  totalExpenses: string;
++  totalBoundary: string;
++  netProfit: string;
++}
++
++interface FinancialSummaryProps {
++  data: FinancialData;
++}
++
++export function FinancialSummary({ data }: FinancialSummaryProps) {
++  return (
++    <GlassCard className="p-6">
++      <h2 className="text-lg font-semibold text-white mb-4">Profit & Loss Summary</h2>
++      
++      <div className="mb-6 p-4 bg-white/5 rounded-lg border border-white/10">
++        <h3 className="text-sm font-medium text-gray-300 mb-3">Today's Revenue Breakdown</h3>
++        <div className="space-y-2">
++          <div className="flex justify-between items-center">
++            <div className="flex items-center space-x-2">
++              <Smartphone className="text-blue-400" size={16} />
++              <span className="text-sm text-gray-300">GCash Payments</span>
++            </div>
++            <span className="font-medium text-white">₱{data.todayGCash.toLocaleString()}</span>
++          </div>
++          <div className="flex justify-between items-center">
++            <div className="flex items-center space-x-2">
++              <DollarSign className="text-green-400" size={16} />
++              <span className="text-sm text-gray-300">Cash Payments</span>
++            </div>
++            <span className="font-medium text-white">₱{data.todayCash.toLocaleString()}</span>
++          </div>
++        </div>
++      </div>
++
++      <div className="space-y-3">
++        <div className="flex justify-between"><span className="text-gray-300">Total Revenue</span><span className="font-medium text-white">{data.totalRevenue}</span></div>
++        <div className="flex justify-between"><span className="text-gray-300">Total Expenses</span><span className="font-medium text-white">{data.totalExpenses}</span></div>
++        <div className="flex justify-between"><span className="text-gray-300">Total Boundary</span><span className="font-medium text-white">{data.totalBoundary}</span></div>
++        <div className="border-t border-white/20 pt-3 flex justify-between">
++          <span className="text-lg font-semibold text-white">Net Profit</span>
++          <span className="text-lg font-bold text-green-400">{data.netProfit}</span>
++        </div>
++      </div>
++    </GlassCard>
++  );
++}
+\ No newline at end of file
+diff --git a/frontend/components/admin/dashboard/recent-alerts.tsx b/frontend/components/admin/dashboard/recent-alerts.tsx
+new file mode 100644
+index 0000000..aae9b6e
+--- /dev/null
++++ b/frontend/components/admin/dashboard/recent-alerts.tsx
+@@ -0,0 +1,40 @@
++// components/admin/dashboard/recent-alerts.tsx
++import { GlassCard } from '@/components/admin/ui/glass-card';
++import { AlertTriangle, Clock } from 'lucide-react';
++import type { AlertItem } from '@/app/(admin)/admin-dashboard/data/dashboard-data';
++
++interface RecentAlertsProps {
++  alerts: AlertItem[];
++}
++
++export function RecentAlerts({ alerts }: RecentAlertsProps) {
++  if (alerts.length === 0) {
++    return (
++      <GlassCard className="p-6">
++        <h2 className="text-lg font-semibold text-white mb-4">Recent Alerts</h2>
++        <p className="text-sm text-slate-500">No recent alerts.</p>
++      </GlassCard>
++    );
++  }
++
++  return (
++    <GlassCard className="p-6">
++      <h2 className="text-lg font-semibold text-white mb-4">Recent Alerts</h2>
++      <div className="space-y-3">
++        {alerts.map((alert) => (
++          <div key={alert.id} className="flex items-start space-x-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
++            <AlertTriangle className="text-red-400 mt-0.5" size={18} />
++            <div className="flex-1">
++              <p className="text-sm font-medium text-white">{alert.type}</p>
++              <p className="text-sm text-gray-300">{alert.message}</p>
++            </div>
++            <div className="flex items-center text-xs text-gray-400">
++              <Clock size={12} className="mr-1" />
++              {alert.time}
++            </div>
++          </div>
++        ))}
++      </div>
++    </GlassCard>
++  );
++}
+\ No newline at end of file
+diff --git a/frontend/components/admin/layout/admin-bottom-nav.tsx b/frontend/components/admin/layout/admin-bottom-nav.tsx
+new file mode 100644
+index 0000000..cfefdf5
+--- /dev/null
++++ b/frontend/components/admin/layout/admin-bottom-nav.tsx
+@@ -0,0 +1,191 @@
++// components/admin/layout/admin-bottom-nav.tsx
++// Mobile bottom navigation — extracted from app/(admin)/layout.tsx
++
++'use client';
++
++import { useState, useEffect, useRef } from 'react';
++import Link from 'next/link';
++import { usePathname } from 'next/navigation';
++import { LogOut, Menu } from 'lucide-react';
++import {
++  mobileMainItems,
++  mobileOverflowItems,
++  mobileMoreItems,
++} from '@/config/admin-nav';
++import { useSettingsDrawer } from '@/components/admin/ui/settings-drawer';
++
++interface AdminBottomNavProps {
++  onSignOutClick: () => void;
++}
++
++export function AdminBottomNav({ onSignOutClick }: AdminBottomNavProps) {
++  const pathname = usePathname();
++  const { openSettingsDrawer } = useSettingsDrawer();
++  const [isMoreOpen, setIsMoreOpen] = useState(false);
++
++  // Refs for the mobile bottom nav animation
++  const indicatorRef = useRef<HTMLDivElement>(null);
++  const navItemRefs = useRef<(HTMLElement | null)[]>([]);
++
++  // Close "More" menu when route changes
++  useEffect(() => {
++    setIsMoreOpen(false); // eslint-disable-line react-hooks/set-state-in-effect
++  }, [pathname]);
++
++  // Animate the bottom nav indicator
++  useEffect(() => {
++    // Check if current route is in the main 4 items
++    const mainIndex = mobileMainItems.findIndex(item => item.href === pathname);
++    let activeIndex = mainIndex;
++
++    // If it's not in the main 4, it must be in the "More" menu, so highlight the "More" button (index 4)
++    if (mainIndex === -1) {
++      activeIndex = 4;
++    }
++
++    if (activeIndex !== -1) {
++      const activeItem = navItemRefs.current[activeIndex];
++      if (indicatorRef.current && activeItem) {
++        const { offsetLeft, offsetWidth } = activeItem;
++        indicatorRef.current.style.width = `${offsetWidth}px`;
++        indicatorRef.current.style.left = `${offsetLeft}px`;
++      }
++    }
++  }, [pathname]);
++
++  return (
++    <nav className="fixed bottom-0 left-0 right-0 bg-[#0D1424]/95 backdrop-blur-sm border-t border-[#1E2D45] z-50 md:hidden">
++      <div className="relative flex justify-around items-center h-16 max-w-screen-xl mx-auto">
++        {/* Thin top-line indicator */}
++        <div
++          ref={indicatorRef}
++          className="absolute top-0 h-0.5 bg-[#62A0EA] transition-all duration-300 ease-in-out"
++        />
++
++        {/* Main 4 Items */}
++        {mobileMainItems.map((item, index) => {
++          const Icon = item.icon;
++          const isActive = pathname === item.href;
++          return (
++            <Link
++              key={item.href}
++              href={item.href}
++              ref={el => { navItemRefs.current[index] = el; }}
++              className={`relative z-10 flex flex-col items-center justify-center w-full h-full text-xs font-medium transition-colors duration-200 ${
++                isActive ? 'text-[#62A0EA]' : 'text-slate-500'
++              }`}
++            >
++              <Icon size={20} />
++              <span className="mt-1">{item.label}</span>
++            </Link>
++          );
++        })}
++
++        {/* "More" Button */}
++        <button
++          ref={el => { navItemRefs.current[4] = el; }}
++          onClick={() => setIsMoreOpen(!isMoreOpen)}
++          className={`relative z-10 flex flex-col items-center justify-center w-full h-full text-xs font-medium transition-colors duration-200 ${
++            isMoreOpen || mobileMoreItems.some(i => i.href === pathname) ? 'text-[#62A0EA]' : 'text-slate-500'
++          }`}
++        >
++          <Menu size={20} />
++          <span className="mt-1">More</span>
++        </button>
++      </div>
++
++      {/* "More" Menu Popup */}
++      {isMoreOpen && (
++        <>
++          {/* Invisible backdrop to close menu when tapping outside */}
++          <div
++            className="fixed inset-0 bg-black/20 z-40"
++            onClick={() => setIsMoreOpen(false)}
++          />
++
++          {/* Actual Menu */}
++          <div className="absolute bottom-20 right-4 left-4 bg-[#1A2540] border border-[#2A3A55] rounded-lg p-4 shadow-2xl z-50">
++            <div className="grid grid-cols-2 gap-3">
++              {/* Overflow items (Receipts, etc.) */}
++              {mobileOverflowItems.map((item) => {
++                const Icon = item.icon;
++                const isActive = pathname === item.href;
++                return (
++                  <Link
++                    key={item.href}
++                    href={item.href}
++                    onClick={() => setIsMoreOpen(false)}
++                    className={`flex flex-col items-center justify-center p-3 rounded-md transition-colors ${
++                      isActive
++                        ? 'bg-[#62A0EA]/10 text-[#62A0EA]'
++                        : 'text-slate-300 hover:bg-[#131C2E]'
++                    }`}
++                  >
++                    <Icon size={22} />
++                    <span className="mt-2 text-xs text-center leading-tight">{item.label}</span>
++                  </Link>
++                );
++              })}
++
++              {/* More menu items (Fleet, Lost & Found, Users, Settings) */}
++              {mobileMoreItems.map((item) => {
++                const Icon = item.icon;
++                const isSettings = item.href === '/settings';
++                const isActive = isSettings ? pathname.startsWith('/settings') : pathname === item.href;
++
++                // Settings opens drawer instead of navigating
++                if (isSettings) {
++                  return (
++                    <button
++                      key={item.href}
++                      onClick={() => {
++                        setIsMoreOpen(false);
++                        openSettingsDrawer();
++                      }}
++                      className={`flex flex-col items-center justify-center p-3 rounded-md transition-colors w-full ${
++                        isActive
++                          ? 'bg-[#62A0EA]/10 text-[#62A0EA]'
++                          : 'text-slate-300 hover:bg-[#131C2E]'
++                      }`}
++                    >
++                      <Icon size={22} />
++                      <span className="mt-2 text-xs text-center leading-tight">{item.label}</span>
++                    </button>
++                  );
++                }
++
++                return (
++                  <Link
++                    key={item.href}
++                    href={item.href}
++                    onClick={() => setIsMoreOpen(false)}
++                    className={`flex flex-col items-center justify-center p-3 rounded-md transition-colors ${
++                      isActive
++                        ? 'bg-[#62A0EA]/10 text-[#62A0EA]'
++                        : 'text-slate-300 hover:bg-[#131C2E]'
++                    }`}
++                  >
++                    <Icon size={22} />
++                    <span className="mt-2 text-xs text-center leading-tight">{item.label}</span>
++                  </Link>
++                );
++              })}
++
++              {/* Mobile Sign Out Button */}
++              <button
++                onClick={() => {
++                  setIsMoreOpen(false);
++                  onSignOutClick();
++                }}
++                className="col-span-2 flex items-center justify-center gap-2 p-3 rounded-md text-red-400 hover:bg-red-400/10 transition-colors border border-red-400/20"
++              >
++                <LogOut size={20} />
++                <span className="text-sm font-medium">Sign Out</span>
++              </button>
++            </div>
++          </div>
++        </>
++      )}
++    </nav>
++  );
++}
+diff --git a/frontend/components/admin/layout/admin-layout-skeleton.tsx b/frontend/components/admin/layout/admin-layout-skeleton.tsx
+new file mode 100644
+index 0000000..5399f48
+--- /dev/null
++++ b/frontend/components/admin/layout/admin-layout-skeleton.tsx
+@@ -0,0 +1,57 @@
++// components/admin/layout/admin-layout-skeleton.tsx
++// Skeleton loaders for the admin layout — extracted from app/(admin)/layout.tsx
++
++import { SkeletonCard } from '@/components/admin/ui/skeleton';
++
++export function SidebarSkeleton() {
++  return (
++    <div className="w-64 bg-[#0D1424] border-r border-[#1E2D45] flex flex-col animate-pulse">
++      {/* Logo area */}
++      <div className="p-5 flex items-center gap-3">
++        <div className="w-9 h-9 rounded bg-gray-700" />
++        <div className="space-y-2">
++          <div className="h-4 w-20 rounded bg-gray-700" />
++          <div className="h-2 w-14 rounded bg-gray-700" />
++        </div>
++      </div>
++      {/* Nav groups */}
++      <div className="flex-1 px-3 space-y-6 pt-2">
++        <SkeletonCard count={3} height="36px" />
++        <SkeletonCard count={3} height="36px" />
++        <SkeletonCard count={2} height="36px" />
++      </div>
++      {/* Bottom */}
++      <div className="px-3 pb-5 border-t border-[#1E2D45] pt-3">
++        <SkeletonCard count={1} height="36px" />
++      </div>
++    </div>
++  );
++}
++
++export function ContentSkeleton() {
++  return (
++    <div className="flex-1 p-6 lg:p-8 space-y-6 animate-pulse">
++      <SkeletonCard count={1} height="32px" />
++      <SkeletonCard count={3} height="100px" />
++    </div>
++  );
++}
++
++export function MobileSkeleton() {
++  return (
++    <div className="min-h-screen bg-[#0B1120] flex flex-col">
++      <div className="flex-1 p-4 space-y-4 animate-pulse">
++        <SkeletonCard count={2} height="80px" />
++      </div>
++      {/* Bottom nav bar */}
++      <div className="fixed bottom-0 left-0 right-0 bg-[#0D1424]/95 border-t border-[#1E2D45] h-16 flex justify-around items-center animate-pulse">
++        {Array.from({ length: 5 }).map((_, i) => (
++          <div key={i} className="flex flex-col items-center gap-1">
++            <div className="w-5 h-5 rounded bg-gray-700" />
++            <div className="w-8 h-2 rounded bg-gray-700" />
++          </div>
++        ))}
++      </div>
++    </div>
++  );
++}
+diff --git a/frontend/components/admin/layout/admin-sidebar.tsx b/frontend/components/admin/layout/admin-sidebar.tsx
+new file mode 100644
+index 0000000..a354f95
+--- /dev/null
++++ b/frontend/components/admin/layout/admin-sidebar.tsx
+@@ -0,0 +1,152 @@
++// components/admin/layout/admin-sidebar.tsx
++// Desktop sidebar navigation — extracted from app/(admin)/layout.tsx
++
++import Link from 'next/link';
++import Image from 'next/image';
++import { usePathname } from 'next/navigation';
++import { LogOut } from 'lucide-react';
++import {
++  operationsNav,
++  managementNav,
++  systemNav,
++} from '@/config/admin-nav';
++import { useSettingsDrawer } from '@/components/admin/ui/settings-drawer';
++
++interface AdminSidebarProps {
++  onSignOutClick: () => void;
++}
++
++export function AdminSidebar({ onSignOutClick }: AdminSidebarProps) {
++  const pathname = usePathname();
++  const { isSettingsOpen, openSettingsDrawer } = useSettingsDrawer();
++
++  return (
++    <nav className="w-64 bg-[#0D1424] border-r border-[#1E2D45] flex flex-col">
++      {/* Logo */}
++      <div className="p-5 flex items-center gap-3">
++        <Image src="/logo-transparent.png" alt="CHATCO" width={36} height={36} className="flex-shrink-0" />
++        <div>
++          <h2 className="text-base font-bold text-white leading-tight">CHATCO</h2>
++          <p className="text-[10px] text-slate-500 uppercase tracking-wider">Admin Panel</p>
++        </div>
++      </div>
++
++      {/* Nav Links — grouped */}
++      <div className="flex-1 px-3 overflow-y-auto space-y-6">
++
++        {/* Operations */}
++        <div>
++          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-3 mb-2">Operations</p>
++          {operationsNav.map((item) => {
++            const Icon = item.icon;
++            const isActive = pathname === item.href;
++            return (
++              <Link
++                key={item.href}
++                href={item.href}
++                className={`flex items-center space-x-3 px-3 py-2.5 my-0.5 rounded-md transition-colors duration-200 ${
++                  isActive
++                    ? 'bg-[#62A0EA]/10 text-[#62A0EA]'
++                    : 'text-slate-400 hover:bg-[#1A2540] hover:text-white'
++                }`}
++              >
++                {isActive && <span className="w-1.5 h-1.5 rounded-full bg-[#62A0EA] flex-shrink-0" />}
++                {!isActive && <span className="w-1.5 h-1.5 flex-shrink-0" />}
++                <Icon size={18} />
++                <span className="text-sm font-medium">{item.label}</span>
++              </Link>
++            );
++          })}
++        </div>
++
++        {/* Management */}
++        <div>
++          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-3 mb-2">Management</p>
++          {managementNav.map((item) => {
++            const Icon = item.icon;
++            const isActive = pathname === item.href;
++            return (
++              <Link
++                key={item.href}
++                href={item.href}
++                className={`flex items-center space-x-3 px-3 py-2.5 my-0.5 rounded-md transition-colors duration-200 ${
++                  isActive
++                    ? 'bg-[#62A0EA]/10 text-[#62A0EA]'
++                    : 'text-slate-400 hover:bg-[#1A2540] hover:text-white'
++                }`}
++              >
++                {isActive && <span className="w-1.5 h-1.5 rounded-full bg-[#62A0EA] flex-shrink-0" />}
++                {!isActive && <span className="w-1.5 h-1.5 flex-shrink-0" />}
++                <Icon size={18} />
++                <span className="text-sm font-medium">{item.label}</span>
++              </Link>
++            );
++          })}
++        </div>
++
++        {/* System */}
++        <div>
++          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-3 mb-2">System</p>
++          {systemNav.map((item) => {
++            const Icon = item.icon;
++            const isSettings = item.href === '/settings';
++            const isActive = isSettings ? pathname.startsWith('/settings') : pathname === item.href;
++
++            // Settings opens drawer instead of navigating
++            if (isSettings) {
++              return (
++                <button
++                  key={item.href}
++                  onClick={openSettingsDrawer}
++                  className={`flex items-center space-x-3 px-3 py-2.5 my-0.5 rounded-md transition-colors duration-200 w-full ${
++                    isSettingsOpen || isActive
++                      ? 'bg-[#62A0EA]/10 text-[#62A0EA]'
++                      : 'text-slate-400 hover:bg-[#1A2540] hover:text-white'
++                  }`}
++                >
++                  {isActive && <span className="w-1.5 h-1.5 rounded-full bg-[#62A0EA] flex-shrink-0" />}
++                  {!isActive && <span className="w-1.5 h-1.5 flex-shrink-0" />}
++                  <Icon size={18} />
++                  <span className="text-sm font-medium">{item.label}</span>
++                </button>
++              );
++            }
++
++            return (
++              <Link
++                key={item.href}
++                href={item.href}
++                className={`flex items-center space-x-3 px-3 py-2.5 my-0.5 rounded-md transition-colors duration-200 ${
++                  isActive
++                    ? 'bg-[#62A0EA]/10 text-[#62A0EA]'
++                    : 'text-slate-400 hover:bg-[#1A2540] hover:text-white'
++                }`}
++              >
++                {isActive && <span className="w-1.5 h-1.5 rounded-full bg-[#62A0EA] flex-shrink-0" />}
++                {!isActive && <span className="w-1.5 h-1.5 flex-shrink-0" />}
++                <Icon size={18} />
++                <span className="text-sm font-medium">{item.label}</span>
++              </Link>
++            );
++          })}
++        </div>
++
++      </div>
++
++      {/* --- Bottom Section (Sign Out & Branding) --- */}
++      <div className="px-3 pb-5 border-t border-[#1E2D45] pt-3 mt-2 space-y-2">
++        <button
++          onClick={onSignOutClick}
++          className="flex items-center space-x-3 px-3 py-2.5 w-full rounded-md text-red-400 hover:bg-red-400/10 transition-colors duration-200"
++        >
++          <LogOut size={18} />
++          <span className="text-sm font-medium">Sign Out</span>
++        </button>
++
++        <div className="px-3 pt-1">
++          <p className="text-[10px] text-slate-600 font-medium tracking-wide">CHATCO ADMIN v1.0</p>
++        </div>
++      </div>
++    </nav>
++  );
++}
+diff --git a/frontend/components/admin/ui/badge.tsx b/frontend/components/admin/ui/badge.tsx
+new file mode 100644
+index 0000000..ba9ab67
+--- /dev/null
++++ b/frontend/components/admin/ui/badge.tsx
+@@ -0,0 +1,3 @@
++// components/admin/ui/badge.tsx
++// Re-export from shared — existing imports remain backward-compatible.
++export { Badge } from '@/components/shared/badge';
+diff --git a/frontend/components/admin/ui/glass-card.tsx b/frontend/components/admin/ui/glass-card.tsx
+new file mode 100644
+index 0000000..62d994d
+--- /dev/null
++++ b/frontend/components/admin/ui/glass-card.tsx
+@@ -0,0 +1,3 @@
++// components/admin/ui/glass-card.tsx
++// Re-export from shared — existing imports remain backward-compatible.
++export { GlassCard } from '@/components/shared/glass-card';
+diff --git a/frontend/components/admin/ui/metric-card.tsx b/frontend/components/admin/ui/metric-card.tsx
+new file mode 100644
+index 0000000..47d9173
+--- /dev/null
++++ b/frontend/components/admin/ui/metric-card.tsx
+@@ -0,0 +1,3 @@
++// components/admin/ui/metric-card.tsx
++// Re-export from shared — existing imports remain backward-compatible.
++export { MetricCard } from '@/components/shared/metric-card';
+diff --git a/frontend/components/admin/ui/modal.tsx b/frontend/components/admin/ui/modal.tsx
+new file mode 100644
+index 0000000..688b8e7
+--- /dev/null
++++ b/frontend/components/admin/ui/modal.tsx
+@@ -0,0 +1,3 @@
++// components/admin/ui/modal.tsx
++// Re-export from shared — existing imports remain backward-compatible.
++export { Modal } from '@/components/shared/modal';
+diff --git a/frontend/components/conductor/conductor-dashboard.tsx b/frontend/components/conductor/conductor-dashboard.tsx
+new file mode 100644
+index 0000000..a36a63f
+--- /dev/null
++++ b/frontend/components/conductor/conductor-dashboard.tsx
+@@ -0,0 +1,96 @@
++"use client";
++
++// components/conductor/conductor-dashboard.tsx
++// Slim orchestrator — delegates to extracted sub-components.
++
++import HistoryLogModal from "@/components/conductor/modals/history-log-modal";
++import { ConductorDashboardSkeleton } from "@/components/conductor/ui/skeleton";
++import { useDashboardState } from "@/components/conductor/dashboard/use-dashboard-state";
++import MobileDashboardCard from "@/components/conductor/dashboard/mobile-dashboard-card";
++import DesktopDashboardCard from "@/components/conductor/dashboard/desktop-dashboard-card";
++import DashboardMapContainer from "@/components/conductor/dashboard/dashboard-map-container";
++
++export default function ConductorDashboard() {
++  const {
++    shift,
++    elapsed,
++    shiftStatus,
++    shiftError,
++    liveTransactions,
++    txnStatus,
++    txnError,
++    hails,
++    status,
++    setStatus,
++    showHistory,
++    setShowHistory,
++    mobileCardExpanded,
++    setMobileCardExpanded,
++    conductorName,
++    unitNumber,
++    route,
++  } = useDashboardState();
++
++  if (shiftStatus === "loading" || txnStatus === "loading") {
++    return <ConductorDashboardSkeleton />;
++  }
++
++  if (shiftStatus === "empty") {
++    return (
++      <div className="min-h-screen bg-[#050F1A] flex items-center justify-center px-6">
++        <div className="max-w-sm text-center">
++          <p className="text-white font-semibold text-base">No active shift</p>
++          <p className="text-white/40 text-sm mt-2">
++            Start a shift from unit verification to access the dashboard.
++          </p>
++        </div>
++      </div>
++    );
++  }
++
++  if (shiftStatus === "error" || txnStatus === "error") {
++    return (
++      <div className="min-h-screen bg-[#050F1A] flex items-center justify-center px-6">
++        <div className="max-w-sm text-center">
++          <p className="text-red-300 text-sm">{shiftError || txnError}</p>
++        </div>
++      </div>
++    );
++  }
++
++  return (
++    <div className="relative h-full w-full bg-[#050F1A] flex flex-col lg:block">
++      <MobileDashboardCard
++        conductorName={conductorName}
++        unitNumber={unitNumber}
++        route={route}
++        elapsed={elapsed}
++        status={status}
++        setStatus={setStatus}
++        liveTransactions={liveTransactions}
++        showHistory={showHistory}
++        setShowHistory={setShowHistory}
++        mobileCardExpanded={mobileCardExpanded}
++        setMobileCardExpanded={setMobileCardExpanded}
++        shiftTimeIn={shift?.timeIn}
++      />
++
++      <DesktopDashboardCard
++        conductorName={conductorName}
++        unitNumber={unitNumber}
++        route={route}
++        elapsed={elapsed}
++        status={status}
++        setStatus={setStatus}
++        liveTransactions={liveTransactions}
++        showHistory={showHistory}
++        setShowHistory={setShowHistory}
++        shiftTimeIn={shift?.timeIn}
++      />
++
++      <DashboardMapContainer unitNumber={unitNumber} hails={hails} />
++
++      <HistoryLogModal isOpen={showHistory} onClose={() => setShowHistory(false)} shiftId={shift?.shiftId || ""} />
++    </div>
++  );
++}
+diff --git a/frontend/components/conductor/dashboard/dashboard-map-container.tsx b/frontend/components/conductor/dashboard/dashboard-map-container.tsx
+new file mode 100644
+index 0000000..4085c2b
+--- /dev/null
++++ b/frontend/components/conductor/dashboard/dashboard-map-container.tsx
+@@ -0,0 +1,25 @@
++// components/conductor/dashboard/dashboard-map-container.tsx
++// Map wrapper — extracted from conductor-dashboard.tsx
++
++"use client";
++
++import dynamic from "next/dynamic";
++import type { ConductorHailRequest } from "@/lib/conductor/types";
++
++const ConductorMap = dynamic(() => import("@/components/conductor/conductor-map"), {
++  ssr: false,
++  loading: () => <div className="absolute inset-0 bg-[#050F1A]" />,
++});
++
++interface DashboardMapContainerProps {
++  unitNumber: string;
++  hails: ConductorHailRequest[];
++}
++
++export default function DashboardMapContainer({ unitNumber, hails }: DashboardMapContainerProps) {
++  return (
++    <div className="fixed inset-0 z-0 lg:left-64">
++      <ConductorMap unitNumber={unitNumber} hails={hails} />
++    </div>
++  );
++}
+diff --git a/frontend/components/conductor/dashboard/desktop-dashboard-card.tsx b/frontend/components/conductor/dashboard/desktop-dashboard-card.tsx
+new file mode 100644
+index 0000000..89593d5
+--- /dev/null
++++ b/frontend/components/conductor/dashboard/desktop-dashboard-card.tsx
+@@ -0,0 +1,137 @@
++// components/conductor/dashboard/desktop-dashboard-card.tsx
++// Desktop floating card — extracted from conductor-dashboard.tsx
++
++"use client";
++
++import { formatTime } from "@/lib/conductor/services/shift.service";
++import type { ConductorStatus } from "./use-dashboard-state";
++
++interface DesktopDashboardCardProps {
++  conductorName: string;
++  unitNumber: string;
++  route: string;
++  elapsed: string | null;
++  status: ConductorStatus;
++  setStatus: (s: ConductorStatus) => void;
++  liveTransactions: { total: number; gcash: number; cash: number; voucher: number };
++  showHistory: boolean;
++  setShowHistory: (v: boolean) => void;
++  shiftTimeIn?: string | null;
++}
++
++export default function DesktopDashboardCard({
++  conductorName,
++  unitNumber,
++  route,
++  elapsed,
++  status,
++  setStatus,
++  liveTransactions,
++  setShowHistory,
++  shiftTimeIn,
++}: DesktopDashboardCardProps) {
++  return (
++    <div className="hidden lg:block absolute bottom-4 right-4 z-10 pointer-events-auto w-[380px] bg-[#071A2E]/95 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl overflow-hidden">
++      <div className="p-4 border-b border-white/10 flex items-center justify-between">
++        <div>
++          <h1 className="text-white font-bold text-base">Unit: {unitNumber}</h1>
++          <div className="flex items-center gap-2 mt-0.5">
++            <p className="text-[11px] text-white/50 font-medium">{route}</p>
++            {elapsed && (
++              <>
++                <span className="text-white/15">·</span>
++                <div className="flex items-center gap-1">
++                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
++                  <span className="text-[10px] font-semibold text-emerald-400/80 tabular-nums">{elapsed}</span>
++                </div>
++              </>
++            )}
++          </div>
++        </div>
++        <div className="flex items-center gap-2">
++          <div className="w-10 h-10 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold shadow-lg border-2 border-white/20">{conductorName[0]}</div>
++        </div>
++      </div>
++
++      <div className="p-4 space-y-4 overflow-y-auto max-h-[70vh]">
++        <div className="grid grid-cols-2 gap-3">
++          <button onClick={() => window.dispatchEvent(new CustomEvent("conductor:open-payment"))} className="bg-[#1A5FB4] text-white py-4 rounded-2xl font-bold shadow-lg shadow-blue-500/30 hover:bg-[#165a9f] transition-colors flex flex-col items-center justify-center gap-1">
++            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" /></svg>
++            <span className="text-xs">Payment</span>
++          </button>
++          <button onClick={() => setShowHistory(true)} className="bg-white/5 border border-white/10 text-white py-4 rounded-2xl font-bold hover:bg-white/10 transition-colors flex flex-col items-center justify-center gap-1">
++            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
++            <span className="text-xs">View History</span>
++          </button>
++        </div>
++
++        <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
++          <div className="flex items-center gap-1.5 mb-3">
++            <div className={`w-2 h-2 rounded-full transition-colors duration-300 ${status === 'Available' ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50' : status === 'Standing' ? 'bg-amber-400 shadow-sm shadow-amber-400/50' : 'bg-gray-500'}`} />
++            <p className="text-xs font-semibold text-white/50 uppercase tracking-wider">Unit Status</p>
++          </div>
++          <div className="flex gap-2">
++            {(["Available", "Standing", "Full"] as const).map((s) => (
++              <button
++                key={s}
++                onClick={() => setStatus(s)}
++                className={`flex-1 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors border ${
++                  status === s
++                    ? s === "Available"
++                      ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400"
++                      : s === "Standing"
++                        ? "bg-amber-500/20 border-amber-500/40 text-amber-400"
++                        : "bg-gray-500/20 border-gray-500/40 text-gray-300"
++                    : "bg-transparent border-white/10 text-white/30 hover:bg-white/5"
++                }`}
++              >
++                {s}
++              </button>
++            ))}
++          </div>
++        </div>
++
++        <div className="bg-[#1A5FB4]/10 border border-[#1A5FB4]/20 rounded-2xl p-4">
++          <div className="flex items-center justify-between mb-1">
++            <p className="text-[10px] font-semibold text-[#62A0EA]/60 uppercase tracking-wider">Total Collected</p>
++            {elapsed && (
++              <div className="flex items-center gap-1">
++                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
++                <span className="text-[10px] font-semibold text-emerald-400/80 tabular-nums">{elapsed}</span>
++              </div>
++            )}
++          </div>
++          <p className="text-3xl font-extrabold text-[#62A0EA] mt-1">₱{liveTransactions.total.toFixed(2)}</p>
++          <div className="grid grid-cols-3 gap-2 mt-4">
++            <div className="bg-white/5 rounded-xl p-3 border border-white/5">
++              <p className="text-[10px] font-semibold text-blue-400/60 uppercase tracking-wider">GCash</p>
++              <p className="text-lg font-extrabold text-blue-400 mt-0.5">₱{liveTransactions.gcash.toFixed(2)}</p>
++            </div>
++            <div className="bg-white/5 rounded-xl p-3 border border-white/5">
++              <p className="text-[10px] font-semibold text-emerald-400/60 uppercase tracking-wider">Cash</p>
++              <p className="text-lg font-extrabold text-emerald-400 mt-0.5">₱{liveTransactions.cash.toFixed(2)}</p>
++            </div>
++            <div className="bg-white/5 rounded-xl p-3 border border-white/5">
++              <p className="text-[10px] font-semibold text-amber-400/60 uppercase tracking-wider">Voucher</p>
++              <p className="text-lg font-extrabold text-amber-400 mt-0.5">₱{liveTransactions.voucher.toFixed(2)}</p>
++            </div>
++          </div>
++        </div>
++
++        {shiftTimeIn && (
++          <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3 flex items-center justify-between">
++            <div>
++              <p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Shift Started</p>
++              <p className="text-xs font-semibold text-white/60 mt-0.5">{formatTime(shiftTimeIn)}</p>
++            </div>
++            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
++              <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
++                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
++              </svg>
++            </div>
++          </div>
++        )}
++      </div>
++    </div>
++  );
++}
+diff --git a/frontend/components/conductor/dashboard/mobile-dashboard-card.tsx b/frontend/components/conductor/dashboard/mobile-dashboard-card.tsx
+new file mode 100644
+index 0000000..6537c4a
+--- /dev/null
++++ b/frontend/components/conductor/dashboard/mobile-dashboard-card.tsx
+@@ -0,0 +1,129 @@
++// components/conductor/dashboard/mobile-dashboard-card.tsx
++// Mobile top card — extracted from conductor-dashboard.tsx
++
++"use client";
++
++import { formatTime } from "@/lib/conductor/services/shift.service";
++import type { ConductorStatus } from "./use-dashboard-state";
++
++interface MobileDashboardCardProps {
++  conductorName: string;
++  unitNumber: string;
++  route: string;
++  elapsed: string | null;
++  status: ConductorStatus;
++  setStatus: (s: ConductorStatus) => void;
++  liveTransactions: { total: number; gcash: number; cash: number; voucher: number };
++  showHistory: boolean;
++  setShowHistory: (v: boolean) => void;
++  mobileCardExpanded: boolean;
++  setMobileCardExpanded: (v: boolean) => void;
++  shiftTimeIn?: string | null;
++}
++
++export default function MobileDashboardCard({
++  conductorName,
++  unitNumber,
++  route,
++  elapsed,
++  status,
++  setStatus,
++  liveTransactions,
++  setShowHistory,
++  mobileCardExpanded,
++  setMobileCardExpanded,
++  shiftTimeIn,
++}: MobileDashboardCardProps) {
++  return (
++    <div className="lg:hidden flex-shrink-0 bg-[#071A2E]/95 backdrop-blur-xl z-20 border-b border-white/10">
++      <div className="flex items-center justify-between px-4 py-3">
++        <div className="min-w-0 flex-1">
++          <div className="flex items-center gap-2">
++            <h1 className="text-white font-bold text-sm truncate">Unit: {unitNumber}</h1>
++            {elapsed && (
++              <div className="flex items-center gap-1 flex-shrink-0">
++                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
++                <span className="text-[10px] font-semibold text-emerald-400/80 tabular-nums">{elapsed}</span>
++              </div>
++            )}
++          </div>
++          <p className="text-[10px] text-white/40 font-medium mt-0.5 truncate">{route}</p>
++        </div>
++        <div className="flex items-center gap-2 flex-shrink-0 ml-2">
++          <div className="w-8 h-8 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold text-xs shadow-lg border-2 border-white/20">{conductorName[0]}</div>
++        </div>
++      </div>
++
++      <div
++        className="overflow-hidden transition-all duration-300 ease-in-out"
++        style={{ maxHeight: mobileCardExpanded ? "240px" : "0px" }}
++      >
++        <div className="px-4 pb-3 space-y-2.5">
++          {/* Status + History row */}
++          <div className="flex items-center gap-2">
++            <div className="flex-1 bg-white/5 rounded-xl px-3 py-2 border border-white/10">
++              <div className="flex items-center gap-1.5 mb-1.5">
++                <div className={`w-2 h-2 rounded-full transition-colors duration-300 ${status === 'Available' ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50' : status === 'Standing' ? 'bg-amber-400 shadow-sm shadow-amber-400/50' : 'bg-gray-500'}`} />
++                <span className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Status</span>
++              </div>
++              <div className="flex gap-1.5">
++                {(["Available", "Standing", "Full"] as const).map((s) => (
++                  <button
++                    key={s}
++                    onClick={() => setStatus(s)}
++                    className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-colors border ${
++                      status === s
++                        ? s === "Available"
++                          ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400"
++                          : s === "Standing"
++                            ? "bg-amber-500/20 border-amber-500/40 text-amber-400"
++                            : "bg-gray-500/20 border-gray-500/40 text-gray-300"
++                        : "bg-transparent border-white/10 text-white/30 hover:bg-white/5"
++                    }`}
++                  >
++                    {s}
++                  </button>
++                ))}
++              </div>
++            </div>
++
++            <button onClick={() => setShowHistory(true)} className="flex items-center justify-center gap-1 bg-white/5 border border-white/10 text-white/70 px-3 py-2 rounded-xl text-[10px] font-semibold hover:bg-white/10 transition-colors active:scale-[0.98] flex-shrink-0">
++              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
++              <span>History</span>
++            </button>
++          </div>
++
++          <div className="bg-[#1A5FB4]/10 border border-[#1A5FB4]/20 rounded-xl p-3">
++            <div className="flex items-center justify-between mb-2">
++              <p className="text-[9px] font-semibold text-[#62A0EA]/60 uppercase tracking-wider">Total Collected</p>
++              <p className="text-xl font-extrabold text-[#62A0EA]">₱{liveTransactions.total.toFixed(2)}</p>
++            </div>
++            <div className="grid grid-cols-3 gap-2">
++              <div className="bg-white/5 rounded-lg p-2 border border-white/5">
++                <p className="text-[8px] font-semibold text-blue-400/60 uppercase tracking-wider">GCash</p>
++                <p className="text-sm font-extrabold text-blue-400">₱{liveTransactions.gcash.toFixed(2)}</p>
++              </div>
++              <div className="bg-white/5 rounded-lg p-2 border border-white/5">
++                <p className="text-[8px] font-semibold text-emerald-400/60 uppercase tracking-wider">Cash</p>
++                <p className="text-sm font-extrabold text-emerald-400">₱{liveTransactions.cash.toFixed(2)}</p>
++              </div>
++              <div className="bg-white/5 rounded-lg p-2 border border-white/5">
++                <p className="text-[8px] font-semibold text-amber-400/60 uppercase tracking-wider">Voucher</p>
++                <p className="text-sm font-extrabold text-amber-400">₱{liveTransactions.voucher.toFixed(2)}</p>
++              </div>
++            </div>
++          </div>
++        </div>
++      </div>
++
++      <button
++        onClick={() => setMobileCardExpanded(!mobileCardExpanded)}
++        className="flex-shrink-0 flex items-center justify-center py-1.5 w-full border-t border-white/5 hover:bg-white/5 transition-colors active:bg-white/10"
++      >
++        <svg className={`w-4 h-4 text-white/30 transition-transform duration-300 ${mobileCardExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
++          <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
++        </svg>
++      </button>
++    </div>
++  );
++}
+diff --git a/frontend/components/conductor/dashboard/use-dashboard-state.ts b/frontend/components/conductor/dashboard/use-dashboard-state.ts
+new file mode 100644
+index 0000000..cace3b3
+--- /dev/null
++++ b/frontend/components/conductor/dashboard/use-dashboard-state.ts
+@@ -0,0 +1,47 @@
++// components/conductor/dashboard/use-dashboard-state.ts
++// Custom hook that encapsulates all conductor dashboard state & data fetching.
++// Extracted from conductor-dashboard.tsx
++
++"use client";
++
++import { useState } from "react";
++import { useConductorShift } from "@/app/(conductor)/hooks/use-conductor-shift";
++import { useConductorTransactions } from "@/app/(conductor)/hooks/use-conductor-transactions";
++import { useConductorHails } from "@/app/(conductor)/hooks/use-conductor-hails";
++
++export type ConductorStatus = "Available" | "Standing" | "Full";
++
++export function useDashboardState() {
++  const { shift, elapsed, status: shiftStatus, error: shiftError } = useConductorShift();
++  const { summary: liveTransactions, status: txnStatus, error: txnError } =
++    useConductorTransactions(shift?.shiftId ?? null);
++  const { hails } = useConductorHails();
++
++  const [status, setStatus] = useState<ConductorStatus>("Available");
++  const [showHistory, setShowHistory] = useState(false);
++  const [mobileCardExpanded, setMobileCardExpanded] = useState(true);
++
++  const conductorName = shift?.conductorName || "—";
++  const unitNumber = shift?.unitNumber || "—";
++  const route = shift?.route || "—";
++
++  return {
++    shift,
++    elapsed,
++    shiftStatus,
++    shiftError,
++    liveTransactions,
++    txnStatus,
++    txnError,
++    hails,
++    status,
++    setStatus,
++    showHistory,
++    setShowHistory,
++    mobileCardExpanded,
++    setMobileCardExpanded,
++    conductorName,
++    unitNumber,
++    route,
++  };
++}
+diff --git a/frontend/components/shared/badge.tsx b/frontend/components/shared/badge.tsx
+new file mode 100644
+index 0000000..1f74375
+--- /dev/null
++++ b/frontend/components/shared/badge.tsx
+@@ -0,0 +1,19 @@
++// components/shared/badge.tsx
++// Extracted from admin/ui/badge.tsx — shared across admin & conductor.
++
++import { ReactNode } from 'react';
++
++interface BadgeProps {
++  children: ReactNode;
++  variant: 'success' | 'warning' | 'danger' | 'info';
++}
++
++export function Badge({ children, variant }: BadgeProps) {
++  const colors = {
++    success: 'bg-green-500/20 text-green-400 border border-green-500/30',
++    warning: 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30',
++    danger: 'bg-red-500/20 text-red-400 border border-red-500/30',
++    info: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
++  };
++  return <span className={`px-2 py-1 text-xs font-semibold rounded-full ${colors[variant]}`}>{children}</span>;
++}
+diff --git a/frontend/components/shared/glass-card.tsx b/frontend/components/shared/glass-card.tsx
+new file mode 100644
+index 0000000..792e352
+--- /dev/null
++++ b/frontend/components/shared/glass-card.tsx
+@@ -0,0 +1,19 @@
++// components/shared/glass-card.tsx
++// Extracted from admin/ui/glass-card.tsx — shared across admin & conductor.
++
++import { ReactNode } from 'react';
++
++interface GlassCardProps {
++  children: ReactNode;
++  className?: string;
++}
++
++export function GlassCard({ children, className = '' }: GlassCardProps) {
++  return (
++    <div
++      className={`backdrop-blur-md bg-white/10 border border-white/20 rounded-xl shadow-xl ${className}`}
++    >
++      {children}
++    </div>
++  );
++}
+diff --git a/frontend/components/shared/index.ts b/frontend/components/shared/index.ts
+new file mode 100644
+index 0000000..d195bba
+--- /dev/null
++++ b/frontend/components/shared/index.ts
+@@ -0,0 +1,7 @@
++// components/shared/index.ts
++// Barrel export for all shared UI components.
++
++export { Modal } from './modal';
++export { Badge } from './badge';
++export { GlassCard } from './glass-card';
++export { MetricCard } from './metric-card';
+diff --git a/frontend/components/shared/metric-card.tsx b/frontend/components/shared/metric-card.tsx
+new file mode 100644
+index 0000000..776be22
+--- /dev/null
++++ b/frontend/components/shared/metric-card.tsx
+@@ -0,0 +1,44 @@
++// components/shared/metric-card.tsx
++// Extracted from admin/ui/metric-card.tsx — shared across admin & conductor.
++
++import { LucideIcon } from 'lucide-react';
++
++interface MetricCardProps {
++  title: string;
++  value: string | number;
++  icon: LucideIcon;
++  trend?: string;
++  trendUp?: boolean;
++  iconColor?: string;
++  iconBg?: string;
++}
++
++export function MetricCard({
++  title,
++  value,
++  icon: Icon,
++  trend,
++  trendUp,
++  iconColor = 'text-[#62A0EA]',
++  iconBg = 'bg-[#62A0EA]/10',
++}: MetricCardProps) {
++  return (
++    <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4 flex flex-col h-full">
++      <div className="flex items-center gap-3 mb-3">
++        <div className={`p-2 rounded-lg ${iconBg} flex-shrink-0`}>
++          <Icon className={iconColor} size={18} />
++        </div>
++        <p className="text-xs font-medium text-slate-400 truncate">{title}</p>
++      </div>
++
++      <p className="text-xl font-bold text-slate-100 mt-auto mb-1">{value}</p>
++
++      {trend && (
++        <p className={`text-xs font-medium flex items-center gap-1 ${trendUp ? 'text-emerald-400' : 'text-red-400'}`}>
++          <span>{trendUp ? '\u2191' : '\u2193'}</span>
++          <span>{trend}</span>
++        </p>
++      )}
++    </div>
++  );
++}
+diff --git a/frontend/components/shared/modal.tsx b/frontend/components/shared/modal.tsx
+new file mode 100644
+index 0000000..8f4b2b6
+--- /dev/null
++++ b/frontend/components/shared/modal.tsx
+@@ -0,0 +1,38 @@
++// components/shared/modal.tsx
++// Extracted from admin/ui/modal.tsx — shared across admin & conductor.
++
++import { ReactNode } from 'react';
++import { X } from 'lucide-react';
++
++interface ModalProps {
++  isOpen: boolean;
++  onClose: () => void;
++  children: ReactNode;
++  maxWidth?: string;
++  rounded?: string;
++}
++
++export function Modal({ isOpen, onClose, children, maxWidth = 'max-w-md', rounded = 'rounded-xl' }: ModalProps) {
++  if (!isOpen) return null;
++
++  return (
++    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50">
++      <div
++        className={`relative bg-[#1A2540] border border-[#2A3A55] ${rounded} shadow-2xl w-full ${maxWidth} mx-0 sm:mx-4 max-h-[95vh] sm:max-h-[90vh] flex flex-col ${rounded === 'rounded-xl' ? 'rounded-b-none sm:rounded-b-xl' : ''}`}
++        role="dialog"
++        aria-modal="true"
++      >
++        <button
++          onClick={onClose}
++          className="absolute top-3 right-3 p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-white/8 transition-colors z-20"
++          aria-label="Close modal"
++        >
++          <X size={20} />
++        </button>
++        <div className="p-4 sm:p-6 overflow-y-auto flex-1">
++          {children}
++        </div>
++      </div>
++    </div>
++  );
++}
