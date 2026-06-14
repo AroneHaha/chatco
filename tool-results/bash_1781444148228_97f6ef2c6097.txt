@@ -1,0 +1,3000 @@
+
+========== /tmp/chatco-repo/lib/admin/endpoints.ts ==========
+// lib/admin/endpoints.ts
+// Admin-scoped API endpoint registry.
+// Same pattern as lib/conductor/endpoints.ts and lib/commuter/endpoints.ts.
+//
+// Relative paths target Next.js route stubs by default.
+// When migrating to Laravel, update these paths to match the backend contract.
+
+export const ADMIN_API = {
+  dashboard: "/api/admin/dashboard",
+  users: {
+    list: "/api/admin/users",
+    active: "/api/admin/users/active",
+    pending: "/api/admin/users/pending",
+    rejected: "/api/admin/users/rejected",
+    approve: (id: string) => `/api/admin/users/${id}/approve`,
+    reject: (id: string) => `/api/admin/users/${id}/reject`,
+    suspend: (id: string) => `/api/admin/users/${id}/suspend`,
+  },
+  vehicles: {
+    list: "/api/admin/vehicles",
+    create: "/api/admin/vehicles",
+    update: (id: string) => `/api/admin/vehicles/${id}`,
+    delete: (id: string) => `/api/admin/vehicles/${id}`,
+  },
+  personnel: {
+    list: "/api/admin/personnel",
+    create: "/api/admin/personnel",
+    update: (id: string) => `/api/admin/personnel/${id}`,
+    terminate: (id: string) => `/api/admin/personnel/${id}/terminate`,
+  },
+  remittances: {
+    list: "/api/admin/remittances",
+    verify: (id: string) => `/api/admin/remittances/${id}/verify`,
+    flag: (id: string) => `/api/admin/remittances/${id}/flag`,
+  },
+  lostFound: {
+    list: "/api/admin/lost-found",
+    create: "/api/admin/lost-found",
+    update: (id: string) => `/api/admin/lost-found/${id}`,
+  },
+  monitoring: {
+    live: "/api/admin/monitoring/live",
+    sos: "/api/admin/monitoring/sos",
+    resolveSos: (id: string) => `/api/admin/monitoring/sos/${id}/resolve`,
+    overspeed: "/api/admin/monitoring/overspeed",
+    demandZones: "/api/admin/monitoring/demand-zones",
+  },
+  analytics: {
+    summary: "/api/admin/analytics/summary",
+    remittances: "/api/admin/analytics/remittances",
+    paymentUsage: "/api/admin/analytics/payment-usage",
+    pickupPoints: "/api/admin/analytics/pickup-points",
+  },
+  receipts: {
+    list: "/api/admin/receipts",
+  },
+  settings: {
+    fareMatrix: "/api/admin/settings/fare-matrix",
+    financialRules: "/api/admin/settings/financial-rules",
+    safety: "/api/admin/settings/safety",
+    appConfig: "/api/admin/settings/app-config",
+    vouchers: "/api/admin/settings/vouchers",
+    faq: "/api/admin/settings/faq",
+    routes: "/api/admin/settings/routes",
+    notificationTemplates: "/api/admin/settings/notification-templates",
+  },
+} as const;
+
+========== /tmp/chatco-repo/lib/admin/types.ts ==========
+// lib/admin/types.ts
+// Canonical type definitions for the admin service layer.
+// Follows the same pattern as lib/conductor/types.ts and lib/commuter/types.ts.
+//
+// When Laravel backend is integrated, these types represent the API contract.
+
+// ─── Async State Helpers ─────────────────────────────────────────────
+
+export type AsyncStatus = "idle" | "loading" | "success" | "error" | "empty";
+
+export interface AsyncState<T> {
+  status: AsyncStatus;
+  data: T;
+  error: string | null;
+}
+
+export function loadingState<T>(fallback: T): AsyncState<T> {
+  return { status: "loading", data: fallback, error: null };
+}
+
+export function successState<T>(data: T): AsyncState<T> {
+  return { status: "success", data, error: null };
+}
+
+export function errorState<T>(fallback: T, error: string): AsyncState<T> {
+  return { status: "error", data: fallback, error };
+}
+
+export function emptyState<T>(fallback: T): AsyncState<T> {
+  return { status: "empty", data: fallback, error: null };
+}
+
+// ─── Dashboard ───────────────────────────────────────────────────────
+
+export interface AdminStatItem {
+  label: string;
+  value: string;
+  icon: string; // Lucide icon name — resolved at component level
+  color: string;
+  link: string;
+}
+
+export interface AdminDashboardData {
+  quickStats: AdminStatItem[];
+  topPickupPoints: { name: string; val: number }[];
+  paymentTendencies: { gcash: number; cash: number };
+  recentVehicles: { unit: string; driver: string; status: string }[];
+  recentLostFound: { item: string; status: string }[];
+  recentUsers: { name: string; role: string; status: string }[];
+}
+
+// ─── Users ───────────────────────────────────────────────────────────
+
+export interface AdminActiveUser {
+  id: string;
+  name: string;
+  email: string;
+  commuterType: string;
+  accountStatus: "ACTIVE" | "SUSPENDED";
+  verifiedAt: string | null;
+  createdAt: string;
+}
+
+export interface AdminPendingRequest {
+  id: string;
+  name: string;
+  email: string;
+  commuterType: string;
+  idImageUrl: string;
+  submittedAt: string;
+}
+
+export interface AdminRejectedUser {
+  id: string;
+  name: string;
+  email: string;
+  commuterType: string;
+  rejectedAt: string;
+  reason: string;
+}
+
+// ─── Vehicles ────────────────────────────────────────────────────────
+
+export interface AdminVehicle {
+  id: string;
+  unitNumber: string;
+  plateNumber: string;
+  route: string;
+  status: "ACTIVE" | "MAINTENANCE" | "DECOMMISSIONED";
+  driverName: string | null;
+  conductorName: string | null;
+}
+
+export interface AdminPersonnel {
+  id: string;
+  name: string;
+  role: "DRIVER" | "CONDUCTOR";
+  status: "AVAILABLE" | "ON_SHIFT" | "TERMINATED";
+  assignedUnit: string | null;
+  contactNumber: string;
+}
+
+// ─── Remittance ──────────────────────────────────────────────────────
+
+export interface AdminRemittance {
+  id: string;
+  conductorName: string;
+  unitNumber: string;
+  cashTotal: number;
+  gcashTotal: number;
+  voucherTotal: number;
+  grandTotal: number;
+  submittedAt: string;
+  status: "PENDING" | "VERIFIED" | "FLAGGED";
+}
+
+// ─── Lost & Found ────────────────────────────────────────────────────
+
+export interface AdminLostItem {
+  id: string;
+  category: string;
+  description: string;
+  status: "REPORTED" | "UNDER_REVIEW" | "CLAIMED" | "RETURNED";
+  reportedAt: string;
+  imageUrl: string | null;
+  claimsCount: number;
+}
+
+// ─── Monitoring ──────────────────────────────────────────────────────
+
+export interface AdminLiveVehicle {
+  id: string;
+  plateNumber: string;
+  lat: number;
+  lng: number;
+  speed: number;
+  capacityStatus: "Available" | "Standing" | "Full";
+  conductorName: string;
+  driverName: string;
+  isOverspeeding: boolean;
+}
+
+export interface AdminSOSAlert {
+  id: string;
+  commuterName: string;
+  latitude: number;
+  longitude: number;
+  message: string;
+  status: "ACTIVE" | "RESOLVED";
+  createdAt: string;
+}
+
+export interface AdminDemandZone {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  demandLevel: "LOW" | "MEDIUM" | "HIGH";
+}
+
+// ─── Analytics ───────────────────────────────────────────────────────
+
+export interface AdminRemittanceRecord {
+  id: string;
+  conductorName: string;
+  date: string;
+  cashTotal: number;
+  gcashTotal: number;
+  total: number;
+  status: string;
+}
+
+export interface AdminPaymentUsage {
+  method: string;
+  count: number;
+  percentage: number;
+  total: number;
+}
+
+// ─── Receipts ────────────────────────────────────────────────────────
+
+export interface AdminReceipt {
+  id: string;
+  transactionId: string;
+  passengerName: string;
+  amount: number;
+  paymentMethod: string;
+  date: string;
+  status: string;
+}
+
+// ─── Settings ────────────────────────────────────────────────────────
+
+export interface AdminFareConfig {
+  baseFare: number;
+  perBarangay: number;
+  discountRate: number;
+}
+
+export interface AdminFinancialRules {
+  gcashSplitPercentage: number;
+  operatorShare: number;
+  conductorShare: number;
+  driverShare: number;
+}
+
+export interface AdminSafetyConfig {
+  overspeedThreshold: number;
+  sosAutoNotify: boolean;
+  proximityAlertRadius: number;
+}
+
+export interface AdminAppConfig {
+  maintenanceMode: boolean;
+  maxConcurrentHails: number;
+  autoApproveRegistrations: boolean;
+}
+
+export interface AdminFAQ {
+  id: string;
+  question: string;
+  answer: string;
+  category: string;
+  order: number;
+}
+
+export interface AdminNotificationTemplate {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  isActive: boolean;
+}
+
+export interface AdminVoucher {
+  id: string;
+  code: string;
+  discountType: "PERCENTAGE" | "FIXED";
+  discountValue: number;
+  maxUses: number;
+  currentUses: number;
+  expiresAt: string;
+  isActive: boolean;
+}
+
+export interface AdminRoute {
+  id: string;
+  name: string;
+  startPoint: string;
+  endPoint: string;
+  totalDistance: number;
+  isActive: boolean;
+}
+
+========== /tmp/chatco-repo/lib/api/client.ts ==========
+/**
+ * API Client — Centralized fetch wrapper for Laravel + Supabase backend.
+ *
+ * Architecture:
+ * ─────────────────────────────────────────────────────────────
+ * - Laravel serves as the API gateway (sanctum auth, business logic)
+ * - Supabase (Postgres) is the database behind Laravel's Eloquent models
+ * - All API calls go through this client for consistent error handling,
+ *   auth headers, and base URL configuration
+ *
+ * Usage:
+ *   import { api } from "@/lib/api/client";
+ *   const data = await api.get<CommuterProfile>("/api/commuter/profile");
+ *   const result = await api.post<Transaction>("/api/transactions", payload);
+ */
+
+// ─── Configuration ───────────────────────────────────────────────────
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
+
+interface ApiConfig {
+  baseUrl: string;
+  credentials: RequestCredentials;
+  defaultHeaders: Record<string, string>;
+}
+
+const defaultConfig: ApiConfig = {
+  baseUrl: API_BASE_URL,
+  credentials: "include", // Sanctum uses cookie-based auth
+  defaultHeaders: {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  },
+};
+
+// ─── Error Types ─────────────────────────────────────────────────────
+
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    public statusText: string,
+    public body: unknown
+  ) {
+    super(`API Error ${status}: ${statusText}`);
+    this.name = "ApiError";
+  }
+}
+
+export class NetworkError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NetworkError";
+  }
+}
+
+// ─── Response Types ──────────────────────────────────────────────────
+
+export interface ApiResponse<T> {
+  data: T;
+  meta?: {
+    page: number;
+    perPage: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+// ─── Client ──────────────────────────────────────────────────────────
+
+class ApiClient {
+  private config: ApiConfig;
+
+  constructor(config: ApiConfig = defaultConfig) {
+    this.config = config;
+  }
+
+  private async request<T>(
+    path: string,
+    options: RequestInit = {}
+  ): Promise<T> {
+    const url = `${this.config.baseUrl}${path}`;
+
+    const headers = {
+      ...this.config.defaultHeaders,
+      ...options.headers,
+    };
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers,
+        credentials: this.config.credentials,
+      });
+
+      // Handle non-JSON responses (e.g., 204 No Content)
+      if (response.status === 204) {
+        return undefined as T;
+      }
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new ApiError(response.status, response.statusText, data);
+      }
+
+      return data as T;
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new NetworkError(
+        error instanceof Error ? error.message : "Network request failed"
+      );
+    }
+  }
+
+  async get<T>(path: string, params?: Record<string, string>): Promise<T> {
+    const searchParams = params
+      ? `?${new URLSearchParams(params).toString()}`
+      : "";
+    return this.request<T>(`${path}${searchParams}`);
+  }
+
+  async post<T>(path: string, body?: unknown): Promise<T> {
+    return this.request<T>(path, {
+      method: "POST",
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  }
+
+  async put<T>(path: string, body?: unknown): Promise<T> {
+    return this.request<T>(path, {
+      method: "PUT",
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  }
+
+  async patch<T>(path: string, body?: unknown): Promise<T> {
+    return this.request<T>(path, {
+      method: "PATCH",
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  }
+
+  async delete<T>(path: string): Promise<T> {
+    return this.request<T>(path, { method: "DELETE" });
+  }
+}
+
+// ─── Singleton Export ────────────────────────────────────────────────
+
+export const api = new ApiClient();
+
+// ─── API Route Constants ─────────────────────────────────────────────
+// Centralized route definitions — when Laravel is wired up,
+// these are the endpoints the frontend will call.
+
+export const API_ROUTES = {
+  auth: {
+    login: "/api/auth/login",
+    logout: "/api/auth/logout",
+    user: "/api/user",
+  },
+  commuter: {
+    profile: "/api/commuter/profile",
+    updateProfile: "/api/commuter/profile",
+    changePassword: "/api/commuter/change-password",
+    paymentHistory: "/api/commuter/payments",
+  },
+  conductor: {
+    profile: "/api/conductor/profile",
+    startShift: "/api/conductor/shifts/start",
+    endShift: "/api/conductor/shifts/end",
+    transactions: (shiftId: string) => `/api/conductor/transactions?shift_id=${shiftId}`,
+    saveTransaction: "/api/conductor/transactions",
+    remittance: "/api/conductor/remittances",
+    shiftLogs: "/api/conductor/shift-logs",
+  },
+  admin: {
+    users: "/api/admin/users",
+    vehicles: "/api/admin/vehicles",
+    lostFound: "/api/admin/lost-found",
+    monitoring: "/api/admin/monitoring",
+    analytics: "/api/admin/analytics",
+    settings: "/api/admin/settings",
+  },
+  payments: {
+    create: "/api/payments/create",
+    verify: (id: string) => `/api/payments/verify?id=${id}`,
+  },
+  feedback: {
+    submit: "/api/feedback",
+  },
+  announcements: {
+    list: "/api/announcements",
+    markRead: (id: string) => `/api/announcements/${id}/read`,
+    markAllRead: "/api/announcements/read-all",
+  },
+  lostFound: {
+    list: "/api/lost-found",
+    claim: (id: string) => `/api/lost-found/${id}/claim`,
+  },
+  rewards: {
+    status: "/api/rewards/status",
+    vouchers: "/api/rewards/vouchers",
+  },
+  sos: {
+    alert: "/api/sos/alert",
+  },
+} as const;
+
+========== /tmp/chatco-repo/lib/api/endpoints.ts ==========
+// lib/api/endpoints.ts
+// Centralized API endpoint registry for Chatco.
+// When the Laravel backend is integrated, all URLs are defined here
+// so migrating from mock data to real API calls only requires updating these constants.
+
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+
+// ─── Auth ────────────────────────────────────────────────────────────
+export const AUTH = {
+  LOGIN: `${API_BASE_URL}/auth/login`,
+  LOGOUT: `${API_BASE_URL}/auth/logout`,
+  ME: `${API_BASE_URL}/user`, // Laravel Sanctum's /api/user
+  CSRF: `${API_BASE_URL}/sanctum/csrf-cookie`,
+} as const;
+
+// ─── Transactions ────────────────────────────────────────────────────
+export const TRANSACTIONS = {
+  LIST: `${API_BASE_URL}/transactions`,
+  CREATE: `${API_BASE_URL}/transactions`,
+  GET: (id: string) => `${API_BASE_URL}/transactions/${id}`,
+  BY_SHIFT: (shiftId: string) => `${API_BASE_URL}/transactions?shift_id=${shiftId}`,
+} as const;
+
+// ─── Shifts ──────────────────────────────────────────────────────────
+export const SHIFTS = {
+  LIST: `${API_BASE_URL}/shifts`,
+  START: `${API_BASE_URL}/shifts/start`,
+  END: (id: string) => `${API_BASE_URL}/shifts/${id}/end`,
+  ACTIVE: `${API_BASE_URL}/shifts/active`,
+} as const;
+
+// ─── Remittances ─────────────────────────────────────────────────────
+export const REMITTANCES = {
+  LIST: `${API_BASE_URL}/remittances`,
+  CREATE: `${API_BASE_URL}/remittances`,
+  GET: (id: string) => `${API_BASE_URL}/remittances/${id}`,
+} as const;
+
+// ─── Payments (PayMongo) ─────────────────────────────────────────────
+export const PAYMENTS = {
+  CREATE_INTENT: `/api/payments/create`,
+  VERIFY: `/api/payments/verify`,
+  REFUND: `/api/payments/refund`,
+  WEBHOOK: `/api/payments/webhook`,
+} as const;
+
+// ─── QR ──────────────────────────────────────────────────────────────
+export const QR = {
+  SIGN: `/api/qr/sign`,
+  VERIFY: `${API_BASE_URL}/qr/verify`,
+} as const;
+
+// ─── Users ───────────────────────────────────────────────────────────
+export const USERS = {
+  LIST: `${API_BASE_URL}/users`,
+  GET: (id: string) => `${API_BASE_URL}/users/${id}`,
+  PROFILE: (id: string) => `${API_BASE_URL}/users/${id}/profile`,
+} as const;
+
+// ─── Vehicles ────────────────────────────────────────────────────────
+export const VEHICLES = {
+  LIST: `${API_BASE_URL}/vehicles`,
+  GET: (id: string) => `${API_BASE_URL}/vehicles/${id}`,
+  LOCATIONS: `${API_BASE_URL}/vehicles/locations`,
+} as const;
+
+// ─── Lost & Found ────────────────────────────────────────────────────
+export const LOST_FOUND = {
+  LIST: `${API_BASE_URL}/lost-items`,
+  CREATE: `${API_BASE_URL}/lost-items`,
+  GET: (id: string) => `${API_BASE_URL}/lost-items/${id}`,
+  CLAIM: (id: string) => `${API_BASE_URL}/lost-items/${id}/claims`,
+} as const;
+
+// ─── Announcements ───────────────────────────────────────────────────
+export const ANNOUNCEMENTS = {
+  LIST: `${API_BASE_URL}/announcements`,
+  CREATE: `${API_BASE_URL}/announcements`,
+} as const;
+
+// ─── Refunds ─────────────────────────────────────────────────────────
+export const REFUNDS = {
+  LIST: `${API_BASE_URL}/refunds`,
+  CREATE: `${API_BASE_URL}/refunds`,
+  APPROVE: (id: string) => `${API_BASE_URL}/refunds/${id}/approve`,
+  REJECT: (id: string) => `${API_BASE_URL}/refunds/${id}/reject`,
+} as const;
+
+// ─── Commuter-Specific ───────────────────────────────────────────────
+export const COMMUTER = {
+  /** Get the authenticated commuter's profile */
+  PROFILE: `${API_BASE_URL}/commuter/profile`,
+  /** Update commuter profile fields */
+  UPDATE_PROFILE: `${API_BASE_URL}/commuter/profile`,
+  /** Change password */
+  CHANGE_PASSWORD: `${API_BASE_URL}/commuter/change-password`,
+  /** Re-upload ID for discount verification */
+  REUPLOAD_ID: `${API_BASE_URL}/commuter/reupload-id`,
+  /** Get ride history for the commuter */
+  RIDE_HISTORY: `${API_BASE_URL}/commuter/rides`,
+  /** Get rewards / voucher data */
+  REWARDS: `${API_BASE_URL}/commuter/rewards`,
+  /** Redeem a voucher */
+  REDEEM_VOUCHER: (voucherId: string) => `${API_BASE_URL}/commuter/vouchers/${voucherId}/redeem`,
+  /** Submit feedback for a ride/driver */
+  SUBMIT_FEEDBACK: `${API_BASE_URL}/commuter/feedback`,
+  /** Hail a nearby vehicle */
+  HAIL: `${API_BASE_URL}/commuter/hail`,
+  /** Cancel an active hail */
+  CANCEL_HAIL: (hailId: string) => `${API_BASE_URL}/commuter/hail/${hailId}`,
+  /** SOS alert */
+  SOS: `${API_BASE_URL}/commuter/sos`,
+  /** Get active vehicles with locations (for map) */
+  ACTIVE_VEHICLES: `${API_BASE_URL}/vehicles/locations`,
+} as const;
+
+========== /tmp/chatco-repo/lib/commuter/endpoints.ts ==========
+// lib/commuter/endpoints.ts
+// Commuter-scoped API endpoint registry.
+// Same pattern as lib/conductor/endpoints.ts.
+//
+// Relative paths target Next.js route stubs by default.
+// When migrating to Laravel, point NEXT_PUBLIC_API_URL at the gateway and
+// update these paths to match the backend contract.
+
+export const COMMUTER_API = {
+  profile: "/api/commuter/profile",
+  tracking: {
+    nearby: "/api/commuter/tracking/nearby",
+    hail: "/api/commuter/tracking/hail",
+    cancelHail: "/api/commuter/tracking/hail/cancel",
+  },
+  payments: {
+    history: "/api/commuter/payments",
+    create: "/api/commuter/payments",
+  },
+  rewards: {
+    summary: "/api/commuter/rewards",
+    vouchers: "/api/commuter/rewards/vouchers",
+  },
+  announcements: {
+    list: "/api/commuter/announcements",
+    markRead: (id: string) => `/api/commuter/announcements/${id}/read`,
+  },
+  lostFound: {
+    list: "/api/commuter/lost-found",
+    claim: "/api/commuter/lost-found/claim",
+  },
+  feedback: {
+    submit: "/api/commuter/feedback",
+  },
+  sos: {
+    create: "/api/commuter/sos",
+  },
+} as const;
+
+========== /tmp/chatco-repo/lib/commuter/types.ts ==========
+// lib/commuter/types.ts
+// Canonical type definitions for the commuter service layer.
+// Follows the same pattern as lib/conductor/types.ts.
+//
+// When Laravel backend is integrated, these types represent the API contract.
+
+import type { GpsStatus } from "../shared/geo/nearby-detector";
+
+// ─── Async State Helpers (same pattern as conductor) ─────────────────
+
+export type AsyncStatus = "idle" | "loading" | "success" | "error" | "empty";
+
+export interface AsyncState<T> {
+  status: AsyncStatus;
+  data: T;
+  error: string | null;
+}
+
+export function loadingState<T>(fallback: T): AsyncState<T> {
+  return { status: "loading", data: fallback, error: null };
+}
+
+export function successState<T>(data: T): AsyncState<T> {
+  return { status: "success", data, error: null };
+}
+
+export function errorState<T>(fallback: T, error: string): AsyncState<T> {
+  return { status: "error", data: fallback, error };
+}
+
+export function emptyState<T>(fallback: T): AsyncState<T> {
+  return { status: "empty", data: fallback, error: null };
+}
+
+// ─── Commuter Profile ────────────────────────────────────────────────
+
+export interface CommuterProfileData {
+  id: string;
+  firstName: string;
+  middleName: string | null;
+  surname: string;
+  birthdate: string;
+  gender: string;
+  email: string;
+  contactNumber: string;
+  commuterType: string;
+  username: string;
+  languagePreference: string;
+  accountStatus: string;
+  idImageUrl: string | null;
+  verifiedAt: string | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+// ─── Payment / Transaction ───────────────────────────────────────────
+
+export interface CommuterPaymentRecord {
+  id: string;
+  shiftId: string;
+  amount: number;
+  paymentMethod: "CASH" | "GCASH" | "VOUCHER";
+  status: "COMPLETED" | "FAILED" | "REFUNDED";
+  createdAt: string;
+  plateNumber?: string;
+  conductorName?: string;
+}
+
+// ─── Rewards / Vouchers ──────────────────────────────────────────────
+
+export interface CommuterVoucher {
+  id: string;
+  code: string;
+  discountType: "PERCENTAGE" | "FIXED";
+  discountValue: number;
+  status: "ACTIVE" | "USED" | "EXPIRED";
+  expiresAt: string;
+}
+
+export interface CommuterRewardData {
+  totalPoints: number;
+  currentCycle: string;
+  vouchers: CommuterVoucher[];
+  ridesThisMonth: number;
+  pointsToNextReward: number;
+}
+
+// ─── Announcements ───────────────────────────────────────────────────
+
+export interface CommuterAnnouncement {
+  id: string;
+  title: string;
+  message: string;
+  type: "INFO" | "WARNING" | "URGENT";
+  isRead: boolean;
+  createdAt: string;
+}
+
+// ─── Lost & Found ────────────────────────────────────────────────────
+
+export interface CommuterLostItem {
+  id: string;
+  category: string;
+  description: string;
+  status: "REPORTED" | "UNDER_REVIEW" | "CLAIMED" | "RETURNED";
+  reportedAt: string;
+  imageUrl?: string;
+}
+
+export interface CommuterClaimData {
+  lostItemId: string;
+  commuterId: string;
+  description: string;
+  contactInfo: string;
+}
+
+// ─── SOS ─────────────────────────────────────────────────────────────
+
+export interface SOSAlert {
+  id: string;
+  commuterId: string;
+  latitude: number;
+  longitude: number;
+  message?: string;
+  status: "ACTIVE" | "RESOLVED";
+  createdAt: string;
+}
+
+// ─── Feedback ────────────────────────────────────────────────────────
+
+export interface CommuterFeedback {
+  conductorId: string;
+  shiftId: string;
+  rating: number;
+  tags: string[];
+  comment?: string;
+}
+
+// ─── Tracking ────────────────────────────────────────────────────────
+
+export interface CommuterTrackingState {
+  gpsStatus: GpsStatus;
+  nearbyVehicles: import("../shared/geo/nearby-detector").NearbyVehicle[];
+  canHail: boolean;
+  nearestVehicle: import("../shared/geo/nearby-detector").NearbyVehicle | null;
+}
+
+========== /tmp/chatco-repo/lib/conductor/endpoints.ts ==========
+// Conductor-scoped API endpoint registry.
+// Relative paths target Next.js route stubs by default.
+// When migrating to Laravel, point NEXT_PUBLIC_API_URL at the gateway and
+// update these paths to match the backend contract.
+
+export const CONDUCTOR_API = {
+  profile: "/api/conductor/profile",
+  units: "/api/conductor/units",
+  drivers: "/api/conductor/drivers",
+  shifts: {
+    active: "/api/conductor/shifts/active",
+    start: "/api/conductor/shifts/start",
+    end: "/api/conductor/shifts/end",
+  },
+  transactions: {
+    list: (shiftId: string) =>
+      `/api/conductor/transactions?shift_id=${encodeURIComponent(shiftId)}`,
+    create: "/api/conductor/transactions",
+  },
+  remittances: {
+    list: "/api/conductor/remittances",
+    create: "/api/conductor/remittances",
+  },
+  ratings: (shiftId: string) =>
+    `/api/conductor/ratings?shift_id=${encodeURIComponent(shiftId)}`,
+  hails: "/api/conductor/hails",
+  shiftLogs: "/api/conductor/shift-logs",
+  location: "/api/conductor/location",
+} as const;
+
+========== /tmp/chatco-repo/lib/conductor/persistence/remittance.store.ts ==========
+export interface RemittanceRecord {
+  shiftId: string;
+  date: string;
+  conductorName: string;
+  driverName: string;
+  unitNumber: string;
+  totalPassengers: number;
+  cashlessBreakdown: {
+    gcashScanned: number;
+    gcashDirect: number;
+    voucher: number;
+  };
+  totalCashless: number;
+  cashDeclared: number;
+  remittanceStatus: "Pending" | "Remitted";
+  timeIn: string;
+  timeOut: string;
+  cashTotal: number;
+  gcashTotal: number;
+}
+
+const KEY = "conductor_remittance_history";
+
+function getAll(): RemittanceRecord[] {
+  const raw = localStorage.getItem(KEY);
+  if (!raw) return [];
+  try {
+    const records = JSON.parse(raw) as RemittanceRecord[];
+    return records.map((r) => ({
+      ...r,
+      gcashTotal: r.gcashTotal ?? 0,
+      cashTotal: r.cashTotal ?? 0,
+      cashDeclared: r.cashDeclared ?? 0,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function save(records: RemittanceRecord[]) {
+  localStorage.setItem(KEY, JSON.stringify(records));
+}
+
+export function saveRemittance(record: RemittanceRecord): RemittanceRecord[] {
+  const records = getAll();
+  const alreadyExists = records.some((r) => r.shiftId === record.shiftId);
+  if (alreadyExists) return records;
+  records.unshift(record);
+  save(records);
+  return records;
+}
+
+export function getRemittanceHistory(): RemittanceRecord[] {
+  return getAll();
+}
+
+========== /tmp/chatco-repo/lib/conductor/persistence/shift-history.ts ==========
+// frontend/lib/conductor/persistence/shift-history.ts
+// Shift log history — persists shift start/end events to localStorage.
+// Used by shift.store.ts for audit trail logging.
+
+const SHIFT_LOGS_KEY = "conductor_shift_logs";
+
+export interface ShiftLog {
+  duration: string | null;
+  shiftId: string;
+  unitNumber: string;
+  plateNumber: string;
+  conductorName: string;
+  driverName: string;
+  route: string;
+  timeIn: string;
+  timeOut?: string;
+}
+
+export function logShiftStart(log: ShiftLog): void {
+  if (typeof window === "undefined") return;
+  const logs: ShiftLog[] = JSON.parse(localStorage.getItem(SHIFT_LOGS_KEY) || "[]");
+  logs.unshift(log);
+  localStorage.setItem(SHIFT_LOGS_KEY, JSON.stringify(logs));
+}
+
+export function logShiftEnd(shiftId: string): void {
+  if (typeof window === "undefined") return;
+  const logs: ShiftLog[] = JSON.parse(localStorage.getItem(SHIFT_LOGS_KEY) || "[]");
+  const idx = logs.findIndex((l) => l.shiftId === shiftId);
+  if (idx !== -1) {
+    logs[idx].timeOut = new Date().toISOString();
+    localStorage.setItem(SHIFT_LOGS_KEY, JSON.stringify(logs));
+  }
+}
+
+export function getShiftLogs(): ShiftLog[] {
+  if (typeof window === "undefined") return [];
+  try {
+    return JSON.parse(localStorage.getItem(SHIFT_LOGS_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+export function clearShiftLogs(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(SHIFT_LOGS_KEY);
+}
+========== /tmp/chatco-repo/lib/conductor/persistence/shift.store.ts ==========
+import { logShiftEnd, logShiftStart } from "./shift-history";
+
+export interface ConductorShift {
+  shiftId: string;
+  conductorName: string;
+  unitNumber: string;
+  route: string;
+  driverName: string;
+  timeIn: string;
+  timeOut: string | null;
+  isActive: boolean;
+}
+
+const SHIFT_KEY = "conductor_shift";
+
+export function startShift(data: {
+  conductorName: string;
+  unitNumber: string;
+  route: string;
+  driverName: string;
+}): ConductorShift {
+  const shift: ConductorShift = {
+    ...data,
+    shiftId: `SHF-${Date.now().toString(36).toUpperCase()}`,
+    timeIn: new Date().toISOString(),
+    timeOut: null,
+    isActive: true,
+  };
+  localStorage.setItem(SHIFT_KEY, JSON.stringify(shift));
+
+  logShiftStart({
+    shiftId: shift.shiftId,
+    unitNumber: shift.unitNumber,
+    plateNumber: "",
+    conductorName: shift.conductorName,
+    driverName: shift.driverName,
+    route: shift.route,
+    timeIn: shift.timeIn,
+  });
+
+  return shift;
+}
+
+export function getShift(): ConductorShift | null {
+  const raw = localStorage.getItem(SHIFT_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as ConductorShift;
+  } catch {
+    return null;
+  }
+}
+
+export function getActiveShift(): ConductorShift | null {
+  const shift = getShift();
+  if (!shift || !shift.isActive) return null;
+  return shift;
+}
+
+export function endShift(): ConductorShift | null {
+  const shift = getActiveShift();
+  if (!shift) return null;
+
+  shift.timeOut = new Date().toISOString();
+  shift.isActive = false;
+  localStorage.setItem(SHIFT_KEY, JSON.stringify(shift));
+  logShiftEnd(shift.shiftId);
+  return shift;
+}
+
+export function clearShift() {
+  localStorage.removeItem(SHIFT_KEY);
+}
+
+/** Cache shift state returned from the API for offline fallback reads. */
+export function cacheShift(shift: ConductorShift): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(SHIFT_KEY, JSON.stringify(shift));
+}
+
+========== /tmp/chatco-repo/lib/conductor/persistence/transactions.store.ts ==========
+import type { PaymentMethodType } from "@/types";
+
+export interface Transaction {
+  transactionId: string;
+  paymentMethod: PaymentMethodType;
+  finalAmount: number;
+  passengerName: string;
+  passengerId: string;
+  passengerRole?: string;
+  from: string;
+  to: string;
+  distance: number;
+  baseFare: number;
+  succeedingKm: number;
+  discountAmount?: number;
+  conductorName?: string;
+  unitNumber?: string;
+  driverName?: string;
+  timestamp: number;
+}
+
+const PREFIX = "conductor_txns_";
+
+function getKey(shiftId: string) {
+  return `${PREFIX}${shiftId}`;
+}
+
+export function saveTransaction(
+  shiftId: string,
+  txn: Omit<Transaction, "transactionId" | "timestamp">
+): Transaction {
+  const key = getKey(shiftId);
+  const existing: Transaction[] = JSON.parse(localStorage.getItem(key) || "[]");
+  const newTxn: Transaction = {
+    ...txn,
+    transactionId: `TXN-${Date.now()}`,
+    timestamp: Date.now(),
+  };
+  existing.push(newTxn);
+  localStorage.setItem(key, JSON.stringify(existing));
+
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("conductor:transaction-updated"));
+  }
+
+  return newTxn;
+}
+
+export function getShiftTransactions(shiftId: string): Transaction[] {
+  const raw = localStorage.getItem(getKey(shiftId));
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw) as Transaction[];
+  } catch {
+    return [];
+  }
+}
+
+export function clearShiftTransactions(shiftId: string) {
+  localStorage.removeItem(getKey(shiftId));
+}
+
+/** Cache a transaction returned from the API for offline fallback reads. */
+export function cacheTransaction(shiftId: string, txn: Transaction): void {
+  if (typeof window === "undefined") return;
+  const key = getKey(shiftId);
+  const existing: Transaction[] = JSON.parse(localStorage.getItem(key) || "[]");
+  if (existing.some((item) => item.transactionId === txn.transactionId)) return;
+  existing.push(txn);
+  localStorage.setItem(key, JSON.stringify(existing));
+  window.dispatchEvent(new CustomEvent("conductor:transaction-updated"));
+}
+
+========== /tmp/chatco-repo/lib/conductor/server/auth.ts ==========
+import type { NextRequest } from "next/server";
+import { jsonError } from "@/lib/conductor/server/response";
+
+export interface ConductorSession {
+  userId: string;
+  role: string;
+  email?: string;
+  name?: string;
+}
+
+const CONDUCTOR_ACCOUNTS: Record<
+  string,
+  { email: string; name: string }
+> = {
+  c_1: { email: "conductor@chatco.com", name: "Pedro Penduko" },
+};
+
+function parseSessionToken(token: string): ConductorSession | null {
+  const parts = token.split(":");
+  if (parts.length < 3 || parts[0] !== "chatco") return null;
+  return { userId: parts[1], role: parts[2] };
+}
+
+export function getConductorSession(
+  request: NextRequest
+): ConductorSession | null {
+  const token = request.cookies.get("chatco_session")?.value;
+  if (!token) return null;
+
+  const session = parseSessionToken(token);
+  if (!session || session.role !== "CONDUCTOR") return null;
+
+  const account = CONDUCTOR_ACCOUNTS[session.userId];
+  if (!account) return session;
+
+  return {
+    ...session,
+    email: account.email,
+    name: account.name,
+  };
+}
+
+export function unauthorizedResponse() {
+  return jsonError("Unauthorized. Conductor session required.", 401);
+}
+
+========== /tmp/chatco-repo/lib/conductor/server/response.ts ==========
+import { NextResponse } from "next/server";
+
+export function jsonData<T>(data: T, status = 200) {
+  return NextResponse.json({ data }, { status });
+}
+
+export function jsonError(message: string, status = 400) {
+  return NextResponse.json({ message }, { status });
+}
+
+========== /tmp/chatco-repo/lib/conductor/server/seed.ts ==========
+import type { ConductorDriver, ConductorHailRequest, ConductorUnit } from "@/lib/conductor/types";
+import type { ConductorRating } from "@/lib/conductor/services/ratings.service";
+
+export const SEED_UNITS: ConductorUnit[] = [
+  {
+    id: "unit-1",
+    unitNumber: "DEF-5678",
+    plateNumber: "DEF-5678",
+    route: "Meycauayan–Calumpit",
+    status: "available",
+  },
+  {
+    id: "unit-2",
+    unitNumber: "GHI-9012",
+    plateNumber: "GHI-9012",
+    route: "Meycauayan–Calumpit",
+    status: "maintenance",
+  },
+  {
+    id: "unit-3",
+    unitNumber: "JKL-3456",
+    plateNumber: "JKL-3456",
+    route: "Meycauayan–Calumpit",
+    status: "maintenance",
+  },
+  {
+    id: "unit-4",
+    unitNumber: "ABC-1234",
+    plateNumber: "ABC-1234",
+    route: "Meycauayan–Calumpit",
+    status: "available",
+  },
+];
+
+export const SEED_DRIVERS: ConductorDriver[] = [
+  { id: "drv-1", name: "Boy Pick-Up Dela Cruz", status: "available" },
+  { id: "drv-3", name: "Tikboy Saksakan", status: "available" },
+  { id: "drv-5", name: "Dodong Bullet", status: "available" },
+  { id: "drv-7", name: "Mang Juan Tamad", status: "available" },
+  { id: "drv-9", name: "Jepoy Pogi", status: "available" },
+  { id: "drv-11", name: "Cardo Dalisay", status: "available" },
+];
+
+export const SEED_HAILS: ConductorHailRequest[] = [
+  {
+    id: "hail-1",
+    commuterName: "Maria Santos",
+    latitude: 14.901323759501945,
+    longitude: 120.7719224852731,
+    label: "Near SM Marilao",
+    etaMinutes: 4,
+  },
+  {
+    id: "hail-2",
+    commuterName: "Juan Reyes",
+    latitude: 14.874990764897628,
+    longitude: 120.79618423260841,
+    label: "Bocaue crossing",
+    etaMinutes: 7,
+  },
+  {
+    id: "hail-3",
+    commuterName: "Ana Cruz",
+    latitude: 14.828232464378223,
+    longitude: 120.88095495481001,
+    label: "Malolos terminal",
+    etaMinutes: 11,
+  },
+];
+
+const MOCK_NAMES = [
+  "Maria Santos",
+  "Juan Reyes",
+  "Ana Cruz",
+  "Pedro Lim",
+  "Rosa Garcia",
+  "Carlos Mendoza",
+  "Elena Torres",
+  "Miguel Ramos",
+];
+
+const MOCK_COMMENTS = [
+  "Very polite and helpful!",
+  "Smooth ride, thank you.",
+  "Driver was careful and friendly.",
+  "On time and professional.",
+  "Clean jeepney, good service.",
+  "",
+  "Could improve boarding process.",
+  "Great conductor, very accommodating.",
+];
+
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+function createRng(seed: number) {
+  let s = seed;
+  return () => {
+    s = (s * 16807) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
+
+/** Deterministic sample ratings per shift — replace with DB query when backend exists. */
+export function buildSeedRatings(shiftId: string): ConductorRating[] {
+  const rng = createRng(hashString(shiftId) + 300);
+  const count = 4 + Math.floor(rng() * 5);
+  const ratings: ConductorRating[] = [];
+  const usedNames = new Set<number>();
+
+  for (let i = 0; i < count; i++) {
+    let nameIdx: number;
+    do {
+      nameIdx = Math.floor(rng() * MOCK_NAMES.length);
+    } while (usedNames.has(nameIdx) && usedNames.size < MOCK_NAMES.length);
+    usedNames.add(nameIdx);
+
+    const score = Math.max(1, Math.min(5, Math.round(rng() * 4 + 1)));
+    const targetRole: "DRIVER" | "CONDUCTOR" = rng() > 0.45 ? "DRIVER" : "CONDUCTOR";
+
+    ratings.push({
+      ratingId: `RTG-${shiftId}-${i}`,
+      commuterId: `comm-${i}`,
+      commuterName: MOCK_NAMES[nameIdx],
+      shiftId,
+      targetRole,
+      targetId: targetRole === "DRIVER" ? "drv-active" : "cond-active",
+      score,
+      comment:
+        score >= 4 && rng() > 0.3
+          ? MOCK_COMMENTS[Math.floor(rng() * MOCK_COMMENTS.length)]
+          : score <= 2
+            ? "Needs improvement."
+            : "",
+      createdAt: new Date(Date.now() - i * 3600000).toISOString(),
+    });
+  }
+
+  return ratings;
+}
+
+========== /tmp/chatco-repo/lib/conductor/server/store.ts ==========
+import type { ConductorShift } from "@/lib/conductor/persistence/shift.store";
+import type { Transaction } from "@/lib/conductor/persistence/transactions.store";
+import type { RemittanceRecord } from "@/lib/conductor/persistence/remittance.store";
+import type { ConductorRating } from "@/lib/conductor/services/ratings.service";
+import type { ConductorHailRequest } from "@/lib/conductor/types";
+import type { ShiftLog } from "../persistence/shift-history";
+import {
+  SEED_DRIVERS,
+  SEED_HAILS,
+  SEED_UNITS,
+  buildSeedRatings,
+} from "@/lib/conductor/server/seed";
+
+interface ConductorUserState {
+  activeShift: ConductorShift | null;
+  transactions: Record<string, Transaction[]>;
+  remittances: RemittanceRecord[];
+  shiftLogs: ShiftLog[];
+  ratingsByShift: Record<string, ConductorRating[]>;
+}
+
+type GlobalStore = Map<string, ConductorUserState>;
+
+const globalKey = "__chatco_conductor_store__";
+
+function getStoreMap(): GlobalStore {
+  const g = globalThis as typeof globalThis & { [globalKey]?: GlobalStore };
+  if (!g[globalKey]) {
+    g[globalKey] = new Map();
+  }
+  return g[globalKey]!;
+}
+
+function getUserState(userId: string): ConductorUserState {
+  const store = getStoreMap();
+  if (!store.has(userId)) {
+    store.set(userId, {
+      activeShift: null,
+      transactions: {},
+      remittances: [],
+      shiftLogs: [],
+      ratingsByShift: {},
+    });
+  }
+  return store.get(userId)!;
+}
+
+function computeDuration(timeIn: string, timeOut: string | null | undefined): string | null {
+  const start = new Date(timeIn).getTime();
+  const end = timeOut ? new Date(timeOut).getTime() : Date.now();
+  const diff = Math.floor((end - start) / 1000);
+  const h = Math.floor(diff / 3600);
+  const m = Math.floor((diff % 3600) / 60);
+  if (h > 0) return `${h}h ${m.toString().padStart(2, "0")}m`;
+  return `${m}m`;
+}
+
+export function getProfile(userId: string, name?: string) {
+  return {
+    id: userId,
+    name: name ?? "Conductor",
+  };
+}
+
+export function listUnits() {
+  return SEED_UNITS;
+}
+
+export function listDrivers() {
+  return SEED_DRIVERS;
+}
+
+export function getActiveShift(userId: string): ConductorShift | null {
+  const state = getUserState(userId);
+  if (!state.activeShift?.isActive) return null;
+  return state.activeShift;
+}
+
+export function startShift(
+  userId: string,
+  data: {
+    conductorName: string;
+    unitNumber: string;
+    route: string;
+    driverName: string;
+  }
+): ConductorShift {
+  const state = getUserState(userId);
+
+  if (state.activeShift?.isActive) {
+    throw new Error("An active shift already exists.");
+  }
+
+  const unit = SEED_UNITS.find((u) => u.unitNumber === data.unitNumber);
+  const shift: ConductorShift = {
+    ...data,
+    shiftId: `SHF-${Date.now().toString(36).toUpperCase()}`,
+    timeIn: new Date().toISOString(),
+    timeOut: null,
+    isActive: true,
+  };
+
+  state.activeShift = shift;
+
+  const logEntry: ShiftLog = {
+    shiftId: shift.shiftId,
+    unitNumber: shift.unitNumber,
+    plateNumber: unit?.plateNumber ?? shift.unitNumber,
+    conductorName: shift.conductorName,
+    driverName: shift.driverName,
+    route: shift.route,
+    timeIn: shift.timeIn,
+    timeOut: undefined,
+    duration: null,
+  };
+  state.shiftLogs.unshift(logEntry);
+
+  return shift;
+}
+
+export function endShift(userId: string): ConductorShift | null {
+  const state = getUserState(userId);
+  const shift = state.activeShift;
+  if (!shift?.isActive) return null;
+
+  shift.timeOut = new Date().toISOString();
+  shift.isActive = false;
+  state.activeShift = null;
+
+  const log = state.shiftLogs.find(
+    (entry) => entry.shiftId === shift.shiftId && entry.timeOut == null
+  );
+  if (log) {
+    log.timeOut = shift.timeOut;
+    log.duration = computeDuration(log.timeIn, log.timeOut);
+  }
+
+  return shift;
+}
+
+export function listTransactions(userId: string, shiftId: string): Transaction[] {
+  const state = getUserState(userId);
+  return state.transactions[shiftId] ?? [];
+}
+
+export function addTransaction(
+  userId: string,
+  shiftId: string,
+  txn: Omit<Transaction, "transactionId" | "timestamp">
+): Transaction {
+  const state = getUserState(userId);
+  const existing = state.transactions[shiftId] ?? [];
+  const newTxn: Transaction = {
+    ...txn,
+    transactionId: `TXN-${Date.now()}`,
+    timestamp: Date.now(),
+  };
+  state.transactions[shiftId] = [...existing, newTxn];
+  return newTxn;
+}
+
+export function listRemittances(userId: string): RemittanceRecord[] {
+  return getUserState(userId).remittances;
+}
+
+export function addRemittance(
+  userId: string,
+  record: RemittanceRecord
+): RemittanceRecord[] {
+  const state = getUserState(userId);
+  if (state.remittances.some((r) => r.shiftId === record.shiftId)) {
+    return state.remittances;
+  }
+  state.remittances.unshift(record);
+  return state.remittances;
+}
+
+export function listRatings(userId: string, shiftId: string): ConductorRating[] {
+  const state = getUserState(userId);
+  if (!state.ratingsByShift[shiftId]) {
+    state.ratingsByShift[shiftId] = buildSeedRatings(shiftId);
+  }
+  return state.ratingsByShift[shiftId];
+}
+
+export function listHails(): ConductorHailRequest[] {
+  return SEED_HAILS;
+}
+
+export function listShiftLogs(userId: string): ShiftLog[] {
+  return getUserState(userId).shiftLogs;
+}
+
+========== /tmp/chatco-repo/lib/conductor/services/api-mode.ts ==========
+/**
+ * When true, conductor services call the API layer (Next.js route stubs by default,
+ * or an external backend when NEXT_PUBLIC_API_URL is set).
+ * Set NEXT_PUBLIC_CONDUCTOR_API_MODE=local to force client-only persistence.
+ */
+export function shouldUseConductorApi(): boolean {
+  return process.env.NEXT_PUBLIC_CONDUCTOR_API_MODE !== "local";
+}
+
+========== /tmp/chatco-repo/lib/conductor/services/hails.service.ts ==========
+import { api, ApiError, NetworkError } from "@/lib/api/client";
+import { CONDUCTOR_API } from "@/lib/conductor/endpoints";
+import { shouldUseConductorApi } from "@/lib/conductor/services/api-mode";
+import type { ConductorHailRequest } from "@/lib/conductor/types";
+
+export async function fetchActiveHails(): Promise<{
+  hails: ConductorHailRequest[];
+  error: string | null;
+}> {
+  if (shouldUseConductorApi()) {
+    try {
+      const response = await api.get<{ data: ConductorHailRequest[] }>(
+        CONDUCTOR_API.hails
+      );
+      return { hails: response.data ?? [], error: null };
+    } catch (error) {
+      if (error instanceof NetworkError || error instanceof ApiError) {
+        return {
+          hails: [],
+          error: "Unable to load hail requests. Please try again.",
+        };
+      }
+      throw error;
+    }
+  }
+
+  return { hails: [], error: null };
+}
+
+export type { ConductorHailRequest };
+
+========== /tmp/chatco-repo/lib/conductor/services/ratings.service.ts ==========
+import { api, ApiError, NetworkError } from "@/lib/api/client";
+import { CONDUCTOR_API } from "@/lib/conductor/endpoints";
+import { shouldUseConductorApi } from "@/lib/conductor/services/api-mode";
+
+export interface ConductorRating {
+  ratingId: string;
+  commuterId: string;
+  commuterName: string;
+  shiftId: string;
+  targetRole: "DRIVER" | "CONDUCTOR";
+  targetId: string;
+  score: number;
+  comment: string;
+  createdAt: string;
+}
+
+export interface RatingMetrics {
+  overallSatisfaction: number;
+  averageRating: number;
+  totalRatings: number;
+  conductorAverage: number;
+  conductorCount: number;
+  driverAverage: number;
+  driverCount: number;
+  distribution: [number, number, number, number, number];
+}
+
+export async function fetchRatingsForShift(shiftId: string): Promise<{
+  ratings: ConductorRating[];
+  error: string | null;
+}> {
+  if (shouldUseConductorApi()) {
+    try {
+      const response = await api.get<{ data: ConductorRating[] }>(
+        CONDUCTOR_API.ratings(shiftId)
+      );
+      return { ratings: response.data ?? [], error: null };
+    } catch (error) {
+      if (error instanceof NetworkError || error instanceof ApiError) {
+        return {
+          ratings: [],
+          error: "Unable to load ratings. Please try again.",
+        };
+      }
+      throw error;
+    }
+  }
+
+  return { ratings: [], error: null };
+}
+
+export function calculateMetrics(ratings: ConductorRating[]): RatingMetrics {
+  if (ratings.length === 0) {
+    return {
+      overallSatisfaction: 0,
+      averageRating: 0,
+      totalRatings: 0,
+      conductorAverage: 0,
+      conductorCount: 0,
+      driverAverage: 0,
+      driverCount: 0,
+      distribution: [0, 0, 0, 0, 0],
+    };
+  }
+
+  const total = ratings.length;
+  const satisfied = ratings.filter((rating) => rating.score >= 4).length;
+  const overallSatisfaction = Math.round((satisfied / total) * 100);
+  const averageRating =
+    Math.round((ratings.reduce((sum, rating) => sum + rating.score, 0) / total) * 10) /
+    10;
+
+  const conductorRatings = ratings.filter((rating) => rating.targetRole === "CONDUCTOR");
+  const driverRatings = ratings.filter((rating) => rating.targetRole === "DRIVER");
+
+  const conductorAverage =
+    conductorRatings.length > 0
+      ? Math.round(
+          (conductorRatings.reduce((sum, rating) => sum + rating.score, 0) /
+            conductorRatings.length) *
+            10
+        ) / 10
+      : 0;
+
+  const driverAverage =
+    driverRatings.length > 0
+      ? Math.round(
+          (driverRatings.reduce((sum, rating) => sum + rating.score, 0) /
+            driverRatings.length) *
+            10
+        ) / 10
+      : 0;
+
+  const distribution: [number, number, number, number, number] = [0, 0, 0, 0, 0];
+  ratings.forEach((rating) => {
+    distribution[rating.score - 1]++;
+  });
+
+  return {
+    overallSatisfaction,
+    averageRating,
+    totalRatings: total,
+    conductorAverage,
+    conductorCount: conductorRatings.length,
+    driverAverage,
+    driverCount: driverRatings.length,
+    distribution,
+  };
+}
+
+export function getGaugeColor(pct: number): string {
+  if (pct >= 90) return "#34D399";
+  if (pct >= 75) return "#62A0EA";
+  if (pct >= 50) return "#FBBF24";
+  return "#F87171";
+}
+
+export function getGaugeTextClass(pct: number): string {
+  if (pct >= 90) return "text-emerald-400";
+  if (pct >= 75) return "text-[#62A0EA]";
+  if (pct >= 50) return "text-amber-400";
+  return "text-red-400";
+}
+
+========== /tmp/chatco-repo/lib/conductor/services/remittance.service.ts ==========
+import { api, ApiError, NetworkError } from "@/lib/api/client";
+import { CONDUCTOR_API } from "@/lib/conductor/endpoints";
+import { shouldUseConductorApi } from "@/lib/conductor/services/api-mode";
+import * as remittanceStore from "@/lib/conductor/persistence/remittance.store";
+
+export type { RemittanceRecord } from "@/lib/conductor/persistence/remittance.store";
+
+export async function fetchRemittanceHistory() {
+  if (shouldUseConductorApi()) {
+    try {
+      const response = await api.get<{ data: remittanceStore.RemittanceRecord[] }>(
+        CONDUCTOR_API.remittances.list
+      );
+      return response.data ?? [];
+    } catch (error) {
+      if (!(error instanceof NetworkError) && !(error instanceof ApiError)) throw error;
+    }
+  }
+
+  return remittanceStore.getRemittanceHistory();
+}
+
+export async function submitRemittance(record: remittanceStore.RemittanceRecord) {
+  if (shouldUseConductorApi()) {
+    try {
+      const response = await api.post<{ data: remittanceStore.RemittanceRecord[] }>(
+        CONDUCTOR_API.remittances.create,
+        record
+      );
+      return response.data ?? [record];
+    } catch (error) {
+      if (!(error instanceof NetworkError) && !(error instanceof ApiError)) throw error;
+    }
+  }
+
+  return remittanceStore.saveRemittance(record);
+}
+
+export function getRemittanceHistory() {
+  return remittanceStore.getRemittanceHistory();
+}
+
+export function saveRemittance(record: remittanceStore.RemittanceRecord) {
+  return remittanceStore.saveRemittance(record);
+}
+
+export function getUnitRemittanceHistory(unitNumber: string) {
+  return remittanceStore
+    .getRemittanceHistory()
+    .filter((record) => record.unitNumber === unitNumber);
+}
+
+========== /tmp/chatco-repo/lib/conductor/services/shift.service.ts ==========
+import { api, ApiError, NetworkError } from "@/lib/api/client";
+import { CONDUCTOR_API } from "@/lib/conductor/endpoints";
+import { shouldUseConductorApi } from "@/lib/conductor/services/api-mode";
+import * as shiftStore from "@/lib/conductor/persistence/shift.store";
+import type { ConductorShift } from "@/lib/conductor/persistence/shift.store";
+
+export type { ConductorShift };
+
+export async function fetchActiveShift(): Promise<ConductorShift | null> {
+  if (shouldUseConductorApi()) {
+    try {
+      const response = await api.get<{ data: ConductorShift | null }>(
+        CONDUCTOR_API.shifts.active
+      );
+      const shift = response.data ?? null;
+      if (shift) shiftStore.cacheShift(shift);
+      return shift;
+    } catch (error) {
+      if (!(error instanceof NetworkError) && !(error instanceof ApiError)) throw error;
+    }
+  }
+
+  return shiftStore.getActiveShift();
+}
+
+export async function startShift(data: {
+  conductorName: string;
+  unitNumber: string;
+  route: string;
+  driverName: string;
+}): Promise<ConductorShift> {
+  if (shouldUseConductorApi()) {
+    try {
+      const response = await api.post<{ data: ConductorShift }>(
+        CONDUCTOR_API.shifts.start,
+        data
+      );
+      shiftStore.cacheShift(response.data);
+      return response.data;
+    } catch (error) {
+      if (!(error instanceof NetworkError) && !(error instanceof ApiError)) throw error;
+    }
+  }
+
+  return shiftStore.startShift(data);
+}
+
+export async function endShift(): Promise<ConductorShift | null> {
+  if (shouldUseConductorApi()) {
+    try {
+      const response = await api.post<{ data: ConductorShift | null }>(
+        CONDUCTOR_API.shifts.end
+      );
+      if (response.data) shiftStore.cacheShift(response.data);
+      return response.data ?? null;
+    } catch (error) {
+      if (!(error instanceof NetworkError) && !(error instanceof ApiError)) throw error;
+    }
+  }
+
+  return shiftStore.endShift();
+}
+
+export function clearShift(): void {
+  shiftStore.clearShift();
+}
+
+export function getElapsed(shift: ConductorShift): string {
+  const start = new Date(shift.timeIn).getTime();
+  const end = shift.timeOut ? new Date(shift.timeOut).getTime() : Date.now();
+  const diff = Math.floor((end - start) / 1000);
+  const h = Math.floor(diff / 3600);
+  const m = Math.floor((diff % 3600) / 60);
+  if (h > 0) return `${h}h ${m.toString().padStart(2, "0")}m`;
+  return `${m}m`;
+}
+
+export function getDuration(shift: ConductorShift): string {
+  if (!shift.timeOut) return getElapsed(shift);
+  const start = new Date(shift.timeIn).getTime();
+  const end = new Date(shift.timeOut).getTime();
+  const diff = Math.floor((end - start) / 1000);
+  const h = Math.floor(diff / 3600);
+  const m = Math.floor((diff % 3600) / 60);
+  if (h > 0) return `${h}h ${m.toString().padStart(2, "0")}m`;
+  return `${m}m`;
+}
+
+export function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-PH", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+export function getActiveShift(): ConductorShift | null {
+  return shiftStore.getActiveShift();
+}
+
+export function getShift(): ConductorShift | null {
+  return shiftStore.getShift();
+}
+
+========== /tmp/chatco-repo/lib/conductor/services/transactions.service.ts ==========
+import { api, ApiError, NetworkError } from "@/lib/api/client";
+import { CONDUCTOR_API } from "@/lib/conductor/endpoints";
+import { shouldUseConductorApi } from "@/lib/conductor/services/api-mode";
+import * as transactionsStore from "@/lib/conductor/persistence/transactions.store";
+
+export type { Transaction } from "@/lib/conductor/persistence/transactions.store";
+export type { PaymentMethodType } from "@/types";
+
+export async function fetchShiftTransactions(shiftId: string) {
+  if (shouldUseConductorApi()) {
+    try {
+      const response = await api.get<{ data: transactionsStore.Transaction[] }>(
+        CONDUCTOR_API.transactions.list(shiftId)
+      );
+      return response.data ?? [];
+    } catch (error) {
+      if (!(error instanceof NetworkError) && !(error instanceof ApiError)) throw error;
+    }
+  }
+
+  return transactionsStore.getShiftTransactions(shiftId);
+}
+
+export async function createTransaction(
+  shiftId: string,
+  txn: Omit<transactionsStore.Transaction, "transactionId" | "timestamp">
+) {
+  if (shouldUseConductorApi()) {
+    try {
+      const response = await api.post<{ data: transactionsStore.Transaction }>(
+        CONDUCTOR_API.transactions.create,
+        { shiftId, ...txn }
+      );
+      transactionsStore.cacheTransaction(shiftId, response.data);
+      return response.data;
+    } catch (error) {
+      if (!(error instanceof NetworkError) && !(error instanceof ApiError)) throw error;
+    }
+  }
+
+  return transactionsStore.saveTransaction(shiftId, txn);
+}
+
+export function getShiftTransactions(shiftId: string) {
+  return transactionsStore.getShiftTransactions(shiftId);
+}
+
+export function saveTransaction(
+  shiftId: string,
+  txn: Omit<transactionsStore.Transaction, "transactionId" | "timestamp">
+) {
+  return createTransaction(shiftId, txn);
+}
+
+export function clearShiftTransactions(shiftId: string) {
+  transactionsStore.clearShiftTransactions(shiftId);
+}
+
+========== /tmp/chatco-repo/lib/conductor/services/units.service.ts ==========
+import { api, ApiError, NetworkError } from "@/lib/api/client";
+import { CONDUCTOR_API } from "@/lib/conductor/endpoints";
+import { shouldUseConductorApi } from "@/lib/conductor/services/api-mode";
+import type {
+  ConductorDriver,
+  ConductorProfile,
+  ConductorUnit,
+} from "@/lib/conductor/types";
+
+export async function fetchConductorProfile(): Promise<{
+  profile: ConductorProfile | null;
+  error: string | null;
+}> {
+  if (shouldUseConductorApi()) {
+    try {
+      const response = await api.get<{ data: ConductorProfile }>(
+        CONDUCTOR_API.profile
+      );
+      return { profile: response.data ?? null, error: null };
+    } catch (error) {
+      if (error instanceof NetworkError || error instanceof ApiError) {
+        return {
+          profile: null,
+          error: "Unable to load conductor profile. Please try again.",
+        };
+      }
+      throw error;
+    }
+  }
+
+  return {
+    profile: null,
+    error: "Conductor profile is unavailable until the backend is connected.",
+  };
+}
+
+export async function fetchUnits(): Promise<{
+  units: ConductorUnit[];
+  error: string | null;
+}> {
+  if (shouldUseConductorApi()) {
+    try {
+      const response = await api.get<{ data: ConductorUnit[] }>(
+        CONDUCTOR_API.units
+      );
+      return { units: response.data ?? [], error: null };
+    } catch (error) {
+      if (error instanceof NetworkError || error instanceof ApiError) {
+        return {
+          units: [],
+          error: "Unable to load units. Please check your connection and try again.",
+        };
+      }
+      throw error;
+    }
+  }
+
+  return {
+    units: [],
+    error: "Units are unavailable until the backend is connected.",
+  };
+}
+
+export async function fetchDrivers(): Promise<{
+  drivers: ConductorDriver[];
+  error: string | null;
+}> {
+  if (shouldUseConductorApi()) {
+    try {
+      const response = await api.get<{ data: ConductorDriver[] }>(
+        CONDUCTOR_API.drivers
+      );
+      return { drivers: response.data ?? [], error: null };
+    } catch (error) {
+      if (error instanceof NetworkError || error instanceof ApiError) {
+        return {
+          drivers: [],
+          error: "Unable to load drivers. Please check your connection and try again.",
+        };
+      }
+      throw error;
+    }
+  }
+
+  return {
+    drivers: [],
+    error: "Drivers are unavailable until the backend is connected.",
+  };
+}
+
+export type { ConductorUnit, ConductorDriver, ConductorProfile };
+
+========== /tmp/chatco-repo/lib/conductor/types.ts ==========
+export type AsyncStatus = "idle" | "loading" | "success" | "error" | "empty";
+
+export interface AsyncState<T> {
+  status: AsyncStatus;
+  data: T;
+  error: string | null;
+}
+
+export function loadingState<T>(fallback: T): AsyncState<T> {
+  return { status: "loading", data: fallback, error: null };
+}
+
+export function successState<T>(data: T): AsyncState<T> {
+  return { status: "success", data, error: null };
+}
+
+export function errorState<T>(fallback: T, error: string): AsyncState<T> {
+  return { status: "error", data: fallback, error };
+}
+
+export function emptyState<T>(fallback: T): AsyncState<T> {
+  return { status: "empty", data: fallback, error: null };
+}
+
+export interface ConductorProfile {
+  id: string;
+  name: string;
+}
+
+export interface ConductorUnit {
+  id: string;
+  unitNumber: string;
+  plateNumber: string;
+  route: string;
+  status: "available" | "in-use" | "maintenance";
+}
+
+export interface ConductorDriver {
+  id: string;
+  name: string;
+  status: "available" | "on-shift";
+}
+
+export interface ConductorHailRequest {
+  id: string;
+  commuterName: string;
+  latitude: number;
+  longitude: number;
+  label?: string;
+  etaMinutes?: number;
+}
+
+========== /tmp/chatco-repo/lib/fare-matrix-data.ts ==========
+// lib/fare-matrix-data.ts
+// Re-export barrel — canonical source moved to lib/shared/fare/fare-matrix-data.ts
+// Update imports to: @/lib/shared/fare/fare-matrix-data
+
+export {
+  initialFarePoints,
+  getFareByPoints,
+  FARE_MATRIX,
+  FARE_CONFIG,
+  getPointByNumber,
+  getPointByCode,
+  getFareBetween,
+  type FarePoint,
+  type FareResult,
+  type PointArea,
+} from "@/lib/shared/fare/fare-matrix-data";
+
+========== /tmp/chatco-repo/lib/shared/data/faq-data.ts ==========
+export interface FAQItem {
+  question: string;
+  answer: string;
+}
+
+export interface FAQCategory {
+  id: string;
+  label: string;
+  emoji: string;
+  items: FAQItem[];
+}
+
+export const faqCategories: FAQCategory[] = [
+  {
+    id: "getting-started",
+    label: "Getting Started",
+    emoji: "🚀",
+    items: [
+      {
+        question: "How do I create a CHATCO account?",
+        answer:
+          "Super easy! Sign up with your email or phone, pick \"Commuter,\" and you're in. You'll get your QR code right away — no ID needed. Welcome aboard!",
+      },
+      {
+        question: "What is my CHATCO QR code for?",
+        answer:
+          "It's your digital boarding pass! Show it to the conductor, they scan it, and your fare is processed through GCash. No cash, no card — just your phone!",
+      },
+      {
+        question: "Is CHATCO free to use?",
+        answer:
+          "Yep, totally free! You only pay when you ride — fares go directly through GCash. No subscriptions, no hidden fees, no wallet to maintain!",
+      },
+      {
+        question: "Where does CHATCO operate?",
+        answer:
+          "We're currently on the Calumpit–Meycauayan route in Bulacan with 34 official stop points. More routes coming soon!",
+      },
+    ],
+  },
+  {
+    id: "payments",
+    label: "Payments & GCash",
+    emoji: "💰",
+    items: [
+      {
+        question: "How do I pay for my ride?",
+        answer:
+          "When you ride, show your QR code to the conductor. They scan it, select your fare based on your pickup and drop-off points, and you pay directly through GCash. No need to load a wallet beforehand!",
+      },
+      {
+        question: "How is my fare calculated?",
+        answer:
+          "Fares are based on official CHATCO point areas, not GPS distance. The route has 34 predefined stops, each with a set fare. Your fare depends on which point area you board from and where you get off. The conductor selects the nearest official point for computation.",
+      },
+      {
+        question: "Do I need a GCash account?",
+        answer:
+          "Yes, for cashless payments you'll need a GCash account. When the conductor scans your QR, you'll receive a GCash payment prompt to confirm. You can also pay with cash directly to the conductor.",
+      },
+      {
+        question: "What happens if my ride is interrupted?",
+        answer:
+          "If your trip is interrupted (e.g., engine breakdown), report the issue directly to the conductor or contact our support team. We'll work with you to resolve the situation as quickly as possible.",
+      },
+    ],
+  },
+  {
+    id: "riding",
+    label: "Riding & Tracking",
+    emoji: "🚐",
+    items: [
+      {
+        question: "How do I hail a jeepney?",
+        answer:
+          "Open the map, tap Hail, and your location goes out to nearby conductors. When a CHATCO jeep is within 1km of your location, it appears on your map and you'll get a sound notification!",
+      },
+      {
+        question: "Why can't I see all jeeps on the map?",
+        answer:
+          "We only show CHATCO jeeps within 1km of your location to reduce map clutter, save bandwidth, and keep the app running smoothly. When a jeep approaches, you'll see it appear and hear a notification sound.",
+      },
+      {
+        question: "How do I pay when I ride?",
+        answer:
+          "Two options! Show your QR code to the conductor — they scan it and fare is paid via GCash. Or pay with cash directly. Either way, the fare is the same based on the official point area rates.",
+      },
+      {
+        question: "Can I share my ride with someone?",
+        answer:
+          "Yep! Tap Share My Ride to send a live tracking link to family or friends. They'll see your location even without the app.",
+      },
+    ],
+  },
+  {
+    id: "safety",
+    label: "Safety & Support",
+    emoji: "🛡️",
+    items: [
+      {
+        question: "What is the SOS button?",
+        answer:
+          "It's your emergency alert! Press it and your live location + ride details go straight to our admin team and your emergency contacts. Only use for real emergencies though!",
+      },
+      {
+        question: "I left something on the jeepney. What do I do?",
+        answer:
+          "Don't panic! Go to Lost & Found and report the item with date, time, and route. Conductors and admins can match it with found items on their end.",
+      },
+      {
+        question: "Is my personal data safe?",
+        answer:
+          "Absolutely! We use encrypted connections and secure storage through PayMongo for payments. Your QR code only has a unique ID — no personal info or payment details are exposed when scanned.",
+      },
+      {
+        question: "How do I report a concern?",
+        answer:
+          "Head to Feedback in the app! Rate your ride, report issues, or suggest improvements. Every report is reviewed by our team — your voice counts!",
+      },
+    ],
+  },
+  {
+    id: "rewards",
+    label: "Rewards & Loyalty",
+    emoji: "🎁",
+    items: [
+      {
+        question: "How does the loyalty program work?",
+        answer:
+          "Every ride earns you points! The more you ride, the more you earn. Unlock perks like discounted fares, priority hailing, and exclusive vouchers.",
+      },
+      {
+        question: "How do I check my rewards?",
+        answer:
+          "Check Rewards in the app! You'll see your points, available perks, and active vouchers for your next ride.",
+      },
+      {
+        question: "Do points expire?",
+        answer:
+          "Nope! Your points are yours forever. No expiration, no pressure!",
+      },
+    ],
+  },
+];
+
+========== /tmp/chatco-repo/lib/shared/data/static-conductor-data.ts ==========
+// lib/static-conductor-data.ts
+// Pure static mock data for conductor detail modal.
+
+export interface RemittanceRecord {
+  shiftId: string;
+  date: string;
+  conductorName: string;
+  driverName: string;
+  unitNumber: string;
+  totalPassengers: number;
+  gcashAmount: number;
+  cashAmount: number;
+  remittanceStatus: 'Pending' | 'Remitted';
+  timeIn: string;
+  timeOut: string;
+}
+
+export interface Transaction {
+  transactionId: string;
+  paymentMethod: 'GCash' | 'Cash';
+  finalAmount: number;
+  passengerName: string;
+  passengerId: string;
+  from: string;
+  to: string;
+  distance: number;
+  baseFare: number;
+  succeedingKm: number;
+  timestamp: number;
+}
+
+export interface ShiftLog {
+  shiftId: string;
+  unitNumber: string;
+  plateNumber: string;
+  conductorName: string;
+  driverName: string;
+  route: string;
+  timeIn: string;
+  timeOut: string | null;
+  duration: string | null;
+}
+
+export function formatLogTime(iso: string): string {
+  return new Date(iso).toLocaleString('en-PH', {
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: 'numeric', minute: '2-digit', hour12: true,
+  });
+}
+
+const CONDUCTOR_MASTER: Record<string, { vehicle: string; driver: string; route: string }> = {
+  'jose ngani':       { vehicle: 'XQJ 4728', driver: 'Ramon Dela Cruz',  route: 'Malolos - Calumpit' },
+  'ericks son':       { vehicle: 'LKW 3579', driver: 'Pedro Santos',     route: 'Calumpit - Malolos' },
+  'pedro penduko':    { vehicle: 'VMY 9183', driver: 'Luis Villanueva',  route: 'Malolos - Calumpit' },
+  'luigi mansion':    { vehicle: 'RZP 6041', driver: 'Antonio Reyes',    route: 'Calumpit - Malolos' },
+  'sisa doe':         { vehicle: 'TNB 8462', driver: 'Francisco Garcia', route: 'Malolos - Calumpit' },
+  'juan dela cruz':   { vehicle: 'JHX 7905', driver: 'Roberto Santiago', route: 'Calumpit - Malolos' },
+  'maria makiling':   { vehicle: 'PVR 6894', driver: 'Elena Valdez',     route: 'Malolos - Calumpit' },
+  'mhaku jose':       { vehicle: 'QFD 2316', driver: 'Daniel Fajardo',   route: 'Calumpit - Malolos' },
+  'karding dela paz': { vehicle: 'LKW 3579', driver: 'Henry Lapid',      route: 'Malolos - Calumpit' },
+};
+
+const PASSENGER_NAMES = [
+  'Maria Santos','Juan Dela Cruz','Ana Reyes','Pedro Garcia','Rosa Lim',
+  'Miguel Torres','Carmen Flores','Jose Ramos','Elena Navarro','Ricardo Molina',
+  'Sofia Chavez','Antonio Villanueva','Isabel Cruz','Fernando Lopez','Luz Mendoza',
+  'Andres Bautista','Teresa Aquino','Roberto Reyes','Grace Gonzales','Daniel Flores',
+  'Patricia Rivera','Eduardo Tan','Linda Ong','Manuel Dizon','Nora Cardenas',
+  'Cesar Mercado','Alicia Vera','Ramon Ignacio','Elena Soriano','Jorge Fajardo',
+  'Nenita Pangilinan','Henry Lapid','Cherry Basilio','Willy Rosales','Lilia Noble',
+  'Arnel Quintos','Fe Dagohoy','Rolando Espiritu','Gloria Salazar','Noel Tantiangco',
+];
+
+const ROUTE_STOPS = [
+  ['Malolos Terminal','Meycauayan Crossing','Calumpit Town Proper'],
+  ['Calumpit Town Proper','Guiguinto Stop','Malolos Terminal'],
+  ['Malolos Terminal','Marilao Highroad','Meycauayan Crossing'],
+  ['Meycauayan Crossing','Guiguinto Stop','Calumpit Town Proper'],
+  ['Calumpit Town Proper','Marilao Highroad','Malolos Terminal'],
+];
+
+const PAYMENT_METHODS: Transaction['paymentMethod'][] = ['GCash', 'Cash'];
+
+function seededRandom(seed: number): () => number {
+  let s = seed;
+  return () => { s = (s * 16807 + 0) % 2147483647; return (s - 1) / 2147483646; };
+}
+
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i); hash = ((hash << 5) - hash) + c; hash |= 0; }
+  return Math.abs(hash);
+}
+
+export function getStaticRemittanceHistory(conductorName: string): RemittanceRecord[] {
+  const key = conductorName.toLowerCase().trim();
+  const info = CONDUCTOR_MASTER[key];
+  if (!info) return [];
+  const rng = seededRandom(hashString(key) + 100);
+  const records: RemittanceRecord[] = [];
+  const statuses: RemittanceRecord['remittanceStatus'][] = ['Remitted','Pending','Remitted','Remitted','Remitted'];
+  const baseDates = ['2024-04-15','2024-04-18','2024-04-22','2024-04-25','2024-04-28','2024-05-01','2024-05-03','2024-05-05','2024-05-07','2024-05-09'];
+  for (let i = 0; i < 10; i++) {
+    const gcashAmount = Math.round((rng() * 1200 + 800) * 100) / 100;
+    const cashAmount = Math.round((rng() * 800 + 400) * 100) / 100;
+    const passengers = Math.floor(rng() * 30) + 40;
+    const hIn = 5 + Math.floor(rng() * 2), mIn = Math.floor(rng() * 60);
+    const hOut = 15 + Math.floor(rng() * 4), mOut = Math.floor(rng() * 60);
+    records.push({
+      shiftId: `S-${200 + i}`, date: baseDates[i], conductorName, driverName: info.driver,
+      unitNumber: info.vehicle, totalPassengers: passengers, gcashAmount, cashAmount,
+      remittanceStatus: statuses[i % statuses.length],
+      timeIn: `${baseDates[i]}T${String(hIn).padStart(2,'0')}:${String(mIn).padStart(2,'0')}:00.000Z`,
+      timeOut: `${baseDates[i]}T${String(hOut).padStart(2,'0')}:${String(mOut).padStart(2,'0')}:00.000Z`,
+    });
+  }
+  return records;
+}
+
+export function getStaticShiftLogs(conductorName: string): ShiftLog[] {
+  const key = conductorName.toLowerCase().trim();
+  const info = CONDUCTOR_MASTER[key];
+  if (!info) return [];
+  const rng = seededRandom(hashString(key) + 200);
+  const logs: ShiftLog[] = [];
+  const baseDates = ['2024-04-15','2024-04-18','2024-04-22','2024-04-25','2024-04-28','2024-05-01','2024-05-03','2024-05-05','2024-05-07','2024-05-09'];
+  for (let i = 0; i < 10; i++) {
+    const hIn = 5 + Math.floor(rng() * 2), mIn = Math.floor(rng() * 60);
+    const hOut = 15 + Math.floor(rng() * 4), mOut = Math.floor(rng() * 60);
+    logs.push({
+      shiftId: `S-${200 + i}`, unitNumber: info.vehicle, plateNumber: info.vehicle,
+      conductorName, driverName: info.driver, route: info.route,
+      timeIn: `${baseDates[i]}T${String(hIn).padStart(2,'0')}:${String(mIn).padStart(2,'0')}:00.000Z`,
+      timeOut: `${baseDates[i]}T${String(hOut).padStart(2,'0')}:${String(mOut).padStart(2,'0')}:00.000Z`,
+      duration: `${hOut - hIn}h ${String(Math.abs(mOut - mIn)).padStart(2,'0')}m`,
+    });
+  }
+  return logs;
+}
+
+export function getStaticShiftTransactions(shiftId: string, conductorName: string): Transaction[] {
+  const key = conductorName.toLowerCase().trim();
+  const info = CONDUCTOR_MASTER[key];
+  if (!info) return [];
+  const rng = seededRandom(hashString(shiftId) + 300);
+  const txns: Transaction[] = [];
+  const numTxns = Math.floor(rng() * 15) + 20;
+  const baseTs = new Date('2024-05-01T06:00:00.000Z').getTime();
+  for (let i = 0; i < numTxns; i++) {
+    const method = PAYMENT_METHODS[Math.floor(rng() * PAYMENT_METHODS.length)];
+    const pIdx = Math.floor(rng() * PASSENGER_NAMES.length);
+    const rIdx = Math.floor(rng() * ROUTE_STOPS.length);
+    const dist = Math.round((rng() * 15 + 3) * 10) / 10;
+    const baseF = 13, succ = Math.max(0, dist - 5) * 1.85;
+    const amt = Math.round((baseF + succ) * 100) / 100;
+    txns.push({
+      transactionId: `TXN-${shiftId}-${String(i+1).padStart(3,'0')}`, paymentMethod: method, finalAmount: amt,
+      passengerName: PASSENGER_NAMES[pIdx], passengerId: `PID-${String(Math.floor(rng()*90000)+10000)}`,
+      from: ROUTE_STOPS[rIdx][0], to: ROUTE_STOPS[rIdx][ROUTE_STOPS[rIdx].length-1],
+      distance: dist, baseFare: baseF, succeedingKm: Math.round(succ*100)/100,
+      timestamp: baseTs + i * Math.floor(rng()*600000+120000),
+    });
+  }
+  return txns;
+}
+========== /tmp/chatco-repo/lib/shared/fare/fare-calculator.ts ==========
+// lib/fare-calculator.ts
+// Shared fare calculation with commuter-type discounts and GPS-based nearest-point lookup.
+//
+// CommuterType is imported from @/types (canonical source).
+// Haversine is imported from @/lib/utils/geo (canonical source).
+
+import {
+  initialFarePoints,
+  getFareByPoints,
+  type FarePoint,
+  type FareResult,
+} from "./fare-matrix-data";
+import { haversineMeters } from "../../utils/geo";
+import type { CommuterType } from "@/types";
+import { DISCOUNTED_TYPES, DISCOUNT_RATE } from "@/types/user";
+
+// Re-export CommuterType for backward compatibility with existing consumers
+export type { CommuterType } from "@/types";
+
+export interface FareCalculation {
+  fareResult: FareResult;
+  finalFare: number;
+  hasDiscount: boolean;
+  discountAmount: number;
+}
+
+// ─── GPS Coordinates ─────────────────────────────────────────────────────────
+
+interface PointCoordinate {
+  pointNumber: number;
+  latitude: number;
+  longitude: number;
+}
+
+const POINT_COORDINATES: PointCoordinate[] = [
+  { pointNumber: 1,  latitude: 14.7370, longitude: 120.9730 },
+  { pointNumber: 2,  latitude: 14.7390, longitude: 120.9710 },
+  { pointNumber: 3,  latitude: 14.7420, longitude: 120.9700 },
+  { pointNumber: 4,  latitude: 14.7530, longitude: 120.9690 },
+  { pointNumber: 5,  latitude: 14.7590, longitude: 120.9670 },
+  { pointNumber: 6,  latitude: 14.7640, longitude: 120.9650 },
+  { pointNumber: 7,  latitude: 14.7730, longitude: 120.9570 },
+  { pointNumber: 8,  latitude: 14.7790, longitude: 120.9510 },
+  { pointNumber: 9,  latitude: 14.7840, longitude: 120.9460 },
+  { pointNumber: 10, latitude: 14.7880, longitude: 120.9400 },
+  { pointNumber: 11, latitude: 14.7940, longitude: 120.9340 },
+  { pointNumber: 12, latitude: 14.8000, longitude: 120.9280 },
+  { pointNumber: 13, latitude: 14.8050, longitude: 120.9230 },
+  { pointNumber: 14, latitude: 14.8100, longitude: 120.9170 },
+  { pointNumber: 15, latitude: 14.8360, longitude: 120.9100 },
+  { pointNumber: 16, latitude: 14.8420, longitude: 120.9050 },
+  { pointNumber: 17, latitude: 14.8480, longitude: 120.9000 },
+  { pointNumber: 18, latitude: 14.8530, longitude: 120.8950 },
+  { pointNumber: 19, latitude: 14.8580, longitude: 120.8900 },
+  { pointNumber: 20, latitude: 14.8440, longitude: 120.8830 },
+  { pointNumber: 21, latitude: 14.8500, longitude: 120.8780 },
+  { pointNumber: 22, latitude: 14.8560, longitude: 120.8730 },
+  { pointNumber: 23, latitude: 14.8600, longitude: 120.8680 },
+  { pointNumber: 24, latitude: 14.8630, longitude: 120.8630 },
+  { pointNumber: 25, latitude: 14.8660, longitude: 120.8580 },
+  { pointNumber: 26, latitude: 14.8700, longitude: 120.8530 },
+  { pointNumber: 27, latitude: 14.8730, longitude: 120.8480 },
+  { pointNumber: 28, latitude: 14.8780, longitude: 120.8400 },
+  { pointNumber: 29, latitude: 14.8860, longitude: 120.8300 },
+  { pointNumber: 30, latitude: 14.8930, longitude: 120.8220 },
+  { pointNumber: 31, latitude: 14.9000, longitude: 120.8150 },
+  { pointNumber: 32, latitude: 14.9070, longitude: 120.8080 },
+  { pointNumber: 33, latitude: 14.9140, longitude: 120.8020 },
+  { pointNumber: 34, latitude: 14.9210, longitude: 120.7960 },
+];
+
+// ─── Public API ──────────────────────────────────────────────────────────────
+
+export function calculateFare(
+  fromPointNumber: number,
+  toPointNumber: number,
+  commuterType: CommuterType
+): FareCalculation {
+  const fareResult = getFareByPoints(fromPointNumber, toPointNumber);
+
+  const hasDiscount = DISCOUNTED_TYPES.has(commuterType);
+
+  const baseAmount = hasDiscount ? fareResult.discountedFare : fareResult.regularFare;
+  const discountAmount = hasDiscount
+    ? Math.round((fareResult.regularFare - fareResult.discountedFare) * 100) / 100
+    : 0;
+
+  return {
+    fareResult,
+    finalFare: Math.round(baseAmount * 100) / 100,
+    hasDiscount,
+    discountAmount,
+  };
+}
+
+export function getNearestPoint(
+  latitude: number,
+  longitude: number
+): FarePoint {
+  let nearestPoint: FarePoint = initialFarePoints[0];
+  let minDistance = Infinity;
+
+  for (const coord of POINT_COORDINATES) {
+    const dist = haversineMeters(latitude, longitude, coord.latitude, coord.longitude);
+    if (dist < minDistance) {
+      minDistance = dist;
+      const farePoint = initialFarePoints.find(
+        (p) => p.pointNumber === coord.pointNumber
+      );
+      if (farePoint) {
+        nearestPoint = farePoint;
+      }
+    }
+  }
+
+  return nearestPoint;
+}
+
+export type { FarePoint, FareResult };
+
+// ─── Utility Exports (used by commuter UI components) ───────────────────────
+
+/** Format a number as Philippine peso string */
+export { formatCurrency } from "../../utils/format";
+
+/** Get the display label for a commuter type */
+export { getCommuterTypeLabel } from "@/types/user";
+
+========== /tmp/chatco-repo/lib/shared/fare/fare-matrix-data.ts ==========
+// lib/fare-matrix-data.ts
+// Single source of truth for the CHATCO fare matrix.
+// 34 operational point areas along the Calumpit–Meycauayan jeepney route.
+//
+// FARE LOGIC:
+//   • Barangay-based fare progression model
+//   • The first few barangays traveled are covered by the BASE FARE
+//   • Every succeeding barangay beyond the base zone is one fare increment
+//   • Applies regardless of route direction
+//   • Bold items = BARANGAYS (fare zones); indented items = landmarks within the zone
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+export interface FarePoint {
+  /** Sequential point number 1–34 along the route */
+  pointNumber: number;
+  /** Display name (includes landmark / barangay info) */
+  name: string;
+  /** Regular (full) fare – cumulative from Calumpit terminal (Point 34) */
+  regularFare: number;
+  /** Discounted fare (student / senior / PWD) – cumulative from Calumpit terminal */
+  discountedFare: number;
+  /** Landmark reference points within the same fare zone (same fare) */
+  subStops?: string[];
+}
+
+export interface FareResult {
+  fromPoint: FarePoint;
+  toPoint: FarePoint;
+  /** Number of point-area intervals between the two points */
+  barangaysTraveled: number;
+  /** Computed regular fare for this pair */
+  regularFare: number;
+  /** Computed discounted fare for this pair */
+  discountedFare: number;
+  /** Base fare that covers the first zone */
+  baseFare: number;
+  /** Per-barangay increment after the base zone */
+  succeedingFare: number;
+  /** How many succeeding increments applied */
+  succeedingCount: number;
+}
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+/** Minimum regular fare (within base-fare zone — first 4 barangays) */
+const MINIMUM_REGULAR_FARE = 18.0;
+/** Minimum discounted fare (within base-fare zone — first 4 barangays) */
+const MINIMUM_DISCOUNTED_FARE = 14.4;
+
+/**
+ * The base fare (₱18) covers the first 4 barangays traveled.
+ * Every succeeding barangay beyond the 4th is one fare increment (₱2).
+ * Direction does not matter — same logic applies.
+ */
+const BASE_ZONE_INTERVALS = 4;
+
+/** Per-barangay fare increment after the base zone */
+const SUCCEEDING_FARE_INCREMENT = 2.0;
+
+// ─── 34 Operational Point Areas ──────────────────────────────────────────────
+
+export const initialFarePoints: FarePoint[] = [
+  {
+    pointNumber: 1,
+    name: "Star Oil / Puregold Brgy Ba",
+    regularFare: 78.5,
+    discountedFare: 62.8,
+  },
+  {
+    pointNumber: 2,
+    name: "Puregold Jr Aliw / Meycauayan",
+    regularFare: 76.5,
+    discountedFare: 61.2,
+  },
+  {
+    pointNumber: 3,
+    name: "Pandayan",
+    regularFare: 74.25,
+    discountedFare: 59.4,
+  },
+  {
+    pointNumber: 4,
+    name: "SM Marilao",
+    regularFare: 72.0,
+    discountedFare: 57.6,
+  },
+  {
+    pointNumber: 5,
+    name: "Marilao Public Market",
+    regularFare: 69.75,
+    discountedFare: 55.8,
+  },
+  {
+    pointNumber: 6,
+    name: "Toyota Marilao / Abangan",
+    regularFare: 67.5,
+    discountedFare: 54.0,
+  },
+  {
+    pointNumber: 7,
+    name: "Lolomboy / Bocaue Specialist",
+    regularFare: 65.5,
+    discountedFare: 52.4,
+  },
+  {
+    pointNumber: 8,
+    name: "Petron Brgy Bonlo Bocaue",
+    regularFare: 63.25,
+    discountedFare: 50.6,
+  },
+  {
+    pointNumber: 9,
+    name: "BDO Binang First Bocaue",
+    regularFare: 61.0,
+    discountedFare: 48.8,
+  },
+  {
+    pointNumber: 10,
+    name: "Bocaue Public Market",
+    regularFare: 58.75,
+    discountedFare: 47.0,
+  },
+  {
+    pointNumber: 11,
+    name: "Intercity Gate 1",
+    regularFare: 56.75,
+    discountedFare: 45.4,
+  },
+  {
+    pointNumber: 12,
+    name: "Inter City Gate 2 Balagtas",
+    regularFare: 54.5,
+    discountedFare: 43.6,
+  },
+  {
+    pointNumber: 13,
+    name: "Balagtas Municipal Hall",
+    regularFare: 52.25,
+    discountedFare: 41.8,
+  },
+  {
+    pointNumber: 14,
+    name: "STI Colleges Brgy Burol 1st",
+    regularFare: 50.0,
+    discountedFare: 40.0,
+  },
+  {
+    pointNumber: 15,
+    name: "Tuktukan Gas Station Guiguinto",
+    regularFare: 47.75,
+    discountedFare: 38.2,
+  },
+  {
+    pointNumber: 16,
+    name: "Guiguinto Cruz / Puregold G",
+    regularFare: 45.75,
+    discountedFare: 36.6,
+  },
+  {
+    pointNumber: 17,
+    name: "Waltermart Guiguinto",
+    regularFare: 43.5,
+    discountedFare: 34.8,
+  },
+  {
+    pointNumber: 18,
+    name: "TESDA / Estrella",
+    regularFare: 41.25,
+    discountedFare: 33.0,
+  },
+  {
+    pointNumber: 19,
+    name: "Tabang / Tulay Guiguinto",
+    regularFare: 39.0,
+    discountedFare: 31.2,
+  },
+  {
+    pointNumber: 20,
+    name: "Tikay Elementary School Malolos",
+    regularFare: 36.75,
+    discountedFare: 29.4,
+  },
+  {
+    pointNumber: 21,
+    name: "San Pablo Malolos / Crossing",
+    regularFare: 34.75,
+    discountedFare: 27.8,
+  },
+  {
+    pointNumber: 22,
+    name: "Paradise / Marcelo / SNR",
+    regularFare: 32.5,
+    discountedFare: 26.0,
+  },
+  {
+    pointNumber: 23,
+    name: "STI / Dakila",
+    regularFare: 30.25,
+    discountedFare: 24.2,
+  },
+  {
+    pointNumber: 24,
+    name: "Sunlife Malolos Crossing",
+    regularFare: 28.0,
+    discountedFare: 22.4,
+  },
+  {
+    pointNumber: 25,
+    name: "BSU / Kapitolyo",
+    regularFare: 25.75,
+    discountedFare: 20.6,
+  },
+  {
+    pointNumber: 26,
+    name: "Builders Warehouse Alido",
+    regularFare: 23.75,
+    discountedFare: 19.0,
+  },
+  {
+    pointNumber: 27,
+    name: "Central Escolar CEU Malolos",
+    regularFare: 21.5,
+    discountedFare: 17.2,
+  },
+  {
+    pointNumber: 28,
+    name: "MBB Royal Hardware Longos",
+    regularFare: 19.25,
+    discountedFare: 15.4,
+    subStops: ["MBB Royal", "Vista", "Walter", "Heritage"],
+  },
+  {
+    pointNumber: 29,
+    name: "Wilcon Depot / Pio Calumpit",
+    regularFare: 18.0,
+    discountedFare: 14.4,
+  },
+  {
+    pointNumber: 30,
+    name: "San Marcos / Brgy Pio Cruzc",
+    regularFare: 18.0,
+    discountedFare: 14.4,
+  },
+  {
+    pointNumber: 31,
+    name: "Petron Gas Station Bagbag",
+    regularFare: 18.0,
+    discountedFare: 14.4,
+  },
+  {
+    pointNumber: 32,
+    name: "Labangan Bridge Calumpit",
+    regularFare: 18.0,
+    discountedFare: 14.4,
+  },
+  {
+    pointNumber: 33,
+    name: "Calumpit Crossing Jollibee",
+    regularFare: 18.0,
+    discountedFare: 14.4,
+  },
+  {
+    pointNumber: 34,
+    name: "JEDS Island Resort",
+    regularFare: 18.0,
+    discountedFare: 14.4,
+  },
+];
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function findPoint(pointNumber: number): FarePoint | undefined {
+  return initialFarePoints.find((p) => p.pointNumber === pointNumber);
+}
+
+export function getFareByPoints(
+  fromPointNumber: number,
+  toPointNumber: number
+): FareResult {
+  const fromPoint = findPoint(fromPointNumber);
+  const toPoint = findPoint(toPointNumber);
+
+  if (!fromPoint || !toPoint) {
+    throw new Error(
+      `Invalid point number: from=${fromPointNumber}, to=${toPointNumber}. ` +
+        `Valid range is 1–${initialFarePoints.length}.`
+    );
+  }
+
+  const barangaysTraveled = Math.abs(fromPointNumber - toPointNumber);
+
+  if (barangaysTraveled === 0) {
+    return {
+      fromPoint,
+      toPoint,
+      barangaysTraveled: 0,
+      regularFare: MINIMUM_REGULAR_FARE,
+      discountedFare: MINIMUM_DISCOUNTED_FARE,
+      baseFare: MINIMUM_REGULAR_FARE,
+      succeedingFare: SUCCEEDING_FARE_INCREMENT,
+      succeedingCount: 0,
+    };
+  }
+
+  const rawRegularFare = Math.abs(fromPoint.regularFare - toPoint.regularFare);
+  const rawDiscountedFare = Math.abs(
+    fromPoint.discountedFare - toPoint.discountedFare
+  );
+
+  const regularFare = Math.max(rawRegularFare, MINIMUM_REGULAR_FARE);
+  const discountedFare = Math.max(rawDiscountedFare, MINIMUM_DISCOUNTED_FARE);
+
+  const succeedingCount = Math.max(0, barangaysTraveled - BASE_ZONE_INTERVALS);
+
+  return {
+    fromPoint,
+    toPoint,
+    barangaysTraveled,
+    regularFare: Math.round(regularFare * 100) / 100,
+    discountedFare: Math.round(discountedFare * 100) / 100,
+    baseFare: MINIMUM_REGULAR_FARE,
+    succeedingFare: SUCCEEDING_FARE_INCREMENT,
+    succeedingCount,
+  };
+}
+
+// Single source of truth for CHATCO fare computation
+// Based on official CHATCO TSC fare matrix (Calumpit–Meycauayan route)
+//
+// OPERATIONAL LOGIC:
+// - BOLD items in the fare matrix = BARANGAYS (operational fare zones)
+// - Indented items under each barangay = landmarks, establishments, terminals,
+//   pickup points, or key locations within that barangay
+// - Fare computation is NOT based on exact GPS distance or unrestricted
+//   point-to-point map calculation
+// - The system follows a BARANGAY-BASED FARE PROGRESSION MODEL:
+//   * The first four (4) barangays traveled are covered by the base fare
+//   * Every succeeding barangay after the fourth is treated as one (1)
+//     succeeding kilometer or fare increment
+//   * This applies regardless of route direction or starting point
+//
+// FARE LOOKUP METHOD:
+// The fare between any two barangays depends ONLY on the NUMBER of barangays
+// traversed (not on which specific barangays). A lookup table maps the
+// barangay count to the actual fare amount, derived directly from the
+// cooperative's official fare matrix.
+
+export interface PointArea {
+  pointNumber: number;
+  code: string;
+  name: string; // Barangay name (the bold text in the fare matrix)
+  landmarks: string[]; // Landmarks/establishments within this barangay
+  regularFare: number; // Fare from Calumpit terminal (regular)
+  discountedFare: number; // Fare from Calumpit terminal (student/senior/PWD)
+  coordinates: { lat: number; lng: number };
+}
+
+/**
+ * 33 operational barangays along the Calumpit → Meycauayan route.
+ *
+ * Fares shown are FROM the Calumpit terminal TO that barangay.
+ * Regular fare = full price. Discounted = Student / Senior / PWD.
+ *
+ * Each barangay represents a FARE ZONE. The landmarks listed under each
+ * barangay are reference points belonging to that fare zone — they are
+ * NOT separate fare points. Conductors manually select the operational
+ * barangay/zone during fare processing.
+ */
+export const FARE_MATRIX: PointArea[] = [
+  {
+    pointNumber: 1,
+    code: "CMLPT",
+    name: "Calumpit",
+    landmarks: ["Gatbuca", "Crossing", "Caltex"],
+    regularFare: 15.0,
+    discountedFare: 12.0,
+    coordinates: { lat: 14.9260, lng: 120.7680 },
+  },
+  {
+    pointNumber: 2,
+    code: "CI",
+    name: "C.I. (Colegio de Calumpit)",
+    landmarks: ["ASM"],
+    regularFare: 15.0,
+    discountedFare: 12.0,
+    coordinates: { lat: 14.9240, lng: 120.7710 },
+  },
+  {
+    pointNumber: 3,
+    code: "BAGBG",
+    name: "Bagbag",
+    landmarks: ["UPPC", "Petron", "Xebron", "Phoenix"],
+    regularFare: 15.0,
+    discountedFare: 12.0,
+    coordinates: { lat: 14.9200, lng: 120.7740 },
+  },
+  {
+    pointNumber: 4,
+    code: "SMARC",
+    name: "San Marcos",
+    landmarks: ["PEO", "Lares", "Dream Oil"],
+    regularFare: 15.0,
+    discountedFare: 12.0,
+    coordinates: { lat: 14.9140, lng: 120.7780 },
+  },
+  {
+    pointNumber: 5,
+    code: "BORNE",
+    name: "Borneo",
+    landmarks: ["Gardenville", "Metropolis", "Lexber", "McArthur"],
+    regularFare: 15.0,
+    discountedFare: 12.0,
+    coordinates: { lat: 14.9070, lng: 120.7820 },
+  },
+  {
+    pointNumber: 6,
+    code: "LONGS",
+    name: "Longos",
+    landmarks: ["MBB Royal", "Vista", "Walter", "Heritage"],
+    regularFare: 16.25,
+    discountedFare: 13.0,
+    coordinates: { lat: 14.8930, lng: 120.7910 },
+  },
+  {
+    pointNumber: 7,
+    code: "CEU",
+    name: "CEU",
+    landmarks: ["South", "Grand Royal"],
+    regularFare: 18.5,
+    discountedFare: 14.75,
+    coordinates: { lat: 14.8860, lng: 120.7970 },
+  },
+  {
+    pointNumber: 8,
+    code: "BLDRS",
+    name: "Builders",
+    landmarks: ["BPC", "Alido", "City Hall", "Pure Gold"],
+    regularFare: 20.75,
+    discountedFare: 16.5,
+    coordinates: { lat: 14.8780, lng: 120.8040 },
+  },
+  {
+    pointNumber: 9,
+    code: "BSU",
+    name: "BSU",
+    landmarks: ["Xentromall", "Graceland", "Kapitolyo"],
+    regularFare: 22.75,
+    discountedFare: 18.25,
+    coordinates: { lat: 14.8700, lng: 120.8130 },
+  },
+  {
+    pointNumber: 10,
+    code: "CROML",
+    name: "Crossing Malolos",
+    landmarks: ["Pag-IBIG", "Robinsons", "Grand Town", "Landbank"],
+    regularFare: 25.0,
+    discountedFare: 20.0,
+    coordinates: { lat: 14.8620, lng: 120.8210 },
+  },
+  {
+    pointNumber: 11,
+    code: "STIML",
+    name: "S.T.I.",
+    landmarks: ["Rapids", "Gramman", "Dakila"],
+    regularFare: 27.25,
+    discountedFare: 21.75,
+    coordinates: { lat: 14.8540, lng: 120.8300 },
+  },
+  {
+    pointNumber: 12,
+    code: "MARCL",
+    name: "Marcelo",
+    landmarks: ["Paradise", "S&R", "Madera"],
+    regularFare: 29.5,
+    discountedFare: 23.5,
+    coordinates: { lat: 14.8460, lng: 120.8400 },
+  },

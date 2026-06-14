@@ -1,0 +1,925 @@
+     1→// lib/fare-matrix-data.ts
+     2→// Single source of truth for the CHATCO fare matrix.
+     3→// 34 operational point areas along the Calumpit–Meycauayan jeepney route.
+     4→//
+     5→// FARE LOGIC:
+     6→//   • Barangay-based fare progression model
+     7→//   • The first few barangays traveled are covered by the BASE FARE
+     8→//   • Every succeeding barangay beyond the base zone is one fare increment
+     9→//   • Applies regardless of route direction
+    10→//   • Bold items = BARANGAYS (fare zones); indented items = landmarks within the zone
+    11→
+    12→// ─── Types ───────────────────────────────────────────────────────────────────
+    13→
+    14→export interface FarePoint {
+    15→  /** Sequential point number 1–34 along the route */
+    16→  pointNumber: number;
+    17→  /** Display name (includes landmark / barangay info) */
+    18→  name: string;
+    19→  /** Regular (full) fare – cumulative from Calumpit terminal (Point 34) */
+    20→  regularFare: number;
+    21→  /** Discounted fare (student / senior / PWD) – cumulative from Calumpit terminal */
+    22→  discountedFare: number;
+    23→  /** Landmark reference points within the same fare zone (same fare) */
+    24→  subStops?: string[];
+    25→}
+    26→
+    27→export interface FareResult {
+    28→  fromPoint: FarePoint;
+    29→  toPoint: FarePoint;
+    30→  /** Number of point-area intervals between the two points */
+    31→  barangaysTraveled: number;
+    32→  /** Computed regular fare for this pair */
+    33→  regularFare: number;
+    34→  /** Computed discounted fare for this pair */
+    35→  discountedFare: number;
+    36→  /** Base fare that covers the first zone */
+    37→  baseFare: number;
+    38→  /** Per-barangay increment after the base zone */
+    39→  succeedingFare: number;
+    40→  /** How many succeeding increments applied */
+    41→  succeedingCount: number;
+    42→}
+    43→
+    44→// ─── Constants ───────────────────────────────────────────────────────────────
+    45→
+    46→/** Minimum regular fare (within base-fare zone — first 4 barangays) */
+    47→const MINIMUM_REGULAR_FARE = 18.0;
+    48→/** Minimum discounted fare (within base-fare zone — first 4 barangays) */
+    49→const MINIMUM_DISCOUNTED_FARE = 14.4;
+    50→
+    51→/**
+    52→ * The base fare (₱18) covers the first 4 barangays traveled.
+    53→ * Every succeeding barangay beyond the 4th is one fare increment (₱2).
+    54→ * Direction does not matter — same logic applies.
+    55→ */
+    56→const BASE_ZONE_INTERVALS = 4;
+    57→
+    58→/** Per-barangay fare increment after the base zone */
+    59→const SUCCEEDING_FARE_INCREMENT = 2.0;
+    60→
+    61→// ─── 34 Operational Point Areas ──────────────────────────────────────────────
+    62→
+    63→export const initialFarePoints: FarePoint[] = [
+    64→  {
+    65→    pointNumber: 1,
+    66→    name: "Star Oil / Puregold Brgy Ba",
+    67→    regularFare: 78.5,
+    68→    discountedFare: 62.8,
+    69→  },
+    70→  {
+    71→    pointNumber: 2,
+    72→    name: "Puregold Jr Aliw / Meycauayan",
+    73→    regularFare: 76.5,
+    74→    discountedFare: 61.2,
+    75→  },
+    76→  {
+    77→    pointNumber: 3,
+    78→    name: "Pandayan",
+    79→    regularFare: 74.25,
+    80→    discountedFare: 59.4,
+    81→  },
+    82→  {
+    83→    pointNumber: 4,
+    84→    name: "SM Marilao",
+    85→    regularFare: 72.0,
+    86→    discountedFare: 57.6,
+    87→  },
+    88→  {
+    89→    pointNumber: 5,
+    90→    name: "Marilao Public Market",
+    91→    regularFare: 69.75,
+    92→    discountedFare: 55.8,
+    93→  },
+    94→  {
+    95→    pointNumber: 6,
+    96→    name: "Toyota Marilao / Abangan",
+    97→    regularFare: 67.5,
+    98→    discountedFare: 54.0,
+    99→  },
+   100→  {
+   101→    pointNumber: 7,
+   102→    name: "Lolomboy / Bocaue Specialist",
+   103→    regularFare: 65.5,
+   104→    discountedFare: 52.4,
+   105→  },
+   106→  {
+   107→    pointNumber: 8,
+   108→    name: "Petron Brgy Bonlo Bocaue",
+   109→    regularFare: 63.25,
+   110→    discountedFare: 50.6,
+   111→  },
+   112→  {
+   113→    pointNumber: 9,
+   114→    name: "BDO Binang First Bocaue",
+   115→    regularFare: 61.0,
+   116→    discountedFare: 48.8,
+   117→  },
+   118→  {
+   119→    pointNumber: 10,
+   120→    name: "Bocaue Public Market",
+   121→    regularFare: 58.75,
+   122→    discountedFare: 47.0,
+   123→  },
+   124→  {
+   125→    pointNumber: 11,
+   126→    name: "Intercity Gate 1",
+   127→    regularFare: 56.75,
+   128→    discountedFare: 45.4,
+   129→  },
+   130→  {
+   131→    pointNumber: 12,
+   132→    name: "Inter City Gate 2 Balagtas",
+   133→    regularFare: 54.5,
+   134→    discountedFare: 43.6,
+   135→  },
+   136→  {
+   137→    pointNumber: 13,
+   138→    name: "Balagtas Municipal Hall",
+   139→    regularFare: 52.25,
+   140→    discountedFare: 41.8,
+   141→  },
+   142→  {
+   143→    pointNumber: 14,
+   144→    name: "STI Colleges Brgy Burol 1st",
+   145→    regularFare: 50.0,
+   146→    discountedFare: 40.0,
+   147→  },
+   148→  {
+   149→    pointNumber: 15,
+   150→    name: "Tuktukan Gas Station Guiguinto",
+   151→    regularFare: 47.75,
+   152→    discountedFare: 38.2,
+   153→  },
+   154→  {
+   155→    pointNumber: 16,
+   156→    name: "Guiguinto Cruz / Puregold G",
+   157→    regularFare: 45.75,
+   158→    discountedFare: 36.6,
+   159→  },
+   160→  {
+   161→    pointNumber: 17,
+   162→    name: "Waltermart Guiguinto",
+   163→    regularFare: 43.5,
+   164→    discountedFare: 34.8,
+   165→  },
+   166→  {
+   167→    pointNumber: 18,
+   168→    name: "TESDA / Estrella",
+   169→    regularFare: 41.25,
+   170→    discountedFare: 33.0,
+   171→  },
+   172→  {
+   173→    pointNumber: 19,
+   174→    name: "Tabang / Tulay Guiguinto",
+   175→    regularFare: 39.0,
+   176→    discountedFare: 31.2,
+   177→  },
+   178→  {
+   179→    pointNumber: 20,
+   180→    name: "Tikay Elementary School Malolos",
+   181→    regularFare: 36.75,
+   182→    discountedFare: 29.4,
+   183→  },
+   184→  {
+   185→    pointNumber: 21,
+   186→    name: "San Pablo Malolos / Crossing",
+   187→    regularFare: 34.75,
+   188→    discountedFare: 27.8,
+   189→  },
+   190→  {
+   191→    pointNumber: 22,
+   192→    name: "Paradise / Marcelo / SNR",
+   193→    regularFare: 32.5,
+   194→    discountedFare: 26.0,
+   195→  },
+   196→  {
+   197→    pointNumber: 23,
+   198→    name: "STI / Dakila",
+   199→    regularFare: 30.25,
+   200→    discountedFare: 24.2,
+   201→  },
+   202→  {
+   203→    pointNumber: 24,
+   204→    name: "Sunlife Malolos Crossing",
+   205→    regularFare: 28.0,
+   206→    discountedFare: 22.4,
+   207→  },
+   208→  {
+   209→    pointNumber: 25,
+   210→    name: "BSU / Kapitolyo",
+   211→    regularFare: 25.75,
+   212→    discountedFare: 20.6,
+   213→  },
+   214→  {
+   215→    pointNumber: 26,
+   216→    name: "Builders Warehouse Alido",
+   217→    regularFare: 23.75,
+   218→    discountedFare: 19.0,
+   219→  },
+   220→  {
+   221→    pointNumber: 27,
+   222→    name: "Central Escolar CEU Malolos",
+   223→    regularFare: 21.5,
+   224→    discountedFare: 17.2,
+   225→  },
+   226→  {
+   227→    pointNumber: 28,
+   228→    name: "MBB Royal Hardware Longos",
+   229→    regularFare: 19.25,
+   230→    discountedFare: 15.4,
+   231→    subStops: ["MBB Royal", "Vista", "Walter", "Heritage"],
+   232→  },
+   233→  {
+   234→    pointNumber: 29,
+   235→    name: "Wilcon Depot / Pio Calumpit",
+   236→    regularFare: 18.0,
+   237→    discountedFare: 14.4,
+   238→  },
+   239→  {
+   240→    pointNumber: 30,
+   241→    name: "San Marcos / Brgy Pio Cruzc",
+   242→    regularFare: 18.0,
+   243→    discountedFare: 14.4,
+   244→  },
+   245→  {
+   246→    pointNumber: 31,
+   247→    name: "Petron Gas Station Bagbag",
+   248→    regularFare: 18.0,
+   249→    discountedFare: 14.4,
+   250→  },
+   251→  {
+   252→    pointNumber: 32,
+   253→    name: "Labangan Bridge Calumpit",
+   254→    regularFare: 18.0,
+   255→    discountedFare: 14.4,
+   256→  },
+   257→  {
+   258→    pointNumber: 33,
+   259→    name: "Calumpit Crossing Jollibee",
+   260→    regularFare: 18.0,
+   261→    discountedFare: 14.4,
+   262→  },
+   263→  {
+   264→    pointNumber: 34,
+   265→    name: "JEDS Island Resort",
+   266→    regularFare: 18.0,
+   267→    discountedFare: 14.4,
+   268→  },
+   269→];
+   270→
+   271→// ─── Helpers ─────────────────────────────────────────────────────────────────
+   272→
+   273→function findPoint(pointNumber: number): FarePoint | undefined {
+   274→  return initialFarePoints.find((p) => p.pointNumber === pointNumber);
+   275→}
+   276→
+   277→export function getFareByPoints(
+   278→  fromPointNumber: number,
+   279→  toPointNumber: number
+   280→): FareResult {
+   281→  const fromPoint = findPoint(fromPointNumber);
+   282→  const toPoint = findPoint(toPointNumber);
+   283→
+   284→  if (!fromPoint || !toPoint) {
+   285→    throw new Error(
+   286→      `Invalid point number: from=${fromPointNumber}, to=${toPointNumber}. ` +
+   287→        `Valid range is 1–${initialFarePoints.length}.`
+   288→    );
+   289→  }
+   290→
+   291→  const barangaysTraveled = Math.abs(fromPointNumber - toPointNumber);
+   292→
+   293→  if (barangaysTraveled === 0) {
+   294→    return {
+   295→      fromPoint,
+   296→      toPoint,
+   297→      barangaysTraveled: 0,
+   298→      regularFare: MINIMUM_REGULAR_FARE,
+   299→      discountedFare: MINIMUM_DISCOUNTED_FARE,
+   300→      baseFare: MINIMUM_REGULAR_FARE,
+   301→      succeedingFare: SUCCEEDING_FARE_INCREMENT,
+   302→      succeedingCount: 0,
+   303→    };
+   304→  }
+   305→
+   306→  const rawRegularFare = Math.abs(fromPoint.regularFare - toPoint.regularFare);
+   307→  const rawDiscountedFare = Math.abs(
+   308→    fromPoint.discountedFare - toPoint.discountedFare
+   309→  );
+   310→
+   311→  const regularFare = Math.max(rawRegularFare, MINIMUM_REGULAR_FARE);
+   312→  const discountedFare = Math.max(rawDiscountedFare, MINIMUM_DISCOUNTED_FARE);
+   313→
+   314→  const succeedingCount = Math.max(0, barangaysTraveled - BASE_ZONE_INTERVALS);
+   315→
+   316→  return {
+   317→    fromPoint,
+   318→    toPoint,
+   319→    barangaysTraveled,
+   320→    regularFare: Math.round(regularFare * 100) / 100,
+   321→    discountedFare: Math.round(discountedFare * 100) / 100,
+   322→    baseFare: MINIMUM_REGULAR_FARE,
+   323→    succeedingFare: SUCCEEDING_FARE_INCREMENT,
+   324→    succeedingCount,
+   325→  };
+   326→}
+   327→
+   328→// Single source of truth for CHATCO fare computation
+   329→// Based on official CHATCO TSC fare matrix (Calumpit–Meycauayan route)
+   330→//
+   331→// OPERATIONAL LOGIC:
+   332→// - BOLD items in the fare matrix = BARANGAYS (operational fare zones)
+   333→// - Indented items under each barangay = landmarks, establishments, terminals,
+   334→//   pickup points, or key locations within that barangay
+   335→// - Fare computation is NOT based on exact GPS distance or unrestricted
+   336→//   point-to-point map calculation
+   337→// - The system follows a BARANGAY-BASED FARE PROGRESSION MODEL:
+   338→//   * The first four (4) barangays traveled are covered by the base fare
+   339→//   * Every succeeding barangay after the fourth is treated as one (1)
+   340→//     succeeding kilometer or fare increment
+   341→//   * This applies regardless of route direction or starting point
+   342→//
+   343→// FARE LOOKUP METHOD:
+   344→// The fare between any two barangays depends ONLY on the NUMBER of barangays
+   345→// traversed (not on which specific barangays). A lookup table maps the
+   346→// barangay count to the actual fare amount, derived directly from the
+   347→// cooperative's official fare matrix.
+   348→
+   349→export interface PointArea {
+   350→  pointNumber: number;
+   351→  code: string;
+   352→  name: string; // Barangay name (the bold text in the fare matrix)
+   353→  landmarks: string[]; // Landmarks/establishments within this barangay
+   354→  regularFare: number; // Fare from Calumpit terminal (regular)
+   355→  discountedFare: number; // Fare from Calumpit terminal (student/senior/PWD)
+   356→  coordinates: { lat: number; lng: number };
+   357→}
+   358→
+   359→/**
+   360→ * 33 operational barangays along the Calumpit → Meycauayan route.
+   361→ *
+   362→ * Fares shown are FROM the Calumpit terminal TO that barangay.
+   363→ * Regular fare = full price. Discounted = Student / Senior / PWD.
+   364→ *
+   365→ * Each barangay represents a FARE ZONE. The landmarks listed under each
+   366→ * barangay are reference points belonging to that fare zone — they are
+   367→ * NOT separate fare points. Conductors manually select the operational
+   368→ * barangay/zone during fare processing.
+   369→ */
+   370→export const FARE_MATRIX: PointArea[] = [
+   371→  {
+   372→    pointNumber: 1,
+   373→    code: "CMLPT",
+   374→    name: "Calumpit",
+   375→    landmarks: ["Gatbuca", "Crossing", "Caltex"],
+   376→    regularFare: 15.0,
+   377→    discountedFare: 12.0,
+   378→    coordinates: { lat: 14.9260, lng: 120.7680 },
+   379→  },
+   380→  {
+   381→    pointNumber: 2,
+   382→    code: "CI",
+   383→    name: "C.I. (Colegio de Calumpit)",
+   384→    landmarks: ["ASM"],
+   385→    regularFare: 15.0,
+   386→    discountedFare: 12.0,
+   387→    coordinates: { lat: 14.9240, lng: 120.7710 },
+   388→  },
+   389→  {
+   390→    pointNumber: 3,
+   391→    code: "BAGBG",
+   392→    name: "Bagbag",
+   393→    landmarks: ["UPPC", "Petron", "Xebron", "Phoenix"],
+   394→    regularFare: 15.0,
+   395→    discountedFare: 12.0,
+   396→    coordinates: { lat: 14.9200, lng: 120.7740 },
+   397→  },
+   398→  {
+   399→    pointNumber: 4,
+   400→    code: "SMARC",
+   401→    name: "San Marcos",
+   402→    landmarks: ["PEO", "Lares", "Dream Oil"],
+   403→    regularFare: 15.0,
+   404→    discountedFare: 12.0,
+   405→    coordinates: { lat: 14.9140, lng: 120.7780 },
+   406→  },
+   407→  {
+   408→    pointNumber: 5,
+   409→    code: "BORNE",
+   410→    name: "Borneo",
+   411→    landmarks: ["Gardenville", "Metropolis", "Lexber", "McArthur"],
+   412→    regularFare: 15.0,
+   413→    discountedFare: 12.0,
+   414→    coordinates: { lat: 14.9070, lng: 120.7820 },
+   415→  },
+   416→  {
+   417→    pointNumber: 6,
+   418→    code: "LONGS",
+   419→    name: "Longos",
+   420→    landmarks: ["MBB Royal", "Vista", "Walter", "Heritage"],
+   421→    regularFare: 16.25,
+   422→    discountedFare: 13.0,
+   423→    coordinates: { lat: 14.8930, lng: 120.7910 },
+   424→  },
+   425→  {
+   426→    pointNumber: 7,
+   427→    code: "CEU",
+   428→    name: "CEU",
+   429→    landmarks: ["South", "Grand Royal"],
+   430→    regularFare: 18.5,
+   431→    discountedFare: 14.75,
+   432→    coordinates: { lat: 14.8860, lng: 120.7970 },
+   433→  },
+   434→  {
+   435→    pointNumber: 8,
+   436→    code: "BLDRS",
+   437→    name: "Builders",
+   438→    landmarks: ["BPC", "Alido", "City Hall", "Pure Gold"],
+   439→    regularFare: 20.75,
+   440→    discountedFare: 16.5,
+   441→    coordinates: { lat: 14.8780, lng: 120.8040 },
+   442→  },
+   443→  {
+   444→    pointNumber: 9,
+   445→    code: "BSU",
+   446→    name: "BSU",
+   447→    landmarks: ["Xentromall", "Graceland", "Kapitolyo"],
+   448→    regularFare: 22.75,
+   449→    discountedFare: 18.25,
+   450→    coordinates: { lat: 14.8700, lng: 120.8130 },
+   451→  },
+   452→  {
+   453→    pointNumber: 10,
+   454→    code: "CROML",
+   455→    name: "Crossing Malolos",
+   456→    landmarks: ["Pag-IBIG", "Robinsons", "Grand Town", "Landbank"],
+   457→    regularFare: 25.0,
+   458→    discountedFare: 20.0,
+   459→    coordinates: { lat: 14.8620, lng: 120.8210 },
+   460→  },
+   461→  {
+   462→    pointNumber: 11,
+   463→    code: "STIML",
+   464→    name: "S.T.I.",
+   465→    landmarks: ["Rapids", "Gramman", "Dakila"],
+   466→    regularFare: 27.25,
+   467→    discountedFare: 21.75,
+   468→    coordinates: { lat: 14.8540, lng: 120.8300 },
+   469→  },
+   470→  {
+   471→    pointNumber: 12,
+   472→    code: "MARCL",
+   473→    name: "Marcelo",
+   474→    landmarks: ["Paradise", "S&R", "Madera"],
+   475→    regularFare: 29.5,
+   476→    discountedFare: 23.5,
+   477→    coordinates: { lat: 14.8460, lng: 120.8400 },
+   478→  },
+   479→  {
+   480→    pointNumber: 13,
+   481→    code: "SNPBL",
+   482→    name: "San Pablo",
+   483→    landmarks: ["Ford", "Stoplight", "Kanto Malit", "Pastry"],
+   484→    regularFare: 31.75,
+   485→    discountedFare: 25.25,
+   486→    coordinates: { lat: 14.8380, lng: 120.8510 },
+   487→  },
+   488→  {
+   489→    pointNumber: 14,
+   490→    code: "TIKAY",
+   491→    name: "Tikay",
+   492→    landmarks: ["DPHW", "School", "NFA", "Industrial", "Caltex", "Jollibee"],
+   493→    regularFare: 33.75,
+   494→    discountedFare: 27.0,
+   495→    coordinates: { lat: 14.8300, lng: 120.8620 },
+   496→  },
+   497→  {
+   498→    pointNumber: 15,
+   499→    code: "TABNG",
+   500→    name: "Tabang",
+   501→    landmarks: ["Eurobake", "Tulay", "Tawiran"],
+   502→    regularFare: 36.0,
+   503→    discountedFare: 28.75,
+   504→    coordinates: { lat: 14.8220, lng: 120.8730 },
+   505→  },
+   506→  {
+   507→    pointNumber: 16,
+   508→    code: "TESDA",
+   509→    name: "TESDA",
+   510→    landmarks: ["Junkshop", "LTO Masagana", "Ajinomoto", "Iral", "Estrella", "Mighty"],
+   511→    regularFare: 38.25,
+   512→    discountedFare: 30.5,
+   513→    coordinates: { lat: 14.8140, lng: 120.8830 },
+   514→  },
+   515→  {
+   516→    pointNumber: 17,
+   517→    code: "ILANG",
+   518→    name: "Ilang-Ilang",
+   519→    landmarks: ["Aldea", "Walter", "Church", "Munisipyo", "Agatha Square"],
+   520→    regularFare: 40.5,
+   521→    discountedFare: 32.25,
+   522→    coordinates: { lat: 14.8060, lng: 120.8930 },
+   523→  },
+   524→  {
+   525→    pointNumber: 18,
+   526→    code: "CRUZ",
+   527→    name: "Cruz",
+   528→    landmarks: ["Builders", "Honda", "Buslo", "Unitop", "Divimart"],
+   529→    regularFare: 42.75,
+   530→    discountedFare: 34.25,
+   531→    coordinates: { lat: 14.7980, lng: 120.9030 },
+   532→  },
+   533→  {
+   534→    pointNumber: 19,
+   535→    code: "TUKTK",
+   536→    name: "Tuktukan",
+   537→    landmarks: ["Orovilla", "Brgy Hall", "Patubig", "Russi", "AFA", "San Pablo St", "Wilcon"],
+   538→    regularFare: 44.75,
+   539→    discountedFare: 36.0,
+   540→    coordinates: { lat: 14.7910, lng: 120.9100 },
+   541→  },
+   542→  {
+   543→    pointNumber: 20,
+   544→    code: "SAPRO",
+   545→    name: "SAPRO / STI",
+   546→    landmarks: ["Palmera", "Pascual", "Honda", "Rocka"],
+   547→    regularFare: 47.0,
+   548→    discountedFare: 37.75,
+   549→    coordinates: { lat: 14.7850, lng: 120.9170 },
+   550→  },
+   551→  {
+   552→    pointNumber: 21,
+   553→    code: "BALGT",
+   554→    name: "Balagtas",
+   555→    landmarks: ["Petron/Ultra", "Meralco", "Mariano", "Palengke", "Munisipyo", "San Juan/Sabungan"],
+   556→    regularFare: 49.25,
+   557→    discountedFare: 39.5,
+   558→    coordinates: { lat: 14.7800, lng: 120.9240 },
+   559→  },
+   560→  {
+   561→    pointNumber: 22,
+   562→    code: "GATE2",
+   563→    name: "Enter City (Gate 2)",
+   564→    landmarks: ["Galaxy", "Gate 2"],
+   565→    regularFare: 51.5,
+   566→    discountedFare: 41.25,
+   567→    coordinates: { lat: 14.7750, lng: 120.9310 },
+   568→  },
+   569→  {
+   570→    pointNumber: 23,
+   571→    code: "GATE1",
+   572→    name: "Enter City (Gate 1)",
+   573→    landmarks: ["Cruz sa Wawa", "Gate 1", "BDO", "SSS", "Golden Aub"],
+   574→    regularFare: 53.75,
+   575→    discountedFare: 43.0,
+   576→    coordinates: { lat: 14.7700, lng: 120.9370 },
+   577→  },
+   578→  {
+   579→    pointNumber: 24,
+   580→    code: "WAKAS",
+   581→    name: "Wakas",
+   582→    landmarks: ["Yanga", "Wakas Terminal", "BPI", "Metrobank", "Palengke", "Crossing"],
+   583→    regularFare: 55.75,
+   584→    discountedFare: 44.75,
+   585→    coordinates: { lat: 14.7660, lng: 120.9430 },
+   586→  },
+   587→  {
+   588→    pointNumber: 25,
+   589→    code: "BINNG",
+   590→    name: "Binang",
+   591→    landmarks: ["Sto Nino", "Shell", "Igolot", "BDO", "Puregold", "Tawiran", "JIL"],
+   592→    regularFare: 58.0,
+   593→    discountedFare: 46.5,
+   594→    coordinates: { lat: 14.7610, lng: 120.9490 },
+   595→  },
+   596→  {
+   597→    pointNumber: 26,
+   598→    code: "BONLO",
+   599→    name: "Bonlo",
+   600→    landmarks: ["Barangay Hall", "Petron", "Joners", "McDo"],
+   601→    regularFare: 60.25,
+   602→    discountedFare: 48.25,
+   603→    coordinates: { lat: 14.7570, lng: 120.9540 },
+   604→  },
+   605→  {
+   606→    pointNumber: 27,
+   607→    code: "LOLMB",
+   608→    name: "Lolomboy",
+   609→    landmarks: ["Caltex", "LTO", "Specialist", "Honda"],
+   610→    regularFare: 62.5,
+   611→    discountedFare: 50.0,
+   612→    coordinates: { lat: 14.7530, lng: 120.9580 },
+   613→  },
+   614→  {
+   615→    pointNumber: 28,
+   616→    code: "TOYOT",
+   617→    name: "Toyota / Marilao",
+   618→    landmarks: ["Sabungan", "Socorro", "PDM", "Decca", "Dating Petron"],
+   619→    regularFare: 64.5,
+   620→    discountedFare: 51.75,
+   621→    coordinates: { lat: 14.7490, lng: 120.9630 },
+   622→  },
+   623→  {
+   624→    pointNumber: 29,
+   625→    code: "CRMLA",
+   626→    name: "Crossing Marilao",
+   627→    landmarks: ["Ford", "Tulay"],
+   628→    regularFare: 66.75,
+   629→    discountedFare: 53.5,
+   630→    coordinates: { lat: 14.7470, lng: 120.9680 },
+   631→  },
+   632→  {
+   633→    pointNumber: 30,
+   634→    code: "SMMRL",
+   635→    name: "SM Marilao",
+   636→    landmarks: ["Saog", "Lias", "Nazareno", "Medallion"],
+   637→    regularFare: 69.0,
+   638→    discountedFare: 55.25,
+   639→    coordinates: { lat: 14.7450, lng: 120.9740 },
+   640→  },
+   641→  {
+   642→    pointNumber: 31,
+   643→    code: "PNDYN",
+   644→    name: "Pandayan",
+   645→    landmarks: ["C Fuel", "7-Eleven", "Iglesia"],
+   646→    regularFare: 71.25,
+   647→    discountedFare: 57.0,
+   648→    coordinates: { lat: 14.7420, lng: 120.9800 },
+   649→  },
+   650→  {
+   651→    pointNumber: 32,
+   652→    code: "MEYCA",
+   653→    name: "Meycauayan",
+   654→    landmarks: ["City Hall", "Crossing", "MC", "Metrobank"],
+   655→    regularFare: 73.5,
+   656→    discountedFare: 58.75,
+   657→    coordinates: { lat: 14.7390, lng: 120.9860 },
+   658→  },
+   659→  {
+   660→    pointNumber: 33,
+   661→    code: "BANGA",
+   662→    name: "Banga",
+   663→    landmarks: ["STI", "Petron"],
+   664→    regularFare: 75.5,
+   665→    discountedFare: 60.5,
+   666→    coordinates: { lat: 14.7350, lng: 120.9920 },
+   667→  },
+   668→];
+   669→
+   670→// ─── Fare-by-Barangay-Count Lookup ─────────────────────────────────────
+   671→//
+   672→// The fare depends ONLY on how many barangays are traversed, not on which
+   673→// specific barangays. This table maps barangay count → fare.
+   674→// Derived directly from the cooperative's official fare matrix image.
+   675→//
+   676→// Example: Traveling through 6 barangays (e.g., Calumpit → Longos) costs ₱16.25.
+   677→// The same fare applies for any 6-barangay trip (e.g., Borneo → CEU).
+   678→
+   679→const FARE_BY_BARANGAY_COUNT_REGULAR: Record<number, number> = {
+   680→  1: 15.0,
+   681→  2: 15.0,
+   682→  3: 15.0,
+   683→  4: 15.0,
+   684→  5: 15.0,
+   685→  6: 16.25,
+   686→  7: 18.5,
+   687→  8: 20.75,
+   688→  9: 22.75,
+   689→  10: 25.0,
+   690→  11: 27.25,
+   691→  12: 29.5,
+   692→  13: 31.75,
+   693→  14: 33.75,
+   694→  15: 36.0,
+   695→  16: 38.25,
+   696→  17: 40.5,
+   697→  18: 42.75,
+   698→  19: 44.75,
+   699→  20: 47.0,
+   700→  21: 49.25,
+   701→  22: 51.5,
+   702→  23: 53.75,
+   703→  24: 55.75,
+   704→  25: 58.0,
+   705→  26: 60.25,
+   706→  27: 62.5,
+   707→  28: 64.5,
+   708→  29: 66.75,
+   709→  30: 69.0,
+   710→  31: 71.25,
+   711→  32: 73.5,
+   712→  33: 75.5,
+   713→};
+   714→
+   715→const FARE_BY_BARANGAY_COUNT_DISCOUNTED: Record<number, number> = {
+   716→  1: 12.0,
+   717→  2: 12.0,
+   718→  3: 12.0,
+   719→  4: 12.0,
+   720→  5: 12.0,
+   721→  6: 13.0,
+   722→  7: 14.75,
+   723→  8: 16.5,
+   724→  9: 18.25,
+   725→  10: 20.0,
+   726→  11: 21.75,
+   727→  12: 23.5,
+   728→  13: 25.25,
+   729→  14: 27.0,
+   730→  15: 28.75,
+   731→  16: 30.5,
+   732→  17: 32.25,
+   733→  18: 34.25,
+   734→  19: 36.0,
+   735→  20: 37.75,
+   736→  21: 39.5,
+   737→  22: 41.25,
+   738→  23: 43.0,
+   739→  24: 44.75,
+   740→  25: 46.5,
+   741→  26: 48.25,
+   742→  27: 50.0,
+   743→  28: 51.75,
+   744→  29: 53.5,
+   745→  30: 55.25,
+   746→  31: 57.0,
+   747→  32: 58.75,
+   748→  33: 60.5,
+   749→};
+   750→
+   751→// ─── Fare Configuration Constants ──────────────────────────────────────
+   752→
+   753→export const FARE_CONFIG = {
+   754→  /** Base fare covers the first 4 barangays traveled */
+   755→  BASE_BARANGAY_COUNT: 4,
+   756→  /** Regular base fare (PHP) */
+   757→  BASE_FARE_REGULAR: 15.0,
+   758→  /** Discounted base fare (PHP) for Student / Senior / PWD */
+   759→  BASE_FARE_DISCOUNTED: 12.0,
+   760→  /** Approximate succeeding fare per barangay after the 4th (regular) */
+   761→  SUCCEEDING_FARE_REGULAR: 2.25,
+   762→  /** Approximate succeeding fare per barangay after the 4th (discounted) */
+   763→  SUCCEEDING_FARE_DISCOUNTED: 1.75,
+   764→  /** Total number of operational barangays */
+   765→  TOTAL_BARANGAYS: 33,
+   766→} as const;
+   767→
+   768→// ─── Helper Functions ──────────────────────────────────────────────────
+   769→
+   770→/** Get a point area (barangay) by its position number (1–33) */
+   771→export function getPointByNumber(num: number): PointArea | undefined {
+   772→  return FARE_MATRIX.find((p) => p.pointNumber === num);
+   773→}
+   774→
+   775→/** Get a point area (barangay) by its code */
+   776→export function getPointByCode(code: string): PointArea | undefined {
+   777→  return FARE_MATRIX.find((p) => p.code === code);
+   778→}
+   779→
+   780→/**
+   781→ * Calculate fare between any two barangays using the barangay-based
+   782→ * progression model.
+   783→ *
+   784→ * The fare depends ONLY on the number of barangays traversed:
+   785→ *   barangaysTraversed = |destPosition - originPosition| + 1
+   786→ *
+   787→ * This value is then looked up in the official fare table.
+   788→ *
+   789→ * Example:
+   790→ *   Origin: Calumpit (position 1)
+   791→ *   Destination: Longos (position 6)
+   792→ *   Barangays traversed: |6 - 1| + 1 = 6
+   793→ *   Regular fare: ₱16.25 (from FARE_BY_BARANGAY_COUNT table)
+   794→ *
+   795→ * The same fare of ₱16.25 applies for ANY 6-barangay trip regardless
+   796→ * of starting point (e.g., Borneo → CEU is also 6 barangays = ₱16.25).
+   797→ */
+   798→export function getFareBetween(
+   799→  originPosition: number,
+   800→  destinationPosition: number,
+   801→  isDiscounted: boolean
+   802→): number {
+   803→  const origin = getPointByNumber(originPosition);
+   804→  const destination = getPointByNumber(destinationPosition);
+   805→
+   806→  if (!origin || !destination) return 0;
+   807→
+   808→  const barangaysTraversed =
+   809→    Math.abs(destination.pointNumber - origin.pointNumber) + 1;
+   810→
+   811→  const fareTable = isDiscounted
+   812→    ? FARE_BY_BARANGAY_COUNT_DISCOUNTED
+   813→    : FARE_BY_BARANGAY_COUNT_REGULAR;
+   814→
+   815→  return fareTable[barangaysTraversed] ?? (isDiscounted ? 12.0 : 15.0);
+   816→}
+   817→
+   818→/**
+   819→ * Get the number of barangays traversed between two points.
+   820→ */
+   821→export function getBarangaysTraversed(
+   822→  originPosition: number,
+   823→  destinationPosition: number
+   824→): number {
+   825→  return Math.abs(destinationPosition - originPosition) + 1;
+   826→}
+   827→
+   828→/**
+   829→ * Get the fare explanation string for a given trip.
+   830→ * Useful for displaying fare breakdowns in the UI.
+   831→ *
+   832→ * Example output:
+   833→ *   "Base fare covers first 4 barangays + 2 succeeding barangays"
+   834→ *   "Base fare (within first 4 barangays)"
+   835→ */
+   836→export function getFareExplanation(
+   837→  originPosition: number,
+   838→  destinationPosition: number
+   839→): string {
+   840→  const count = getBarangaysTraversed(originPosition, destinationPosition);
+   841→
+   842→  if (count <= FARE_CONFIG.BASE_BARANGAY_COUNT) {
+   843→    return `Base fare (within first ${count} barangay${count > 1 ? "s" : ""})`;
+   844→  }
+   845→
+   846→  const succeeding = count - FARE_CONFIG.BASE_BARANGAY_COUNT;
+   847→  return `Base fare covers first ${FARE_CONFIG.BASE_BARANGAY_COUNT} barangays + ${succeeding} succeeding barangay${succeeding > 1 ? "s" : ""}`;
+   848→}
+   849→
+   850→/**
+   851→ * Find the nearest operational barangay to a given GPS coordinate.
+   852→ * Uses the Haversine formula for accurate distance calculation.
+   853→ */
+   854→export function findNearestPoint(lat: number, lng: number): PointArea {
+   855→  let nearest = FARE_MATRIX[0];
+   856→  let minDistance = Infinity;
+   857→
+   858→  for (const point of FARE_MATRIX) {
+   859→    const distance = haversineDistance(
+   860→      lat,
+   861→      lng,
+   862→      point.coordinates.lat,
+   863→      point.coordinates.lng
+   864→    );
+   865→    if (distance < minDistance) {
+   866→      minDistance = distance;
+   867→      nearest = point;
+   868→    }
+   869→  }
+   870→
+   871→  return nearest;
+   872→}
+   873→
+   874→/**
+   875→ * Search barangays by name or landmark.
+   876→ * Used for the pickup/dropoff selector UI.
+   877→ */
+   878→export function searchPoints(query: string): PointArea[] {
+   879→  const q = query.toLowerCase().trim();
+   880→  if (!q) return FARE_MATRIX;
+   881→
+   882→  return FARE_MATRIX.filter(
+   883→    (p) =>
+   884→      p.name.toLowerCase().includes(q) ||
+   885→      p.code.toLowerCase().includes(q) ||
+   886→      p.landmarks.some((l) => l.toLowerCase().includes(q))
+   887→  );
+   888→}
+   889→
+   890→/**
+   891→ * Get the fare for a specific number of barangays traversed.
+   892→ * Returns null if the count is out of range.
+   893→ */
+   894→export function getFareByBarangayCount(
+   895→  count: number,
+   896→  isDiscounted: boolean
+   897→): number | null {
+   898→  const table = isDiscounted
+   899→    ? FARE_BY_BARANGAY_COUNT_DISCOUNTED
+   900→    : FARE_BY_BARANGAY_COUNT_REGULAR;
+   901→  return table[count] ?? null;
+   902→}
+   903→
+   904→/** Haversine distance in meters between two lat/lng points */
+   905→function haversineDistance(
+   906→  lat1: number,
+   907→  lng1: number,
+   908→  lat2: number,
+   909→  lng2: number
+   910→): number {
+   911→  const R = 6_371_000; // Earth radius in meters
+   912→  const toRad = (deg: number) => (deg * Math.PI) / 180;
+   913→
+   914→  const dLat = toRad(lat2 - lat1);
+   915→  const dLng = toRad(lng2 - lng1);
+   916→
+   917→  const a =
+   918→    Math.sin(dLat / 2) ** 2 +
+   919→    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+   920→
+   921→  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+   922→  return R * c;
+   923→}
+   924→
+   925→

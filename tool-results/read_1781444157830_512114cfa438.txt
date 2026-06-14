@@ -1,0 +1,1502 @@
+     1→
+     2→========== /tmp/chatco-repo/lib/admin/endpoints.ts ==========
+     3→// lib/admin/endpoints.ts
+     4→// Admin-scoped API endpoint registry.
+     5→// Same pattern as lib/conductor/endpoints.ts and lib/commuter/endpoints.ts.
+     6→//
+     7→// Relative paths target Next.js route stubs by default.
+     8→// When migrating to Laravel, update these paths to match the backend contract.
+     9→
+    10→export const ADMIN_API = {
+    11→  dashboard: "/api/admin/dashboard",
+    12→  users: {
+    13→    list: "/api/admin/users",
+    14→    active: "/api/admin/users/active",
+    15→    pending: "/api/admin/users/pending",
+    16→    rejected: "/api/admin/users/rejected",
+    17→    approve: (id: string) => `/api/admin/users/${id}/approve`,
+    18→    reject: (id: string) => `/api/admin/users/${id}/reject`,
+    19→    suspend: (id: string) => `/api/admin/users/${id}/suspend`,
+    20→  },
+    21→  vehicles: {
+    22→    list: "/api/admin/vehicles",
+    23→    create: "/api/admin/vehicles",
+    24→    update: (id: string) => `/api/admin/vehicles/${id}`,
+    25→    delete: (id: string) => `/api/admin/vehicles/${id}`,
+    26→  },
+    27→  personnel: {
+    28→    list: "/api/admin/personnel",
+    29→    create: "/api/admin/personnel",
+    30→    update: (id: string) => `/api/admin/personnel/${id}`,
+    31→    terminate: (id: string) => `/api/admin/personnel/${id}/terminate`,
+    32→  },
+    33→  remittances: {
+    34→    list: "/api/admin/remittances",
+    35→    verify: (id: string) => `/api/admin/remittances/${id}/verify`,
+    36→    flag: (id: string) => `/api/admin/remittances/${id}/flag`,
+    37→  },
+    38→  lostFound: {
+    39→    list: "/api/admin/lost-found",
+    40→    create: "/api/admin/lost-found",
+    41→    update: (id: string) => `/api/admin/lost-found/${id}`,
+    42→  },
+    43→  monitoring: {
+    44→    live: "/api/admin/monitoring/live",
+    45→    sos: "/api/admin/monitoring/sos",
+    46→    resolveSos: (id: string) => `/api/admin/monitoring/sos/${id}/resolve`,
+    47→    overspeed: "/api/admin/monitoring/overspeed",
+    48→    demandZones: "/api/admin/monitoring/demand-zones",
+    49→  },
+    50→  analytics: {
+    51→    summary: "/api/admin/analytics/summary",
+    52→    remittances: "/api/admin/analytics/remittances",
+    53→    paymentUsage: "/api/admin/analytics/payment-usage",
+    54→    pickupPoints: "/api/admin/analytics/pickup-points",
+    55→  },
+    56→  receipts: {
+    57→    list: "/api/admin/receipts",
+    58→  },
+    59→  settings: {
+    60→    fareMatrix: "/api/admin/settings/fare-matrix",
+    61→    financialRules: "/api/admin/settings/financial-rules",
+    62→    safety: "/api/admin/settings/safety",
+    63→    appConfig: "/api/admin/settings/app-config",
+    64→    vouchers: "/api/admin/settings/vouchers",
+    65→    faq: "/api/admin/settings/faq",
+    66→    routes: "/api/admin/settings/routes",
+    67→    notificationTemplates: "/api/admin/settings/notification-templates",
+    68→  },
+    69→} as const;
+    70→
+    71→========== /tmp/chatco-repo/lib/admin/types.ts ==========
+    72→// lib/admin/types.ts
+    73→// Canonical type definitions for the admin service layer.
+    74→// Follows the same pattern as lib/conductor/types.ts and lib/commuter/types.ts.
+    75→//
+    76→// When Laravel backend is integrated, these types represent the API contract.
+    77→
+    78→// ─── Async State Helpers ─────────────────────────────────────────────
+    79→
+    80→export type AsyncStatus = "idle" | "loading" | "success" | "error" | "empty";
+    81→
+    82→export interface AsyncState<T> {
+    83→  status: AsyncStatus;
+    84→  data: T;
+    85→  error: string | null;
+    86→}
+    87→
+    88→export function loadingState<T>(fallback: T): AsyncState<T> {
+    89→  return { status: "loading", data: fallback, error: null };
+    90→}
+    91→
+    92→export function successState<T>(data: T): AsyncState<T> {
+    93→  return { status: "success", data, error: null };
+    94→}
+    95→
+    96→export function errorState<T>(fallback: T, error: string): AsyncState<T> {
+    97→  return { status: "error", data: fallback, error };
+    98→}
+    99→
+   100→export function emptyState<T>(fallback: T): AsyncState<T> {
+   101→  return { status: "empty", data: fallback, error: null };
+   102→}
+   103→
+   104→// ─── Dashboard ───────────────────────────────────────────────────────
+   105→
+   106→export interface AdminStatItem {
+   107→  label: string;
+   108→  value: string;
+   109→  icon: string; // Lucide icon name — resolved at component level
+   110→  color: string;
+   111→  link: string;
+   112→}
+   113→
+   114→export interface AdminDashboardData {
+   115→  quickStats: AdminStatItem[];
+   116→  topPickupPoints: { name: string; val: number }[];
+   117→  paymentTendencies: { gcash: number; cash: number };
+   118→  recentVehicles: { unit: string; driver: string; status: string }[];
+   119→  recentLostFound: { item: string; status: string }[];
+   120→  recentUsers: { name: string; role: string; status: string }[];
+   121→}
+   122→
+   123→// ─── Users ───────────────────────────────────────────────────────────
+   124→
+   125→export interface AdminActiveUser {
+   126→  id: string;
+   127→  name: string;
+   128→  email: string;
+   129→  commuterType: string;
+   130→  accountStatus: "ACTIVE" | "SUSPENDED";
+   131→  verifiedAt: string | null;
+   132→  createdAt: string;
+   133→}
+   134→
+   135→export interface AdminPendingRequest {
+   136→  id: string;
+   137→  name: string;
+   138→  email: string;
+   139→  commuterType: string;
+   140→  idImageUrl: string;
+   141→  submittedAt: string;
+   142→}
+   143→
+   144→export interface AdminRejectedUser {
+   145→  id: string;
+   146→  name: string;
+   147→  email: string;
+   148→  commuterType: string;
+   149→  rejectedAt: string;
+   150→  reason: string;
+   151→}
+   152→
+   153→// ─── Vehicles ────────────────────────────────────────────────────────
+   154→
+   155→export interface AdminVehicle {
+   156→  id: string;
+   157→  unitNumber: string;
+   158→  plateNumber: string;
+   159→  route: string;
+   160→  status: "ACTIVE" | "MAINTENANCE" | "DECOMMISSIONED";
+   161→  driverName: string | null;
+   162→  conductorName: string | null;
+   163→}
+   164→
+   165→export interface AdminPersonnel {
+   166→  id: string;
+   167→  name: string;
+   168→  role: "DRIVER" | "CONDUCTOR";
+   169→  status: "AVAILABLE" | "ON_SHIFT" | "TERMINATED";
+   170→  assignedUnit: string | null;
+   171→  contactNumber: string;
+   172→}
+   173→
+   174→// ─── Remittance ──────────────────────────────────────────────────────
+   175→
+   176→export interface AdminRemittance {
+   177→  id: string;
+   178→  conductorName: string;
+   179→  unitNumber: string;
+   180→  cashTotal: number;
+   181→  gcashTotal: number;
+   182→  voucherTotal: number;
+   183→  grandTotal: number;
+   184→  submittedAt: string;
+   185→  status: "PENDING" | "VERIFIED" | "FLAGGED";
+   186→}
+   187→
+   188→// ─── Lost & Found ────────────────────────────────────────────────────
+   189→
+   190→export interface AdminLostItem {
+   191→  id: string;
+   192→  category: string;
+   193→  description: string;
+   194→  status: "REPORTED" | "UNDER_REVIEW" | "CLAIMED" | "RETURNED";
+   195→  reportedAt: string;
+   196→  imageUrl: string | null;
+   197→  claimsCount: number;
+   198→}
+   199→
+   200→// ─── Monitoring ──────────────────────────────────────────────────────
+   201→
+   202→export interface AdminLiveVehicle {
+   203→  id: string;
+   204→  plateNumber: string;
+   205→  lat: number;
+   206→  lng: number;
+   207→  speed: number;
+   208→  capacityStatus: "Available" | "Standing" | "Full";
+   209→  conductorName: string;
+   210→  driverName: string;
+   211→  isOverspeeding: boolean;
+   212→}
+   213→
+   214→export interface AdminSOSAlert {
+   215→  id: string;
+   216→  commuterName: string;
+   217→  latitude: number;
+   218→  longitude: number;
+   219→  message: string;
+   220→  status: "ACTIVE" | "RESOLVED";
+   221→  createdAt: string;
+   222→}
+   223→
+   224→export interface AdminDemandZone {
+   225→  id: string;
+   226→  name: string;
+   227→  lat: number;
+   228→  lng: number;
+   229→  demandLevel: "LOW" | "MEDIUM" | "HIGH";
+   230→}
+   231→
+   232→// ─── Analytics ───────────────────────────────────────────────────────
+   233→
+   234→export interface AdminRemittanceRecord {
+   235→  id: string;
+   236→  conductorName: string;
+   237→  date: string;
+   238→  cashTotal: number;
+   239→  gcashTotal: number;
+   240→  total: number;
+   241→  status: string;
+   242→}
+   243→
+   244→export interface AdminPaymentUsage {
+   245→  method: string;
+   246→  count: number;
+   247→  percentage: number;
+   248→  total: number;
+   249→}
+   250→
+   251→// ─── Receipts ────────────────────────────────────────────────────────
+   252→
+   253→export interface AdminReceipt {
+   254→  id: string;
+   255→  transactionId: string;
+   256→  passengerName: string;
+   257→  amount: number;
+   258→  paymentMethod: string;
+   259→  date: string;
+   260→  status: string;
+   261→}
+   262→
+   263→// ─── Settings ────────────────────────────────────────────────────────
+   264→
+   265→export interface AdminFareConfig {
+   266→  baseFare: number;
+   267→  perBarangay: number;
+   268→  discountRate: number;
+   269→}
+   270→
+   271→export interface AdminFinancialRules {
+   272→  gcashSplitPercentage: number;
+   273→  operatorShare: number;
+   274→  conductorShare: number;
+   275→  driverShare: number;
+   276→}
+   277→
+   278→export interface AdminSafetyConfig {
+   279→  overspeedThreshold: number;
+   280→  sosAutoNotify: boolean;
+   281→  proximityAlertRadius: number;
+   282→}
+   283→
+   284→export interface AdminAppConfig {
+   285→  maintenanceMode: boolean;
+   286→  maxConcurrentHails: number;
+   287→  autoApproveRegistrations: boolean;
+   288→}
+   289→
+   290→export interface AdminFAQ {
+   291→  id: string;
+   292→  question: string;
+   293→  answer: string;
+   294→  category: string;
+   295→  order: number;
+   296→}
+   297→
+   298→export interface AdminNotificationTemplate {
+   299→  id: string;
+   300→  type: string;
+   301→  title: string;
+   302→  message: string;
+   303→  isActive: boolean;
+   304→}
+   305→
+   306→export interface AdminVoucher {
+   307→  id: string;
+   308→  code: string;
+   309→  discountType: "PERCENTAGE" | "FIXED";
+   310→  discountValue: number;
+   311→  maxUses: number;
+   312→  currentUses: number;
+   313→  expiresAt: string;
+   314→  isActive: boolean;
+   315→}
+   316→
+   317→export interface AdminRoute {
+   318→  id: string;
+   319→  name: string;
+   320→  startPoint: string;
+   321→  endPoint: string;
+   322→  totalDistance: number;
+   323→  isActive: boolean;
+   324→}
+   325→
+   326→========== /tmp/chatco-repo/lib/api/client.ts ==========
+   327→/**
+   328→ * API Client — Centralized fetch wrapper for Laravel + Supabase backend.
+   329→ *
+   330→ * Architecture:
+   331→ * ─────────────────────────────────────────────────────────────
+   332→ * - Laravel serves as the API gateway (sanctum auth, business logic)
+   333→ * - Supabase (Postgres) is the database behind Laravel's Eloquent models
+   334→ * - All API calls go through this client for consistent error handling,
+   335→ *   auth headers, and base URL configuration
+   336→ *
+   337→ * Usage:
+   338→ *   import { api } from "@/lib/api/client";
+   339→ *   const data = await api.get<CommuterProfile>("/api/commuter/profile");
+   340→ *   const result = await api.post<Transaction>("/api/transactions", payload);
+   341→ */
+   342→
+   343→// ─── Configuration ───────────────────────────────────────────────────
+   344→
+   345→const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
+   346→
+   347→interface ApiConfig {
+   348→  baseUrl: string;
+   349→  credentials: RequestCredentials;
+   350→  defaultHeaders: Record<string, string>;
+   351→}
+   352→
+   353→const defaultConfig: ApiConfig = {
+   354→  baseUrl: API_BASE_URL,
+   355→  credentials: "include", // Sanctum uses cookie-based auth
+   356→  defaultHeaders: {
+   357→    "Content-Type": "application/json",
+   358→    Accept: "application/json",
+   359→  },
+   360→};
+   361→
+   362→// ─── Error Types ─────────────────────────────────────────────────────
+   363→
+   364→export class ApiError extends Error {
+   365→  constructor(
+   366→    public status: number,
+   367→    public statusText: string,
+   368→    public body: unknown
+   369→  ) {
+   370→    super(`API Error ${status}: ${statusText}`);
+   371→    this.name = "ApiError";
+   372→  }
+   373→}
+   374→
+   375→export class NetworkError extends Error {
+   376→  constructor(message: string) {
+   377→    super(message);
+   378→    this.name = "NetworkError";
+   379→  }
+   380→}
+   381→
+   382→// ─── Response Types ──────────────────────────────────────────────────
+   383→
+   384→export interface ApiResponse<T> {
+   385→  data: T;
+   386→  meta?: {
+   387→    page: number;
+   388→    perPage: number;
+   389→    total: number;
+   390→    totalPages: number;
+   391→  };
+   392→}
+   393→
+   394→// ─── Client ──────────────────────────────────────────────────────────
+   395→
+   396→class ApiClient {
+   397→  private config: ApiConfig;
+   398→
+   399→  constructor(config: ApiConfig = defaultConfig) {
+   400→    this.config = config;
+   401→  }
+   402→
+   403→  private async request<T>(
+   404→    path: string,
+   405→    options: RequestInit = {}
+   406→  ): Promise<T> {
+   407→    const url = `${this.config.baseUrl}${path}`;
+   408→
+   409→    const headers = {
+   410→      ...this.config.defaultHeaders,
+   411→      ...options.headers,
+   412→    };
+   413→
+   414→    try {
+   415→      const response = await fetch(url, {
+   416→        ...options,
+   417→        headers,
+   418→        credentials: this.config.credentials,
+   419→      });
+   420→
+   421→      // Handle non-JSON responses (e.g., 204 No Content)
+   422→      if (response.status === 204) {
+   423→        return undefined as T;
+   424→      }
+   425→
+   426→      const data = await response.json();
+   427→
+   428→      if (!response.ok) {
+   429→        throw new ApiError(response.status, response.statusText, data);
+   430→      }
+   431→
+   432→      return data as T;
+   433→    } catch (error) {
+   434→      if (error instanceof ApiError) throw error;
+   435→      throw new NetworkError(
+   436→        error instanceof Error ? error.message : "Network request failed"
+   437→      );
+   438→    }
+   439→  }
+   440→
+   441→  async get<T>(path: string, params?: Record<string, string>): Promise<T> {
+   442→    const searchParams = params
+   443→      ? `?${new URLSearchParams(params).toString()}`
+   444→      : "";
+   445→    return this.request<T>(`${path}${searchParams}`);
+   446→  }
+   447→
+   448→  async post<T>(path: string, body?: unknown): Promise<T> {
+   449→    return this.request<T>(path, {
+   450→      method: "POST",
+   451→      body: body ? JSON.stringify(body) : undefined,
+   452→    });
+   453→  }
+   454→
+   455→  async put<T>(path: string, body?: unknown): Promise<T> {
+   456→    return this.request<T>(path, {
+   457→      method: "PUT",
+   458→      body: body ? JSON.stringify(body) : undefined,
+   459→    });
+   460→  }
+   461→
+   462→  async patch<T>(path: string, body?: unknown): Promise<T> {
+   463→    return this.request<T>(path, {
+   464→      method: "PATCH",
+   465→      body: body ? JSON.stringify(body) : undefined,
+   466→    });
+   467→  }
+   468→
+   469→  async delete<T>(path: string): Promise<T> {
+   470→    return this.request<T>(path, { method: "DELETE" });
+   471→  }
+   472→}
+   473→
+   474→// ─── Singleton Export ────────────────────────────────────────────────
+   475→
+   476→export const api = new ApiClient();
+   477→
+   478→// ─── API Route Constants ─────────────────────────────────────────────
+   479→// Centralized route definitions — when Laravel is wired up,
+   480→// these are the endpoints the frontend will call.
+   481→
+   482→export const API_ROUTES = {
+   483→  auth: {
+   484→    login: "/api/auth/login",
+   485→    logout: "/api/auth/logout",
+   486→    user: "/api/user",
+   487→  },
+   488→  commuter: {
+   489→    profile: "/api/commuter/profile",
+   490→    updateProfile: "/api/commuter/profile",
+   491→    changePassword: "/api/commuter/change-password",
+   492→    paymentHistory: "/api/commuter/payments",
+   493→  },
+   494→  conductor: {
+   495→    profile: "/api/conductor/profile",
+   496→    startShift: "/api/conductor/shifts/start",
+   497→    endShift: "/api/conductor/shifts/end",
+   498→    transactions: (shiftId: string) => `/api/conductor/transactions?shift_id=${shiftId}`,
+   499→    saveTransaction: "/api/conductor/transactions",
+   500→    remittance: "/api/conductor/remittances",
+   501→    shiftLogs: "/api/conductor/shift-logs",
+   502→  },
+   503→  admin: {
+   504→    users: "/api/admin/users",
+   505→    vehicles: "/api/admin/vehicles",
+   506→    lostFound: "/api/admin/lost-found",
+   507→    monitoring: "/api/admin/monitoring",
+   508→    analytics: "/api/admin/analytics",
+   509→    settings: "/api/admin/settings",
+   510→  },
+   511→  payments: {
+   512→    create: "/api/payments/create",
+   513→    verify: (id: string) => `/api/payments/verify?id=${id}`,
+   514→  },
+   515→  feedback: {
+   516→    submit: "/api/feedback",
+   517→  },
+   518→  announcements: {
+   519→    list: "/api/announcements",
+   520→    markRead: (id: string) => `/api/announcements/${id}/read`,
+   521→    markAllRead: "/api/announcements/read-all",
+   522→  },
+   523→  lostFound: {
+   524→    list: "/api/lost-found",
+   525→    claim: (id: string) => `/api/lost-found/${id}/claim`,
+   526→  },
+   527→  rewards: {
+   528→    status: "/api/rewards/status",
+   529→    vouchers: "/api/rewards/vouchers",
+   530→  },
+   531→  sos: {
+   532→    alert: "/api/sos/alert",
+   533→  },
+   534→} as const;
+   535→
+   536→========== /tmp/chatco-repo/lib/api/endpoints.ts ==========
+   537→// lib/api/endpoints.ts
+   538→// Centralized API endpoint registry for Chatco.
+   539→// When the Laravel backend is integrated, all URLs are defined here
+   540→// so migrating from mock data to real API calls only requires updating these constants.
+   541→
+   542→export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+   543→
+   544→// ─── Auth ────────────────────────────────────────────────────────────
+   545→export const AUTH = {
+   546→  LOGIN: `${API_BASE_URL}/auth/login`,
+   547→  LOGOUT: `${API_BASE_URL}/auth/logout`,
+   548→  ME: `${API_BASE_URL}/user`, // Laravel Sanctum's /api/user
+   549→  CSRF: `${API_BASE_URL}/sanctum/csrf-cookie`,
+   550→} as const;
+   551→
+   552→// ─── Transactions ────────────────────────────────────────────────────
+   553→export const TRANSACTIONS = {
+   554→  LIST: `${API_BASE_URL}/transactions`,
+   555→  CREATE: `${API_BASE_URL}/transactions`,
+   556→  GET: (id: string) => `${API_BASE_URL}/transactions/${id}`,
+   557→  BY_SHIFT: (shiftId: string) => `${API_BASE_URL}/transactions?shift_id=${shiftId}`,
+   558→} as const;
+   559→
+   560→// ─── Shifts ──────────────────────────────────────────────────────────
+   561→export const SHIFTS = {
+   562→  LIST: `${API_BASE_URL}/shifts`,
+   563→  START: `${API_BASE_URL}/shifts/start`,
+   564→  END: (id: string) => `${API_BASE_URL}/shifts/${id}/end`,
+   565→  ACTIVE: `${API_BASE_URL}/shifts/active`,
+   566→} as const;
+   567→
+   568→// ─── Remittances ─────────────────────────────────────────────────────
+   569→export const REMITTANCES = {
+   570→  LIST: `${API_BASE_URL}/remittances`,
+   571→  CREATE: `${API_BASE_URL}/remittances`,
+   572→  GET: (id: string) => `${API_BASE_URL}/remittances/${id}`,
+   573→} as const;
+   574→
+   575→// ─── Payments (PayMongo) ─────────────────────────────────────────────
+   576→export const PAYMENTS = {
+   577→  CREATE_INTENT: `/api/payments/create`,
+   578→  VERIFY: `/api/payments/verify`,
+   579→  REFUND: `/api/payments/refund`,
+   580→  WEBHOOK: `/api/payments/webhook`,
+   581→} as const;
+   582→
+   583→// ─── QR ──────────────────────────────────────────────────────────────
+   584→export const QR = {
+   585→  SIGN: `/api/qr/sign`,
+   586→  VERIFY: `${API_BASE_URL}/qr/verify`,
+   587→} as const;
+   588→
+   589→// ─── Users ───────────────────────────────────────────────────────────
+   590→export const USERS = {
+   591→  LIST: `${API_BASE_URL}/users`,
+   592→  GET: (id: string) => `${API_BASE_URL}/users/${id}`,
+   593→  PROFILE: (id: string) => `${API_BASE_URL}/users/${id}/profile`,
+   594→} as const;
+   595→
+   596→// ─── Vehicles ────────────────────────────────────────────────────────
+   597→export const VEHICLES = {
+   598→  LIST: `${API_BASE_URL}/vehicles`,
+   599→  GET: (id: string) => `${API_BASE_URL}/vehicles/${id}`,
+   600→  LOCATIONS: `${API_BASE_URL}/vehicles/locations`,
+   601→} as const;
+   602→
+   603→// ─── Lost & Found ────────────────────────────────────────────────────
+   604→export const LOST_FOUND = {
+   605→  LIST: `${API_BASE_URL}/lost-items`,
+   606→  CREATE: `${API_BASE_URL}/lost-items`,
+   607→  GET: (id: string) => `${API_BASE_URL}/lost-items/${id}`,
+   608→  CLAIM: (id: string) => `${API_BASE_URL}/lost-items/${id}/claims`,
+   609→} as const;
+   610→
+   611→// ─── Announcements ───────────────────────────────────────────────────
+   612→export const ANNOUNCEMENTS = {
+   613→  LIST: `${API_BASE_URL}/announcements`,
+   614→  CREATE: `${API_BASE_URL}/announcements`,
+   615→} as const;
+   616→
+   617→// ─── Refunds ─────────────────────────────────────────────────────────
+   618→export const REFUNDS = {
+   619→  LIST: `${API_BASE_URL}/refunds`,
+   620→  CREATE: `${API_BASE_URL}/refunds`,
+   621→  APPROVE: (id: string) => `${API_BASE_URL}/refunds/${id}/approve`,
+   622→  REJECT: (id: string) => `${API_BASE_URL}/refunds/${id}/reject`,
+   623→} as const;
+   624→
+   625→// ─── Commuter-Specific ───────────────────────────────────────────────
+   626→export const COMMUTER = {
+   627→  /** Get the authenticated commuter's profile */
+   628→  PROFILE: `${API_BASE_URL}/commuter/profile`,
+   629→  /** Update commuter profile fields */
+   630→  UPDATE_PROFILE: `${API_BASE_URL}/commuter/profile`,
+   631→  /** Change password */
+   632→  CHANGE_PASSWORD: `${API_BASE_URL}/commuter/change-password`,
+   633→  /** Re-upload ID for discount verification */
+   634→  REUPLOAD_ID: `${API_BASE_URL}/commuter/reupload-id`,
+   635→  /** Get ride history for the commuter */
+   636→  RIDE_HISTORY: `${API_BASE_URL}/commuter/rides`,
+   637→  /** Get rewards / voucher data */
+   638→  REWARDS: `${API_BASE_URL}/commuter/rewards`,
+   639→  /** Redeem a voucher */
+   640→  REDEEM_VOUCHER: (voucherId: string) => `${API_BASE_URL}/commuter/vouchers/${voucherId}/redeem`,
+   641→  /** Submit feedback for a ride/driver */
+   642→  SUBMIT_FEEDBACK: `${API_BASE_URL}/commuter/feedback`,
+   643→  /** Hail a nearby vehicle */
+   644→  HAIL: `${API_BASE_URL}/commuter/hail`,
+   645→  /** Cancel an active hail */
+   646→  CANCEL_HAIL: (hailId: string) => `${API_BASE_URL}/commuter/hail/${hailId}`,
+   647→  /** SOS alert */
+   648→  SOS: `${API_BASE_URL}/commuter/sos`,
+   649→  /** Get active vehicles with locations (for map) */
+   650→  ACTIVE_VEHICLES: `${API_BASE_URL}/vehicles/locations`,
+   651→} as const;
+   652→
+   653→========== /tmp/chatco-repo/lib/commuter/endpoints.ts ==========
+   654→// lib/commuter/endpoints.ts
+   655→// Commuter-scoped API endpoint registry.
+   656→// Same pattern as lib/conductor/endpoints.ts.
+   657→//
+   658→// Relative paths target Next.js route stubs by default.
+   659→// When migrating to Laravel, point NEXT_PUBLIC_API_URL at the gateway and
+   660→// update these paths to match the backend contract.
+   661→
+   662→export const COMMUTER_API = {
+   663→  profile: "/api/commuter/profile",
+   664→  tracking: {
+   665→    nearby: "/api/commuter/tracking/nearby",
+   666→    hail: "/api/commuter/tracking/hail",
+   667→    cancelHail: "/api/commuter/tracking/hail/cancel",
+   668→  },
+   669→  payments: {
+   670→    history: "/api/commuter/payments",
+   671→    create: "/api/commuter/payments",
+   672→  },
+   673→  rewards: {
+   674→    summary: "/api/commuter/rewards",
+   675→    vouchers: "/api/commuter/rewards/vouchers",
+   676→  },
+   677→  announcements: {
+   678→    list: "/api/commuter/announcements",
+   679→    markRead: (id: string) => `/api/commuter/announcements/${id}/read`,
+   680→  },
+   681→  lostFound: {
+   682→    list: "/api/commuter/lost-found",
+   683→    claim: "/api/commuter/lost-found/claim",
+   684→  },
+   685→  feedback: {
+   686→    submit: "/api/commuter/feedback",
+   687→  },
+   688→  sos: {
+   689→    create: "/api/commuter/sos",
+   690→  },
+   691→} as const;
+   692→
+   693→========== /tmp/chatco-repo/lib/commuter/types.ts ==========
+   694→// lib/commuter/types.ts
+   695→// Canonical type definitions for the commuter service layer.
+   696→// Follows the same pattern as lib/conductor/types.ts.
+   697→//
+   698→// When Laravel backend is integrated, these types represent the API contract.
+   699→
+   700→import type { GpsStatus } from "../shared/geo/nearby-detector";
+   701→
+   702→// ─── Async State Helpers (same pattern as conductor) ─────────────────
+   703→
+   704→export type AsyncStatus = "idle" | "loading" | "success" | "error" | "empty";
+   705→
+   706→export interface AsyncState<T> {
+   707→  status: AsyncStatus;
+   708→  data: T;
+   709→  error: string | null;
+   710→}
+   711→
+   712→export function loadingState<T>(fallback: T): AsyncState<T> {
+   713→  return { status: "loading", data: fallback, error: null };
+   714→}
+   715→
+   716→export function successState<T>(data: T): AsyncState<T> {
+   717→  return { status: "success", data, error: null };
+   718→}
+   719→
+   720→export function errorState<T>(fallback: T, error: string): AsyncState<T> {
+   721→  return { status: "error", data: fallback, error };
+   722→}
+   723→
+   724→export function emptyState<T>(fallback: T): AsyncState<T> {
+   725→  return { status: "empty", data: fallback, error: null };
+   726→}
+   727→
+   728→// ─── Commuter Profile ────────────────────────────────────────────────
+   729→
+   730→export interface CommuterProfileData {
+   731→  id: string;
+   732→  firstName: string;
+   733→  middleName: string | null;
+   734→  surname: string;
+   735→  birthdate: string;
+   736→  gender: string;
+   737→  email: string;
+   738→  contactNumber: string;
+   739→  commuterType: string;
+   740→  username: string;
+   741→  languagePreference: string;
+   742→  accountStatus: string;
+   743→  idImageUrl: string | null;
+   744→  verifiedAt: string | null;
+   745→  createdAt: string;
+   746→  updatedAt?: string;
+   747→}
+   748→
+   749→// ─── Payment / Transaction ───────────────────────────────────────────
+   750→
+   751→export interface CommuterPaymentRecord {
+   752→  id: string;
+   753→  shiftId: string;
+   754→  amount: number;
+   755→  paymentMethod: "CASH" | "GCASH" | "VOUCHER";
+   756→  status: "COMPLETED" | "FAILED" | "REFUNDED";
+   757→  createdAt: string;
+   758→  plateNumber?: string;
+   759→  conductorName?: string;
+   760→}
+   761→
+   762→// ─── Rewards / Vouchers ──────────────────────────────────────────────
+   763→
+   764→export interface CommuterVoucher {
+   765→  id: string;
+   766→  code: string;
+   767→  discountType: "PERCENTAGE" | "FIXED";
+   768→  discountValue: number;
+   769→  status: "ACTIVE" | "USED" | "EXPIRED";
+   770→  expiresAt: string;
+   771→}
+   772→
+   773→export interface CommuterRewardData {
+   774→  totalPoints: number;
+   775→  currentCycle: string;
+   776→  vouchers: CommuterVoucher[];
+   777→  ridesThisMonth: number;
+   778→  pointsToNextReward: number;
+   779→}
+   780→
+   781→// ─── Announcements ───────────────────────────────────────────────────
+   782→
+   783→export interface CommuterAnnouncement {
+   784→  id: string;
+   785→  title: string;
+   786→  message: string;
+   787→  type: "INFO" | "WARNING" | "URGENT";
+   788→  isRead: boolean;
+   789→  createdAt: string;
+   790→}
+   791→
+   792→// ─── Lost & Found ────────────────────────────────────────────────────
+   793→
+   794→export interface CommuterLostItem {
+   795→  id: string;
+   796→  category: string;
+   797→  description: string;
+   798→  status: "REPORTED" | "UNDER_REVIEW" | "CLAIMED" | "RETURNED";
+   799→  reportedAt: string;
+   800→  imageUrl?: string;
+   801→}
+   802→
+   803→export interface CommuterClaimData {
+   804→  lostItemId: string;
+   805→  commuterId: string;
+   806→  description: string;
+   807→  contactInfo: string;
+   808→}
+   809→
+   810→// ─── SOS ─────────────────────────────────────────────────────────────
+   811→
+   812→export interface SOSAlert {
+   813→  id: string;
+   814→  commuterId: string;
+   815→  latitude: number;
+   816→  longitude: number;
+   817→  message?: string;
+   818→  status: "ACTIVE" | "RESOLVED";
+   819→  createdAt: string;
+   820→}
+   821→
+   822→// ─── Feedback ────────────────────────────────────────────────────────
+   823→
+   824→export interface CommuterFeedback {
+   825→  conductorId: string;
+   826→  shiftId: string;
+   827→  rating: number;
+   828→  tags: string[];
+   829→  comment?: string;
+   830→}
+   831→
+   832→// ─── Tracking ────────────────────────────────────────────────────────
+   833→
+   834→export interface CommuterTrackingState {
+   835→  gpsStatus: GpsStatus;
+   836→  nearbyVehicles: import("../shared/geo/nearby-detector").NearbyVehicle[];
+   837→  canHail: boolean;
+   838→  nearestVehicle: import("../shared/geo/nearby-detector").NearbyVehicle | null;
+   839→}
+   840→
+   841→========== /tmp/chatco-repo/lib/conductor/endpoints.ts ==========
+   842→// Conductor-scoped API endpoint registry.
+   843→// Relative paths target Next.js route stubs by default.
+   844→// When migrating to Laravel, point NEXT_PUBLIC_API_URL at the gateway and
+   845→// update these paths to match the backend contract.
+   846→
+   847→export const CONDUCTOR_API = {
+   848→  profile: "/api/conductor/profile",
+   849→  units: "/api/conductor/units",
+   850→  drivers: "/api/conductor/drivers",
+   851→  shifts: {
+   852→    active: "/api/conductor/shifts/active",
+   853→    start: "/api/conductor/shifts/start",
+   854→    end: "/api/conductor/shifts/end",
+   855→  },
+   856→  transactions: {
+   857→    list: (shiftId: string) =>
+   858→      `/api/conductor/transactions?shift_id=${encodeURIComponent(shiftId)}`,
+   859→    create: "/api/conductor/transactions",
+   860→  },
+   861→  remittances: {
+   862→    list: "/api/conductor/remittances",
+   863→    create: "/api/conductor/remittances",
+   864→  },
+   865→  ratings: (shiftId: string) =>
+   866→    `/api/conductor/ratings?shift_id=${encodeURIComponent(shiftId)}`,
+   867→  hails: "/api/conductor/hails",
+   868→  shiftLogs: "/api/conductor/shift-logs",
+   869→  location: "/api/conductor/location",
+   870→} as const;
+   871→
+   872→========== /tmp/chatco-repo/lib/conductor/persistence/remittance.store.ts ==========
+   873→export interface RemittanceRecord {
+   874→  shiftId: string;
+   875→  date: string;
+   876→  conductorName: string;
+   877→  driverName: string;
+   878→  unitNumber: string;
+   879→  totalPassengers: number;
+   880→  cashlessBreakdown: {
+   881→    gcashScanned: number;
+   882→    gcashDirect: number;
+   883→    voucher: number;
+   884→  };
+   885→  totalCashless: number;
+   886→  cashDeclared: number;
+   887→  remittanceStatus: "Pending" | "Remitted";
+   888→  timeIn: string;
+   889→  timeOut: string;
+   890→  cashTotal: number;
+   891→  gcashTotal: number;
+   892→}
+   893→
+   894→const KEY = "conductor_remittance_history";
+   895→
+   896→function getAll(): RemittanceRecord[] {
+   897→  const raw = localStorage.getItem(KEY);
+   898→  if (!raw) return [];
+   899→  try {
+   900→    const records = JSON.parse(raw) as RemittanceRecord[];
+   901→    return records.map((r) => ({
+   902→      ...r,
+   903→      gcashTotal: r.gcashTotal ?? 0,
+   904→      cashTotal: r.cashTotal ?? 0,
+   905→      cashDeclared: r.cashDeclared ?? 0,
+   906→    }));
+   907→  } catch {
+   908→    return [];
+   909→  }
+   910→}
+   911→
+   912→function save(records: RemittanceRecord[]) {
+   913→  localStorage.setItem(KEY, JSON.stringify(records));
+   914→}
+   915→
+   916→export function saveRemittance(record: RemittanceRecord): RemittanceRecord[] {
+   917→  const records = getAll();
+   918→  const alreadyExists = records.some((r) => r.shiftId === record.shiftId);
+   919→  if (alreadyExists) return records;
+   920→  records.unshift(record);
+   921→  save(records);
+   922→  return records;
+   923→}
+   924→
+   925→export function getRemittanceHistory(): RemittanceRecord[] {
+   926→  return getAll();
+   927→}
+   928→
+   929→========== /tmp/chatco-repo/lib/conductor/persistence/shift-history.ts ==========
+   930→// frontend/lib/conductor/persistence/shift-history.ts
+   931→// Shift log history — persists shift start/end events to localStorage.
+   932→// Used by shift.store.ts for audit trail logging.
+   933→
+   934→const SHIFT_LOGS_KEY = "conductor_shift_logs";
+   935→
+   936→export interface ShiftLog {
+   937→  duration: string | null;
+   938→  shiftId: string;
+   939→  unitNumber: string;
+   940→  plateNumber: string;
+   941→  conductorName: string;
+   942→  driverName: string;
+   943→  route: string;
+   944→  timeIn: string;
+   945→  timeOut?: string;
+   946→}
+   947→
+   948→export function logShiftStart(log: ShiftLog): void {
+   949→  if (typeof window === "undefined") return;
+   950→  const logs: ShiftLog[] = JSON.parse(localStorage.getItem(SHIFT_LOGS_KEY) || "[]");
+   951→  logs.unshift(log);
+   952→  localStorage.setItem(SHIFT_LOGS_KEY, JSON.stringify(logs));
+   953→}
+   954→
+   955→export function logShiftEnd(shiftId: string): void {
+   956→  if (typeof window === "undefined") return;
+   957→  const logs: ShiftLog[] = JSON.parse(localStorage.getItem(SHIFT_LOGS_KEY) || "[]");
+   958→  const idx = logs.findIndex((l) => l.shiftId === shiftId);
+   959→  if (idx !== -1) {
+   960→    logs[idx].timeOut = new Date().toISOString();
+   961→    localStorage.setItem(SHIFT_LOGS_KEY, JSON.stringify(logs));
+   962→  }
+   963→}
+   964→
+   965→export function getShiftLogs(): ShiftLog[] {
+   966→  if (typeof window === "undefined") return [];
+   967→  try {
+   968→    return JSON.parse(localStorage.getItem(SHIFT_LOGS_KEY) || "[]");
+   969→  } catch {
+   970→    return [];
+   971→  }
+   972→}
+   973→
+   974→export function clearShiftLogs(): void {
+   975→  if (typeof window === "undefined") return;
+   976→  localStorage.removeItem(SHIFT_LOGS_KEY);
+   977→}
+   978→========== /tmp/chatco-repo/lib/conductor/persistence/shift.store.ts ==========
+   979→import { logShiftEnd, logShiftStart } from "./shift-history";
+   980→
+   981→export interface ConductorShift {
+   982→  shiftId: string;
+   983→  conductorName: string;
+   984→  unitNumber: string;
+   985→  route: string;
+   986→  driverName: string;
+   987→  timeIn: string;
+   988→  timeOut: string | null;
+   989→  isActive: boolean;
+   990→}
+   991→
+   992→const SHIFT_KEY = "conductor_shift";
+   993→
+   994→export function startShift(data: {
+   995→  conductorName: string;
+   996→  unitNumber: string;
+   997→  route: string;
+   998→  driverName: string;
+   999→}): ConductorShift {
+  1000→  const shift: ConductorShift = {
+  1001→    ...data,
+  1002→    shiftId: `SHF-${Date.now().toString(36).toUpperCase()}`,
+  1003→    timeIn: new Date().toISOString(),
+  1004→    timeOut: null,
+  1005→    isActive: true,
+  1006→  };
+  1007→  localStorage.setItem(SHIFT_KEY, JSON.stringify(shift));
+  1008→
+  1009→  logShiftStart({
+  1010→    shiftId: shift.shiftId,
+  1011→    unitNumber: shift.unitNumber,
+  1012→    plateNumber: "",
+  1013→    conductorName: shift.conductorName,
+  1014→    driverName: shift.driverName,
+  1015→    route: shift.route,
+  1016→    timeIn: shift.timeIn,
+  1017→  });
+  1018→
+  1019→  return shift;
+  1020→}
+  1021→
+  1022→export function getShift(): ConductorShift | null {
+  1023→  const raw = localStorage.getItem(SHIFT_KEY);
+  1024→  if (!raw) return null;
+  1025→  try {
+  1026→    return JSON.parse(raw) as ConductorShift;
+  1027→  } catch {
+  1028→    return null;
+  1029→  }
+  1030→}
+  1031→
+  1032→export function getActiveShift(): ConductorShift | null {
+  1033→  const shift = getShift();
+  1034→  if (!shift || !shift.isActive) return null;
+  1035→  return shift;
+  1036→}
+  1037→
+  1038→export function endShift(): ConductorShift | null {
+  1039→  const shift = getActiveShift();
+  1040→  if (!shift) return null;
+  1041→
+  1042→  shift.timeOut = new Date().toISOString();
+  1043→  shift.isActive = false;
+  1044→  localStorage.setItem(SHIFT_KEY, JSON.stringify(shift));
+  1045→  logShiftEnd(shift.shiftId);
+  1046→  return shift;
+  1047→}
+  1048→
+  1049→export function clearShift() {
+  1050→  localStorage.removeItem(SHIFT_KEY);
+  1051→}
+  1052→
+  1053→/** Cache shift state returned from the API for offline fallback reads. */
+  1054→export function cacheShift(shift: ConductorShift): void {
+  1055→  if (typeof window === "undefined") return;
+  1056→  localStorage.setItem(SHIFT_KEY, JSON.stringify(shift));
+  1057→}
+  1058→
+  1059→========== /tmp/chatco-repo/lib/conductor/persistence/transactions.store.ts ==========
+  1060→import type { PaymentMethodType } from "@/types";
+  1061→
+  1062→export interface Transaction {
+  1063→  transactionId: string;
+  1064→  paymentMethod: PaymentMethodType;
+  1065→  finalAmount: number;
+  1066→  passengerName: string;
+  1067→  passengerId: string;
+  1068→  passengerRole?: string;
+  1069→  from: string;
+  1070→  to: string;
+  1071→  distance: number;
+  1072→  baseFare: number;
+  1073→  succeedingKm: number;
+  1074→  discountAmount?: number;
+  1075→  conductorName?: string;
+  1076→  unitNumber?: string;
+  1077→  driverName?: string;
+  1078→  timestamp: number;
+  1079→}
+  1080→
+  1081→const PREFIX = "conductor_txns_";
+  1082→
+  1083→function getKey(shiftId: string) {
+  1084→  return `${PREFIX}${shiftId}`;
+  1085→}
+  1086→
+  1087→export function saveTransaction(
+  1088→  shiftId: string,
+  1089→  txn: Omit<Transaction, "transactionId" | "timestamp">
+  1090→): Transaction {
+  1091→  const key = getKey(shiftId);
+  1092→  const existing: Transaction[] = JSON.parse(localStorage.getItem(key) || "[]");
+  1093→  const newTxn: Transaction = {
+  1094→    ...txn,
+  1095→    transactionId: `TXN-${Date.now()}`,
+  1096→    timestamp: Date.now(),
+  1097→  };
+  1098→  existing.push(newTxn);
+  1099→  localStorage.setItem(key, JSON.stringify(existing));
+  1100→
+  1101→  if (typeof window !== "undefined") {
+  1102→    window.dispatchEvent(new CustomEvent("conductor:transaction-updated"));
+  1103→  }
+  1104→
+  1105→  return newTxn;
+  1106→}
+  1107→
+  1108→export function getShiftTransactions(shiftId: string): Transaction[] {
+  1109→  const raw = localStorage.getItem(getKey(shiftId));
+  1110→  if (!raw) return [];
+  1111→  try {
+  1112→    return JSON.parse(raw) as Transaction[];
+  1113→  } catch {
+  1114→    return [];
+  1115→  }
+  1116→}
+  1117→
+  1118→export function clearShiftTransactions(shiftId: string) {
+  1119→  localStorage.removeItem(getKey(shiftId));
+  1120→}
+  1121→
+  1122→/** Cache a transaction returned from the API for offline fallback reads. */
+  1123→export function cacheTransaction(shiftId: string, txn: Transaction): void {
+  1124→  if (typeof window === "undefined") return;
+  1125→  const key = getKey(shiftId);
+  1126→  const existing: Transaction[] = JSON.parse(localStorage.getItem(key) || "[]");
+  1127→  if (existing.some((item) => item.transactionId === txn.transactionId)) return;
+  1128→  existing.push(txn);
+  1129→  localStorage.setItem(key, JSON.stringify(existing));
+  1130→  window.dispatchEvent(new CustomEvent("conductor:transaction-updated"));
+  1131→}
+  1132→
+  1133→========== /tmp/chatco-repo/lib/conductor/server/auth.ts ==========
+  1134→import type { NextRequest } from "next/server";
+  1135→import { jsonError } from "@/lib/conductor/server/response";
+  1136→
+  1137→export interface ConductorSession {
+  1138→  userId: string;
+  1139→  role: string;
+  1140→  email?: string;
+  1141→  name?: string;
+  1142→}
+  1143→
+  1144→const CONDUCTOR_ACCOUNTS: Record<
+  1145→  string,
+  1146→  { email: string; name: string }
+  1147→> = {
+  1148→  c_1: { email: "conductor@chatco.com", name: "Pedro Penduko" },
+  1149→};
+  1150→
+  1151→function parseSessionToken(token: string): ConductorSession | null {
+  1152→  const parts = token.split(":");
+  1153→  if (parts.length < 3 || parts[0] !== "chatco") return null;
+  1154→  return { userId: parts[1], role: parts[2] };
+  1155→}
+  1156→
+  1157→export function getConductorSession(
+  1158→  request: NextRequest
+  1159→): ConductorSession | null {
+  1160→  const token = request.cookies.get("chatco_session")?.value;
+  1161→  if (!token) return null;
+  1162→
+  1163→  const session = parseSessionToken(token);
+  1164→  if (!session || session.role !== "CONDUCTOR") return null;
+  1165→
+  1166→  const account = CONDUCTOR_ACCOUNTS[session.userId];
+  1167→  if (!account) return session;
+  1168→
+  1169→  return {
+  1170→    ...session,
+  1171→    email: account.email,
+  1172→    name: account.name,
+  1173→  };
+  1174→}
+  1175→
+  1176→export function unauthorizedResponse() {
+  1177→  return jsonError("Unauthorized. Conductor session required.", 401);
+  1178→}
+  1179→
+  1180→========== /tmp/chatco-repo/lib/conductor/server/response.ts ==========
+  1181→import { NextResponse } from "next/server";
+  1182→
+  1183→export function jsonData<T>(data: T, status = 200) {
+  1184→  return NextResponse.json({ data }, { status });
+  1185→}
+  1186→
+  1187→export function jsonError(message: string, status = 400) {
+  1188→  return NextResponse.json({ message }, { status });
+  1189→}
+  1190→
+  1191→========== /tmp/chatco-repo/lib/conductor/server/seed.ts ==========
+  1192→import type { ConductorDriver, ConductorHailRequest, ConductorUnit } from "@/lib/conductor/types";
+  1193→import type { ConductorRating } from "@/lib/conductor/services/ratings.service";
+  1194→
+  1195→export const SEED_UNITS: ConductorUnit[] = [
+  1196→  {
+  1197→    id: "unit-1",
+  1198→    unitNumber: "DEF-5678",
+  1199→    plateNumber: "DEF-5678",
+  1200→    route: "Meycauayan–Calumpit",
+  1201→    status: "available",
+  1202→  },
+  1203→  {
+  1204→    id: "unit-2",
+  1205→    unitNumber: "GHI-9012",
+  1206→    plateNumber: "GHI-9012",
+  1207→    route: "Meycauayan–Calumpit",
+  1208→    status: "maintenance",
+  1209→  },
+  1210→  {
+  1211→    id: "unit-3",
+  1212→    unitNumber: "JKL-3456",
+  1213→    plateNumber: "JKL-3456",
+  1214→    route: "Meycauayan–Calumpit",
+  1215→    status: "maintenance",
+  1216→  },
+  1217→  {
+  1218→    id: "unit-4",
+  1219→    unitNumber: "ABC-1234",
+  1220→    plateNumber: "ABC-1234",
+  1221→    route: "Meycauayan–Calumpit",
+  1222→    status: "available",
+  1223→  },
+  1224→];
+  1225→
+  1226→export const SEED_DRIVERS: ConductorDriver[] = [
+  1227→  { id: "drv-1", name: "Boy Pick-Up Dela Cruz", status: "available" },
+  1228→  { id: "drv-3", name: "Tikboy Saksakan", status: "available" },
+  1229→  { id: "drv-5", name: "Dodong Bullet", status: "available" },
+  1230→  { id: "drv-7", name: "Mang Juan Tamad", status: "available" },
+  1231→  { id: "drv-9", name: "Jepoy Pogi", status: "available" },
+  1232→  { id: "drv-11", name: "Cardo Dalisay", status: "available" },
+  1233→];
+  1234→
+  1235→export const SEED_HAILS: ConductorHailRequest[] = [
+  1236→  {
+  1237→    id: "hail-1",
+  1238→    commuterName: "Maria Santos",
+  1239→    latitude: 14.901323759501945,
+  1240→    longitude: 120.7719224852731,
+  1241→    label: "Near SM Marilao",
+  1242→    etaMinutes: 4,
+  1243→  },
+  1244→  {
+  1245→    id: "hail-2",
+  1246→    commuterName: "Juan Reyes",
+  1247→    latitude: 14.874990764897628,
+  1248→    longitude: 120.79618423260841,
+  1249→    label: "Bocaue crossing",
+  1250→    etaMinutes: 7,
+  1251→  },
+  1252→  {
+  1253→    id: "hail-3",
+  1254→    commuterName: "Ana Cruz",
+  1255→    latitude: 14.828232464378223,
+  1256→    longitude: 120.88095495481001,
+  1257→    label: "Malolos terminal",
+  1258→    etaMinutes: 11,
+  1259→  },
+  1260→];
+  1261→
+  1262→const MOCK_NAMES = [
+  1263→  "Maria Santos",
+  1264→  "Juan Reyes",
+  1265→  "Ana Cruz",
+  1266→  "Pedro Lim",
+  1267→  "Rosa Garcia",
+  1268→  "Carlos Mendoza",
+  1269→  "Elena Torres",
+  1270→  "Miguel Ramos",
+  1271→];
+  1272→
+  1273→const MOCK_COMMENTS = [
+  1274→  "Very polite and helpful!",
+  1275→  "Smooth ride, thank you.",
+  1276→  "Driver was careful and friendly.",
+  1277→  "On time and professional.",
+  1278→  "Clean jeepney, good service.",
+  1279→  "",
+  1280→  "Could improve boarding process.",
+  1281→  "Great conductor, very accommodating.",
+  1282→];
+  1283→
+  1284→function hashString(str: string): number {
+  1285→  let hash = 0;
+  1286→  for (let i = 0; i < str.length; i++) {
+  1287→    hash = (hash << 5) - hash + str.charCodeAt(i);
+  1288→    hash |= 0;
+  1289→  }
+  1290→  return Math.abs(hash);
+  1291→}
+  1292→
+  1293→function createRng(seed: number) {
+  1294→  let s = seed;
+  1295→  return () => {
+  1296→    s = (s * 16807) % 2147483647;
+  1297→    return (s - 1) / 2147483646;
+  1298→  };
+  1299→}
+  1300→
+  1301→/** Deterministic sample ratings per shift — replace with DB query when backend exists. */
+  1302→export function buildSeedRatings(shiftId: string): ConductorRating[] {
+  1303→  const rng = createRng(hashString(shiftId) + 300);
+  1304→  const count = 4 + Math.floor(rng() * 5);
+  1305→  const ratings: ConductorRating[] = [];
+  1306→  const usedNames = new Set<number>();
+  1307→
+  1308→  for (let i = 0; i < count; i++) {
+  1309→    let nameIdx: number;
+  1310→    do {
+  1311→      nameIdx = Math.floor(rng() * MOCK_NAMES.length);
+  1312→    } while (usedNames.has(nameIdx) && usedNames.size < MOCK_NAMES.length);
+  1313→    usedNames.add(nameIdx);
+  1314→
+  1315→    const score = Math.max(1, Math.min(5, Math.round(rng() * 4 + 1)));
+  1316→    const targetRole: "DRIVER" | "CONDUCTOR" = rng() > 0.45 ? "DRIVER" : "CONDUCTOR";
+  1317→
+  1318→    ratings.push({
+  1319→      ratingId: `RTG-${shiftId}-${i}`,
+  1320→      commuterId: `comm-${i}`,
+  1321→      commuterName: MOCK_NAMES[nameIdx],
+  1322→      shiftId,
+  1323→      targetRole,
+  1324→      targetId: targetRole === "DRIVER" ? "drv-active" : "cond-active",
+  1325→      score,
+  1326→      comment:
+  1327→        score >= 4 && rng() > 0.3
+  1328→          ? MOCK_COMMENTS[Math.floor(rng() * MOCK_COMMENTS.length)]
+  1329→          : score <= 2
+  1330→            ? "Needs improvement."
+  1331→            : "",
+  1332→      createdAt: new Date(Date.now() - i * 3600000).toISOString(),
+  1333→    });
+  1334→  }
+  1335→
+  1336→  return ratings;
+  1337→}
+  1338→
+  1339→========== /tmp/chatco-repo/lib/conductor/server/store.ts ==========
+  1340→import type { ConductorShift } from "@/lib/conductor/persistence/shift.store";
+  1341→import type { Transaction } from "@/lib/conductor/persistence/transactions.store";
+  1342→import type { RemittanceRecord } from "@/lib/conductor/persistence/remittance.store";
+  1343→import type { ConductorRating } from "@/lib/conductor/services/ratings.service";
+  1344→import type { ConductorHailRequest } from "@/lib/conductor/types";
+  1345→import type { ShiftLog } from "../persistence/shift-history";
+  1346→import {
+  1347→  SEED_DRIVERS,
+  1348→  SEED_HAILS,
+  1349→  SEED_UNITS,
+  1350→  buildSeedRatings,
+  1351→} from "@/lib/conductor/server/seed";
+  1352→
+  1353→interface ConductorUserState {
+  1354→  activeShift: ConductorShift | null;
+  1355→  transactions: Record<string, Transaction[]>;
+  1356→  remittances: RemittanceRecord[];
+  1357→  shiftLogs: ShiftLog[];
+  1358→  ratingsByShift: Record<string, ConductorRating[]>;
+  1359→}
+  1360→
+  1361→type GlobalStore = Map<string, ConductorUserState>;
+  1362→
+  1363→const globalKey = "__chatco_conductor_store__";
+  1364→
+  1365→function getStoreMap(): GlobalStore {
+  1366→  const g = globalThis as typeof globalThis & { [globalKey]?: GlobalStore };
+  1367→  if (!g[globalKey]) {
+  1368→    g[globalKey] = new Map();
+  1369→  }
+  1370→  return g[globalKey]!;
+  1371→}
+  1372→
+  1373→function getUserState(userId: string): ConductorUserState {
+  1374→  const store = getStoreMap();
+  1375→  if (!store.has(userId)) {
+  1376→    store.set(userId, {
+  1377→      activeShift: null,
+  1378→      transactions: {},
+  1379→      remittances: [],
+  1380→      shiftLogs: [],
+  1381→      ratingsByShift: {},
+  1382→    });
+  1383→  }
+  1384→  return store.get(userId)!;
+  1385→}
+  1386→
+  1387→function computeDuration(timeIn: string, timeOut: string | null | undefined): string | null {
+  1388→  const start = new Date(timeIn).getTime();
+  1389→  const end = timeOut ? new Date(timeOut).getTime() : Date.now();
+  1390→  const diff = Math.floor((end - start) / 1000);
+  1391→  const h = Math.floor(diff / 3600);
+  1392→  const m = Math.floor((diff % 3600) / 60);
+  1393→  if (h > 0) return `${h}h ${m.toString().padStart(2, "0")}m`;
+  1394→  return `${m}m`;
+  1395→}
+  1396→
+  1397→export function getProfile(userId: string, name?: string) {
+  1398→  return {
+  1399→    id: userId,
+  1400→    name: name ?? "Conductor",
+  1401→  };
+  1402→}
+  1403→
+  1404→export function listUnits() {
+  1405→  return SEED_UNITS;
+  1406→}
+  1407→
+  1408→export function listDrivers() {
+  1409→  return SEED_DRIVERS;
+  1410→}
+  1411→
+  1412→export function getActiveShift(userId: string): ConductorShift | null {
+  1413→  const state = getUserState(userId);
+  1414→  if (!state.activeShift?.isActive) return null;
+  1415→  return state.activeShift;
+  1416→}
+  1417→
+  1418→export function startShift(
+  1419→  userId: string,
+  1420→  data: {
+  1421→    conductorName: string;
+  1422→    unitNumber: string;
+  1423→    route: string;
+  1424→    driverName: string;
+  1425→  }
+  1426→): ConductorShift {
+  1427→  const state = getUserState(userId);
+  1428→
+  1429→  if (state.activeShift?.isActive) {
+  1430→    throw new Error("An active shift already exists.");
+  1431→  }
+  1432→
+  1433→  const unit = SEED_UNITS.find((u) => u.unitNumber === data.unitNumber);
+  1434→  const shift: ConductorShift = {
+  1435→    ...data,
+  1436→    shiftId: `SHF-${Date.now().toString(36).toUpperCase()}`,
+  1437→    timeIn: new Date().toISOString(),
+  1438→    timeOut: null,
+  1439→    isActive: true,
+  1440→  };
+  1441→
+  1442→  state.activeShift = shift;
+  1443→
+  1444→  const logEntry: ShiftLog = {
+  1445→    shiftId: shift.shiftId,
+  1446→    unitNumber: shift.unitNumber,
+  1447→    plateNumber: unit?.plateNumber ?? shift.unitNumber,
+  1448→    conductorName: shift.conductorName,
+  1449→    driverName: shift.driverName,
+  1450→    route: shift.route,
+  1451→    timeIn: shift.timeIn,
+  1452→    timeOut: undefined,
+  1453→    duration: null,
+  1454→  };
+  1455→  state.shiftLogs.unshift(logEntry);
+  1456→
+  1457→  return shift;
+  1458→}
+  1459→
+  1460→export function endShift(userId: string): ConductorShift | null {
+  1461→  const state = getUserState(userId);
+  1462→  const shift = state.activeShift;
+  1463→  if (!shift?.isActive) return null;
+  1464→
+  1465→  shift.timeOut = new Date().toISOString();
+  1466→  shift.isActive = false;
+  1467→  state.activeShift = null;
+  1468→
+  1469→  const log = state.shiftLogs.find(
+  1470→    (entry) => entry.shiftId === shift.shiftId && entry.timeOut == null
+  1471→  );
+  1472→  if (log) {
+  1473→    log.timeOut = shift.timeOut;
+  1474→    log.duration = computeDuration(log.timeIn, log.timeOut);
+  1475→  }
+  1476→
+  1477→  return shift;
+  1478→}
+  1479→
+  1480→export function listTransactions(userId: string, shiftId: string): Transaction[] {
+  1481→  const state = getUserState(userId);
+  1482→  return state.transactions[shiftId] ?? [];
+  1483→}
+  1484→
+  1485→export function addTransaction(
+  1486→  userId: string,
+  1487→  shiftId: string,
+  1488→  txn: Omit<Transaction, "transactionId" | "timestamp">
+  1489→): Transaction {
+  1490→  const state = getUserState(userId);
+  1491→  const existing = state.transactions[shiftId] ?? [];
+  1492→  const newTxn: Transaction = {
+  1493→    ...txn,
+  1494→    transactionId: `TXN-${Date.now()}`,
+  1495→    timestamp: Date.now(),
+  1496→  };
+  1497→  state.transactions[shiftId] = [...existing, newTxn];
+  1498→  return newTxn;
+  1499→}
+  1500→
+
+[showing lines 1-1500 of 3000; use offset=1501 with limit to continue reading]
