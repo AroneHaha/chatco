@@ -292,7 +292,7 @@ export default function MonitoringPage() {
                           v.status === "overspeeding" ? "bg-red-400/15 text-red-400 font-bold" :
                           "bg-amber-400/15 text-amber-400"
                         }`}>
-                          {v.status === "overspeeding" ? "OVERSPEEDING" : v.status.charAt(0).toUpperCase() + v.status.slice(1)}
+                          {v.status === "overspeeding" ? "OVERSPEEDING" : (v.status ?? '').charAt(0).toUpperCase() + (v.status ?? '').slice(1)}
                         </span>
                       </td>
                     </tr>

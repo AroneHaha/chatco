@@ -1,51 +1,55 @@
 // frontend/app/(admin)/users/data/users-data.ts
+//
+// Admin Users data layer.
+// Interfaces match the UsersController output exactly.
 
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { apiGet } from '@/lib/api';
 
-// ─── Interfaces (kept as API contracts) ───
+// ── Interfaces matching UsersController output ────────────────────────
 
 export interface ActiveUser {
-  id: number;
+  id: string | number;
   name: string;
   email: string;
-  phoneNumber: string;
-  status: 'Active' | 'Inactive';
-  commuterType: 'Regular' | 'Student' | 'Senior Citizen' | 'PWD';
-  languagePreference: 'English' | 'Filipino';
-  idImageUrl: string;
+  phoneNumber: string | null;
+  status: string | null;
+  commuterType: string | null;
+  languagePreference: string | null;
+  idImageUrl: string | null;
 }
 
 export interface PendingRequest {
-  id: string;
+  id: string | number;
   name: string;
   email: string;
-  phoneNumber: string;
-  commuterType: 'Regular' | 'Student' | 'Senior Citizen' | 'PWD';
-  languagePreference: 'English' | 'Filipino';
-  idImageUrl: string;
+  phoneNumber: string | null;
+  commuterType: string | null;
+  languagePreference: string | null;
+  idImageUrl: string | null;
   status: 'Pending Verification';
 }
 
 export interface RejectedUser {
-  id: string;
+  id: string | number;
   name: string;
   email: string;
-  phoneNumber: string;
-  commuterType: 'Regular' | 'Student' | 'Senior Citizen' | 'PWD';
-  languagePreference: 'English' | 'Filipino';
-  idImageUrl: string;
+  phoneNumber: string | null;
+  commuterType: string | null;
+  languagePreference: string | null;
+  idImageUrl: string | null;
   status: 'Rejected';
   rejectionReason: string;
 }
 
 export interface HistoryLog {
   id: string;
-  date: string;
+  date: string | null;
   action: string;
   details: string;
 }
 
-// ─── Consolidated data shape ───
+// ── Consolidated data shape ───────────────────────────────────────────
 
 export interface UsersData {
   activeUsers: ActiveUser[];
@@ -54,70 +58,71 @@ export interface UsersData {
   historyLogs: Record<string, HistoryLog[]>;
 }
 
-// ─── Mock data (consolidated for easy future deletion) ───
+// ── API response shapes ───────────────────────────────────────────────
 
-export const MOCK_USERS_DATA: UsersData = {
-  activeUsers: [
-    { id: 1, name: 'Mhaku Jose Manalili', email: 'mhak@gmail.com', phoneNumber: '0917-123-4567', status: 'Active', commuterType: 'Regular', languagePreference: 'English', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=ID' },
-    { id: 4, name: 'Mark Arone Dela Cruz', email: 'MArone.c@email.com', phoneNumber: '0918-234-5678', status: 'Active', commuterType: 'Student', languagePreference: 'Filipino', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=ID' },
-    { id: 5, name: 'Rod Dulalia', email: 'Rod@gmail.com', phoneNumber: '0923-324-4327', status: 'Active', commuterType: 'Regular', languagePreference: 'English', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=ID' },
-  ],
+interface UsersListResponse {
+  activeUsers: ActiveUser[];
+  pendingRequests: PendingRequest[];
+  rejectedUsers: RejectedUser[];
+}
 
-  pendingRequests: [
-    { id: 'REQ-101', name: 'Marinel Carbonel', email: 'Mari.C@email.com', phoneNumber: '0919-345-6789', commuterType: 'PWD', languagePreference: 'English', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=PWD+ID', status: 'Pending Verification' },
-    { id: 'REQ-102', name: 'Stephen Hawkin', email: 'Jeff.Stephen@email.com', phoneNumber: '0920-456-7890', commuterType: 'PWD', languagePreference: 'Filipino', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=Senior+ID', status: 'Pending Verification' },
-  ],
+interface UserHistoryResponse {
+  historyLogs: HistoryLog[];
+}
 
-  rejectedUsers: [
-    { id: 'REQ-099', name: 'Fake Account', email: 'fake@email.com', phoneNumber: '0000-000-0000', commuterType: 'Regular', languagePreference: 'English', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=Fake+ID', status: 'Rejected', rejectionReason: 'Invalid ID provided.' },
-  ],
+// ── Hook ──────────────────────────────────────────────────────────────
 
-  historyLogs: {
-    "1": [
-      { id: 'H9', date: '2024-04-20 07:15 AM', action: 'Trip Payment', details: 'Malolos Terminal → Meycauayan Crossing. Paid ₱25.00 via GCash.' },
-      { id: 'H7', date: '2024-03-15 08:20 AM', action: 'Trip Payment', details: 'Malolos Terminal → Calumpit Town Proper. Paid ₱35.00 via GCash.' },
-      { id: 'H5', date: '2024-02-10 06:30 PM', action: 'Trip Payment', details: 'Meycauayan Crossing → Calumpit Town Proper. Paid ₱20.00 via Cash.' },
-      { id: 'H4', date: '2024-02-05 08:10 AM', action: 'Trip Payment', details: 'Malolos Terminal → Meycauayan Crossing. Paid ₱25.00 via GCash.' },
-      { id: 'H3', date: '2024-02-20 07:00 AM', action: 'Voucher Redeemed', details: 'Free ride voucher earned after 10 rides.' },
-    ],
-    "4": [
-      { id: 'H8', date: '2024-04-15 06:50 AM', action: 'Trip Payment', details: 'Calumpit Town Proper → Malolos Terminal. Paid ₱30.00 (Student Discount) via GCash.' },
-      { id: 'H7', date: '2024-04-01 07:10 AM', action: 'Trip Payment', details: 'Malolos Terminal → Calumpit Town Proper. Paid ₱30.00 (Student Discount) via GCash.' },
-      { id: 'H6', date: '2024-03-20 10:30 AM', action: 'Voucher Redeemed', details: 'Free ride voucher earned after 10 rides.' },
-      { id: 'H5', date: '2024-03-05 08:45 AM', action: 'Trip Payment', details: 'Meycauayan Crossing → Calumpit Town Proper. Paid ₱15.00 (Student Discount) via Cash.' },
-      { id: 'H4', date: '2024-02-25 07:30 AM', action: 'Trip Payment', details: 'Malolos Terminal → Meycauayan Crossing. Paid ₱20.00 (Student Discount) via GCash.' },
-      { id: 'H3', date: '2024-02-20 07:00 AM', action: 'Voucher Redeemed', details: 'Free ride voucher earned after 10 rides.' },
-    ],
-    "5": [
-      { id: 'H4', date: '2024-03-12 07:30 AM', action: 'Trip Payment', details: 'Malolos Terminal → Meycauayan Crossing. Paid ₱25.00 via GCash.' },
-      { id: 'H3', date: '2024-02-20 07:00 AM', action: 'Voucher Redeemed', details: 'Free ride voucher earned after 10 rides.' },
-    ],
-    "REQ-101": [
-      { id: 'H3', date: '2024-03-20 07:00 AM', action: 'Voucher Redeemed', details: 'Free ride voucher earned after 10 rides.' },
-    ],
-    "REQ-102": [
-      { id: 'H3', date: '2024-03-20 07:00 AM', action: 'Voucher Redeemed', details: 'Free ride voucher earned after 10 rides.' },
-    ],
-    "REQ-099": [],
-  },
+const EMPTY_DATA: UsersData = {
+  activeUsers: [],
+  pendingRequests: [],
+  rejectedUsers: [],
+  historyLogs: {},
 };
 
-// ─── Hook (mock for now, swap with API later) ───
-
 export function useUsersData() {
-  const [data, setData] = useState<UsersData>(MOCK_USERS_DATA);
-  const [isLoading, setIsLoading] = useState(false);
+  const [data, setData] = useState<UsersData>(EMPTY_DATA);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const refetch = useCallback(() => {
+  const refetch = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-    // TODO: Replace with actual API call
-    setTimeout(() => {
-      setData(MOCK_USERS_DATA);
+    try {
+      const result = await apiGet<UsersListResponse>('/api/admin/users');
+      setData({
+        activeUsers: result.activeUsers ?? [],
+        pendingRequests: result.pendingRequests ?? [],
+        rejectedUsers: result.rejectedUsers ?? [],
+        historyLogs: {},
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to load users data';
+      setError(message);
+    } finally {
       setIsLoading(false);
-    }, 500);
+    }
   }, []);
 
-  return { data, isLoading, error, refetch, setData };
+  const fetchUserHistory = useCallback(async (userId: string): Promise<HistoryLog[]> => {
+    try {
+      const result = await apiGet<UserHistoryResponse>(`/api/admin/users/${userId}/history`);
+      const logs = result.historyLogs ?? [];
+      setData((prev) => ({
+        ...prev,
+        historyLogs: {
+          ...prev.historyLogs,
+          [userId]: logs,
+        },
+      }));
+      return logs;
+    } catch {
+      return [];
+    }
+  }, []);
+
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+
+  return { data, isLoading, error, refetch, setData, fetchUserHistory };
 }

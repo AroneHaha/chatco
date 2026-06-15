@@ -1,4 +1,3 @@
-// components/admin/vehicles/edit-personnel-modal.tsx
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -6,10 +5,10 @@ import { Modal } from '@/components/admin/ui/modal';
 import { UserPlus, MapPin, Upload, Check, User, Save } from 'lucide-react';
 
 interface PersonnelData {
-  id: number;
+  id: string | number;
   name: string;
   role: string;
-  contact: string;
+  contact: string | null;
 }
 
 interface EditPersonnelModalProps {
@@ -44,7 +43,7 @@ export function EditPersonnelModal({ isOpen, onClose, onSave, editingData }: Edi
         firstName: nameParts[0] || '',
         lastName: nameParts.slice(-1).join(' ') || '',
         middleName: nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '',
-        contact: editingData.contact,
+        contact: editingData.contact ?? '',
         role: editingData.role,
       }));
       setUseDefaultPicture(true);

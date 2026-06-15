@@ -1,4 +1,3 @@
-// app/(admin)/vehicles/page.tsx
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -94,7 +93,7 @@ export default function VehiclesPage() {
   const handleCloseVehicleModal = () => setIsVehicleModalOpen(false);
   const handleOpenEditModal = (vehicle: Vehicle) => { setEditingVehicle(vehicle); setIsEditVehicleModalOpen(true); };
   const handleCloseEditModal = () => { setEditingVehicle(null); setIsEditVehicleModalOpen(false); };
-  const handleSaveVehicle = (newVehicle: Partial<Vehicle>) => { setVehicles(prev => [...prev, { ...newVehicle, id: prev.length + 1, speed: 0 } as Vehicle]); handleCloseVehicleModal(); };
+  const handleSaveVehicle = (newVehicle: Partial<Vehicle>) => { setVehicles(prev => [...prev, { ...newVehicle, id: `temp-${Date.now()}`, speed: 0 } as Vehicle]); handleCloseVehicleModal(); };
   const handleUpdateVehicle = (updatedVehicle: Partial<Vehicle>) => { setVehicles(prev => prev.map(v => v.id === editingVehicle?.id ? { ...v, ...updatedVehicle } : v)); handleCloseEditModal(); };
 
   // Personnel Handlers
@@ -110,7 +109,6 @@ export default function VehiclesPage() {
     setIsEditPersonnelOpen(false);
   };
   const handleSaveEditPersonnel = (updatedPersonnel: Personnel) => {
-    // TODO: Replace with API call when backend is ready
     setData(prev => ({
       ...prev,
       personnel: prev.personnel.map(p => p.id === updatedPersonnel.id ? updatedPersonnel : p),
@@ -126,8 +124,7 @@ export default function VehiclesPage() {
     setDeletingPersonnelData(null);
     setIsDeletePersonnelOpen(false);
   };
-  const handleConfirmDeletePersonnel = (deleteData: { id: number; reason: string; terminationType: string }) => {
-    // TODO: Replace with API call when backend is ready
+  const handleConfirmDeletePersonnel = (deleteData: { id: string | number; reason: string; terminationType: string }) => {
     const person = data.personnel.find(p => p.id === deleteData.id);
     if (person) {
       const terminatedEntry: TerminatedPersonnel = {
@@ -146,7 +143,7 @@ export default function VehiclesPage() {
     handleCloseDeletePersonnel();
   };
 
-  // Add Personnel Handler (from modal onSave callback)
+  // Add Personnel Handler
   const handleSaveNewPersonnel = (newPersonnelData: {
     firstName: string;
     middleName: string;
@@ -157,9 +154,8 @@ export default function VehiclesPage() {
     role: 'Driver';
     profilePicture: string | null;
   }) => {
-    // TODO: Replace with API call when backend is ready
     const newPerson: Personnel = {
-      id: Math.max(...data.personnel.map(p => p.id), 0) + 1,
+      id: `temp-${Date.now()}`,
       name: `${newPersonnelData.firstName} ${newPersonnelData.middleName ? newPersonnelData.middleName + ' ' : ''}${newPersonnelData.lastName}`,
       role: newPersonnelData.role,
       contact: newPersonnelData.contact,
@@ -175,7 +171,6 @@ export default function VehiclesPage() {
   const handleOpenShiftModal = (vehicle: Vehicle) => { setEditingVehicle(vehicle); setIsShiftModalOpen(true); };
   const handleCloseShiftModal = () => { setEditingVehicle(null); setIsShiftModalOpen(false); };
   const handleSaveShift = (shiftData: Record<string, string>) => {
-    // TODO: Replace with API call when backend is ready
     console.log("Shift saved for vehicle:", editingVehicle?.plateNumber, shiftData);
     handleCloseShiftModal();
   };

@@ -16,12 +16,22 @@ export async function POST(request: NextRequest) {
       });
     }
   } catch {
-    // Ignore — we still clear the cookie
+    // Ignore — we still clear the cookies
   }
 
   const response = NextResponse.json({ success: true });
+
+  // Clear both cookies
   response.cookies.set("chatco_session", "", {
     httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  });
+
+  response.cookies.set("chatco_role", "", {
+    httpOnly: false,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",

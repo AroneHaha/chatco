@@ -23,7 +23,7 @@ export default function ReceiptsPage() {
   const filteredData = useMemo(() => {
     return initialReceiptData.filter((item: Receipt) => {
       const matchesPayment = paymentFilter === 'All' || item.paymentMethod === paymentFilter;
-      const matchesSearch = item.commuterName.toLowerCase().includes(searchQuery.toLowerCase()) || item.id.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = (item.commuterName ?? '').toLowerCase().includes(searchQuery.toLowerCase()) || item.id.toLowerCase().includes(searchQuery.toLowerCase());
       const itemDate = new Date(item.date);
       const matchesStart = !startDate || itemDate >= new Date(startDate);
       const matchesEnd = !endDate || itemDate <= new Date(endDate);

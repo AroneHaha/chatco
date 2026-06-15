@@ -1,16 +1,27 @@
-// app/(admin)/settings/data/settings-data.ts
+// frontend/app/(admin)/settings/data/settings-data.ts
+//
+// Admin Settings data layer.
+// All mock data removed. Data is fetched from the Laravel API via BFF.
+// API responses are auto-transformed from snake_case to camelCase by lib/api.ts.
 
-// --- Types ---
+import { useState, useEffect, useCallback } from 'react';
+import { apiGet } from '@/lib/api';
+
+// ── Types ─────────────────────────────────────────────────────────────
 
 export type VoucherType = 'FREE_RIDE' | 'DISCOUNT';
-
 export type VoucherStatus = 'Active' | 'Used' | 'Expired';
+
+// ── Interfaces ────────────────────────────────────────────────────────
 
 export interface FaqItem {
   id: string;
   question: string;
   answer: string;
   displayOrder: number;
+  updatedBy?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface NotificationTemplate {
@@ -19,17 +30,22 @@ export interface NotificationTemplate {
   description: string;
   content: string;
   variables: string[];
+  type?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Route {
-  id: number;
+  id: string;
   name: string;
-  status: 'Active' | 'Inactive';
-  waypoints: string;
+  status: string | null;
+  waypoints: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface RemittanceOption {
-  id: number;
+  id: string;
   optionName: string;
 }
 
@@ -37,115 +53,352 @@ export interface Voucher {
   id: string;
   code: string;
   type: string;
-  status: VoucherStatus;
+  status?: string | null;
+  amount?: number | null;
+  commuterId?: string | null;
+  expiresAt?: string | null;
+  rideOrigin?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  deletedAt?: string | null;
 }
 
 export interface FinancialRulesConfig {
+  id?: string;
   ridesForFreeReward: string;
   regularDiscount: string;
   studentDiscount: string;
   seniorDiscount: string;
   pwdDiscount: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface OperationsRulesConfig {
+  id?: string;
   speedLimitKmh: string;
   maxShiftHours: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface AppConfiguration {
+  id?: string;
   maintenanceMode: boolean;
   requireIdUpload: boolean;
   requirePhoneVerification: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface SafetyConfig {
+  id?: string;
   emergencyHotline: string;
+  adminSosEmail: string;
   adminSOSEmail: string;
   senderGmail: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
-// --- FAQ Data ---
+export interface ExpenseCategory {
+  id: string;
+  name: string;
+}
 
-export const initialFaqs: FaqItem[] = [
-  { id: '1', question: 'How do I pay with GCash?', answer: 'Simply show your QR code to the conductor when boarding. They scan it and payment is processed instantly via GCash.', displayOrder: 1 },
-  { id: '2', question: 'I left my item on the jeep. How do I report it?', answer: 'Go to the "Lost & Found" section in the app menu and fill out the item report form with the details of your trip.', displayOrder: 2 },
-];
+// ── Raw API response shapes ───────────────────────────────────────────
 
-// --- Notification Templates ---
+interface RawNotificationTemplate {
+  id: string;
+  title: string | null;
+  description: string | null;
+  content: string | null;
+  variables: string | null;
+  type: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
-export const initialNotificationTemplates: NotificationTemplate[] = [
-  {
-    id: 'sos-admin',
-    title: 'SOS Alert (To Admin)',
-    description: 'Sent to the admin dashboard when a conductor triggers the panic button.',
-    content: '🚨 EMERGENCY ALERT!\n\nUnit: {vehiclePlate}\nConductor: {conductorName}\nLocation: {latitude}, {longitude}\nTime: {timestamp}\n\nImmediate action required!',
-    variables: ['{vehiclePlate}', '{conductorName}', '{latitude}', '{longitude}', '{timestamp}'],
-  },
-  {
-    id: 'ride-receipt',
-    title: 'Digital Receipt (To Commuter)',
-    description: 'Sent after a cashless transaction is completed.',
-    content: '🧾 Ride Receipt\n\nPlate: {vehiclePlate}\nRoute: {routeName}\nFare: ₱{fareAmount}\nPayment: {paymentMethod}\nDate: {date}\n\nThank you for riding with Chatco!',
-    variables: ['{vehiclePlate}', '{routeName}', '{fareAmount}', '{paymentMethod}', '{date}'],
-  },
-];
+interface RawSafetyConfig {
+  id: string;
+  emergencyHotline: string | null;
+  adminSosEmail: string | null;
+  senderGmail: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
-export const initialAccountApprovedTemplate: string =
-  `Dear {commuterName},\n\nCongratulations! Your Chatco Commuter account has been successfully approved and verified.\n\nYou can now log in to the app using your registered credentials and start enjoying seamless cashless rides across the Chatco network.\n\nIf you did not request this account, please contact support immediately.\n\nSafe travels!\nThe Chatco Team`;
+interface RawFinancialRules {
+  id: string;
+  ridesForFreeReward: number | null;
+  regularDiscount: number | null;
+  studentDiscount: number | null;
+  seniorDiscount: number | null;
+  pwdDiscount: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
-export const initialAccountRejectedTemplate: string =
-  `Dear {commuterName},\n\nWe regret to inform you that your Chatco Commuter account registration has been rejected.\n\nReason: {rejectionReason}\n\nIf you believe this is a mistake, you may re-apply with valid and updated identification documents through the app or visit our local office.\n\nThank you for your understanding.\nThe Chatco Team`;
+interface RawOperationsRules {
+  id: string;
+  speedLimitKmh: number | null;
+  maxShiftHours: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface RawAppConfiguration {
+  id: string;
+  maintenanceMode: boolean | null;
+  requireIdUpload: boolean | null;
+  requirePhoneVerification: boolean | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface SettingsDataResponse {
+  faqs: FaqItem[];
+  notificationTemplates: RawNotificationTemplate[];
+  accountApprovedTemplate: RawNotificationTemplate | null;
+  accountRejectedTemplate: RawNotificationTemplate | null;
+  routes: Route[];
+  remittanceOptions: RemittanceOption[];
+  expenseCategories: ExpenseCategory[];
+  vouchers: Voucher[];
+  financialRules: RawFinancialRules | null;
+  operationsRules: RawOperationsRules | null;
+  appConfiguration: RawAppConfiguration | null;
+  safetyConfig: RawSafetyConfig | null;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────
+
+function parseVariables(vars: unknown): string[] {
+  if (Array.isArray(vars)) return vars as string[];
+  if (typeof vars === 'string' && vars.trim()) {
+    try {
+      const parsed = JSON.parse(vars);
+      if (Array.isArray(parsed)) return parsed;
+      return [String(parsed)];
+    } catch {
+      return vars.split(',').map((v) => v.trim()).filter(Boolean);
+    }
+  }
+  return [];
+}
+
+function numToStr(val: number | null | undefined, fallback: string): string {
+  return val != null ? String(val) : fallback;
+}
+
+function boolOrNull(val: boolean | null | undefined, fallback: boolean): boolean {
+  return val ?? fallback;
+}
+
+function strOrNull(val: string | null | undefined, fallback: string): string {
+  return val ?? fallback;
+}
+
+function processTemplate(raw: RawNotificationTemplate): NotificationTemplate {
+  return {
+    id: raw.id,
+    title: raw.title ?? '',
+    description: raw.description ?? '',
+    content: raw.content ?? '',
+    variables: parseVariables(raw.variables),
+    type: raw.type,
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+  };
+}
+
+// ── Static template variables ─────────────────────────────────────────
 
 export const approvedTemplateVariables: string[] = ['{commuterName}'];
 export const rejectedTemplateVariables: string[] = ['{commuterName}', '{rejectionReason}'];
 
-// --- Routes Data ---
+// ── Initial / default values ──────────────────────────────────────────
 
-export const initialRoutes: Route[] = [
-  { id: 1, name: 'Malolos - Meycauayan - Calumpit', status: 'Active', waypoints: 'Malolos Terminal, Guiguinto, Meycauayan Crossing, Calumpit Town Proper' },
-];
+export const initialNotificationTemplates: NotificationTemplate[] = [];
 
-// --- Remittance Options Data ---
+export const initialAccountApprovedTemplate: string =
+  'Dear {commuterName}, your account has been approved.';
 
-export const initialRemittanceOptions: RemittanceOption[] = [
-  { id: 1, optionName: 'Operator Juan' },
-  { id: 2, optionName: 'Bank Deposit BPI' },
-  { id: 3, optionName: 'Driver Pedro' },
-];
+export const initialAccountRejectedTemplate: string =
+  'Dear {commuterName}, your account application has been rejected. Reason: {rejectionReason}.';
 
-// --- Expense Categories ---
-
-export const initialExpenseCategories: string[] = [
-  'Gas / Fuel',
-  'Boundary / Remittance',
-  'Vehicle Washing',
-  'Tire Change / Repair',
-];
-
-// --- Default Config Values ---
+export const initialExpenseCategories: ExpenseCategory[] = [];
+export const initialRoutes: Route[] = [];
+export const initialRemittanceOptions: RemittanceOption[] = [];
+export const initialVouchers: Voucher[] = [];
+export const initialFaqs: FaqItem[] = [];
 
 export const defaultFinancialRules: FinancialRulesConfig = {
+  id: '',
   ridesForFreeReward: '10',
   regularDiscount: '0',
   studentDiscount: '20',
   seniorDiscount: '20',
   pwdDiscount: '20',
+  createdAt: '',
+  updatedAt: '',
 };
 
 export const defaultOperationsRules: OperationsRulesConfig = {
+  id: '',
   speedLimitKmh: '60',
   maxShiftHours: '12',
+  createdAt: '',
+  updatedAt: '',
 };
 
 export const defaultAppConfiguration: AppConfiguration = {
+  id: '',
   maintenanceMode: false,
   requireIdUpload: true,
   requirePhoneVerification: false,
+  createdAt: '',
+  updatedAt: '',
 };
 
 export const defaultSafetyConfig: SafetyConfig = {
+  id: '',
   emergencyHotline: '911',
+  adminSosEmail: 'admin@chatco.com',
   adminSOSEmail: 'admin@chatco.com',
   senderGmail: 'noreply@chatco.com',
+  createdAt: '',
+  updatedAt: '',
 };
+
+// ── Settings data shape ───────────────────────────────────────────────
+
+interface SettingsData {
+  faqs: FaqItem[];
+  notificationTemplates: NotificationTemplate[];
+  accountApprovedTemplate: string;
+  accountRejectedTemplate: string;
+  routes: Route[];
+  remittanceOptions: RemittanceOption[];
+  expenseCategories: ExpenseCategory[];
+  vouchers: Voucher[];
+  financialRules: FinancialRulesConfig;
+  operationsRules: OperationsRulesConfig;
+  appConfiguration: AppConfiguration;
+  safetyConfig: SafetyConfig;
+}
+
+const EMPTY_DATA: SettingsData = {
+  faqs: [],
+  notificationTemplates: [],
+  accountApprovedTemplate: initialAccountApprovedTemplate,
+  accountRejectedTemplate: initialAccountRejectedTemplate,
+  routes: [],
+  remittanceOptions: [],
+  expenseCategories: [],
+  vouchers: [],
+  financialRules: defaultFinancialRules,
+  operationsRules: defaultOperationsRules,
+  appConfiguration: defaultAppConfiguration,
+  safetyConfig: defaultSafetyConfig,
+};
+
+// ── Hook ──────────────────────────────────────────────────────────────
+
+export function useSettingsData() {
+  const [data, setData] = useState<SettingsData>(EMPTY_DATA);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refetch = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await apiGet<SettingsDataResponse>('/api/admin/settings');
+
+      const notificationTemplates = (result.notificationTemplates ?? []).map(processTemplate);
+
+      const approvedRaw = result.accountApprovedTemplate;
+      const approvedContent = approvedRaw ? (approvedRaw.content ?? initialAccountApprovedTemplate) : initialAccountApprovedTemplate;
+
+      const rejectedRaw = result.accountRejectedTemplate;
+      const rejectedContent = rejectedRaw ? (rejectedRaw.content ?? initialAccountRejectedTemplate) : initialAccountRejectedTemplate;
+
+      const rawFin = result.financialRules;
+      const financialRules: FinancialRulesConfig = rawFin
+        ? {
+            id: rawFin.id,
+            ridesForFreeReward: numToStr(rawFin.ridesForFreeReward, defaultFinancialRules.ridesForFreeReward),
+            regularDiscount: numToStr(rawFin.regularDiscount, defaultFinancialRules.regularDiscount),
+            studentDiscount: numToStr(rawFin.studentDiscount, defaultFinancialRules.studentDiscount),
+            seniorDiscount: numToStr(rawFin.seniorDiscount, defaultFinancialRules.seniorDiscount),
+            pwdDiscount: numToStr(rawFin.pwdDiscount, defaultFinancialRules.pwdDiscount),
+            createdAt: rawFin.createdAt,
+            updatedAt: rawFin.updatedAt,
+          }
+        : defaultFinancialRules;
+
+      const rawOps = result.operationsRules;
+      const operationsRules: OperationsRulesConfig = rawOps
+        ? {
+            id: rawOps.id,
+            speedLimitKmh: numToStr(rawOps.speedLimitKmh, defaultOperationsRules.speedLimitKmh),
+            maxShiftHours: numToStr(rawOps.maxShiftHours, defaultOperationsRules.maxShiftHours),
+            createdAt: rawOps.createdAt,
+            updatedAt: rawOps.updatedAt,
+          }
+        : defaultOperationsRules;
+
+      const rawApp = result.appConfiguration;
+      const appConfiguration: AppConfiguration = rawApp
+        ? {
+            id: rawApp.id,
+            maintenanceMode: boolOrNull(rawApp.maintenanceMode, defaultAppConfiguration.maintenanceMode),
+            requireIdUpload: boolOrNull(rawApp.requireIdUpload, defaultAppConfiguration.requireIdUpload),
+            requirePhoneVerification: boolOrNull(rawApp.requirePhoneVerification, defaultAppConfiguration.requirePhoneVerification),
+            createdAt: rawApp.createdAt,
+            updatedAt: rawApp.updatedAt,
+          }
+        : defaultAppConfiguration;
+
+      const rawSafety = result.safetyConfig;
+      const safetyConfig: SafetyConfig = rawSafety
+        ? {
+            id: rawSafety.id,
+            emergencyHotline: strOrNull(rawSafety.emergencyHotline, defaultSafetyConfig.emergencyHotline),
+            adminSosEmail: strOrNull(rawSafety.adminSosEmail, defaultSafetyConfig.adminSosEmail),
+            adminSOSEmail: strOrNull(rawSafety.adminSosEmail, defaultSafetyConfig.adminSOSEmail),
+            senderGmail: strOrNull(rawSafety.senderGmail, defaultSafetyConfig.senderGmail),
+            createdAt: rawSafety.createdAt,
+            updatedAt: rawSafety.updatedAt,
+          }
+        : defaultSafetyConfig;
+
+      setData({
+        faqs: result.faqs ?? [],
+        notificationTemplates,
+        accountApprovedTemplate: approvedContent,
+        accountRejectedTemplate: rejectedContent,
+        routes: result.routes ?? [],
+        remittanceOptions: result.remittanceOptions ?? [],
+        expenseCategories: result.expenseCategories ?? [],
+        vouchers: result.vouchers ?? [],
+        financialRules,
+        operationsRules,
+        appConfiguration,
+        safetyConfig,
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to load settings data';
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+
+  return { data, isLoading, error, refetch, setData };
+}

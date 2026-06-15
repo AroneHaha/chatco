@@ -1,132 +1,172 @@
-import {
-  TrendingUp,
-  MapPin,
-  Banknote,
-  Calculator,
-  Receipt,
-  Ticket,
-  Bell,
-  SlidersHorizontal,
-  User2Icon,
-  type LucideIcon,
-} from "lucide-react";
+// app/(admin)/admin-dashboard/data/dashboard-data.ts
+//
+// Admin Dashboard data layer.
+// All mock data removed. Data is fetched from the Laravel API via BFF.
+// API responses are auto-transformed from snake_case to camelCase by lib/api.ts.
+//
+// DB tables referenced: vehicles, lost_items, users, commuter_profiles,
+//   fare_points, transactions, routes
 
-/* ─── INTERFACES (API Contracts — keep these) ─── */
+import { useState, useEffect, useCallback } from 'react';
+import { apiGet } from '@/lib/api';
 
-export interface VehicleItem {
-  unit: string;
-  driver: string;
-  status: "Active" | "Maintenance";
+// ── Interfaces (camelCase, matching transformed API responses) ───────
+
+export interface RecentVehicle {
+  id: string;
+  unitNumber: string;
+  plateNumber: string;
+  routeId: string | null;
+  driverId: string | null;
+  conductorId: string | null;
+  status: string | null;
+  speed: number | null;
+  capacityStatus: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  lastLocationUpdate: string | null;
+  createdAt: string;
+  updatedAt: string;
+  // Joined/computed fields the API may include
+  routeName?: string;
+  driverName?: string | null;
+  conductorName?: string | null;
 }
 
-export interface LostFoundItem {
-  item: string;
-  status: "Under Review" | "Reported" | "Returned";
+export interface RecentLostFound {
+  id: string;
+  itemName: string;
+  description: string | null;
+  imageUrl: string | null;
+  plateNumber: string | null;
+  driverName: string | null;
+  conductorName: string | null;
+  vehicleId: string | null;
+  estimatedTimeLost: string | null;
+  category: string | null;
+  reportedById: string;
+  reportedByRole: string;
+  reporterName: string | null;
+  status: string;
+  claimedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
-export interface UserItem {
-  name: string;
+export interface RecentUser {
+  id: string;
+  email: string;
   role: string;
-  status: "Active" | "Inactive";
+  createdAt: string;
+  updatedAt: string;
+  // From joined commuter_profiles
+  firstName?: string | null;
+  middleName?: string | null;
+  surname?: string | null;
+  username?: string | null;
+  accountStatus?: string | null;
+  commuterType?: string | null;
 }
 
-export interface StatItem {
+export interface QuickStat {
   label: string;
-  value: string;
-  icon: LucideIcon;
-  color: string;
-  link: string;
+  value: string | number;
+  change?: string;
+  trend?: 'up' | 'down' | 'neutral';
 }
 
 export interface SettingsModule {
-  title: string;
-  desc: string;
-  icon: LucideIcon;
-  iconColor: string;
-  gradient: string;
+  id: string;
+  label: string;
   href: string;
+  icon: string;
 }
 
-export interface PickupPoint {
+export interface TopPickupPoint {
   name: string;
-  val: number;
+  count: number;
 }
 
-export interface PaymentTendencies {
-  gcash: number;
-  cash: number;
+export interface PaymentTendency {
+  method: string;
+  percentage: number;
+  transactions: number;
 }
+
+// ── Consolidated data shape ───────────────────────────────────────────
 
 export interface DashboardData {
-  recentVehicles: VehicleItem[];
-  recentLostFound: LostFoundItem[];
-  recentUsers: UserItem[];
-  quickStats: StatItem[];
+  recentVehicles: RecentVehicle[];
+  recentLostFound: RecentLostFound[];
+  recentUsers: RecentUser[];
+  quickStats: QuickStat[];
   settingsModules: SettingsModule[];
-  topPickupPoints: PickupPoint[];
-  paymentTendencies: PaymentTendencies;
+  topPickupPoints: TopPickupPoint[];
+  paymentTendencies: PaymentTendency[];
 }
 
-/* ─── CONSOLIDATED MOCK DATA (delete when API is ready) ─── */
+// ── API response shape ────────────────────────────────────────────────
+// Backend returns these from GET /api/admin/dashboard
 
-export const MOCK_DASHBOARD_DATA: DashboardData = {
-  recentVehicles: [
-    { unit: "XQJ 4728", driver: "Mhaku Jose Manalili", status: "Active" },
-    { unit: "VMY 9183", driver: "Mark Arone Dela Cruz", status: "Maintenance" },
-    { unit: "RZP 6041", driver: "Rod Erick Dulalia", status: "Active" },
-  ],
+interface DashboardApiResponse {
+  recentVehicles: RecentVehicle[];
+  recentLostFound: RecentLostFound[];
+  recentUsers: RecentUser[];
+  quickStats: QuickStat[];
+  topPickupPoints: TopPickupPoint[];
+  paymentTendencies: PaymentTendency[];
+}
 
-  recentLostFound: [
-    { item: "Black Backpack", status: "Under Review" },
-    { item: "Brown Wallet", status: "Reported" },
-    { item: "Student ID", status: "Returned" },
-  ],
+// ── Static config (not mock data — these define navigation) ───────────
 
-  recentUsers: [
-    { name: "Mhaku Jose Manalili", role: "Commuter", status: "Active" },
-    { name: "Mark Arone Dela Cruz", role: "Commuter", status: "Active" },
-    { name: "Rod Dulalia", role: "Commuter", status: "Inactive" },
-  ],
+export const SETTINGS_MODULES: SettingsModule[] = [
+  { id: 'faqs', label: 'FAQs', href: '/admin/settings?tab=faqs', icon: 'HelpCircle' },
+  { id: 'routes', label: 'Routes', href: '/admin/settings?tab=routes', icon: 'Map' },
+  { id: 'remittance', label: 'Remittance Options', href: '/admin/settings?tab=remittance', icon: 'Wallet' },
+  { id: 'vouchers', label: 'Vouchers', href: '/admin/settings?tab=vouchers', icon: 'Ticket' },
+  { id: 'notifications', label: 'Notifications', href: '/admin/settings?tab=notifications', icon: 'Bell' },
+  { id: 'rules', label: 'Rules & Config', href: '/admin/settings?tab=rules', icon: 'Settings' },
+  { id: 'safety', label: 'Safety', href: '/admin/settings?tab=safety', icon: 'Shield' },
+  { id: 'account', label: 'Account', href: '/admin/settings?tab=account', icon: 'User' },
+];
 
-  quickStats: [
-    { label: "Total Revenue Today", value: "₱14,500", icon: TrendingUp, color: "text-sky-400 bg-[#62A0EA]/15", link: "/analytics" },
-    { label: "Total Rides Using E-Chatco", value: "9,500", icon: MapPin, color: "text-[#62A0EA] bg-[#62A0EA]/15", link: "/analytics" },
-    { label: "Active Users", value: "2,340", icon: User2Icon, color: "text-violet-400 bg-violet-400/15", link: "/analytics" },
-    { label: "Pending Remittance", value: "₱8,400", icon: Banknote, color: "text-amber-400 bg-amber-400/15", link: "/remittance" },
-  ],
+// ── Hook ──────────────────────────────────────────────────────────────
 
-  settingsModules: [
-    { title: "Fare Matrix", desc: "Set base fares and distance rates.", icon: Calculator, iconColor: "text-[#62A0EA]", gradient: "linear-gradient(135deg, rgba(98, 160, 234, 0.2) 0%, rgba(98, 160, 234, 0.05) 100%)", href: "/settings/fare-matrix" },
-    { title: "Financial Rules", desc: "Configure fare deductions and splits.", icon: Receipt, iconColor: "text-sky-400", gradient: "linear-gradient(135deg, rgba(56, 189, 248, 0.2) 0%, rgba(56, 189, 248, 0.05) 100%)", href: "/settings/financial-rules" },
-    { title: "Voucher Generator", desc: "Create promo codes and free ride passes.", icon: Ticket, iconColor: "text-violet-400", gradient: "linear-gradient(135deg, rgba(167, 139, 250, 0.2) 0%, rgba(167, 139, 250, 0.05) 100%)", href: "/settings/voucher-generator" },
-    { title: "Safety Notifications", desc: "Manage alert triggers and templates.", icon: Bell, iconColor: "text-amber-400", gradient: "linear-gradient(135deg, rgba(251, 191, 36, 0.2) 0%, rgba(251, 191, 36, 0.05) 100%)", href: "/settings/safety-notifications" },
-    { title: "App Configuration", desc: "General system preferences and UI.", icon: SlidersHorizontal, iconColor: "text-pink-400", gradient: "linear-gradient(135deg, rgba(244, 114, 182, 0.2) 0%, rgba(244, 114, 182, 0.05) 100%)", href: "/settings/app-configuration" },
-    { title: "Remittance Options", desc: "Add or edit remittance recipients.", icon: Banknote, iconColor: "text-cyan-400", gradient: "linear-gradient(135deg, rgba(34, 211, 238, 0.2) 0%, rgba(34, 211, 238, 0.05) 100%)", href: "/settings/remittance-options" },
-  ],
-
-  topPickupPoints: [
-    { name: "Malolos Terminal", val: 1420 },
-    { name: "Meycauayan Crossing", val: 980 },
-    { name: "Calumpit Town Proper", val: 740 },
-  ],
-
-  paymentTendencies: {
-    gcash: 78,
-    cash: 22,
-  },
+const EMPTY_DATA: DashboardData = {
+  recentVehicles: [],
+  recentLostFound: [],
+  recentUsers: [],
+  quickStats: [],
+  settingsModules: SETTINGS_MODULES,
+  topPickupPoints: [],
+  paymentTendencies: [],
 };
 
-/* ─── DATA HOOK ─── */
-
 export function useDashboardData() {
-  // TODO: Replace MOCK_DASHBOARD_DATA with API call
-  // e.g. const { data, isLoading, error } = useSWR('/api/admin/dashboard', fetcher);
-  return {
-    data: MOCK_DASHBOARD_DATA,
-    isLoading: false,
-    error: null as string | null,
-    refetch: () => {
-      // TODO: trigger SWR mutate or refetch
-    },
-  };
+  const [data, setData] = useState<DashboardData>(EMPTY_DATA);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refetch = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await apiGet<DashboardApiResponse>('/api/admin/dashboard');
+      setData({
+        ...result,
+        settingsModules: SETTINGS_MODULES,
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to load dashboard data';
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+
+  return { data, isLoading, error, refetch, setData };
 }

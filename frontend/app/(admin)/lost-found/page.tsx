@@ -42,7 +42,7 @@ export default function LostFoundPage() {
     let result = items;
     if (activeTab === 'PENDING_CLAIMS') result = result.filter((item: LostFoundItem) => item.status === 'Unmatched');
     if (activeCategory !== 'ALL') result = result.filter((item: LostFoundItem) => item.category === activeCategory);
-    if (searchQuery.trim()) result = result.filter((item: LostFoundItem) => item.itemName.toLowerCase().includes(searchQuery.toLowerCase()) || item.description.toLowerCase().includes(searchQuery.toLowerCase()));
+    if (searchQuery.trim()) result = result.filter((item: LostFoundItem) => item.itemName.toLowerCase().includes(searchQuery.toLowerCase()) || (item.description || '').toLowerCase().includes(searchQuery.toLowerCase()));
     return result;
   }, [items, activeTab, activeCategory, searchQuery]);
 

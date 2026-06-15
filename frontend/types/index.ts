@@ -1,74 +1,96 @@
-/**
- * Canonical index barrel file for all shared types.
- *
- * Import from here: import { User, Transaction, ShiftLog } from "@/types";
- *
- * This ensures all consumers use the same type definitions
- * and prevents type drift across the codebase.
- */
+// types/index.ts
+//
+// Shared types used across multiple admin data hooks and auth context.
+// All field names are camelCase (the api.ts transformKeys utility
+// automatically converts Laravel's snake_case responses to camelCase).
+//
+// Import as: import type { UserRole, AuthUser, CommuterProfile } from '@/types';
 
-export type {
-  UserRole,
-  AuthUser,
-  CommuterType,
-  AccountStatus,
-  CommuterProfile,
-} from "./user";
-export {
-  COMMUTER_TYPE_LABELS,
-  getCommuterTypeLabel,
-  DISCOUNTED_TYPES,
-  DISCOUNT_RATE,
-} from "./user";
+// ── UserRole (matches backend enum: ADMIN, CONDUCTOR, COMMUTER) ──────
 
-export type {
-  PaymentMethodType,
-  QRPaymentMethod,
-  PaymentStatus,
-  GCashPaymentMethodType,
-  Transaction,
-  GCashPaymentIntent,
-  CreatePaymentParams,
-  QRTransactionPayload,
-  CommuterPaymentRecord,
-  PaymentState,
-} from "./transaction";
-export {
-  VALID_TRANSITIONS,
-  canTransition,
-} from "./transaction";
+export type UserRole = 'ADMIN' | 'CONDUCTOR' | 'COMMUTER';
 
-export type {
-  ShiftLog,
-  RemittanceRecord,
-  RemittanceStatus,
-} from "./shift";
+// ── Auth types (used by auth-context.tsx) ────────────────────────────
 
-export type {
-  AnnouncementType,
-  Announcement,
-} from "./announcement";
+export interface AdminProfile {
+  id: string;
+  firstName: string | null;
+  middleName: string | null;
+  lastName: string | null;
+  profilePictureUrl: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
-export type {
-  ItemCategory,
-  ClaimStatus,
-  ViewTab,
-  LostItem,
-  ClaimData,
-  PaginatedAPIResponse,
-} from "./lost-found";
+export interface ConductorProfile {
+  id: string;
+  firstName: string | null;
+  middleName: string | null;
+  lastName: string | null;
+  birthday: string | null;
+  profilePictureUrl: string | null;
+  generatedUsername: string;
+  generatedPassword: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
-// ─── Tracking Types (from nearby-detector.ts) ─────────────────────────
-// Re-exported for convenient access via "@/types" barrel.
-// These types are used by commuter-map, dashboard, and notification modules.
+export interface CommuterProfile {
+  id: string;
+  firstName: string | null;
+  middleName: string | null;
+  surname: string | null;
+  birthdate: string | null;
+  gender: string | null;
+  email: string | null;
+  contactNumber: string | null;
+  commuterType: string | null;
+  appliedType: string | null;
+  username: string | null;
+  languagePreference: string | null;
+  accountStatus: string | null;
+  idImageUrl: string | null;
+  verifiedAt: string | null;
+  rejectionReason: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
-export type {
-  VehicleLocation,
-  NearbyVehicle,
-  ConductorRadiusResult,
-  GpsStatus,
-} from "../lib/shared/geo/nearby-detector";
+export interface AuthUser {
+  id: string;
+  email: string;
+  role: UserRole;
+  createdAt?: string;
+  updatedAt?: string;
+  commuterProfile?: CommuterProfile | null;
+  conductorProfile?: ConductorProfile | null;
+  adminProfile?: AdminProfile | null;
+}
 
-export {
-  NEARBY_RADIUS_KM,
-} from "../lib/shared/geo/nearby-detector";
+// ── Remittance types (used by remittance-data.ts) ────────────────────
+
+export type RemittanceStatus = 'Remitted' | 'Pending' | 'Shortage' | 'Overage';
+
+export interface RemittanceRecord {
+  shiftId: string;
+  date: string;
+  conductorId: string;
+  conductorName: string;
+  driverId: string;
+  driverName: string;
+  vehicleId: string;
+  unitNumber: string;
+  totalPassengers: number;
+  gcashScannedTotal: number;
+  gcashDirectTotal: number;
+  voucherTotal: number;
+  totalCashless: number;
+  cashDeclared: number;
+  cashTotal: number;
+  gcashTotal: number;
+  remittanceStatus: RemittanceStatus;
+  timeIn: string;
+  timeOut: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}

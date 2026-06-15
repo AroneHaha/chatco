@@ -1,4 +1,3 @@
-// components/admin/vehicles/delete-personnel-modal.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -8,8 +7,8 @@ import { AlertTriangle, Trash2 } from 'lucide-react';
 interface DeletePersonnelModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (data: { id: number; reason: string; terminationType: string }) => void;
-  personnelData: { id: number; name: string; role: string } | null;
+  onConfirm: (data: { id: string | number; reason: string; terminationType: string }) => void;
+  personnelData: { id: string | number; name: string; role: string } | null;
 }
 
 export function DeletePersonnelModal({ isOpen, onClose, onConfirm, personnelData }: DeletePersonnelModalProps) {

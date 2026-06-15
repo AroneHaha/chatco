@@ -1,4 +1,3 @@
-// components/admin/vehicles/add-vehicle-modal.tsx
 'use client';
 
 import { useState } from 'react';
@@ -8,8 +7,8 @@ interface AddVehicleModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: any) => void;
-  unassignedDrivers: { id: number; name: string; role: string }[];
-  unassignedConductors: { id: number; name: string; role: string }[];
+  unassignedDrivers: { id: string | number; name: string; role: string }[];
+  unassignedConductors: { id: string | number; name: string; role: string }[];
 }
 
 export function AddVehicleModal({ isOpen, onClose, onSave, unassignedDrivers, unassignedConductors }: AddVehicleModalProps) {

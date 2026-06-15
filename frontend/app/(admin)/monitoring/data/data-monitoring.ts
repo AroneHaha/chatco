@@ -1,54 +1,125 @@
 // app/(admin)/monitoring/data/data-monitoring.ts
+//
+// Admin Monitoring data layer.
+// All mock data removed. Data is fetched from the Laravel API via BFF.
+// Includes 30-second auto-refresh for live monitoring.
+// API responses are auto-transformed from snake_case to camelCase by lib/api.ts.
+//
+// DB tables referenced: vehicles, drivers, conductor_profiles, sos_alerts,
+//   overspeed_logs, demand_zones, shift_logs
 
-import { Gauge, Clock, MapPin } from "lucide-react";
+import { useState, useEffect, useCallback } from 'react';
+import { apiGet } from '@/lib/api';
 
-/* ─── INTERFACES (API Contracts — keep these) ─── */
+// ── Interfaces matching DB tables (camelCase) ────────────────────────
 
+// vehicles + joined driver/conductor names
 export interface LiveVehicleTracking {
-  unit: string;
-  driver: string;
-  speed: number;
-  status: "normal" | "overspeeding" | "idle";
-  zone: string;
+  id: string;                      // uuid
+  unitNumber: string;              // varchar(20)
+  plateNumber: string;             // varchar(20)
+  routeId?: string | null;         // uuid
+  driverId?: string | null;        // uuid
+  conductorId?: string | null;     // uuid
+  status: string | null;           // varchar(30)
+  speed: number | null;            // int
+  capacityStatus?: string | null;  // varchar(20)
+  latitude?: number | null;        // decimal(10,7)
+  longitude?: number | null;       // decimal(10,7)
+  lastLocationUpdate?: string | null; // timestamp
+  // Joined names for display
+  driverName?: string | null;
+  conductorName?: string | null;
+  routeName?: string | null;
+  // Legacy aliases used by page component
+  unit: string;                    // alias for unitNumber
+  driver?: string | null;          // alias for driverName
+  zone?: string | null;            // alias for routeName
 }
 
+// sos_alerts
 export interface SosAlert {
-  id: string;
-  conductor: string;
-  vehicle: string;
-  message: string;
-  time: string;
-  triggeredDate: string;
-  coordinates: [number, number];
+  id: string;                      // uuid PK
+  reportedById?: string;           // uuid NOT NULL
+  reportedByRole?: string;         // varchar(20) NOT NULL
+  vehicleId?: string | null;       // uuid
+  vehiclePlate?: string | null;    // varchar(20)
+  message: string | null;          // text
+  latitude?: number | null;        // decimal(10,7)
+  longitude?: number | null;       // decimal(10,7)
+  status?: string | null;          // varchar(20)
+  triggeredAt: string;             // timestamp NOT NULL
+  resolvedAt?: string | null;      // timestamp
+  resolvedById?: string | null;    // uuid
+  createdAt?: string;
+  // Joined for display
+  reportedByName?: string | null;
+  conductorName?: string | null;
+  // Legacy aliases used by page component
+  conductor?: string | null;       // alias for conductorName
+  vehicle?: string | null;         // alias for vehiclePlate
+  time?: string;                   // alias for triggeredAt
+  triggeredDate?: string;          // alias for triggeredAt (date only)
+  coordinates: [number, number];   // alias for [latitude, longitude]
 }
 
+// sos_alerts (resolved, for history tab)
 export interface SosHistoryLog {
   id: string;
-  conductor: string;
-  vehicle: string;
-  message: string;
+  reportedById?: string;
+  reportedByRole?: string;
+  vehicleId?: string | null;
+  vehiclePlate?: string | null;
+  message?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  status?: string | null;
   triggeredAt: string;
-  resolvedAt: string;
-  triggeredDate: string;
-  coordinates: [number, number];
+  resolvedAt: string | null;
+  resolvedById?: string | null;
+  createdAt?: string;
+  reportedByName?: string | null;
+  conductorName?: string | null;
+  // Legacy aliases used by page component
+  conductor?: string | null;       
+  vehicle?: string | null;        
+  triggeredDate?: string;          
+  coordinates: [number, number];   
 }
 
+// overspeed_logs
 export interface OverspeedLog {
-  id: string;
-  unit: string;
-  driver: string;
-  speed: number;
-  zone: string;
-  loggedAt: string;
-  loggedDate: string;
+  id: string;                     
+  vehicleId?: string;              
+  driverId?: string;              
+  driverName?: string | null;     
+  speed: number | null;           
+  zone?: string | null;            
+  createdAt?: string;
+ 
+  unitNumber?: string | null;
+  plateNumber?: string | null;
+
+  unit: string;                   
+  driver?: string | null;        
+  loggedAt?: string;               
+  loggedDate?: string;            
 }
+
+// demand_zones
 
 export interface DemandZone {
-  id: string;
-  coords: [number, number];
-  radiusMeters: number;
-  commuterCount: number;
-  intensity: "LOW" | "MEDIUM" | "HIGH";
+  id: string;                     
+  name?: string | null;          
+  routeId?: string | null;       
+  latitude?: number | null;      
+  longitude?: number | null;       
+  radiusMeters: number;            
+  commuterCount: number;        
+  intensity: 'LOW' | 'MEDIUM' | 'HIGH'; 
+  createdAt?: string;
+  updatedAt?: string;
+  coords: [number, number];      
 }
 
 export interface MonitoringData {
@@ -59,73 +130,56 @@ export interface MonitoringData {
   demandZones: DemandZone[];
 }
 
-/* ─── CONSOLIDATED MOCK DATA (delete when API is ready) ─── */
+// ── API response shape ────────────────────────────────────────────────
 
-export const MOCK_MONITORING_DATA: MonitoringData = {
-  liveVehicles: [
-    { unit: "XQJ 4728", driver: "Mhaku Jose Manalili", speed: 28, status: "normal", zone: "Malolos" },
-    { unit: "VMY 9183", driver: "Mark Arone Dela Cruz", speed: 62, status: "overspeeding", zone: "Malolos–Meycauayan" },
-    { unit: "RZP 6041", driver: "Rod Erick Dulalia", speed: 25, status: "normal", zone: "Meycauayan" },
-    { unit: "LKW 3579", driver: "Marinel Carbonel", speed: 0, status: "idle", zone: "Meycauayan" },
-    { unit: "TNB 8462", driver: "Nardong Putik", speed: 68, status: "overspeeding", zone: "Meycauayan–Calumpit" },
-    { unit: "JHX 7905", driver: "Karding Dela Paz", speed: 30, status: "normal", zone: "Calumpit" },
-    { unit: "PVR 6894", driver: "Nikola Tekla", speed: 27, status: "normal", zone: "Calumpit" },
-    { unit: "QFD 2316", driver: "Alden Recharge", speed: 32, status: "normal", zone: "Malolos–Meycauayan" },
-  ],
+interface MonitoringApiResponse {
+  liveVehicles: LiveVehicleTracking[];
+  sosAlerts: SosAlert[];
+  sosHistory: SosHistoryLog[];
+  overspeedHistory: OverspeedLog[];
+  demandZones: DemandZone[];
+}
 
-  sosAlerts: [], // Populated dynamically in useMonitoringData with today's date
+// ── Hook ──────────────────────────────────────────────────────────────
 
-  sosHistory: [
-    { id: "sos-old-001", conductor: "Mario Speedwagon", vehicle: "DEF-456", message: "Panic button triggered by conductor!", triggeredAt: "Oct 24, 2023 - 10:15 AM", resolvedAt: "Oct 24, 2023 - 10:22 AM", triggeredDate: "2023-10-24", coordinates: [14.598, 120.983] },
-    { id: "sos-old-002", conductor: "Crisostomo Ibarra", vehicle: "GHI-789", message: "Medical emergency reported.", triggeredAt: "Oct 23, 2023 - 02:40 PM", resolvedAt: "Oct 23, 2023 - 03:10 PM", triggeredDate: "2023-10-23", coordinates: [14.601, 120.986] },
-    { id: "sos-old-003", conductor: "Sisa Doe", vehicle: "JKL-012", message: "Panic button triggered by conductor!", triggeredAt: "Oct 22, 2023 - 08:05 AM", resolvedAt: "Oct 22, 2023 - 08:12 AM", triggeredDate: "2023-10-22", coordinates: [14.597, 120.981] },
-  ],
-
-  overspeedHistory: [
-    { id: "ov-001", unit: "VMY 9183", driver: "Mark Arone Dela Cruz", speed: 72, zone: "Malolos–Meycauayan", loggedAt: "Nov 15, 2023 - 09:12 AM", loggedDate: "2023-11-15" },
-    { id: "ov-002", unit: "TNB 8462", driver: "Nardong Putik", speed: 68, zone: "Meycauayan–Calumpit", loggedAt: "Nov 14, 2023 - 04:30 PM", loggedDate: "2023-11-14" },
-    { id: "ov-003", unit: "VMY 9183", driver: "Mark Arone Dela Cruz", speed: 65, zone: "Calumpit", loggedAt: "Nov 10, 2023 - 08:45 AM", loggedDate: "2023-11-10" },
-  ],
-
-  demandZones: [
-    { id: "zone-1", coords: [14.88645, 120.78596], radiusMeters: 400, commuterCount: 120, intensity: "HIGH" },
-    { id: "zone-2", coords: [14.84941, 120.82352], radiusMeters: 300, commuterCount: 85, intensity: "MEDIUM" },
-    { id: "zone-3", coords: [14.81816, 120.906], radiusMeters: 500, commuterCount: 150, intensity: "HIGH" },
-    { id: "zone-4", coords: [14.77813, 120.93709], radiusMeters: 250, commuterCount: 40, intensity: "LOW" },
-    { id: "zone-5", coords: [14.743, 120.95912], radiusMeters: 350, commuterCount: 95, intensity: "MEDIUM" },
-  ],
+const EMPTY_DATA: MonitoringData = {
+  liveVehicles: [],
+  sosAlerts: [],
+  sosHistory: [],
+  overspeedHistory: [],
+  demandZones: [],
 };
 
-/* ─── DATA HOOK ─── */
-
 export function useMonitoringData() {
-  // TODO: Replace MOCK_MONITORING_DATA with API call
-  // e.g. const { data, isLoading, error } = useSWR('/api/admin/monitoring', fetcher);
+  const [data, setData] = useState<MonitoringData>(EMPTY_DATA);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const today = new Date().toISOString().split("T")[0];
+  const refetch = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await apiGet<MonitoringApiResponse>('/api/admin/monitoring');
+      setData(result);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to load monitoring data';
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
-  // Inject a live SOS alert for demo purposes (remove when API is ready)
-  const liveSosAlerts: SosAlert[] = [
-    {
-      id: "sos-001",
-      conductor: "Juan Dela Cruz",
-      vehicle: "ABC-123",
-      message: "Panic button triggered by conductor!",
-      time: "Just now",
-      triggeredDate: today,
-      coordinates: [14.5995, 120.9842],
-    },
-  ];
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
 
-  return {
-    data: {
-      ...MOCK_MONITORING_DATA,
-      sosAlerts: liveSosAlerts,
-    },
-    isLoading: false,
-    error: null as string | null,
-    refetch: () => {
-      // TODO: trigger SWR mutate or refetch
-    },
-  };
+  // Auto-refresh every 30 seconds for live monitoring
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refetch();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [refetch]);
+
+  return { data, isLoading, error, refetch };
 }
