@@ -153,7 +153,13 @@ class SchemaTest extends TestCase
     public function test_users_table_has_uuid_primary_key(): void
     {
         $this->assertTrue(Schema::hasColumn('users', 'id'), 'Users table missing [id] column.');
-        $this->assertEquals('string', Schema::getColumnType('users', 'id'), 'Users.id must be UUID (string type).');
+        $type = Schema::getColumnType('users', 'id');
+        // Laravel 12 dropped Doctrine DBAL; native SQLite introspection returns
+        // 'varchar' for uuid columns instead of the old Doctrine-normalized 'string'.
+        $this->assertTrue(
+            in_array($type, ['string', 'varchar', 'guid', 'text', 'uuid'], true),
+            "Users.id must be UUID (string-like type), got [{$type}]."
+        );
     }
 
     public function test_users_table_has_required_columns(): void
