@@ -4,7 +4,6 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 use App\Models\User;
 use App\Models\AdminProfile;
 use App\Models\ConductorProfile;
@@ -26,7 +25,7 @@ class DatabaseSeeder extends Seeder
         // ── Admin ──
         $admin = User::create([
             'email'    => 'admin@gmail.com',
-            'password' => 'password123', // hashed via model cast
+            'password' => Hash::make('password123'),
             'role'     => UserRole::ADMIN,
         ]);
         AdminProfile::create([
@@ -40,7 +39,7 @@ class DatabaseSeeder extends Seeder
         // ── Conductors ──
         $conductor1 = User::create([
             'email'    => 'conductor1@gmail.com',
-            'password' => 'password123',
+            'password' => Hash::make('password123'),
             'role'     => UserRole::CONDUCTOR,
         ]);
         ConductorProfile::create([
@@ -56,7 +55,7 @@ class DatabaseSeeder extends Seeder
 
         $conductor2 = User::create([
             'email'    => 'conductor2@gmail.com',
-            'password' => 'password123',
+            'password' => Hash::make('password123'),
             'role'     => UserRole::CONDUCTOR,
         ]);
         ConductorProfile::create([
@@ -73,7 +72,7 @@ class DatabaseSeeder extends Seeder
         // ── Commuters ──
         $commuter1 = User::create([
             'email'    => 'commuter1@gmail.com',
-            'password' => 'password123',
+            'password' => Hash::make('password123'),
             'role'     => UserRole::COMMUTER,
         ]);
         CommuterProfile::create([
@@ -97,7 +96,7 @@ class DatabaseSeeder extends Seeder
 
         $commuter2 = User::create([
             'email'    => 'commuter2@gmail.com',
-            'password' => 'password123',
+            'password' => Hash::make('password123'),
             'role'     => UserRole::COMMUTER,
         ]);
         CommuterProfile::create([
@@ -121,7 +120,7 @@ class DatabaseSeeder extends Seeder
 
         $commuter3 = User::create([
             'email'    => 'commuter3@gmail.com',
-            'password' => 'password123',
+            'password' => Hash::make('password123'),
             'role'     => UserRole::COMMUTER,
         ]);
         CommuterProfile::create([
