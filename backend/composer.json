@@ -1,9 +1,13 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "chatco/api",
+    "name": "transeguro/api",
     "type": "project",
     "description": "ChatCo TranSeguro Transit Management API",
-    "keywords": ["chatco", "laravel", "framework"],
+    "keywords": [
+        "laravel",
+        "transit",
+        "api"
+    ],
     "license": "MIT",
     "require": {
         "php": "^8.2",
