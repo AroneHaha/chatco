@@ -4,13 +4,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class Route extends Model
 {
     use HasFactory;
 
-    protected $keyType = 'string';
     public $incrementing = false;
+    protected $keyType = 'string';
 
     protected $fillable = [
         'id',
@@ -26,13 +27,22 @@ class Route extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        static::creating(function (Route $route) {
+            if (empty($route->id)) {
+                $route->id = (string) Str::uuid();
+            }
+        });
+    }
+
     public function vehicles()
     {
-        return $this->hasMany(Vehicle::class, 'route_id', 'id');
+        return $this->hasMany(Vehicle::class);
     }
 
     public function farePoints()
     {
-        return $this->hasMany(FarePoint::class, 'route_id', 'id');
+        return $this->hasMany(FarePoint::class);
     }
 }

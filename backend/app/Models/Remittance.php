@@ -9,41 +9,66 @@ class Remittance extends Model
 {
     use HasFactory;
 
-    protected $keyType = 'string';
     public $incrementing = false;
+    protected $keyType = 'string';
+    protected $primaryKey = 'shift_id';
 
     protected $fillable = [
-        'id',
-        'shift_log_id',
+        'shift_id',
+        'date',
         'conductor_id',
-        'cash_total',
-        'gcash_total',
+        'conductor_name',
+        'driver_id',
+        'driver_name',
+        'vehicle_id',
+        'unit_number',
+        'total_passengers',
+        'gcash_scanned_total',
+        'gcash_direct_total',
+        'voucher_total',
         'total_cashless',
         'cash_declared',
-        'total_passengers',
+        'cash_total',
+        'gcash_total',
         'remittance_status',
-        'remittance_option',
-        'remitted_at',
+        'time_in',
+        'time_out',
     ];
 
     protected function casts(): array
     {
         return [
-            'cash_total'        => 'decimal:2',
-            'gcash_total'       => 'decimal:2',
-            'total_cashless'    => 'decimal:2',
-            'cash_declared'     => 'decimal:2',
-            'remitted_at'       => 'datetime',
+            'date' => 'date',
+            'total_passengers' => 'integer',
+            'gcash_scanned_total' => 'decimal:2',
+            'gcash_direct_total' => 'decimal:2',
+            'voucher_total' => 'decimal:2',
+            'total_cashless' => 'decimal:2',
+            'cash_declared' => 'decimal:2',
+            'cash_total' => 'decimal:2',
+            'gcash_total' => 'decimal:2',
+            'time_in' => 'datetime',
+            'time_out' => 'datetime',
         ];
     }
 
     public function shiftLog()
     {
-        return $this->belongsTo(ShiftLog::class, 'shift_log_id', 'id');
+        return $this->belongsTo(ShiftLog::class, 'shift_id', 'shift_id');
     }
 
     public function conductor()
     {
-        return $this->belongsTo(ConductorProfile::class, 'conductor_id', 'id');
+        return $this->belongsTo(ConductorProfile::class, 'conductor_id');
+    }
+
+    public function driver()
+    {
+        return $this->belongsTo(Driver::class);
+    }
+
+    public function vehicle()
+    {
+        return $this->belongsTo(Vehicle::class);
     }
 }

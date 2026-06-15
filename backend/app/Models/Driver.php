@@ -3,27 +3,27 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class Driver extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $keyType = 'string';
     public $incrementing = false;
+    protected $keyType = 'string';
 
     protected $fillable = [
         'id',
         'first_name',
         'middle_name',
-        'surname',
-        'suffix',
-        'contact_number',
-        'address',
+        'last_name',
+        'birthday',
+        'contact',
         'license_number',
-        'license_expiry',
         'hire_date',
+        'profile_picture_url',
         'status',
         'vehicle_id',
     ];
@@ -31,13 +31,27 @@ class Driver extends Model
     protected function casts(): array
     {
         return [
-            'license_expiry' => 'date',
-            'hire_date'      => 'date',
+            'birthday' => 'date',
+            'hire_date' => 'date',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (Driver $driver) {
+            if (empty($driver->id)) {
+                $driver->id = (string) Str::uuid();
+            }
+        });
     }
 
     public function vehicle()
     {
-        return $this->hasOne(Vehicle::class, 'driver_id', 'id');
+        return $this->belongsTo(Vehicle::class);
+    }
+
+    public function shiftLogs()
+    {
+        return $this->hasMany(ShiftLog::class);
     }
 }

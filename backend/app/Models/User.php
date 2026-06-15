@@ -45,7 +45,9 @@ class User extends Authenticatable
         });
     }
 
-       public function adminProfile()
+    // Relationships
+
+    public function adminProfile()
     {
         return $this->hasOne(AdminProfile::class, 'id', 'id');
     }
@@ -59,6 +61,14 @@ class User extends Authenticatable
     {
         return $this->hasOne(CommuterProfile::class, 'id', 'id');
     }
+
+    // Helper Methods
+
+    public function hasRole(UserRole $role): bool
+    {
+        return $this->role === $role;
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === UserRole::ADMIN;

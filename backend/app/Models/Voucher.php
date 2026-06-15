@@ -4,42 +4,46 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class Voucher extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
-    protected $keyType = 'string';
     public $incrementing = false;
+    protected $keyType = 'string';
 
     protected $fillable = [
         'id',
         'code',
+        'commuter_id',
         'type',
         'status',
-        'discount_percentage',
-        'reward_cycle_id',
-        'commuter_id',
+        'amount',
         'expires_at',
-        'used_at',
+        'ride_origin',
     ];
 
     protected function casts(): array
     {
         return [
-            'discount_percentage' => 'decimal:2',
-            'expires_at'          => 'datetime',
-            'used_at'             => 'datetime',
+            'amount' => 'decimal:2',
+            'expires_at' => 'datetime',
         ];
     }
 
-    public function rewardCycle()
+    protected static function booted(): void
     {
-        return $this->belongsTo(RewardCycle::class, 'reward_cycle_id', 'id');
+        static::creating(function (Voucher $voucher) {
+            if (empty($voucher->id)) {
+                $voucher->id = (string) Str::uuid();
+            }
+        });
     }
 
     public function commuter()
     {
-        return $this->belongsTo(User::class, 'commuter_id', 'id');
+        return $this->belongsTo(CommuterProfile::class);
     }
 }

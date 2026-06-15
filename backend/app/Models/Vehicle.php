@@ -3,15 +3,16 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class Vehicle extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $keyType = 'string';
     public $incrementing = false;
+    protected $keyType = 'string';
 
     protected $fillable = [
         'id',
@@ -20,9 +21,9 @@ class Vehicle extends Model
         'route_id',
         'driver_id',
         'conductor_id',
+        'status',
         'speed',
         'capacity_status',
-        'status',
         'latitude',
         'longitude',
         'last_location_update',
@@ -31,24 +32,44 @@ class Vehicle extends Model
     protected function casts(): array
     {
         return [
+            'speed' => 'integer',
+            'latitude' => 'decimal:7',
+            'longitude' => 'decimal:7',
             'last_location_update' => 'datetime',
-            'latitude'            => 'decimal:8',
-            'longitude'           => 'decimal:8',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (Vehicle $vehicle) {
+            if (empty($vehicle->id)) {
+                $vehicle->id = (string) Str::uuid();
+            }
+        });
     }
 
     public function route()
     {
-        return $this->belongsTo(Route::class, 'route_id', 'id');
+        return $this->belongsTo(Route::class);
     }
 
     public function driver()
     {
-        return $this->belongsTo(Driver::class, 'driver_id', 'id');
+        return $this->belongsTo(Driver::class);
     }
 
     public function conductor()
     {
-        return $this->belongsTo(ConductorProfile::class, 'conductor_id', 'id');
+        return $this->belongsTo(ConductorProfile::class, 'conductor_id');
+    }
+
+    public function shiftLogs()
+    {
+        return $this->hasMany(ShiftLog::class);
+    }
+
+    public function transactions()
+    {
+        return $this->hasMany(Transaction::class);
     }
 }

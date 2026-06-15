@@ -9,8 +9,8 @@ class LostItem extends Model
 {
     use HasFactory;
 
-    protected $keyType = 'string';
     public $incrementing = false;
+    protected $keyType = 'string';
 
     protected $fillable = [
         'id',
@@ -20,23 +20,28 @@ class LostItem extends Model
         'plate_number',
         'driver_name',
         'conductor_name',
+        'vehicle_id',
         'estimated_time_lost',
         'category',
-        'date_posted',
+        'reported_by_id',
+        'reported_by_role',
         'reporter_name',
         'status',
         'claimed_by',
     ];
 
-    protected function casts(): array
+    public function reporter()
     {
-        return [
-            'date_posted' => 'datetime',
-        ];
+        return $this->belongsTo(User::class, 'reported_by_id');
+    }
+
+    public function vehicle()
+    {
+        return $this->belongsTo(Vehicle::class);
     }
 
     public function claims()
     {
-        return $this->hasMany(Claim::class, 'item_id', 'id');
+        return $this->hasMany(Claim::class, 'item_id');
     }
 }

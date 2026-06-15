@@ -9,41 +9,65 @@ class Transaction extends Model
 {
     use HasFactory;
 
-    protected $keyType = 'string';
     public $incrementing = false;
+    protected $keyType = 'string';
+    protected $primaryKey = 'transaction_id';
 
     protected $fillable = [
-        'id',
-        'commuter_id',
-        'vehicle_id',
-        'route_id',
-        'fare_amount',
+        'transaction_id',
+        'shift_id',
         'payment_method',
-        'payment_status',
-        'qr_code',
-        'trip_date',
+        'final_amount',
+        'passenger_id',
+        'passenger_name',
+        'passenger_role',
+        'pickup_stop_id',
+        'dropoff_stop_id',
+        'pickup_name',
+        'dropoff_name',
+        'distance',
+        'base_fare',
+        'succeeding_km',
+        'discount_amount',
+        'conductor_name',
+        'unit_number',
+        'driver_name',
+        'voucher_id',
     ];
 
     protected function casts(): array
     {
         return [
-            'fare_amount' => 'decimal:2',
-            'trip_date'   => 'datetime',
+            'final_amount' => 'decimal:2',
+            'distance' => 'decimal:2',
+            'base_fare' => 'decimal:2',
+            'succeeding_km' => 'decimal:2',
+            'discount_amount' => 'decimal:2',
         ];
     }
 
-    public function commuter()
+    public function shiftLog()
     {
-        return $this->belongsTo(User::class, 'commuter_id', 'id');
+        return $this->belongsTo(ShiftLog::class, 'shift_id', 'shift_id');
     }
 
-    public function vehicle()
+    public function passenger()
     {
-        return $this->belongsTo(Vehicle::class, 'vehicle_id', 'id');
+        return $this->belongsTo(CommuterProfile::class, 'passenger_id');
     }
 
-    public function route()
+    public function pickupStop()
     {
-        return $this->belongsTo(Route::class, 'route_id', 'id');
+        return $this->belongsTo(FarePoint::class, 'pickup_stop_id');
+    }
+
+    public function dropoffStop()
+    {
+        return $this->belongsTo(FarePoint::class, 'dropoff_stop_id');
+    }
+
+    public function voucher()
+    {
+        return $this->belongsTo(Voucher::class);
     }
 }

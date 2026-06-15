@@ -3,15 +3,15 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class CommuterProfile extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $keyType = 'string';
     public $incrementing = false;
+    protected $keyType = 'string';
 
     protected $fillable = [
         'id',
@@ -35,7 +35,7 @@ class CommuterProfile extends Model
     protected function casts(): array
     {
         return [
-            'birthdate'   => 'date',
+            'birthdate' => 'date',
             'verified_at' => 'datetime',
         ];
     }

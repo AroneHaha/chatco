@@ -4,28 +4,29 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class Announcement extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
-    protected $keyType = 'string';
     public $incrementing = false;
+    protected $keyType = 'string';
 
     protected $fillable = [
         'id',
+        'type',
         'title',
-        'content',
-        'target_audience',
-        'is_active',
-        'published_at',
+        'message',
     ];
 
-    protected function casts(): array
+    protected static function booted(): void
     {
-        return [
-            'is_active'    => 'boolean',
-            'published_at' => 'datetime',
-        ];
+        static::creating(function (Announcement $announcement) {
+            if (empty($announcement->id)) {
+                $announcement->id = (string) Str::uuid();
+            }
+        });
     }
 }
