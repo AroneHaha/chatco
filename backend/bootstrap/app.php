@@ -14,6 +14,14 @@ use Laravel\Sanctum\Sanctum;
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        $middleware->api(prepend: [
+            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+        ]);
+
+        $middleware->alias([
+            'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,
+        ]);
+
         $middleware->statefulApi();
         $middleware->alias([
             'role' => \App\Http\Middleware\EnsureUserRole::class,
