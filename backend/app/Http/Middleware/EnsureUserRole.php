@@ -19,7 +19,7 @@ class EnsureUserRole
         if (! $request->user()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Unauthenticated.',
+                'message' => 'Invalid credentials',
                 'data'    => null,
                 'errors'  => null,
                 'meta'    => null,
@@ -41,7 +41,7 @@ class EnsureUserRole
 
         return response()->json([
             'success' => false,
-            'message' => 'Forbidden. Insufficient role.',
+            'message' => 'Forbidden',
             'data'    => null,
             'errors'  => null,
             'meta'    => null,
