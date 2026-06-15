@@ -6,58 +6,54 @@ use Illuminate\Http\JsonResponse;
 
 trait ApiResponse
 {
+    /**
+     * Return a successful API response.
+     *
+     * @param  mixed   $data    Response payload
+     * @param  string  $message Human-readable message
+     * @param  int     $status  HTTP status code
+     */
     protected function successResponse(mixed $data = null, string $message = 'Success', int $status = 200): JsonResponse
     {
         return response()->json([
-            'success'  => true,
-            'data'     => $data,
-            'message'  => $message,
-            'errors'   => null,
-            'meta'     => null,
+            'success' => true,
+            'data'    => $data,
+            'message' => $message,
+            'errors'  => null,
+            'meta'    => null,
         ], $status);
     }
 
-    protected function successResponseWithMeta(mixed $data = null, string $message = 'Success', ?array $meta = null, int $status = 200): JsonResponse
+    /**
+     * Return an error API response.
+     *
+     * @param  string       $message Human-readable error message
+     * @param  int          $status  HTTP status code
+     * @param  mixed|null   $errors  Validation errors or error details
+     */
+    protected function errorResponse(string $message = 'Error', int $status = 400, mixed $errors = null): JsonResponse
     {
         return response()->json([
-            'success'  => true,
-            'data'     => $data,
-            'message'  => $message,
-            'errors'   => null,
-            'meta'     => $meta,
+            'success' => false,
+            'data'    => null,
+            'message' => $message,
+            'errors'  => $errors,
+            'meta'    => null,
         ], $status);
     }
 
-    protected function errorResponse(string $message = 'Error', int $status = 400, ?array $errors = null): JsonResponse
-    {
-        return response()->json([
-            'success'  => false,
-            'data'     => null,
-            'message'  => $message,
-            'errors'   => $errors,
-            'meta'     => null,
-        ], $status);
-    }
-
-    protected function validationErrorResponse(string $message = 'Validation failed', array $errors = []): JsonResponse
-    {
-        return response()->json([
-            'success'  => false,
-            'data'     => null,
-            'message'  => $message,
-            'errors'   => $errors,
-            'meta'     => null,
-        ], 422);
-    }
-
+    /**
+     * Return a 501 Not Implemented placeholder response.
+     * Used for all Sprint 1 stub endpoints.
+     */
     protected function notImplementedResponse(): JsonResponse
     {
         return response()->json([
-            'success'  => false,
-            'data'     => null,
-            'message'  => 'Not Implemented',
-            'errors'   => null,
-            'meta'     => null,
+            'success' => false,
+            'data'    => null,
+            'message' => 'Not Implemented',
+            'errors'  => null,
+            'meta'    => null,
         ], 501);
     }
 }
