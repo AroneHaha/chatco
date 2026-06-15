@@ -35,6 +35,8 @@ class FarePoint extends Model
             'discounted_fare' => 'decimal:2',
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
+            'landmarks' => 'array',
+            'sub_stops' => 'array',
         ];
     }
 

@@ -4,7 +4,6 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 use App\Models\User;
 use App\Models\AdminProfile;
 use App\Models\ConductorProfile;
@@ -24,15 +23,13 @@ class DatabaseSeeder extends Seeder
         // ════════════════════════════════════════════════════
 
         // ── Admin ──
-        $adminId = (string) Str::uuid();
-        User::create([
-            'id'       => $adminId,
+        $admin = User::create([
             'email'    => 'admin@gmail.com',
-            'password' => 'password123', // hashed cast on User model
+            'password' => Hash::make('password123'),
             'role'     => UserRole::ADMIN,
         ]);
         AdminProfile::create([
-            'id'                  => $adminId,
+            'id'                  => $admin->id,
             'first_name'          => 'System',
             'middle_name'         => null,
             'last_name'           => 'Admin',
@@ -40,15 +37,13 @@ class DatabaseSeeder extends Seeder
         ]);
 
         // ── Conductors ──
-        $conductor1Id = (string) Str::uuid();
-        User::create([
-            'id'       => $conductor1Id,
+        $conductor1 = User::create([
             'email'    => 'conductor1@gmail.com',
-            'password' => 'password123',
+            'password' => Hash::make('password123'),
             'role'     => UserRole::CONDUCTOR,
         ]);
         ConductorProfile::create([
-            'id'                  => $conductor1Id,
+            'id'                  => $conductor1->id,
             'first_name'          => 'Juan',
             'middle_name'         => null,
             'last_name'           => 'Dela Cruz',
@@ -58,15 +53,13 @@ class DatabaseSeeder extends Seeder
             'generated_password'  => Hash::make('password123'),
         ]);
 
-        $conductor2Id = (string) Str::uuid();
-        User::create([
-            'id'       => $conductor2Id,
+        $conductor2 = User::create([
             'email'    => 'conductor2@gmail.com',
-            'password' => 'password123',
+            'password' => Hash::make('password123'),
             'role'     => UserRole::CONDUCTOR,
         ]);
         ConductorProfile::create([
-            'id'                  => $conductor2Id,
+            'id'                  => $conductor2->id,
             'first_name'          => 'Maria',
             'middle_name'         => 'Santos',
             'last_name'           => 'Reyes',
@@ -77,15 +70,13 @@ class DatabaseSeeder extends Seeder
         ]);
 
         // ── Commuters ──
-        $commuter1Id = (string) Str::uuid();
-        User::create([
-            'id'       => $commuter1Id,
+        $commuter1 = User::create([
             'email'    => 'commuter1@gmail.com',
-            'password' => 'password123',
+            'password' => Hash::make('password123'),
             'role'     => UserRole::COMMUTER,
         ]);
         CommuterProfile::create([
-            'id'                  => $commuter1Id,
+            'id'                  => $commuter1->id,
             'first_name'          => 'Jose',
             'middle_name'         => 'Rizal',
             'surname'             => 'Mendoza',
@@ -103,15 +94,13 @@ class DatabaseSeeder extends Seeder
             'rejection_reason'    => null,
         ]);
 
-        $commuter2Id = (string) Str::uuid();
-        User::create([
-            'id'       => $commuter2Id,
+        $commuter2 = User::create([
             'email'    => 'commuter2@gmail.com',
-            'password' => 'password123',
+            'password' => Hash::make('password123'),
             'role'     => UserRole::COMMUTER,
         ]);
         CommuterProfile::create([
-            'id'                  => $commuter2Id,
+            'id'                  => $commuter2->id,
             'first_name'          => 'Ana',
             'middle_name'         => 'Cristina',
             'surname'             => 'Villanueva',
@@ -129,15 +118,13 @@ class DatabaseSeeder extends Seeder
             'rejection_reason'    => null,
         ]);
 
-        $commuter3Id = (string) Str::uuid();
-        User::create([
-            'id'       => $commuter3Id,
+        $commuter3 = User::create([
             'email'    => 'commuter3@gmail.com',
-            'password' => 'password123',
+            'password' => Hash::make('password123'),
             'role'     => UserRole::COMMUTER,
         ]);
         CommuterProfile::create([
-            'id'                  => $commuter3Id,
+            'id'                  => $commuter3->id,
             'first_name'          => 'Marco',
             'middle_name'         => 'Antonio',
             'surname'             => 'Reyes',
@@ -200,9 +187,7 @@ class DatabaseSeeder extends Seeder
             return ['lat' => $stop['lat'], 'lng' => $stop['lng'], 'name' => $stop['name']];
         }, $barangayStops);
 
-        $routeId = (string) Str::uuid();
-        Route::create([
-            'id'        => $routeId,
+        $route = Route::create([
             'name'      => 'McArthur Highway — Calumpit to Meycauayan',
             'status'    => 'ACTIVE',
             'waypoints' => $waypoints, // auto JSON via cast
@@ -231,17 +216,16 @@ class DatabaseSeeder extends Seeder
             }
 
             FarePoint::create([
-                'id'             => (string) Str::uuid(),
-                'route_id'       => $routeId,
-                'point_number'   => $pointNumber,
-                'code'           => $stop['code'],
-                'name'           => $stop['name'],
-                'landmarks'      => json_encode($stop['landmarks']),
-                'sub_stops'      => null,
-                'regular_fare'   => $regularFare,
+                'route_id'        => $route->id,
+                'point_number'    => $pointNumber,
+                'code'            => $stop['code'],
+                'name'            => $stop['name'],
+                'landmarks'       => $stop['landmarks'], // auto JSON via cast
+                'sub_stops'       => null,
+                'regular_fare'    => $regularFare,
                 'discounted_fare' => $discountedFare,
-                'latitude'       => $stop['lat'],
-                'longitude'      => $stop['lng'],
+                'latitude'        => $stop['lat'],
+                'longitude'       => $stop['lng'],
             ]);
         }
 
@@ -249,9 +233,7 @@ class DatabaseSeeder extends Seeder
         // 4. DRIVERS
         // ════════════════════════════════════════════════════
 
-        $driver1Id = (string) Str::uuid();
-        Driver::create([
-            'id'                  => $driver1Id,
+        $driver1 = Driver::create([
             'first_name'          => 'Pedro',
             'middle_name'         => null,
             'last_name'           => 'Santos',
@@ -264,9 +246,7 @@ class DatabaseSeeder extends Seeder
             'vehicle_id'          => null,
         ]);
 
-        $driver2Id = (string) Str::uuid();
-        Driver::create([
-            'id'                  => $driver2Id,
+        $driver2 = Driver::create([
             'first_name'          => 'Ricardo',
             'middle_name'         => 'G.',
             'last_name'           => 'Cruz',
@@ -279,9 +259,7 @@ class DatabaseSeeder extends Seeder
             'vehicle_id'          => null,
         ]);
 
-        $driver3Id = (string) Str::uuid();
-        Driver::create([
-            'id'                  => $driver3Id,
+        $driver3 = Driver::create([
             'first_name'          => 'Antonio',
             'middle_name'         => null,
             'last_name'           => 'Garcia',
@@ -299,12 +277,11 @@ class DatabaseSeeder extends Seeder
         // ════════════════════════════════════════════════════
 
         $vehicle1 = Vehicle::create([
-            'id'                   => (string) Str::uuid(),
             'unit_number'          => 'BUS-001',
             'plate_number'         => 'ABC-1234',
-            'route_id'             => $routeId,
-            'driver_id'            => $driver1Id,
-            'conductor_id'         => $conductor1Id,
+            'route_id'             => $route->id,
+            'driver_id'            => $driver1->id,
+            'conductor_id'         => $conductor1->id,
             'status'               => 'ACTIVE',
             'speed'                => null,
             'capacity_status'      => 'AVAILABLE',
@@ -314,12 +291,11 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $vehicle2 = Vehicle::create([
-            'id'                   => (string) Str::uuid(),
             'unit_number'          => 'JEEP-001',
             'plate_number'         => 'DEF-5678',
-            'route_id'             => $routeId,
-            'driver_id'            => $driver2Id,
-            'conductor_id'         => $conductor2Id,
+            'route_id'             => $route->id,
+            'driver_id'            => $driver2->id,
+            'conductor_id'         => $conductor2->id,
             'status'               => 'ACTIVE',
             'speed'                => null,
             'capacity_status'      => 'AVAILABLE',
@@ -329,12 +305,11 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $vehicle3 = Vehicle::create([
-            'id'                   => (string) Str::uuid(),
             'unit_number'          => 'JEEP-002',
             'plate_number'         => 'GHI-9012',
-            'route_id'             => $routeId,
-            'driver_id'            => $driver3Id,
-            'conductor_id'         => $conductor1Id,
+            'route_id'             => $route->id,
+            'driver_id'            => $driver3->id,
+            'conductor_id'         => $conductor1->id,
             'status'               => 'ACTIVE',
             'speed'                => null,
             'capacity_status'      => 'AVAILABLE',
@@ -344,8 +319,8 @@ class DatabaseSeeder extends Seeder
         ]);
 
         // Update drivers with vehicle_id
-        Driver::where('id', $driver1Id)->update(['vehicle_id' => $vehicle1->id]);
-        Driver::where('id', $driver2Id)->update(['vehicle_id' => $vehicle2->id]);
-        Driver::where('id', $driver3Id)->update(['vehicle_id' => $vehicle3->id]);
+        $driver1->update(['vehicle_id' => $vehicle1->id]);
+        $driver2->update(['vehicle_id' => $vehicle2->id]);
+        $driver3->update(['vehicle_id' => $vehicle3->id]);
     }
 }
