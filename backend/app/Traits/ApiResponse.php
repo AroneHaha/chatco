@@ -49,4 +49,15 @@ trait ApiResponse
             'meta'     => null,
         ], 422);
     }
+
+    protected function notImplementedResponse(): JsonResponse
+    {
+        return response()->json([
+            'success'  => false,
+            'data'     => null,
+            'message'  => 'Not Implemented',
+            'errors'   => null,
+            'meta'     => null,
+        ], 501);
+    }
 }

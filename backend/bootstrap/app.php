@@ -4,6 +4,8 @@ use App\Models\PersonalAccessToken;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\Sanctum;
 
  $app = Application::configure(basePath: dirname(__DIR__))
@@ -26,7 +28,17 @@ use Laravel\Sanctum\Sanctum;
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        $exceptions->render(function (ValidationException $e, Request $request) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'data'    => null,
+                    'message' => 'Validation failed',
+                    'errors'  => $e->errors(),
+                    'meta'    => null,
+                ], 422);
+            }
+        });
     })
     ->create();
 
