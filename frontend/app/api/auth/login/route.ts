@@ -1,66 +1,59 @@
+// frontend/app/api/auth/login/route.ts
 import { NextResponse } from "next/server";
-
-const API_URL = process.env.API_URL || "http://localhost:8000";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { email, password } = body;
 
-    const res = await fetch(`${API_URL}/api/auth/login`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({ login: email, password }),
-    });
+    // --- TEMPORARY MOCK VALIDATION ---
+    // Later: replace with real database + bcrypt
+    const MOCK_USERS = [
+      { id: "u_1", email: "commuter@gmail.com", username: "commuter", password: "commuter", role: "COMMUTER" },
+      { id: "a_1", email: "admin@chatco.com", username: "admin", password: "admin", role: "ADMIN" },
+      { id: "c_1", email: "conductor@chatco.com", username: "conductor", password: "conductor", role: "CONDUCTOR" },
+    ];
 
-    const data = await res.json();
+    const user = MOCK_USERS.find(
+      (u) =>
+        (u.email === email || u.username === email) &&
+        u.password === password
+    );
 
-    if (!res.ok) {
+    if (!user) {
       return NextResponse.json(
-        { message: data.message || "Invalid credentials." },
-        { status: res.status }
+        { message: "Invalid credentials. Please try again." },
+        { status: 401 }
       );
     }
 
-    const { id, email: userEmail, role, name, token } = data.data;
-
-    const redirectPath =
-      role === "ADMIN"
-        ? "/admin-dashboard"
-        : role === "CONDUCTOR"
-        ? "/unit-verification"
-        : "/dashboard";
+    // --- Session token (placeholder) ---
+    // Later: replace with real JWT
+const sessionToken = `chatco:${user.id}:${user.role}:${Date.now()}`;
 
     const response = NextResponse.json({
-      user: { id, email: userEmail, role, name },
-      redirectPath,
+      user: { id: user.id, email: user.email, role: user.role },
+      redirectPath:
+        user.role === "ADMIN"
+          ? "/admin-dashboard"
+          : user.role === "CONDUCTOR"
+          ? "/unit-verification"
+          : "/dashboard",
     });
 
-    // httpOnly cookie — Sanctum token (JavaScript CANNOT read this)
-    response.cookies.set("chatco_session", token, {
+    // Set httpOnly cookie — JavaScript CANNOT read this
+    response.cookies.set("chatco_session", sessionToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 24,
-    });
-
-  
-    response.cookies.set("chatco_role", role, {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24,
+      maxAge: 60 * 60 * 24, // 24 hours
     });
 
     return response;
   } catch (error) {
     return NextResponse.json(
-      { message: "Unable to connect to the server." },
+      { message: "An unexpected error occurred." },
       { status: 500 }
     );
   }
