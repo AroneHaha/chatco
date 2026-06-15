@@ -18,12 +18,10 @@ use Laravel\Sanctum\Sanctum;
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
         ]);
 
+        $middleware->statefulApi();
+
         $middleware->alias([
             'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,
-        ]);
-
-        $middleware->statefulApi();
-        $middleware->alias([
             'role' => \App\Http\Middleware\EnsureUserRole::class,
         ]);
     })

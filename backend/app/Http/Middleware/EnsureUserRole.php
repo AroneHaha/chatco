@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\UserRole;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -28,8 +29,13 @@ class EnsureUserRole
         $userRole = $request->user()->role;
 
         foreach ($roles as $role) {
-            if ($userRole->value === $role) {
-                return $next($request);
+            try {
+                if ($userRole === UserRole::from($role)) {
+                    return $next($request);
+                }
+            } catch (\ValueError $e) {
+                // Invalid role string — safely ignore
+                continue;
             }
         }
 
