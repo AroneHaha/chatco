@@ -8,7 +8,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import type { AuthUser, CommuterProfile, UserRole } from "@/types";
+import type { AuthUser, CommuterProfile } from "@/types";
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -67,18 +67,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string): Promise<string> => {
-      console.log("LOGIN START", { email });
-
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
 
-      console.log("LOGIN STATUS", response.status);
-
       const data = await response.json();
-      console.log("LOGIN DATA", data);
 
       if (!response.ok) {
         throw new Error(data.message || "Login failed.");
@@ -91,11 +86,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
 
       setUser(authUser);
-      console.log("LOGIN USER SET, redirecting to", data.redirectPath);
+
+      // Fetch full profile after login (sets commuterProfile if commuter)
+      if (authUser.role === "COMMUTER") {
+        refresh();
+      }
 
       return data.redirectPath;
     },
-    []
+    [refresh]
   );
 
   const logout = useCallback(async () => {
