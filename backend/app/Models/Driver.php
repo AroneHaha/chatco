@@ -38,6 +38,10 @@ class Driver extends Model
         return $this->belongsTo(Vehicle::class);
     }
 
+    /**
+     * The currently active shift for this driver.
+     * FK active_shift_id → shift_logs.shift_id
+     */
     public function activeShift()
     {
         return $this->belongsTo(ShiftLog::class, 'active_shift_id', 'shift_id');
@@ -46,5 +50,15 @@ class Driver extends Model
     public function shiftLogs()
     {
         return $this->hasMany(ShiftLog::class);
+    }
+
+    public function hasActiveShift(): bool
+    {
+        return ! is_null($this->active_shift_id);
+    }
+
+    public function getActiveShift(): ?ShiftLog
+    {
+        return $this->activeShift;
     }
 }

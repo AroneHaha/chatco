@@ -51,10 +51,12 @@ class Vehicle extends Model
         return $this->belongsTo(ConductorProfile::class, 'conductor_id');
     }
 
+
     public function activeShift()
     {
         return $this->belongsTo(ShiftLog::class, 'active_shift_id', 'shift_id');
     }
+
 
     public function currentLocation()
     {
@@ -69,5 +71,15 @@ class Vehicle extends Model
     public function transactions()
     {
         return $this->hasMany(Transaction::class);
+    }
+
+    public function hasActiveShift(): bool
+    {
+        return ! is_null($this->active_shift_id);
+    }
+
+    public function getActiveShift(): ?ShiftLog
+    {
+        return $this->activeShift;
     }
 }

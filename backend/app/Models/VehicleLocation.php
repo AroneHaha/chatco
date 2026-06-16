@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\CapacityStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -36,8 +37,31 @@ class VehicleLocation extends Model
             'lng' => 'decimal:7',
             'speed' => 'decimal:2',
             'heading' => 'decimal:2',
+            'capacity_status' => CapacityStatus::class,
             'updated_at' => 'datetime',
         ];
+    }
+
+    public static function upsertPosition(
+        string $vehicleId,
+        string $lat,
+        string $lng,
+        ?string $conductorId = null,
+        ?string $speed = null,
+        ?string $heading = null,
+        ?CapacityStatus $capacityStatus = null,
+    ): self {
+        return static::updateOrCreate(
+            ['vehicle_id' => $vehicleId],
+            [
+                'conductor_id' => $conductorId,
+                'lat' => $lat,
+                'lng' => $lng,
+                'speed' => $speed,
+                'heading' => $heading,
+                'capacity_status' => $capacityStatus?->value ?? CapacityStatus::AVAILABLE->value,
+            ],
+        );
     }
 
     public function vehicle()
