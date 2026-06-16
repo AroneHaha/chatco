@@ -169,3 +169,35 @@ Stage Summary:
 - Existing files (financial-summary.tsx, recent-alerts.tsx) left untouched
 - Global scrollbar-hiding CSS moved from page.tsx into dashboard-settings-carousel.tsx (where it's needed)
 - No new lint errors introduced
+
+---
+Task ID: REVIEW-1
+Agent: code-reviewer
+Task: Review PR #11 against Sprint 2 ClickUp tasks S2-T1 to S2-T7
+
+Work Log:
+- Read existing /home/z/my-project/worklog.md (previous work was on UI components, unrelated)
+- Fetched all 7 ClickUp task descriptions (S2-T1 through S2-T7) using curl + ClickUp API
+- Reviewed S2-T1 migrations (5 files): vehicle_locations, shift_logs status, vehicles/drivers active_shift_id, remittances shift fields
+- Reviewed S2-T2 models & enums: VehicleLocation, ShiftLog, Vehicle, Driver, ShiftStatus, CapacityStatus
+- Reviewed S2-T3 ShiftService: startShift, endShiftViaRemittance, getActiveShift, getShiftLogs, getShiftDetail
+- Reviewed S2-T4 LocationService: updateLocation, getAllActiveLocations, updateCapacityStatus, broadcastLocationUpdate
+- Reviewed S2-T5 controllers/routes/requests: ConductorController, VehicleLocationController, FormRequests, routes/api.php, channels.php
+- Reviewed S2-T6 tests: ShiftTest, LocationTest, BroadcastTest, Sprint2RoleAccessTest, SchemaTest, plus pre-existing AuthTest, PlaceholderEndpointsTest, RoleMiddlewareTest
+- Reviewed S2-T7 Pusher setup: composer.json, broadcasting.php, BroadcastServiceProvider, VehicleLocationUpdated event, frontend echo.ts, useVehicleLocations hook, phpunit.xml, .env.example
+- Cross-checked existing Sprint 1 migrations (shift_logs, vehicles, drivers, remittances, users) to understand schema context
+- Verified no Pusher credentials hardcoded in committed files (searched for the specific keys from task description)
+- Verified no wallet_balance columns or wallet tables (only "WALLET" as a lost-item category in frontend data files, and 501-stub /commuter/wallet route)
+- Verified no distance filter in LocationService.getAllActiveLocations
+- Verified no standalone end-shift endpoint exists
+
+Stage Summary:
+- S2-T1 (Migrations): PASS — all required tables/columns/indexes created. Minor: shift_logs uses time_in/time_out instead of started_at/ended_at (Sprint 1 legacy, task said "verify exists")
+- S2-T2 (Models & Enums): PASS — all models, relationships, scopes, helpers, and both enums created correctly
+- S2-T3 (ShiftService): PARTIAL — all methods implemented correctly with one CRITICAL bug: endShiftViaRemittance calls Remittance::create with 'remitted_at' => now() but that column does NOT exist in remittances table → SQL error 500
+- S2-T4 (LocationService): PARTIAL — all methods honor hard constraints (no distance filter, upsert, broadcast every update); BUG: getAllActiveLocations aliases vehicles.capacity_status as vehicle_type which is semantically wrong
+- S2-T5 (Controllers/Routes): PARTIAL — controllers delegate to services, FormRequests correct, but DUPLICATE route definitions with lowercase 'role:conductor' (broken middleware matching), minor business logic in units()/drivers() controllers, profile() references non-existent User.first_name/last_name
+- S2-T6 (Tests): FAIL — every new test file has multiple blocking issues: wrong URLs (singular /shift/start vs plural /shifts/start), wrong field names (latitude/longitude vs lat/lng), lowercase role strings incompatible with UserRole enum, missing factories (only UserFactory exists, and UserFactory itself is broken), references to non-existent User.first_name/last_name. Pre-existing PlaceholderEndpointsTest and RoleMiddlewareTest also broken by Sprint 2 changes (expect 501 stubs that no longer exist).
+- S2-T7 (Pusher Setup): PASS — all backend + frontend infrastructure in place; minor issues with phpunit.xml dual broadcast env vars, frontend echo.ts missing window.Pusher assignment, useVehicleLocations expects camelCase event fields but backend broadcasts snake_case (real-time state updates won't match existing vehicles)
+- Security: PASS — no secrets committed, .env properly gitignored, .env.example has empty placeholders
+- Final Verdict: NEEDS FIXES (blockers in S2-T3 Remittance create bug, S2-T6 broken tests; S2-T5 duplicate routes)
