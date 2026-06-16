@@ -5,17 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Str;
 
 class Driver extends Model
 {
     use HasFactory, SoftDeletes;
 
-    public $incrementing = false;
-    protected $keyType = 'string';
-
     protected $fillable = [
-        'id',
         'first_name',
         'middle_name',
         'last_name',
@@ -26,6 +21,7 @@ class Driver extends Model
         'profile_picture_url',
         'status',
         'vehicle_id',
+        'active_shift_id',
     ];
 
     protected function casts(): array
@@ -33,21 +29,18 @@ class Driver extends Model
         return [
             'birthday' => 'date',
             'hire_date' => 'date',
+            'active_shift_id' => 'string',
         ];
-    }
-
-    protected static function booted(): void
-    {
-        static::creating(function (Driver $driver) {
-            if (empty($driver->id)) {
-                $driver->id = (string) Str::uuid();
-            }
-        });
     }
 
     public function vehicle()
     {
         return $this->belongsTo(Vehicle::class);
+    }
+
+    public function activeShift()
+    {
+        return $this->belongsTo(ShiftLog::class, 'active_shift_id', 'shift_id');
     }
 
     public function shiftLogs()
