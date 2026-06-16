@@ -5,19 +5,15 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Str;
 
 class Vehicle extends Model
 {
     use HasFactory, SoftDeletes;
 
-    public $incrementing = false;
-    protected $keyType = 'string';
-
     protected $fillable = [
-        'id',
         'unit_number',
         'plate_number',
+        'vehicle_type',
         'route_id',
         'driver_id',
         'conductor_id',
@@ -27,6 +23,7 @@ class Vehicle extends Model
         'latitude',
         'longitude',
         'last_location_update',
+        'active_shift_id',
     ];
 
     protected function casts(): array
@@ -36,16 +33,8 @@ class Vehicle extends Model
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
             'last_location_update' => 'datetime',
+            'active_shift_id' => 'string',
         ];
-    }
-
-    protected static function booted(): void
-    {
-        static::creating(function (Vehicle $vehicle) {
-            if (empty($vehicle->id)) {
-                $vehicle->id = (string) Str::uuid();
-            }
-        });
     }
 
     public function route()
@@ -63,6 +52,18 @@ class Vehicle extends Model
         return $this->belongsTo(ConductorProfile::class, 'conductor_id');
     }
 
+
+    public function activeShift()
+    {
+        return $this->belongsTo(ShiftLog::class, 'active_shift_id', 'shift_id');
+    }
+
+
+    public function currentLocation()
+    {
+        return $this->hasOne(VehicleLocation::class, 'vehicle_id');
+    }
+
     public function shiftLogs()
     {
         return $this->hasMany(ShiftLog::class);
@@ -71,5 +72,15 @@ class Vehicle extends Model
     public function transactions()
     {
         return $this->hasMany(Transaction::class);
+    }
+
+    public function hasActiveShift(): bool
+    {
+        return ! is_null($this->active_shift_id);
+    }
+
+    public function getActiveShift(): ?ShiftLog
+    {
+        return $this->activeShift;
     }
 }
