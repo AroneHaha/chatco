@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ShiftStatus;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -10,15 +11,8 @@ class ShiftLog extends Model
 {
     use HasFactory;
 
-    /**
-     * The actual DB uses shift_id (varchar 20) as PK.
-     * Denormalized columns (conductor_name, driver_name, plate_number)
-     * exist for read performance — they are NOT FKs.
-     */
     protected $primaryKey = 'shift_id';
-
     public $incrementing = false;
-
     protected $keyType = 'string';
 
     protected $fillable = [
@@ -27,13 +21,13 @@ class ShiftLog extends Model
         'driver_id',
         'vehicle_id',
         'route_id',
-        'time_in',
-        'time_out',
-        'status',
         'conductor_name',
         'driver_name',
         'plate_number',
+        'time_in',
+        'time_out',
         'total_trips',
+        'status',
     ];
 
     protected function casts(): array
@@ -53,22 +47,42 @@ class ShiftLog extends Model
 
     public function driver()
     {
-        return $this->belongsTo(Driver::class);
+        return $this->belongsTo(Driver::class, 'driver_id');
     }
 
     public function vehicle()
     {
-        return $this->belongsTo(Vehicle::class);
+        return $this->belongsTo(Vehicle::class, 'vehicle_id');
     }
 
     public function route()
     {
-        return $this->belongsTo(Route::class);
+        return $this->belongsTo(Route::class, 'route_id');
     }
 
     public function remittance()
     {
         return $this->hasOne(Remittance::class, 'shift_id', 'shift_id');
+    }
+
+    public function scopeActive(Builder $query): void
+    {
+        $query->where('status', ShiftStatus::ACTIVE);
+    }
+
+    public function scopeEnded(Builder $query): void
+    {
+        $query->where('status', ShiftStatus::ENDED);
+    }
+
+    public function scopeByConductor(Builder $query, string $conductorId): void
+    {
+        $query->where('conductor_id', $conductorId);
+    }
+
+    public function scopeByDriver(Builder $query, string $driverId): void
+    {
+        $query->where('driver_id', $driverId);
     }
 
     public function isActive(): bool
@@ -79,25 +93,5 @@ class ShiftLog extends Model
     public function isEnded(): bool
     {
         return $this->status === ShiftStatus::ENDED;
-    }
-
-    public function scopeActive($query)
-    {
-        return $query->where('status', ShiftStatus::ACTIVE->value);
-    }
-
-    public function scopeEnded($query)
-    {
-        return $query->where('status', ShiftStatus::ENDED->value);
-    }
-
-    public function scopeByConductor($query, string $conductorId)
-    {
-        return $query->where('conductor_id', $conductorId);
-    }
-
-    public function scopeByDriver($query, string $driverId)
-    {
-        return $query->where('driver_id', $driverId);
     }
 }
