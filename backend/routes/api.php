@@ -45,12 +45,12 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
 |--------------------------------------------------------------------------
 */
 Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->group(function () {
-    Route::post('/location', [ConductorController::class, 'location']);
+    Route::get('/shift', [ConductorController::class, 'shiftStatus']);
+    Route::post('/shifts/start', [ConductorController::class, 'startShift']);
+    Route::post('/remittances', [ConductorController::class, 'remittances']);
+    Route::post('/location', [ConductorController::class, 'updateLocation']);
     Route::post('/capacity-status', [ConductorController::class, 'updateCapacityStatus']);
-    Route::get('/shift', [ConductorController::class, 'shift']);
-    Route::post('/shift/start', [ConductorController::class, 'shiftStart']);
-    Route::post('/shift/end', [ConductorController::class, 'shiftEnd']);
-    Route::get('/remittances', [ConductorController::class, 'remittances']);
+    Route::get('/shift-logs', [ConductorController::class, 'shiftLogs']);
     Route::get('/transactions', [ConductorController::class, 'transactions']);
 });
 

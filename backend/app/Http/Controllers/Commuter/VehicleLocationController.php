@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Commuter;
 
 use App\Http\Controllers\Controller;
-use App\Http\Middleware\ApiResponse;
+use App\Http\ApiResponse;
 use App\Services\LocationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;

@@ -3,7 +3,10 @@
 namespace App\Http\Controllers\Conductor;
 
 use App\Http\Controllers\Controller;
-use App\Http\Middleware\ApiResponse;
+use App\Http\ApiResponse;
+use App\Http\Requests\Conductor\StartShiftRequest;
+use App\Http\Requests\Conductor\UpdateLocationRequest;
+use App\Http\Requests\Conductor\SubmitRemittanceRequest;
 use App\Services\LocationService;
 use App\Services\ShiftService;
 use Illuminate\Http\JsonResponse;
@@ -23,56 +26,9 @@ class ConductorController extends Controller
     }
 
     /**
-     * POST /api/conductor/location
-     * Update GPS position during an active shift.
-     * Body: { lat, lng, speed?, heading?, capacity_status? }
-     */
-    public function location(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'lat' => 'required|numeric',
-            'lng' => 'required|numeric',
-            'speed' => 'nullable|numeric',
-            'heading' => 'nullable|numeric',
-            'capacity_status' => 'nullable|string|in:AVAILABLE,STANDING,FULL',
-        ]);
-
-        $location = $this->locationService->updateLocation(
-            $request->user(),
-            (float) $validated['lat'],
-            (float) $validated['lng'],
-            isset($validated['speed']) ? (float) $validated['speed'] : null,
-            isset($validated['heading']) ? (float) $validated['heading'] : null,
-            $validated['capacity_status'] ?? null,
-        );
-
-        return $this->successResponse($location, 'Location updated');
-    }
-
-    /**
-     * POST /api/conductor/capacity-status
-     * Update vehicle capacity status during an active shift.
-     * Body: { capacity_status: 'AVAILABLE' | 'STANDING' | 'FULL' }
-     */
-    public function updateCapacityStatus(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'capacity_status' => 'required|string|in:AVAILABLE,STANDING,FULL',
-        ]);
-
-        $location = $this->locationService->updateCapacityStatus(
-            $request->user(),
-            $validated['capacity_status'],
-        );
-
-        return $this->successResponse($location, 'Capacity status updated');
-    }
-
-    /**
      * GET /api/conductor/shift
-     * Get the conductor's current active shift.
      */
-    public function shift(Request $request): JsonResponse
+    public function shiftStatus(Request $request): JsonResponse
     {
         $activeShift = $this->shiftService->getActiveShift($request->user());
 
@@ -84,16 +40,11 @@ class ConductorController extends Controller
     }
 
     /**
-     * POST /api/conductor/shift/start
-     * Body: { vehicle_id, driver_id, route_id? }
+     * POST /api/conductor/shifts/start
      */
-    public function shiftStart(Request $request): JsonResponse
+    public function startShift(StartShiftRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'vehicle_id' => 'required|uuid|exists:vehicles,id',
-            'driver_id' => 'required|uuid|exists:drivers,id',
-            'route_id' => 'nullable|uuid|exists:routes,id',
-        ]);
+        $validated = $request->validated();
 
         $shiftLog = $this->shiftService->startShift(
             $request->user(),
@@ -110,16 +61,12 @@ class ConductorController extends Controller
     }
 
     /**
-     * POST /api/conductor/shift/end
-     * Body: { shift_id, total_collected, remitted_amount }
+     * POST /api/conductor/remittances
+     * This is the ONLY way to end a shift.
      */
-    public function shiftEnd(Request $request): JsonResponse
+    public function remittances(SubmitRemittanceRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'shift_id' => 'required|string|exists:shift_logs,shift_id',
-            'total_collected' => 'required|numeric|min:0',
-            'remitted_amount' => 'required|numeric|min:0',
-        ]);
+        $validated = $request->validated();
 
         $shiftLog = $this->shiftService->endShiftViaRemittance(
             $request->user(),
@@ -135,9 +82,46 @@ class ConductorController extends Controller
     }
 
     /**
-     * GET /api/conductor/remittances
+     * POST /api/conductor/location
+     * GPS update — triggers VehicleLocationUpdated broadcast.
      */
-    public function remittances(Request $request): JsonResponse
+    public function updateLocation(UpdateLocationRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+
+        $location = $this->locationService->updateLocation(
+            $request->user(),
+            (float) $validated['lat'],
+            (float) $validated['lng'],
+            isset($validated['speed']) ? (float) $validated['speed'] : null,
+            isset($validated['heading']) ? (float) $validated['heading'] : null,
+            $validated['capacity_status'] ?? null,
+        );
+
+        return $this->successResponse($location, 'Location updated');
+    }
+
+    /**
+     * POST /api/conductor/capacity-status
+     */
+    public function updateCapacityStatus(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'capacity_status' => 'required|string|in:AVAILABLE,STANDING,FULL',
+        ]);
+
+        $location = $this->locationService->updateCapacityStatus(
+            $request->user(),
+            $validated['capacity_status'],
+        );
+
+        return $this->successResponse($location, 'Capacity status updated');
+    }
+
+    /**
+     * GET /api/conductor/shift-logs
+     */
+    public function shiftLogs(Request $request): JsonResponse
     {
         $perPage = $request->integer('per_page', 15);
 
@@ -148,19 +132,10 @@ class ConductorController extends Controller
 
     /**
      * GET /api/conductor/transactions
-     * Query param: shift_id (required)
+     * Sprint 4 — keep as stub.
      */
     public function transactions(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'shift_id' => 'required|string|exists:shift_logs,shift_id',
-        ]);
-
-        $shiftLog = $this->shiftService->getShiftDetail(
-            $request->user(),
-            $validated['shift_id'],
-        );
-
-        return $this->successResponse($shiftLog, 'Shift detail retrieved');
+        return $this->notImplementedResponse();
     }
 }
