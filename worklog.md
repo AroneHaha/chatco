@@ -374,3 +374,34 @@ Stage Summary:
 - arone branch on remote contains: f6de939 (merge of mhak S2 work) + 31ffc49 (Arone's flag fixes)
 - Full commit message in 31ffc49 documents every per-task fix (S2-T3 remitted_at, S2-T4 vehicle_type migration + factories, S2-T5 lowercase routes + profile() + startShift unit_number, S2-T6 UserFactory states + all test file rewrites, S2-T7 useVehicleLocations snake_case + echo.ts window.Pusher + phpunit.xml BROADCAST_CONNECTION)
 - Workflow complete per user's plan: "close the pr from mhak and pr the arone to dev"
+
+---
+Task ID: REVIEW-2-S2ONLY
+Agent: code-reviewer
+Task: Re-review PR #12 (arone→dev) against S2-T1..T7 only, and re-verify previously-fixed flags did not regress
+
+Work Log:
+- Read /home/z/my-project/worklog.md to understand prior review context (PR #11 closed, PR #12 opened arone→dev, prior S2 review, fix commit 31ffc49)
+- Loaded /tmp/clickup_tasks.json and extracted S2-T1..S2-T7 task descriptions (stripped HTML) to /tmp/s2task_S2-T{1..7}.txt for offline reference
+- Confirmed checkout: /tmp/chatco-fix on branch arone-fix at commit 31ffc49 (matches origin/arone)
+- Ran `git diff origin/dev...origin/arone --stat` to enumerate 50 changed files; verified all S2 file-map paths exist
+- S2-T1: read all 6 new migrations (vehicle_locations, shift_logs status, vehicles/drivers active_shift_id, remittances shift fields, vehicle_type) + Sprint 1 base migrations (shift_logs, vehicles, drivers, remittances, conductor_profiles). Verified upsert PK, FK targets, indexes, enum constraint, no wallet columns.
+- S2-T2: read VehicleLocation, ShiftLog, Vehicle, Driver, Remittance models + ShiftStatus/CapacityStatus enums. Verified $fillable, $casts, relationships, scopes, helper methods, upsert pattern, CREATED_AT=null.
+- S2-T3: read ShiftService.php end-to-end. Verified startShift/endShiftViaRemittance/getActiveShift/getShiftLogs/getShiftDetail signatures, 403/409/422 aborts, active_shift_id set/clear, Remittance::create payload (no remitted_at).
+- S2-T4: read LocationService.php. Verified updateLocation/getAllActiveLocations/updateCapacityStatus/broadcastLocationUpdate. Confirmed vehicles.vehicle_type selected as real column (NOT aliased from capacity_status), broadcast payload includes vehicle_type, no distance filter, upsert, active-shift required.
+- S2-T5: read ConductorController, VehicleLocationController (Commuter/), VehicleLocationUpdated event, 3 FormRequests, routes/api.php, routes/channels.php. Confirmed plural /shifts/start route, /remittances as only end-shift path, uppercase role middleware only, no duplicate conductor block, QR routes present, ConductorController::profile() eager-loads conductorProfile.
+- S2-T6: read ShiftTest, LocationTest, BroadcastTest, Sprint2RoleAccessTest, SchemaTest, PlaceholderEndpointsTest, RoleMiddlewareTest, UserFactory, VehicleFactory, ShiftLogFactory, RemittanceFactory, VehicleLocationFactory. Verified all tests use factory state methods (->conductor/commuter/admin), plural routes, lat/lng (not latitude/longitude), no POST to /shift/end, UserFactory states auto-create profiles.
+- S2-T7: read composer.json (pusher/pusher-php-server ^7.2), config/broadcasting.php, bootstrap/providers.php, BroadcastServiceProvider, VehicleLocationUpdated event, frontend/package.json (laravel-echo ^2.3.7, pusher-js ^8.5.0), frontend/lib/echo.ts (window.Pusher assigned), frontend/hooks/useVehicleLocations.ts (snake_case interface, findIndex on vehicle_id), phpunit.xml (BROADCAST_CONNECTION=log, no BROADCAST_DRIVER), backend/.env.example (BROADCAST_DRIVER=pusher, placeholder Pusher creds).
+- Re-verified all 6 previously-fixed flags via targeted greps (remitted_at=0 matches; role:conductor=0 matches; shift/end=0 matches; latitude/longitude in tests=0 matches; User::factory()->create(['role'=0 matches) and direct file inspection.
+- Noted minor non-blocking observations: broadcasting.php reads BROADCAST_DRIVER (legacy) while phpunit.xml sets BROADCAST_CONNECTION (modern) — inconsistency masked by Broadcast::fake() in tests; BroadcastTest tests event in isolation rather than end-to-end through LocationService; frontend/body.json is a debug artifact; backend/test-pusher.php is a manual test script; no frontend/.env.example committed.
+
+Stage Summary:
+- S2-T1: PASS — All 6 migrations present with correct schema, FKs, indexes, enum constraints; no wallet columns.
+- S2-T2: PASS — VehicleLocation/ShiftLog/Vehicle/Driver models + ShiftStatus/CapacityStatus enums all match spec; upsert enforced; minor time_in/time_out vs started_at/ended_at naming inherited from Sprint 1 schema (acceptable).
+- S2-T3: PASS — All 5 ShiftService methods implemented with correct 403/409/422 aborts; no remitted_at in Remittance::create; active_shift_id set on start, cleared on end.
+- S2-T4: PASS — LocationService implements updateLocation/getAllActiveLocations/updateCapacityStatus with upsert, no distance filter, real vehicle_type column, broadcast on every update.
+- S2-T5: PASS — ConductorController, VehicleLocationController, VehicleLocationUpdated event, 3 FormRequests, routes, channels all correct; uppercase role middleware only; profile() eager-loads conductorProfile.
+- S2-T6: PASS — ShiftTest/LocationTest/Sprint2RoleAccessTest/SchemaTest cover spec matrix; all tests use factory state methods, plural routes, lat/lng; BroadcastTest partial (tests event in isolation, not end-to-end) but implementation is correct.
+- S2-T7: PASS — Pusher SDK + Echo + pusher-js installed; broadcasting.php/BroadcastServiceProvider/channels.php/echo.ts/useVehicleLocations.ts all correct; phpunit.xml uses BROADCAST_CONNECTION only; minor broadcasting.php env-var naming inconsistency (masked by Broadcast::fake()).
+- Previously-fixed flags: 6/6 still fixed
+- Final verdict: READY TO MERGE — All 7 S2 tasks pass acceptance criteria; all 6 previously-fixed flags remain fixed; only minor non-blocking observations remain (broadcasting.php env-var naming, BroadcastTest coverage gaps, debug artifacts).
