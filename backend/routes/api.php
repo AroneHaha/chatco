@@ -2,6 +2,15 @@
 
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\UsersController;
+use App\Http\Controllers\Admin\VehiclesController;
+use App\Http\Controllers\Admin\MonitoringController;
+use App\Http\Controllers\Admin\RemittanceController;
+use App\Http\Controllers\Admin\LostFoundController;
+use App\Http\Controllers\Admin\ReceiptsController;
+use App\Http\Controllers\Admin\AnalyticsController;
+use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Commuter\CommuterController;
 use App\Http\Controllers\Conductor\ConductorController;
 use App\Http\Controllers\Payment\PaymentController;
@@ -38,16 +47,43 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->grou
 
 // ── Admin ─────────────────────────────────────────────────
 Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(function () {
-    Route::get('/dashboard', [AdminController::class, 'dashboard']);
-    Route::get('/users', [AdminController::class, 'users']);
-    Route::get('/drivers', [AdminController::class, 'drivers']);
-    Route::get('/vehicles', [AdminController::class, 'vehicles']);
-    Route::get('/routes', [AdminController::class, 'routes']);
-    Route::get('/transactions', [AdminController::class, 'transactions']);
-    Route::get('/remittances', [AdminController::class, 'remittances']);
-    Route::get('/announcements', [AdminController::class, 'announcements']);
-    Route::get('/lost-items', [AdminController::class, 'lostItems']);
+    // Dashboard
+    Route::get('/dashboard', [DashboardController::class, 'index']);
+
+    // Users
+    Route::get('/users', [UsersController::class, 'index']);
+    Route::get('/users/{id}/history', [UsersController::class, 'history']);
+    Route::patch('/users/{id}/approve', [UsersController::class, 'approve']);
+    Route::patch('/users/{id}/reject', [UsersController::class, 'reject']);
+
+    // Vehicles & Personnel
+    Route::get('/vehicles', [VehiclesController::class, 'index']);
+    Route::get('/drivers/{id}', [VehiclesController::class, 'showDriver']);
+    Route::get('/drivers/{id}/ratings', [VehiclesController::class, 'driverRatings']);
+
+    // Monitoring
+    Route::get('/monitoring', [MonitoringController::class, 'index']);
+
+    // Remittances
+    Route::get('/remittances', [RemittanceController::class, 'index']);
+
+    // Lost & Found
+    Route::get('/lost-items', [LostFoundController::class, 'index']);
+
+    // Receipts
+    Route::get('/receipts', [ReceiptsController::class, 'index']);
+
+    // Analytics
+    Route::get('/analytics', [AnalyticsController::class, 'index']);
+
+    // Settings
+    Route::get('/settings', [SettingsController::class, 'index']);
+
+    // Still using AdminController (not implemented yet)
     Route::get('/shift-logs', [AdminController::class, 'shiftLogs']);
+    Route::get('/routes', [AdminController::class, 'routes']);
+    Route::get('/announcements', [AdminController::class, 'announcements']);
+    Route::get('/transactions', [AdminController::class, 'transactions']);
 });
 
 // ── Payment ───────────────────────────────────────────────
