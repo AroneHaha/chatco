@@ -26,14 +26,14 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
     Route::get('/rewards', [CommuterController::class, 'rewards']);
 });
 
-// ── Conductor ─────────────────────────────────────────────
 Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->group(function () {
-    Route::post('/location', [ConductorController::class, 'updateLocation']);
-    Route::get('/shift', [ConductorController::class, 'shiftStatus']);
-    Route::post('/shift/start', [ConductorController::class, 'startShift']);
-    Route::post('/shift/end', [ConductorController::class, 'endShift']);
+    Route::post('/location', [ConductorController::class, 'location']);
+    Route::get('/shift', [ConductorController::class, 'shift']);
+    Route::post('/shift/start', [ConductorController::class, 'shiftStart']);
+    Route::post('/shift/end', [ConductorController::class, 'shiftEnd']);
     Route::get('/remittances', [ConductorController::class, 'remittances']);
     Route::get('/transactions', [ConductorController::class, 'transactions']);
+    Route::get('/shift/{shiftId}', [ConductorController::class, 'shiftDetail']);
 });
 
 // ── Admin ─────────────────────────────────────────────────
