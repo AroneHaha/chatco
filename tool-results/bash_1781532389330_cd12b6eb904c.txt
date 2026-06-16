@@ -1,0 +1,1653 @@
+======== TASK 86d3brqq8 =======
+Name: S1-T1 — Laravel 11 Project Initialization & Environment Configuration
+Status: complete
+Objective
+Initialize the Laravel backend project and establish the foundational environment configuration required for all subsequent development work.
+Scope
+Create a new Laravel 11 application using PHP 8.2+ and configure the project for local development, database connectivity, and backend architecture standards.
+Requirements
+Project Setup
+ Create a new Laravel 11 project using Composer. 
+ Configure composer.json with: 
+ Name: transeguro/api
+ Type: project
+ Keywords: 
+ laravel 
+ transit 
+ api 
+Environment Configuration
+Configure .env with the following baseline settings:
+APP_NAME
+APP_ENV
+APP_URL
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=chatco
+ Database credentials 
+ Sanctum stateful domains 
+Generate the application encryption key using:
+
+php artisan key:generate
+
+Database Configuration
+Update config/database.php to use:
+
+'charset' => 'utf8mb4',
+'collation' => 'utf8mb4_unicode_ci',
+
+to ensure full Unicode support.
+Database Validation
+Verify successful database connectivity by running:
+
+php artisan db:show
+
+Directory Structure
+Establish the following application structure:
+app/
+ ├── Http/
+ │   ├── Controllers/
+ │   │   ├── Auth/
+ │   │   ├── Commuter/
+ │   │   ├── Conductor/
+ │   │   ├── Admin/
+ │   │   └── Payment/
+ │   └── Middleware/
+ └── Services/
+
+Deliverables
+ Laravel 11 project successfully initialized 
+ Environment configuration completed 
+ Database connection verified 
+ Folder structure established 
+Acceptance Criteria
+ Application boots successfully. 
+ Database connection test passes. 
+ Application key exists. 
+ Required controller and service directories are present. 
+ UTF8MB4 configuration is enabled.
+
+======== TASK 86d3brvka =======
+Name: S1-T2 — Sanctum & Breeze Authentication Setup
+Status: complete
+Objective
+Configure Laravel Sanctum and Breeze API authentication to support both SPA cookie authentication and token-based API authentication.
+Scope
+Install and configure all authentication infrastructure required by the frontend Next.js application.
+Requirements
+Sanctum Installation
+Install Sanctum:
+
+composer require laravel/sanctum:^4.0
+
+Publish Sanctum assets and configuration.
+Middleware Registration
+Register:
+
+Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful
+
+as the first middleware in the API middleware stack inside bootstrap/app.php.
+This ensures:
+ SPA requests use session/cookie authentication. 
+ External API requests use token authentication. 
+ Sanctum correctly identifies trusted frontend domains. 
+Breeze Installation
+Install Laravel Breeze:
+
+composer require laravel/breeze --dev
+
+Generate API authentication scaffolding:
+
+php artisan breeze:install api
+
+The expected warning:
+API routes file already exists
+
+may appear and should not block implementation.
+Stateful Domain Configuration
+Configure:
+
+SANCTUM_STATEFUL_DOMAINS=
+
+to include frontend development and production domains.
+Deliverables
+ Sanctum installed and configured 
+ Breeze API scaffolding installed 
+ Stateful middleware configured 
+ Sanctum token migration published 
+Acceptance Criteria
+ Sanctum configuration file exists. 
+ Middleware is registered first in the API stack. 
+ Breeze authentication assets are generated. 
+ Frontend domains are recognized as stateful. 
+ API supports both cookie-based and token-based authentication.
+
+======== TASK 86d3brw85 =======
+Name: S1-T3 — Authentication & Profile Database Schema
+Status: complete
+Objective
+Create the foundational authentication and user profile database schema using UUID-based primary keys.
+Scope
+Implement all identity-related tables required by the platform:
+ Users 
+ Personal Access Tokens 
+ Commuter Profiles 
+ Conductor Profiles 
+ Admin Profiles 
+Requirements
+Users Table
+Create a UUID-based users table containing:
+
+[table-embed:1:1 Column| 1:2 Type| 2:1 id| 2:2 UUID Primary Key| 3:1 email| 3:2 Unique| 4:1 password| 4:2 String| 5:1 role| 5:2 String (ADMIN, CONDUCTOR, COMMUTER)| 6:1 timestamps| 6:2 Standard| 7:1 deleted_at| 7:2 Soft Delete|]
+Exclusions
+Do not include:
+ name 
+ phone 
+ email_verified_at 
+ remember_token 
+ is_active 
+These attributes belong in profile-specific tables.
+Personal Access Tokens
+Create a Sanctum-compatible token table using UUID relationships.
+Requirements
+Replace:
+
+$table->id();
+$table->morphs('tokenable');
+
+with:
+
+$table->uuid('id')->primary();
+$table->uuidMorphs('tokenable');
+
+This prevents MySQL foreign key mismatch errors caused by UUID user IDs.
+Required columns:
+ id 
+ tokenable_type 
+ tokenable_id 
+ name 
+ token 
+ abilities 
+ last_used_at 
+ expires_at 
+ timestamps 
+Commuter Profiles
+Create a 1:1 profile table linked directly to users.
+Relationship
+commuter_profiles.id
+      ↓
+users.id
+
+The UUID serves as both:
+ Primary Key 
+ Foreign Key 
+Required fields:
+ First Name 
+ Middle Name 
+ Surname 
+ Birthdate 
+ Gender 
+ Email 
+ Contact Number 
+ Commuter Type 
+ Applied Type 
+ Username 
+ Language Preference 
+ Account Status 
+ ID Image URL 
+ Verified At 
+ Rejection Reason 
+ Timestamps 
+ Soft Deletes 
+Conductor Profiles
+Create a conductor profile table using a shared UUID primary key.
+Required fields:
+ First Name 
+ Middle Name 
+ Last Name 
+ Birthday 
+ Profile Picture URL 
+ Generated Username 
+ Generated Password 
+ Timestamps 
+ Soft Deletes 
+Business Rule
+Conductors do not self-register.
+Administrator accounts are responsible for:
+ Creating conductor accounts 
+ Generating credentials 
+ Distributing login information 
+Admin Profiles
+Create a lightweight administrator profile table.
+Required fields:
+ First Name 
+ Middle Name 
+ Last Name 
+ Profile Picture URL 
+ Timestamps 
+ Soft Deletes 
+Business Rule
+Administrative users require only minimal profile information because they primarily interact through internal dashboards.
+Deliverables
+ All authentication migrations completed 
+ UUID relationships implemented 
+ Soft delete support enabled 
+Acceptance Criteria
+ All tables migrate successfully. 
+ UUID foreign keys are compatible. 
+ Sanctum migration supports UUID users. 
+ Profile tables enforce 1:1 user relationships. 
+ No redundant profile fields exist in users table.
+
+Upon completion of this task, push all changes to your assigned feature branch and create a Pull Request (PR) targeting the dev branch for code review and integration.
+
+======== TASK 86d3brzpq =======
+Name: S1-T4 — Database Migrations — Operational Tables
+Status: complete
+Create all core operational database migrations for drivers, routes, fare points, vehicles, and shift logs. These tables form the backbone of the transport and dispatch system and must follow strict schema rules, FK integrity, and ordering constraints.
+Drivers Table Migration
+Create drivers table:
+ UUID primary key 
+ first_name varchar(100), not null 
+ middle_name varchar(100), nullable 
+ last_name varchar(100), not null 
+ birthday date, not null 
+ contact varchar(20), not null 
+ license_number varchar(50), not null 
+ hire_date date, not null 
+ profile_picture_url varchar(500), nullable 
+ status varchar(20), nullable (ACTIVE/INACTIVE) 
+ vehicle_id UUID, nullable FK → vehicles (set null on delete) 
+ timestamps 
+ soft deletes 
+Drivers are NOT users and do not authenticate.
+Routes Table Migration
+Create routes table:
+ UUID primary key 
+ name varchar(100), not null 
+ status varchar(20), nullable (ACTIVE/INACTIVE) 
+ waypoints varchar(2000), nullable (JSON string of lat/lng/name objects) 
+ timestamps 
+Waypoints represent full route geometry stored as JSON.
+Fare Points Table Migration
+Create fare_points table:
+ UUID primary key 
+ route_id UUID, not null FK → routes (cascade delete) 
+ point_number int, not null 
+ code varchar(10), not null 
+ name varchar(100), not null 
+ landmarks varchar(500), nullable 
+ sub_stops varchar(500), nullable 
+ regular_fare decimal(10,2), not null 
+ discounted_fare decimal(10,2), not null 
+ latitude decimal(10,7), nullable 
+ longitude decimal(10,7), nullable 
+ timestamps 
+Supports fare calculation and commuter discounts.
+Vehicles Table Migration (000032 ORDER REQUIRED)
+Create vehicles table:
+ UUID primary key 
+ unit_number varchar(20), unique, not null 
+ plate_number varchar(20), unique, not null 
+ route_id UUID, nullable FK → routes (set null on delete) 
+ driver_id UUID, nullable FK → drivers (set null on delete) 
+ conductor_id UUID, nullable FK → conductor_profiles (set null on delete) 
+ status varchar(30), nullable (ACTIVE/INACTIVE/MAINTENANCE) 
+ speed int, nullable 
+ capacity_status varchar(20), nullable 
+ latitude decimal(10,7), nullable 
+ longitude decimal(11,7), nullable 
+ last_location_update timestamp, nullable 
+ timestamps 
+ soft deletes 
+Must run AFTER routes and fare_points.
+Shift Logs Table Migration
+Create shift_logs table:
+ shift_id varchar(20) primary key 
+ conductor_id UUID FK → conductor_profiles 
+ conductor_name varchar(100), denormalized 
+ driver_id UUID FK → drivers 
+ driver_name varchar(100), denormalized 
+ vehicle_id UUID FK → vehicles 
+ unit_number varchar(20), denormalized 
+ plate_number varchar(20), denormalized 
+ route_id UUID nullable FK → routes 
+ route_name varchar(100), nullable 
+ time_in timestamp, not null 
+ time_out timestamp, nullable 
+ is_active boolean, nullable 
+ notes text, nullable 
+ timestamps 
+ soft deletes 
+Denormalized fields are stored for performance optimization.
+Acceptance Criteria
+ Drivers table migration is created with correct UUID PK and soft deletes 
+ Routes table correctly stores waypoints as JSON string 
+ Fare points table enforces route relationship with cascade delete 
+ Vehicles table is correctly ordered (000032) and FK-safe 
+ Shift logs table uses shift_id as string primary key (not UUID) 
+ All foreign keys are correctly defined and match referenced column types 
+ No UUID vs varchar mismatch exists in any relationship 
+ Soft deletes are implemented where required 
+ Timestamps exist in all tables 
+ Vehicles migration runs after routes and fare_points without FK errors 
+ No wallet-related tables or fields are introduced 
+ Database migrates successfully without errors using php artisan migrate
+Post-Task Requirement
+Upon completion of this task, push all changes to your assigned feature branch and create a Pull Request (PR) targeting the dev branch for code review and integration.
+
+======== TASK 86d3bt2q6 =======
+Name: S1-T5 — Database Migrations — Transactions & Financial System
+Status: complete
+Create all financial, payment, voucher, remittance, announcements, claims, and lost item system migrations.
+Transactions Table
+ transaction_id varchar(30) primary key 
+ shift_id FK → shift_logs 
+ payment_method (CASH/GCASH_SCANNED/GCASH_DIRECT/VOUCHER) 
+ final_amount decimal(10,2) 
+ passenger_id UUID nullable FK → commuter_profiles 
+ passenger_name varchar(100), nullable 
+ passenger_role varchar(20), nullable 
+ pickup_stop_id FK → fare_points 
+ dropoff_stop_id FK → fare_points 
+ pickup_name varchar(100), nullable 
+ dropoff_name varchar(100), nullable 
+ distance decimal(10,2), nullable 
+ base_fare decimal(10,2), nullable 
+ succeeding_km decimal(10,2), nullable 
+ discount_amount decimal(10,2), nullable 
+ conductor_name varchar(100), nullable 
+ unit_number varchar(20), nullable 
+ driver_name varchar(100), nullable 
+ voucher_id UUID nullable FK → vouchers 
+ timestamps 
+GCash Payment Intents
+ id varchar(30) primary key 
+ amount decimal(10,2) 
+ amount_in_centavos bigint 
+ currency varchar(3) default PHP 
+ status (PENDING/PROCESSING/SUCCEEDED/FAILED/CANCELLED) 
+ payment_method (GCASH_SCAN/GCASH_DIRECT) 
+ commuter_id FK → commuter_profiles 
+ commuter_name varchar(100) 
+ pickup_point int 
+ dropoff_point int 
+ vehicle_id UUID nullable 
+ conductor_id UUID nullable 
+ shift_id varchar(20) nullable FK → shift_logs 
+ paymongo_payment_id varchar(100) 
+ redirect_url varchar(500) 
+ timestamps 
+Remittances
+ shift_id varchar(20) primary key FK → shift_logs 
+ date date 
+ conductor_id FK → conductor_profiles 
+ conductor_name varchar(100) 
+ driver_id FK → drivers 
+ driver_name varchar(100) 
+ vehicle_id FK → vehicles 
+ unit_number varchar(20) 
+ total_passengers int 
+ gcash_scanned_total decimal(10,2) 
+ gcash_direct_total decimal(10,2) 
+ voucher_total decimal(10,2) 
+ total_cashless decimal(10,2) 
+ cash_declared decimal(10,2) 
+ cash_total decimal(10,2) 
+ gcash_total decimal(10,2) 
+ remittance_status varchar(20) 
+ time_in timestamp 
+ time_out timestamp 
+ timestamps 
+Announcements
+ UUID primary key 
+ type varchar(20) 
+ title varchar(200) 
+ message text 
+ timestamps 
+ soft deletes 
+Lost Items
+ id varchar(20) primary key 
+ item_name varchar(200) 
+ description text 
+ image_url varchar(500) 
+ plate_number varchar(20) 
+ driver_name varchar(100) 
+ conductor_name varchar(100) 
+ vehicle_id UUID FK 
+ estimated_time_lost varchar(100) 
+ category varchar(20) 
+ reported_by_id FK → users 
+ reported_by_role varchar(20) 
+ reporter_name varchar(100) 
+ status varchar(20) 
+ claimed_by varchar(100) 
+ timestamps 
+Claims
+ UUID primary key 
+ item_id FK → lost_items 
+ claimant_id FK → commuter_profiles 
+ claimant_name varchar(100) 
+ claimant_contact varchar(20) 
+ claimant_email varchar(255) 
+ status varchar(20) 
+ proof varchar(500) 
+ timestamps 
+Vouchers
+ UUID primary key 
+ code varchar(20) unique 
+ commuter_id FK → commuter_profiles nullable 
+ type (FIXED/PERCENTAGE/RIDE_FREE) 
+ status (ACTIVE/USED/EXPIRED) 
+ amount decimal(10,2) nullable 
+ expires_at timestamp 
+ ride_origin varchar(100) 
+ timestamps 
+ soft deletes
+
+Acceptance Criteria
+ All 7 migrations are created successfully (transactions, gcash_payment_intents, remittances, announcements, lost_items, claims, vouchers) 
+ All primary keys follow correct type rules (UUID vs varchar identifiers) 
+ All foreign keys correctly reference existing tables without type mismatch 
+ Transactions table properly links shift_logs, fare_points, commuters, and vouchers 
+ GCash payment intents properly track payment lifecycle independently of transactions 
+ Remittances are correctly keyed by shift_id (1:1 per shift) 
+ Lost items support reporting with proper user and vehicle references 
+ Claims only allow commuter-based claimants 
+ Vouchers support all required types and optional commuter assignment 
+ Soft deletes implemented where required (announcements, vouchers) 
+ All timestamps exist and are consistent across tables 
+ No wallet-related tables or fields exist anywhere in schema 
+ php artisan migrate runs successfully without errors 
+Post-Task Requirement
+Upon completion of this task, push all changes to your assigned feature branch and create a Pull Request (PR) targeting the dev branch for code review and integration.
+
+======== TASK 86d3bt3ay =======
+Name: S1-T6 — Migration Execution & Database Integrity Verification
+Status: complete
+Execute all database migrations and ensure full schema integrity across operational, financial, and system tables. This task ensures correct migration order, FK compatibility, UUID consistency, and removal of deprecated architecture components.
+Migration Execution Requirements
+Run all migrations using:
+
+php artisan migrate
+
+Expected result:
+ All migrations complete successfully 
+ Every migration shows DONE
+ No FAIL or SQL error output 
+Critical Migration Order Validation
+Ensure correct execution order:
+routes → runs first 
+fare_points → runs second 
+vehicles → runs after both (000032 requirement) 
+This order prevents foreign key failures.
+Schema Integrity Checks
+UUID Consistency Fix
+personal_access_tokens.id must be UUID 
+tokenable morph columns must use UUID (uuidMorphs) 
+Non-UUID Primary Key Validation
+Ensure correct implementation of string-based primary keys:
+ shift_logs.shift_id (varchar 20) 
+ transactions.transaction_id (varchar 30) 
+ gcash_payment_intents.id (varchar 30) 
+ remittances.shift_id (varchar 20) 
+ lost_items.id (varchar 20) 
+All must function as valid primary keys without UUID conversion.
+Foreign Key Validation
+Confirm all relationships resolve without type mismatch:
+ shift_logs → conductor_profiles, drivers, vehicles, routes 
+ transactions → shift_logs (varchar FK), commuter_profiles, fare_points, vouchers 
+ gcash_payment_intents → commuter_profiles, vehicles, conductor_profiles, shift_logs 
+ remittances → shift_logs, conductor_profiles, drivers, vehicles 
+No UUID ↔ varchar mismatches allowed.
+Architecture Constraint Validation
+🚫 HARD RULE: Wallet Removal
+Verify database contains:
+ ❌ NO wallet_balance column 
+ ❌ NO wallet_transactions table 
+ ❌ NO wallet_ledger table 
+Wallet system is permanently removed from architecture.
+Error Recovery Rule
+If migrations fail:
+ Run: 
+
+php artisan db:wipe
+
+ Re-run: 
+
+php artisan migrate
+
+ Fix root cause before proceeding (usually FK type mismatch) 
+Final Verification Checklist
+ All migrations execute successfully with no errors 
+ Migration order (routes → fare_points → vehicles) is correct 
+ UUID and varchar PK/FK types are consistent across schema 
+ No foreign key constraint violations exist 
+ personal_access_tokens uses UUID-based structure 
+ All 5 non-UUID primary key tables work correctly 
+ No wallet-related tables or columns exist anywhere 
+ Database schema fully reflects ERD design 
+ System is ready for Eloquent model implementation phase 
+Acceptance Criteria
+ php artisan migrate completes successfully with zero failures 
+ All migrations show successful execution status 
+ No foreign key errors occur during migration 
+ Route order dependency (000030–000032) is correctly enforced 
+ All UUID vs varchar mismatches are resolved 
+ Wallet system is fully absent from database 
+ Schema matches ERD design exactly 
+ Database is clean, consistent, and production-ready 
+Post-Task Requirement
+Upon completion of this task, push all changes to your assigned feature branch and create a Pull Request (PR) targeting the dev branch for code review and integration.
+
+======== TASK 86d3bt6dg =======
+Name: S1-T7 — Eloquent Models User & Profile Models
+Status: complete
+Create Eloquent models for User, CommuterProfile, ConductorProfile, and AdminProfile with strict alignment to database schema and proper relationships.
+User Model
+Create User model extending Authenticatable with:
+ Traits: 
+ HasApiTokens 
+ HasFactory 
+ Notifiable 
+$fillable: 
+ email 
+ password 
+ role 
+(No name, phone, or status fields exist in schema)
+$hidden: 
+ password 
+ remember_token 
+$casts: 
+ password → hashed 
+ role → UserRole enum (backed enum) 
+Relationships
+Define:
+ hasOne commuterProfile() 
+ hasOne conductorProfile() 
+ hasOne adminProfile() 
+Helper Methods
+Add:
+ hasRole(UserRole $role) 
+ isAdmin() 
+ isConductor() 
+ isCommuter() 
+CommuterProfile Model
+Create CommuterProfile with SoftDeletes:
+$fillable (all fields): 
+ id 
+ first_name 
+ middle_name 
+ surname 
+ birthdate 
+ gender 
+ email 
+ contact_number 
+ commuter_type 
+ applied_type 
+ username 
+ language_preference 
+ account_status 
+ id_image_url 
+ verified_at 
+ rejection_reason 
+$casts: 
+ birthdate → date 
+ verified_at → datetime 
+ Relationships: 
+
+belongsTo User (id = FK to users.id)
+Note: id is both primary key and foreign key (1:1 relationship with users).
+ConductorProfile Model
+Create ConductorProfile with SoftDeletes:
+$fillable: 
+ id 
+ first_name 
+ middle_name 
+ last_name 
+ birthday 
+ profile_picture_url 
+ generated_username 
+ generated_password 
+$casts: 
+ birthday → date 
+ Relationships: 
+ belongsTo User 
+ hasOne Vehicle (via vehicles.conductor_id) 
+ hasMany ShiftLog 
+Note:
+generated_username is unique and used for login (not email-based authentication) 
+AdminProfile Model
+Create AdminProfile with SoftDeletes:
+$fillable: 
+ id 
+ first_name 
+ middle_name 
+ last_name 
+ profile_picture_url 
+ Relationships: 
+ belongsTo User 
+Minimal structure since admins primarily use dashboard access.
+
+Acceptance Criteria
+ User model is created with correct traits and schema-aligned fields only 
+ User role is properly cast to UserRole enum 
+ User helper methods (isAdmin, isConductor, isCommuter, hasRole) are implemented and functional 
+ User hasOne relationships correctly link to all profile types 
+ CommuterProfile uses id as both primary key and foreign key to users 
+ CommuterProfile casts birthdate and verified_at correctly 
+ ConductorProfile includes correct relationships (User, Vehicle, ShiftLog) 
+ ConductorProfile uses generated_username as unique login identifier 
+ AdminProfile is correctly linked to User with minimal structure 
+ All models strictly follow database schema (no extra fields) 
+ All relationships match ERD definitions exactly 
+ No missing or incorrect foreign key assumptions exist 
+ Models are ready for authentication and API integration 
+Post-Task Requirement
+Upon completion of this task, push all changes to your assigned feature branch and create a Pull Request (PR) targeting the dev branch for code review and integration.
+
+======== TASK 86d3bt5fv =======
+Name: S1-T8 — Eloquent Models (Operational & System Models)
+Status: complete
+Create all operational and system Eloquent models for the transport system with strict alignment to database schema, correct primary key handling, casts, relationships, and denormalized field rules.
+Driver Model
+Create Driver model with SoftDeletes:
+$fillable
+ first_name 
+ middle_name 
+ last_name 
+ birthday 
+ contact 
+ license_number 
+ hire_date 
+ profile_picture_url 
+ status 
+ vehicle_id 
+$casts
+ birthday → date 
+ hire_date → date 
+Relationships
+ belongsTo Vehicle 
+ hasMany ShiftLog 
+Drivers are NOT users and do not authenticate.
+Vehicle Model
+Create Vehicle model with SoftDeletes:
+$fillable
+ unit_number 
+ plate_number 
+ route_id 
+ driver_id 
+ conductor_id 
+ status 
+ speed 
+ capacity_status 
+ latitude 
+ longitude 
+ last_location_update 
+$casts
+ speed → integer 
+ latitude → decimal:7 
+ longitude → decimal:7 
+ last_location_update → datetime 
+Relationships
+ belongsTo Route 
+ belongsTo Driver 
+ belongsTo Conductor (conductor_profiles via conductor_id) 
+ hasMany ShiftLog 
+ hasMany Transaction 
+Route Model
+$fillable
+ name 
+ status 
+ waypoints 
+$casts
+ waypoints → array (auto JSON encode/decode) 
+Relationships
+ hasMany Vehicles 
+ hasMany FarePoint 
+Waypoints represent full route geometry as JSON array.
+FarePoint Model
+$fillable
+ route_id 
+ point_number 
+ code 
+ name 
+ landmarks 
+ sub_stops 
+ regular_fare 
+ discounted_fare 
+ latitude 
+ longitude 
+$casts
+ point_number → integer 
+ regular_fare → decimal:2 
+ discounted_fare → decimal:2 
+ latitude → decimal:7 
+ longitude → decimal:7 
+Relationships
+ belongsTo Route 
+Supports dual fare system (regular vs discounted).
+ShiftLog Model
+Create ShiftLog with SoftDeletes:
+Primary Key Configuration
+ shift_id (string PK) 
+ $incrementing = false 
+ $keyType = string 
+$fillable
+ shift_id 
+ conductor_id 
+ conductor_name 
+ driver_id 
+ driver_name 
+ vehicle_id 
+ unit_number 
+ plate_number 
+ route_id 
+ route_name 
+ time_in 
+ time_out 
+ is_active 
+ notes 
+$casts
+ time_in → datetime 
+ time_out → datetime 
+ is_active → boolean 
+Relationships
+ belongsTo Conductor (conductor_profiles) 
+ belongsTo Driver 
+ belongsTo Vehicle 
+ belongsTo Route 
+Denormalized fields are read-only snapshots for performance.
+Transaction Model
+Primary Key:
+ transaction_id (string) 
+ $incrementing = false 
+ $keyType = string 
+$fillable
+ transaction_id 
+ shift_id 
+ payment_method 
+ final_amount 
+ passenger_id 
+ passenger_name 
+ passenger_role 
+ pickup_stop_id 
+ dropoff_stop_id 
+ pickup_name 
+ dropoff_name 
+ distance 
+ base_fare 
+ succeeding_km 
+ discount_amount 
+ conductor_name 
+ unit_number 
+ driver_name 
+ voucher_id 
+$casts
+ final_amount → decimal:2 
+ distance → decimal:2 
+ base_fare → decimal:2 
+ succeeding_km → decimal:2 
+ discount_amount → decimal:2 
+Relationships
+ belongsTo ShiftLog 
+ belongsTo CommuterProfile (passenger) 
+ belongsTo FarePoint (pickupStop) 
+ belongsTo FarePoint (dropoffStop) 
+ belongsTo Voucher 
+GcashPaymentIntent Model
+Primary Key:
+ id (string) 
+ $incrementing = false 
+ $keyType = string 
+$fillable
+ id 
+ amount 
+ amount_in_centavos 
+ currency 
+ status 
+ payment_method 
+ commuter_id 
+ commuter_name 
+ pickup_point 
+ dropoff_point 
+ vehicle_id 
+ conductor_id 
+ shift_id 
+ paymongo_payment_id 
+ redirect_url 
+$casts
+ amount → decimal:2 
+ amount_in_centavos → integer 
+ pickup_point → integer 
+ dropoff_point → integer 
+Relationships
+ belongsTo CommuterProfile 
+ belongsTo Vehicle 
+ belongsTo ConductorProfile 
+ belongsTo ShiftLog 
+Remittance Model
+Primary Key:
+ shift_id (string) 
+ $incrementing = false 
+ $keyType = string 
+$fillable
+ shift_id 
+ date 
+ conductor_id 
+ conductor_name 
+ driver_id 
+ driver_name 
+ vehicle_id 
+ unit_number 
+ total_passengers 
+ gcash_scanned_total 
+ gcash_direct_total 
+ voucher_total 
+ total_cashless 
+ cash_declared 
+ cash_total 
+ gcash_total 
+ remittance_status 
+ time_in 
+ time_out 
+$casts
+ date → date 
+ total_passengers → integer 
+ gcash_scanned_total → decimal:2 
+ gcash_direct_total → decimal:2 
+ voucher_total → decimal:2 
+ total_cashless → decimal:2 
+ cash_declared → decimal:2 
+ cash_total → decimal:2 
+ gcash_total → decimal:2 
+ time_in → datetime 
+ time_out → datetime 
+Relationships
+ belongsTo ShiftLog 
+ belongsTo ConductorProfile 
+ belongsTo Driver 
+ belongsTo Vehicle 
+Announcement Model
+Create with SoftDeletes:
+$fillable
+ type 
+ title 
+ message 
+LostItem Model
+Primary Key:
+ id (string) 
+ $incrementing = false 
+ $keyType = string 
+$fillable
+ id 
+ item_name 
+ description 
+ image_url 
+ plate_number 
+ driver_name 
+ conductor_name 
+ vehicle_id 
+ estimated_time_lost 
+ category 
+ reported_by_id 
+ reported_by_role 
+ reporter_name 
+ status 
+ claimed_by 
+Relationships
+ belongsTo User (reporter) 
+ belongsTo Vehicle 
+ hasMany Claims 
+Claim Model
+$fillable
+ item_id 
+ claimant_id 
+ claimant_name 
+ claimant_contact 
+ claimant_email 
+ status 
+ proof 
+$casts
+ item_id → string 
+Relationships
+ belongsTo LostItem 
+ belongsTo CommuterProfile (claimant) 
+Voucher Model
+Create with SoftDeletes:
+$fillable
+ code 
+ commuter_id 
+ type 
+ status 
+ amount 
+ expires_at 
+ ride_origin 
+$casts
+ amount → decimal:2 
+ expires_at → datetime 
+Relationships
+ belongsTo CommuterProfile 
+Acceptance Criteria
+ All models are created exactly matching database schema (no extra fields added) 
+ All string-based primary keys correctly configured ($incrementing = false, $keyType = string) 
+ All UUID-based models use correct Laravel defaults 
+ All casts correctly applied (decimal, date, datetime, integer) 
+ All relationships match ERD exactly (no missing or incorrect FK mappings) 
+ Route, Vehicle, ShiftLog, Transaction, and Remittance relationships function correctly 
+ Denormalized fields are treated as read-only snapshot data 
+ No wallet-related models or logic exist anywhere in codebase 
+ Models are compatible with migrations from S1-T5 and S1-T4 
+ Eloquent relationships resolve without errors or type mismatches 
+Post-Task Requirement
+Upon completion of this task, push all changes to your assigned feature branch and create a Pull Request (PR) targeting the dev branch for code review and integration.
+
+======== TASK 86d3bt72a =======
+Name: S1-T9 — UserRole Enum & Role-Based Access Control
+Status: complete
+Create a strongly-typed role system using a PHP backed enum and enforce role-based access control through middleware. This ensures all authorization checks are centralized, type-safe, and consistent across the application.
+Implementation Requirements
+1. UserRole Enum
+Create app/Enums/UserRole.php:
+ Backed string enum with values: 
+ADMIN = 'ADMIN'
+CONDUCTOR = 'CONDUCTOR'
+COMMUTER = 'COMMUTER'
+ Must be used for: 
+ User model casting (role field) 
+ Middleware validation 
+ Authorization checks 
+2. Role Middleware
+Create app/Http/Middleware/EnsureUserRole.php
+Behavior:
+ Accepts multiple roles: 
+role:ADMIN,CONDUCTOR
+ Logic: 
+ If user is not authenticated → return 401
+ Convert allowed roles using UserRole::from()
+ Compare against $user->role
+ If match → allow request 
+ If no match → return 403
+ Invalid enum values must be safely ignored via try/catch 
+3. Middleware Registration
+In bootstrap/app.php:
+ Register alias: 
+role => EnsureUserRole::class
+ Ensure Sanctum stateful middleware is enabled for API group 
+4. Security Rule
+All protected routes must enforce:
+auth:sanctum
+role:<ROLE>
+Frontend role values are display-only and NOT trusted
+Acceptance Criteria
+ UserRole enum is used everywhere role is referenced 
+ Middleware correctly blocks unauthorized roles (403) 
+ Unauthenticated requests return 401 
+ Invalid role strings do not crash system 
+ Role middleware works with multiple roles 
+ Sanctum authentication works alongside role checks 
+ No role logic exists inside controllers 
+ Role enforcement is fully backend-controlled 
+Post-Task Requirement
+Upon completion of this task, push all changes to your assigned feature branch and create a Pull Request (PR) targeting the dev branch for code review and integration.
+
+======== TASK 86d3bt79c =======
+Name: S1-T10 — API Response Trait & Consistent JSON Structure
+Status: complete
+Create a unified API response system that enforces a single, consistent JSON structure across all endpoints. This eliminates frontend ambiguity and standardizes success, error, and stub responses.
+Implementation Requirements
+1. ApiResponse Trait
+Create app/Http/ApiResponse.php
+Must include:
+successResponse($data, $message, $code = 200)
+Returns:
+
+{
+  "success": true,
+  "data": "...",
+  "message": "...",
+  "errors": null,
+  "meta": null
+}
+
+errorResponse($message, $code, $errors = null)
+Returns:
+
+{
+  "success": false,
+  "data": null,
+  "message": "...",
+  "errors": "...",
+  "meta": null
+}
+
+notImplementedResponse()
+Returns HTTP 501:
+
+{
+  "success": false,
+  "data": null,
+  "message": "Not Implemented",
+  "errors": null,
+  "meta": null
+}
+
+Global Response Rules
+Every API response MUST follow:
+ success (boolean) 
+ data (nullable) 
+ message (string) 
+ errors (nullable) 
+ meta (always null for Sprint 1) 
+No field is ever omitted.
+Standard Error Mapping
+401 Unauthorized
+
+{
+  "success": false,
+  "data": null,
+  "message": "Invalid credentials",
+  "errors": null,
+  "meta": null
+}
+
+422 Validation Error
+
+{
+  "success": false,
+  "data": null,
+  "message": "Validation failed",
+  "errors": {
+    "field": ["error message"]
+  },
+  "meta": null
+}
+
+501 Not Implemented
+Used for all placeholder endpoints.
+Acceptance Criteria
+ All responses use ApiResponse trait 
+ No controller returns raw JSON manually 
+ All responses include full 5-field structure 
+ No missing/null omitted keys 
+ 401, 422, 501 follow strict format 
+ Frontend can rely on single response parser 
+ Trait is reusable across all controllers 
+ No business logic inside response layer 
+Post-Task Requirement
+Upon completion of this task, push all changes to your assigned feature branch and create a Pull Request (PR) targeting the dev branch for code review and integration.
+
+======== TASK 86d3btavk =======
+Name: S1-T11 — Authentication System — AuthService & AuthController
+Status: complete
+Build a high-performance authentication system using Laravel Sanctum with optimized querying, eager loading, and centralized identity resolution.
+This is the ONLY business-logic controller in Week 1, and it must be optimized for:
+ minimal database queries (1-query login pattern)
+ clean separation of concerns
+ reusable identity resolution logic
+ role-aware authentication (ADMIN / CONDUCTOR / COMMUTER)
+
+AuthService (app/Services/AuthService.php)
+Core Principle: Single-query login with eager-loaded profiles and zero redundant database calls.
+
+1. login(string $login, string $password): array
+Input:
+ $login = email OR conductor generated_username
+ $password
+
+Step 1: Single Optimized Lookup (1 Query Only)
+
+$user = User::with([
+    'adminProfile',
+    'conductorProfile',
+    'commuterProfile'
+])
+->where('email', $login)
+->orWhereHas('conductorProfile', function ($q) use ($login) {
+    $q->where('generated_username', $login);
+})
+->first();
+
+Step 2: Validate User
+ If user not found -> throw ValidationException
+Step 3: Password Check
+ Hash::check($password, $user->password)
+ If invalid -> throw ValidationException
+Step 4: Token Generation
+ $token = $user->createToken('auth-token')->plainTextToken;
+Step 5: Return Payload
+ return ['user' => $user, 'token' => $token];
+
+2. logout(User $user): void
+ Revoke ONLY current session: $user->currentAccessToken()->delete();
+
+3. getAuthenticatedUser(User $user): User
+ Return already authenticated Sanctum user
+ No additional DB query
+ Profiles already eager loaded during login flow
+
+AuthController (app/Http/Controllers/Auth/AuthController.php)
+Principle: Controller = thin layer only. No business logic. Only validation + response formatting.
+
+Helper Method (Add to User Model):
+
+public function getDisplayName(): string
+{
+    return match ($this->role) {
+        UserRole::ADMIN =>
+            $this->adminProfile->first_name . ' ' . $this->adminProfile->last_name,
+        UserRole::CONDUCTOR =>
+            $this->conductorProfile->first_name . ' ' . $this->conductorProfile->last_name,
+        UserRole::COMMUTER =>
+            $this->commuterProfile->first_name . ' ' . $this->commuterProfile->surname,
+    };
+}
+
+1. login(Request $request)
+Validation:
+ login: required|string (accepts email OR conductor generated_username)
+ password: required|string|min:6
+
+Flow: call authService->login($request->login, $request->password)
+
+Login Examples (using seeder accounts):
+ Admin login: POST /api/auth/login { "login": "admin@gmail.com", "password": "password123" }
+ Conductor login: POST /api/auth/login { "login": "conductor001", "password": "password123" }
+ Commuter login: POST /api/auth/login { "login": "commuter1@gmail.com", "password": "password123" }
+
+Success Response:
+{
+  "success": true,
+  "data": {
+    "id": "uuid-here",
+    "email": "admin@gmail.com",
+    "role": "ADMIN",
+    "name": "System Admin",
+    "token": "1|abc123..."
+  },
+  "message": "Login successful",
+  "errors": null,
+  "meta": null
+}
+
+2. logout(Request $request)
+ Call authService->logout($request->user())
+ Response: { "success": true, "data": null, "message": "Logged out successfully", "errors": null, "meta": null }
+
+3. user(Request $request)
+ No DB query needed (user already authenticated via Sanctum)
+ Load relationships once: $request->user()->load(['adminProfile', 'conductorProfile', 'commuterProfile']);
+ Admin returns: first_name, middle_name, last_name
+ Conductor returns: first_name, middle_name, last_name, username
+ Commuter returns: first_name, surname, username, commuter_type, account_status
+
+API Routes (routes/api.php)
+Public:
+ POST /api/auth/login
+Protected (auth:sanctum):
+ POST /api/auth/logout
+ GET /api/user
+
+Error Handling
+422 Validation Error: invalid input format (missing login, password too short)
+ Response: { "success": false, "data": null, "message": "Validation failed", "errors": { "login": ["The login field is required."] }, "meta": null }
+401 Invalid Credentials: wrong password / user not found
+ Response: { "success": false, "data": null, "message": "Invalid credentials", "errors": null, "meta": null }
+
+Acceptance Criteria
+ Login uses SINGLE optimized query (email OR generated_username)
+ Profiles are eager-loaded in login
+ No N+1 queries in auth flow
+ Sanctum token is generated correctly
+ Conductor login supports generated_username
+ getDisplayName() used for name resolution
+ Controller contains ZERO business logic
+ Logout revokes only current token
+ GET /api/user uses authenticated user only
+ All responses follow ApiResponse 5-field structure: { success, data, message, errors, meta }
+ Supports ADMIN / CONDUCTOR / COMMUTER roles
+
+Post-Task Requirement
+Upon completion of this task, push all changes to your assigned feature branch and create a Pull Request (PR) targeting the dev branch for code review and integration.
+
+======== TASK 86d3btbx6 =======
+Name: S1-T12 — API Routes & Controllers — All 28 Endpoints
+Status: complete
+Define all non-auth API route groups and create placeholder controllers that return HTTP 501. Also create the ApiResponse trait that enforces consistent JSON across every endpoint.
+
+ApiResponse Trait (app/Traits/ApiResponse.php)
+Create a reusable PHP trait with three methods:
+
+1. successResponse(mixed $data, string $message, int $code = 200): JsonResponse
+ Returns: { "success": true, "data": $data, "message": $message, "errors": null, "meta": null } with HTTP $code
+
+2. errorResponse(string $message, int $code, mixed $errors = null): JsonResponse
+ Returns: { "success": false, "data": null, "message": $message, "errors": $errors, "meta": null } with HTTP $code
+
+3. notImplementedResponse(): JsonResponse
+ Returns: { "success": false, "data": null, "message": "Not Implemented", "errors": null, "meta": null } with HTTP 501
+
+ALL endpoints in the entire system MUST return exactly these 5 fields: success, data, message, errors, meta. No exceptions.
+
+Route Groups (routes/api.php)
+All routes below use the ApiResponse trait. Every method returns $this->notImplementedResponse().
+
+1. Commuter Routes — prefix: commuter, middleware: ['auth:sanctum', 'role:COMMUTER']
+ GET /profile -> CommuterController@profile
+ GET /trips -> CommuterController@trips
+ GET /wallet -> CommuterController@wallet
+ POST /wallet/topup -> CommuterController@walletTopup
+ GET /rewards -> CommuterController@rewards
+
+2. Conductor Routes — prefix: conductor, middleware: ['auth:sanctum', 'role:CONDUCTOR']
+ POST /location -> ConductorController@updateLocation
+ GET /shift -> ConductorController@shiftStatus
+ POST /shift/start -> ConductorController@startShift
+ POST /shift/end -> ConductorController@endShift
+ GET /remittances -> ConductorController@remittances
+ GET /transactions -> ConductorController@transacDefine all non-auth API route groups and create placeholder controllers that return HTTP 501. Also create the ApiResponse trait that enforces consistent JSON across every endpoint.
+
+ApiResponse Trait (app/Traits/ApiResponse.php)
+Create a reusable PHP trait with three methods:
+
+1. successResponse(mixed $data, string $message, int $code = 200): JsonResponse
+ Returns: { "success": true, "data": $data, "message": $message, "errors": null, "meta": null } with HTTP $code
+
+2. errorResponse(string $message, int $code, mixed $errors = null): JsonResponse
+ Returns: { "success": false, "data": null, "message": $message, "errors": $errors, "meta": null } with HTTP $code
+
+3. notImplementedResponse(): JsonResponse
+ Returns: { "success": false, "data": null, "message": "Not Implemented", "errors": null, "meta": null } with HTTP 501
+
+ALL endpoints in the entire system MUST return exactly these 5 fields: success, data, message, errors, meta. No exceptions.
+
+Route Groups (routes/api.php)
+All routes below use the ApiResponse trait. Every method returns $this->notImplementedResponse().
+
+1. Commuter Routes — prefix: commuter, middleware: ['auth:sanctum', 'role:COMMUTER']
+ GET /profile -> CommuterController@profile
+ GET /trips -> CommuterController@trips
+ GET /wallet -> CommuterController@wallet
+ POST /wallet/topup -> CommuterController@walletTopup
+ GET /rewards -> CommuterController@rewards
+
+2. Conductor Routes — prefix: conductor, middleware: ['auth:sanctum', 'role:CONDUCTOR']
+ POST /location -> ConductorController@updateLocation
+ GET /shift -> ConductorController@shiftStatus
+ POST /shift/start -> ConductorController@startShift
+ POST /shift/end -> ConductorController@endShift
+ GET /remittances -> ConductorController@remittances
+ GET /transactions -> ConductorController@transactionss
+
+3. Admin Routes — prefix: admin, middleware: ['auth:sanctum', 'role:ADMIN']
+ GET /dashboard -> AdminController@dashboard
+ GET /users -> AdminController@3. Admin Routes — prefix: admin, middleware: ['auth:sanctum', 'role:ADMIN']
+ GET /dashboard -> AdminController@dashboard
+ GET /users -> AdminController@userss
+ GET /drivers -> AdminController@drivers
+ GET /vehicles -> AdminController@vehicles
+ GET /routes -> AdminController@routes
+ GET /transactions -> AdminController@transactions
+ GET /remittances -> AdminController@remittances
+ GET /announcements -> AdminController@announcements
+ GET /lost-items -> AdminController@lostItems
+ GET /shift-logs -> AdminController@shiftLogs
+
+4. Payment Routes — prefix: payments, middleware: ['auth:sanctum'] (no role restriction, anGET /drivers -> AdminController@drivers
+ GET /vehicles -> AdminController@vehicles
+ GET /routes -> AdminController@routes
+ GET /transactions -> AdminController@transactions
+ GET /remittances -> AdminController@remittances
+ GET /announcements -> AdminController@announcements
+ GET /lost-items -> AdminController@lostItems
+ GET /shift-logs -> AdminController@shiftLogs
+
+4. Payment Routes — prefix: payments, middleware: ['auth:sanctum'] (no role restriction, any authenticated user))
+ POST /initiate -> PaymentController@initiate
+ POST /verify -> PaymentController@verify
+ GET /history -> PaymentController@history
+ POST /topup -> PaymentController@topup
+
+5. QR Routes — prefix: qr, middleware: ['auth:sanctum'] (no POST /initiate -> PaymentController@initiate
+ POST /verify -> PaymentController@verify
+ GET /history -> PaymentController@history
+ POST /topup -> PaymentController@topup
+
+5. QR Routes — prefix: qr, middleware: ['auth:sanctum'] (no role restriction)
+ POST /generate -> QrController@generate
+ POST /validate -> QrController@validate
+ POST /scan -> QrController@scan
+
+Placeholder Controllers (all in app/Http/Controllers/)
+Each controller uses the ApiResponse trait. Every method body is restriction)
+ POST /generate -> QrController@generate
+ POST /validate -> QrController@validate
+ POST /scan -> QrController@scan
+
+Placeholder Controllers (all in app/Http/Controllers/)
+Each controller uses the ApiResponse trait. Every method body is:
+
+public function mmethodName()
+{
+    return $this->notImplementedResponse();
+}
+
+Create these 5 controller files:
+ CommuterController.php — 5 methods: profile, trips, wallet, walletTopup, rewards
+ ConductorController.php — 6 methods: updateLocation, shiftStatus, startShift, endShift, remittances, transactions
+ AdminController.php — 10 methods: dashboard, users, drivers, vehicles, routes, transactions, remittances, announcements, lostItems, shiftLogs
+ PaymentController.php — 4 methods: initiate, verify, history, topup
+ QrController.php — 3 methods: generate, validate, scan
+
+501 Response Behavior
+Every placeholder endpoint returns HTTP 501 with:
+{hodName()
+{
+    return $this->notImplementedResponse();
+}
+
+Create these 5 controller files:
+ CommuterController.php — 5 methods: profile, trips, wallet, walletTopup, rewards
+ ConductorController.php — 6 methods: updateLocation, shiftStatus, startShift, endShift, remittances, transactions
+ AdminController.php — 10 methods: dashboard, users, drivers, vehicles, routes, transactions, remittances, announcements, lostItems, shiftLogs
+ PaymentController.php — 4 methods: initiate, verify, history, topup
+ QrController.php — 3 methods: generate, validate, scan
+
+501 Response Behavior
+Every placeholder endpoint returns HTTP 501 with:
+{ "success": false,false, "data": null, "message": "Not Implemented",Not Implemented", "errors": null, "meta": null  }
+
+This allows the frontend team to test route existence and authentication without waiting for business logic:
+ 401 = unauthenticated (no/invalid token)
+ 403 = wrong role (valid token but insufficient permissions)
+ 501 = route exists, auth passed, feature not built yet
+
+Auth Flow Test Examples (using seeder accounts after T11 + T13 are done):
+ Admin token can access /api/admin/dashboard -> returns 501 (not 403)
+ Admin token cannot access /api/commuter/profile -> returns 403
+ Commuter token can access /api/commuter/profile -> returns 501
+ Conductor token can access /api/conductor/shift -> returns 501
+ Unauthenticated request to any protected route -> returns 401
+
+Total Endpoints
+28 placeholder endpoints (5 commuter + 6 conductor + 10 admin + 4 payment + 3 QR).
+Combined with the 3 auth endpoints from T11, that is 31 total API endpoints for Week 1.
+
+Acceptance Criteria
+ ApiResponse trait created with successResponse, errorResponse, notImplementedResponse
+ All 5 route groups defined with correct prefixes and middleware
+ All 5 placeholder controllers created with correct method names
+ Every non-auth endpoint returns HTTP 501 with consistent JSON
+ Role middleware returns 403 for wrong role, 401 for no auth
+ All responses follow strict 5-field structure: { success, data, message, errors, meta }
+ Total of 28 placeholder endpoints + 3 auth endpoints = 31 API endpointThis allows the frontend team to test route existence and authentication without waiting for business logic:
+ 401 = unauthenticated (no/invalid token)
+ 403 = wrong role (valid token but insufficient permissions)
+ 501 = route exists, auth passed, feature not built yet
+
+Auth Flow Test Examples (using seeder accounts after T11 + T13 are done):
+ Admin token can access /api/admin/dashboard -> returns 501 (not 403)
+ Admin token cannot access /api/commuter/profile -> returns 403
+ Commuter token can access /api/commuter/profile -> returns 501
+ Conductor token can access /api/conductor/shift -> returns 501
+ Unauthenticated request to any protected route -> returns 401
+
+Total Endpoints
+28 placeholder endpoints (5 commuter + 6 conductor + 10 admin + 4 payment + 3 QR).
+Combined with the 3 auth endpoints from T11, that is 31 total API endpoints for Week 1.
+
+Acceptance Criteria
+ ApiResponse trait created with successResponse, errorResponse, notImplementedResponse
+ All 5 route groups defined with correct prefixes and middleware
+ All 5 placeholder controllers created with correct method names
+ Every non-auth endpoint returns HTTP 501 with consistent JSON
+ Role middleware returns 403 for wrong role, 401 for no auth
+ All responses follow strict 5-field structure: { success, data, message, errors, meta }
+ Total of 28 placeholder endpoints + 3 auth endpoints = 31 API endpoints
+
+
+Post-Task Requirement
+Upon completion of this task, p, push all changes to your assigned feature branch and cand create a Pull Request (PR) targeting the dev branch for code review for code review and  integration.tegration.
+
+======== TASK 86d3btkwe =======
+Name: S1-T13 — Database Seeder — All Seed Data
+Status: complete
+Create seed data in DatabaseSeeder.php following the correct dependency order: Users first, then Profiles (which reference users.id), then Routes (no dependencies), then FarePoints (reference routes.id), then Drivers (no dependencies), then Vehicles (which reference routes, drivers, conductor_profiles).
+Users & Profiles
+Seed 1 admin user:
+ email: admin@gmail.com
+ password: Hash::make('password123')
+ role: ADMIN
+Create matching AdminProfile (1:1 with users.id):
+ first_name: System
+ middle_name: null
+ last_name: Admin
+Seed 2 conductor users:
+ emails: conductor1@gmail.com, conductor2@gmail.com
+ role: CONDUCTOR
+ passwords: Hash::make('password123')
+ConductorProfiles (same id as users):
+ Juan Dela Cruz → username: conductor001
+ Maria Santos Reyes → username: conductor002
+ generated_password: hashed (password123 for testing) 
+Seed 3 commuter users:
+ emails: commuter1@gmail.com, commuter2@gmail.com, commuter3@gmail.com
+ role: COMMUTER
+ password: Hash::make('password123')
+CommuterProfiles (all 19 fields filled):
+ Filipino names (realistic) 
+ birthdates realistic 
+ gender alternating Male/Female 
+ contact numbers starting with +63917
+ commuter_type: Regular
+ username: commuter001, commuter002, commuter003
+ language_preference: en
+ account_status: ACTIVE
+ verified_at: now() (pre-verified for testing) 
+Route — McArthur Highway (Calumpit → Meycauayan)
+Seed 1 Route:
+ name: McArthur Highway — Calumpit to Meycauayan
+ status: ACTIVE
+ waypoints: json_encode([...])
+Waypoints must represent the same 33 barangay stops (Calumpit → Banga) with:
+ lat 
+ lng 
+ name 
+This matches FarePoints exactly.
+FarePoints — 33 Barangays (McArthur Highway System)
+Seed 33 FarePoints ordered north → south.
+Each record includes:
+ route_id (McArthur Highway route) 
+ point_number (1–33) 
+ code 
+ name 
+ landmarks (json_encode array of strings) 
+ sub_stops = null (Week 1) 
+ regular_fare (cumulative from Calumpit) 
+ discounted_fare (cumulative from Calumpit) 
+ latitude 
+ longitude 
+Fare rules:
+ BASE_BARANGAY_COUNT = 4 
+ BASE_FARE_REGULAR = ₱15.00 
+ BASE_FARE_DISCOUNTED = ₱12.00 
+ SUCCEEDING_FARE_REGULAR = ₱2.25 per barangay 
+ SUCCEEDING_FARE_DISCOUNTED = ₱1.75 per barangay 
+ TOTAL_BARANGAYS = 33 
+ minimum fare enforced in logic (₱15 / ₱12) 
+Landmarks must be stored as:
+
+json_encode(["Gatbuca", "Crossing", "Caltex"])
+
+All 33 entries must match the provided McArthur Highway dataset exactly (Calumpit → Banga).
+Drivers
+Seed 3 Drivers:
+ Pedro Santos 
+ Ricardo G. Cruz 
+ Antonio Garcia 
+Fields:
+ birthday (date) 
+ contact (+63917 format) 
+ license_number: DL-2024-0001, 0002, 0003
+ hire_date: 2023 
+ status: ACTIVE
+ vehicle_id: null initially 
+Drivers are NOT users.
+Vehicles
+Seed 3 Vehicles AFTER routes + drivers + conductors exist:
+ BUS-001 → ABC-1234 
+ JEEP-001 → DEF-5678 
+ JEEP-002 → GHI-9012 
+Fields:
+ route_id → McArthur Highway route 
+ driver_id → assigned driver 
+ conductor_id → assigned conductor_profiles 
+ status: ACTIVE 
+ capacity_status: AVAILABLE 
+ speed, GPS fields: null 
+After vehicle creation:
+ update each driver.vehicle_id to match assigned vehicle 
+Not Seeded in Week 1
+DO NOT seed:
+ transactions 
+ gcash_payment_intents 
+ remittances 
+ lost_items 
+ claims 
+ vouchers 
+These belong to later sprints and must remain empty.
+Execution Requirement
+Run:
+
+php artisan db:seed
+
+Expected result:
+ No foreign key errors 
+ All inserts successful 
+ Proper dependency order respected:
+ Users → Profiles → Routes → FarePoints → Drivers → Vehicles 
+If errors occur:
+ verify FK types (UUID vs string consistency) 
+ verify seeding order 
+ verify column names match schema exactly 
+Post-Task Requirement
+Upon completion of this task, push all changes to your assigned feature branch and create a Pull Request (PR) targeting the dev branch for code review and integration.Create seed data in DatabaseSeeder.php following the correct dependency order: Users first, then Profiles (which reference users.id), then Routes (no dependencies), then FarePoints (reference routes.id), then Drivers (no dependencies), then Vehicles (which reference routes, drivers, conductor_profiles).
+Users & Profiles
+Seed 1 admin user:
+ email: admin@gmail.com
+ password: Hash::make('password123')
+ role: ADMIN
+Create matching AdminProfile (1:1 with users.id):
+ first_name: System
+ middle_name: null
+ last_name: Admin
+Seed 2 conductor users:
+ emails: conductor1@gmail.com, conductor2@gmail.com
+ role: CONDUCTOR
+ passwords: Hash::make('password123')
+ConductorProfiles (same id as users):
+ Juan Dela Cruz → username: conductor001
+ Maria Santos Reyes → username: conductor002
+ generated_password: hashed (password123 for testing) 
+Seed 3 commuter users:
+ emails: commuter1@gmail.com, commuter2@gmail.com, commuter3@gmail.com
+ role: COMMUTER
+ password: Hash::make('password123')
+CommuterProfiles (all 19 fields filled):
+ Filipino names (realistic) 
+ birthdates realistic 
+ gender alternating Male/Female 
+ contact numbers starting with +63917
+ commuter_type: Regular
+ username: commuter001, commuter002, commuter003
+ language_preference: en
+ account_status: ACTIVE
+ verified_at: now() (pre-verified for testing) 
+Route — McArthur Highway (Calumpit → Meycauayan)
+Seed 1 Route:
+ name: McArthur Highway — Calumpit to Meycauayan
+ status: ACTIVE
+ waypoints: json_encode([...])
+Waypoints must represent the same 33 barangay stops (Calumpit → Banga) with:
+ lat 
+ lng 
+ name 
+This matches FarePoints exactly.
+FarePoints — 33 Barangays (McArthur Highway System)
+Seed 33 FarePoints ordered north → south.
+Each record includes:
+ route_id (McArthur Highway route) 
+ point_number (1–33) 
+ code 
+ name 
+ landmarks (json_encode array of strings) 
+ sub_stops = null (Week 1) 
+ regular_fare (cumulative from Calumpit) 
+ discounted_fare (cumulative from Calumpit) 
+ latitude 
+ longitude 
+Fare rules:
+ BASE_BARANGAY_COUNT = 4 
+ BASE_FARE_REGULAR = ₱15.00 
+ BASE_FARE_DISCOUNTED = ₱12.00 
+ SUCCEEDING_FARE_REGULAR = ₱2.25 per barangay 
+ SUCCEEDING_FARE_DISCOUNTED = ₱1.75 per barangay 
+ TOTAL_BARANGAYS = 33 
+ minimum fare enforced in logic (₱15 / ₱12) 
+Landmarks must be stored as:
+
+json_encode(["Gatbuca", "Crossing", "Caltex"])
+
+All 33 entries must match the provided McArthur Highway dataset exactly (Calumpit → Banga).
+Drivers
+Seed 3 Drivers:
+ Pedro Santos 
+ Ricardo G. Cruz 
+ Antonio Garcia 
+Fields:
+ birthday (date) 
+ contact (+63917 format) 
+ license_number: DL-2024-0001, 0002, 0003
+ hire_date: 2023 
+ status: ACTIVE
+ vehicle_id: null initially 
+Drivers are NOT users.
+Vehicles
+Seed 3 Vehicles AFTER routes + drivers + conductors exist:
+ BUS-001 → ABC-1234 
+ JEEP-001 → DEF-5678 
+ JEEP-002 → GHI-9012 
+Fields:
+ route_id → McArthur Highway route 
+ driver_id → assigned driver 
+ conductor_id → assigned conductor_profiles 
+ status: ACTIVE 
+ capacity_status: AVAILABLE 
+ speed, GPS fields: null 
+After vehicle creation:
+ update each driver.vehicle_id to match assigned vehicle 
+Not Seeded in Week 1
+DO NOT seed:
+ transactions 
+ gcash_payment_intents 
+ remittances 
+ lost_items 
+ claims 
+ vouchers 
+These belong to later sprints and must remain empty.
+Execution Requirement
+Run:
+
+php artisan db:seed
+
+Expected result:
+ No foreign key errors 
+ All inserts successful 
+ Proper dependency order respected:
+ Users → Profiles → Routes → FarePoints → Drivers → Vehicles 
+If errors occur:
+ verify FK types (UUID vs string consistency) 
+ verify seeding order 
+ verify column names match schema exactly 
+Post-Task Requirement
+Upon completion of this task, push all changes to your assigned feature branch and create a Pull Request (PR) targeting the dev branch for code review and integration.

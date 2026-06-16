@@ -1,0 +1,421 @@
+     1→[None] CHATCO BACKEND SPRINT ROADMAP
+     2→[None] Backend-Only Sprint Plan  •  June 16 – August 15, 2025
+     3→[None] Laravel + Supabase  |  Sanctum Auth  |  GCash Direct QR  |  GPS + Hail System
+     4→[Heading 2] Executive Summary
+     5→[None] This roadmap covers 9 backend-only sprints from June 16 to August 15, 2025, targeting production readiness for the Chatco jeepney tracking system. The frontend (Next.js) is already implemented; this plan exclusively addresses the Laravel backend that the frontend expects to connect to.
+     6→[None] Key architectural decisions confirmed throughout all sprints:
+     7→[List Paragraph] Wallet system is fully and permanently removed — no internal balance, no top-up, no ledger
+     8→[List Paragraph] GCash QR is direct external payment via PayMongo only — no internal money movement
+     9→[List Paragraph] All jeepney units are visible to commuters at all times — no distance filter on visibility
+    10→[List Paragraph] 1KM hail restriction is enforced server-side only — frontend is display-only
+    11→[List Paragraph] Backend is the single source of truth — frontend never bypasses backend validation
+    12→[Heading 2] Backend Architecture at a Glance
+    13→[Heading 2] Weekly Sprint Breakdown
+    14→[None] WEEK 1    June 16 – June 22, 2025
+    15→[None] Sprint Goal: Laravel project bootstrap — auth skeleton, DB schema, Sanctum, role middleware
+    16→[None] 🛣️  API & Route Work
+    17→[List Paragraph] Install Laravel 11 + configure .env (DB, CORS, Sanctum, mail)
+    18→[List Paragraph] Register all route groups: api/auth, api/commuter, api/conductor, api/admin, api/payments, api/qr
+    19→[List Paragraph] Return 501 Not Implemented stubs for all non-auth endpoints (prevents silent failures)
+    20→[List Paragraph] Standardize all API responses: { success, data, message, errors, meta } format
+    21→[None] 🔐  Auth & Security
+    22→[List Paragraph] Install & configure Laravel Sanctum (cookie-based, SPA)
+    23→[List Paragraph] Implement POST /api/auth/login
+    24→[List Paragraph] Validate email + password
+    25→[List Paragraph] Return Sanctum token or set httpOnly session cookie
+    26→[List Paragraph] Embed role claim in response: { id, email, role }
+    27→[List Paragraph] Implement POST /api/auth/logout (revoke token)
+    28→[List Paragraph] Implement GET /api/user (return authenticated user + role)
+    29→[List Paragraph] Create role middleware: EnsureRole::class (admin, conductor, commuter)
+    30→[List Paragraph] Protect all non-auth route groups with auth:sanctum + role middleware
+    31→[None] ⚙️  Core System Logic
+    32→[List Paragraph] No business logic this week — focus on foundation only
+    33→[List Paragraph] Confirm roles enum in DB: ADMIN, CONDUCTOR, COMMUTER
+    34→[None] 🗃️  Database / Laravel Structure
+    35→[List Paragraph] Create migrations: users, conductors, commuters, vehicles, shifts, transactions, hails, remittances, announcements, lost_items, feedback
+    36→[List Paragraph] Seed: 1 admin, 2 conductors, 3 commuters, 3 vehicles
+    37→[List Paragraph] Create base models with $fillable, $hidden, $casts
+    38→[List Paragraph] No wallet table — confirm it does not exist in any migration
+    39→[None] 📡  Real-time / GPS
+    40→[List Paragraph] No GPS work this week
+    41→[List Paragraph] Create placeholder route: POST /api/conductor/location (returns 501)
+    42→[None] 🧹  Code Quality
+    43→[List Paragraph] Folder structure: app/Http/Controllers/{Auth,Commuter,Conductor,Admin,Payment}, app/Services/, app/Http/Middleware/
+    44→[List Paragraph] No business logic inside controllers — controllers call services only
+    45→[None] ✅  Validation Checklist
+    46→[List Paragraph] POST /api/auth/login returns token + role
+    47→[List Paragraph] GET /api/user returns user behind auth:sanctum
+    48→[List Paragraph] Non-auth routes return 401 when unauthenticated
+    49→[List Paragraph] Role middleware blocks wrong-role access (test: commuter hitting /api/admin)
+    50→[List Paragraph] No wallet table in DB schema
+    51→[List Paragraph] All routes registered and returning 501 stubs (not 404)
+    52→[None] WEEK 2    June 23 – June 29, 2025
+    53→[None] Sprint Goal: Conductor shift + GPS location system — production-grade shift lifecycle
+    54→[None] 🛣️  API & Route Work
+    55→[List Paragraph] POST /api/conductor/shifts/start — create shift, link to conductor + vehicle
+    56→[List Paragraph] POST /api/conductor/shifts/{id}/end — close shift, compute duration
+    57→[List Paragraph] GET /api/conductor/shifts/active — return active shift for authenticated conductor
+    58→[List Paragraph] GET /api/conductor/shift-logs — paginated shift history
+    59→[List Paragraph] POST /api/conductor/location — accept { lat, lng, speed, heading } GPS payload
+    60→[List Paragraph] GET /api/vehicles/locations — return all active vehicle locations (commuter-facing)
+    61→[None] 🔐  Auth & Security
+    62→[List Paragraph] All conductor routes behind auth:sanctum + role:conductor middleware
+    63→[List Paragraph] Conductor can only access their own shifts (scope by conductor_id = auth()->id())
+    64→[List Paragraph] Reject duplicate active shifts: one conductor = one active shift max
+    65→[None] ⚙️  Core System Logic
+    66→[List Paragraph] Shift states: pending → active → ended (enforce server-side transitions)
+    67→[List Paragraph] GPS update: store latest lat/lng per vehicle in vehicle_locations table (upsert by vehicle_id)
+    68→[List Paragraph] Vehicles table: track active_shift_id FK for real-time status
+    69→[List Paragraph] Capacity status: Available / Standing / Full — conductor updates via API, never inferred by frontend
+    70→[None] 🗃️  Database / Laravel Structure
+    71→[List Paragraph] Migration: vehicle_locations (vehicle_id, conductor_id, lat, lng, speed, heading, capacity_status, updated_at)
+    72→[List Paragraph] Migration: shifts (id, conductor_id, vehicle_id, started_at, ended_at, status)
+    73→[List Paragraph] ShiftService: startShift(), endShift(), getActiveShift()
+    74→[List Paragraph] LocationService: updateLocation(), getAllActiveLocations()
+    75→[None] 📡  Real-time / GPS
+    76→[List Paragraph] POST /api/conductor/location: validate lat (-90 to 90), lng (-180 to 180), required fields
+    77→[List Paragraph] Upsert vehicle_locations on every POST — always latest position only
+    78→[List Paragraph] GET /api/vehicles/locations: return all vehicles with lat, lng, capacity_status, plate_number
+    79→[List Paragraph] Frontend polls GET /api/vehicles/locations every 5s (no WebSocket needed this sprint)
+    80→[None] 🧹  Code Quality
+    81→[List Paragraph] ShiftController → delegates entirely to ShiftService
+    82→[List Paragraph] LocationController → delegates entirely to LocationService
+    83→[List Paragraph] No raw DB queries in controllers
+    84→[None] ✅  Validation Checklist
+    85→[List Paragraph] Conductor can start exactly one active shift
+    86→[List Paragraph] Second start attempt returns 409 Conflict
+    87→[List Paragraph] GPS POST updates vehicle_locations (verify in DB)
+    88→[List Paragraph] GET /api/vehicles/locations returns all vehicles regardless of distance
+    89→[List Paragraph] Commuter role cannot POST /api/conductor/location (403 expected)
+    90→[List Paragraph] Shift end sets ended_at timestamp
+    91→[None] WEEK 3    June 30 – July 6, 2025
+    92→[None] Sprint Goal: Hail system with server-enforced 1KM radius — backend is the sole gatekeeper
+    93→[None] 🛣️  API & Route Work
+    94→[List Paragraph] POST /api/commuter/hail — create hail request
+    95→[List Paragraph] DELETE /api/commuter/hail/{id} — cancel hail
+    96→[List Paragraph] GET /api/conductor/hails — conductor sees pending hails for their vehicle
+    97→[List Paragraph] POST /api/conductor/hails/{id}/accept — conductor accepts hail
+    98→[List Paragraph] POST /api/conductor/hails/{id}/reject — conductor rejects hail
+    99→[None] 🔐  Auth & Security
+   100→[List Paragraph] Hail POST requires auth:sanctum + role:commuter
+   101→[List Paragraph] Conductor hail actions require auth:sanctum + role:conductor
+   102→[List Paragraph] Commuter can only cancel their own hail
+   103→[None] ⚙️  Core System Logic
+   104→[List Paragraph] 1KM Radius Enforcement (SERVER-SIDE ONLY)
+   105→[List Paragraph] On POST /api/commuter/hail: receive { vehicle_id, commuter_lat, commuter_lng }
+   106→[List Paragraph] Fetch latest vehicle lat/lng from vehicle_locations
+   107→[List Paragraph] Compute Haversine distance server-side
+   108→[List Paragraph] If distance > 1000m → return 422 { error: 'outside_radius', distance_m: N }
+   109→[List Paragraph] If distance <= 1000m → create hail record
+   110→[List Paragraph] Frontend distance check is DISPLAY-ONLY and must never be the sole validator
+   111→[List Paragraph] Hail states: pending → accepted | rejected | cancelled | expired
+   112→[List Paragraph] Hail expiry: auto-expire pending hails after 3 minutes (queue job or GPS poll)
+   113→[List Paragraph] Vehicle visibility: GET /api/vehicles/locations returns ALL vehicles — no radius filter here
+   114→[None] 🗃️  Database / Laravel Structure
+   115→[List Paragraph] Migration: hails (id, commuter_id, vehicle_id, conductor_id, commuter_lat, commuter_lng, distance_m, status, created_at, expires_at)
+   116→[List Paragraph] HailService: createHail(), cancelHail(), acceptHail(), rejectHail(), expireStaleHails()
+   117→[List Paragraph] HailRequest FormRequest: validate lat/lng ranges, vehicle_id exists and is active
+   118→[None] 📡  Real-time / GPS
+   119→[List Paragraph] Hail creation triggers distance validation against live vehicle_locations
+   120→[List Paragraph] Conductor sees hails via GET /api/conductor/hails — scoped to their vehicle_id
+   121→[List Paragraph] Consider: scheduled job every 60s to expire stale hails (Laravel scheduler)
+   122→[None] 🧹  Code Quality
+   123→[List Paragraph] HailController is thin — all logic in HailService
+   124→[List Paragraph] Haversine function in app/Helpers/GeoHelper.php (reusable, testable)
+   125→[List Paragraph] Remove any 1KM logic from frontend API route stubs — it must only live in backend
+   126→[None] ✅  Validation Checklist
+   127→[List Paragraph] Hail at 0.5km succeeds (201 Created)
+   128→[List Paragraph] Hail at 1.5km fails (422, error: outside_radius)
+   129→[List Paragraph] Admin/conductor cannot POST /api/commuter/hail (403)
+   130→[List Paragraph] GET /api/vehicles/locations still returns ALL vehicles even if commuter is far
+   131→[List Paragraph] Conductor can accept/reject only hails for their vehicle
+   132→[List Paragraph] Cancelled hail status = cancelled in DB
+   133→[None] WEEK 4    July 7 – July 13, 2025
+   134→[None] Sprint Goal: Transaction system + GCash QR payment flow (no wallet, direct payment only)
+   135→[None] 🛣️  API & Route Work
+   136→[List Paragraph] POST /api/conductor/transactions — record a fare transaction (cash or GCash)
+   137→[List Paragraph] GET /api/conductor/transactions?shift_id={id} — list transactions for a shift
+   138→[List Paragraph] POST /api/gcash/charge — initiate GCash direct payment (proxies to PayMongo)
+   139→[List Paragraph] GET /api/payments/verify?id={id} — verify payment status
+   140→[List Paragraph] POST /api/payments/webhook — PayMongo webhook for async payment confirmation
+   141→[List Paragraph] GET /api/commuter/payments — commuter payment history
+   142→[None] 🔐  Auth & Security
+   143→[List Paragraph] POST /api/gcash/charge requires auth:sanctum (conductor role)
+   144→[List Paragraph] Webhook endpoint: verify PayMongo signature header (prevent spoofed callbacks)
+   145→[List Paragraph] Commuter can only see their own payment history
+   146→[List Paragraph] No admin can create transactions directly
+   147→[None] ⚙️  Core System Logic
+   148→[List Paragraph] GCash Payment Flow (Direct, No Wallet)
+   149→[List Paragraph] Conductor selects GCash for a commuter fare
+   150→[List Paragraph] Backend calls PayMongo: POST /payment_intents with amount in centavos
+   151→[List Paragraph] Return QR source URL to frontend for display
+   152→[List Paragraph] Commuter scans QR in GCash app
+   153→[List Paragraph] PayMongo calls /api/payments/webhook on completion
+   154→[List Paragraph] Backend updates transaction status to paid
+   155→[List Paragraph] NO internal balance, NO wallet credit, NO stored funds — payment only
+   156→[List Paragraph] Cash transactions: record immediately, status = paid, no external API
+   157→[List Paragraph] Transaction record must link: shift_id, conductor_id, commuter_id (if known), fare_amount, payment_method, status
+   158→[None] 🗃️  Database / Laravel Structure
+   159→[List Paragraph] Migration: transactions (id, shift_id, conductor_id, commuter_id?, amount, payment_method, status, paymongo_id?, paid_at, created_at)
+   160→[List Paragraph] Confirm: no wallet_balance column on any table, no wallet_transactions table
+   161→[List Paragraph] TransactionService: createTransaction(), verifyGCashPayment(), handleWebhook()
+   162→[List Paragraph] PaymentService: createPaymentIntent(), verifyIntent() — wraps PayMongo API
+   163→[None] 📡  Real-time / GPS
+   164→[List Paragraph] Webhook: when payment confirmed → update transaction.status = paid + transaction.paid_at
+   165→[List Paragraph] Frontend polls GET /api/payments/verify every 3s after QR display (fallback if webhook delayed)
+   166→[None] 🧹  Code Quality
+   167→[List Paragraph] PayMongo API key stored in .env only — never in code
+   168→[List Paragraph] PaymentService handles all external calls — TransactionController never calls PayMongo directly
+   169→[List Paragraph] Webhook handler validates signature before processing any data
+   170→[None] ✅  Validation Checklist
+   171→[List Paragraph] Cash transaction records correctly in DB
+   172→[List Paragraph] GCash flow: POST /api/gcash/charge returns QR data without creating wallet
+   173→[List Paragraph] Webhook updates transaction status to paid
+   174→[List Paragraph] Commuter payment history shows transactions
+   175→[List Paragraph] No wallet table or wallet balance column in DB (confirm via schema inspection)
+   176→[List Paragraph] PayMongo secret key is NOT hardcoded (check .env)
+   177→[None] WEEK 5    July 14 – July 20, 2025
+   178→[None] Sprint Goal: Commuter profile, admin CRUD, remittance, and role-scoped data access
+   179→[None] 🛣️  API & Route Work
+   180→[List Paragraph] GET/PUT /api/commuter/profile
+   181→[List Paragraph] POST /api/commuter/change-password
+   182→[List Paragraph] GET /api/conductor/remittances + POST /api/conductor/remittances
+   183→[List Paragraph] GET /api/admin/users — paginated, filterable by role
+   184→[List Paragraph] GET/PUT/DELETE /api/admin/users/{id}
+   185→[List Paragraph] GET /api/admin/vehicles + POST + PUT/DELETE
+   186→[List Paragraph] GET /api/admin/monitoring — live fleet data
+   187→[List Paragraph] GET /api/admin/analytics — aggregated metrics
+   188→[None] 🔐  Auth & Security
+   189→[List Paragraph] Commuter profile: user can only modify their own data
+   190→[List Paragraph] Admin endpoints: all behind role:admin middleware
+   191→[List Paragraph] Admin cannot impersonate users via API (no user-switching endpoint)
+   192→[List Paragraph] Password change: validate current_password before allowing update
+   193→[None] ⚙️  Core System Logic
+   194→[List Paragraph] Remittance: conductor submits daily collection amount at end of shift
+   195→[List Paragraph] Remittance links to shift_id — one remittance per shift
+   196→[List Paragraph] Admin monitoring: aggregate from vehicle_locations + active shifts in real-time
+   197→[List Paragraph] Analytics: aggregate transactions by date, route, payment_method (no wallet metrics)
+   198→[None] 🗃️  Database / Laravel Structure
+   199→[List Paragraph] Migration: remittances (id, conductor_id, shift_id, total_collected, remitted_amount, created_at)
+   200→[List Paragraph] Admin views use DB aggregates — no fake/static data
+   201→[List Paragraph] CommuterService, ConductorService, AdminService separation
+   202→[List Paragraph] All services return typed data — controllers just format responses
+   203→[None] 📡  Real-time / GPS
+   204→[List Paragraph] GET /api/admin/monitoring: real-time vehicle positions from vehicle_locations
+   205→[List Paragraph] Admin monitoring refreshes every 5s (same polling mechanism as commuter map)
+   206→[None] 🧹  Code Quality
+   207→[List Paragraph] Remove any static/hardcoded admin data from backend stubs
+   208→[List Paragraph] Ensure commuter endpoints never leak conductor/admin data
+   209→[List Paragraph] Clean up any duplicated profile logic between AuthController and CommuterController
+   210→[None] ✅  Validation Checklist
+   211→[List Paragraph] Commuter cannot access /api/admin endpoints (403)
+   212→[List Paragraph] Admin can list, update, delete users
+   213→[List Paragraph] Remittance links to correct shift_id
+   214→[List Paragraph] Profile update persists to DB
+   215→[List Paragraph] Analytics endpoint returns real aggregated data, not mocked values
+   216→[None] WEEK 6    July 21 – July 27, 2025
+   217→[None] Sprint Goal: QR signing, feedback, lost & found, announcements, SOS alert
+   218→[None] 🛣️  API & Route Work
+   219→[List Paragraph] POST /api/qr/sign — generate signed QR payload for a transaction
+   220→[List Paragraph] POST /api/qr/verify — verify QR signature on scan
+   221→[List Paragraph] POST /api/commuter/feedback — submit ride feedback
+   222→[List Paragraph] GET /api/lost-found + POST /api/lost-found
+   223→[List Paragraph] PUT /api/lost-found/{id}/claim
+   224→[List Paragraph] GET /api/announcements + POST (admin only)
+   225→[List Paragraph] POST /api/commuter/sos — broadcast SOS alert
+   226→[None] 🔐  Auth & Security
+   227→[List Paragraph] QR signing: HMAC-SHA256 with server secret key (never expose secret client-side)
+   228→[List Paragraph] QR verify: reject tampered or expired QR payloads
+   229→[List Paragraph] SOS: rate-limit to prevent abuse (max 1 per 5 minutes per commuter)
+   230→[List Paragraph] Feedback: commuter only, linked to commuter_id
+   231→[None] ⚙️  Core System Logic
+   232→[List Paragraph] QR Signing Flow
+   233→[List Paragraph] Sign payload: { transaction_id, amount, commuter_id, exp } with HMAC
+   234→[List Paragraph] Verify: recompute HMAC, reject if mismatch or expired
+   235→[List Paragraph] QR is tied to a transaction — NOT a wallet funding source
+   236→[List Paragraph] SOS: store alert with commuter_id, lat, lng, timestamp — admin notified via broadcast or push
+   237→[List Paragraph] Announcements: admin creates, all commuters can read, mark-as-read per user
+   238→[List Paragraph] Lost & Found: commuter claims item → status = claimed, admin confirms
+   239→[None] 🗃️  Database / Laravel Structure
+   240→[List Paragraph] Migration: feedback (id, commuter_id, conductor_id?, shift_id?, rating, comment, created_at)
+   241→[List Paragraph] Migration: lost_items (id, description, reported_by, status, claimed_by?, created_at)
+   242→[List Paragraph] Migration: announcements (id, title, body, created_by, created_at)
+   243→[List Paragraph] Migration: announcement_reads (user_id, announcement_id, read_at)
+   244→[List Paragraph] Migration: sos_alerts (id, commuter_id, lat, lng, status, created_at)
+   245→[None] 📡  Real-time / GPS
+   246→[List Paragraph] SOS alert may broadcast via Laravel Echo / Pusher to admin dashboard
+   247→[List Paragraph] Announcements: commuters pull on login or dashboard load
+   248→[None] 🧹  Code Quality
+   249→[List Paragraph] QR secret in .env only
+   250→[List Paragraph] QrService: sign(), verify() — isolated, testable
+   251→[List Paragraph] SOS rate limiter via Laravel's built-in throttle middleware
+   252→[None] ✅  Validation Checklist
+   253→[List Paragraph] Signed QR cannot be tampered (modify payload → verify rejects it)
+   254→[List Paragraph] Expired QR rejected after TTL
+   255→[List Paragraph] SOS stores alert in DB with correct lat/lng
+   256→[List Paragraph] Feedback links to correct commuter_id
+   257→[List Paragraph] Announcement mark-as-read scoped per user
+   258→[List Paragraph] Lost item claim changes status to claimed
+   259→[None] WEEK 7    July 28 – August 3, 2025
+   260→[None] Sprint Goal: API hardening, error standardization, dead code purge, wallet logic elimination
+   261→[None] 🛣️  API & Route Work
+   262→[List Paragraph] Audit all routes: remove any 501 stubs that were never implemented
+   263→[List Paragraph] Standardize all error responses: { success: false, message, errors: {} }
+   264→[List Paragraph] Standardize all success responses: { success: true, data, meta }
+   265→[List Paragraph] Add 404 catch-all for undefined API routes (return JSON, not HTML)
+   266→[List Paragraph] Review and fix any inconsistent HTTP status codes (201 vs 200 for creates, etc.)
+   267→[None] 🔐  Auth & Security
+   268→[List Paragraph] Audit all endpoints: confirm auth:sanctum + role middleware on every protected route
+   269→[List Paragraph] Test CSRF protection on POST routes (Sanctum SPA config)
+   270→[List Paragraph] Ensure no endpoint leaks data from other roles (test cross-role access systematically)
+   271→[List Paragraph] Rotate any hardcoded secrets found in code to .env
+   272→[None] ⚙️  Core System Logic
+   273→[List Paragraph] Wallet Logic Elimination Audit
+   274→[List Paragraph] Search entire codebase for: wallet, balance, top_up, wallet_ledger, stored_funds
+   275→[List Paragraph] Remove any wallet-related DB columns, tables, routes, or service methods
+   276→[List Paragraph] Confirm GCash flow has NO internal balance side effect
+   277→[List Paragraph] Any voucher/reward system must NOT store monetary balance
+   278→[List Paragraph] Validate that hail radius check is ONLY in HailService — remove from any route/controller
+   279→[List Paragraph] Confirm vehicle visibility endpoint has NO distance filter
+   280→[None] 🗃️  Database / Laravel Structure
+   281→[List Paragraph] Run schema audit: verify no wallet_* tables exist
+   282→[List Paragraph] Add missing indexes: vehicle_locations.vehicle_id, transactions.shift_id, hails.commuter_id
+   283→[List Paragraph] Add DB-level constraints: shift.status ENUM, hail.status ENUM
+   284→[List Paragraph] Review all FK relationships and add ON DELETE behavior
+   285→[None] 📡  Real-time / GPS
+   286→[List Paragraph] GPS update endpoint: add server-side staleness check (reject GPS older than 30s via timestamp)
+   287→[List Paragraph] Vehicles with no location update in 10 min: auto-mark as inactive in admin monitoring
+   288→[None] 🧹  Code Quality
+   289→[List Paragraph] Remove all TODO/FIXME comments that reference wallet logic
+   290→[List Paragraph] Remove unused imports across all service files
+   291→[List Paragraph] Ensure every controller method is ≤30 lines — extract to service if not
+   292→[List Paragraph] Verify no raw SQL queries — all queries through Eloquent or Query Builder
+   293→[None] ✅  Validation Checklist
+   294→[List Paragraph] grep -r 'wallet' app/ returns zero results
+   295→[List Paragraph] All API errors return JSON (not HTML exception pages)
+   296→[List Paragraph] Cross-role access test matrix: all 403s where expected
+   297→[List Paragraph] DB schema: no wallet-related tables or columns
+   298→[List Paragraph] GPS stale data rejected correctly
+   299→[List Paragraph] Postman collection passes all endpoint tests
+   300→[None] WEEK 8    August 4 – August 10, 2025
+   301→[None] Sprint Goal: Performance, query optimization, caching, and staging environment readiness
+   302→[None] 🛣️  API & Route Work
+   303→[List Paragraph] Add pagination to: /api/admin/users, /api/conductor/transactions, /api/commuter/payments
+   304→[List Paragraph] Add filtering to admin endpoints: ?role=, ?status=, ?date_from=, ?date_to=
+   305→[List Paragraph] Add rate limiting: 60 req/min for general API, 5 req/min for auth endpoints
+   306→[List Paragraph] Review and document all API contracts (route, method, request, response)
+   307→[None] 🔐  Auth & Security
+   308→[List Paragraph] Implement token expiry: Sanctum tokens expire after 24h (configure in sanctum.php)
+   309→[List Paragraph] Add brute-force protection on login: lockout after 5 failed attempts
+   310→[List Paragraph] Ensure all file uploads (ID photos) are validated for type + size before storage
+   311→[List Paragraph] Review CORS allowed_origins: must not be '*' in staging
+   312→[None] ⚙️  Core System Logic
+   313→[List Paragraph] Hail expiry: ensure scheduler is running and expiring stale hails correctly
+   314→[List Paragraph] Transaction idempotency: prevent duplicate transaction on double-POST (unique key or idempotency header)
+   315→[List Paragraph] Webhook retry handling: PayMongo retries failed webhooks — ensure idempotent processing
+   316→[None] 🗃️  Database / Laravel Structure
+   317→[List Paragraph] Add composite indexes for common query patterns
+   318→[List Paragraph] Review N+1 query risks: use eager loading (with()) in listing endpoints
+   319→[List Paragraph] Set up DB connection pooling for staging
+   320→[List Paragraph] Create staging .env.staging — separate DB, PayMongo sandbox keys
+   321→[None] 📡  Real-time / GPS
+   322→[List Paragraph] GPS polling: confirm 5s interval is sustainable at scale (estimate: 10 conductors = 2 req/s)
+   323→[List Paragraph] Cache GET /api/vehicles/locations with 4s TTL (Redis or in-memory) to reduce DB hits
+   324→[List Paragraph] Consider Laravel Echo + Pusher for real-time push if polling proves insufficient
+   325→[None] 🧹  Code Quality
+   326→[List Paragraph] Run php artisan route:list — confirm all routes are intentional
+   327→[List Paragraph] Run php artisan optimize — cache config, routes, views for staging
+   328→[List Paragraph] Ensure all validation rules use FormRequest classes — no inline $request->validate()
+   329→[None] ✅  Validation Checklist
+   330→[List Paragraph] Pagination works on all list endpoints
+   331→[List Paragraph] Rate limiting returns 429 after threshold
+   332→[List Paragraph] Login lockout after 5 failures
+   333→[List Paragraph] N+1 queries eliminated (test with Laravel Debugbar or telescope)
+   334→[List Paragraph] Staging environment boots and connects to separate DB
+   335→[List Paragraph] PayMongo sandbox webhook verified in staging
+   336→[None] WEEK 9    August 11 – August 15, 2025
+   337→[None] Sprint Goal: Production hardening, final security audit, deployment readiness sign-off
+   338→[None] 🛣️  API & Route Work
+   339→[List Paragraph] Final API contract freeze — no new endpoints after August 12
+   340→[List Paragraph] Ensure all endpoints have Postman tests documented
+   341→[List Paragraph] Confirm frontend API_BASE_URL environment variable is wired to Laravel backend
+   342→[None] 🔐  Auth & Security
+   343→[List Paragraph] Run OWASP checklist: SQL injection (Eloquent protects — confirm no raw queries), XSS, CSRF
+   344→[List Paragraph] Confirm Sanctum CSRF cookie is set correctly for production domain
+   345→[List Paragraph] Review sensitive data in logs: ensure passwords, tokens, PayMongo keys never logged
+   346→[List Paragraph] Set APP_DEBUG=false in production .env
+   347→[List Paragraph] Set APP_ENV=production
+   348→[None] ⚙️  Core System Logic
+   349→[List Paragraph] Final end-to-end flow tests: commuter hail → conductor accept → GCash payment → transaction confirmed
+   350→[List Paragraph] GPS update → vehicle visible on commuter map → hail blocked at 1.5km → hail allowed at 0.5km
+   351→[List Paragraph] Admin monitoring shows live vehicle positions
+   352→[None] 🗃️  Database / Laravel Structure
+   353→[List Paragraph] Run all migrations on production DB (dry-run first)
+   354→[List Paragraph] Seed production data: routes, vehicle master list, initial admin user
+   355→[List Paragraph] Back up migration state before go-live
+   356→[List Paragraph] Confirm DB user has minimal required permissions (not root)
+   357→[None] 📡  Real-time / GPS
+   358→[List Paragraph] Confirm GPS polling or WebSocket is stable over 30-minute test window
+   359→[List Paragraph] Verify vehicle_locations updates propagate to commuter map within 6s
+   360→[None] 🧹  Code Quality
+   361→[List Paragraph] composer install --no-dev for production build
+   362→[List Paragraph] php artisan config:cache + route:cache + view:cache
+   363→[List Paragraph] Remove all debug routes (e.g. /api/debug/*, /api/test/*)
+   364→[List Paragraph] Ensure error reporting goes to log file, not to API response body
+   365→[None] ✅  Validation Checklist
+   366→[List Paragraph] Full E2E test: hail at 500m succeeds, at 1500m rejected
+   367→[List Paragraph] GCash payment flow completes without wallet side effect
+   368→[List Paragraph] All role-protection tests pass (commuter, conductor, admin isolation)
+   369→[List Paragraph] No wallet logic in DB, routes, or services
+   370→[List Paragraph] APP_DEBUG=false (no stack traces in responses)
+   371→[List Paragraph] Production .env has real PayMongo live keys
+   372→[List Paragraph] Backup verified before go-live
+   373→[Heading 1] Final Assessment
+   374→[Heading 2] Backend Readiness Score (Post-Sprint 9)
+   375→[Heading 2] Risks if Sprint is Delayed
+   376→[List Paragraph] Sprint 1 delay (auth/foundation): cascades all subsequent sprints — every sprint depends on it
+   377→[List Paragraph] Sprint 2 delay (GPS/shifts): Sprint 3 hail logic cannot be tested without live vehicle locations
+   378→[List Paragraph] Sprint 3 delay (hail): 1KM restriction remains frontend-only — critical security gap
+   379→[List Paragraph] Sprint 4 delay (payments): GCash QR flow untested — payment failures at launch
+   380→[List Paragraph] Sprint 7 delay (hardening): wallet ghost logic may ship to production — architectural contamination
+   381→[List Paragraph] Sprint 8 delay (staging): no pre-production testing environment — production becomes first real test
+   382→[Heading 2] Deployment Recommendation
+   383→[None] Production go-live is only recommended after Sprint 9 validation checklist is 100% complete. Partial deployments (e.g. going live before hail radius is backend-enforced) introduce critical security and logic gaps.
+   384→[Heading 2] Critical Architecture Warnings
+   385→[List Paragraph] NEVER deploy with APP_DEBUG=true — full stack traces expose DB structure and server paths
+   386→[List Paragraph] The frontend middleware.ts reads the chatco_session cookie role claim client-side — this is display routing only. The backend must ALWAYS re-verify the role via auth:sanctum + role middleware on every request.
+   387→[List Paragraph] The gcash-payment.ts service has a sandbox fallback that simulates payments (isSimulated: true). Confirm PAYMONGO_CONFIG.isSandbox = false in production .env — the backend must never trust simulated payment results.
+   388→[List Paragraph] shouldUseConductorApi() in the frontend defaults to API mode unless NEXT_PUBLIC_CONDUCTOR_API_MODE=local is set. Confirm this variable is NOT set in production (it would silently disable all conductor API calls).
+   389→[List Paragraph] vehicle_locations must be an upsert (INSERT OR UPDATE by vehicle_id), not an append — otherwise the table grows unbounded and GET /api/vehicles/locations returns stale duplicates.
+   390→[List Paragraph] The frontend's nearby-detector.ts correctly implements all units visible + 1KM hail gate logic, but this is UI-layer only. Sprint 3 backend must duplicate this exact logic in HailService — any divergence is a security gap.
+   391→[None] CHATCO Backend Sprint Roadmap  —  Prepared for dev team use  |  June 2025
+   392→
+   393→--- TABLE ---
+   394→Layer | Implementation
+   395→API Framework | Laravel 11 (PHP 8.2+)
+   396→Database | Supabase (PostgreSQL) via Eloquent ORM
+   397→Authentication | Laravel Sanctum — SPA cookie-based + token fallback
+   398→Roles | ADMIN | CONDUCTOR | COMMUTER — enforced by middleware
+   399→GPS | POST /api/conductor/location → vehicle_locations table (upsert)
+   400→Hail Radius | Haversine server-side in HailService — 1000m hard limit
+   401→Payment | GCash via PayMongo API — no internal wallet or balance
+   402→Real-time | 5s polling (MVP); Laravel Echo/Pusher optional upgrade
+   403→
+   404→--- TABLE ---
+   405→Area | Status After Sprint 9 | Score
+   406→Authentication | Sanctum + role middleware fully enforced | ✅ 10/10
+   407→GPS System | Real-time upsert with staleness protection | ✅ 9/10
+   408→Hail Radius (1KM) | 100% server-side Haversine enforcement | ✅ 10/10
+   409→Payment (GCash QR) | PayMongo direct, webhook verified, no wallet | ✅ 9/10
+   410→Role-Based Access | Middleware on all routes, cross-role tested | ✅ 10/10
+   411→Wallet Removal | Zero wallet logic in DB, code, or routes | ✅ 10/10
+   412→API Consistency | Standardized response format, pagination | ✅ 9/10
+   413→Code Architecture | Thin controllers, service layer, no God classes | ✅ 9/10
+   414→Security Hardening | Rate limiting, CSRF, OWASP basic audit | ✅ 9/10
+   415→OVERALL | Production-ready backend | ✅ 95/100
+   416→
+   417→--- TABLE ---
+   418→Phase | Timeline | Gate
+   419→Development | Week 1–7 (June 16 – August 3) | All sprints green
+   420→Staging | Week 8 (August 4–10) — separate DB, sandbox PayMongo | E2E tests pass
+   421→Production | August 11–15 — after Sprint 9 sign-off | Security audit done
