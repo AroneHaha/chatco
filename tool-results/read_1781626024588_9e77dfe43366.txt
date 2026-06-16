@@ -1,0 +1,637 @@
+     1→========== TASK 86d3cbvmt ==========
+     2→NAME: CONTEXT FOR AI AND INSTALLATIONS
+     3→STATUS: dev sprint 2
+     4→---DESCRIPTION---
+     5→Sprint 2 — New Dependencies
+     6→Backend (only 1 new package)
+     7→bash
+     8→
+     9→cd backend
+    10→composer require pusher/pusher-php-server
+    11→Frontend (only 2 new packages)
+    12→bash
+    13→
+    14→cd frontend
+    15→npm install laravel-echo pusher-js
+    16→That's it. No other installations needed for Sprint 2.
+    17→Sprint 2 — Backend .env Additions
+    18→Append these to your existing backend/.env (do NOT replace the whole file):
+    19→env
+    20→
+    21→# Sprint 2 — Real-time broadcasting
+    22→BROADCAST_CONNECTION=pusher
+    23→QUEUE_CONNECTION=sync
+    24→
+    25→# Pusher Credentials (Sandbox tier — free)
+    26→PUSHER_APP_ID=2167016
+    27→PUSHER_APP_KEY=323230b941a07bf166d8
+    28→PUSHER_APP_SECRET=fddb5e30057caaba31f9
+    29→PUSHER_APP_CLUSTER=ap1
+    30→PUSHER_PORT=443
+    31→PUSHER_SCHEME=https
+    32→
+    33→Update backend/.env.example (for teammates)
+    34→Append the same block, but with placeholder values:
+    35→env
+    36→
+    37→# Sprint 2 — Real-time broadcasting
+    38→BROADCAST_CONNECTION=pusher
+    39→QUEUE_CONNECTION=sync
+    40→
+    41→PUSHER_APP_ID=your_app_id
+    42→PUSHER_APP_KEY=your_app_key
+    43→PUSHER_APP_SECRET=your_app_secret
+    44→PUSHER_APP_CLUSTER=ap1
+    45→PUSHER_PORT=443
+    46→PUSHER_SCHEME=https
+    47→Sprint 2 — Frontend .env.local Additions
+    48→Append to your existing frontend/.env.local:
+    49→env
+    50→
+    51→# Sprint 2 — Pusher real-time
+    52→NEXT_PUBLIC_PUSHER_APP_KEY=323230b941a07bf166d8
+    53→NEXT_PUBLIC_PUSHER_APP_CLUSTER=ap1
+    54→Update frontend/.env.example
+    55→env
+    56→
+    57→# Sprint 2 — Pusher real-time
+    58→NEXT_PUBLIC_PUSHER_APP_KEY=your_app_key
+    59→NEXT_PUBLIC_PUSHER_APP_CLUSTER=ap1
+    60→Sprint 2 — Database Migrations
+    61→5 new migrations to run:
+    62→bash
+    63→
+    64→cd backend
+    65→php artisan migrate
+    66→Migrations applied:
+    67→
+    68→[table-embed:1:1 #| 1:2 Migration| 1:3 Purpose| 2:1 1| 2:2 2026_06_16_000001_create_vehicle_locations_table.php | 2:3 GPS tracking table (upsert pattern)| 3:1 2| 3:2 2026_06_16_000002_add_status_to_shift_logs_table.php | 3:3 status  enum (ACTIVE/ENDED) + indexes| 4:1 3| 4:2 2026_06_16_000003_add_active_shift_id_to_vehicles_table.php | 4:3 Vehicle → active shift FK| 5:1 4| 5:2 2026_06_16_000004_add_active_shift_id_to_drivers_table.php | 5:3 Driver → active shift FK| 6:1 5| 6:2 2026_06_16_000005_add_shift_fields_to_remittances_table.php | 6:3 Remittance shift linkage|]
+    69→All migrations are idempotent — safe to re-run.
+    70→Sprint 2 — Configuration File Updates
+    71→1. backend/config/broadcasting.php — Ensure pusher block exists
+    72→If it doesn't exist, add:
+    73→php
+    74→
+    75→'pusher' => [
+    76→    'driver' => 'pusher',
+    77→    'key' => env('PUSHER_APP_KEY'),
+    78→    'secret' => env('PUSHER_APP_SECRET'),
+    79→    'app_id' => env('PUSHER_APP_ID'),
+    80→    'options' => [
+    81→        'cluster' => env('PUSHER_APP_CLUSTER'),
+    82→        'encrypted' => true,
+    83→        'useTLS' => true,
+    84→    ],
+    85→],
+    86→2. backend/bootstrap/providers.php — Enable BroadcastServiceProvider
+    87→php
+    88→
+    89→<?php
+    90→
+    91→return [
+    92→    App\Providers\AppServiceProvider::class,
+    93→    App\Providers\BroadcastServiceProvider::class,
+    94→];
+    95→3. backend/app/Providers/BroadcastServiceProvider.php — Create if missing
+    96→php
+    97→
+    98→<?php
+    99→
+   100→namespace App\Providers;
+   101→
+   102→use Illuminate\Support\Facades\Broadcast;
+   103→use Illuminate\Support\ServiceProvider;
+   104→
+   105→class BroadcastServiceProvider extends ServiceProvider
+   106→{
+   107→    public function boot(): void
+   108→    {
+   109→        Broadcast::routes();
+   110→        require base_path('routes/channels.php');
+   111→    }
+   112→}
+   113→4. backend/routes/channels.php — Register vehicles channel
+   114→php
+   115→
+   116→<?php
+   117→
+   118→use Illuminate\Support\Facades\Broadcast;
+   119→
+   120→// Sprint 2 — public channel for vehicle location updates
+   121→Broadcast::channel('vehicles', function () {
+   122→    return true;
+   123→});
+   124→5. backend/phpunit.xml — Test environment
+   125→In the <php> section, ensure:
+   126→xml
+   127→
+   128→<env name="BROADCAST_DRIVER" value="log"/>
+   129→<env name="QUEUE_CONNECTION" value="sync"/>
+   130→This prevents tests from hitting Pusher API.
+   131→Sprint 2 — New Files Created
+   132→Backend
+   133→
+   134→[table-embed:1:1 File| 1:2 Purpose| 2:1 app/Events/VehicleLocationUpdated.php | 2:2 Broadcast event on  vehicles  channel| 3:1 app/Services/ShiftService.php | 3:2 Shift start/end business logic| 4:1 app/Services/LocationService.php | 4:2 GPS upsert + broadcast logic| 5:1 app/Http/Controllers/Conductor/ConductorController.php | 5:2 Updated with shift/location/profile/units/drivers methods| 6:1 app/Http/Controllers/Commuter/VehicleLocationController.php | 6:2 Public endpoint to fetch all vehicle locations| 7:1 app/Http/Requests/Conductor/StartShiftRequest.php | 7:2 Validates vehicle_id, driver_id, route_id| 8:1 app/Http/Requests/Conductor/UpdateLocationRequest.php | 8:2 Validates lat/lng/speed/heading/capacity_status| 9:1 app/Http/Requests/Conductor/SubmitRemittanceRequest.php | 9:2 Validates shift_id, total_collected, remitted_amount| 10:1 app/Models/VehicleLocation.php | 10:2 Model with  upsertPosition()  helper| 11:1 app/Models/ShiftLog.php | 11:2 Updated with status enum, scopes, relationships| 12:1 app/Models/Vehicle.php | 12:2 Updated with  active_shift_id ,  activeShift() ,  currentLocation() | 13:1 app/Models/Driver.php | 13:2 Updated with  active_shift_id ,  activeShift() | 14:1 app/Models/Remittance.php | 14:2 Updated with shift relationships| 15:1 app/Enums/ShiftStatus.php | 15:2 ACTIVE  /  ENDED  enum| 16:1 app/Enums/CapacityStatus.php | 16:2 AVAILABLE  /  STANDING  /  FULL  enum|]
+   135→Frontend
+   136→
+   137→[table-embed:1:1 File| 1:2 Purpose| 2:1 frontend/lib/echo.ts | 2:2 Laravel Echo singleton with Pusher driver| 3:1 frontend/hooks/useVehicleLocations.ts | 3:2 React hook for vehicle location subscription| 4:1 frontend/app/test-realtime/page.tsx | 4:2 Test page for real-time verification|]
+   138→Tests
+   139→
+   140→[table-embed:1:1 File| 1:2 Purpose| 2:1 backend/tests/Feature/ShiftTest.php | 2:2 10 tests — shift lifecycle| 3:1 backend/tests/Feature/LocationTest.php | 3:2 9 tests — GPS tracking| 4:1 backend/tests/Feature/BroadcastTest.php | 4:2 5 tests — real-time broadcasting| 5:1 backend/tests/Feature/Sprint2RoleAccessTest.php | 5:2 8 tests — RBAC matrix| 6:1 backend/tests/Feature/SchemaTest.php | 6:2 Updated — 8 schema assertions|]
+   141→Sprint 2 — Verification Steps
+   142→Step 1: Clear all caches (run after every config change)
+   143→bash
+   144→
+   145→cd backend
+   146→php artisan config:clear
+   147→php artisan route:clear
+   148→php artisan cache:clear
+   149→Step 2: Verify Pusher config is loaded
+   150→bash
+   151→
+   152→php artisan config:show broadcasting | findstr pusher
+   153→Expected:
+   154→text
+   155→
+   156→connections ⇁ pusher ⇁ driver ............................. pusher
+   157→connections ⇁ pusher ⇁ key .................. 323230b941a07bf166d8
+   158→connections ⇁ pusher ⇁ secret ............... fddb5e30057caaba31f9
+   159→connections ⇁ pusher ⇁ app_id ............................ 2167016
+   160→connections ⇁ pusher ⇁ options ⇁ cluster ..................... ap1
+   161→Step 3: Verify routes are registered
+   162→bash
+   163→
+   164→php artisan route:list --path=api/conductor
+   165→Expected: 10 routes including:
+   166→GET api/conductor/profile
+   167→GET api/conductor/units
+   168→GET api/conductor/drivers
+   169→GET api/conductor/shift
+   170→POST api/conductor/shifts/start
+   171→POST api/conductor/remittances
+   172→POST api/conductor/location
+   173→POST api/conductor/capacity-status
+   174→GET api/conductor/shift-logs
+   175→GET api/conductor/transactions
+   176→Step 4: Run Sprint 2 tests
+   177→bash
+   178→
+   179→php artisan test --filter=ShiftTest
+   180→php artisan test --filter=LocationTest
+   181→php artisan test --filter=BroadcastTest
+   182→php artisan test --filter=Sprint2RoleAccessTest
+   183→php artisan test --filter=SchemaTest
+   184→All should pass.
+   185→Step 5: Smoke test Pusher (direct SDK)
+   186→bash
+   187→
+   188→php artisan tinker
+   189→Inside tinker (single line):
+   190→php
+   191→
+   192→ $pusher = new \Pusher\Pusher(env('PUSHER_APP_KEY'), env('PUSHER_APP_SECRET'), env('PUSHER_APP_ID'), ['cluster' => env('PUSHER_APP_CLUSTER'), 'useTLS' => true]); $response = $pusher->trigger('vehicles', 'TestEvent', ['msg' => 'hello from tinker']); dump($response);
+   193→Check Pusher Debug Console → should see TestEvent on vehicles channel.
+   194→Step 6: Smoke test via API
+   195→bash
+   196→
+   197→# Login as conductor
+   198→ $body = @{ login = "conductor1@gmail.com"; password = "password123" } | ConvertTo-Json
+   199→ $loginResp = Invoke-RestMethod -Uri "http://localhost:8000/api/auth/login" -Method Post -Headers @{ "Accept" = "application/json" } -ContentType "application/json" -Body $body
+   200→ $token = $loginResp.data.token
+   201→
+   202→# Test conductor profile
+   203→ $headers = @{ "Accept" = "application/json"; "Authorization" = "Bearer $token" }
+   204→Invoke-RestMethod -Uri "http://localhost:8000/api/conductor/profile" -Method Get -Headers $headers
+   205→Expected: success: true with condu
+   206→---END---
+   207→
+   208→========== TASK 86d3cbv0v ==========
+   209→NAME: Handoff Brief: Sprint 2 Automated Feature Test Suite
+   210→STATUS: dev sprint 2
+   211→---DESCRIPTION---
+   212→Key business rules to encode in tests:
+   213→Shift can ONLY end via remittance submission — no standalone end-shift endpoint
+   214→vehicle_locations uses UPSERT (one row per vehicle_id, never append)
+   215→GPS broadcasts VehicleLocationUpdated event on vehicles channel
+   216→Three entities (conductor, driver, vehicle) cannot be on two active shifts simultaneously → 409 Conflict
+   217→Denormalized names baked into shift_logs (conductor_name, driver_name, plate_number)
+   218→Current State — What Exists
+   219→
+   220→[table-embed:1:1 Test File | 1:2 Status | 1:3 Notes | 2:1 tests/Feature/ShiftTest.php | 2:2 ✅ Exists | 2:3 Has shift start, duplicate shift, end via remittance tests — needs review against final spec | 3:1 tests/Feature/LocationTest.php | 3:2 ✅ Exists | 3:3 Has GPS update + capacity status tests — needs broadcast assertion | 4:1 tests/Feature/BroadcastTest.php | 4:2 ✅ Exists | 4:3 Has  Broadcast::fake()  assertion for event — needs capacity update coverage | 5:1 tests/Feature/Sprint2RoleAccessTest.php | 5:2 ✅ Exists | 5:3 Has RBAC matrix tests — needs 401 unauth coverage | 6:1 tests/Feature/SchemaTest.php | 6:2 ❓ Verify existence | 6:3 Needs update for Sprint 2 schema additions |]
+   221→What Needs to Be Built/Updated
+   222→A. ShiftTest.php — Complete Shift Lifecycle Coverage
+   223→Tests required (10 total):
+   224→
+   225→[table-embed:1:1 # | 1:2 Test Name | 1:3 Expected Status | 1:4 Validates | 2:1 1 | 2:2 test_conductor_can_start_shift | 2:3 201 | 2:4 Shift created,  vehicle.active_shift_id  set,  driver.active_shift_id  set | 3:1 2 | 3:2 test_conductor_cannot_start_duplicate_shift | 3:3 409 | 3:4 Same conductor cannot start 2nd active shift | 4:1 3 | 4:2 test_conductor_cannot_start_shift_if_driver_in_use | 4:3 409 | 4:4 Driver on another active shift | 5:1 4 | 5:2 test_conductor_cannot_start_shift_if_vehicle_in_use | 5:3 409 | 5:4 Vehicle on another active shift | 6:1 5 | 6:2 test_conductor_can_end_shift_via_remittance | 6:3 200 | 6:4 Remittance record created,  shift.status=ENDED ,  time_out  set,  active_shift_id  cleared | 7:1 6 | 7:2 test_remittance_without_active_shift | 7:3 422 | 7:4 Shift doesn't exist or already ended | 8:1 7 | 8:2 test_remittance_for_other_conductor_shift | 8:3 403 | 8:4 Conductor cannot end another conductor's shift | 9:1 8 | 9:2 test_get_active_shift_when_exists | 9:3 200 | 9:4 Returns shift data with vehicle/driver/route eager loaded | 10:1 9 | 10:2 test_get_active_shift_when_none | 10:3 200 | 10:4 Returns  data: null | 11:1 10 | 11:2 test_get_shift_logs_paginated | 11:3 200 | 11:4 Returns paginated history ordered by  time_in DESC |]
+   226→Critical fixtures:
+   227→User factory must support role attribute (currently conductor, may need case-normalization per Phase 1 of previous brief)
+   228→Vehicle factory — verify plate_number, vehicle_type fields exist
+   229→Driver factory — verify first_name, last_name, contact fields exist
+   230→Route factory — verify route_name field exists
+   231→B. LocationTest.php — GPS Tracking + UPSERT Coverage
+   232→Tests required (9 total):
+   233→
+   234→[table-embed:1:1 # | 1:2 Test Name | 1:3 Expected Status | 1:4 Validates | 2:1 1 | 2:2 test_conductor_can_update_location | 2:3 200 | 2:4 vehicle_locations  row upserted with lat/lng | 3:1 2 | 3:2 test_location_update_requires_active_shift | 3:3 422 | 3:4 No active shift → service aborts 422 | 4:1 3 | 4:2 test_location_update_validates_lat_range | 4:3 422 | 4:4 lat > 90 or < -90 rejected | 5:1 4 | 5:2 test_location_update_validates_lng_range | 5:3 422 | 5:4 lng > 180 or < -180 rejected | 6:1 5 | 6:2 test_location_upsert_does_not_duplicate | 6:3 200 | 6:4 Two updates → only 1 row in  vehicle_locations | 7:1 6 | 7:2 test_location_update_with_capacity_status | 7:3 200 | 7:4 capacity_status  enum column updated | 8:1 7 | 8:2 test_commuter_can_get_all_active_locations | 8:3 200 | 8:4 Returns array of vehicles with lat/lng/capacity_status | 9:1 8 | 9:2 test_get_locations_returns_all_vehicles_no_distance_filter | 9:3 200 | 9:4 Confirms no proximity filter — returns everything | 10:1 9 | 10:2 test_unauthenticated_cannot_get_locations | 10:3 401 | 10:4 No  Authorization  header → 401 |]
+   235→Critical fixtures:
+   236→VehicleLocation factory — vehicle_id (string PK), conductor_id, lat, lng, capacity_status
+   237→Need to manually create ShiftLog in setUp() because shift start requires frontend flow
+   238→C. BroadcastTest.php — Real-Time Event Coverage
+   239→Tests required (5 total):
+   240→
+   241→[table-embed:1:1 # | 1:2 Test Name | 1:3 Validates | 2:1 1 | 2:2 test_gps_update_triggers_vehicle_location_updated_event | 2:3 Broadcast::fake()  + assert event dispatched on  vehicles  channel | 3:1 2 | 3:2 test_capacity_status_update_triggers_broadcast | 3:3 Same event fired on capacity update | 4:1 3 | 4:2 test_event_payload_contains_correct_data | 4:3 Assert payload has vehicle_id, lat, lng, capacity_status, route_name, updated_at | 5:1 4 | 5:2 test_shift_start_does_not_broadcast_location_event | 5:3 Assert event NOT dispatched on shift start | 6:1 5 | 6:2 test_vehicles_channel_is_public | 6:3 Any authenticated user can subscribe (no auth callback) |]
+   242→Implementation notes:
+   243→Use Broadcast::fake() (NOT Event::fake()) — Event::fake blocks broadcast assertions
+   244→Test payload must include route_name (denormalized join from routes table)
+   245→Set BROADCAST_DRIVER=log in phpunit.xml so tests don't hit Pusher
+   246→D. Sprint2RoleAccessTest.php — RBAC Matrix
+   247→Tests required (8 total):
+   248→
+   249→[table-embed:1:1 # | 1:2 Test Name | 1:3 Role | 1:4 Endpoint | 1:5 Expected | 2:1 1 | 2:2 test_conductor_can_access_shift_endpoints | 2:3 conductor | 2:4 All conductor routes | 2:5 200/201 | 3:1 2 | 3:2 test_conductor_can_access_location_endpoints | 3:3 conductor | 3:4 location/capacity | 3:5 200 | 4:1 3 | 4:2 test_commuter_cannot_start_shift | 4:3 commuter | 4:4 POST  /conductor/shifts/start | 4:5 403 | 5:1 4 | 5:2 test_commuter_cannot_update_location | 5:3 commuter | 5:4 POST  /conductor/location | 5:5 403 | 6:1 5 | 6:2 test_commuter_can_view_vehicle_locations | 6:3 commuter | 6:4 GET  /vehicles/locations | 6:5 200 | 7:1 6 | 7:2 test_admin_can_view_vehicle_locations | 7:3 admin | 7:4 GET  /vehicles/locations | 7:5 200 | 8:1 7 | 8:2 test_admin_cannot_start_shift | 8:3 admin | 8:4 POST  /conductor/shifts/start | 8:5 403 | 9:1 8 | 9:2 test_guest_cannot_access_protected_routes | 9:3 unauthenticated | 9:4 All conductor routes | 9:5 401 |]
+   250→E. SchemaTest.php — Sprint 2 Schema Verification
+   251→Tests required (8 assertions):
+   252→php
+   253→
+   254→public function test_vehicle_locations_table_exists(): void
+   255→public function test_vehicle_locations_has_required_columns(): void
+   256→// vehicle_id, conductor_id, lat, lng, speed, heading, capacity_status, updated_at
+   257→
+   258→public function test_shift_logs_has_driver_id_column(): void
+   259→public function test_shift_logs_has_status_column(): void
+   260→
+   261→public function test_vehicles_has_active_shift_id_column(): void
+   262→public function test_drivers_has_active_shift_id_column(): void
+   263→
+   264→public function test_vehicle_locations_has_no_wallet_columns(): void
+   265→// Assert wallet_balance, wallet_updated_at do NOT exist
+   266→Implementation pattern:
+   267→php
+   268→
+   269→use Illuminate\Support\Facades\Schema;
+   270→
+   271→ $this->assertTrue(Schema::hasTable('vehicle_locations'));
+   272→ $this->assertTrue(Schema::hasColumns('vehicle_locations', [
+   273→    'vehicle_id', 'conductor_id', 'lat', 'lng',
+   274→    'speed', 'heading', 'capacity_status', 'updated_at',
+   275→]));
+   276→ $this->assertFalse(Schema::hasColumn('vehicle_locations', 'wallet_balance'));
+   277→What Needs Consideration
+   278→1. Test Database Setup
+   279→RefreshDatabase trait runs migrations on every test — ensure Sprint 2 migrations are idempotent (they already use Schema::hasColumn checks)
+   280→Ensure phpunit.xml has BROADCAST_DRIVER=log to prevent Pusher API calls during tests
+   281→Verify QUEUE_CONNECTION=sync in phpunit.xml so broadcast events fire synchronously
+   282→2. Factory Completeness
+   283→Before tests can run, factories must exist for ALL models used:
+   284→UserFactory — must support role attribute (check if conductor/CONDUCTOR accepted)
+   285→VehicleFactory — must populate plate_number, vehicle_type, status
+   286→DriverFactory — must populate first_name, last_name, contact
+   287→RouteFactory — must populate route_name
+   288→ShiftLogFactory 
+   289→---END---
+   290→
+   291→========== TASK 86d3c0xe8 ==========
+   292→NAME: S2-T6 — Feature Testing & End-to-End Verification
+   293→STATUS: complete
+   294→---DESCRIPTION---
+   295→Create automated feature tests to validate the shift lifecycle, GPS tracking, remittance-based shift ending, real-time broadcasting, and role-based access control for Sprint 2 endpoints.
+   296→
+   297→## Context
+   298→
+   299→Sprint 2 introduces real business logic for the first time. Tests must verify the complete shift flow: start (with vehicle + driver selection) → GPS tracking → real-time broadcasting → remittance submission → shift end. The 409 Conflict status code is new to Sprint 2.
+   300→
+   301→## ShiftTest (tests/Feature/ShiftTest.php)
+   302→
+   303→Create feature tests covering shift lifecycle:
+   304→
+   305→- POST /api/conductor/shifts/start with valid vehicle_id + driver_id → 200 OK
+   306→  - Response includes: shift data with conductor_id, driver_id, vehicle_id, status=ACTIVE, started_at
+   307→  - vehicle.active_shift_id is set
+   308→  - driver.active_shift_id is set
+   309→
+   310→- POST /api/conductor/shifts/start when conductor already has active shift → 409 Conflict
+   311→
+   312→- POST /api/conductor/shifts/start when driver already on active shift → 409 Conflict
+   313→
+   314→- POST /api/conductor/shifts/start when vehicle already on active shift → 409 Conflict
+   315→
+   316→- POST /api/conductor/remittances with valid data → 200 OK
+   317→  - Remittance record created with shift_id, total_collected, remitted_amount
+   318→  - Shift status = ENDED, ended_at is set
+   319→  - vehicle.active_shift_id = null
+   320→  - driver.active_shift_id = null
+   321→
+   322→- POST /api/conductor/remittances without active shift → 422
+   323→
+   324→- POST /api/conductor/remittances for shift belonging to another conductor → 403
+   325→
+   326→- GET /api/conductor/shift with active shift → 200 OK with shift data
+   327→
+   328→- GET /api/conductor/shift without active shift → 200 OK with null data
+   329→
+   330→- GET /api/conductor/shift-logs → 200 OK with paginated history
+   331→
+   332→## LocationTest (tests/Feature/LocationTest.php)
+   333→
+   334→Create feature tests covering GPS tracking:
+   335→
+   336→- POST /api/conductor/location with valid lat/lng during active shift → 200 OK
+   337→  - vehicle_locations record upserted with correct data
+   338→
+   339→- POST /api/conductor/location without active shift → 422
+   340→
+   341→- POST /api/conductor/location with invalid lat (out of -90 to 90) → 422 Validation Error
+   342→
+   343→- POST /api/conductor/location with invalid lng (out of -180 to 180) → 422 Validation Error
+   344→
+   345→- POST /api/conductor/location with capacity_status → 200 OK, status updated
+   346→
+   347→- GET /api/vehicles/locations with active vehicles → 200 OK
+   348→  - Returns ALL vehicles (no distance filter)
+   349→  - Each record includes: vehicle_id, lat, lng, capacity_status
+   350→
+   351→- GET /api/vehicles/locations without authentication → 401
+   352→
+   353→- Commuter role cannot POST /api/conductor/location → 403
+   354→
+   355→- Conductor sends GPS update → commuter fetches locations → data matches (end-to-end flow)
+   356→
+   357→## BroadcastTest (tests/Feature/BroadcastTest.php)
+   358→
+   359→Create feature tests covering real-time broadcasting:
+   360→
+   361→- GPS update triggers VehicleLocationUpdated event on 'vehicles' channel
+   362→- Capacity status update triggers VehicleLocationUpdated event
+   363→- Event payload contains correct vehicle location data
+   364→- Shift start/end does NOT broadcast location events
+   365→- Verify broadcast event structure matches expected payload
+   366→
+   367→## RoleAccessTest (tests/Feature/Sprint2RoleAccessTest.php)
+   368→
+   369→Validate RBAC for Sprint 2 endpoints:
+   370→
+   371→- Conductor can access all conductor shift + location endpoints
+   372→- Commuter cannot POST /api/conductor/shifts/start → 403
+   373→- Commuter cannot POST /api/conductor/location → 403
+   374→- Commuter can GET /api/vehicles/locations → 200
+   375→- Admin can GET /api/vehicles/locations → 200
+   376→- Unauthenticated request to any conductor endpoint → 401
+   377→
+   378→## SchemaTest Updates (tests/Feature/SchemaTest.php)
+   379→
+   380→Update existing SchemaTest:
+   381→
+   382→- vehicle_locations table exists
+   383→- vehicle_locations has required columns: vehicle_id, conductor_id, lat, lng, speed, heading, capacity_status, updated_at
+   384→- shift_logs has driver_id column
+   385→- shift_logs has status column
+   386→- vehicles has active_shift_id column
+   387→- drivers has active_shift_id column
+   388→- NO wallet columns in vehicle_locations
+   389→
+   390→## Expected Behavior Summary
+   391→
+   392→| Case | Expected |
+   393→|------|----------|
+   394→| Valid shift start | 200 |
+   395→| Duplicate active shift (conductor) | 409 |
+   396→| Duplicate active shift (driver) | 409 |
+   397→| Duplicate active shift (vehicle) | 409 |
+   398→| Valid remittance + shift end | 200 |
+   399→| Remittance without active shift | 422 |
+   400→| Remittance wrong conductor | 403 |
+   401→| Valid GPS update | 200 |
+   402→| GPS without active shift | 422 |
+   403→| Invalid lat/lng | 422 |
+   404→| GPS update triggers broadcast | Event fired |
+   405→| Capacity update triggers broadcast | Event fired |
+   406→| Get vehicle locations (any role) | 200 |
+   407→| Wrong role on conductor endpoints | 403 |
+   408→| No auth on protected routes | 401 |
+   409→
+   410→Acceptance Criteria
+   411→ All shift lifecycle tests pass (start, remittance/end, history)
+   412→ 409 Conflict correctly returned for duplicate active shifts (conductor, driver, vehicle)
+   413→ Shift cannot end without remittance
+   414→ GPS upsert works correctly (no duplicate vehicle records)
+   415→ GPS updates trigger VehicleLocationUpdated broadcast event
+   416→ Capacity updates trigger VehicleLocationUpdated broadcast event
+   417→ Invalid GPS data returns 422
+   418→ GET /api/vehicles/locations returns all vehicles with no distance filter
+   419→ Commuter can view vehicle locations but cannot access conductor endpoints
+   420→ All responses use ApiResponse format
+   421→ SchemaTest updated for new tables and columns
+   422→ No wallet columns or tables exist
+   423→ All tests pass with php artisan test
+   424→Post-Task Requirement
+   425→Upon completion of this task, push all changes to your assigned feature branch and create a Pull Request (PR) targeting the dev branch for code review and integration.
+   426→---END---
+   427→
+   428→========== TASK 86d3c0xc0 ==========
+   429→NAME: S2-T5 — Shift & Location API — Controllers, Routes, FormRequests & Broadcasting
+   430→STATUS: complete
+   431→---DESCRIPTION---
+   432→Create API controllers, routes, FormRequest validation, and broadcast event setup for the shift lifecycle and GPS tracking endpoints. Replace Sprint 1 placeholder stubs (501) with real implementations.
+   433→
+   434→## Context
+   435→
+   436→Sprint 1 registered these endpoints as 501 stubs. Sprint 2 replaces them with real controllers that delegate to ShiftService and LocationService. GPS updates also trigger Pusher broadcast events so commuters receive real-time location data via Laravel Echo.
+   437→
+   438→## Controllers to Update/Create
+   439→
+   440→### ConductorController (update existing)
+   441→
+   442→Update app/Http/Controllers/Conductor/ConductorController.php:
+   443→
+   444→Replace placeholder methods with real implementations:
+   445→
+   446→- shiftStatus() → delegates to ShiftService::getActiveShift()
+   447→- startShift() → delegates to ShiftService::startShift()
+   448→- endShift() → delegates to ShiftService::endShiftViaRemittance()
+   449→- updateLocation() → delegates to LocationService::updateLocation()
+   450→- remittances() → delegates to ShiftService::endShiftViaRemittance() (POST creates remittance + ends shift)
+   451→- transactions() → keep as 501 stub (Sprint 4)
+   452→
+   453→### New: VehicleLocationController
+   454→
+   455→Create app/Http/Controllers/VehicleLocationController.php:
+   456→
+   457→- locations() → delegates to LocationService::getAllActiveLocations()
+   458→- This is the commuter-facing fallback endpoint that returns all vehicle positions
+   459→- Serves initial data load and reconnection; real-time updates come via Pusher
+   460→
+   461→## Broadcast Event: VehicleLocationUpdated
+   462→
+   463→Create app/Events/VehicleLocationUpdated.php implementing ShouldBroadcast:
+   464→
+   465→- Broadcast on 'vehicles' channel (public channel — all authenticated users can subscribe)
+   466→- Event payload: vehicle_id, plate_number, vehicle_type, lat, lng, speed, heading, capacity_status, route_name, updated_at
+   467→- Triggered by LocationService::updateLocation() and LocationService::updateCapacityStatus()
+   468→
+   469→### Broadcast Routes
+   470→
+   471→Add to routes/channels.php:
+   472→- 'vehicles' channel — publicly accessible to any authenticated user
+   473→
+   474→## Routes
+   475→
+   476→### Update existing conductor routes:
+   477→
+   478→POST /api/conductor/shifts/start — start shift (requires: vehicle_id, driver_id)
+   479→  - Auth: auth:sanctum + role:CONDUCTOR
+   480→  - Replaces the current 501 stub at /api/conductor/shift/start
+   481→
+   482→POST /api/conductor/remittances — submit remittance + end shift (requires: shift_id, total_collected, remitted_amount)
+   483→  - Auth: auth:sanctum + role:CONDUCTOR
+   484→  - This replaces the current 501 stub at /api/conductor/remittances
+   485→  - NOTE: This is the ONLY way to end a shift
+   486→
+   487→GET /api/conductor/shift — get active shift status
+   488→  - Auth: auth:sanctum + role:CONDUCTOR
+   489→  - Replaces the current 501 stub
+   490→
+   491→GET /api/conductor/shift-logs — paginated shift history (NEW route)
+   492→  - Auth: auth:sanctum + role:CONDUCTOR
+   493→
+   494→POST /api/conductor/location — GPS update (requires: lat, lng, optional: speed, heading, capacity_status)
+   495→  - Auth: auth:sanctum + role:CONDUCTOR
+   496→  - Replaces the current 501 stub
+   497→  - Triggers VehicleLocationUpdated broadcast event
+   498→
+   499→### Commuter-facing route:
+   500→
+   501→GET /api/vehicles/locations — all active vehicle positions
+   502→  - Auth: auth:sanctum (any authenticated role)
+   503→  - No distance filter — ALL vehicles visible
+   504→  - Response includes: vehicle_id, plate_number, vehicle_type, lat, lng, speed, heading, capacity_status, route_name, updated_at
+   505→  - This is the fallback for initial page load and reconnection
+   506→  - Real-time updates come via Pusher subscription to 'vehicles' channel
+   507→
+   508→### Keep as 501 stubs (future sprints):
+   509→
+   510→- GET /api/conductor/transactions — Sprint 4
+   511→
+   512→## FormRequests
+   513→
+   514→Create app/Http/Requests/Conductor/:
+   515→
+   516→### StartShiftRequest
+   517→- vehicle_id: required, string, must exist in vehicles table
+   518→- driver_id: required, string, must exist in drivers table
+   519→
+   520→### UpdateLocationRequest
+   521→- lat: required, numeric, between:-90,90
+   522→- lng: required, numeric, between:-180,180
+   523→- speed: nullable, numeric, min:0
+   524→- heading: nullable, numeric, between:0,360
+   525→- capacity_status: nullable, string, in:AVAILABLE,STANDING,FULL
+   526→
+   527→### SubmitRemittanceRequest
+   528→- shift_id: required, string
+   529→- total_collected: required, numeric, min:0
+   530→- remitted_amount: required, numeric, min:0
+   531→
+   532→## Response Format
+   533→
+   534→All responses must use the ApiResponse trait:
+   535→- Success: { success: true, data: {...}, message: '...', errors: null, meta: null }
+   536→- Error: { success: false, data: null, message: '...', errors: {...}, meta: null }
+   537→
+   538→Acceptance Criteria
+   539→ All conductor 501 stubs replaced with real implementations
+   540→ POST /api/conductor/shifts/start requires vehicle_id + driver_id
+   541→ POST /api/conductor/remittances creates remittance + ends shift (only way to end shift)
+   542→ POST /api/conductor/location validates lat/lng, upserts vehicle_locations, and broadcasts event
+   543→ GET /api/vehicles/locations returns all vehicle positions (no distance filter, fallback for initial load)
+   544→ GET /api/vehicles/locations requires authentication but works for any role
+   545→ VehicleLocationUpdated broadcast event created and fires on GPS update
+   546→ 'vehicles' Pusher channel is accessible to authenticated users
+   547→ All conductor routes protected by auth:sanctum + role:CONDUCTOR
+   548→ FormRequest validation classes created for all inputs
+   549→ No standalone end-shift endpoint exists (shift ends via remittance only)
+   550→ No business logic in controllers — all logic delegated to services
+   551→ All responses use ApiResponse format
+   552→Post-Task Requirement
+   553→Upon completion of this task, push all changes to your assigned feature branch and create a Pull Request (PR) targeting the dev branch for code review and integration.
+   554→---END---
+   555→
+   556→========== TASK 86d3c0xb1 ==========
+   557→NAME: S2-T3 — ShiftService — Shift Lifecycle & Remittance Business Logic
+   558→STATUS: complete
+   559→---DESCRIPTION---
+   560→Implement the core business logic for the conductor shift lifecycle including shift start (with vehicle + driver selection), shift end (via remittance submission), and shift history.
+   561→
+   562→## Context
+   563→
+   564→The shift flow is:
+   565→1. Conductor logs in
+   566→2. Conductor selects which vehicle/unit they are operating AND which driver they are paired with
+   567→3. Shift starts — conductor + driver + vehicle are linked
+   568→4. During shift: GPS tracking + fare transactions happen
+   569→5. Conductor submits remittance (total collected amount) → shift ends
+   570→
+   571→NO remittance = shift stays active. The shift ends ONLY upon remittance submission.
+   572→
+   573→This pairing matters because later:
+   574→- Payments → which conductor+driver handled this fare?
+   575→- Feedback → commuter rates a ride → which shift? which conductor? which driver?
+   576→- Disputes → who was responsible for this trip?
+   577→
+   578→## ShiftService Methods
+   579→
+   580→Create app/Services/ShiftService.php:
+   581→
+   582→### startShift(User $conductor, string $vehicleId, string $driverId): ShiftLog
+   583→- Validate conductor role is CONDUCTOR
+   584→- Check conductor has no existing active shift → if yes, throw 409 Conflict
+   585→- Check driver is not already on another active shift → if yes, throw 409 Conflict
+   586→- Check vehicle is not already on another active shift → if yes, throw 409 Conflict
+   587→- Create ShiftLog record: conductor_id, driver_id, vehicle_id, status=ACTIVE, started_at=now()
+   588→- Update vehicle.active_shift_id = new shift ID
+   589→- Update driver.active_shift_id = new shift ID
+   590→- Return the ShiftLog
+   591→
+   592→### endShiftViaRemittance(User $conductor, string $shiftId, float $totalCollected, float $remittedAmount): ShiftLog
+   593→- Validate the shift belongs to this conductor → if not, 403
+   594→- Validate shift status is ACTIVE → if not, 422
+   595→- Create Remittance record: shift_id, conductor_id, driver_id, vehicle_id, total_collected, remitted_amount
+   596→- Update ShiftLog: status=ENDED, ended_at=now()
+   597→- Clear vehicle.active_shift_id = null
+   598→- Clear driver.active_shift_id = null
+   599→- Return the ShiftLog
+   600→
+   601→### getActiveShift(User $conductor): ?ShiftLog
+   602→- Return the conductor's current active shift (status=ACTIVE, scoped to auth conductor)
+   603→- Return null if no active shift
+   604→- Eager load: vehicle, driver, route relationships
+   605→
+   606→### getShiftLogs(User $conductor, int $perPage = 15): LengthAwarePaginator
+   607→- Return paginated shift history for the authenticated conductor
+   608→- Order by started_at DESC
+   609→- Eager load: vehicle, driver, route
+   610→
+   611→### getShiftDetail(User $conductor, string $shiftId): ShiftLog
+   612→- Return a single shift with all relationships
+   613→- Validate shift belongs to this conductor
+   614→- Eager load: vehicle, driver, route, remittance, transactions
+   615→
+   616→## Error Responses
+   617→
+   618→All methods must use the ApiResponse trait format:
+   619→- 409 Conflict: { success: false, message: 'Already on active shift' } (duplicate shift)
+   620→- 409 Conflict: { success: false, message: 'Driver already on active shift' }
+   621→- 409 Conflict: { success: false, message: 'Vehicle already on active shift' }
+   622→- 403 Forbidden: { success: false, message: 'Forbidden' }
+   623→- 422 Validation: { success: false, message: 'Validation failed', errors: {...} }
+   624→
+   625→Acceptance Criteria
+   626→ Conductor can only have ONE active shift (409 on duplicate)
+   627→ Driver can only be on ONE active shift (409 on duplicate)
+   628→ Vehicle can only have ONE active shift (409 on duplicate)
+   629→ Shift ends ONLY via remittance submission — no standalone end-shift endpoint
+   630→ vehicle.active_shift_id is set on shift start, cleared on shift end
+   631→ driver.active_shift_id is set on shift start, cleared on shift end
+   632→ Remittance record is created when shift ends
+   633→ All error responses use ApiResponse format
+   634→ No business logic in controllers — all logic in ShiftService
+   635→Post-Task Requirement
+   636→Upon completion of this task, push all changes to your assigned feature branch and create a Pull Request (PR) targeting the dev branch for code review and integration.
+   637→---END---

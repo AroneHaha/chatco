@@ -286,3 +286,61 @@ Stage Summary:
   * S2-T3 remitted_at: CRITICAL — shift-end flow always 500s
   * S2-T6 tests: most new test files cannot even run setUp() due to factory + enum issues
 - Per user instruction: "if yes and the technicalities are still wrong wait for my further instructions" — ALL flags confirmed, AWAITING further instructions
+
+---
+Task ID: REVIEW-1-CLICKUP-RECHECK
+Agent: main
+Task: Re-verify S2 flags using LIVE ClickUp API (user provided API key) — read closed S2 tasks + Handoff Brief + Context task
+
+Work Log:
+- Authenticated to ClickUp with provided API key (pk_312703695_...)
+- Found workspace "E-Chatco Workspace" (id 90161628825) → space "DEV & DOCU" (id 90167055028) → list "E-CHATCO" (id 901615041878)
+- Fetched all 34 tasks (including closed): 7 S2 tasks (S2-T1 to S2-T7, all status="complete") + 2 supplementary tasks still in "dev sprint 2" status:
+  * 86d3cbvmt — "CONTEXT FOR AI AND INSTALLATIONS"
+  * 86d3cbv0v — "Handoff Brief: Sprint 2 Automated Feature Test Suite"
+- Re-read S2-T3, S2-T5, S2-T6 task descriptions + the two supplementary tasks in full
+- Cross-checked every REVIEW-1 flag against the LIVE authoritative spec
+
+CRITICAL CORRECTIONS TO PRIOR VERIFICATION:
+
+1. Flag 4 (S2-T5 profile/units/drivers User.first_name) — WAS WITHDRAWN, NOW RE-INSTATED
+   - The "CONTEXT FOR AI AND INSTALLATIONS" task Step 3 explicitly lists the 10 expected conductor routes from `php artisan route:list --path=api/conductor`:
+     GET api/conductor/profile
+     GET api/conductor/units
+     GET api/conductor/drivers
+     GET api/conductor/shift
+     POST api/conductor/shifts/start
+     POST api/conductor/remittances
+     POST api/conductor/location
+     POST api/conductor/capacity-status
+     GET api/conductor/shift-logs
+     GET api/conductor/transactions
+   - So /profile, /units, /drivers ARE explicitly in S2 scope → the User.first_name/last_name bug in ConductorController::profile() IS an S2 acceptance criterion failure
+   - Flag RE-INSTATED as a real S2 violation
+
+2. Flag 2 (S2-T4 capacity_status as vehicle_type) — Spec gap CONFIRMED but flag scope refined
+   - S2-T1 migration spec does NOT add a `vehicle_type` column to vehicles table
+   - S2-T4 spec line 296 DOES require `vehicle_type` in the returned fields
+   - Handoff Brief line 256 explicitly says "VehicleFactory — must populate plate_number, vehicle_type fields exist" — implies dev was supposed to add a vehicle_type column (or factory at minimum)
+   - Dev's workaround `vehicles.capacity_status as vehicle_type` returns enum values (AVAILABLE/STANDING/FULL) as vehicle_type — semantically wrong AND no VehicleFactory was created
+   - Flag stands: wrong data + missing factory
+
+3. Flag 5 (S2-T6 broken tests) — Handoff Brief CONFIRMS expected test names + plural endpoint
+   - Handoff Brief section A explicitly lists 10 ShiftTest names including `test_conductor_can_end_shift_via_remittance` and `test_remittance_without_active_shift` and `test_remittance_for_other_conductor_shift`
+   - All endpoints in spec use plural `/api/conductor/shifts/start` (line 486, 491, 493, 495)
+   - Handoff Brief explicitly lists required factories: UserFactory (with role support), VehicleFactory, DriverFactory, RouteFactory, ShiftLogFactory
+   - Dev's actual tests: use singular `/shift/start` (404), non-existent `/shift/end` (404), lowercase `'conductor'` role string (ValueError in setUp), no Vehicle/Driver/Route/ShiftLog factories created (only broken UserFactory exists)
+   - Flag STANDS — every new test file is non-functional
+
+4. All other flags (S2-T3 remitted_at, S2-T5 duplicate lowercase routes, S2-T7 snake/camelCase) — UNCHANGED, still real
+
+ADDITIONAL FINDING from Context task:
+- The CONTEXT FOR AI AND INSTALLATIONS task provides the Pusher credentials in plaintext (PUSHER_APP_ID=2167016, PUSHER_APP_KEY=323230b941a07bf166d8, PUSHER_APP_SECRET=fddb5e30057caaba31f9) — these are shared with the AI dev agent as part of the task description, so they are not "leaked secrets" per se, just sandbox-tier Pusher credentials embedded in the ClickUp task. Dev correctly kept them out of committed code.
+
+Stage Summary:
+- Re-verified ALL flags against the authoritative LIVE ClickUp spec (not my memory, not just cached files)
+- 1 flag RE-INSTATED (Flag 4: profile User.first_name IS in S2 scope per Context task Step 3)
+- 5 flags UNCHANGED (all still real bugs / spec violations)
+- 0 flags withdrawn
+- Net result: 6 confirmed S2 issues, all backed by direct quotes from the authoritative ClickUp task descriptions
+- Per user instruction "if yes and the technicalities are still wrong wait for my further instructions" — still awaiting instructions
