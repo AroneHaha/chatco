@@ -3,7 +3,8 @@
 namespace App\Http\Controllers\Conductor;
 
 use App\Http\Controllers\Controller;
-use App\Http\ApiResponse;
+use App\Http\Middleware\ApiResponse;
+use App\Services\LocationService;
 use App\Services\ShiftService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,19 +14,58 @@ class ConductorController extends Controller
     use ApiResponse;
 
     protected ShiftService $shiftService;
+    protected LocationService $locationService;
 
-    public function __construct(ShiftService $shiftService)
+    public function __construct(ShiftService $shiftService, LocationService $locationService)
     {
         $this->shiftService = $shiftService;
+        $this->locationService = $locationService;
     }
 
     /**
      * POST /api/conductor/location
-     * Sprint 3 — placeholder for now.
+     * Update GPS position during an active shift.
+     * Body: { lat, lng, speed?, heading?, capacity_status? }
      */
     public function location(Request $request): JsonResponse
     {
-        return $this->notImplementedResponse();
+        $validated = $request->validate([
+            'lat' => 'required|numeric',
+            'lng' => 'required|numeric',
+            'speed' => 'nullable|numeric',
+            'heading' => 'nullable|numeric',
+            'capacity_status' => 'nullable|string|in:AVAILABLE,STANDING,FULL',
+        ]);
+
+        $location = $this->locationService->updateLocation(
+            $request->user(),
+            (float) $validated['lat'],
+            (float) $validated['lng'],
+            isset($validated['speed']) ? (float) $validated['speed'] : null,
+            isset($validated['heading']) ? (float) $validated['heading'] : null,
+            $validated['capacity_status'] ?? null,
+        );
+
+        return $this->successResponse($location, 'Location updated');
+    }
+
+    /**
+     * POST /api/conductor/capacity-status
+     * Update vehicle capacity status during an active shift.
+     * Body: { capacity_status: 'AVAILABLE' | 'STANDING' | 'FULL' }
+     */
+    public function updateCapacityStatus(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'capacity_status' => 'required|string|in:AVAILABLE,STANDING,FULL',
+        ]);
+
+        $location = $this->locationService->updateCapacityStatus(
+            $request->user(),
+            $validated['capacity_status'],
+        );
+
+        return $this->successResponse($location, 'Capacity status updated');
     }
 
     /**
@@ -45,8 +85,6 @@ class ConductorController extends Controller
 
     /**
      * POST /api/conductor/shift/start
-     * Start a new shift — conductor selects vehicle and driver.
-     *
      * Body: { vehicle_id, driver_id, route_id? }
      */
     public function shiftStart(Request $request): JsonResponse
@@ -73,9 +111,6 @@ class ConductorController extends Controller
 
     /**
      * POST /api/conductor/shift/end
-     * End shift via remittance submission.
-     * Shift ends ONLY when remittance is submitted — no standalone end.
-     *
      * Body: { shift_id, total_collected, remitted_amount }
      */
     public function shiftEnd(Request $request): JsonResponse
@@ -100,19 +135,7 @@ class ConductorController extends Controller
     }
 
     /**
-     * GET /api/conductor/shift/{shiftId}
-     * Get a single shift detail with all relationships.
-     */
-    public function shiftDetail(Request $request, string $shiftId): JsonResponse
-    {
-        $shiftLog = $this->shiftService->getShiftDetail($request->user(), $shiftId);
-
-        return $this->successResponse($shiftLog, 'Shift detail retrieved');
-    }
-
-    /**
      * GET /api/conductor/remittances
-     * Get paginated shift history for the conductor.
      */
     public function remittances(Request $request): JsonResponse
     {
@@ -125,7 +148,6 @@ class ConductorController extends Controller
 
     /**
      * GET /api/conductor/transactions
-     * Get shift detail with transactions.
      * Query param: shift_id (required)
      */
     public function transactions(Request $request): JsonResponse

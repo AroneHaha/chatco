@@ -1,23 +1,36 @@
 <?php
 
+use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AuthController;
-use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Commuter\CommuterController;
+use App\Http\Controllers\Commuter\VehicleLocationController;
 use App\Http\Controllers\Conductor\ConductorController;
+use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Payment\PaymentController;
 use App\Http\Controllers\Payment\QrController;
-use Illuminate\Support\Facades\Route;
 
-// ── Auth (Public) ──────────────────────────────────────────
-Route::post('/auth/login', [AuthController::class, 'login']);
-
-// ── Auth (Protected) ──────────────────────────────────────
-Route::middleware('auth:sanctum')->group(function () {
-    Route::post('/auth/logout', [AuthController::class, 'logout']);
-    Route::get('/user', [AuthController::class, 'user']);
+/*
+|--------------------------------------------------------------------------
+| Auth Routes (Public)
+|--------------------------------------------------------------------------
+*/
+Route::prefix('auth')->group(function () {
+    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
 });
 
-// ── Commuter ──────────────────────────────────────────────
+/*
+|--------------------------------------------------------------------------
+| Authenticated User Route
+|--------------------------------------------------------------------------
+*/
+Route::middleware('auth:sanctum')->get('/user', [AuthController::class, 'user']);
+
+/*
+|--------------------------------------------------------------------------
+| Commuter Routes (COMMUTER role required)
+|--------------------------------------------------------------------------
+*/
 Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(function () {
     Route::get('/profile', [CommuterController::class, 'profile']);
     Route::get('/trips', [CommuterController::class, 'trips']);
@@ -26,17 +39,35 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
     Route::get('/rewards', [CommuterController::class, 'rewards']);
 });
 
+/*
+|--------------------------------------------------------------------------
+| Conductor Routes (CONDUCTOR role required)
+|--------------------------------------------------------------------------
+*/
 Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->group(function () {
     Route::post('/location', [ConductorController::class, 'location']);
+    Route::post('/capacity-status', [ConductorController::class, 'updateCapacityStatus']);
     Route::get('/shift', [ConductorController::class, 'shift']);
     Route::post('/shift/start', [ConductorController::class, 'shiftStart']);
     Route::post('/shift/end', [ConductorController::class, 'shiftEnd']);
     Route::get('/remittances', [ConductorController::class, 'remittances']);
     Route::get('/transactions', [ConductorController::class, 'transactions']);
-    Route::get('/shift/{shiftId}', [ConductorController::class, 'shiftDetail']);
 });
 
-// ── Admin ─────────────────────────────────────────────────
+/*
+|--------------------------------------------------------------------------
+| Vehicle Locations (Authenticated — any role)
+|--------------------------------------------------------------------------
+*/
+Route::prefix('vehicles')->middleware(['auth:sanctum'])->group(function () {
+    Route::get('/locations', [VehicleLocationController::class, 'index']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Admin Routes (ADMIN role required)
+|--------------------------------------------------------------------------
+*/
 Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(function () {
     Route::get('/dashboard', [AdminController::class, 'dashboard']);
     Route::get('/users', [AdminController::class, 'users']);
@@ -50,7 +81,11 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::get('/shift-logs', [AdminController::class, 'shiftLogs']);
 });
 
-// ── Payment ───────────────────────────────────────────────
+/*
+|--------------------------------------------------------------------------
+| Payment Routes (Authenticated — any role)
+|--------------------------------------------------------------------------
+*/
 Route::prefix('payments')->middleware(['auth:sanctum'])->group(function () {
     Route::post('/initiate', [PaymentController::class, 'initiate']);
     Route::post('/verify', [PaymentController::class, 'verify']);
@@ -58,7 +93,11 @@ Route::prefix('payments')->middleware(['auth:sanctum'])->group(function () {
     Route::post('/topup', [PaymentController::class, 'topup']);
 });
 
-// ── QR ────────────────────────────────────────────────────
+/*
+|--------------------------------------------------------------------------
+| QR Routes (Authenticated — any role)
+|--------------------------------------------------------------------------
+*/
 Route::prefix('qr')->middleware(['auth:sanctum'])->group(function () {
     Route::post('/generate', [QrController::class, 'generate']);
     Route::post('/validate', [QrController::class, 'validate']);
