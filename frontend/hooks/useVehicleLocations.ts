@@ -1,17 +1,33 @@
 import { useEffect, useState, useCallback } from 'react';
 import { getEcho } from '@/lib/echo';
 
+/**
+ * VehicleLocation — matches the backend broadcast payload (snake_case).
+ *
+ * Backend `VehicleLocationUpdated` event broadcasts (per S2-T7 spec):
+ *   vehicle_id, plate_number, vehicle_type, lat, lng, speed, heading,
+ *   capacity_status, route_name, updated_at
+ *
+ * The GET /api/vehicles/locations fallback returns the same shape plus
+ * the denormalized vehicle_capacity_status from the vehicles row.
+ * Keeping the interface snake_case-aligned avoids silent state-update
+ * failures (where camelCase keys would be `undefined` on the event).
+ */
 export interface VehicleLocation {
-  vehicleId: string;
-  plateNumber: string;
-  vehicleType: string;
+  vehicle_id: string;
+  plate_number: string;
+  /** Vehicle type (e.g. Jeepney, Bus) from the vehicles row. */
+  vehicle_type?: string;
+  /** Capacity status baked into the vehicles row (denormalized). */
+  vehicle_capacity_status?: string;
   lat: number;
   lng: number;
   speed: number | null;
   heading: number | null;
-  capacityStatus: string;
-  routeName: string | null;
-  updatedAt: string;
+  /** Live capacity status from vehicle_locations (conductor-updated). */
+  capacity_status: string;
+  route_name: string | null;
+  updated_at: string;
 }
 
 interface UseVehicleLocationsResult {
@@ -56,7 +72,8 @@ export function useVehicleLocations(): UseVehicleLocationsResult {
       echo = getEcho();
       echo.channel('vehicles').listen('VehicleLocationUpdated', (event: VehicleLocation) => {
         setVehicles((prev) => {
-          const index = prev.findIndex((v) => v.vehicleId === event.vehicleId);
+          // Match by vehicle_id (snake_case) — same key the backend broadcasts.
+          const index = prev.findIndex((v) => v.vehicle_id === event.vehicle_id);
           if (index === -1) {
             return [...prev, event];
           }

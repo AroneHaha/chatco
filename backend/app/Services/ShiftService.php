@@ -53,10 +53,10 @@ class ShiftService
                 'status' => ShiftStatus::ACTIVE->value,
                 'conductor_name' => $conductorProfile
                     ? trim($conductorProfile->first_name . ' ' . $conductorProfile->last_name)
-                    : null,
+                    : $conductor->email,
                 'driver_name' => trim($driver->first_name . ' ' . $driver->last_name),
                 'plate_number' => $vehicle->plate_number,
-                'total_trips' => 0,
+                'unit_number' => $vehicle->unit_number,
             ]);
 
             $vehicle->update(['active_shift_id' => $shiftId]);
@@ -102,7 +102,6 @@ class ShiftService
                 'remitted_amount' => $remittedAmount,
                 'shortage' => $shortage,
                 'remittance_status' => $shortage > 0 ? 'SHORTAGE' : 'COMPLETE',
-                'remitted_at' => now(),
             ]);
 
             $shiftLog->update([

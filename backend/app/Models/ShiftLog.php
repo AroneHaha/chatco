@@ -24,9 +24,12 @@ class ShiftLog extends Model
         'conductor_name',
         'driver_name',
         'plate_number',
+        'unit_number',
+        'route_name',
         'time_in',
         'time_out',
-        'total_trips',
+        'is_active',
+        'notes',
         'status',
     ];
 
@@ -35,7 +38,7 @@ class ShiftLog extends Model
         return [
             'time_in' => 'datetime',
             'time_out' => 'datetime',
-            'total_trips' => 'integer',
+            'is_active' => 'boolean',
             'status' => ShiftStatus::class,
         ];
     }
@@ -63,6 +66,11 @@ class ShiftLog extends Model
     public function remittance()
     {
         return $this->hasOne(Remittance::class, 'shift_id', 'shift_id');
+    }
+
+    public function transactions()
+    {
+        return $this->hasMany(Transaction::class, 'shift_id', 'shift_id');
     }
 
     public function scopeActive(Builder $query): void

@@ -45,7 +45,7 @@ class BroadcastTest extends TestCase
     public function test_vehicles_channel_is_public(): void
     {
         /** @var \App\Models\User $commuter */
-        $commuter = User::factory()->create(['role' => 'commuter']);
+        $commuter = User::factory()->commuter()->create();
 
         $response = $this->actingAs($commuter)
             ->postJson('/broadcasting/auth', [

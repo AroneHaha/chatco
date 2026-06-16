@@ -87,7 +87,8 @@ class LocationService
             ->select([
                 'vehicle_locations.vehicle_id',
                 'vehicles.plate_number',
-                'vehicles.capacity_status as vehicle_type',
+                'vehicles.vehicle_type',
+                'vehicles.capacity_status as vehicle_capacity_status',
                 'vehicle_locations.lat',
                 'vehicle_locations.lng',
                 'vehicle_locations.speed',
@@ -160,6 +161,7 @@ class LocationService
             ->select([
                 'vehicle_locations.vehicle_id',
                 'vehicles.plate_number',
+                'vehicles.vehicle_type',
                 'vehicle_locations.lat',
                 'vehicle_locations.lng',
                 'vehicle_locations.speed',

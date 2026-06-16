@@ -111,32 +111,10 @@ class PlaceholderEndpointsTest extends TestCase
         $this->assertNotImplementedResponse('getJson', '/api/commuter/rewards', $this->commuterToken);
     }
 
-    // ── Conductor Endpoints (6) ──────────────────────────────────
-
-    public function test_conductor_location_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('postJson', '/api/conductor/location', $this->conductorToken);
-    }
-
-    public function test_conductor_shift_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('getJson', '/api/conductor/shift', $this->conductorToken);
-    }
-
-    public function test_conductor_shift_start_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('postJson', '/api/conductor/shift/start', $this->conductorToken);
-    }
-
-    public function test_conductor_shift_end_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('postJson', '/api/conductor/shift/end', $this->conductorToken);
-    }
-
-    public function test_conductor_remittances_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('getJson', '/api/conductor/remittances', $this->conductorToken);
-    }
+    // ── Conductor Endpoints (1) ──────────────────────────────────
+    // Sprint 2 implemented: /shift, /shifts/start, /remittances (POST),
+    // /location, /capacity-status, /shift-logs, /profile, /units, /drivers.
+    // Only /transactions remains as a 501 stub (Sprint 4).
 
     public function test_conductor_transactions_returns_501(): void
     {
@@ -236,11 +214,12 @@ class PlaceholderEndpointsTest extends TestCase
 
     // ── Total Count Verification ─────────────────────────────────
 
-    public function test_total_placeholder_endpoints_is_28(): void
+    public function test_total_placeholder_endpoints_is_23(): void
     {
-        // 5 commuter + 6 conductor + 10 admin + 4 payment + 3 QR = 28
+        // 5 commuter + 1 conductor + 10 admin + 4 payment + 3 QR = 23
+        // (Sprint 2 implemented the other 5 conductor endpoints.)
         // This test is a sanity check — if any endpoint above was removed,
         // it would stop asserting 501, making the count mismatch obvious.
-        $this->assertEquals(28, 5 + 6 + 10 + 4 + 3);
+        $this->assertEquals(23, 5 + 1 + 10 + 4 + 3);
     }
 }

@@ -18,7 +18,6 @@ class Remittance extends Model
         'remitted_amount',
         'shortage',
         'remittance_status',
-        'remitted_at',
     ];
 
     protected function casts(): array
@@ -27,7 +26,6 @@ class Remittance extends Model
             'total_collected' => 'decimal:2',
             'remitted_amount' => 'decimal:2',
             'shortage' => 'decimal:2',
-            'remitted_at' => 'datetime',
         ];
     }
 

@@ -8,6 +8,7 @@ use App\Http\Requests\Conductor\StartShiftRequest;
 use App\Http\Requests\Conductor\UpdateLocationRequest;
 use App\Http\Requests\Conductor\SubmitRemittanceRequest;
 use App\Models\Driver;
+use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\LocationService;
 use App\Services\ShiftService;
@@ -144,15 +145,24 @@ class ConductorController extends Controller
 
     /**
      * GET /api/conductor/profile
+     *
+     * Note: first_name / last_name live on the ConductorProfile relation,
+     * not on the User model itself. Eager-load the profile to avoid
+     * returning a single-space name.
      */
     public function profile(): JsonResponse
     {
         /** @var \App\Models\User $user */
-        $user = Auth::user();
+        $user = User::with('conductorProfile')->find(Auth::id());
+
+        $profile = $user->conductorProfile;
+        $name = $profile
+            ? trim($profile->first_name . ' ' . $profile->last_name)
+            : null;
 
         return $this->successResponse([
             'id' => $user->id,
-            'name' => $user->first_name . ' ' . $user->last_name,
+            'name' => $name,
             'email' => $user->email,
             'role' => $user->role,
         ], 'Conductor profile retrieved');

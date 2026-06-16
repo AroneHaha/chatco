@@ -107,14 +107,17 @@ class RoleMiddlewareTest extends TestCase
 
     // ── Conductor Role Tests ─────────────────────────────────────
 
-    public function test_conductor_can_access_shift_and_gets_501(): void
+    public function test_conductor_can_access_shift_and_gets_200(): void
     {
+        // Sprint 2 implemented GET /api/conductor/shift — it now returns
+        // 200 with null data when the conductor has no active shift,
+        // instead of the Sprint 1 501 stub.
         $conductor = $this->createUserWithProfile('conductor@test.com', UserRole::CONDUCTOR);
 
         $response = $this->withHeader('Authorization', "Bearer {$this->authToken($conductor)}")
             ->getJson('/api/conductor/shift');
 
-        $response->assertStatus(501);
+        $response->assertStatus(200);
     }
 
     public function test_conductor_cannot_access_admin_dashboard_and_gets_403(): void

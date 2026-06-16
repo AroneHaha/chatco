@@ -1,10 +1,16 @@
 import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
 
+// Laravel Echo's Pusher broadcaster looks up `window.Pusher` to instantiate
+// the Pusher client. Assign it before creating the Echo singleton.
 declare global {
   interface Window {
     Pusher: typeof Pusher;
   }
+}
+
+if (typeof window !== 'undefined') {
+  window.Pusher = Pusher;
 }
 
 let echoInstance: Echo<any> | null = null;
