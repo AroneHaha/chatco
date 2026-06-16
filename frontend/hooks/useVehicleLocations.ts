@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
 import { getEcho } from '@/lib/echo';
-import { api } from '@/lib/api';
 
 export interface VehicleLocation {
   vehicleId: string;
@@ -22,6 +21,8 @@ interface UseVehicleLocationsResult {
   refresh: () => Promise<void>;
 }
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+
 export function useVehicleLocations(): UseVehicleLocationsResult {
   const [vehicles, setVehicles] = useState<VehicleLocation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,8 +31,15 @@ export function useVehicleLocations(): UseVehicleLocationsResult {
   const fetchInitial = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await api.get('/vehicles/locations');
-      setVehicles(response.data.data ?? []);
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const response = await fetch(`${API_BASE_URL}/vehicles/locations`, {
+        headers: {
+          Accept: 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      const json = await response.json();
+      setVehicles(json.data ?? []);
       setError(null);
     } catch (err) {
       setError(err as Error);

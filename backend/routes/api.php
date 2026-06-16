@@ -52,6 +52,9 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->grou
     Route::post('/capacity-status', [ConductorController::class, 'updateCapacityStatus']);
     Route::get('/shift-logs', [ConductorController::class, 'shiftLogs']);
     Route::get('/transactions', [ConductorController::class, 'transactions']);
+    Route::get('/profile', [ConductorController::class, 'profile']);
+    Route::get('/units', [ConductorController::class, 'units']);
+    Route::get('/drivers', [ConductorController::class, 'drivers']);
 });
 
 /*
@@ -98,8 +101,15 @@ Route::prefix('payments')->middleware(['auth:sanctum'])->group(function () {
 | QR Routes (Authenticated — any role)
 |--------------------------------------------------------------------------
 */
-Route::prefix('qr')->middleware(['auth:sanctum'])->group(function () {
-    Route::post('/generate', [QrController::class, 'generate']);
-    Route::post('/validate', [QrController::class, 'validate']);
-    Route::post('/scan', [QrController::class, 'scan']);
+Route::middleware(['auth:sanctum', 'role:conductor'])->prefix('conductor')->group(function () {
+    Route::get('/profile', [ConductorController::class, 'profile']);
+    Route::get('/units', [ConductorController::class, 'units']);
+    Route::get('/drivers', [ConductorController::class, 'drivers']);
+    Route::get('/shift', [ConductorController::class, 'shiftStatus']);
+    Route::post('/shifts/start', [ConductorController::class, 'startShift']);
+    Route::post('/remittances', [ConductorController::class, 'remittances']);
+    Route::post('/location', [ConductorController::class, 'updateLocation']);
+    Route::post('/capacity-status', [ConductorController::class, 'updateCapacityStatus']);
+    Route::get('/shift-logs', [ConductorController::class, 'shiftLogs']);
+    Route::get('/transactions', [ConductorController::class, 'transactions']);
 });

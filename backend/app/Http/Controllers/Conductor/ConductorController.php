@@ -7,10 +7,13 @@ use App\Http\ApiResponse;
 use App\Http\Requests\Conductor\StartShiftRequest;
 use App\Http\Requests\Conductor\UpdateLocationRequest;
 use App\Http\Requests\Conductor\SubmitRemittanceRequest;
+use App\Models\Driver;
+use App\Models\Vehicle;
 use App\Services\LocationService;
 use App\Services\ShiftService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class ConductorController extends Controller
 {
@@ -137,5 +140,43 @@ class ConductorController extends Controller
     public function transactions(Request $request): JsonResponse
     {
         return $this->notImplementedResponse();
+    }
+
+    /**
+     * GET /api/conductor/profile
+     */
+    public function profile(): JsonResponse
+    {
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
+        return $this->successResponse([
+            'id' => $user->id,
+            'name' => $user->first_name . ' ' . $user->last_name,
+            'email' => $user->email,
+            'role' => $user->role,
+        ], 'Conductor profile retrieved');
+    }
+
+    /**
+     * GET /api/conductor/units
+     * Returns available vehicles for shift assignment.
+     */
+    public function units(): JsonResponse
+    {
+        $units = Vehicle::where('status', 'ACTIVE')->get();
+
+        return $this->successResponse($units, 'Available vehicles retrieved');
+    }
+
+    /**
+     * GET /api/conductor/drivers
+     * Returns drivers not currently on an active shift.
+     */
+    public function drivers(): JsonResponse
+    {
+        $drivers = Driver::whereDoesntHave('activeShift')->get();
+
+        return $this->successResponse($drivers, 'Available drivers retrieved');
     }
 }
