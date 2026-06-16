@@ -1,0 +1,534 @@
+Invalid socket ID test-socket-id
+
+  at tests\Feature\BroadcastTest.php:57
+     53▕                 'socket_id' => 'test-socket-id',
+     54▕             ]);
+     55▕ 
+     56▕         // Public channel returns true (no auth required)
+  ➜  57▕         $response->assertOk();
+     58▕     }
+     59▕ }
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\LocationTest > conductor can update location                                                                                                    QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-6529, CDK1783, UV Express, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:21, 2026-06-17 07:18:21))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\LocationTest > conductor can update location with speed and heading                                                                             QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-6483, YMP4544, Van, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:21, 2026-06-17 07:18:21))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\LocationTest > location update requires active shift                                                                                            QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-2234, ZHQ6091, Jeepney, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:21, 2026-06-17 07:18:21))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\LocationTest > location update validates coordinates                                                                                            QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-3682, KUC9840, Bus, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:21, 2026-06-17 07:18:21))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\LocationTest > location upsert updates existing                                                                                                 QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-5479, VWJ2859, UV Express, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:21, 2026-06-17 07:18:21))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\LocationTest > commuter can get all active locations                                                                                            QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-2290, VTL7862, UV Express, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:21, 2026-06-17 07:18:21))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\LocationTest > conductor can update capacity status                                                                                             QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-8989, BPR0926, Van, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:21, 2026-06-17 07:18:21))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\LocationTest > capacity status validates enum                                                                                                   QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-2688, JYC5869, UV Express, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:21, 2026-06-17 07:18:21))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\LocationTest > non conductor cannot update location                                                                                             QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-6952, KYT0551, Jeepney, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:21, 2026-06-17 07:18:21))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\LocationTest > unauthenticated cannot access locations                                                                                          QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-8070, MKK5526, Jeepney, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:22, 2026-06-17 07:18:22))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ShiftTest > conductor can start shift                                                                                                           QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-3205, VCG2727, Van, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:23, 2026-06-17 07:18:23))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ShiftTest > conductor cannot start duplicate shift                                                                                              QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-4354, LMM3861, UV Express, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:23, 2026-06-17 07:18:23))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ShiftTest > conductor cannot start shift if vehicle in use                                                                                      QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-4089, IQH3576, Bus, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:23, 2026-06-17 07:18:23))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ShiftTest > conductor cannot start shift if driver in use                                                                                       QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-9468, PWQ9239, Bus, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:23, 2026-06-17 07:18:23))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ShiftTest > non conductor cannot start shift                                                                                                    QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-2171, UAZ0409, UV Express, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:23, 2026-06-17 07:18:23))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ShiftTest > conductor can end shift via remittance                                                                                              QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-8099, SCW9846, Van, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:23, 2026-06-17 07:18:23))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ShiftTest > conductor cannot end other conductor shift                                                                                          QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-1950, FZM7546, Jeepney, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:23, 2026-06-17 07:18:23))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ShiftTest > remittance for nonexistent shift returns 404                                                                                        QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-2516, ZDW3966, Van, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:23, 2026-06-17 07:18:23))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ShiftTest > conductor can get active shift                                                                                                      QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-6108, AYO3028, Jeepney, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:23, 2026-06-17 07:18:23))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ShiftTest > conductor gets null data when no active shift                                                                                       QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-9952, POE9790, UV Express, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:23, 2026-06-17 07:18:23))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ShiftTest > conductor can get shift logs                                                                                                        QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-4347, VVL0819, Van, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:23, 2026-06-17 07:18:23))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\Sprint2RoleAccessTest > commuter cannot access conductor shift start                                                                            QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-3298, UDQ0363, Bus, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:23, 2026-06-17 07:18:23))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\Sprint2RoleAccessTest > admin cannot start shift                                                                                                QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-8183, QIL2415, Bus, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:23, 2026-06-17 07:18:23))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ThrottleTest > location endpoint is rate limited after 30 requests                                                                              QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-5457, TUL4004, Jeepney, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:24, 2026-06-17 07:18:24))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ThrottleTest > throttle 429 response uses api envelope                                                                                          QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-2398, DJM1245, Van, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:24, 2026-06-17 07:18:24))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ThrottleTest > normal cadence does not trip rate limiter                                                                                        QueryException   
+  SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id (Connection: sqlite, Database: :memory:, SQL: insert into "vehicles" ("unit_number", "plate_number", "vehicle_type", "route_id", "driver_id", "conductor_id", "status", "speed", "capacity_status", "latitude", "longitude", "last_location_update", "active_shift_id", "updated_at", "created_at") values (UNIT-3177, NZB3468, UV Express, ?, ?, ?, ACTIVE, ?, AVAILABLE, ?, ?, ?, ?, 2026-06-17 07:18:24, 2026-06-17 07:18:24))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+    834▕             $exceptionType = $this->isUniqueConstraintError($e)
+    835▕                 ? UniqueConstraintViolationException::class
+    836▕                 : QueryException::class;
+    837▕ 
+  ➜ 838▕             throw new $exceptionType(
+    839▕                 $this->getNameWithReadWriteType(),
+    840▕                 $query,
+    841▕                 $this->prepareBindings($bindings),
+    842▕                 $e,
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:838
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:584
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint failed: vehicles.id")
+
+
+  Tests:    28 failed, 82 passed (198 assertions)
+  Duration: 3.40s
