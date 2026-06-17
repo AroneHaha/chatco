@@ -153,7 +153,11 @@ class ShiftTest extends TestCase
         $response->assertOk();
 
         $shift->refresh();
-        $this->assertEquals(ShiftStatus::ENDED->value, $shift->status);
+        // ShiftLog::casts()['status'] = ShiftStatus::class, so
+        // $shift->status is a ShiftStatus enum instance — compare
+        // enum-to-enum (not enum->value, which would be a string and
+        // fail PHPUnit's strict type check).
+        $this->assertEquals(ShiftStatus::ENDED, $shift->status);
         $this->assertNotNull($shift->time_out);
 
         $this->vehicle->refresh();
