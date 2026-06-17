@@ -4,6 +4,7 @@ use App\Models\PersonalAccessToken;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\Sanctum;
@@ -36,6 +37,21 @@ $app = Application::configure(basePath: dirname(__DIR__))
                     'errors'  => $e->errors(),
                     'meta'    => null,
                 ], 422);
+            }
+        });
+
+        // Render 429 rate-limit responses using the project's ApiResponse JSON
+        // envelope so the frontend can handle them gracefully (consistent with
+        // the 422 ValidationException handler above).
+        $exceptions->render(function (ThrottleRequestsException $e, Request $request) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'data'    => null,
+                    'message' => 'Too many requests. Please slow down.',
+                    'errors'  => null,
+                    'meta'    => null,
+                ], 429);
             }
         });
     })
