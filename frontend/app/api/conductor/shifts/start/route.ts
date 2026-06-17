@@ -4,7 +4,7 @@ import { jsonData, jsonError } from "@/lib/conductor/server/response";
 import * as store from "@/lib/conductor/server/store";
 
 export async function POST(request: NextRequest) {
-  const session = getConductorSession(request);
+  const session = await getConductorSession(request);
   if (!session) return unauthorizedResponse();
 
   try {
