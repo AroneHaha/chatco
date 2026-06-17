@@ -50,7 +50,7 @@ class BroadcastTest extends TestCase
         $response = $this->actingAs($commuter)
             ->postJson('/broadcasting/auth', [
                 'channel_name' => 'vehicles',
-                'socket_id' => 'test-socket-id',
+                'socket_id' => '1234.5678',
             ]);
 
         // Public channel returns true (no auth required)
