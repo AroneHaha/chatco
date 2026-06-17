@@ -43,18 +43,36 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
 |--------------------------------------------------------------------------
 | Conductor Routes (CONDUCTOR role required)
 |--------------------------------------------------------------------------
+| Per-route throttle limits use named rate limiters (defined in
+| AppServiceProvider::configureRateLimiters) so the 429 response uses
+| the project's ApiResponse JSON envelope. Limits are tuned to the
+| legitimate cadence of each endpoint:
+|   - Read endpoints:  60 req/min  (1 req/s — generous for UI polling)
+|   - GPS updates:     30 req/min  (supports 5s cadence w/ ~2.5x headroom)
+|   - Shift mutations: 10 req/min  (one active shift per conductor anyway)
+|   - Transactions:    30 req/min  (still a 501 stub — minimal limit)
+|--------------------------------------------------------------------------
 */
 Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->group(function () {
-    Route::get('/shift', [ConductorController::class, 'shiftStatus']);
-    Route::post('/shifts/start', [ConductorController::class, 'startShift']);
-    Route::post('/remittances', [ConductorController::class, 'remittances']);
-    Route::post('/location', [ConductorController::class, 'updateLocation']);
-    Route::post('/capacity-status', [ConductorController::class, 'updateCapacityStatus']);
-    Route::get('/shift-logs', [ConductorController::class, 'shiftLogs']);
-    Route::get('/transactions', [ConductorController::class, 'transactions']);
-    Route::get('/profile', [ConductorController::class, 'profile']);
-    Route::get('/units', [ConductorController::class, 'units']);
-    Route::get('/drivers', [ConductorController::class, 'drivers']);
+    // Read endpoints — generous limit
+    Route::get('/shift', [ConductorController::class, 'shiftStatus'])->middleware('throttle:conductor-read');
+    Route::get('/shift-logs', [ConductorController::class, 'shiftLogs'])->middleware('throttle:conductor-read');
+    Route::get('/profile', [ConductorController::class, 'profile'])->middleware('throttle:conductor-read');
+    Route::get('/units', [ConductorController::class, 'units'])->middleware('throttle:conductor-read');
+    Route::get('/drivers', [ConductorController::class, 'drivers'])->middleware('throttle:conductor-read');
+
+    // Mutations — strict limit (one shift per conductor at a time anyway)
+    Route::post('/shifts/start', [ConductorController::class, 'startShift'])->middleware('throttle:conductor-mutation');
+    Route::post('/remittances', [ConductorController::class, 'remittances'])->middleware('throttle:conductor-mutation');
+
+    // GPS updates — allows 5-second cadence with headroom for retries/reconnects
+    Route::post('/location', [ConductorController::class, 'updateLocation'])->middleware('throttle:conductor-gps');
+
+    // Capacity status updates
+    Route::post('/capacity-status', [ConductorController::class, 'updateCapacityStatus'])->middleware('throttle:conductor-write');
+
+    // Still a 501 stub — keep minimal limit
+    Route::get('/transactions', [ConductorController::class, 'transactions'])->middleware('throttle:conductor-write');
 });
 
 /*
@@ -63,7 +81,7 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->grou
 |--------------------------------------------------------------------------
 */
 Route::prefix('vehicles')->middleware(['auth:sanctum'])->group(function () {
-    Route::get('/locations', [VehicleLocationController::class, 'index']);
+    Route::get('/locations', [VehicleLocationController::class, 'index'])->middleware('throttle:vehicle-locations');
 });
 
 /*
