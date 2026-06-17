@@ -86,7 +86,11 @@ class ShiftService
             abort(403, 'Forbidden');
         }
 
-        if ($shiftLog->status !== ShiftStatus::ACTIVE->value) {
+        // ShiftLog::casts()['status'] = ShiftStatus::class, so
+        // $shiftLog->status is a ShiftStatus enum instance — compare
+        // enum-to-enum, NOT enum-to-string (->value), which would
+        // always be true and incorrectly abort 422.
+        if ($shiftLog->status !== ShiftStatus::ACTIVE) {
             abort(422, 'Shift is not active');
         }
 
