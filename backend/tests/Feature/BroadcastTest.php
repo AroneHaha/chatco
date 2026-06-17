@@ -3,23 +3,24 @@
 namespace Tests\Feature;
 
 use App\Events\VehicleLocationUpdated;
-use App\Models\Driver;
-use App\Models\Route;
-use App\Models\ShiftLog;
 use App\Models\User;
-use App\Models\Vehicle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Broadcast;
+use Illuminate\Broadcasting\Channel;
 use Tests\TestCase;
 
 class BroadcastTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * The VehicleLocationUpdated event is a ShouldBroadcast value object.
+     * We test its broadcast contract (channel, event name, payload) by
+     * instantiating it directly and calling the broadcast methods —
+     * this avoids depending on Broadcast::fake() (which was removed in
+     * this Laravel version) and tests the event class in isolation.
+     */
     public function test_vehicle_location_updated_event_broadcasts_on_vehicles_channel(): void
     {
-        Broadcast::fake();
-
         $payload = [
             'vehicle_id' => 'test-vehicle-id',
             'plate_number' => 'ABC123',
@@ -33,13 +34,19 @@ class BroadcastTest extends TestCase
             'updated_at' => now()->toIso8601String(),
         ];
 
-        broadcast(new VehicleLocationUpdated($payload));
+        $event = new VehicleLocationUpdated($payload);
 
-        Broadcast::assertBroadcasted(function (VehicleLocationUpdated $event) use ($payload) {
-            return $event->broadcastOn()->name === 'vehicles'
-                && $event->broadcastAs() === 'VehicleLocationUpdated'
-                && $event->broadcastWith()['vehicle_id'] === $payload['vehicle_id'];
-        });
+        // Broadcasts on the public 'vehicles' channel
+        $channel = $event->broadcastOn();
+        $this->assertInstanceOf(Channel::class, $channel);
+        $this->assertEquals('vehicles', $channel->name);
+
+        // Event name matches the frontend listener expectation
+        $this->assertEquals('VehicleLocationUpdated', $event->broadcastAs());
+
+        // Payload is passed through unchanged
+        $this->assertEquals($payload, $event->broadcastWith());
+        $this->assertEquals($payload['vehicle_id'], $event->broadcastWith()['vehicle_id']);
     }
 
     public function test_vehicles_channel_is_public(): void
@@ -50,7 +57,7 @@ class BroadcastTest extends TestCase
         $response = $this->actingAs($commuter)
             ->postJson('/broadcasting/auth', [
                 'channel_name' => 'vehicles',
-                'socket_id' => 'test-socket-id',
+                'socket_id' => '1234.5678',
             ]);
 
         // Public channel returns true (no auth required)

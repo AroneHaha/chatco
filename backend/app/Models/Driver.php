@@ -5,10 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class Driver extends Model
 {
     use HasFactory, SoftDeletes;
+
+    public $incrementing = false;
+    protected $keyType = 'string';
 
     protected $fillable = [
         'first_name',
@@ -31,6 +35,21 @@ class Driver extends Model
             'hire_date' => 'date',
             'active_shift_id' => 'string',
         ];
+    }
+
+    /**
+     * Auto-generate UUID for the primary key on create.
+     * The drivers table uses a UUID PK (not auto-increment), so the
+     * model must populate it before insert — matches the User/Route
+     * pattern used elsewhere in the codebase.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (Driver $driver) {
+            if (empty($driver->id)) {
+                $driver->id = (string) Str::uuid();
+            }
+        });
     }
 
     public function vehicle()
