@@ -14,7 +14,7 @@ class SubmitRemittanceRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'shift_id' => 'required|string|exists:shift_logs,shift_id',
+            'shift_id' => 'required|string',
             'total_collected' => 'required|numeric|min:0',
             'remitted_amount' => 'required|numeric|min:0',
         ];
@@ -24,7 +24,6 @@ class SubmitRemittanceRequest extends FormRequest
     {
         return [
             'shift_id.required' => 'Shift ID is required',
-            'shift_id.exists' => 'Shift not found',
             'total_collected.required' => 'Total collected amount is required',
             'total_collected.min' => 'Total collected cannot be negative',
             'remitted_amount.required' => 'Remitted amount is required',
