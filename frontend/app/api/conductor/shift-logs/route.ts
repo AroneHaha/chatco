@@ -4,7 +4,7 @@ import { jsonData } from "@/lib/conductor/server/response";
 import * as store from "@/lib/conductor/server/store";
 
 export async function GET(request: NextRequest) {
-  const session = getConductorSession(request);
+  const session = await getConductorSession(request);
   if (!session) return unauthorizedResponse();
 
   return jsonData(store.listShiftLogs(session.userId));

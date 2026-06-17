@@ -5,14 +5,14 @@ import * as store from "@/lib/conductor/server/store";
 import type { RemittanceRecord } from "@/lib/conductor/persistence/remittance.store";
 
 export async function GET(request: NextRequest) {
-  const session = getConductorSession(request);
+  const session = await getConductorSession(request);
   if (!session) return unauthorizedResponse();
 
   return jsonData(store.listRemittances(session.userId));
 }
 
 export async function POST(request: NextRequest) {
-  const session = getConductorSession(request);
+  const session = await getConductorSession(request);
   if (!session) return unauthorizedResponse();
 
   try {
