@@ -199,12 +199,11 @@ class PlaceholderEndpointsTest extends TestCase
 
     // ── Total Count Verification ─────────────────────────────────
 
-    public function test_total_placeholder_endpoints_is_23(): void
+    public function test_total_placeholder_endpoints_is_20(): void
     {
-        // 5 commuter + 1 conductor + 10 admin + 4 payment + 3 QR = 23
-        // (Sprint 2 implemented the other 5 conductor endpoints.)
-        // This test is a sanity check — if any endpoint above was removed,
-        // it would stop asserting 501, making the count mismatch obvious.
-        $this->assertEquals(23, 5 + 1 + 10 + 4 + 3);
+        // 3 commuter + 1 conductor + 10 admin + 3 payment + 3 QR = 20
+        // Wallet/topup stubs removed (wallet is permanently eliminated).
+        // Sprint 2 implemented the other 5 conductor endpoints.
+        $this->assertEquals(20, 3 + 1 + 10 + 3 + 3);
     }
 }
