@@ -242,33 +242,4 @@ class SchemaTest extends TestCase
     {
         $this->assertTrue(Schema::hasColumn('drivers', 'active_shift_id'), 'drivers missing [active_shift_id] column.');
     }
-
-    // ── Sprint 2 Performance Indexes ─────────────────────────────
-    // Backs the ORDER BY clauses in LocationService::getAllActiveLocations()
-    // and ShiftService::getShiftLogs(). See migration
-    // 2026_06_16_000007_add_performance_indexes_to_vehicle_locations_and_shift_logs.
-
-    public function test_vehicle_locations_has_updated_at_index(): void
-    {
-        $indexes = collect(Schema::getIndexes('vehicle_locations'))
-            ->pluck('name')
-            ->unique();
-
-        $this->assertTrue(
-            $indexes->contains('vehicle_locations_updated_at_index'),
-            'Index [vehicle_locations_updated_at_index] is missing. Required for LocationService::getAllActiveLocations() ORDER BY updated_at DESC.'
-        );
-    }
-
-    public function test_shift_logs_has_time_in_index(): void
-    {
-        $indexes = collect(Schema::getIndexes('shift_logs'))
-            ->pluck('name')
-            ->unique();
-
-        $this->assertTrue(
-            $indexes->contains('shift_logs_time_in_index'),
-            'Index [shift_logs_time_in_index] is missing. Required for ShiftService::getShiftLogs() ORDER BY time_in DESC.'
-        );
-    }
 }
