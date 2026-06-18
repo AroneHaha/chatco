@@ -29,7 +29,7 @@ class Sprint2RoleAccessTest extends TestCase
         $driver = Driver::factory()->create();
 
         $response = $this->actingAs($commuter)
-            ->postJson('/api/conductor/shifts/start', [
+            ->postJson('/api/v1/conductor/shifts/start', [
                 'vehicle_id' => $vehicle->id,
                 'driver_id' => $driver->id,
             ]);
@@ -44,7 +44,7 @@ class Sprint2RoleAccessTest extends TestCase
         $driver = Driver::factory()->create();
 
         $response = $this->actingAs($admin)
-            ->postJson('/api/conductor/shifts/start', [
+            ->postJson('/api/v1/conductor/shifts/start', [
                 'vehicle_id' => $vehicle->id,
                 'driver_id' => $driver->id,
             ]);
@@ -57,7 +57,7 @@ class Sprint2RoleAccessTest extends TestCase
         $commuter = User::factory()->commuter()->create();
 
         $response = $this->actingAs($commuter)
-            ->postJson('/api/conductor/location', [
+            ->postJson('/api/v1/conductor/location', [
                 'lat' => 14.5995,
                 'lng' => 120.9842,
             ]);
@@ -70,7 +70,7 @@ class Sprint2RoleAccessTest extends TestCase
         $admin = User::factory()->admin()->create();
 
         $response = $this->actingAs($admin)
-            ->postJson('/api/conductor/location', [
+            ->postJson('/api/v1/conductor/location', [
                 'lat' => 14.5995,
                 'lng' => 120.9842,
             ]);
@@ -83,7 +83,7 @@ class Sprint2RoleAccessTest extends TestCase
         $conductor = User::factory()->conductor()->create();
 
         $response = $this->actingAs($conductor)
-            ->getJson('/api/conductor/shift');
+            ->getJson('/api/v1/conductor/shift');
 
         $response->assertOk();
     }
@@ -94,19 +94,19 @@ class Sprint2RoleAccessTest extends TestCase
         $admin = User::factory()->admin()->create();
 
         $commuterResponse = $this->actingAs($commuter)
-            ->getJson('/api/vehicles/locations');
+            ->getJson('/api/v1/vehicles/locations');
         $commuterResponse->assertOk();
 
         $adminResponse = $this->actingAs($admin)
-            ->getJson('/api/vehicles/locations');
+            ->getJson('/api/v1/vehicles/locations');
         $adminResponse->assertOk();
     }
 
     public function test_guest_cannot_access_any_protected_route(): void
     {
-        $this->getJson('/api/conductor/shift')->assertUnauthorized();
-        $this->getJson('/api/vehicles/locations')->assertUnauthorized();
-        $this->postJson('/api/conductor/location', [])->assertUnauthorized();
-        $this->postJson('/api/conductor/shifts/start', [])->assertUnauthorized();
+        $this->getJson('/api/v1/conductor/shift')->assertUnauthorized();
+        $this->getJson('/api/v1/vehicles/locations')->assertUnauthorized();
+        $this->postJson('/api/v1/conductor/location', [])->assertUnauthorized();
+        $this->postJson('/api/v1/conductor/shifts/start', [])->assertUnauthorized();
     }
 }

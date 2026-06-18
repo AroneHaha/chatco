@@ -50,7 +50,7 @@ export async function getConductorSession(
   if (!token) return null;
 
   try {
-    const res = await fetch(`${API_URL}/api/user`, {
+    const res = await fetch(`${API_URL}/api/v1/user`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,

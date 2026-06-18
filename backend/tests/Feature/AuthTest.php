@@ -84,7 +84,7 @@ class AuthTest extends TestCase
     {
         $this->seedAdmin();
 
-        $response = $this->postJson('/api/auth/login', [
+        $response = $this->postJson('/api/v1/auth/login', [
             'login'    => 'admin@gmail.com',
             'password' => 'password123',
         ]);
@@ -106,7 +106,7 @@ class AuthTest extends TestCase
     {
         $this->seedAdmin();
 
-        $response = $this->postJson('/api/auth/login', [
+        $response = $this->postJson('/api/v1/auth/login', [
             'login'    => 'admin@gmail.com',
             'password' => 'wrong-password',
         ]);
@@ -118,7 +118,7 @@ class AuthTest extends TestCase
 
     public function test_login_with_nonexistent_email_returns_401(): void
     {
-        $response = $this->postJson('/api/auth/login', [
+        $response = $this->postJson('/api/v1/auth/login', [
             'login'    => 'nobody@gmail.com',
             'password' => 'password123',
         ]);
@@ -129,7 +129,7 @@ class AuthTest extends TestCase
 
     public function test_login_with_missing_fields_returns_422(): void
     {
-        $response = $this->postJson('/api/auth/login', []);
+        $response = $this->postJson('/api/v1/auth/login', []);
 
         $response->assertStatus(422);
         $this->assertFalse($response->json('success'));
@@ -141,7 +141,7 @@ class AuthTest extends TestCase
     {
         $this->seedConductor();
 
-        $response = $this->postJson('/api/auth/login', [
+        $response = $this->postJson('/api/v1/auth/login', [
             'login'    => 'conductor001',
             'password' => 'password123',
         ]);
@@ -158,7 +158,7 @@ class AuthTest extends TestCase
         $token = $admin->createToken('test')->plainTextToken;
 
         $response = $this->withHeader('Authorization', "Bearer {$token}")
-            ->postJson('/api/auth/logout');
+            ->postJson('/api/v1/auth/logout');
 
         $response->assertStatus(200);
         $this->assertTrue($response->json('success'));
@@ -167,7 +167,7 @@ class AuthTest extends TestCase
 
     public function test_logout_without_token_returns_401(): void
     {
-        $response = $this->postJson('/api/auth/logout');
+        $response = $this->postJson('/api/v1/auth/logout');
 
         $response->assertStatus(401);
     }
@@ -180,7 +180,7 @@ class AuthTest extends TestCase
         $token = $admin->createToken('test')->plainTextToken;
 
         $response = $this->withHeader('Authorization', "Bearer {$token}")
-            ->getJson('/api/user');
+            ->getJson('/api/v1/user');
 
         $response->assertStatus(200);
         $this->assertTrue($response->json('success'));
@@ -191,7 +191,7 @@ class AuthTest extends TestCase
 
     public function test_get_user_without_token_returns_401(): void
     {
-        $response = $this->getJson('/api/user');
+        $response = $this->getJson('/api/v1/user');
 
         $response->assertStatus(401);
     }
@@ -202,7 +202,7 @@ class AuthTest extends TestCase
         $token = $commuter->createToken('test')->plainTextToken;
 
         $response = $this->withHeader('Authorization', "Bearer {$token}")
-            ->getJson('/api/user');
+            ->getJson('/api/v1/user');
 
         $response->assertStatus(200);
         $this->assertEquals('COMMUTER', $response->json('data.user.role'));
