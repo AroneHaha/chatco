@@ -8,7 +8,7 @@ import { getEcho } from '@/lib/echo';
  *   vehicle_id, plate_number, vehicle_type, lat, lng, speed, heading,
  *   capacity_status, route_name, updated_at
  *
- * The GET /api/vehicles/locations fallback returns the same shape plus
+ * The GET /api/v1/vehicles/locations fallback returns the same shape plus
  * the denormalized vehicle_capacity_status from the vehicles row.
  * Keeping the interface snake_case-aligned avoids silent state-update
  * failures (where camelCase keys would be `undefined` on the event).
@@ -37,7 +37,7 @@ interface UseVehicleLocationsResult {
   refresh: () => Promise<void>;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
 export function useVehicleLocations(): UseVehicleLocationsResult {
   const [vehicles, setVehicles] = useState<VehicleLocation[]>([]);

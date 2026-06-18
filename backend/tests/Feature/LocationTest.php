@@ -59,7 +59,7 @@ class LocationTest extends TestCase
     public function test_conductor_can_update_location(): void
     {
         $response = $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/location', [
+            ->postJson('/api/v1/conductor/location', [
                 'lat' => 14.5995,
                 'lng' => 120.9842,
             ]);
@@ -76,7 +76,7 @@ class LocationTest extends TestCase
     public function test_conductor_can_update_location_with_speed_and_heading(): void
     {
         $response = $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/location', [
+            ->postJson('/api/v1/conductor/location', [
                 'lat' => 14.5995,
                 'lng' => 120.9842,
                 'speed' => 45.50,
@@ -94,7 +94,7 @@ class LocationTest extends TestCase
         $this->driver->update(['active_shift_id' => null]);
 
         $response = $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/location', [
+            ->postJson('/api/v1/conductor/location', [
                 'lat' => 14.5995,
                 'lng' => 120.9842,
             ]);
@@ -105,7 +105,7 @@ class LocationTest extends TestCase
     public function test_location_update_validates_coordinates(): void
     {
         $response = $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/location', [
+            ->postJson('/api/v1/conductor/location', [
                 'lat' => 999,
                 'lng' => 999,
             ]);
@@ -116,13 +116,13 @@ class LocationTest extends TestCase
     public function test_location_upsert_updates_existing(): void
     {
         $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/location', [
+            ->postJson('/api/v1/conductor/location', [
                 'lat' => 14.5995,
                 'lng' => 120.9842,
             ]);
 
         $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/location', [
+            ->postJson('/api/v1/conductor/location', [
                 'lat' => 14.6000,
                 'lng' => 120.9850,
             ]);
@@ -146,7 +146,7 @@ class LocationTest extends TestCase
         ]);
 
         $response = $this->actingAs($commuter)
-            ->getJson('/api/vehicles/locations');
+            ->getJson('/api/v1/vehicles/locations');
 
         $response->assertOk();
         $response->assertJsonStructure([
@@ -165,7 +165,7 @@ class LocationTest extends TestCase
     public function test_conductor_can_update_capacity_status(): void
     {
         $response = $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/capacity-status', [
+            ->postJson('/api/v1/conductor/capacity-status', [
                 'capacity_status' => 'STANDING',
             ]);
 
@@ -180,7 +180,7 @@ class LocationTest extends TestCase
     public function test_capacity_status_validates_enum(): void
     {
         $response = $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/capacity-status', [
+            ->postJson('/api/v1/conductor/capacity-status', [
                 'capacity_status' => 'INVALID',
             ]);
 
@@ -192,7 +192,7 @@ class LocationTest extends TestCase
         $commuter = User::factory()->commuter()->create();
 
         $response = $this->actingAs($commuter)
-            ->postJson('/api/conductor/location', [
+            ->postJson('/api/v1/conductor/location', [
                 'lat' => 14.5995,
                 'lng' => 120.9842,
             ]);
@@ -202,7 +202,7 @@ class LocationTest extends TestCase
 
     public function test_unauthenticated_cannot_access_locations(): void
     {
-        $response = $this->getJson('/api/vehicles/locations');
+        $response = $this->getJson('/api/v1/vehicles/locations');
         $response->assertUnauthorized();
     }
 }

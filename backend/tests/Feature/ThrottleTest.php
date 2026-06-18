@@ -80,13 +80,13 @@ class ThrottleTest extends TestCase
         // Send exactly 30 requests — the configured limit. All should pass.
         for ($i = 0; $i < 30; $i++) {
             $this->actingAs($this->conductor)
-                ->postJson('/api/conductor/location', $payload)
+                ->postJson('/api/v1/conductor/location', $payload)
                 ->assertOk();
         }
 
         // 31st request — exceeds the limit, must be rejected with 429.
         $response = $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/location', $payload);
+            ->postJson('/api/v1/conductor/location', $payload);
 
         $response->assertStatus(429);
     }
@@ -104,13 +104,13 @@ class ThrottleTest extends TestCase
         // Exhaust the 30-request limit.
         for ($i = 0; $i < 30; $i++) {
             $this->actingAs($this->conductor)
-                ->postJson('/api/conductor/location', $payload)
+                ->postJson('/api/v1/conductor/location', $payload)
                 ->assertOk();
         }
 
         // Trigger the 429 and inspect the body shape.
         $response = $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/location', $payload);
+            ->postJson('/api/v1/conductor/location', $payload);
 
         $response->assertStatus(429);
         $response->assertJsonStructure([
@@ -142,7 +142,7 @@ class ThrottleTest extends TestCase
         // the 30 req/min limit.
         for ($i = 0; $i < 12; $i++) {
             $this->actingAs($this->conductor)
-                ->postJson('/api/conductor/location', $payload)
+                ->postJson('/api/v1/conductor/location', $payload)
                 ->assertOk();
         }
     }
