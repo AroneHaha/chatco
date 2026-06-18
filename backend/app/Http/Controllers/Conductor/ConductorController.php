@@ -171,10 +171,19 @@ class ConductorController extends Controller
     /**
      * GET /api/conductor/units
      * Returns available vehicles for shift assignment.
+     *
+     * Eager-loads `route` so the frontend proxy can map the route name
+     * into `ConductorUnit.route` without a second round-trip.
+     * Excludes vehicles already on an active shift (same pattern as
+     * `drivers()`) — the UI should only show vehicles a conductor can
+     * actually select.
      */
     public function units(): JsonResponse
     {
-        $units = Vehicle::where('status', 'ACTIVE')->get();
+        $units = Vehicle::with('route')
+            ->where('status', 'ACTIVE')
+            ->whereDoesntHave('activeShift')
+            ->get();
 
         return $this->successResponse($units, 'Available vehicles retrieved');
     }
