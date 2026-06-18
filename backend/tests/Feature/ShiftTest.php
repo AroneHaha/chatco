@@ -34,7 +34,7 @@ class ShiftTest extends TestCase
     public function test_conductor_can_start_shift(): void
     {
         $response = $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/shifts/start', [
+            ->postJson('/api/v1/conductor/shifts/start', [
                 'vehicle_id' => $this->vehicle->id,
                 'driver_id' => $this->driver->id,
                 'route_id' => $this->route->id,
@@ -59,14 +59,14 @@ class ShiftTest extends TestCase
     public function test_conductor_cannot_start_duplicate_shift(): void
     {
         $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/shifts/start', [
+            ->postJson('/api/v1/conductor/shifts/start', [
                 'vehicle_id' => $this->vehicle->id,
                 'driver_id' => $this->driver->id,
                 'route_id' => $this->route->id,
             ]);
 
         $response = $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/shifts/start', [
+            ->postJson('/api/v1/conductor/shifts/start', [
                 'vehicle_id' => Vehicle::factory()->create()->id,
                 'driver_id' => Driver::factory()->create()->id,
                 'route_id' => $this->route->id,
@@ -78,7 +78,7 @@ class ShiftTest extends TestCase
     public function test_conductor_cannot_start_shift_if_vehicle_in_use(): void
     {
         $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/shifts/start', [
+            ->postJson('/api/v1/conductor/shifts/start', [
                 'vehicle_id' => $this->vehicle->id,
                 'driver_id' => $this->driver->id,
                 'route_id' => $this->route->id,
@@ -87,7 +87,7 @@ class ShiftTest extends TestCase
         $otherConductor = User::factory()->conductor()->create();
 
         $response = $this->actingAs($otherConductor)
-            ->postJson('/api/conductor/shifts/start', [
+            ->postJson('/api/v1/conductor/shifts/start', [
                 'vehicle_id' => $this->vehicle->id,
                 'driver_id' => Driver::factory()->create()->id,
                 'route_id' => $this->route->id,
@@ -99,7 +99,7 @@ class ShiftTest extends TestCase
     public function test_conductor_cannot_start_shift_if_driver_in_use(): void
     {
         $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/shifts/start', [
+            ->postJson('/api/v1/conductor/shifts/start', [
                 'vehicle_id' => $this->vehicle->id,
                 'driver_id' => $this->driver->id,
                 'route_id' => $this->route->id,
@@ -108,7 +108,7 @@ class ShiftTest extends TestCase
         $otherConductor = User::factory()->conductor()->create();
 
         $response = $this->actingAs($otherConductor)
-            ->postJson('/api/conductor/shifts/start', [
+            ->postJson('/api/v1/conductor/shifts/start', [
                 'vehicle_id' => Vehicle::factory()->create()->id,
                 'driver_id' => $this->driver->id,
                 'route_id' => $this->route->id,
@@ -122,7 +122,7 @@ class ShiftTest extends TestCase
         $commuter = User::factory()->commuter()->create();
 
         $response = $this->actingAs($commuter)
-            ->postJson('/api/conductor/shifts/start', [
+            ->postJson('/api/v1/conductor/shifts/start', [
                 'vehicle_id' => $this->vehicle->id,
                 'driver_id' => $this->driver->id,
                 'route_id' => $this->route->id,
@@ -134,7 +134,7 @@ class ShiftTest extends TestCase
     public function test_conductor_can_end_shift_via_remittance(): void
     {
         $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/shifts/start', [
+            ->postJson('/api/v1/conductor/shifts/start', [
                 'vehicle_id' => $this->vehicle->id,
                 'driver_id' => $this->driver->id,
                 'route_id' => $this->route->id,
@@ -144,7 +144,7 @@ class ShiftTest extends TestCase
 
         // Shift ends ONLY via remittance submission (POST /api/conductor/remittances)
         $response = $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/remittances', [
+            ->postJson('/api/v1/conductor/remittances', [
                 'shift_id' => $shift->shift_id,
                 'total_collected' => 5000.00,
                 'remitted_amount' => 5000.00,
@@ -169,7 +169,7 @@ class ShiftTest extends TestCase
     public function test_conductor_cannot_end_other_conductor_shift(): void
     {
         $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/shifts/start', [
+            ->postJson('/api/v1/conductor/shifts/start', [
                 'vehicle_id' => $this->vehicle->id,
                 'driver_id' => $this->driver->id,
                 'route_id' => $this->route->id,
@@ -180,7 +180,7 @@ class ShiftTest extends TestCase
         $otherConductor = User::factory()->conductor()->create();
 
         $response = $this->actingAs($otherConductor)
-            ->postJson('/api/conductor/remittances', [
+            ->postJson('/api/v1/conductor/remittances', [
                 'shift_id' => $shift->shift_id,
                 'total_collected' => 5000.00,
                 'remitted_amount' => 5000.00,
@@ -192,7 +192,7 @@ class ShiftTest extends TestCase
     public function test_remittance_for_nonexistent_shift_returns_404(): void
     {
         $response = $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/remittances', [
+            ->postJson('/api/v1/conductor/remittances', [
                 'shift_id' => 'SHF-NONEXISTENT123',
                 'total_collected' => 5000.00,
                 'remitted_amount' => 5000.00,
@@ -204,14 +204,14 @@ class ShiftTest extends TestCase
     public function test_conductor_can_get_active_shift(): void
     {
         $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/shifts/start', [
+            ->postJson('/api/v1/conductor/shifts/start', [
                 'vehicle_id' => $this->vehicle->id,
                 'driver_id' => $this->driver->id,
                 'route_id' => $this->route->id,
             ]);
 
         $response = $this->actingAs($this->conductor)
-            ->getJson('/api/conductor/shift');
+            ->getJson('/api/v1/conductor/shift');
 
         $response->assertOk();
         $response->assertJsonPath('data.status', ShiftStatus::ACTIVE->value);
@@ -220,7 +220,7 @@ class ShiftTest extends TestCase
     public function test_conductor_gets_null_data_when_no_active_shift(): void
     {
         $response = $this->actingAs($this->conductor)
-            ->getJson('/api/conductor/shift');
+            ->getJson('/api/v1/conductor/shift');
 
         $response->assertOk();
         $response->assertJsonPath('data', null);
@@ -239,7 +239,7 @@ class ShiftTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->conductor)
-            ->getJson('/api/conductor/shift-logs');
+            ->getJson('/api/v1/conductor/shift-logs');
 
         $response->assertOk();
     }

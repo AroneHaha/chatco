@@ -68,7 +68,7 @@ class RoleMiddlewareTest extends TestCase
         $admin = $this->createUserWithProfile('admin@test.com', UserRole::ADMIN);
 
         $response = $this->withHeader('Authorization', "Bearer {$this->authToken($admin)}")
-            ->getJson('/api/admin/dashboard');
+            ->getJson('/api/v1/admin/dashboard');
 
         $response->assertStatus(501);
     }
@@ -78,7 +78,7 @@ class RoleMiddlewareTest extends TestCase
         $admin = $this->createUserWithProfile('admin@test.com', UserRole::ADMIN);
 
         $response = $this->withHeader('Authorization', "Bearer {$this->authToken($admin)}")
-            ->getJson('/api/commuter/profile');
+            ->getJson('/api/v1/commuter/profile');
 
         $response->assertStatus(403);
     }
@@ -90,7 +90,7 @@ class RoleMiddlewareTest extends TestCase
         $commuter = $this->createUserWithProfile('commuter@test.com', UserRole::COMMUTER);
 
         $response = $this->withHeader('Authorization', "Bearer {$this->authToken($commuter)}")
-            ->getJson('/api/commuter/profile');
+            ->getJson('/api/v1/commuter/profile');
 
         $response->assertStatus(501);
     }
@@ -100,7 +100,7 @@ class RoleMiddlewareTest extends TestCase
         $commuter = $this->createUserWithProfile('commuter@test.com', UserRole::COMMUTER);
 
         $response = $this->withHeader('Authorization', "Bearer {$this->authToken($commuter)}")
-            ->getJson('/api/admin/dashboard');
+            ->getJson('/api/v1/admin/dashboard');
 
         $response->assertStatus(403);
     }
@@ -115,7 +115,7 @@ class RoleMiddlewareTest extends TestCase
         $conductor = $this->createUserWithProfile('conductor@test.com', UserRole::CONDUCTOR);
 
         $response = $this->withHeader('Authorization', "Bearer {$this->authToken($conductor)}")
-            ->getJson('/api/conductor/shift');
+            ->getJson('/api/v1/conductor/shift');
 
         $response->assertStatus(200);
     }
@@ -125,7 +125,7 @@ class RoleMiddlewareTest extends TestCase
         $conductor = $this->createUserWithProfile('conductor@test.com', UserRole::CONDUCTOR);
 
         $response = $this->withHeader('Authorization', "Bearer {$this->authToken($conductor)}")
-            ->getJson('/api/admin/dashboard');
+            ->getJson('/api/v1/admin/dashboard');
 
         $response->assertStatus(403);
     }
@@ -134,21 +134,21 @@ class RoleMiddlewareTest extends TestCase
 
     public function test_unauthenticated_request_to_protected_route_returns_401(): void
     {
-        $response = $this->getJson('/api/admin/dashboard');
+        $response = $this->getJson('/api/v1/admin/dashboard');
 
         $response->assertStatus(401);
     }
 
     public function test_unauthenticated_request_to_commuter_route_returns_401(): void
     {
-        $response = $this->getJson('/api/commuter/profile');
+        $response = $this->getJson('/api/v1/commuter/profile');
 
         $response->assertStatus(401);
     }
 
     public function test_unauthenticated_request_to_conductor_route_returns_401(): void
     {
-        $response = $this->getJson('/api/conductor/shift');
+        $response = $this->getJson('/api/v1/conductor/shift');
 
         $response->assertStatus(401);
     }

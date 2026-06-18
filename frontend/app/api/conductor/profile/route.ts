@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const res = await fetch(`${API_URL}/api/conductor/profile`, {
+    const res = await fetch(`${API_URL}/api/v1/conductor/profile`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,

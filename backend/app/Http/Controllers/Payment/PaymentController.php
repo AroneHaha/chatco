@@ -24,9 +24,4 @@ class PaymentController extends Controller
     {
         return $this->notImplementedResponse();
     }
-
-    public function topup(): JsonResponse
-    {
-        return $this->notImplementedResponse();
-    }
 }
