@@ -57,3 +57,85 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+---
+
+## ChatCo — Queue Worker
+
+Sprint 2 broadcasts the `VehicleLocationUpdated` event via the
+`ShouldBroadcast` interface (not `ShouldBroadcastNow`). This means every
+GPS / capacity-status update from a conductor is pushed onto the
+configured queue and dispatched to Pusher **asynchronously** by a queue
+worker process — the conductor's HTTP response is not blocked by Pusher
+network latency.
+
+### Required setup
+
+1. **Driver**: `QUEUE_CONNECTION=database` in `.env` (already set in
+   `.env.example`). The `jobs` table migration ships with the framework
+   (`database/migrations/0001_01_01_000002_create_jobs_table.php`) and
+   is included in `php artisan migrate`.
+
+2. **Run the worker** in a separate terminal/process:
+
+   ```bash
+   php artisan queue:work --queue=default --tries=3 --timeout=30
+   ```
+
+   Keep this terminal open while the backend is running. Every GPS
+   update pushed onto the queue will be picked up and dispatched to
+   Pusher, then delivered to subscribed commuter clients via Laravel
+   Echo.
+
+3. **Restart after code changes**: queue workers cache the application
+   in memory. After deploying new code, restart the worker:
+
+   ```bash
+   php artisan queue:restart
+   ```
+
+   The running worker will finish the current job and exit; your
+   process supervisor (see below) will start a fresh one.
+
+### Production (Supervisor)
+
+In production, run the worker under [Supervisor](https://laravel.com/docs/queues#supervisor-configuration)
+so it auto-restarts on failure or server reboot. Example
+`/etc/supervisor/conf.d/chatco-worker.conf`:
+
+```ini
+[program:chatco-worker]
+process_name=%(program_name)s_%(process_num)02d
+command=php /var/www/chatco/backend/artisan queue:work --queue=default --tries=3 --timeout=30
+autostart=true
+autorestart=true
+user=www-data
+numprocs=2
+redirect_stderr=true
+stdout_logfile=/var/www/chatco/backend/storage/logs/worker.log
+stopwaitsecs=3600
+```
+
+Then `sudo supervisorctl reread && sudo supervisorctl update && sudo supervisorctl start chatco-worker:*`.
+
+### Test environment
+
+`phpunit.xml` sets `QUEUE_CONNECTION=sync` so the test suite runs
+without a worker — broadcast events fire inline within the test
+process. The `BroadcastTest::test_vehicle_location_updated_is_queued`
+test uses `Queue::fake()` to verify the event is **pushed** to the
+queue (rather than executed inline), even when the connection is sync.
+
+### Troubleshooting
+
+- **Commuter map not updating in real time**: the worker is not
+  running, or `QUEUE_CONNECTION=sync` is set in `.env` (the event
+  fires inline, which is fine functionally but blocks the conductor
+  HTTP response — check `php artisan tinker` →
+  `config('queue.default')`).
+- **Jobs piling up in the `jobs` table**: the worker is down or
+  crashing. Check `storage/logs/laravel.log` for exceptions, then
+  `php artisan queue:retry all` after fixing the root cause.
+- **Failed jobs**: `php artisan queue:failed` lists them;
+  `php artisan queue:retry all` re-attempts; `php artisan queue:flush`
+  purges them permanently.

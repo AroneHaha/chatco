@@ -3,9 +3,14 @@
 namespace Tests\Feature;
 
 use App\Events\VehicleLocationUpdated;
+use App\Models\Driver;
+use App\Models\Route;
+use App\Models\ShiftLog;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use App\Models\Vehicle;
 use Illuminate\Broadcasting\Channel;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class BroadcastTest extends TestCase
@@ -62,5 +67,59 @@ class BroadcastTest extends TestCase
 
         // Public channel returns true (no auth required)
         $response->assertOk();
+    }
+
+    /**
+     * VehicleLocationUpdated implements ShouldBroadcast (not
+     * ShouldBroadcastNow), so it is dispatched onto the queue rather
+     * than fired inline. This test fakes the queue and asserts that a
+     * GPS update via POST /api/conductor/location pushes the event
+     * onto the queue — proving the asynchronous broadcast path is
+     * wired up correctly.
+     *
+     * Note: phpunit.xml sets QUEUE_CONNECTION=sync, which means the
+     * queue worker runs in the same process. Queue::fake() intercepts
+     * the push BEFORE any worker runs, so assertPushed works without
+     * needing a separate worker process.
+     */
+    public function test_vehicle_location_updated_is_queued(): void
+    {
+        Queue::fake();
+
+        // Fixture — matches LocationTest::setUp() pattern.
+        $conductor = User::factory()->conductor()->create();
+        $vehicle = Vehicle::factory()->create();
+        $driver = Driver::factory()->create();
+        $route = Route::factory()->create();
+
+        $shift = ShiftLog::create([
+            'shift_id' => 'SFT-' . now()->format('YmdHis'),
+            'conductor_id' => $conductor->id,
+            'driver_id' => $driver->id,
+            'vehicle_id' => $vehicle->id,
+            'route_id' => $route->id,
+            'conductor_name' => 'Conductor Test',
+            'driver_name' => $driver->first_name . ' ' . $driver->last_name,
+            'plate_number' => $vehicle->plate_number,
+            'unit_number' => $vehicle->unit_number,
+            'time_in' => now(),
+            'status' => 'ACTIVE',
+        ]);
+
+        $vehicle->update(['active_shift_id' => $shift->shift_id]);
+        $driver->update(['active_shift_id' => $shift->shift_id]);
+
+        // Action — conductor sends a GPS update.
+        $response = $this->actingAs($conductor)
+            ->postJson('/api/conductor/location', [
+                'lat' => 14.5995,
+                'lng' => 120.9842,
+            ]);
+
+        $response->assertOk();
+
+        // The VehicleLocationUpdated event must be pushed onto the
+        // queue (not executed inline like ShouldBroadcastNow would).
+        Queue::assertPushed(VehicleLocationUpdated::class);
     }
 }
