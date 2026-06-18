@@ -20,16 +20,6 @@ class CommuterController extends Controller
         return $this->notImplementedResponse();
     }
 
-    public function wallet(): JsonResponse
-    {
-        return $this->notImplementedResponse();
-    }
-
-    public function walletTopup(): JsonResponse
-    {
-        return $this->notImplementedResponse();
-    }
-
     public function rewards(): JsonResponse
     {
         return $this->notImplementedResponse();

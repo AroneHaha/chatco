@@ -96,16 +96,6 @@ class PlaceholderEndpointsTest extends TestCase
         $this->assertNotImplementedResponse('getJson', '/api/commuter/trips', $this->commuterToken);
     }
 
-    public function test_commuter_wallet_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('getJson', '/api/commuter/wallet', $this->commuterToken);
-    }
-
-    public function test_commuter_wallet_topup_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('postJson', '/api/commuter/wallet/topup', $this->commuterToken);
-    }
-
     public function test_commuter_rewards_returns_501(): void
     {
         $this->assertNotImplementedResponse('getJson', '/api/commuter/rewards', $this->commuterToken);
@@ -188,11 +178,6 @@ class PlaceholderEndpointsTest extends TestCase
     public function test_payment_history_returns_501(): void
     {
         $this->assertNotImplementedResponse('getJson', '/api/payments/history', $this->commuterToken);
-    }
-
-    public function test_payment_topup_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('postJson', '/api/payments/topup', $this->commuterToken);
     }
 
     // ── QR Endpoints (3) ─────────────────────────────────────────

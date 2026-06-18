@@ -34,8 +34,6 @@ Route::middleware('auth:sanctum')->get('/user', [AuthController::class, 'user'])
 Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(function () {
     Route::get('/profile', [CommuterController::class, 'profile']);
     Route::get('/trips', [CommuterController::class, 'trips']);
-    Route::get('/wallet', [CommuterController::class, 'wallet']);
-    Route::post('/wallet/topup', [CommuterController::class, 'walletTopup']);
     Route::get('/rewards', [CommuterController::class, 'rewards']);
 });
 
@@ -111,7 +109,6 @@ Route::prefix('payments')->middleware(['auth:sanctum'])->group(function () {
     Route::post('/initiate', [PaymentController::class, 'initiate']);
     Route::post('/verify', [PaymentController::class, 'verify']);
     Route::get('/history', [PaymentController::class, 'history']);
-    Route::post('/topup', [PaymentController::class, 'topup']);
 });
 
 /*
