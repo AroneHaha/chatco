@@ -1,18 +1,6 @@
-/**
- * Shape mappers — translate Laravel Eloquent model JSON (snake_case, relations
- * nested) into the frontend's conductor types (camelCase, flat).
- *
- * WHY THIS EXISTS
- * ---------------
- * The backend is the single source of truth. The frontend conductor types
- * (`ConductorUnit`, `ConductorDriver`, `ConductorShift`) are UI-oriented
- * shapes that don't match the raw Eloquent model JSON. Rather than letting
- * every component know about Laravel's field names, we map once at the proxy
- * boundary so the rest of the frontend stays backend-agnostic.
- *
- * These mappers are used by the Next.js conductor API routes
- * (`app/api/conductor/*/route.ts`) which act as server-side proxies.
- */
+// Shape mappers -- translate Laravel Eloquent model JSON (snake_case, relations
+// nested) into the frontend's conductor types (camelCase, flat).
+// Used by the Next.js conductor API routes which act as server-side proxies.
 
 // ─── Laravel model shapes (as returned by the API) ───────────────────
 
@@ -76,7 +64,6 @@ export function mapVehicle(v: unknown): ConductorUnit {
     plateNumber: vehicle.plate_number,
     route: vehicle.route?.name ?? "—",
     routeId: vehicle.route_id ?? undefined,
-    // Backend `units()` already filters to ACTIVE + no active shift.
     status: "available",
   };
 }
@@ -90,7 +77,6 @@ export function mapDriver(d: unknown): ConductorDriver {
   return {
     id: driver.id,
     name: name || "Unknown Driver",
-    // Backend `drivers()` already filters to no active shift.
     status: "available",
   };
 }
@@ -110,7 +96,7 @@ export function mapShiftLog(s: unknown): ConductorShift {
 }
 
 /**
- * Map an array of Laravel models. Returns `[]` for null/undefined input.
+ * Map an array of Laravel models. Returns [] for null/undefined input.
  */
 export function mapArray<T>(items: unknown, mapFn: (item: unknown) => T): T[] {
   if (!Array.isArray(items)) return [];
