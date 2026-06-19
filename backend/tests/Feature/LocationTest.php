@@ -54,7 +54,7 @@ class LocationTest extends TestCase
     public function test_conductor_can_update_location(): void
     {
         $response = $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/location', [
+            ->postJson('/api/v1/conductor/location', [
                 'vehicle_id' => $this->vehicle->id,
                 'latitude' => 14.5995,
                 'longitude' => 120.9842,
@@ -72,7 +72,7 @@ class LocationTest extends TestCase
     public function test_conductor_can_update_location_with_speed_and_heading(): void
     {
         $response = $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/location', [
+            ->postJson('/api/v1/conductor/location', [
                 'vehicle_id' => $this->vehicle->id,
                 'latitude' => 14.5995,
                 'longitude' => 120.9842,
@@ -92,7 +92,7 @@ class LocationTest extends TestCase
         $conductorNoShift = User::factory()->create(['role' => UserRole::CONDUCTOR]);
 
         $response = $this->actingAs($conductorNoShift)
-            ->postJson('/api/conductor/location', [
+            ->postJson('/api/v1/conductor/location', [
                 'vehicle_id' => $this->vehicle->id,
                 'latitude' => 14.5995,
                 'longitude' => 120.9842,
@@ -104,7 +104,7 @@ class LocationTest extends TestCase
     public function test_location_update_validates_coordinates(): void
     {
         $response = $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/location', [
+            ->postJson('/api/v1/conductor/location', [
                 'vehicle_id' => $this->vehicle->id,
                 'latitude' => 999,
                 'longitude' => 999,
@@ -116,14 +116,14 @@ class LocationTest extends TestCase
     public function test_location_upsert_updates_existing(): void
     {
         $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/location', [
+            ->postJson('/api/v1/conductor/location', [
                 'vehicle_id' => $this->vehicle->id,
                 'latitude' => 14.5995,
                 'longitude' => 120.9842,
             ]);
 
         $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/location', [
+            ->postJson('/api/v1/conductor/location', [
                 'vehicle_id' => $this->vehicle->id,
                 'latitude' => 14.6000,
                 'longitude' => 120.9850,
@@ -149,7 +149,7 @@ class LocationTest extends TestCase
         ]);
 
         $response = $this->actingAs($commuter)
-            ->getJson('/api/vehicles/locations');
+            ->getJson('/api/v1/vehicles/locations');
 
         $response->assertOk();
         $response->assertJsonStructure([
@@ -168,7 +168,7 @@ class LocationTest extends TestCase
     public function test_conductor_can_update_capacity_status(): void
     {
         $response = $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/capacity-status', [
+            ->postJson('/api/v1/conductor/capacity-status', [
                 'vehicle_id' => $this->vehicle->id,
                 'capacity_status' => 'STANDING',
             ]);
@@ -184,7 +184,7 @@ class LocationTest extends TestCase
     public function test_capacity_status_validates_enum(): void
     {
         $response = $this->actingAs($this->conductor)
-            ->postJson('/api/conductor/capacity-status', [
+            ->postJson('/api/v1/conductor/capacity-status', [
                 'vehicle_id' => $this->vehicle->id,
                 'capacity_status' => 'INVALID',
             ]);
@@ -198,7 +198,7 @@ class LocationTest extends TestCase
         $commuter = User::factory()->create(['role' => UserRole::COMMUTER]);
 
         $response = $this->actingAs($commuter)
-            ->postJson('/api/conductor/location', [
+            ->postJson('/api/v1/conductor/location', [
                 'vehicle_id' => $this->vehicle->id,
                 'latitude' => 14.5995,
                 'longitude' => 120.9842,
@@ -209,7 +209,7 @@ class LocationTest extends TestCase
 
     public function test_unauthenticated_cannot_access_locations(): void
     {
-        $response = $this->getJson('/api/vehicles/locations');
+        $response = $this->getJson('/api/v1/vehicles/locations');
         $response->assertUnauthorized();
     }
 }

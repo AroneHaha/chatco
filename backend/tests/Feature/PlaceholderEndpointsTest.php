@@ -23,7 +23,6 @@ class PlaceholderEndpointsTest extends TestCase
     {
         parent::setUp();
 
-        // Create users with profiles
         $admin = User::create([
             'email'    => 'admin@test.com',
             'password' => Hash::make('password123'),
@@ -84,163 +83,126 @@ class PlaceholderEndpointsTest extends TestCase
         ]);
     }
 
-    // ── Commuter Endpoints (5) ───────────────────────────────────
+    // ── Commuter Endpoints (3) ───────────────────────────────────
 
     public function test_commuter_profile_returns_501(): void
     {
-        $this->assertNotImplementedResponse('getJson', '/api/commuter/profile', $this->commuterToken);
+        $this->assertNotImplementedResponse('getJson', '/api/v1/commuter/profile', $this->commuterToken);
     }
 
     public function test_commuter_trips_returns_501(): void
     {
-        $this->assertNotImplementedResponse('getJson', '/api/commuter/trips', $this->commuterToken);
-    }
-
-    public function test_commuter_wallet_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('getJson', '/api/commuter/wallet', $this->commuterToken);
-    }
-
-    public function test_commuter_wallet_topup_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('postJson', '/api/commuter/wallet/topup', $this->commuterToken);
+        $this->assertNotImplementedResponse('getJson', '/api/v1/commuter/trips', $this->commuterToken);
     }
 
     public function test_commuter_rewards_returns_501(): void
     {
-        $this->assertNotImplementedResponse('getJson', '/api/commuter/rewards', $this->commuterToken);
+        $this->assertNotImplementedResponse('getJson', '/api/v1/commuter/rewards', $this->commuterToken);
     }
 
-    // ── Conductor Endpoints (6) ──────────────────────────────────
-
-    public function test_conductor_location_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('postJson', '/api/conductor/location', $this->conductorToken);
-    }
-
-    public function test_conductor_shift_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('getJson', '/api/conductor/shift', $this->conductorToken);
-    }
-
-    public function test_conductor_shift_start_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('postJson', '/api/conductor/shift/start', $this->conductorToken);
-    }
-
-    public function test_conductor_shift_end_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('postJson', '/api/conductor/shift/end', $this->conductorToken);
-    }
-
-    public function test_conductor_remittances_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('getJson', '/api/conductor/remittances', $this->conductorToken);
-    }
+    // ── Conductor Endpoints (1) ──────────────────────────────────
 
     public function test_conductor_transactions_returns_501(): void
     {
-        $this->assertNotImplementedResponse('getJson', '/api/conductor/transactions', $this->conductorToken);
+        $this->assertNotImplementedResponse('getJson', '/api/v1/conductor/transactions', $this->conductorToken);
     }
 
     // ── Admin Endpoints (10) ─────────────────────────────────────
 
     public function test_admin_dashboard_returns_501(): void
     {
-        $this->assertNotImplementedResponse('getJson', '/api/admin/dashboard', $this->adminToken);
+        $this->assertNotImplementedResponse('getJson', '/api/v1/admin/dashboard', $this->adminToken);
     }
 
     public function test_admin_users_returns_501(): void
     {
-        $this->assertNotImplementedResponse('getJson', '/api/admin/users', $this->adminToken);
+        $this->assertNotImplementedResponse('getJson', '/api/v1/admin/users', $this->adminToken);
     }
 
     public function test_admin_drivers_returns_501(): void
     {
-        $this->assertNotImplementedResponse('getJson', '/api/admin/drivers', $this->adminToken);
+        $this->assertNotImplementedResponse('getJson', '/api/v1/admin/drivers', $this->adminToken);
     }
 
     public function test_admin_vehicles_returns_501(): void
     {
-        $this->assertNotImplementedResponse('getJson', '/api/admin/vehicles', $this->adminToken);
+        $this->assertNotImplementedResponse('getJson', '/api/v1/admin/vehicles', $this->adminToken);
     }
 
     public function test_admin_routes_returns_501(): void
     {
-        $this->assertNotImplementedResponse('getJson', '/api/admin/routes', $this->adminToken);
+        $this->assertNotImplementedResponse('getJson', '/api/v1/admin/routes', $this->adminToken);
     }
 
     public function test_admin_transactions_returns_501(): void
     {
-        $this->assertNotImplementedResponse('getJson', '/api/admin/transactions', $this->adminToken);
+        $this->assertNotImplementedResponse('getJson', '/api/v1/admin/transactions', $this->adminToken);
     }
 
     public function test_admin_remittances_returns_501(): void
     {
-        $this->assertNotImplementedResponse('getJson', '/api/admin/remittances', $this->adminToken);
+        $this->assertNotImplementedResponse('getJson', '/api/v1/admin/remittances', $this->adminToken);
     }
 
     public function test_admin_announcements_returns_501(): void
     {
-        $this->assertNotImplementedResponse('getJson', '/api/admin/announcements', $this->adminToken);
+        $this->assertNotImplementedResponse('getJson', '/api/v1/admin/announcements', $this->adminToken);
     }
 
     public function test_admin_lost_items_returns_501(): void
     {
-        $this->assertNotImplementedResponse('getJson', '/api/admin/lost-items', $this->adminToken);
+        $this->assertNotImplementedResponse('getJson', '/api/v1/admin/lost-items', $this->adminToken);
     }
 
     public function test_admin_shift_logs_returns_501(): void
     {
-        $this->assertNotImplementedResponse('getJson', '/api/admin/shift-logs', $this->adminToken);
+        $this->assertNotImplementedResponse('getJson', '/api/v1/admin/shift-logs', $this->adminToken);
     }
 
     // ── Payment Endpoints (4) ────────────────────────────────────
 
     public function test_payment_initiate_returns_501(): void
     {
-        $this->assertNotImplementedResponse('postJson', '/api/payments/initiate', $this->commuterToken);
+        $this->assertNotImplementedResponse('postJson', '/api/v1/payments/initiate', $this->commuterToken);
     }
 
     public function test_payment_verify_returns_501(): void
     {
-        $this->assertNotImplementedResponse('postJson', '/api/payments/verify', $this->commuterToken);
+        $this->assertNotImplementedResponse('postJson', '/api/v1/payments/verify', $this->commuterToken);
     }
 
     public function test_payment_history_returns_501(): void
     {
-        $this->assertNotImplementedResponse('getJson', '/api/payments/history', $this->commuterToken);
+        $this->assertNotImplementedResponse('getJson', '/api/v1/payments/history', $this->commuterToken);
     }
 
     public function test_payment_topup_returns_501(): void
     {
-        $this->assertNotImplementedResponse('postJson', '/api/payments/topup', $this->commuterToken);
+        $this->assertNotImplementedResponse('postJson', '/api/v1/payments/topup', $this->commuterToken);
     }
 
     // ── QR Endpoints (3) ─────────────────────────────────────────
 
     public function test_qr_generate_returns_501(): void
     {
-        $this->assertNotImplementedResponse('postJson', '/api/qr/generate', $this->commuterToken);
+        $this->assertNotImplementedResponse('postJson', '/api/v1/qr/generate', $this->commuterToken);
     }
 
     public function test_qr_validate_returns_501(): void
     {
-        $this->assertNotImplementedResponse('postJson', '/api/qr/validate', $this->commuterToken);
+        $this->assertNotImplementedResponse('postJson', '/api/v1/qr/validate', $this->commuterToken);
     }
 
     public function test_qr_scan_returns_501(): void
     {
-        $this->assertNotImplementedResponse('postJson', '/api/qr/scan', $this->commuterToken);
+        $this->assertNotImplementedResponse('postJson', '/api/v1/qr/scan', $this->commuterToken);
     }
 
     // ── Total Count Verification ─────────────────────────────────
 
-    public function test_total_placeholder_endpoints_is_28(): void
+    public function test_total_placeholder_endpoints_is_21(): void
     {
-        // 5 commuter + 6 conductor + 10 admin + 4 payment + 3 QR = 28
-        // This test is a sanity check — if any endpoint above was removed,
-        // it would stop asserting 501, making the count mismatch obvious.
-        $this->assertEquals(28, 5 + 6 + 10 + 4 + 3);
+        // 3 commuter + 1 conductor + 10 admin + 4 payment + 3 QR = 21
+        $this->assertEquals(21, 3 + 1 + 10 + 4 + 3);
     }
 }

@@ -156,7 +156,7 @@ class HailHttpTest extends TestCase
     public function test_post_hail_at_500m_returns_201(): void
     {
         $response = $this->actingAs($this->commuter, 'sanctum')
-            ->postJson('/api/commuter/hail', [
+            ->postJson('/api/v1/commuter/hail', [
                 'vehicle_id'   => $this->vehicle->id,
                 'commuter_lat' => $this->vehicleLat + 0.0045, // ~500m north
                 'commuter_lng' => $this->vehicleLng,
@@ -169,7 +169,7 @@ class HailHttpTest extends TestCase
     public function test_post_hail_at_1500m_returns_422_with_outside_radius(): void
     {
         $response = $this->actingAs($this->commuter, 'sanctum')
-            ->postJson('/api/commuter/hail', [
+            ->postJson('/api/v1/commuter/hail', [
                 'vehicle_id'   => $this->vehicle->id,
                 'commuter_lat' => $this->vehicleLat + 0.0135, // ~1500m north
                 'commuter_lng' => $this->vehicleLng,
@@ -206,7 +206,7 @@ class HailHttpTest extends TestCase
         );
 
         $response = $this->actingAs($this->conductor, 'sanctum')
-            ->getJson('/api/conductor/hails');
+            ->getJson('/api/v1/conductor/hails');
 
         $response->assertOk();
         $response->assertJsonStructure([
@@ -250,7 +250,7 @@ class HailHttpTest extends TestCase
     public function test_admin_cannot_post_commuter_hail_returns_403(): void
     {
         $response = $this->actingAs($this->admin, 'sanctum')
-            ->postJson('/api/commuter/hail', [
+            ->postJson('/api/v1/commuter/hail', [
                 'vehicle_id'   => $this->vehicle->id,
                 'commuter_lat' => $this->vehicleLat + 0.0045,
                 'commuter_lng' => $this->vehicleLng,
@@ -262,7 +262,7 @@ class HailHttpTest extends TestCase
     public function test_conductor_cannot_post_commuter_hail_returns_403(): void
     {
         $response = $this->actingAs($this->conductor, 'sanctum')
-            ->postJson('/api/commuter/hail', [
+            ->postJson('/api/v1/commuter/hail', [
                 'vehicle_id'   => $this->vehicle->id,
                 'commuter_lat' => $this->vehicleLat + 0.0045,
                 'commuter_lng' => $this->vehicleLng,
@@ -274,7 +274,7 @@ class HailHttpTest extends TestCase
     public function test_commuter_cannot_access_conductor_hail_endpoints_returns_403(): void
     {
         $response = $this->actingAs($this->commuter, 'sanctum')
-            ->getJson('/api/conductor/hails');
+            ->getJson('/api/v1/conductor/hails');
 
         $response->assertForbidden();
     }
