@@ -1,32 +1,39 @@
 import { NextRequest } from "next/server";
-import { getConductorSession, unauthorizedResponse } from "@/lib/conductor/server/auth";
+import { proxyToLaravel } from "@/lib/conductor/server/proxy";
 import { jsonData, jsonError } from "@/lib/conductor/server/response";
-import * as store from "@/lib/conductor/server/store";
+import { mapShiftLog } from "@/lib/conductor/server/mappers";
 
 export async function POST(request: NextRequest) {
-  const session = getConductorSession(request);
-  if (!session) return unauthorizedResponse();
+  let body: { unitId?: string; driverId?: string; routeId?: string };
 
   try {
-    const body = await request.json();
-    const { conductorName, unitNumber, route, driverName } = body ?? {};
+    body = await request.json();
+  } catch {
+    return jsonError("Invalid request body.", 400);
+  }
 
-    if (!conductorName || !unitNumber || !route || !driverName) {
-      return jsonError("conductorName, unitNumber, route, and driverName are required.");
-    }
+  const { unitId, driverId, routeId } = body;
 
-    const shift = store.startShift(session.userId, {
-      conductorName,
-      unitNumber,
-      route,
-      driverName,
-    });
+  if (!unitId || !driverId) {
+    return jsonError("unitId and driverId are required.", 422);
+  }
 
-    return jsonData(shift, 201);
-  } catch (error) {
+  const result = await proxyToLaravel(request, "/conductor/shifts/start", {
+    method: "POST",
+    body: {
+      vehicle_id: unitId,
+      driver_id: driverId,
+      route_id: routeId ?? null,
+    },
+  });
+
+  if (!result.ok) {
     return jsonError(
-      error instanceof Error ? error.message : "Unable to start shift.",
-      409
+      result.message ?? "Unable to start shift.",
+      result.status
     );
   }
+
+  const shift = mapShiftLog(result.data);
+  return jsonData(shift, 201);
 }
