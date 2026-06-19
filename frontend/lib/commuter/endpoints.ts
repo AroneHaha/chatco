@@ -10,8 +10,8 @@ export const COMMUTER_API = {
   profile: "/api/commuter/profile",
   tracking: {
     nearby: "/api/commuter/tracking/nearby",
-    hail: "/api/commuter/tracking/hail",
-    cancelHail: "/api/commuter/tracking/hail/cancel",
+    hail: "/api/commuter/hail",
+    cancelHail: (id: string) => `/api/commuter/hail/${id}`,
   },
   payments: {
     history: "/api/commuter/payments",
