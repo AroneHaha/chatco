@@ -3,7 +3,7 @@
 // When the Laravel backend is integrated, all URLs are defined here
 // so migrating from mock data to real API calls only requires updating these constants.
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 // ─── Auth ────────────────────────────────────────────────────────────
 export const AUTH = {

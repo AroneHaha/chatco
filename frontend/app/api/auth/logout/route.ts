@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
     const token = request.cookies.get("chatco_session")?.value;
 
     if (token) {
-      await fetch(`${API_URL}/api/auth/logout`, {
+      await fetch(`${API_URL}/api/v1/auth/logout`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,

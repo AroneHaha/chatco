@@ -35,12 +35,8 @@ import { NextResponse } from "next/server";
 export const API_URL = process.env.API_URL || "http://localhost:8000";
 
 /**
- * API version prefix. The codebase currently uses `/api/` (no /v1),
- * but this constant is exported for future migration to `/api/v1/...`.
- * Existing endpoints: /api/commuter/hail, /api/conductor/hails, etc.
- *
- * To enable /v1 prefix, set API_V1 = "/api/v1" and update path callers
- * to omit the /api prefix. For now this is a documentation-only constant.
+ * API version prefix. All Laravel routes use /api/v1/ prefix.
+ * Callers pass paths like "/api/v1/commuter/hail" to proxyToLaravel.
  */
 export const API_V1 = "/api/v1";
 
