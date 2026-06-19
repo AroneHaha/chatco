@@ -93,20 +93,4 @@ class Hail extends Model
         $query->where('status', HailStatus::PENDING)
             ->where('expires_at', '<', now());
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Helpers
-    |--------------------------------------------------------------------------
-    */
-
-    public function isPending(): bool
-    {
-        return $this->status === HailStatus::PENDING;
-    }
-
-    public function isTerminal(): bool
-    {
-        return $this->status->isTerminal();
-    }
 }
