@@ -9,6 +9,7 @@ use App\Http\Controllers\Conductor\ConductorController;
 use App\Http\Controllers\Conductor\ConductorHailController;
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Payment\PaymentController;
+use App\Http\Controllers\Payment\QrController;
 
 /*
 |--------------------------------------------------------------------------
@@ -35,8 +36,6 @@ Route::middleware('auth:sanctum')->get('/user', [AuthController::class, 'user'])
 Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(function () {
     Route::get('/profile', [CommuterController::class, 'profile']);
     Route::get('/trips', [CommuterController::class, 'trips']);
-    Route::get('/wallet', [CommuterController::class, 'wallet']);
-    Route::post('/wallet/topup', [CommuterController::class, 'walletTopup']);
     Route::get('/rewards', [CommuterController::class, 'rewards']);
 
     // Hail lifecycle (commuter-side) — 10 req/min per user
@@ -50,18 +49,22 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
 |--------------------------------------------------------------------------
 */
 Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->group(function () {
-    Route::get('/shift', [ConductorController::class, 'shiftStatus']);
-    Route::post('/shifts/start', [ConductorController::class, 'startShift']);
-    Route::post('/remittances', [ConductorController::class, 'remittances']);
-    Route::post('/location', [ConductorController::class, 'updateLocation']);
-    Route::post('/capacity-status', [ConductorController::class, 'updateCapacityStatus']);
-    Route::get('/shift-logs', [ConductorController::class, 'shiftLogs']);
-    Route::get('/transactions', [ConductorController::class, 'transactions']);
-    Route::get('/profile', [ConductorController::class, 'profile']);
-    Route::get('/units', [ConductorController::class, 'units']);
-    Route::get('/drivers', [ConductorController::class, 'drivers']);
+    Route::get('/shift', [ConductorController::class, 'shiftStatus'])->middleware('throttle:conductor-read');
+    Route::get('/shift-logs', [ConductorController::class, 'shiftLogs'])->middleware('throttle:conductor-read');
+    Route::get('/profile', [ConductorController::class, 'profile'])->middleware('throttle:conductor-read');
+    Route::get('/units', [ConductorController::class, 'units'])->middleware('throttle:conductor-read');
+    Route::get('/drivers', [ConductorController::class, 'drivers'])->middleware('throttle:conductor-read');
 
-    // Hail lifecycle (conductor-side) — reads 60/min, mutations 30/min
+    Route::post('/shifts/start', [ConductorController::class, 'startShift'])->middleware('throttle:conductor-mutation');
+    Route::post('/remittances', [ConductorController::class, 'remittances'])->middleware('throttle:conductor-mutation');
+
+    Route::post('/location', [ConductorController::class, 'updateLocation'])->middleware('throttle:conductor-gps');
+
+    Route::post('/capacity-status', [ConductorController::class, 'updateCapacityStatus'])->middleware('throttle:conductor-write');
+
+    Route::get('/transactions', [ConductorController::class, 'transactions'])->middleware('throttle:conductor-write');
+
+    // Hail lifecycle (conductor-side)
     Route::get('/hails', [ConductorHailController::class, 'index'])->middleware('throttle:conductor-read');
     Route::post('/hails/{id}/accept', [ConductorHailController::class, 'accept'])->middleware('throttle:conductor-mutation');
     Route::post('/hails/{id}/reject', [ConductorHailController::class, 'reject'])->middleware('throttle:conductor-mutation');
@@ -73,7 +76,7 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->grou
 |--------------------------------------------------------------------------
 */
 Route::prefix('vehicles')->middleware(['auth:sanctum'])->group(function () {
-    Route::get('/locations', [VehicleLocationController::class, 'index']);
+    Route::get('/locations', [VehicleLocationController::class, 'index'])->middleware('throttle:vehicle-locations');
 });
 
 /*
@@ -104,4 +107,15 @@ Route::prefix('payments')->middleware(['auth:sanctum'])->group(function () {
     Route::post('/verify', [PaymentController::class, 'verify']);
     Route::get('/history', [PaymentController::class, 'history']);
     Route::post('/topup', [PaymentController::class, 'topup']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| QR Routes (Authenticated — any role)
+|--------------------------------------------------------------------------
+*/
+Route::prefix('qr')->middleware(['auth:sanctum'])->group(function () {
+    Route::post('/generate', [QrController::class, 'generate']);
+    Route::post('/validate', [QrController::class, 'validate']);
+    Route::post('/scan', [QrController::class, 'scan']);
 });
