@@ -3,16 +3,9 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
-    /**
-     * The remittances table was created in Sprint 1 with transaction_id
-     * and conductor_profile_id. Sprint 2 shifts change the remittance model:
-     * - A remittance is now tied to a shift (not just a single transaction)
-     * - It tracks total_collected vs remitted_amount vs shortage
-     */
     public function up(): void
     {
         Schema::table('remittances', function (Blueprint $table) {
@@ -49,14 +42,9 @@ return new class extends Migration
             }
         });
 
-        // Add FK for shift_id if not exists
-        $fkExists = collect(DB::select("
-            SELECT CONSTRAINT_NAME
-            FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = 'remittances'
-              AND CONSTRAINT_NAME = 'remittances_shift_id_foreign'
-        "))->isNotEmpty();
+        $fkExists = collect(Schema::getForeignKeys('remittances'))
+            ->pluck('name')
+            ->contains('remittances_shift_id_foreign');
 
         if (! $fkExists && Schema::hasColumn('remittances', 'shift_id')) {
             Schema::table('remittances', function (Blueprint $table) {
@@ -70,13 +58,9 @@ return new class extends Migration
 
     public function down(): void
     {
-        $fkExists = collect(DB::select("
-            SELECT CONSTRAINT_NAME
-            FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = 'remittances'
-              AND CONSTRAINT_NAME = 'remittances_shift_id_foreign'
-        "))->isNotEmpty();
+        $fkExists = collect(Schema::getForeignKeys('remittances'))
+            ->pluck('name')
+            ->contains('remittances_shift_id_foreign');
 
         if ($fkExists) {
             Schema::table('remittances', function (Blueprint $table) {

@@ -11,8 +11,8 @@ return new class extends Migration
         Schema::create('vehicle_locations', function (Blueprint $table) {
             $table->uuid('vehicle_id')->primary();
             $table->uuid('conductor_id')->nullable();
-            $table->decimal('lat', 10, 7);
-            $table->decimal('lng', 10, 7);
+            $table->decimal('lat', 10, 7)->nullable();
+            $table->decimal('lng', 10, 7)->nullable();
             $table->decimal('speed', 5, 2)->nullable();
             $table->decimal('heading', 5, 2)->nullable();
             $table->enum('capacity_status', ['AVAILABLE', 'STANDING', 'FULL'])->default('AVAILABLE');

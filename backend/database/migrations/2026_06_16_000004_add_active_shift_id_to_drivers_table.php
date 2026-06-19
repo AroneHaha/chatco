@@ -3,7 +3,6 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -15,13 +14,9 @@ return new class extends Migration
             }
         });
 
-        $fkExists = collect(DB::select("
-            SELECT CONSTRAINT_NAME
-            FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = 'drivers'
-              AND CONSTRAINT_NAME = 'drivers_active_shift_id_foreign'
-        "))->isNotEmpty();
+        $fkExists = collect(Schema::getForeignKeys('drivers'))
+            ->pluck('name')
+            ->contains('drivers_active_shift_id_foreign');
 
         if (Schema::hasColumn('drivers', 'active_shift_id') && ! $fkExists) {
             Schema::table('drivers', function (Blueprint $table) {
@@ -32,13 +27,9 @@ return new class extends Migration
 
     public function down(): void
     {
-        $fkExists = collect(DB::select("
-            SELECT CONSTRAINT_NAME
-            FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = 'drivers'
-              AND CONSTRAINT_NAME = 'drivers_active_shift_id_foreign'
-        "))->isNotEmpty();
+        $fkExists = collect(Schema::getForeignKeys('drivers'))
+            ->pluck('name')
+            ->contains('drivers_active_shift_id_foreign');
 
         if ($fkExists) {
             Schema::table('drivers', function (Blueprint $table) {
