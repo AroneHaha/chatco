@@ -5,10 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class Vehicle extends Model
 {
     use HasFactory, SoftDeletes;
+
+    public $incrementing = false;
+    protected $keyType = 'string';
 
     protected $fillable = [
         'unit_number',
@@ -34,6 +38,18 @@ class Vehicle extends Model
             'last_location_update' => 'datetime',
             'active_shift_id' => 'string',
         ];
+    }
+
+    /**
+     * Auto-generate UUID on creation.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (Vehicle $vehicle) {
+            if (empty($vehicle->id)) {
+                $vehicle->id = (string) Str::uuid();
+            }
+        });
     }
 
     public function route()
