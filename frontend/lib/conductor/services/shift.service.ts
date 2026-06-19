@@ -24,25 +24,31 @@ export async function fetchActiveShift(): Promise<ConductorShift | null> {
 }
 
 export async function startShift(data: {
-  conductorName: string;
-  unitNumber: string;
-  route: string;
-  driverName: string;
+  unitId: string;
+  driverId: string;
+  routeId?: string;
 }): Promise<ConductorShift> {
   if (shouldUseConductorApi()) {
-    try {
-      const response = await api.post<{ data: ConductorShift }>(
-        CONDUCTOR_API.shifts.start,
-        data
-      );
-      shiftStore.cacheShift(response.data);
-      return response.data;
-    } catch (error) {
-      if (!(error instanceof NetworkError) && !(error instanceof ApiError)) throw error;
-    }
+    const response = await api.post<{ data: ConductorShift }>(
+      CONDUCTOR_API.shifts.start,
+      data
+    );
+    shiftStore.cacheShift(response.data);
+    return response.data;
   }
 
-  return shiftStore.startShift(data);
+  const shift: ConductorShift = {
+    shiftId: `SHF-${Date.now().toString(36).toUpperCase()}`,
+    conductorName: "Conductor",
+    unitNumber: data.unitId,
+    route: "",
+    driverName: "Driver",
+    timeIn: new Date().toISOString(),
+    timeOut: null,
+    isActive: true,
+  };
+  shiftStore.cacheShift(shift);
+  return shift;
 }
 
 export async function endShift(): Promise<ConductorShift | null> {

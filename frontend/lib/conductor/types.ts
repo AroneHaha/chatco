@@ -32,6 +32,7 @@ export interface ConductorUnit {
   unitNumber: string;
   plateNumber: string;
   route: string;
+  routeId?: string;
   status: "available" | "in-use" | "maintenance";
 }
 
