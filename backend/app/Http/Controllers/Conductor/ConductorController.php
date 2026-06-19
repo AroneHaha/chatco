@@ -150,9 +150,13 @@ class ConductorController extends Controller
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
+        $profile = $user->conductorProfile;
+
         return $this->successResponse([
             'id' => $user->id,
-            'name' => $user->first_name . ' ' . $user->last_name,
+            'name' => $profile
+                ? trim($profile->first_name . ' ' . $profile->last_name)
+                : $user->email,
             'email' => $user->email,
             'role' => $user->role,
         ], 'Conductor profile retrieved');

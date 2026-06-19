@@ -86,7 +86,7 @@ class ShiftService
             abort(403, 'Forbidden');
         }
 
-        if ($shiftLog->status !== ShiftStatus::ACTIVE->value) {
+        if ($shiftLog->status !== ShiftStatus::ACTIVE) {
             abort(422, 'Shift is not active');
         }
 
