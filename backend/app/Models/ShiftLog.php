@@ -28,7 +28,6 @@ class ShiftLog extends Model
         'route_name',
         'time_in',
         'time_out',
-        'total_trips',
         'is_active',
         'status',
         'notes',
@@ -39,7 +38,7 @@ class ShiftLog extends Model
         return [
             'time_in' => 'datetime',
             'time_out' => 'datetime',
-            'total_trips' => 'integer',
+            'is_active' => 'boolean',
             'status' => ShiftStatus::class,
         ];
     }

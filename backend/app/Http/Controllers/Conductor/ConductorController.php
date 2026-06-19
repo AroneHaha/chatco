@@ -164,11 +164,15 @@ class ConductorController extends Controller
 
     /**
      * GET /api/conductor/units
-     * Returns available vehicles for shift assignment.
+     * Returns ACTIVE vehicles not currently on a shift, with their route
+     * eager-loaded so the selection UI can display the route name.
      */
     public function units(): JsonResponse
     {
-        $units = Vehicle::where('status', 'ACTIVE')->get();
+        $units = Vehicle::where('status', 'ACTIVE')
+            ->whereDoesntHave('activeShift')
+            ->with('route')
+            ->get();
 
         return $this->successResponse($units, 'Available vehicles retrieved');
     }
