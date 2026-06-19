@@ -4,9 +4,9 @@ namespace App\Enums;
 
 enum HailStatus: string
 {
-    case PENDING = 'pending';
-    case ACCEPTED = 'accepted';
-    case REJECTED = 'rejected';
-    case CANCELLED = 'cancelled';
-    case EXPIRED = 'expired';
+    case PENDING = 'PENDING';
+    case ACCEPTED = 'ACCEPTED';
+    case REJECTED = 'REJECTED';
+    case CANCELLED = 'CANCELLED';
+    case EXPIRED = 'EXPIRED';
 }
