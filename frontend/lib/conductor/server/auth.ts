@@ -8,14 +8,7 @@ export interface ConductorSession {
   name?: string;
 }
 
-const CONDUCTOR_ACCOUNTS: Record<
-  string,
-  { email: string; name: string }
-> = {
-  c_1: { email: "conductor@chatco.com", name: "Pedro Penduko" },
-};
-
-function parseSessionToken(token: string): ConductorSession | null {
+function parseLegacyToken(token: string): ConductorSession | null {
   const parts = token.split(":");
   if (parts.length < 3 || parts[0] !== "chatco") return null;
   return { userId: parts[1], role: parts[2] };
@@ -27,16 +20,20 @@ export function getConductorSession(
   const token = request.cookies.get("chatco_session")?.value;
   if (!token) return null;
 
-  const session = parseSessionToken(token);
-  if (!session || session.role !== "CONDUCTOR") return null;
+  const legacy = parseLegacyToken(token);
+  if (legacy) {
+    if (legacy.role !== "CONDUCTOR") return null;
+    return legacy;
+  }
 
-  const account = CONDUCTOR_ACCOUNTS[session.userId];
-  if (!account) return session;
+  const role = request.cookies.get("chatco_role")?.value;
+  if (role !== "CONDUCTOR") return null;
+
+  const tokenId = token.split("|")[0] || "sanctum_user";
 
   return {
-    ...session,
-    email: account.email,
-    name: account.name,
+    userId: tokenId,
+    role: "CONDUCTOR",
   };
 }
 
