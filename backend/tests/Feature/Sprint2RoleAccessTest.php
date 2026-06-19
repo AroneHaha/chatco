@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\UserRole;
 use App\Models\Driver;
 use App\Models\Route;
 use App\Models\User;
@@ -16,7 +17,7 @@ class Sprint2RoleAccessTest extends TestCase
     public function test_commuter_cannot_access_conductor_shift_start(): void
     {
         /** @var \App\Models\User $commuter */
-        $commuter = User::factory()->create(['role' => 'commuter']);
+        $commuter = User::factory()->create(['role' => UserRole::COMMUTER]);
         $vehicle = Vehicle::factory()->create();
         $driver = Driver::factory()->create();
         $route = Route::factory()->create();
@@ -34,7 +35,7 @@ class Sprint2RoleAccessTest extends TestCase
     public function test_admin_cannot_start_shift(): void
     {
         /** @var \App\Models\User $admin */
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => UserRole::ADMIN]);
         $vehicle = Vehicle::factory()->create();
         $driver = Driver::factory()->create();
         $route = Route::factory()->create();
@@ -52,7 +53,7 @@ class Sprint2RoleAccessTest extends TestCase
     public function test_commuter_cannot_update_vehicle_location(): void
     {
         /** @var \App\Models\User $commuter */
-        $commuter = User::factory()->create(['role' => 'commuter']);
+        $commuter = User::factory()->create(['role' => UserRole::COMMUTER]);
         $vehicle = Vehicle::factory()->create();
 
         $response = $this->actingAs($commuter)
@@ -68,7 +69,7 @@ class Sprint2RoleAccessTest extends TestCase
     public function test_admin_cannot_update_vehicle_location(): void
     {
         /** @var \App\Models\User $admin */
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => UserRole::ADMIN]);
         $vehicle = Vehicle::factory()->create();
 
         $response = $this->actingAs($admin)
@@ -84,7 +85,7 @@ class Sprint2RoleAccessTest extends TestCase
     public function test_conductor_can_access_own_routes(): void
     {
         /** @var \App\Models\User $conductor */
-        $conductor = User::factory()->create(['role' => 'conductor']);
+        $conductor = User::factory()->create(['role' => UserRole::CONDUCTOR]);
 
         $response = $this->actingAs($conductor)
             ->getJson('/api/conductor/shift');
@@ -95,10 +96,10 @@ class Sprint2RoleAccessTest extends TestCase
     public function test_any_authenticated_user_can_view_vehicle_locations(): void
     {
         /** @var \App\Models\User $commuter */
-        $commuter = User::factory()->create(['role' => 'commuter']);
+        $commuter = User::factory()->create(['role' => UserRole::COMMUTER]);
 
         /** @var \App\Models\User $admin */
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => UserRole::ADMIN]);
 
         $commuterResponse = $this->actingAs($commuter)
             ->getJson('/api/vehicles/locations');

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\CapacityStatus;
+use App\Enums\UserRole;
 use App\Models\Driver;
 use App\Models\Route;
 use App\Models\ShiftLog;
@@ -28,7 +29,7 @@ class LocationTest extends TestCase
         parent::setUp();
 
         /** @var \App\Models\User $conductor */
-        $this->conductor = User::factory()->create(['role' => 'conductor']);
+        $this->conductor = User::factory()->create(['role' => UserRole::CONDUCTOR]);
         $this->vehicle = Vehicle::factory()->create();
         $this->driver = Driver::factory()->create();
         $this->route = Route::factory()->create();
@@ -88,7 +89,7 @@ class LocationTest extends TestCase
         $this->vehicle->update(['active_shift_id' => null]);
 
         /** @var \App\Models\User $conductorNoShift */
-        $conductorNoShift = User::factory()->create(['role' => 'conductor']);
+        $conductorNoShift = User::factory()->create(['role' => UserRole::CONDUCTOR]);
 
         $response = $this->actingAs($conductorNoShift)
             ->postJson('/api/conductor/location', [
@@ -138,7 +139,7 @@ class LocationTest extends TestCase
     public function test_commuter_can_get_all_active_locations(): void
     {
         /** @var \App\Models\User $commuter */
-        $commuter = User::factory()->create(['role' => 'commuter']);
+        $commuter = User::factory()->create(['role' => UserRole::COMMUTER]);
 
         VehicleLocation::create([
             'vehicle_id' => $this->vehicle->id,
@@ -194,7 +195,7 @@ class LocationTest extends TestCase
     public function test_non_conductor_cannot_update_location(): void
     {
         /** @var \App\Models\User $commuter */
-        $commuter = User::factory()->create(['role' => 'commuter']);
+        $commuter = User::factory()->create(['role' => UserRole::COMMUTER]);
 
         $response = $this->actingAs($commuter)
             ->postJson('/api/conductor/location', [

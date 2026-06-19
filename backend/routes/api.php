@@ -7,7 +7,6 @@ use App\Http\Controllers\Commuter\VehicleLocationController;
 use App\Http\Controllers\Conductor\ConductorController;
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Payment\PaymentController;
-use App\Http\Controllers\Payment\QrController;
 
 /*
 |--------------------------------------------------------------------------
@@ -94,22 +93,4 @@ Route::prefix('payments')->middleware(['auth:sanctum'])->group(function () {
     Route::post('/verify', [PaymentController::class, 'verify']);
     Route::get('/history', [PaymentController::class, 'history']);
     Route::post('/topup', [PaymentController::class, 'topup']);
-});
-
-/*
-|--------------------------------------------------------------------------
-| QR Routes (Authenticated — any role)
-|--------------------------------------------------------------------------
-*/
-Route::middleware(['auth:sanctum', 'role:conductor'])->prefix('conductor')->group(function () {
-    Route::get('/profile', [ConductorController::class, 'profile']);
-    Route::get('/units', [ConductorController::class, 'units']);
-    Route::get('/drivers', [ConductorController::class, 'drivers']);
-    Route::get('/shift', [ConductorController::class, 'shiftStatus']);
-    Route::post('/shifts/start', [ConductorController::class, 'startShift']);
-    Route::post('/remittances', [ConductorController::class, 'remittances']);
-    Route::post('/location', [ConductorController::class, 'updateLocation']);
-    Route::post('/capacity-status', [ConductorController::class, 'updateCapacityStatus']);
-    Route::get('/shift-logs', [ConductorController::class, 'shiftLogs']);
-    Route::get('/transactions', [ConductorController::class, 'transactions']);
 });

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\UserRole;
 use App\Models\Driver;
 use App\Models\Route;
 use App\Models\ShiftLog;
@@ -24,7 +25,7 @@ class ShiftTest extends TestCase
         parent::setUp();
 
         /** @var \App\Models\User $conductor */
-        $this->conductor = User::factory()->create(['role' => 'conductor']);
+        $this->conductor = User::factory()->create(['role' => UserRole::CONDUCTOR]);
         $this->vehicle = Vehicle::factory()->create();
         $this->driver = Driver::factory()->create();
         $this->route = Route::factory()->create();
@@ -84,7 +85,7 @@ class ShiftTest extends TestCase
             ]);
 
         /** @var \App\Models\User $otherConductor */
-        $otherConductor = User::factory()->create(['role' => 'conductor']);
+        $otherConductor = User::factory()->create(['role' => UserRole::CONDUCTOR]);
 
         $response = $this->actingAs($otherConductor)
             ->postJson('/api/conductor/shift/start', [
@@ -106,7 +107,7 @@ class ShiftTest extends TestCase
             ]);
 
         /** @var \App\Models\User $otherConductor */
-        $otherConductor = User::factory()->create(['role' => 'conductor']);
+        $otherConductor = User::factory()->create(['role' => UserRole::CONDUCTOR]);
 
         $response = $this->actingAs($otherConductor)
             ->postJson('/api/conductor/shift/start', [
@@ -121,7 +122,7 @@ class ShiftTest extends TestCase
     public function test_non_conductor_cannot_start_shift(): void
     {
         /** @var \App\Models\User $commuter */
-        $commuter = User::factory()->create(['role' => 'commuter']);
+        $commuter = User::factory()->create(['role' => UserRole::COMMUTER]);
 
         $response = $this->actingAs($commuter)
             ->postJson('/api/conductor/shift/start', [
@@ -176,7 +177,7 @@ class ShiftTest extends TestCase
         $shift = ShiftLog::where('conductor_id', $this->conductor->id)->first();
 
         /** @var \App\Models\User $otherConductor */
-        $otherConductor = User::factory()->create(['role' => 'conductor']);
+        $otherConductor = User::factory()->create(['role' => UserRole::CONDUCTOR]);
 
         $response = $this->actingAs($otherConductor)
             ->postJson('/api/conductor/shift/end', [

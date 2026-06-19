@@ -8,6 +8,7 @@ use App\Models\Route;
 use App\Models\ShiftLog;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Enums\UserRole;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Broadcast;
 use Tests\TestCase;
@@ -45,7 +46,7 @@ class BroadcastTest extends TestCase
     public function test_vehicles_channel_is_public(): void
     {
         /** @var \App\Models\User $commuter */
-        $commuter = User::factory()->create(['role' => 'commuter']);
+        $commuter = User::factory()->create(['role' => UserRole::COMMUTER]);
 
         $response = $this->actingAs($commuter)
             ->postJson('/broadcasting/auth', [
