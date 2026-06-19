@@ -136,12 +136,10 @@ class HailService
             abort(422, 'Hail is not pending');
         }
 
-        $previousStatus = $hail->status;
-
         $hail->update(['status' => HailStatus::CANCELLED]);
         $hail->refresh();
 
-        broadcast(new HailStatusChanged($hail, $previousStatus));
+        broadcast(new HailStatusChanged($hail));
 
         return $hail;
     }
@@ -174,15 +172,13 @@ class HailService
             abort(422, 'Hail has expired');
         }
 
-        $previousStatus = $hail->status;
-
         $hail->update([
             'status'       => HailStatus::ACCEPTED,
             'conductor_id' => $conductor->id,
         ]);
         $hail->refresh();
 
-        broadcast(new HailStatusChanged($hail, $previousStatus));
+        broadcast(new HailStatusChanged($hail));
 
         return $hail;
     }
@@ -211,12 +207,10 @@ class HailService
             abort(422, 'Hail is not pending');
         }
 
-        $previousStatus = $hail->status;
-
         $hail->update(['status' => HailStatus::REJECTED]);
         $hail->refresh();
 
-        broadcast(new HailStatusChanged($hail, $previousStatus));
+        broadcast(new HailStatusChanged($hail));
 
         return $hail;
     }
@@ -244,17 +238,41 @@ class HailService
      * Bulk-expire stale hails: any PENDING hail with expires_at in the
      * past transitions to EXPIRED.
      *
-     * Typically called by a scheduled job (e.g., every minute) or on
-     * demand before listing pending hails for a vehicle.
+     * Fires a HailStatusChanged broadcast per expired hail so each
+     * affected commuter is notified in real time on their personal
+     * `commuter.{commuter_id}.hails` channel.
+     *
+     * Typically called by the `hails:expire` scheduled command (every
+     * minute) or on demand before listing pending hails for a vehicle.
      *
      * @return int  Number of hails transitioned to EXPIRED
      */
     public function expireStaleHails(): int
     {
-        return Hail::query()
+        // Fetch stale hails first so we can broadcast per-hail
+        $staleHails = Hail::query()
+            ->where('status', HailStatus::PENDING)
+            ->where('expires_at', '<', now())
+            ->get();
+
+        if ($staleHails->isEmpty()) {
+            return 0;
+        }
+
+        // Bulk UPDATE for efficiency
+        $updatedCount = Hail::query()
             ->where('status', HailStatus::PENDING)
             ->where('expires_at', '<', now())
             ->update(['status' => HailStatus::EXPIRED]);
+
+        // Per-hail broadcast so each commuter gets notified
+        foreach ($staleHails as $hail) {
+            // Sync the model's status to reflect the UPDATE without re-querying
+            $hail->status = HailStatus::EXPIRED;
+            broadcast(new HailStatusChanged($hail));
+        }
+
+        return $updatedCount;
     }
 
     /**

@@ -12,11 +12,13 @@ use Illuminate\Queue\SerializesModels;
 /**
  * Dispatched when a commuter creates a new hail.
  *
- * Broadcasts on the vehicle-specific channel so the conductor currently
- * on shift for that vehicle receives the new pending hail in real time.
+ * Broadcasts on the vehicle-scoped channel so the conductor currently on
+ * shift for that vehicle receives the new pending hail in real time.
  *
- * Channel: vehicle.{vehicleId}  (public — matches existing `vehicles`
- * channel convention; any subscribed client receives the event)
+ * Channel: vehicle.{vehicle_id}.hails  (public — matches existing
+ * `vehicles` channel convention; any subscribed client receives the event)
+ *
+ * Triggered by: HailService::createHail() after the row commits.
  */
 class HailCreated implements ShouldBroadcast
 {
@@ -31,7 +33,7 @@ class HailCreated implements ShouldBroadcast
 
     public function broadcastOn(): Channel
     {
-        return new Channel('vehicle.' . $this->hail->vehicle_id);
+        return new Channel('vehicle.' . $this->hail->vehicle_id . '.hails');
     }
 
     public function broadcastAs(): string
@@ -41,16 +43,18 @@ class HailCreated implements ShouldBroadcast
 
     public function broadcastWith(): array
     {
+        // Load commuter + profile if not already eager-loaded
+        $commuter = $this->hail->commuter()->with('commuterProfile')->first();
+
+        $commuterName = $commuter?->getDisplayName() ?? 'Unknown Commuter';
+
         return [
-            'id'            => $this->hail->id,
-            'commuter_id'   => $this->hail->commuter_id,
-            'vehicle_id'    => $this->hail->vehicle_id,
+            'hail_id'       => $this->hail->id,
+            'commuter_name' => $commuterName,
             'commuter_lat'  => (float) $this->hail->commuter_lat,
             'commuter_lng'  => (float) $this->hail->commuter_lng,
             'distance_m'    => (float) $this->hail->distance_m,
-            'status'        => $this->hail->status->value,
             'expires_at'    => $this->hail->expires_at->toIso8601String(),
-            'created_at'    => $this->hail->created_at->toIso8601String(),
         ];
     }
 }
