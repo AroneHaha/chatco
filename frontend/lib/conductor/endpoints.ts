@@ -24,6 +24,10 @@ export const CONDUCTOR_API = {
   ratings: (shiftId: string) =>
     `/api/conductor/ratings?shift_id=${encodeURIComponent(shiftId)}`,
   hails: "/api/conductor/hails",
+  hailAccept: (id: string) =>
+    `/api/conductor/hails/${encodeURIComponent(id)}/accept`,
+  hailReject: (id: string) =>
+    `/api/conductor/hails/${encodeURIComponent(id)}/reject`,
   shiftLogs: "/api/conductor/shift-logs",
   location: "/api/conductor/location",
 } as const;

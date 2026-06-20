@@ -27,4 +27,36 @@ export async function fetchActiveHails(): Promise<{
   return { hails: [], error: null };
 }
 
+/**
+ * Accept a pending hail for the conductor's active shift.
+ *
+ * POSTs to the Next.js accept proxy, which forwards to Laravel
+ * `POST /api/v1/conductor/hails/{id}/accept`. The route maps the updated hail
+ * to `ConductorHailRequest`.
+ *
+ * Errors (403 not your shift, 422 not pending/expired, network) propagate as
+ * `ApiError` / `NetworkError` so the caller can surface them; the polling list
+ * then reconciles on its next tick.
+ */
+export async function acceptHail(hailId: string): Promise<ConductorHailRequest> {
+  const response = await api.post<{ data: ConductorHailRequest }>(
+    CONDUCTOR_API.hailAccept(hailId)
+  );
+  return response.data;
+}
+
+/**
+ * Reject a pending hail for the conductor's active shift.
+ *
+ * POSTs to the Next.js reject proxy, which forwards to Laravel
+ * `POST /api/v1/conductor/hails/{id}/reject`. The route maps the updated hail
+ * to `ConductorHailRequest`. Errors propagate as `ApiError` / `NetworkError`.
+ */
+export async function rejectHail(hailId: string): Promise<ConductorHailRequest> {
+  const response = await api.post<{ data: ConductorHailRequest }>(
+    CONDUCTOR_API.hailReject(hailId)
+  );
+  return response.data;
+}
+
 export type { ConductorHailRequest };
