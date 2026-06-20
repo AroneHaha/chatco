@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import ConductorSidebar from "@/components/conductor/conductor-sidebar";
 import ConductorBottomNav from "@/components/conductor/conductor-bottom-nav";
 import ConductorPaymentModal from "@/components/conductor/conductor-payment-modal";
+import ConductorLocationBroadcaster from "@/components/conductor/conductor-location-broadcaster";
 
 export default function ConductorLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -36,6 +37,9 @@ export default function ConductorLayout({ children }: { children: React.ReactNod
 
       {/* Global Payment Modal — accessible from ALL tabs */}
       {!isUnitVerification && <ConductorPaymentModal />}
+
+      {/* Broadcast conductor GPS while on shift (so commuters see the vehicle) */}
+      {!isUnitVerification && <ConductorLocationBroadcaster />}
       
     </div>
   );

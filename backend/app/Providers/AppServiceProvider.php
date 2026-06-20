@@ -10,17 +10,11 @@ use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
     public function register(): void
     {
         //
     }
 
-    /**
-     * Bootstrap any application services.
-     */
     public function boot(): void
     {
         ResetPassword::createUrlUsing(function (object $notifiable, string $token) {
@@ -85,6 +79,15 @@ class AppServiceProvider extends ServiceProvider
         // Public vehicle locations endpoint — 60 req/min
         RateLimiter::for('vehicle-locations', function (Request $request) use ($rateLimitResponse) {
             return Limit::perMinute(60)
+                ->by($request->user()?->id ?: $request->ip())
+                ->response($rateLimitResponse);
+        });
+
+        // Commuter hail lifecycle — 10 req/min (one active hail at a time,
+        // with headroom for cancel + retry). Used by POST /commuter/hail
+        // and DELETE /commuter/hail/{id}.
+        RateLimiter::for('commuter-hail', function (Request $request) use ($rateLimitResponse) {
+            return Limit::perMinute(10)
                 ->by($request->user()?->id ?: $request->ip())
                 ->response($rateLimitResponse);
         });

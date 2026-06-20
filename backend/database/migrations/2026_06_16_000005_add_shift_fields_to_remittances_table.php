@@ -6,12 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * The remittances table was created in Sprint 1 with transaction_id
-     * and conductor_profile_id. Sprint 2 shifts change the remittance model:
-     * - A remittance is now tied to a shift (not just a single transaction)
-     * - It tracks total_collected vs remitted_amount vs shortage
-     */
     public function up(): void
     {
         Schema::table('remittances', function (Blueprint $table) {

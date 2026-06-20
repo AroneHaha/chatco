@@ -63,10 +63,9 @@ export default function ConductorLoginPage() {
 
     try {
       await startShift({
-        conductorName: profile.name,
-        unitNumber: selectedUnit.unitNumber,
-        route: selectedUnit.route,
-        driverName: selectedDriver.name,
+        unitId: selectedUnit.id,
+        driverId: selectedDriver.id,
+        routeId: selectedUnit.routeId,
       });
       router.push("/conductor-dashboard");
     } catch (err) {

@@ -57,6 +57,13 @@ export interface PaymentTendencies {
   cash: number;
 }
 
+export interface AlertItem {
+  id: string;
+  type: string;
+  message: string;
+  time: string;
+}
+
 export interface DashboardData {
   recentVehicles: VehicleItem[];
   recentLostFound: LostFoundItem[];

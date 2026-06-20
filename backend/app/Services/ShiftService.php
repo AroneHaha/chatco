@@ -50,13 +50,14 @@ class ShiftService
                 'route_id' => $routeId,
                 'time_in' => now(),
                 'time_out' => null,
+                'is_active' => true,
                 'status' => ShiftStatus::ACTIVE->value,
                 'conductor_name' => $conductorProfile
                     ? trim($conductorProfile->first_name . ' ' . $conductorProfile->last_name)
                     : $conductor->email,
                 'driver_name' => trim($driver->first_name . ' ' . $driver->last_name),
-                'plate_number' => $vehicle->plate_number,
                 'unit_number' => $vehicle->unit_number,
+                'plate_number' => $vehicle->plate_number,
             ]);
 
             $vehicle->update(['active_shift_id' => $shiftId]);
@@ -116,6 +117,7 @@ class ShiftService
 
             $shiftLog->update([
                 'status' => ShiftStatus::ENDED->value,
+                'is_active' => false,
                 'time_out' => now(),
             ]);
 

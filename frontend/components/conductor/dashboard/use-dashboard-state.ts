@@ -11,6 +11,8 @@ export function useDashboardState() {
   const { shift, elapsed, status: shiftStatus, error: shiftError } = useConductorShift();
   const { summary: liveTransactions, status: txnStatus, error: txnError } =
     useConductorTransactions(shift?.shiftId ?? null);
+  // Conductor just observes waiting commuters on the map; the commuter drives
+  // the hail lifecycle (create + cancel), so no accept/reject action here.
   const { hails } = useConductorHails();
 
   const [status, setStatus] = useState<ConductorStatus>("Available");

@@ -205,6 +205,15 @@ class SchemaTest extends TestCase
         $this->assertTrue(Schema::hasTable('vehicle_locations'), 'Table [vehicle_locations] does not exist.');
     }
 
+    // ── Sprint 3 Tables ──────────────────────────────────────────
+
+    public function test_hails_table_exists(): void
+    {
+        $this->assertTrue(Schema::hasTable('hails'));
+    }
+
+    // ── Column Checks ────────────────────────────────────────────
+
     public function test_vehicle_locations_has_required_columns(): void
     {
         $columns = ['vehicle_id', 'conductor_id', 'lat', 'lng', 'speed', 'heading', 'capacity_status', 'updated_at'];
