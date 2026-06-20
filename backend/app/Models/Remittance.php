@@ -14,11 +14,17 @@ class Remittance extends Model
         'conductor_id',
         'driver_id',
         'vehicle_id',
+        'date',
+        'conductor_name',
+        'driver_name',
+        'unit_number',
+        'total_passengers',
+        'time_in',
+        'time_out',
         'total_collected',
         'remitted_amount',
         'shortage',
         'remittance_status',
-        'remitted_at',
     ];
 
     protected function casts(): array
@@ -27,7 +33,6 @@ class Remittance extends Model
             'total_collected' => 'decimal:2',
             'remitted_amount' => 'decimal:2',
             'shortage' => 'decimal:2',
-            'remitted_at' => 'datetime',
         ];
     }
 

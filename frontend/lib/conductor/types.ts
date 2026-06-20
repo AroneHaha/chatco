@@ -32,6 +32,8 @@ export interface ConductorUnit {
   unitNumber: string;
   plateNumber: string;
   route: string;
+  /** UUID of the vehicle's assigned route — sent to Laravel as `route_id`
+   *  when starting a shift. Present when the unit comes from the backend. */
   routeId?: string;
   status: "available" | "in-use" | "maintenance";
 }

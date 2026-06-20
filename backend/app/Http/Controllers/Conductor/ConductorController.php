@@ -8,6 +8,7 @@ use App\Http\Requests\Conductor\StartShiftRequest;
 use App\Http\Requests\Conductor\UpdateLocationRequest;
 use App\Http\Requests\Conductor\SubmitRemittanceRequest;
 use App\Models\Driver;
+use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\LocationService;
 use App\Services\ShiftService;
@@ -144,19 +145,26 @@ class ConductorController extends Controller
 
     /**
      * GET /api/conductor/profile
+     *
+     * Note: first_name / last_name live on the ConductorProfile relation,
+     * not on the User model itself. Eager-load the profile to avoid
+     * returning a single-space name.
      */
     public function profile(): JsonResponse
     {
         /** @var \App\Models\User $user */
-        $user = Auth::user();
+        $user = User::with('conductorProfile')->find(Auth::id());
+
+        $profile = $user->conductorProfile;
+        $name = $profile
+            ? trim($profile->first_name . ' ' . $profile->last_name)
+            : null;
 
         $profile = $user->conductorProfile;
 
         return $this->successResponse([
             'id' => $user->id,
-            'name' => $profile
-                ? trim($profile->first_name . ' ' . $profile->last_name)
-                : $user->email,
+            'name' => $name,
             'email' => $user->email,
             'role' => $user->role,
         ], 'Conductor profile retrieved');
@@ -164,14 +172,19 @@ class ConductorController extends Controller
 
     /**
      * GET /api/conductor/units
-     * Returns ACTIVE vehicles not currently on a shift, with their route
-     * eager-loaded so the selection UI can display the route name.
+     * Returns available vehicles for shift assignment.
+     *
+     * Eager-loads `route` so the frontend proxy can map the route name
+     * into `ConductorUnit.route` without a second round-trip.
+     * Excludes vehicles already on an active shift (same pattern as
+     * `drivers()`) — the UI should only show vehicles a conductor can
+     * actually select.
      */
     public function units(): JsonResponse
     {
-        $units = Vehicle::where('status', 'ACTIVE')
+        $units = Vehicle::with('route')
+            ->where('status', 'ACTIVE')
             ->whereDoesntHave('activeShift')
-            ->with('route')
             ->get();
 
         return $this->successResponse($units, 'Available vehicles retrieved');

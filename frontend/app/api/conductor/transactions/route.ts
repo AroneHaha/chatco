@@ -10,7 +10,7 @@ function getShiftId(request: NextRequest): string | null {
 }
 
 export async function GET(request: NextRequest) {
-  const session = getConductorSession(request);
+  const session = await getConductorSession(request);
   if (!session) return unauthorizedResponse();
 
   const shiftId = getShiftId(request);
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = getConductorSession(request);
+  const session = await getConductorSession(request);
   if (!session) return unauthorizedResponse();
 
   try {

@@ -23,6 +23,17 @@ export async function fetchActiveShift(): Promise<ConductorShift | null> {
   return shiftStore.getActiveShift();
 }
 
+/**
+ * Start a conductor shift.
+ *
+ * In API mode (default), the proxy at `/api/conductor/shifts/start`
+ * forwards `{ unitId, driverId, routeId? }` to Laravel as
+ * `{ vehicle_id, driver_id, route_id }`, which creates the `shift_logs`
+ * row inside a DB transaction.
+ *
+ * In local mode (`NEXT_PUBLIC_CONDUCTOR_API_MODE=local`), falls back to
+ * the localStorage mock store (prototype only — no DB row is created).
+ */
 export async function startShift(data: {
   unitId: string;
   driverId: string;
@@ -37,6 +48,7 @@ export async function startShift(data: {
     return response.data;
   }
 
+  // Local prototype fallback — generate a minimal shift from IDs.
   const shift: ConductorShift = {
     shiftId: `SHF-${Date.now().toString(36).toUpperCase()}`,
     conductorName: "Conductor",

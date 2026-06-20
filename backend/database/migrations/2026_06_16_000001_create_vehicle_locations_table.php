@@ -11,6 +11,8 @@ return new class extends Migration
         Schema::create('vehicle_locations', function (Blueprint $table) {
             $table->uuid('vehicle_id')->primary();
             $table->uuid('conductor_id')->nullable();
+            // Nullable — a capacity-status-only update (POST /capacity-status)
+            // can create a row before the first GPS ping arrives.
             $table->decimal('lat', 10, 7)->nullable();
             $table->decimal('lng', 10, 7)->nullable();
             $table->decimal('speed', 5, 2)->nullable();

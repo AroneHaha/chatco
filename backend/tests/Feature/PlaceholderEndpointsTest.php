@@ -101,6 +101,9 @@ class PlaceholderEndpointsTest extends TestCase
     }
 
     // ── Conductor Endpoints (1) ──────────────────────────────────
+    // Sprint 2 implemented: /shift, /shifts/start, /remittances (POST),
+    // /location, /capacity-status, /shift-logs, /profile, /units, /drivers.
+    // Only /transactions remains as a 501 stub (Sprint 4).
 
     public function test_conductor_transactions_returns_501(): void
     {
@@ -176,11 +179,6 @@ class PlaceholderEndpointsTest extends TestCase
         $this->assertNotImplementedResponse('getJson', '/api/v1/payments/history', $this->commuterToken);
     }
 
-    public function test_payment_topup_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('postJson', '/api/v1/payments/topup', $this->commuterToken);
-    }
-
     // ── QR Endpoints (3) ─────────────────────────────────────────
 
     public function test_qr_generate_returns_501(): void
@@ -200,9 +198,11 @@ class PlaceholderEndpointsTest extends TestCase
 
     // ── Total Count Verification ─────────────────────────────────
 
-    public function test_total_placeholder_endpoints_is_21(): void
+    public function test_total_placeholder_endpoints_is_20(): void
     {
-        // 3 commuter + 1 conductor + 10 admin + 4 payment + 3 QR = 21
-        $this->assertEquals(21, 3 + 1 + 10 + 4 + 3);
+        // 3 commuter + 1 conductor + 10 admin + 3 payment + 3 QR = 20
+        // Wallet/topup stubs removed (wallet is permanently eliminated).
+        // Sprint 2 implemented the other 5 conductor endpoints.
+        $this->assertEquals(20, 3 + 1 + 10 + 3 + 3);
     }
 }

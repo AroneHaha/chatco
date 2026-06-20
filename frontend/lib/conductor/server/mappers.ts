@@ -1,3 +1,9 @@
+// Shape mappers -- translate Laravel Eloquent model JSON (snake_case, relations
+// nested) into the frontend's conductor types (camelCase, flat).
+// Used by the Next.js conductor API routes which act as server-side proxies.
+
+// ─── Laravel model shapes (as returned by the API) ───────────────────
+
 interface LaravelRoute {
   id: string;
   name: string;
@@ -40,11 +46,15 @@ interface LaravelShiftLog {
   driver?: LaravelDriver | null;
 }
 
+// ─── Frontend types ──────────────────────────────────────────────────
+
 import type {
   ConductorUnit,
   ConductorDriver,
 } from "@/lib/conductor/types";
 import type { ConductorShift } from "@/lib/conductor/persistence/shift.store";
+
+// ─── Mappers ─────────────────────────────────────────────────────────
 
 export function mapVehicle(v: unknown): ConductorUnit {
   const vehicle = v as LaravelVehicle;
@@ -85,6 +95,9 @@ export function mapShiftLog(s: unknown): ConductorShift {
   };
 }
 
+/**
+ * Map an array of Laravel models. Returns [] for null/undefined input.
+ */
 export function mapArray<T>(items: unknown, mapFn: (item: unknown) => T): T[] {
   if (!Array.isArray(items)) return [];
   return items.map(mapFn);

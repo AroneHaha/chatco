@@ -38,7 +38,10 @@ class Driver extends Model
     }
 
     /**
-     * Auto-generate UUID on creation.
+     * Auto-generate UUID for the primary key on create.
+     * The drivers table uses a UUID PK (not auto-increment), so the
+     * model must populate it before insert — matches the User/Route
+     * pattern used elsewhere in the codebase.
      */
     protected static function booted(): void
     {

@@ -36,6 +36,7 @@ export function startShift(data: {
     driverName: shift.driverName,
     route: shift.route,
     timeIn: shift.timeIn,
+    duration: null,
   });
 
   return shift;

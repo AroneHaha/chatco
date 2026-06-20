@@ -2,8 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Enums\CapacityStatus;
-use App\Enums\UserRole;
 use App\Models\Driver;
 use App\Models\Route;
 use App\Models\ShiftLog;
@@ -11,9 +9,16 @@ use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleLocation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Foundation\Testing\WithFaker;
 use Tests\TestCase;
 
+/**
+ * Sprint 2 — GPS tracking feature tests.
+ *
+ * Covers LocationService via the conductor + commuter API endpoints.
+ * All role strings use the UserRole enum values (uppercase) and all
+ * GPS payloads use the validated field names lat / lng (NOT
+ * latitude / longitude), matching UpdateLocationRequest.
+ */
 class LocationTest extends TestCase
 {
     use RefreshDatabase;
@@ -28,8 +33,7 @@ class LocationTest extends TestCase
     {
         parent::setUp();
 
-        /** @var \App\Models\User $conductor */
-        $this->conductor = User::factory()->create(['role' => UserRole::CONDUCTOR]);
+        $this->conductor = User::factory()->conductor()->create();
         $this->vehicle = Vehicle::factory()->create();
         $this->driver = Driver::factory()->create();
         $this->route = Route::factory()->create();
@@ -40,9 +44,10 @@ class LocationTest extends TestCase
             'driver_id' => $this->driver->id,
             'vehicle_id' => $this->vehicle->id,
             'route_id' => $this->route->id,
-            'conductor_name' => $this->conductor->first_name . ' ' . $this->conductor->last_name,
+            'conductor_name' => 'Conductor Test',
             'driver_name' => $this->driver->first_name . ' ' . $this->driver->last_name,
             'plate_number' => $this->vehicle->plate_number,
+            'unit_number' => $this->vehicle->unit_number,
             'time_in' => now(),
             'status' => 'ACTIVE',
         ]);
@@ -55,17 +60,16 @@ class LocationTest extends TestCase
     {
         $response = $this->actingAs($this->conductor)
             ->postJson('/api/v1/conductor/location', [
-                'vehicle_id' => $this->vehicle->id,
-                'latitude' => 14.5995,
-                'longitude' => 120.9842,
+                'lat' => 14.5995,
+                'lng' => 120.9842,
             ]);
 
         $response->assertOk();
 
         $this->assertDatabaseHas('vehicle_locations', [
             'vehicle_id' => $this->vehicle->id,
-            'latitude' => 14.5995,
-            'longitude' => 120.9842,
+            'lat' => 14.5995,
+            'lng' => 120.9842,
         ]);
     }
 
@@ -73,9 +77,8 @@ class LocationTest extends TestCase
     {
         $response = $this->actingAs($this->conductor)
             ->postJson('/api/v1/conductor/location', [
-                'vehicle_id' => $this->vehicle->id,
-                'latitude' => 14.5995,
-                'longitude' => 120.9842,
+                'lat' => 14.5995,
+                'lng' => 120.9842,
                 'speed' => 45.50,
                 'heading' => 180.00,
             ]);
@@ -85,17 +88,15 @@ class LocationTest extends TestCase
 
     public function test_location_update_requires_active_shift(): void
     {
+        // End the shift, so the conductor no longer has an active one.
         $this->shift->update(['status' => 'ENDED', 'time_out' => now()]);
         $this->vehicle->update(['active_shift_id' => null]);
+        $this->driver->update(['active_shift_id' => null]);
 
-        /** @var \App\Models\User $conductorNoShift */
-        $conductorNoShift = User::factory()->create(['role' => UserRole::CONDUCTOR]);
-
-        $response = $this->actingAs($conductorNoShift)
+        $response = $this->actingAs($this->conductor)
             ->postJson('/api/v1/conductor/location', [
-                'vehicle_id' => $this->vehicle->id,
-                'latitude' => 14.5995,
-                'longitude' => 120.9842,
+                'lat' => 14.5995,
+                'lng' => 120.9842,
             ]);
 
         $response->assertStatus(422);
@@ -105,9 +106,8 @@ class LocationTest extends TestCase
     {
         $response = $this->actingAs($this->conductor)
             ->postJson('/api/v1/conductor/location', [
-                'vehicle_id' => $this->vehicle->id,
-                'latitude' => 999,
-                'longitude' => 999,
+                'lat' => 999,
+                'lng' => 999,
             ]);
 
         $response->assertStatus(422);
@@ -117,35 +117,32 @@ class LocationTest extends TestCase
     {
         $this->actingAs($this->conductor)
             ->postJson('/api/v1/conductor/location', [
-                'vehicle_id' => $this->vehicle->id,
-                'latitude' => 14.5995,
-                'longitude' => 120.9842,
+                'lat' => 14.5995,
+                'lng' => 120.9842,
             ]);
 
         $this->actingAs($this->conductor)
             ->postJson('/api/v1/conductor/location', [
-                'vehicle_id' => $this->vehicle->id,
-                'latitude' => 14.6000,
-                'longitude' => 120.9850,
+                'lat' => 14.6000,
+                'lng' => 120.9850,
             ]);
 
         $this->assertEquals(1, VehicleLocation::count());
         $this->assertDatabaseHas('vehicle_locations', [
             'vehicle_id' => $this->vehicle->id,
-            'latitude' => 14.6000,
+            'lat' => 14.6000,
         ]);
     }
 
     public function test_commuter_can_get_all_active_locations(): void
     {
-        /** @var \App\Models\User $commuter */
-        $commuter = User::factory()->create(['role' => UserRole::COMMUTER]);
+        $commuter = User::factory()->commuter()->create();
 
         VehicleLocation::create([
             'vehicle_id' => $this->vehicle->id,
             'conductor_id' => $this->conductor->id,
-            'latitude' => 14.5995,
-            'longitude' => 120.9842,
+            'lat' => 14.5995,
+            'lng' => 120.9842,
         ]);
 
         $response = $this->actingAs($commuter)
@@ -158,8 +155,8 @@ class LocationTest extends TestCase
                 '*' => [
                     'vehicle_id',
                     'plate_number',
-                    'latitude',
-                    'longitude',
+                    'lat',
+                    'lng',
                 ],
             ],
         ]);
@@ -169,7 +166,6 @@ class LocationTest extends TestCase
     {
         $response = $this->actingAs($this->conductor)
             ->postJson('/api/v1/conductor/capacity-status', [
-                'vehicle_id' => $this->vehicle->id,
                 'capacity_status' => 'STANDING',
             ]);
 
@@ -185,7 +181,6 @@ class LocationTest extends TestCase
     {
         $response = $this->actingAs($this->conductor)
             ->postJson('/api/v1/conductor/capacity-status', [
-                'vehicle_id' => $this->vehicle->id,
                 'capacity_status' => 'INVALID',
             ]);
 
@@ -194,14 +189,12 @@ class LocationTest extends TestCase
 
     public function test_non_conductor_cannot_update_location(): void
     {
-        /** @var \App\Models\User $commuter */
-        $commuter = User::factory()->create(['role' => UserRole::COMMUTER]);
+        $commuter = User::factory()->commuter()->create();
 
         $response = $this->actingAs($commuter)
             ->postJson('/api/v1/conductor/location', [
-                'vehicle_id' => $this->vehicle->id,
-                'latitude' => 14.5995,
-                'longitude' => 120.9842,
+                'lat' => 14.5995,
+                'lng' => 120.9842,
             ]);
 
         $response->assertForbidden();

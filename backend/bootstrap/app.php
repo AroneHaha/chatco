@@ -41,6 +41,9 @@ $app = Application::configure(basePath: dirname(__DIR__))
             }
         });
 
+        // Render 429 rate-limit responses using the project's ApiResponse JSON
+        // envelope so the frontend can handle them gracefully (consistent with
+        // the 422 ValidationException handler above).
         $exceptions->render(function (ThrottleRequestsException $e, Request $request) {
             if ($request->expectsJson()) {
                 return response()->json([

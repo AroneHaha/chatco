@@ -14,6 +14,8 @@ return new class extends Migration
             }
         });
 
+        // Use Schema::getIndexes() (Laravel 11+) instead of raw
+        // "SHOW INDEX" — works on both SQLite (test) and MySQL (dev/prod).
         $existingIndexes = collect(Schema::getIndexes('shift_logs'))
             ->pluck('name')
             ->unique();

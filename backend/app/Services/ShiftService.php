@@ -56,11 +56,11 @@ class ShiftService
                 'status' => ShiftStatus::ACTIVE->value,
                 'conductor_name' => $conductorProfile
                     ? trim($conductorProfile->first_name . ' ' . $conductorProfile->last_name)
-                    : 'Conductor',
+                    : $conductor->email,
                 'driver_name' => trim($driver->first_name . ' ' . $driver->last_name),
                 'unit_number' => $vehicle->unit_number,
                 'plate_number' => $vehicle->plate_number,
-                'route_name' => $route?->name,
+                'unit_number' => $vehicle->unit_number,
             ]);
 
             $vehicle->update(['active_shift_id' => $shiftId]);
@@ -90,6 +90,10 @@ class ShiftService
             abort(403, 'Forbidden');
         }
 
+        // ShiftLog::casts()['status'] = ShiftStatus::class, so
+        // $shiftLog->status is a ShiftStatus enum instance — compare
+        // enum-to-enum, NOT enum-to-string (->value), which would
+        // always be true and incorrectly abort 422.
         if ($shiftLog->status !== ShiftStatus::ACTIVE) {
             abort(422, 'Shift is not active');
         }
@@ -102,11 +106,16 @@ class ShiftService
                 'conductor_id' => $shiftLog->conductor_id,
                 'driver_id' => $shiftLog->driver_id,
                 'vehicle_id' => $shiftLog->vehicle_id,
+                'date' => $shiftLog->time_in->toDateString(),
+                'conductor_name' => $shiftLog->conductor_name,
+                'driver_name' => $shiftLog->driver_name,
+                'unit_number' => $shiftLog->unit_number,
+                'total_passengers' => 0,
+                'time_in' => $shiftLog->time_in,
                 'total_collected' => $totalCollected,
                 'remitted_amount' => $remittedAmount,
                 'shortage' => $shortage,
                 'remittance_status' => $shortage > 0 ? 'SHORTAGE' : 'COMPLETE',
-                'remitted_at' => now(),
             ]);
 
             $shiftLog->update([

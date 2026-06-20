@@ -17,6 +17,7 @@ class Vehicle extends Model
     protected $fillable = [
         'unit_number',
         'plate_number',
+        'vehicle_type',
         'route_id',
         'driver_id',
         'conductor_id',
@@ -41,7 +42,10 @@ class Vehicle extends Model
     }
 
     /**
-     * Auto-generate UUID on creation.
+     * Auto-generate UUID for the primary key on create.
+     * The vehicles table uses a UUID PK (not auto-increment), so the
+     * model must populate it before insert — matches the User/Route
+     * pattern used elsewhere in the codebase.
      */
     protected static function booted(): void
     {

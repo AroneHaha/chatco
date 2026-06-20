@@ -24,30 +24,63 @@ class AppServiceProvider extends ServiceProvider
         $this->configureRateLimiters();
     }
 
+    /**
+     * Define named rate limiters for the conductor + vehicle API endpoints.
+     *
+     * Each limiter returns a Limit with a custom 429 response that uses the
+     * project's ApiResponse JSON envelope (success/data/message/errors/meta)
+     * so the frontend can handle rate-limit errors gracefully.
+     *
+     * The throttle middleware in routes/api.php references these by name
+     * (e.g. throttle:conductor-read) instead of raw numeric limits
+     * (e.g. throttle:60,1) so the custom 429 response is applied.
+     */
     private function configureRateLimiters(): void
     {
-        RateLimiter::for('conductor-read', function (Request $request) {
-            return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
+        // Shared 429 response builder — matches ApiResponse trait envelope
+        $rateLimitResponse = function () {
+            return response()->json([
+                'success' => false,
+                'data'    => null,
+                'message' => 'Too many requests. Please slow down.',
+                'errors'  => null,
+                'meta'    => null,
+            ], 429);
+        };
+
+        // Read endpoints — 60 req/min (1 req/s, generous for UI polling)
+        RateLimiter::for('conductor-read', function (Request $request) use ($rateLimitResponse) {
+            return Limit::perMinute(60)
+                ->by($request->user()?->id ?: $request->ip())
+                ->response($rateLimitResponse);
         });
 
-        RateLimiter::for('conductor-gps', function (Request $request) {
-            return Limit::perMinute(30)->by($request->user()?->id ?: $request->ip());
+        // GPS updates — 30 req/min (supports 5s cadence with ~2.5x headroom)
+        RateLimiter::for('conductor-gps', function (Request $request) use ($rateLimitResponse) {
+            return Limit::perMinute(30)
+                ->by($request->user()?->id ?: $request->ip())
+                ->response($rateLimitResponse);
         });
 
-        RateLimiter::for('conductor-mutation', function (Request $request) {
-            return Limit::perMinute(10)->by($request->user()?->id ?: $request->ip());
+        // Shift mutations — 10 req/min (one active shift per conductor anyway)
+        RateLimiter::for('conductor-mutation', function (Request $request) use ($rateLimitResponse) {
+            return Limit::perMinute(10)
+                ->by($request->user()?->id ?: $request->ip())
+                ->response($rateLimitResponse);
         });
 
-        RateLimiter::for('conductor-write', function (Request $request) {
-            return Limit::perMinute(30)->by($request->user()?->id ?: $request->ip());
+        // Capacity status + stubs — 30 req/min
+        RateLimiter::for('conductor-write', function (Request $request) use ($rateLimitResponse) {
+            return Limit::perMinute(30)
+                ->by($request->user()?->id ?: $request->ip())
+                ->response($rateLimitResponse);
         });
 
-        RateLimiter::for('vehicle-locations', function (Request $request) {
-            return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
-        });
-
-        RateLimiter::for('commuter-hail', function (Request $request) {
-            return Limit::perMinute(10)->by($request->user()?->id ?: $request->ip());
+        // Public vehicle locations endpoint — 60 req/min
+        RateLimiter::for('vehicle-locations', function (Request $request) use ($rateLimitResponse) {
+            return Limit::perMinute(60)
+                ->by($request->user()?->id ?: $request->ip())
+                ->response($rateLimitResponse);
         });
     }
 }

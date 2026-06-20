@@ -10,23 +10,29 @@ use App\Models\Vehicle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
+/**
+ * Sprint 2 — RBAC matrix for shift + location endpoints.
+ *
+ * All role assignments use the UserRole enum-backed factory state
+ * methods (->conductor(), ->commuter(), ->admin()) so the role
+ * column receives the uppercase enum value the EnsureUserRole
+ * middleware expects. All shift-start URLs use the plural
+ * /api/conductor/shifts/start route.
+ */
 class Sprint2RoleAccessTest extends TestCase
 {
     use RefreshDatabase;
 
     public function test_commuter_cannot_access_conductor_shift_start(): void
     {
-        /** @var \App\Models\User $commuter */
-        $commuter = User::factory()->create(['role' => UserRole::COMMUTER]);
+        $commuter = User::factory()->commuter()->create();
         $vehicle = Vehicle::factory()->create();
         $driver = Driver::factory()->create();
-        $route = Route::factory()->create();
 
         $response = $this->actingAs($commuter)
-            ->postJson('/api/v1/conductor/shift/start', [
+            ->postJson('/api/v1/conductor/shifts/start', [
                 'vehicle_id' => $vehicle->id,
                 'driver_id' => $driver->id,
-                'route_id' => $route->id,
             ]);
 
         $response->assertForbidden();
@@ -34,17 +40,14 @@ class Sprint2RoleAccessTest extends TestCase
 
     public function test_admin_cannot_start_shift(): void
     {
-        /** @var \App\Models\User $admin */
-        $admin = User::factory()->create(['role' => UserRole::ADMIN]);
+        $admin = User::factory()->admin()->create();
         $vehicle = Vehicle::factory()->create();
         $driver = Driver::factory()->create();
-        $route = Route::factory()->create();
 
         $response = $this->actingAs($admin)
-            ->postJson('/api/v1/conductor/shift/start', [
+            ->postJson('/api/v1/conductor/shifts/start', [
                 'vehicle_id' => $vehicle->id,
                 'driver_id' => $driver->id,
-                'route_id' => $route->id,
             ]);
 
         $response->assertForbidden();
@@ -52,15 +55,12 @@ class Sprint2RoleAccessTest extends TestCase
 
     public function test_commuter_cannot_update_vehicle_location(): void
     {
-        /** @var \App\Models\User $commuter */
-        $commuter = User::factory()->create(['role' => UserRole::COMMUTER]);
-        $vehicle = Vehicle::factory()->create();
+        $commuter = User::factory()->commuter()->create();
 
         $response = $this->actingAs($commuter)
             ->postJson('/api/v1/conductor/location', [
-                'vehicle_id' => $vehicle->id,
-                'latitude' => 14.5995,
-                'longitude' => 120.9842,
+                'lat' => 14.5995,
+                'lng' => 120.9842,
             ]);
 
         $response->assertForbidden();
@@ -68,15 +68,12 @@ class Sprint2RoleAccessTest extends TestCase
 
     public function test_admin_cannot_update_vehicle_location(): void
     {
-        /** @var \App\Models\User $admin */
-        $admin = User::factory()->create(['role' => UserRole::ADMIN]);
-        $vehicle = Vehicle::factory()->create();
+        $admin = User::factory()->admin()->create();
 
         $response = $this->actingAs($admin)
             ->postJson('/api/v1/conductor/location', [
-                'vehicle_id' => $vehicle->id,
-                'latitude' => 14.5995,
-                'longitude' => 120.9842,
+                'lat' => 14.5995,
+                'lng' => 120.9842,
             ]);
 
         $response->assertForbidden();
@@ -84,8 +81,7 @@ class Sprint2RoleAccessTest extends TestCase
 
     public function test_conductor_can_access_own_routes(): void
     {
-        /** @var \App\Models\User $conductor */
-        $conductor = User::factory()->create(['role' => UserRole::CONDUCTOR]);
+        $conductor = User::factory()->conductor()->create();
 
         $response = $this->actingAs($conductor)
             ->getJson('/api/v1/conductor/shift');
@@ -95,11 +91,8 @@ class Sprint2RoleAccessTest extends TestCase
 
     public function test_any_authenticated_user_can_view_vehicle_locations(): void
     {
-        /** @var \App\Models\User $commuter */
-        $commuter = User::factory()->create(['role' => UserRole::COMMUTER]);
-
-        /** @var \App\Models\User $admin */
-        $admin = User::factory()->create(['role' => UserRole::ADMIN]);
+        $commuter = User::factory()->commuter()->create();
+        $admin = User::factory()->admin()->create();
 
         $commuterResponse = $this->actingAs($commuter)
             ->getJson('/api/v1/vehicles/locations');
@@ -115,6 +108,6 @@ class Sprint2RoleAccessTest extends TestCase
         $this->getJson('/api/v1/conductor/shift')->assertUnauthorized();
         $this->getJson('/api/v1/vehicles/locations')->assertUnauthorized();
         $this->postJson('/api/v1/conductor/location', [])->assertUnauthorized();
-        $this->postJson('/api/v1/conductor/shift/start', [])->assertUnauthorized();
+        $this->postJson('/api/v1/conductor/shifts/start', [])->assertUnauthorized();
     }
 }

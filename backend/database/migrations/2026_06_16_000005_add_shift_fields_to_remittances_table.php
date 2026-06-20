@@ -42,6 +42,9 @@ return new class extends Migration
             }
         });
 
+        // Use Schema::getForeignKeys() (Laravel 11+) instead of raw
+        // INFORMATION_SCHEMA queries — works on both SQLite (test) and
+        // MySQL (dev/prod).
         $fkExists = collect(Schema::getForeignKeys('remittances'))
             ->pluck('name')
             ->contains('remittances_shift_id_foreign');
