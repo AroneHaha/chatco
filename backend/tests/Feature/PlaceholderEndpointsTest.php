@@ -23,7 +23,6 @@ class PlaceholderEndpointsTest extends TestCase
     {
         parent::setUp();
 
-        // Create users with profiles
         $admin = User::create([
             'email'    => 'admin@test.com',
             'password' => Hash::make('password123'),
@@ -84,7 +83,7 @@ class PlaceholderEndpointsTest extends TestCase
         ]);
     }
 
-    // ── Commuter Endpoints (5) ───────────────────────────────────
+    // ── Commuter Endpoints (3) ───────────────────────────────────
 
     public function test_commuter_profile_returns_501(): void
     {

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\UserRole;
 use App\Models\Driver;
 use App\Models\Route;
 use App\Models\User;

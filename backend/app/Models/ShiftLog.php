@@ -23,6 +23,7 @@ class ShiftLog extends Model
         'route_id',
         'conductor_name',
         'driver_name',
+        'unit_number',
         'plate_number',
         'unit_number',
         'route_name',
@@ -31,6 +32,7 @@ class ShiftLog extends Model
         'is_active',
         'notes',
         'status',
+        'notes',
     ];
 
     protected function casts(): array

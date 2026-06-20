@@ -3,8 +3,10 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Commuter\CommuterController;
+use App\Http\Controllers\Commuter\HailController;
 use App\Http\Controllers\Commuter\VehicleLocationController;
 use App\Http\Controllers\Conductor\ConductorController;
+use App\Http\Controllers\Conductor\ConductorHailController;
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Payment\PaymentController;
 use App\Http\Controllers\Payment\QrController;
@@ -35,6 +37,10 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
     Route::get('/profile', [CommuterController::class, 'profile']);
     Route::get('/trips', [CommuterController::class, 'trips']);
     Route::get('/rewards', [CommuterController::class, 'rewards']);
+
+    // Hail lifecycle (commuter-side) — 10 req/min per user
+    Route::post('/hail', [HailController::class, 'store'])->middleware('throttle:commuter-hail');
+    Route::delete('/hail/{id}', [HailController::class, 'destroy'])->middleware('throttle:commuter-hail');
 });
 
 /*
@@ -71,6 +77,11 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->grou
 
     // Still a 501 stub — keep minimal limit
     Route::get('/transactions', [ConductorController::class, 'transactions'])->middleware('throttle:conductor-write');
+
+    // Hail lifecycle (conductor-side) — reads 60/min, mutations 10/min
+    Route::get('/hails', [ConductorHailController::class, 'index'])->middleware('throttle:conductor-read');
+    Route::post('/hails/{id}/accept', [ConductorHailController::class, 'accept'])->middleware('throttle:conductor-mutation');
+    Route::post('/hails/{id}/reject', [ConductorHailController::class, 'reject'])->middleware('throttle:conductor-mutation');
 });
 
 /*

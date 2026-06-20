@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\ShiftStatus;
 use App\Models\Driver;
 use App\Models\Remittance;
+use App\Models\Route;
 use App\Models\ShiftLog;
 use App\Models\User;
 use App\Models\Vehicle;
@@ -38,10 +39,11 @@ class ShiftService
         $vehicle = Vehicle::findOrFail($vehicleId);
         $driver = Driver::findOrFail($driverId);
         $conductorProfile = $conductor->conductorProfile;
+        $route = $routeId ? Route::find($routeId) : null;
 
         $shiftId = 'SHF-' . strtoupper(Str::random(14));
 
-        return DB::transaction(function () use ($conductor, $vehicleId, $driverId, $routeId, $vehicle, $driver, $conductorProfile, $shiftId) {
+        return DB::transaction(function () use ($conductor, $vehicleId, $driverId, $routeId, $vehicle, $driver, $conductorProfile, $route, $shiftId) {
             $shiftLog = ShiftLog::create([
                 'shift_id' => $shiftId,
                 'conductor_id' => $conductor->id,
@@ -50,11 +52,13 @@ class ShiftService
                 'route_id' => $routeId,
                 'time_in' => now(),
                 'time_out' => null,
+                'is_active' => true,
                 'status' => ShiftStatus::ACTIVE->value,
                 'conductor_name' => $conductorProfile
                     ? trim($conductorProfile->first_name . ' ' . $conductorProfile->last_name)
                     : $conductor->email,
                 'driver_name' => trim($driver->first_name . ' ' . $driver->last_name),
+                'unit_number' => $vehicle->unit_number,
                 'plate_number' => $vehicle->plate_number,
                 'unit_number' => $vehicle->unit_number,
             ]);
@@ -116,6 +120,7 @@ class ShiftService
 
             $shiftLog->update([
                 'status' => ShiftStatus::ENDED->value,
+                'is_active' => false,
                 'time_out' => now(),
             ]);
 

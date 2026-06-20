@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class GcashPaymentIntent extends Model
 {
@@ -38,6 +39,18 @@ class GcashPaymentIntent extends Model
             'pickup_point' => 'integer',
             'dropoff_point' => 'integer',
         ];
+    }
+
+    /**
+     * Auto-generate UUID on creation.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (GcashPaymentIntent $intent) {
+            if (empty($intent->id)) {
+                $intent->id = (string) Str::uuid();
+            }
+        });
     }
 
     public function commuter()

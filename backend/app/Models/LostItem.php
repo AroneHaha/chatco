@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class LostItem extends Model
 {
@@ -29,6 +30,18 @@ class LostItem extends Model
         'status',
         'claimed_by',
     ];
+
+    /**
+     * Auto-generate UUID on creation.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (LostItem $item) {
+            if (empty($item->id)) {
+                $item->id = (string) Str::uuid();
+            }
+        });
+    }
 
     public function reporter()
     {
