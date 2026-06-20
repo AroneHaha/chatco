@@ -70,7 +70,10 @@ function getDistanceMeters(a: [number, number], b: [number, number]): number {
   return haversineMeters(a[0], a[1], b[0], b[1]);
 }
 
-export default function ConductorMap({ unitNumber = "—", hails = [] }: ConductorMapProps) {
+export default function ConductorMap({
+  unitNumber = "—",
+  hails = [],
+}: ConductorMapProps) {
   const [isDomReady, setIsDomReady] = useState(false);
   const [vehiclePosition, setVehiclePosition] = useState<L.LatLngTuple>(MAP_CENTER);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -190,10 +193,12 @@ export default function ConductorMap({ unitNumber = "—", hails = [] }: Conduct
         {visibleHails.map((hail) => (
           <Marker key={hail.id} position={[hail.latitude, hail.longitude]} icon={hailingIcon}>
             <Popup>
-              <div className="font-bold text-[#FF6D3A]">{hail.commuterName}</div>
-              <div className="text-xs text-gray-500">
-                {hail.label || "Passenger waiting"}
-                {hail.etaMinutes ? ` · ${hail.etaMinutes} min away` : ""}
+              <div className="min-w-[180px]">
+                <div className="font-bold text-[#FF6D3A]">{hail.commuterName}</div>
+                <div className="text-xs text-gray-500">
+                  {hail.label || "Passenger waiting"}
+                  {hail.etaMinutes ? ` · ${hail.etaMinutes} min away` : ""}
+                </div>
               </div>
             </Popup>
           </Marker>

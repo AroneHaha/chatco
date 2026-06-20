@@ -20,7 +20,7 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle } from "react-
 import "leaflet/dist/leaflet.css";
 import { formatDistance } from "@/lib/shared/geo/nearby-detector";
 import { ROUTE_COORDS, mapBoundsArray, MAP_CENTER } from "./commuter-map-constants";
-import { getCapacityConfig, createCommuterIcon, createJeepneyIcon, type VehicleCapacity } from "./commuter-map-icons";
+import { getCapacityConfig, createCommuterIcon, createJeepneyIcon } from "./commuter-map-icons";
 import { useCommuterTracking } from "./use-commuter-tracking";
 import LocationFinder from "./location-finder";
 
@@ -28,8 +28,13 @@ import LocationFinder from "./location-finder";
 
 interface CommuterMapProps {
   isDesktop?: boolean;
-  /** Callback fired when tracking data updates — used by dashboard for ETA + hail restriction */
-  onNearbyVehiclesChange?: (vehicles: import("@/lib/shared/geo/nearby-detector").NearbyVehicle[], gpsStatus: import("@/lib/shared/geo/nearby-detector").GpsStatus) => void;
+  /** Callback fired when tracking data updates — used by dashboard for ETA + hail restriction.
+   *  The third argument is the commuter's live GPS coords, needed to POST a hail. */
+  onNearbyVehiclesChange?: (
+    vehicles: import("@/lib/shared/geo/nearby-detector").NearbyVehicle[],
+    gpsStatus: import("@/lib/shared/geo/nearby-detector").GpsStatus,
+    commuterLocation: [number, number] | null
+  ) => void;
 }
 
 export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange }: CommuterMapProps) {
@@ -54,11 +59,11 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
   // Notify parent of tracking updates
   useEffect(() => {
     if (gpsStatus === "available") {
-      onNearbyVehiclesChange?.(radiusResult?.withinRadius || [], gpsStatus);
+      onNearbyVehiclesChange?.(radiusResult?.withinRadius || [], gpsStatus, userActualLocation);
     } else {
-      onNearbyVehiclesChange?.([], gpsStatus);
+      onNearbyVehiclesChange?.([], gpsStatus, userActualLocation);
     }
-  }, [radiusResult, gpsStatus, onNearbyVehiclesChange]);
+  }, [radiusResult, gpsStatus, userActualLocation, onNearbyVehiclesChange]);
 
   // Double-RAF for DOM readiness (ensures Leaflet gets accurate container dimensions)
   useEffect(() => {
@@ -127,7 +132,7 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
         {/* --- CONDUCTOR 1KM RADIUS CIRCLES --- */}
         {activeVehicles.map((vehicle) => {
           const isWithinRadius = withinRadiusIds.has(vehicle.id);
-          const vehicleCoord = ROUTE_COORDS[vehicle.routeIndex];
+          const vehicleCoord: [number, number] = [vehicle.lat, vehicle.lng];
           return (
             <Circle
               key={`radius-${vehicle.id}`}
@@ -155,7 +160,7 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
           return (
             <Marker
               key={vehicle.id}
-              position={ROUTE_COORDS[vehicle.routeIndex]}
+              position={[vehicle.lat, vehicle.lng]}
               icon={createJeepneyIcon(vehicle.capacity, isWithinRadius)}
             >
               <Popup>
@@ -165,8 +170,7 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
                     <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${config.twBg} ${config.twText} ${config.twBorder} border`}>{config.label}</span>
                   </div>
                   <div className="text-xs text-gray-500 space-y-0.5 pt-1 border-t border-gray-100">
-                    <p><span className="font-medium text-gray-700">Driver:</span> {vehicle.driverName}</p>
-                    <p><span className="font-medium text-gray-700">Conductor:</span> {vehicle.conductorName}</p>
+                    <p><span className="font-medium text-gray-700">Route:</span> {vehicle.routeName ?? "—"}</p>
                     {distanceInfo && (
                       <p><span className="font-medium text-gray-700">Distance:</span> {formatDistance(distanceInfo.distanceInMeters)}</p>
                     )}

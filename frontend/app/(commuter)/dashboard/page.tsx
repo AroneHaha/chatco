@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import type { NearbyVehicle, GpsStatus } from "@/lib/shared/geo/nearby-detector";
 import { useAuth } from "@/contexts/auth-context";
+import { createHail, cancelHail, isOutsideRadiusError } from "@/lib/commuter/services/hail.service";
+import { ApiError, NetworkError } from "@/lib/api/client";
 
 import PaymentHistoryModal from "@/components/commuter/modals/payment-history-modal";
 import ShareRideModal from "@/components/commuter/modals/share-ride-modal";
@@ -19,6 +21,13 @@ const ScanModal = dynamic(
   { ssr: false }
 );
 
+// How long a hail stays active before auto-turning-off. Matches the backend
+// hails TTL (hails:expire) so the commuter's indicator and the conductor's pin
+// clear at the same time.
+const HAIL_DURATION_MS = 3 * 60 * 1000;
+// Cadence of the vibrate + beep reminder while a hail is active.
+const REMINDER_INTERVAL_MS = 4000;
+
 export default function CommuterHome() {
   const { user, commuterProfile, isLoading: authLoading } = useAuth();
 
@@ -30,23 +39,148 @@ export default function CommuterHome() {
   const [isHailing, setIsHailing] = useState(false);
   const [showSheet, setShowSheet] = useState(true);
 
+  // ─── HAIL REQUEST STATE ─────────────────────────────────────────────
+  // The active hail's id (so we can cancel it), an in-flight flag, and the
+  // last error to surface in the UI.
+  const [activeHailId, setActiveHailId] = useState<string | null>(null);
+  const [hailPending, setHailPending] = useState(false);
+  const [hailError, setHailError] = useState<string | null>(null);
+
   // ─── CONDUCTOR RADIUS + GPS TRACKING ────────────────────────────────
   const [nearbyVehicles, setNearbyVehicles] = useState<NearbyVehicle[]>([]);
   const [gpsStatus, setGpsStatus] = useState<GpsStatus>("loading");
+  const [commuterLocation, setCommuterLocation] = useState<[number, number] | null>(null);
 
   // canHail requires BOTH: GPS available AND commuter within conductor radius
   const canHail = gpsStatus === "available" && nearbyVehicles.length > 0;
   const nearestVehicle = canHail ? nearbyVehicles[0] : null;
 
-  const handleNearbyVehiclesChange = useCallback((vehicles: NearbyVehicle[], status: GpsStatus) => {
-    setNearbyVehicles(vehicles);
-    setGpsStatus(status);
+  const handleNearbyVehiclesChange = useCallback(
+    (vehicles: NearbyVehicle[], status: GpsStatus, location: [number, number] | null) => {
+      setNearbyVehicles(vehicles);
+      setGpsStatus(status);
+      setCommuterLocation(location);
+    },
+    []
+  );
+
+  // ─── Vibrate + sound reminder helpers ───────────────────────────────
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
+  // Soft beep via Web Audio. The AudioContext is created on the hail tap
+  // (a user gesture), which satisfies browser autoplay policies.
+  const playBeep = useCallback(() => {
+    try {
+      if (!audioCtxRef.current) {
+        const Ctx =
+          window.AudioContext ??
+          (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (!Ctx) return;
+        audioCtxRef.current = new Ctx();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx.state === "suspended") void ctx.resume();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.25);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.26);
+    } catch {
+      /* audio unavailable — ignore */
+    }
   }, []);
 
-  const handleHailToggle = () => {
-    if (!isHailing && !canHail) return;
-    setIsHailing(!isHailing);
-  };
+  const vibrate = useCallback(() => {
+    // navigator.vibrate is Android/Chrome only; iOS Safari ignores it (sound
+    // is the fallback there).
+    if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+      navigator.vibrate([200, 100, 200]);
+    }
+  }, []);
+
+  // Turn the hail off: best-effort cancel on the backend (it may already have
+  // auto-expired, so errors are swallowed) then clear local state.
+  const stopHail = useCallback(async () => {
+    const id = activeHailId;
+    setIsHailing(false);
+    setActiveHailId(null);
+    if (id) {
+      try {
+        await cancelHail(id);
+      } catch {
+        /* already expired / offline — backend TTL reconciles the record */
+      }
+    }
+  }, [activeHailId]);
+
+  const startHail = useCallback(async () => {
+    if (!canHail || !nearestVehicle || !commuterLocation) return;
+    setHailPending(true);
+    setHailError(null);
+    try {
+      const hail = await createHail(
+        nearestVehicle.id,
+        commuterLocation[0],
+        commuterLocation[1]
+      );
+      setActiveHailId(hail.id);
+      setIsHailing(true);
+      // Immediate confirmation buzz + beep (also unlocks the AudioContext).
+      vibrate();
+      playBeep();
+    } catch (err) {
+      if (err instanceof ApiError && isOutsideRadiusError(err.body)) {
+        setHailError(
+          `You're too far — about ${Math.round(err.body.distance_m)}m away. Move within 1km to hail.`
+        );
+      } else if (err instanceof ApiError && err.status === 409) {
+        setHailError("You already have a pending hail.");
+      } else if (err instanceof ApiError || err instanceof NetworkError) {
+        setHailError("Unable to send the hail. Please try again.");
+      } else {
+        setHailError("Something went wrong sending the hail.");
+      }
+    } finally {
+      setHailPending(false);
+    }
+  }, [canHail, nearestVehicle, commuterLocation, vibrate, playBeep]);
+
+  const handleHailToggle = useCallback(() => {
+    if (hailPending) return;
+    if (isHailing) {
+      void stopHail();
+    } else {
+      void startHail();
+    }
+  }, [hailPending, isHailing, stopHail, startHail]);
+
+  // While a hail is active: repeat the vibrate + beep reminder so the commuter
+  // doesn't forget it's on, and auto-turn-off after the TTL.
+  useEffect(() => {
+    if (!isHailing) return;
+
+    const reminderId = window.setInterval(() => {
+      vibrate();
+      playBeep();
+    }, REMINDER_INTERVAL_MS);
+
+    const autoOffId = window.setTimeout(() => {
+      void stopHail();
+    }, HAIL_DURATION_MS);
+
+    return () => {
+      window.clearInterval(reminderId);
+      window.clearTimeout(autoOffId);
+      if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+        navigator.vibrate(0); // stop any ongoing vibration
+      }
+    };
+  }, [isHailing, vibrate, playBeep, stopHail]);
 
   // ─── Derive display values from auth context ────────────────────────
   const displayName = commuterProfile?.firstName ?? user?.email?.split("@")[0] ?? "Commuter";
@@ -111,16 +245,18 @@ export default function CommuterHome() {
         <div className="absolute -top-23 right-4 z-30">
           <button
             onClick={handleHailToggle}
-            disabled={!isHailing && !canHail}
-            className={`w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 border-4 ${
+            disabled={hailPending || (!isHailing && !canHail)}
+            className={`w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 border-4 disabled:cursor-not-allowed ${
               isHailing
                 ? "bg-red-500 border-red-300 shadow-red-500/50 animate-bounce"
                 : canHail
                   ? "bg-[#FF6D3A] border-[#FF9A76] hover:bg-[#e55a2b] shadow-[#FF6D3A]/50"
                   : "bg-gray-600 border-gray-500 shadow-gray-600/30 opacity-50 cursor-not-allowed"
-            }`}
+            } ${hailPending ? "opacity-70" : ""}`}
           >
-            {isHailing ? (
+            {hailPending ? (
+              <span className="w-7 h-7 rounded-full border-[3px] border-white/40 border-t-white animate-spin" />
+            ) : isHailing ? (
               <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>
@@ -132,7 +268,7 @@ export default function CommuterHome() {
             )}
           </button>
           <span className="block text-center text-[10px] font-extrabold text-white mt-2 drop-shadow-lg uppercase tracking-wider">
-            {isHailing ? "Cancel" : canHail ? "Hail Me" : gpsStatus === "loading" ? "Locating..." : gpsStatus === "denied" ? "No GPS" : "Too Far"}
+            {hailPending ? (isHailing ? "Cancelling…" : "Sending…") : isHailing ? "Cancel" : canHail ? "Hail Me" : gpsStatus === "loading" ? "Locating..." : gpsStatus === "denied" ? "No GPS" : "Too Far"}
           </span>
         </div>
         <div
@@ -207,6 +343,12 @@ export default function CommuterHome() {
                 <span className="text-xs font-semibold text-yellow-400">Outside service radius</span>
               </div>
               <p className="text-[10px] text-white/40 mt-1">Move within 1km of a conductor unit to hail.</p>
+            </div>
+          )}
+
+          {hailError && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 mb-3">
+              <p className="text-xs font-semibold text-red-400">{hailError}</p>
             </div>
           )}
 
@@ -412,18 +554,28 @@ export default function CommuterHome() {
           </div>
         </div>
         <div className="p-6 border-t border-white/10">
+          {hailError && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 mb-3">
+              <p className="text-xs font-semibold text-red-400">{hailError}</p>
+            </div>
+          )}
           <button
             onClick={handleHailToggle}
-            disabled={!isHailing && !canHail}
-            className={`w-full flex items-center justify-center gap-3 py-4 rounded-xl text-base font-bold transition-all duration-300 ${
+            disabled={hailPending || (!isHailing && !canHail)}
+            className={`w-full flex items-center justify-center gap-3 py-4 rounded-xl text-base font-bold transition-all duration-300 disabled:cursor-not-allowed ${
               isHailing
                 ? "bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/40"
                 : canHail
                   ? "bg-[#FF6D3A] hover:bg-[#e55a2b] shadow-lg shadow-[#FF6D3A]/40 text-white"
                   : "bg-gray-600 text-gray-300 cursor-not-allowed shadow-none"
-            }`}
+            } ${hailPending ? "opacity-70" : ""}`}
           >
-            {isHailing ? (
+            {hailPending ? (
+              <>
+                <span className="w-6 h-6 rounded-full border-[3px] border-white/40 border-t-white animate-spin" />{" "}
+                {isHailing ? "Cancelling…" : "Sending…"}
+              </>
+            ) : isHailing ? (
               <>
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />

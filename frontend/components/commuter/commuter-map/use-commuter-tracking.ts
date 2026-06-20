@@ -1,22 +1,18 @@
 // components/commuter/commuter-map/use-commuter-tracking.ts
-// Extracted from commuter-map.tsx — GPS tracking, vehicle simulation,
-// conductor-radius validation, and proximity notifications.
+// GPS tracking, real-time vehicle locations, conductor-radius validation, and
+// proximity notifications for the commuter map.
 //
-// WHY SPLIT: The original commuter-map.tsx mixed 6 concerns (GPS, simulation,
-// radius validation, notifications, icons, rendering) in 560+ lines.
-// This hook encapsulates all tracking/state logic so the map component
-// only handles rendering.
-//
-// ARCHITECTURE: This hook follows the same pattern as conductor service hooks.
-// When Laravel backend is integrated, this hook's internals can be swapped
-// to call API endpoints instead of running client-side calculations.
+// DATA SOURCE: Vehicle positions come from the live backend via
+// `useVehicleLocations` (GET /vehicles/locations seeded, then Pusher
+// `VehicleLocationUpdated` broadcasts). Each vehicle therefore carries its real
+// `vehicle_id` UUID — which is what the hail flow needs to POST a hail against.
+// (This replaced an earlier client-side mock simulation.)
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import {
   validateConductorRadius,
   formatDistance,
   type VehicleLocation,
-  type NearbyVehicle,
   type ConductorRadiusResult,
   type GpsStatus,
 } from "@/lib/shared/geo/nearby-detector";
@@ -25,18 +21,38 @@ import {
   requestNotificationPermission,
   clearNotifiedVehicles,
 } from "@/lib/shared/geo/proximity-notification";
-import { advanceAllVehicles, type SimulatedVehicle } from "@/lib/shared/simulation/vehicle-simulation";
-import { ROUTE_COORDS, CALC_THROTTLE_MS, SIMULATION_TICK_MS, routeBounds, mapBounds } from "./commuter-map-constants";
-import { getBearing } from "./commuter-map-icons";
+import { useVehicleLocations } from "@/hooks/useVehicleLocations";
+import { CALC_THROTTLE_MS } from "./commuter-map-constants";
+import type { VehicleCapacity } from "./commuter-map-icons";
 
-// --- MOCK DATA ---
-// Uses SimulatedVehicle from vehicle-simulation module.
+// --- DISPLAY VEHICLE ---
+// A vehicle as the map renders it: real UUID + real coordinates + capacity.
+export interface MapVehicle {
+  /** Real backend vehicle UUID (used as the hail target). */
+  id: string;
+  plateNumber: string;
+  lat: number;
+  lng: number;
+  capacity: VehicleCapacity;
+  routeName: string | null;
+}
 
-const MOCK_ACTIVE_VEHICLES: SimulatedVehicle[] = [
-  { id: "v_01", plateNumber: "ABC 1234", driverName: "Juan Dela Cruz", conductorName: "Pedro Penduko", routeIndex: 8, capacity: "AVAILABLE" },
-  { id: "v_02", plateNumber: "XYZ 5678", driverName: "Mario Speedwagon", conductorName: "Luigi Mansion", routeIndex: 42, capacity: "STANDING" },
-  { id: "v_03", plateNumber: "DEF 9012", driverName: "Crisostomo Ibarra", conductorName: "Sisa Doe", routeIndex: 68, capacity: "FULL" },
-];
+// Backend capacity_status is uppercase (AVAILABLE | STANDING | FULL).
+function toCapacityEnum(status: string | undefined | null): VehicleCapacity {
+  const upper = (status ?? "").toUpperCase();
+  if (upper === "STANDING") return "STANDING";
+  if (upper === "FULL") return "FULL";
+  return "AVAILABLE";
+}
+
+// The geo radius helper keys hailability off the title-case capacityStatus
+// ("Available" | "Standing" | "Full"), so normalize into that shape.
+function toGeoCapacity(status: string | undefined | null): VehicleLocation["capacityStatus"] {
+  const upper = (status ?? "").toUpperCase();
+  if (upper === "STANDING") return "Standing";
+  if (upper === "FULL") return "Full";
+  return "Available";
+}
 
 // --- HOOK RETURN TYPE ---
 
@@ -49,8 +65,8 @@ export interface CommuterTrackingResult {
   arrowPos: { x: number; y: number; angle: number } | null;
   /** GPS acquisition status */
   gpsStatus: GpsStatus;
-  /** Currently simulated vehicles with positions */
-  activeVehicles: SimulatedVehicle[];
+  /** Live vehicles (real backend data) with positions */
+  activeVehicles: MapVehicle[];
   /** Conductor-radius validation result (null until GPS + first calculation) */
   radiusResult: ConductorRadiusResult | null;
   /** Whether commuter is within any conductor's 1km radius */
@@ -75,8 +91,8 @@ export function useCommuterTracking(): CommuterTrackingResult {
   const [showMapPin, setShowMapPin] = useState(false);
   const [arrowPos, setArrowPos] = useState<{ x: number; y: number; angle: number } | null>(null);
 
-  // Vehicle simulation state
-  const [activeVehicles, setActiveVehicles] = useState<SimulatedVehicle[]>(MOCK_ACTIVE_VEHICLES);
+  // Live vehicle locations from the backend (seed fetch + Pusher updates).
+  const { vehicles: rawVehicles } = useVehicleLocations();
 
   // Conductor radius validation result
   const [radiusResult, setRadiusResult] = useState<ConductorRadiusResult | null>(null);
@@ -88,6 +104,35 @@ export function useCommuterTracking(): CommuterTrackingResult {
   const lastCalcRef = useRef(0);
   const hasInitialCenteredRef = useRef(false);
   const userInteractedRef = useRef(false);
+
+  // Map raw backend rows into the shape the map renders.
+  const activeVehicles = useMemo<MapVehicle[]>(
+    () =>
+      rawVehicles.map((v) => ({
+        id: v.vehicle_id,
+        plateNumber: v.plate_number,
+        lat: v.lat,
+        lng: v.lng,
+        capacity: toCapacityEnum(v.capacity_status ?? v.vehicle_capacity_status),
+        routeName: v.route_name,
+      })),
+    [rawVehicles]
+  );
+
+  // Map raw backend rows into the geo helper's VehicleLocation shape.
+  const vehicleLocations = useMemo<VehicleLocation[]>(
+    () =>
+      rawVehicles.map((v) => ({
+        id: v.vehicle_id,
+        plateNumber: v.plate_number,
+        lat: v.lat,
+        lng: v.lng,
+        capacityStatus: toGeoCapacity(v.capacity_status ?? v.vehicle_capacity_status),
+        speed: v.speed ?? 0,
+        lastUpdated: new Date(v.updated_at),
+      })),
+    [rawVehicles]
+  );
 
   // Request notification permission on mount
   useEffect(() => {
@@ -101,14 +146,6 @@ export function useCommuterTracking(): CommuterTrackingResult {
     };
   }, []);
 
-  // --- Vehicle simulation interval ---
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setActiveVehicles((prev) => advanceAllVehicles(prev, ROUTE_COORDS.length));
-    }, SIMULATION_TICK_MS);
-    return () => clearInterval(interval);
-  }, []);
-
   // --- Throttled distance/ETA recalculation ---
   useEffect(() => {
     if (!userActualLocation) return;
@@ -116,19 +153,6 @@ export function useCommuterTracking(): CommuterTrackingResult {
     const now = Date.now();
     if (now - lastCalcRef.current < CALC_THROTTLE_MS) return;
     lastCalcRef.current = now;
-
-    const vehicleLocations: VehicleLocation[] = activeVehicles.map((v) => {
-      const coord = ROUTE_COORDS[v.routeIndex];
-      return {
-        id: v.id,
-        plateNumber: v.plateNumber,
-        lat: coord[0],
-        lng: coord[1],
-        capacityStatus: v.capacity === "AVAILABLE" ? "Available" : v.capacity === "STANDING" ? "Standing" : "Full",
-        speed: 25,
-        lastUpdated: new Date(),
-      };
-    });
 
     const result = validateConductorRadius(
       vehicleLocations,
@@ -147,7 +171,7 @@ export function useCommuterTracking(): CommuterTrackingResult {
     if (result.withinRadius.length === 0) {
       clearNotifiedVehicles();
     }
-  }, [userActualLocation, activeVehicles]);
+  }, [userActualLocation, vehicleLocations]);
 
   const isWithinAnyRadius = (radiusResult?.withinRadius?.length ?? 0) > 0;
 
