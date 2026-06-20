@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Enums\ShiftStatus;
 use App\Models\Driver;
 use App\Models\Remittance;
-use App\Models\Route;
 use App\Models\ShiftLog;
 use App\Models\User;
 use App\Models\Vehicle;
@@ -39,11 +38,10 @@ class ShiftService
         $vehicle = Vehicle::findOrFail($vehicleId);
         $driver = Driver::findOrFail($driverId);
         $conductorProfile = $conductor->conductorProfile;
-        $route = $routeId ? Route::find($routeId) : null;
 
         $shiftId = 'SHF-' . strtoupper(Str::random(14));
 
-        return DB::transaction(function () use ($conductor, $vehicleId, $driverId, $routeId, $vehicle, $driver, $conductorProfile, $route, $shiftId) {
+        return DB::transaction(function () use ($conductor, $vehicleId, $driverId, $routeId, $vehicle, $driver, $conductorProfile, $shiftId) {
             $shiftLog = ShiftLog::create([
                 'shift_id' => $shiftId,
                 'conductor_id' => $conductor->id,
@@ -60,7 +58,6 @@ class ShiftService
                 'driver_name' => trim($driver->first_name . ' ' . $driver->last_name),
                 'unit_number' => $vehicle->unit_number,
                 'plate_number' => $vehicle->plate_number,
-                'unit_number' => $vehicle->unit_number,
             ]);
 
             $vehicle->update(['active_shift_id' => $shiftId]);
