@@ -25,14 +25,11 @@ class ShiftLog extends Model
         'driver_name',
         'unit_number',
         'plate_number',
-        'unit_number',
-        'route_name',
         'time_in',
         'time_out',
         'is_active',
         'notes',
         'status',
-        'notes',
     ];
 
     protected function casts(): array

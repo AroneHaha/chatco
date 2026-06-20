@@ -37,7 +37,9 @@ interface UseVehicleLocationsResult {
   refresh: () => Promise<void>;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+// Fallback poll of the seed endpoint so the map still updates if the Pusher
+// socket is unavailable. Pusher remains the primary (near-instant) path.
+const POLL_INTERVAL_MS = 8000;
 
 export function useVehicleLocations(): UseVehicleLocationsResult {
   const [vehicles, setVehicles] = useState<VehicleLocation[]>([]);
@@ -46,16 +48,15 @@ export function useVehicleLocations(): UseVehicleLocationsResult {
 
   const fetchInitial = useCallback(async () => {
     try {
-      setLoading(true);
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      const response = await fetch(`${API_BASE_URL}/vehicles/locations`, {
-        headers: {
-          Accept: 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+      // Same-origin Next proxy: it reads the httpOnly chatco_session cookie and
+      // forwards it as a Bearer token to Laravel. (Calling Laravel directly with
+      // a localStorage 'token' failed — the token lives in the cookie, not LS.)
+      const response = await fetch('/api/vehicles/locations', {
+        headers: { Accept: 'application/json' },
+        credentials: 'include',
       });
       const json = await response.json();
-      setVehicles(json.data ?? []);
+      setVehicles(Array.isArray(json?.data) ? json.data : []);
       setError(null);
     } catch (err) {
       setError(err as Error);
@@ -67,10 +68,15 @@ export function useVehicleLocations(): UseVehicleLocationsResult {
   useEffect(() => {
     fetchInitial();
 
+    // Fallback polling — cleared on unmount.
+    const pollId = window.setInterval(fetchInitial, POLL_INTERVAL_MS);
+
     let echo: ReturnType<typeof getEcho> | null = null;
     try {
       echo = getEcho();
-      echo.channel('vehicles').listen('VehicleLocationUpdated', (event: VehicleLocation) => {
+      // Leading dot = listen for the exact broadcastAs name
+      // ('VehicleLocationUpdated') rather than Echo's namespaced default.
+      echo.channel('vehicles').listen('.VehicleLocationUpdated', (event: VehicleLocation) => {
         setVehicles((prev) => {
           // Match by vehicle_id (snake_case) — same key the backend broadcasts.
           const index = prev.findIndex((v) => v.vehicle_id === event.vehicle_id);
@@ -87,8 +93,9 @@ export function useVehicleLocations(): UseVehicleLocationsResult {
     }
 
     return () => {
+      window.clearInterval(pollId);
       if (echo) {
-        echo.channel('vehicles').stopListening('VehicleLocationUpdated');
+        echo.channel('vehicles').stopListening('.VehicleLocationUpdated');
       }
     };
   }, [fetchInitial]);

@@ -1,23 +1,21 @@
-import { api, ApiError, NetworkError } from "@/lib/api/client";
-import { CONDUCTOR_API } from "@/lib/conductor/endpoints";
-import { shouldUseConductorApi } from "@/lib/conductor/services/api-mode";
 import * as transactionsStore from "@/lib/conductor/persistence/transactions.store";
 
 export type { Transaction } from "@/lib/conductor/persistence/transactions.store";
 export type { PaymentMethodType } from "@/types";
 
+/**
+ * Conductor fares (cash/GCash/voucher) are tracked CLIENT-SIDE in localStorage,
+ * not persisted per-fare to the backend — only the remittance total is sent to
+ * the DB at end of shift (see remittance.service + the remittances proxy).
+ *
+ * Why not the API: the conductor transactions Next route is a mock in-memory
+ * store that has no knowledge of the real (Laravel) active shift, so writes 409
+ * and reads come back empty — the two would land in different places and the
+ * dashboard total would never reflect recorded fares. Using one localStorage
+ * store for both read and write keeps the dashboard, end-of-day summary, and
+ * remittance in sync.
+ */
 export async function fetchShiftTransactions(shiftId: string) {
-  if (shouldUseConductorApi()) {
-    try {
-      const response = await api.get<{ data: transactionsStore.Transaction[] }>(
-        CONDUCTOR_API.transactions.list(shiftId)
-      );
-      return response.data ?? [];
-    } catch (error) {
-      if (!(error instanceof NetworkError) && !(error instanceof ApiError)) throw error;
-    }
-  }
-
   return transactionsStore.getShiftTransactions(shiftId);
 }
 
@@ -25,19 +23,6 @@ export async function createTransaction(
   shiftId: string,
   txn: Omit<transactionsStore.Transaction, "transactionId" | "timestamp">
 ) {
-  if (shouldUseConductorApi()) {
-    try {
-      const response = await api.post<{ data: transactionsStore.Transaction }>(
-        CONDUCTOR_API.transactions.create,
-        { shiftId, ...txn }
-      );
-      transactionsStore.cacheTransaction(shiftId, response.data);
-      return response.data;
-    } catch (error) {
-      if (!(error instanceof NetworkError) && !(error instanceof ApiError)) throw error;
-    }
-  }
-
   return transactionsStore.saveTransaction(shiftId, txn);
 }
 
