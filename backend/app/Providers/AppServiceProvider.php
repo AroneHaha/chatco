@@ -82,5 +82,14 @@ class AppServiceProvider extends ServiceProvider
                 ->by($request->user()?->id ?: $request->ip())
                 ->response($rateLimitResponse);
         });
+
+        // Commuter hail lifecycle — 10 req/min (one active hail at a time,
+        // with headroom for cancel + retry). Used by POST /commuter/hail
+        // and DELETE /commuter/hail/{id}.
+        RateLimiter::for('commuter-hail', function (Request $request) use ($rateLimitResponse) {
+            return Limit::perMinute(10)
+                ->by($request->user()?->id ?: $request->ip())
+                ->response($rateLimitResponse);
+        });
     }
 }

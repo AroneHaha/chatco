@@ -77,6 +77,11 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->grou
 
     // Still a 501 stub — keep minimal limit
     Route::get('/transactions', [ConductorController::class, 'transactions'])->middleware('throttle:conductor-write');
+
+    // Hail lifecycle (conductor-side) — reads 60/min, mutations 10/min
+    Route::get('/hails', [ConductorHailController::class, 'index'])->middleware('throttle:conductor-read');
+    Route::post('/hails/{id}/accept', [ConductorHailController::class, 'accept'])->middleware('throttle:conductor-mutation');
+    Route::post('/hails/{id}/reject', [ConductorHailController::class, 'reject'])->middleware('throttle:conductor-mutation');
 });
 
 /*
