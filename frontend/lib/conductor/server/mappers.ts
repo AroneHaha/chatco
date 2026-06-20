@@ -28,6 +28,24 @@ interface LaravelDriver {
   status: string;
 }
 
+interface LaravelHailCommuter {
+  // The User model has no `name` column (name lives in commuterProfile and is
+  // only exposed via getDisplayName()). It is mapped here defensively so that
+  // if the backend later eager-loads the profile or appends a display name,
+  // this picks it up without a frontend change.
+  name?: string | null;
+  email?: string | null;
+}
+
+interface LaravelHail {
+  id: string;
+  // decimal:7 / decimal:2 casts serialize as STRINGS — must be coerced to
+  // numbers before Leaflet / distance math can use them.
+  commuter_lat: string | number;
+  commuter_lng: string | number;
+  commuter?: LaravelHailCommuter | null;
+}
+
 interface LaravelShiftLog {
   shift_id: string;
   conductor_id: string;
@@ -51,6 +69,7 @@ interface LaravelShiftLog {
 import type {
   ConductorUnit,
   ConductorDriver,
+  ConductorHailRequest,
 } from "@/lib/conductor/types";
 import type { ConductorShift } from "@/lib/conductor/persistence/shift.store";
 
@@ -92,6 +111,18 @@ export function mapShiftLog(s: unknown): ConductorShift {
     timeIn: shift.time_in,
     timeOut: shift.time_out,
     isActive: shift.status === "ACTIVE",
+  };
+}
+
+export function mapConductorHail(h: unknown): ConductorHailRequest {
+  const hail = h as LaravelHail;
+  return {
+    id: hail.id,
+    // No display name is serialized by the backend yet, so fall back to a
+    // generic label rather than rendering "undefined" in the map popup.
+    commuterName: hail.commuter?.name ?? "Commuter",
+    latitude: Number(hail.commuter_lat),
+    longitude: Number(hail.commuter_lng),
   };
 }
 
