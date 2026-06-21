@@ -441,7 +441,7 @@ class TransactionFlowTest extends TestCase
         config(['services.paymongo.secret' => 'sk_test_fake_key']);
         config(['services.paymongo.webhook_secret' => 'whsec_test_secret']);
 
-        $body = json_encode([
+        $payload = [
             'data' => [
                 'attributes' => [
                     'type' => 'payment.paid',
@@ -452,19 +452,21 @@ class TransactionFlowTest extends TestCase
                     ],
                 ],
             ],
-        ]);
+        ];
+
+        // Encode the payload the same way Laravel's postJson will encode it,
+        // then sign THAT exact string. This ensures the signature matches
+        // the raw body the controller receives via $request->getContent().
+        $body = json_encode($payload, JSON_UNESCAPED_SLASHES);
 
         $timestamp = time();
         $sig = hash_hmac('sha256', $timestamp . '.' . $body, 'whsec_test_secret');
         $signatureHeader = "t={$timestamp},te={$sig},li={$sig}";
 
-        // Pass the RAW body string (not an array) so the signature matches exactly.
-        // postJson's 2nd arg must be a string to bypass Laravel's json_encode.
-        $response = $this->call('POST', '/api/v1/payments/webhook', [], [], [], [
-            'HTTP_Paymongo-Signature' => $signatureHeader,
-            'HTTP_CONTENT_TYPE' => 'application/json',
-            'CONTENT' => $body,
-        ]);
+        $response = $this->withHeaders([
+            'Paymongo-Signature' => $signatureHeader,
+            'Content-Type' => 'application/json',
+        ])->postJson('/api/v1/payments/webhook', $payload);
 
         $response->assertStatus(200);
 
@@ -518,36 +520,37 @@ class TransactionFlowTest extends TestCase
         config(['services.paymongo.secret' => 'sk_test_fake_key']);
         config(['services.paymongo.webhook_secret' => 'whsec_test_secret']);
 
-        $body = json_encode([
+        $payload = [
             'data' => [
                 'attributes' => [
                     'type' => 'payment.paid',
                     'data' => ['attributes' => ['payment_intent_id' => $txn->paymongo_intent_id]],
                 ],
             ],
-        ]);
+        ];
+
+        // Encode the same way Laravel will, then sign that exact string
+        $body = json_encode($payload, JSON_UNESCAPED_SLASHES);
 
         $timestamp = time();
         $sig = hash_hmac('sha256', $timestamp . '.' . $body, 'whsec_test_secret');
         $signatureHeader = "t={$timestamp},te={$sig},li={$sig}";
 
-        // First webhook -- pass RAW body string so signature matches
-        $this->call('POST', '/api/v1/payments/webhook', [], [], [], [
-            'HTTP_Paymongo-Signature' => $signatureHeader,
-            'HTTP_CONTENT_TYPE' => 'application/json',
-            'CONTENT' => $body,
-        ])->assertStatus(200);
+        // First webhook
+        $this->withHeaders([
+            'Paymongo-Signature' => $signatureHeader,
+            'Content-Type' => 'application/json',
+        ])->postJson('/api/v1/payments/webhook', $payload)->assertStatus(200);
 
         $txn->refresh();
         $this->assertSame('PAID', $txn->status);
         $firstPaidAt = $txn->paid_at;
 
         // Second webhook (duplicate)
-        $this->call('POST', '/api/v1/payments/webhook', [], [], [], [
-            'HTTP_Paymongo-Signature' => $signatureHeader,
-            'HTTP_CONTENT_TYPE' => 'application/json',
-            'CONTENT' => $body,
-        ])->assertStatus(200);
+        $this->withHeaders([
+            'Paymongo-Signature' => $signatureHeader,
+            'Content-Type' => 'application/json',
+        ])->postJson('/api/v1/payments/webhook', $payload)->assertStatus(200);
 
         // Status still PAID, paid_at unchanged (idempotent)
         $txn->refresh();
