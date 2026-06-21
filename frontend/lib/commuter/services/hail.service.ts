@@ -23,7 +23,7 @@
 
 import { api, ApiError, NetworkError } from "@/lib/api/client";
 import { COMMUTER_API } from "@/lib/commuter/endpoints";
-import type { CommuterHailData } from "@/lib/commuter/types";
+import type { CommuterHailData, HailStatus } from "@/lib/commuter/types";
 
 export type { CommuterHailData };
 
@@ -52,6 +52,36 @@ interface ApiResponse<T> {
 export interface OutsideRadiusError {
   error: "outside_radius";
   distance_m: number;
+}
+
+// ─── Raw API shape + mapper ──────────────────────────────────────────
+
+/**
+ * The raw Hail row as Laravel serializes it (snake_case; decimals as strings).
+ * The proxy forwards this verbatim, so we map it to the camelCase
+ * CommuterHailData the app uses — otherwise fields like `vehicleId`/`distanceM`
+ * would be `undefined` at runtime despite the (previously mismatched) types.
+ */
+interface RawHail {
+  id: string;
+  vehicle_id: string;
+  conductor_id: string | null;
+  status: HailStatus;
+  distance_m: number | string | null;
+  expires_at: string;
+  created_at: string;
+}
+
+function mapCommuterHail(raw: RawHail): CommuterHailData {
+  return {
+    id: raw.id,
+    vehicleId: raw.vehicle_id,
+    conductorId: raw.conductor_id ?? null,
+    status: raw.status,
+    distanceM: raw.distance_m != null ? Number(raw.distance_m) : 0,
+    expiresAt: raw.expires_at,
+    createdAt: raw.created_at,
+  };
 }
 
 // ─── Type Guard ──────────────────────────────────────────────────────
@@ -99,7 +129,7 @@ export async function createHail(
   lat: number,
   lng: number
 ): Promise<CommuterHailData> {
-  const response = await api.post<ApiResponse<CommuterHailData>>(
+  const response = await api.post<ApiResponse<RawHail>>(
     COMMUTER_API.tracking.hail,
     {
       vehicle_id: vehicleId,
@@ -108,7 +138,7 @@ export async function createHail(
     }
   );
 
-  return response.data;
+  return mapCommuterHail(response.data);
 }
 
 /**
@@ -128,9 +158,9 @@ export async function createHail(
  * @throws {NetworkError} if Laravel is unreachable
  */
 export async function cancelHail(hailId: string): Promise<CommuterHailData> {
-  const response = await api.delete<ApiResponse<CommuterHailData>>(
+  const response = await api.delete<ApiResponse<RawHail>>(
     COMMUTER_API.tracking.cancelHail(hailId)
   );
 
-  return response.data;
+  return mapCommuterHail(response.data);
 }
