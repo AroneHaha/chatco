@@ -18,7 +18,7 @@ import OfficialReportModal, { buildPrintHTML } from "@/components/conductor/remi
 
 export default function EndOfDayPage() {
   const router = useRouter();
-  const { shift, transactions, history, status, error, refresh } = useRemittanceData();
+  const { shift, transactions, earnings, history, status, error, refresh } = useRemittanceData();
 
   const [showConfirm, setShowConfirm] = useState(false);
   const [isRemitting, setIsRemitting] = useState(false);
@@ -40,6 +40,9 @@ export default function EndOfDayPage() {
     timeOut: shift?.timeOut || new Date().toISOString(),
   };
   // ─── Computed breakdown from system-tracked transactions ───
+  // S4-T9: Prefer the API-backed `earnings` (from the DB) for the
+  // cash_total / gcash_total split. Fall back to computing from the
+  // transactions array if earnings is null (e.g., network error).
   const summary = useMemo(() => {
     const keys = ["GCash_Scanned", "GCash_Direct", "Voucher", "Cash"] as const;
     const breakdown: Record<string, { count: number; amount: number }> = {};
@@ -48,9 +51,11 @@ export default function EndOfDayPage() {
       breakdown[key] = { count: txns.length, amount: txns.reduce((s, t) => s + t.finalAmount, 0) };
     }
 
-    const gcashTotal = (breakdown["GCash_Scanned"]?.amount ?? 0) + (breakdown["GCash_Direct"]?.amount ?? 0);
-    const cashTotal = breakdown["Cash"]?.amount ?? 0;
-    const grandTotal = transactions.reduce((s, t) => s + t.finalAmount, 0);
+    // Use API-backed earnings if available; otherwise compute from transactions
+    const cashTotal = earnings?.cash_total ?? (breakdown["Cash"]?.amount ?? 0);
+    const gcashTotal = earnings?.gcash_total ??
+      ((breakdown["GCash_Scanned"]?.amount ?? 0) + (breakdown["GCash_Direct"]?.amount ?? 0));
+    const grandTotal = earnings?.total ?? transactions.reduce((s, t) => s + t.finalAmount, 0);
 
     return {
       breakdown,
@@ -59,7 +64,7 @@ export default function EndOfDayPage() {
       cashTotal,
       grandTotal,
     };
-  }, [transactions]);
+  }, [transactions, earnings]);
 
   const canRemit = transactions.length > 0 && !hasRemittedToday;
 

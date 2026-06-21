@@ -140,3 +140,78 @@ export function saveTransaction(
 export function clearShiftTransactions(shiftId: string) {
   transactionsStore.clearShiftTransactions(shiftId);
 }
+
+// ─── S4-T9: Earnings (cash vs GCash split from the DB) ────────────
+
+/**
+ * Earnings breakdown returned by Laravel's
+ * TransactionService::getShiftEarnings().
+ *
+ * - cash_total:  sum of CASH+PAID (the physically-remitted figure)
+ * - gcash_total: sum of GCASH+PAID (record-only, NOT remitted)
+ * - total:       cash_total + gcash_total
+ *
+ * PENDING GCash is EXCLUDED (it may still FAIL).
+ */
+export interface ShiftEarnings {
+  cash_total: number;
+  gcash_total: number;
+  total: number;
+}
+
+/**
+ * Fetch the cash vs GCash earnings breakdown for a shift from the DB.
+ *
+ * Calls GET /api/conductor/earnings?shift_id={shiftId} which proxies
+ * to Laravel's TransactionService::getShiftEarnings(). The backend
+ * computes the split from the transactions table (only PAID rows count).
+ *
+ * On network error, falls back to computing the split from the
+ * localStorage cache (best-effort — may not match the DB if the
+ * cache is stale).
+ *
+ * @param shiftId  The shift ID to fetch earnings for
+ * @returns { cash_total, gcash_total, total }
+ */
+export async function fetchShiftEarnings(
+  shiftId: string
+): Promise<ShiftEarnings> {
+  try {
+    const response = await api.get<{ data: ShiftEarnings }>(
+      CONDUCTOR_API.earnings.get(shiftId)
+    );
+
+    return (
+      response.data ?? {
+        cash_total: 0,
+        gcash_total: 0,
+        total: 0,
+      }
+    );
+  } catch (error) {
+    // Only fall back on network errors (Laravel unreachable / 502).
+    if (error instanceof NetworkError) {
+      // Compute from localStorage cache (best-effort)
+      const cached = transactionsStore.getShiftTransactions(shiftId);
+      const cashTotal = cached
+        .filter((t) => t.paymentMethod === "Cash")
+        .reduce((sum, t) => sum + t.finalAmount, 0);
+      const gcashTotal = cached
+        .filter(
+          (t) =>
+            t.paymentMethod === "GCash_Scanned" ||
+            t.paymentMethod === "GCash_Direct"
+        )
+        .reduce((sum, t) => sum + t.finalAmount, 0);
+
+      return {
+        cash_total: cashTotal,
+        gcash_total: gcashTotal,
+        total: cashTotal + gcashTotal,
+      };
+    }
+
+    // Re-throw ApiError (401/403/422/500) and other unexpected errors
+    throw error;
+  }
+}
