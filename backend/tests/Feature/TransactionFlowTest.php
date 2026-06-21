@@ -325,8 +325,9 @@ class TransactionFlowTest extends TestCase
         $this->assertSame('pi_test_123', $result['transaction']->paymongo_intent_id);
         $this->assertSame('https://test.checkout.url/abc', $result['transaction']->paymongo_checkout_url);
 
-        // No wallet side effect
-        $this->assertDatabaseMissing('wallets', ['commuter_id' => $this->commuter1->id]);
+        // No wallet side effect (use Schema::hasTable — assertDatabaseMissing
+        // throws if the table doesn't exist, which is actually the desired state)
+        $this->assertFalse(\Schema::hasTable('wallets'), 'No wallets table should exist');
     }
 
     // ─── 3. GCash Claim ─────────────────────────────────────────────
@@ -457,9 +458,12 @@ class TransactionFlowTest extends TestCase
         $sig = hash_hmac('sha256', $timestamp . '.' . $body, 'whsec_test_secret');
         $signatureHeader = "t={$timestamp},te={$sig},li={$sig}";
 
-        $response = $this->postJson('/api/v1/payments/webhook', [], [
-            'Paymongo-Signature' => $signatureHeader,
-            'Content-Type' => 'application/json',
+        // Pass the RAW body string (not an array) so the signature matches exactly.
+        // postJson's 2nd arg must be a string to bypass Laravel's json_encode.
+        $response = $this->call('POST', '/api/v1/payments/webhook', [], [], [], [
+            'HTTP_Paymongo-Signature' => $signatureHeader,
+            'HTTP_CONTENT_TYPE' => 'application/json',
+            'CONTENT' => $body,
         ]);
 
         $response->assertStatus(200);
@@ -527,9 +531,11 @@ class TransactionFlowTest extends TestCase
         $sig = hash_hmac('sha256', $timestamp . '.' . $body, 'whsec_test_secret');
         $signatureHeader = "t={$timestamp},te={$sig},li={$sig}";
 
-        // First webhook
-        $this->postJson('/api/v1/payments/webhook', [], [
-            'Paymongo-Signature' => $signatureHeader,
+        // First webhook -- pass RAW body string so signature matches
+        $this->call('POST', '/api/v1/payments/webhook', [], [], [], [
+            'HTTP_Paymongo-Signature' => $signatureHeader,
+            'HTTP_CONTENT_TYPE' => 'application/json',
+            'CONTENT' => $body,
         ])->assertStatus(200);
 
         $txn->refresh();
@@ -537,8 +543,10 @@ class TransactionFlowTest extends TestCase
         $firstPaidAt = $txn->paid_at;
 
         // Second webhook (duplicate)
-        $this->postJson('/api/v1/payments/webhook', [], [
-            'Paymongo-Signature' => $signatureHeader,
+        $this->call('POST', '/api/v1/payments/webhook', [], [], [], [
+            'HTTP_Paymongo-Signature' => $signatureHeader,
+            'HTTP_CONTENT_TYPE' => 'application/json',
+            'CONTENT' => $body,
         ])->assertStatus(200);
 
         // Status still PAID, paid_at unchanged (idempotent)
