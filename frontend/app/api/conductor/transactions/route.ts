@@ -1,51 +1,89 @@
 import { NextRequest } from "next/server";
-import { getConductorSession, unauthorizedResponse } from "@/lib/conductor/server/auth";
-import { jsonData, jsonError } from "@/lib/conductor/server/response";
-import * as store from "@/lib/conductor/server/store";
+import { jsonError, jsonData } from "@/lib/conductor/server/response";
+import { proxyToLaravel } from "@/lib/conductor/server/proxy";
+import { mapArray, mapTransaction } from "@/lib/conductor/server/mappers";
 import type { Transaction } from "@/lib/conductor/persistence/transactions.store";
 
-function getShiftId(request: NextRequest): string | null {
-  const { searchParams } = request.nextUrl;
-  return searchParams.get("shift_id") ?? searchParams.get("shiftId");
-}
-
+/**
+ * GET /api/conductor/transactions?shift_id={id}
+ *
+ * Proxies to Laravel GET /api/v1/conductor/transactions?shift_id={id}.
+ * Laravel's TransactionService::getShiftTransactions() enforces that
+ * the shift belongs to the authenticated conductor (403 otherwise).
+ *
+ * Returns the transactions in the frontend's Transaction shape (camelCase,
+ * mapped payment_method, etc.) so the dashboard / end-of-day logic needs
+ * no changes.
+ */
 export async function GET(request: NextRequest) {
-  const session = await getConductorSession(request);
-  if (!session) return unauthorizedResponse();
+  const shiftId = request.nextUrl.searchParams.get("shift_id");
 
-  const shiftId = getShiftId(request);
   if (!shiftId) {
     return jsonError("shift_id query parameter is required.");
   }
 
-  return jsonData(store.listTransactions(session.userId, shiftId));
+  const result = await proxyToLaravel(
+    request,
+    `/conductor/transactions?shift_id=${encodeURIComponent(shiftId)}`,
+    { method: "GET" }
+  );
+
+  if (!result.ok) {
+    return jsonError(result.message ?? "Failed to load transactions.", result.status);
+  }
+
+  const transactions = mapArray<Transaction>(result.data, mapTransaction);
+  return jsonData(transactions);
 }
 
+/**
+ * POST /api/conductor/transactions
+ *
+ * Proxies to Laravel POST /api/v1/conductor/transactions.
+ * Laravel's TransactionService::recordCashFare() handles:
+ *   - Active shift resolution (422 if none)
+ *   - Idempotency check (natural key within 60s window)
+ *   - Denormalization of conductor_name/unit_number/driver_name
+ *   - Payment method must be CASH (enforced by RecordCashRequest)
+ *
+ * The request body is forwarded as-is (with shift_id stripped — Laravel
+ * resolves the shift from the authenticated conductor's active shift).
+ *
+ * Returns 201 with the created transaction in the frontend's Transaction shape.
+ */
 export async function POST(request: NextRequest) {
-  const session = await getConductorSession(request);
-  if (!session) return unauthorizedResponse();
-
   try {
     const body = await request.json();
-    const shiftId = body?.shiftId as string | undefined;
 
-    if (!shiftId) {
-      return jsonError("shiftId is required.");
-    }
-
-    const activeShift = store.getActiveShift(session.userId);
-    if (!activeShift || activeShift.shiftId !== shiftId) {
-      return jsonError("No active shift matches the provided shiftId.", 409);
-    }
-
+    // Strip shiftId — Laravel resolves the shift from the conductor's
+    // active shift (not from the request body). This prevents a conductor
+    // from recording fares on another conductor's shift.
     const { shiftId: _ignored, ...txnBody } = body;
-    const txn = store.addTransaction(
-      session.userId,
-      shiftId,
-      txnBody as Omit<Transaction, "transactionId" | "timestamp">
-    );
 
-    return jsonData(txn, 201);
+    // Laravel expects snake_case field names + payment_method=CASH
+    const payload = {
+      payment_method: "CASH",
+      final_amount: txnBody.finalAmount ?? txnBody.final_amount,
+      pickup_name: txnBody.from ?? txnBody.pickup_name,
+      dropoff_name: txnBody.to ?? txnBody.dropoff_name,
+      base_fare: txnBody.baseFare ?? txnBody.base_fare,
+      distance: txnBody.distance,
+      discount_amount: txnBody.discountAmount ?? txnBody.discount_amount,
+      passenger_name: txnBody.passengerName ?? txnBody.passenger_name,
+      passenger_role: txnBody.passengerRole ?? txnBody.passenger_role,
+    };
+
+    const result = await proxyToLaravel(request, "/conductor/transactions", {
+      method: "POST",
+      body: payload,
+    });
+
+    if (!result.ok) {
+      return jsonError(result.message ?? "Failed to record transaction.", result.status);
+    }
+
+    const transaction = mapTransaction(result.data);
+    return jsonData(transaction, 201);
   } catch (error) {
     return jsonError(
       error instanceof Error ? error.message : "Unable to save transaction."
