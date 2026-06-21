@@ -41,6 +41,10 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
     // Hail lifecycle (commuter-side) — 10 req/min per user
     Route::post('/hail', [HailController::class, 'store'])->middleware('throttle:commuter-hail');
     Route::delete('/hail/{id}', [HailController::class, 'destroy'])->middleware('throttle:commuter-hail');
+
+    // Payment lifecycle (commuter-side) — claim GCash + view history
+    Route::post('/payments/claim', [PaymentController::class, 'claim'])->middleware('throttle:commuter-hail');
+    Route::get('/payments', [PaymentController::class, 'history'])->middleware('throttle:conductor-read');
 });
 
 /*
@@ -58,7 +62,7 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
 |--------------------------------------------------------------------------
 */
 Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->group(function () {
-    // Read endpoints — generous limit
+    // Read endpoints — 60 req/min (generous for UI polling)
     Route::get('/shift', [ConductorController::class, 'shiftStatus'])->middleware('throttle:conductor-read');
     Route::get('/shift-logs', [ConductorController::class, 'shiftLogs'])->middleware('throttle:conductor-read');
     Route::get('/profile', [ConductorController::class, 'profile'])->middleware('throttle:conductor-read');
@@ -75,13 +79,18 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->grou
     // Capacity status updates
     Route::post('/capacity-status', [ConductorController::class, 'updateCapacityStatus'])->middleware('throttle:conductor-write');
 
-    // Still a 501 stub — keep minimal limit
-    Route::get('/transactions', [ConductorController::class, 'transactions'])->middleware('throttle:conductor-write');
+    // Transaction lifecycle (S4-T5) — cash recording, GCash initiate, earnings.
+    // POST fare recording uses conductor-write (30/min) — comfortably above
+    // the real boarding cadence; reads use conductor-read (60/min).
+    Route::get('/transactions', [ConductorController::class, 'transactions'])->middleware('throttle:conductor-read');
+    Route::post('/transactions', [ConductorController::class, 'storeTransaction'])->middleware('throttle:conductor-write');
+    Route::post('/payments/gcash/initiate', [ConductorController::class, 'initiateGcash'])->middleware('throttle:conductor-write');
+    Route::get('/earnings', [ConductorController::class, 'earnings'])->middleware('throttle:conductor-read');
 
-    // Hail lifecycle (conductor-side) — reads 60/min, mutations 10/min
+    // Hail lifecycle (conductor-side) — reads 60/min, mutations via write limiter
     Route::get('/hails', [ConductorHailController::class, 'index'])->middleware('throttle:conductor-read');
-    Route::post('/hails/{id}/accept', [ConductorHailController::class, 'accept'])->middleware('throttle:conductor-mutation');
-    Route::post('/hails/{id}/reject', [ConductorHailController::class, 'reject'])->middleware('throttle:conductor-mutation');
+    Route::post('/hails/{id}/accept', [ConductorHailController::class, 'accept'])->middleware('throttle:conductor-write');
+    Route::post('/hails/{id}/reject', [ConductorHailController::class, 'reject'])->middleware('throttle:conductor-write');
 });
 
 /*
@@ -113,13 +122,24 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
 
 /*
 |--------------------------------------------------------------------------
-| Payment Routes (Authenticated — any role)
+| Payment Routes (Shared + Webhook)
+|--------------------------------------------------------------------------
+|   GET  /payments/{id}/status  -> auth:sanctum (any role) — status polling
+|   POST /payments/webhook      -> PUBLIC (no auth) — PayMongo webhook (S4-T6)
+|
+| The commuter-side payment routes (claim, history) live in the commuter
+| group above. The conductor-side GCash initiate route lives in the
+| conductor group above.
 |--------------------------------------------------------------------------
 */
-Route::prefix('payments')->middleware(['auth:sanctum'])->group(function () {
-    Route::post('/initiate', [PaymentController::class, 'initiate']);
-    Route::post('/verify', [PaymentController::class, 'verify']);
-    Route::get('/history', [PaymentController::class, 'history']);
+Route::prefix('payments')->group(function () {
+    // Status polling — auth required, any role (conductor or commuter)
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/{id}/status', [PaymentController::class, 'status'])->middleware('throttle:conductor-read');
+    });
+
+    // PayMongo webhook — PUBLIC (server-to-server, signature-verified in S4-T6)
+    Route::post('/webhook', [PaymentController::class, 'webhook']);
 });
 
 /*

@@ -10,7 +10,7 @@ interface UseConductorHailsResult {
   refresh: () => Promise<void>;
 }
 
-export function useConductorHails(pollMs = 4000): UseConductorHailsResult {
+export function useConductorHails(pollMs = 6000): UseConductorHailsResult {
   const [hails, setHails] = useState<ConductorHailRequest[]>([]);
   const [status, setStatus] = useState<UseConductorHailsResult["status"]>("loading");
   const [error, setError] = useState<string | null>(null);

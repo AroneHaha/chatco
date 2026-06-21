@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Conductor;
 
 use App\Http\Controllers\Controller;
 use App\Http\ApiResponse;
+use App\Http\Requests\Conductor\InitiateGcashRequest;
+use App\Http\Requests\Conductor\RecordCashRequest;
 use App\Http\Requests\Conductor\StartShiftRequest;
 use App\Http\Requests\Conductor\UpdateLocationRequest;
 use App\Http\Requests\Conductor\SubmitRemittanceRequest;
@@ -12,6 +14,7 @@ use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\LocationService;
 use App\Services\ShiftService;
+use App\Services\TransactionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -22,11 +25,16 @@ class ConductorController extends Controller
 
     protected ShiftService $shiftService;
     protected LocationService $locationService;
+    protected TransactionService $transactionService;
 
-    public function __construct(ShiftService $shiftService, LocationService $locationService)
-    {
+    public function __construct(
+        ShiftService $shiftService,
+        LocationService $locationService,
+        TransactionService $transactionService
+    ) {
         $this->shiftService = $shiftService;
         $this->locationService = $locationService;
+        $this->transactionService = $transactionService;
     }
 
     /**
@@ -135,12 +143,104 @@ class ConductorController extends Controller
     }
 
     /**
-     * GET /api/conductor/transactions
-     * Sprint 4 — keep as stub.
+     * GET /api/conductor/transactions?shift_id={id}
+     *
+     * Lists all transactions for the given shift. The shift_id query
+     * param is required; the service enforces that the shift belongs
+     * to the authenticated conductor (403 otherwise).
      */
     public function transactions(Request $request): JsonResponse
     {
-        return $this->notImplementedResponse();
+        $shiftId = $request->query('shift_id');
+
+        if (! $shiftId) {
+            return $this->errorResponse('shift_id query parameter is required', 422);
+        }
+
+        $transactions = $this->transactionService->getShiftTransactions(
+            $request->user(),
+            $shiftId,
+        );
+
+        return $this->successResponse($transactions, 'Shift transactions retrieved');
+    }
+
+    /**
+     * POST /api/conductor/transactions
+     *
+     * Records a cash fare immediately as PAID. Delegates to
+     * TransactionService::recordCashFare() which handles:
+     *   - Active shift resolution (422 if none)
+     *   - Idempotency check (natural key within 60s window)
+     *   - Denormalization of conductor_name/unit_number/driver_name
+     *
+     * Returns 201 Created on success.
+     */
+    public function storeTransaction(RecordCashRequest $request): JsonResponse
+    {
+        $transaction = $this->transactionService->recordCashFare(
+            $request->user(),
+            $request->validated(),
+        );
+
+        return $this->successResponse(
+            $transaction,
+            'Cash fare recorded',
+            201,
+        );
+    }
+
+    /**
+     * POST /api/conductor/payments/gcash/initiate
+     *
+     * Initiates a GCash fare: creates a PENDING transaction with a
+     * unique qr_token, calls PaymentService::createGcashIntent() to
+     * get the PayMongo hosted checkout_url. Returns the binding-QR
+     * payload that the conductor app displays as a QR code.
+     *
+     * Delegates to TransactionService::initiateGcashFare().
+     */
+    public function initiateGcash(InitiateGcashRequest $request): JsonResponse
+    {
+        $result = $this->transactionService->initiateGcashFare(
+            $request->user(),
+            $request->validated(),
+        );
+
+        // Return the spec-mandated payload shape (NOT the full transaction)
+        return $this->successResponse([
+            'transaction_id' => $result['transaction']->transaction_id,
+            'qr_token'       => $result['qr_token'],
+            'checkout_url'   => $result['checkout_url'],
+            'amount'         => $result['amount'],
+            'expires_at'     => $result['expires_at'],
+        ], 'GCash fare initiated', 201);
+    }
+
+    /**
+     * GET /api/conductor/earnings?shift_id={id}
+     *
+     * Returns the cash vs GCash earnings breakdown for the given shift.
+     * cash_total = sum of CASH+PAID (the physically-remitted figure).
+     * gcash_total = sum of GCASH+PAID (record-only, NOT remitted).
+     * total = cash_total + gcash_total.
+     *
+     * PENDING GCash is excluded (may still FAIL).
+     */
+    public function earnings(Request $request): JsonResponse
+    {
+        $shiftId = $request->query('shift_id');
+
+        if (! $shiftId) {
+            return $this->errorResponse('shift_id query parameter is required', 422);
+        }
+
+        $earnings = $this->transactionService->getShiftEarnings(
+            $request->user(),
+            $shiftId,
+        );
+
+        return $this->successResponse($earnings, 'Shift earnings retrieved');
     }
 
     /**
@@ -159,8 +259,6 @@ class ConductorController extends Controller
         $name = $profile
             ? trim($profile->first_name . ' ' . $profile->last_name)
             : null;
-
-        $profile = $user->conductorProfile;
 
         return $this->successResponse([
             'id' => $user->id,

@@ -42,7 +42,10 @@ export function useConductorShift(options?: { pollMs?: number }): UseConductorSh
 
   useEffect(() => {
     void refresh();
-    const interval = window.setInterval(refresh, options?.pollMs ?? 3000);
+    // Shift status changes ~twice a day (start / end), so polling every 3s
+    // was wasteful and pushed conductor-read toward its limit. 15s keeps the
+    // elapsed timer fresh enough while leaving plenty of rate headroom.
+    const interval = window.setInterval(refresh, options?.pollMs ?? 15000);
     return () => window.clearInterval(interval);
   }, [options?.pollMs, refresh]);
 

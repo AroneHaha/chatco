@@ -49,18 +49,23 @@ class LocationService
         // 3. Get vehicle_id from the active shift
         $vehicleId = $activeShift->vehicle_id;
 
-        // 4. Upsert vehicle_locations by vehicle_id
-        $location = VehicleLocation::updateOrCreate(
-            ['vehicle_id' => $vehicleId],
-            [
-                'conductor_id' => $conductor->id,
-                'lat' => $lat,
-                'lng' => $lng,
-                'speed' => $speed,
-                'heading' => $heading,
-                'capacity_status' => $capacityStatus ?? CapacityStatus::AVAILABLE->value,
-            ],
-        );
+        // 4. Upsert vehicle_locations by vehicle_id. Capacity is only written
+        //    when explicitly provided, so a GPS-only update does NOT clobber a
+        //    conductor-set status; a brand-new row defaults to AVAILABLE.
+        $location = VehicleLocation::firstOrNew(['vehicle_id' => $vehicleId]);
+        $location->fill([
+            'conductor_id' => $conductor->id,
+            'lat' => $lat,
+            'lng' => $lng,
+            'speed' => $speed,
+            'heading' => $heading,
+        ]);
+        if ($capacityStatus !== null) {
+            $location->capacity_status = $capacityStatus;
+        } elseif (! $location->exists) {
+            $location->capacity_status = CapacityStatus::AVAILABLE->value;
+        }
+        $location->save();
 
         // 5. Broadcast the update via Pusher
         $this->broadcastLocationUpdate($vehicleId);

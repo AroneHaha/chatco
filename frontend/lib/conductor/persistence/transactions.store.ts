@@ -60,7 +60,9 @@ export function clearShiftTransactions(shiftId: string) {
   localStorage.removeItem(getKey(shiftId));
 }
 
-/** Cache a transaction returned from the API for offline fallback reads. */
+/** Cache a transaction returned from the API for offline fallback reads.
+ *  Does NOT dispatch the conductor:transaction-updated event (which would
+ *  trigger a refresh loop). Only saveTransaction() dispatches the event. */
 export function cacheTransaction(shiftId: string, txn: Transaction): void {
   if (typeof window === "undefined") return;
   const key = getKey(shiftId);
@@ -68,5 +70,4 @@ export function cacheTransaction(shiftId: string, txn: Transaction): void {
   if (existing.some((item) => item.transactionId === txn.transactionId)) return;
   existing.push(txn);
   localStorage.setItem(key, JSON.stringify(existing));
-  window.dispatchEvent(new CustomEvent("conductor:transaction-updated"));
 }

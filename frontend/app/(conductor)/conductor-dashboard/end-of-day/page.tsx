@@ -3,7 +3,7 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { endShift, formatTime } from "@/lib/conductor/services/shift.service";
+import { clearShift, formatTime } from "@/lib/conductor/services/shift.service";
 import { submitRemittance, type RemittanceRecord } from "@/lib/conductor/services/remittance.service";
 import type { Transaction } from "@/lib/conductor/services/transactions.service";
 import { useRemittanceData } from "@/app/(conductor)/hooks/use-remittance-data";
@@ -18,7 +18,7 @@ import OfficialReportModal, { buildPrintHTML } from "@/components/conductor/remi
 
 export default function EndOfDayPage() {
   const router = useRouter();
-  const { shift, transactions, history, status, error, refresh } = useRemittanceData();
+  const { shift, transactions, earnings, history, status, error, refresh } = useRemittanceData();
 
   const [showConfirm, setShowConfirm] = useState(false);
   const [isRemitting, setIsRemitting] = useState(false);
@@ -30,6 +30,15 @@ export default function EndOfDayPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // Captured totals for the SuccessOverlay. We must store these in state
+  // (not just local vars) because the overlay renders AFTER handleRemit
+  // finishes, by which point the live summary may have been cleared.
+  const [capturedTotals, setCapturedTotals] = useState<{
+    gcashTotal: number;
+    cashTotal: number;
+    grandTotal: number;
+  } | null>(null);
+
   const shiftInfo = {
     conductorName: shift?.conductorName || "—",
     driverName: shift?.driverName || "—",
@@ -40,6 +49,9 @@ export default function EndOfDayPage() {
     timeOut: shift?.timeOut || new Date().toISOString(),
   };
   // ─── Computed breakdown from system-tracked transactions ───
+  // S4-T9: Prefer the API-backed `earnings` (from the DB) for the
+  // cash_total / gcash_total split. Fall back to computing from the
+  // transactions array if earnings is null (e.g., network error).
   const summary = useMemo(() => {
     const keys = ["GCash_Scanned", "GCash_Direct", "Voucher", "Cash"] as const;
     const breakdown: Record<string, { count: number; amount: number }> = {};
@@ -48,9 +60,11 @@ export default function EndOfDayPage() {
       breakdown[key] = { count: txns.length, amount: txns.reduce((s, t) => s + t.finalAmount, 0) };
     }
 
-    const gcashTotal = (breakdown["GCash_Scanned"]?.amount ?? 0) + (breakdown["GCash_Direct"]?.amount ?? 0);
-    const cashTotal = breakdown["Cash"]?.amount ?? 0;
-    const grandTotal = transactions.reduce((s, t) => s + t.finalAmount, 0);
+    // Use API-backed earnings if available; otherwise compute from transactions
+    const cashTotal = earnings?.cash_total ?? (breakdown["Cash"]?.amount ?? 0);
+    const gcashTotal = earnings?.gcash_total ??
+      ((breakdown["GCash_Scanned"]?.amount ?? 0) + (breakdown["GCash_Direct"]?.amount ?? 0));
+    const grandTotal = earnings?.total ?? transactions.reduce((s, t) => s + t.finalAmount, 0);
 
     return {
       breakdown,
@@ -59,7 +73,7 @@ export default function EndOfDayPage() {
       cashTotal,
       grandTotal,
     };
-  }, [transactions]);
+  }, [transactions, earnings]);
 
   const canRemit = transactions.length > 0 && !hasRemittedToday;
 
@@ -90,34 +104,58 @@ export default function EndOfDayPage() {
     setIsRemitting(true);
     setSubmitError(null);
 
+    // Capture the current totals BEFORE ending the shift.
+    // endShift() + refresh() will clear the shift data, so we must
+    // save the totals now to show them in the SuccessOverlay.
+    const finalGcashTotal = summary.gcashTotal;
+    const finalCashTotal = summary.cashTotal;
+    const finalGrandTotal = summary.grandTotal;
+    const finalTotalPassengers = summary.totalPassengers;
+    const finalBreakdown = summary.breakdown;
+
     try {
       await new Promise((resolve) => setTimeout(resolve, 1800));
-      const endedShift = await endShift();
       const record: RemittanceRecord = {
         shiftId: shiftInfo.shiftId,
         date: new Date().toISOString().split("T")[0],
         conductorName: shiftInfo.conductorName,
         driverName: shiftInfo.driverName,
         unitNumber: shiftInfo.unitNumber,
-        totalPassengers: summary.totalPassengers,
+        totalPassengers: finalTotalPassengers,
         cashlessBreakdown: {
-          gcashScanned: summary.breakdown["GCash_Scanned"]?.amount ?? 0,
-          gcashDirect: summary.breakdown["GCash_Direct"]?.amount ?? 0,
-          voucher: summary.breakdown["Voucher"]?.amount ?? 0,
+          gcashScanned: finalBreakdown["GCash_Scanned"]?.amount ?? 0,
+          gcashDirect: finalBreakdown["GCash_Direct"]?.amount ?? 0,
+          voucher: finalBreakdown["Voucher"]?.amount ?? 0,
         },
         totalCashless:
-          (summary.breakdown["GCash_Scanned"]?.amount ?? 0) +
-          (summary.breakdown["GCash_Direct"]?.amount ?? 0) +
-          (summary.breakdown["Voucher"]?.amount ?? 0),
+          (finalBreakdown["GCash_Scanned"]?.amount ?? 0) +
+          (finalBreakdown["GCash_Direct"]?.amount ?? 0) +
+          (finalBreakdown["Voucher"]?.amount ?? 0),
         cashDeclared: 0,
-        gcashTotal: summary.gcashTotal,
-        cashTotal: summary.cashTotal,
+        gcashTotal: finalGcashTotal,
+        cashTotal: finalCashTotal,
         remittanceStatus: "Remitted",
         timeIn: shiftInfo.timeIn,
-        timeOut: endedShift?.timeOut || new Date().toISOString(),
+        timeOut: new Date().toISOString(),
       };
+      // submitRemittance posts to Laravel /conductor/remittances, which is
+      // the ONE authoritative way a shift ends (endShiftViaRemittance:
+      // creates the remittance row + flips shift_logs to ENDED).
       await submitRemittance(record);
-      await refresh();
+      // Forget the locally-cached active shift so the UI reflects ended state.
+      clearShift();
+
+      // Capture the totals into state BEFORE showing the overlay.
+      // endShift() clears the shift data, so the live summary will be 0.
+      // The overlay must show the REAL totals from the just-ended shift.
+      setCapturedTotals({
+        gcashTotal: finalGcashTotal,
+        cashTotal: finalCashTotal,
+        grandTotal: finalGrandTotal,
+      });
+
+      // Show the success overlay. Do NOT call refresh() here — it would
+      // clear the shift and transactions, making the overlay show ₱0.
       setShowConfirm(false);
       setShowSuccess(true);
       setHasRemittedToday(true);
@@ -290,7 +328,17 @@ export default function EndOfDayPage() {
       )}
 
       <ConfirmModal show={showConfirm} onClose={() => setShowConfirm(false)} onConfirm={handleRemit} isRemitting={isRemitting} shiftInfo={shiftInfo} gcashTotal={summary.gcashTotal} cashTotal={summary.cashTotal} grandTotal={summary.grandTotal} totalPassengers={summary.totalPassengers} />
-      <SuccessOverlay show={showSuccess} onClose={() => { setShowSuccess(false); router.replace("/login"); }} gcashTotal={summary.gcashTotal} cashTotal={summary.cashTotal} grandTotal={summary.grandTotal} unitNumber={shiftInfo.unitNumber} />
+
+      {/* SuccessOverlay uses captured totals so the values persist even
+          after endShift() clears the live shift data. */}
+      <SuccessOverlay
+        show={showSuccess}
+        onClose={() => { setShowSuccess(false); router.replace("/login"); }}
+        gcashTotal={capturedTotals?.gcashTotal ?? summary.gcashTotal}
+        cashTotal={capturedTotals?.cashTotal ?? summary.cashTotal}
+        grandTotal={capturedTotals?.grandTotal ?? summary.grandTotal}
+        unitNumber={shiftInfo.unitNumber}
+      />
       <OfficialReportModal show={showOfficialReport} onClose={() => setShowOfficialReport(false)} activeReport={activeReport} route={shiftInfo.route} />
 
     </div>

@@ -17,6 +17,13 @@ export const CONDUCTOR_API = {
       `/api/conductor/transactions?shift_id=${encodeURIComponent(shiftId)}`,
     create: "/api/conductor/transactions",
   },
+  earnings: {
+    // GET /api/conductor/earnings?shift_id={id}
+    // Returns { cash_total, gcash_total, total } from the DB
+    // (only PAID transactions count; PENDING GCash is excluded)
+    get: (shiftId: string) =>
+      `/api/conductor/earnings?shift_id=${encodeURIComponent(shiftId)}`,
+  },
   remittances: {
     list: "/api/conductor/remittances",
     create: "/api/conductor/remittances",
