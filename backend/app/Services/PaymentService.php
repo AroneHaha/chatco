@@ -222,6 +222,74 @@ class PaymentService
         return str_starts_with($secret, 'sk_test_');
     }
 
+    /**
+     * Verify a PayMongo webhook signature.
+     *
+     * PayMongo signs every webhook with an HMAC-SHA256 of the raw request
+     * body. The signature is sent in the `Paymongo-Signature` header in
+     * the format:
+     *
+     *   t={timestamp},te={testSignature},li={liveSignature}
+     *
+     * where {testSignature} / {liveSignature} is the hex-encoded HMAC of
+     * "{timestamp}.{rawRequestBody}" using the webhook secret.
+     *
+     * In sandbox, compare against `te`; in live, compare against `li`.
+     * Use hash_equals() to prevent timing attacks.
+     *
+     * @param  string  $rawBody            The RAW request body (do NOT
+     *                                     re-encode JSON — the signature
+     *                                     is computed over the exact bytes
+     *                                     PayMongo sent).
+     * @param  string  $signatureHeader    The value of the Paymongo-Signature
+     *                                     header.
+     *
+     * @return bool  True if the signature matches, false otherwise.
+     *
+     * @throws \RuntimeException  If PAYMONGO_WEBHOOK_SECRET is not configured.
+     */
+    public function verifyWebhookSignature(string $rawBody, string $signatureHeader): bool
+    {
+        $webhookSecret = config('services.paymongo.webhook_secret');
+
+        if (! $webhookSecret || $webhookSecret === '') {
+            throw new \RuntimeException(
+                'PayMongo webhook secret not configured. '
+                . 'Set PAYMONGO_WEBHOOK_SECRET in .env (get it from the '
+                . 'PayMongo dashboard webhook settings).'
+            );
+        }
+
+        // Parse the header: t={timestamp},te={testSig},li={liveSig}
+        $parts = [];
+        foreach (explode(',', $signatureHeader) as $segment) {
+            $kv = explode('=', $segment, 2);
+            if (count($kv) === 2) {
+                $parts[trim($kv[0])] = trim($kv[1]);
+            }
+        }
+
+        $timestamp = $parts['t'] ?? null;
+        $testSig   = $parts['te'] ?? null;
+        $liveSig   = $parts['li'] ?? null;
+
+        if (! $timestamp) {
+            return false;
+        }
+
+        // Compute the expected signature: HMAC-SHA256 over "{t}.{rawBody}"
+        $signedPayload = $timestamp . '.' . $rawBody;
+        $computedSig = hash_hmac('sha256', $signedPayload, $webhookSecret);
+
+        // In sandbox, compare against te; in live, compare against li.
+        // Use hash_equals() to prevent timing attacks.
+        if ($this->isSandbox()) {
+            return $testSig !== null && hash_equals($testSig, $computedSig);
+        }
+
+        return $liveSig !== null && hash_equals($liveSig, $computedSig);
+    }
+
     // ─── Internal Helpers ───────────────────────────────────────────
 
     /**

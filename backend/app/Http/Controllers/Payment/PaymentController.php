@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers\Payment;
 
+use App\Events\PaymentStatusUpdated;
 use App\Http\Controllers\Controller;
 use App\Http\ApiResponse;
 use App\Http\Requests\Commuter\ClaimGcashRequest;
 use App\Models\Transaction;
+use App\Services\PaymentService;
 use App\Services\TransactionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 /**
  * PaymentController — thin controller for commuter payment actions +
@@ -28,7 +31,8 @@ class PaymentController extends Controller
     use ApiResponse;
 
     public function __construct(
-        private TransactionService $transactionService
+        private TransactionService $transactionService,
+        private PaymentService $paymentService
     ) {}
 
     /**
@@ -125,29 +129,144 @@ class PaymentController extends Controller
     }
 
     /**
-     * POST /api/payments/webhook
+     * POST /api/v1/payments/webhook
      *
-     * PayMongo webhook entry point. S4-T6 will implement the full
-     * webhook handler (signature verification + event dispatch +
-     * markPaid/markFailed calls). For now, returns 200 OK so PayMongo
-     * does not retry the event.
+     * PayMongo webhook entry point. Verifies the signature, then
+     * processes the event by type:
+     *   - payment.paid:   markPaid() + broadcast PaymentStatusUpdated("PAID")
+     *   - payment.failed: markFailed() + broadcast PaymentStatusUpdated("FAILED")
      *
-     * The webhook is PUBLIC (no auth:sanctum) — PayMongo calls it
-     * server-to-server with no session. Authentication is via the
-     * PayMongo webhook signature (verified in S4-T6).
+     * Idempotency:
+     *   - markPaid() / markFailed() are idempotent (no-op if already in
+     *     that status). This handles PayMongo's retry behavior (PayMongo
+     *     retries non-2xx responses; if our broadcast fails after the
+     *     state change, PayMongo retries and we re-broadcast, which is
+     *     fine — Pusher deduplicates by event id).
+     *
+     * Always returns 200 quickly for accepted events. Returns 400 for
+     * invalid signatures (no state change). Returns 200 for unknown
+     * event types (acknowledge to prevent retries, but log for debugging).
+     *
+     * SECURITY: The webhook is PUBLIC (no auth:sanctum). Authentication
+     * is via the PayMongo webhook signature. The signature MUST be
+     * verified BEFORE any state change.
      */
     public function webhook(Request $request): JsonResponse
     {
-        // S4-T6 TODO:
-        // 1. Verify the PayMongo webhook signature using
-        //    config('services.paymongo.webhook_secret')
-        // 2. Parse the event body (data.attributes.type + data.attributes.data)
-        // 3. Find the transaction by paymongo_intent_id
-        // 4. Call TransactionService::markPaid() or markFailed() based
-        //    on the event type
-        // 5. Return 200 OK (PayMongo retries on non-2xx)
+        // ─── 1. Get the RAW body (do NOT re-encode JSON) ─────────────
+        // The signature is computed over the exact bytes PayMongo sent.
+        // Laravel's $request->getContent() returns the raw body.
+        $rawBody = $request->getContent();
+        $signatureHeader = $request->header('Paymongo-Signature');
 
-        // For now, acknowledge receipt so PayMongo doesn't retry
+        // ─── 2. Verify the signature BEFORE any processing ───────────
+        if (! $signatureHeader) {
+            Log::warning('PayMongo webhook: missing Paymongo-Signature header');
+            return response()->json(['error' => 'Missing signature'], 400);
+        }
+
+        try {
+            $valid = $this->paymentService->verifyWebhookSignature($rawBody, $signatureHeader);
+        } catch (\RuntimeException $e) {
+            // Webhook secret not configured
+            Log::error('PayMongo webhook: ' . $e->getMessage());
+            return response()->json(['error' => 'Webhook not configured'], 500);
+        }
+
+        if (! $valid) {
+            Log::warning('PayMongo webhook: invalid signature');
+            return response()->json(['error' => 'Invalid signature'], 400);
+        }
+
+        // ─── 3. Parse the event body ────────────────────────────────
+        // PayMongo webhook body shape:
+        //   {
+        //     "data": {
+        //       "id": "evt_...",
+        //       "type": "event",
+        //       "attributes": {
+        //         "type": "payment.paid",
+        //         "data": {
+        //           "id": "pay_...",
+        //           "type": "payment",
+        //           "attributes": {
+        //             "payment_intent_id": "pi_...",
+        //             "status": "paid",
+        //             ...
+        //           }
+        //         }
+        //       }
+        //     }
+        //   }
+        $payload = json_decode($rawBody, true);
+        $eventType = $payload['data']['attributes']['type'] ?? null;
+        $eventData = $payload['data']['attributes']['data'] ?? null;
+
+        if (! $eventType || ! $eventData) {
+            Log::warning('PayMongo webhook: malformed event body', ['body' => $rawBody]);
+            return response()->json(['error' => 'Malformed event'], 200);
+        }
+
+        // ─── 4. Process by event type ───────────────────────────────
+        switch ($eventType) {
+            case 'payment.paid':
+                $intentId = $eventData['attributes']['payment_intent_id']
+                    ?? $eventData['attributes']['payment_intent']['id']
+                    ?? null;
+
+                if (! $intentId) {
+                    Log::warning('PayMongo webhook: payment.paid missing payment_intent_id', ['event_data' => $eventData]);
+                    break;
+                }
+
+                $transaction = Transaction::where('paymongo_intent_id', $intentId)->first();
+
+                if (! $transaction) {
+                    Log::warning('PayMongo webhook: no transaction for intent_id', ['intent_id' => $intentId]);
+                    break;
+                }
+
+                // Idempotent: markPaid() is a no-op if already PAID
+                $transaction = $this->transactionService->markPaid($transaction);
+
+                // Broadcast so conductor + commuter flip to success modal
+                broadcast(new PaymentStatusUpdated($transaction, 'PAID'));
+                break;
+
+            case 'payment.failed':
+                $intentId = $eventData['attributes']['payment_intent_id']
+                    ?? $eventData['attributes']['payment_intent']['id']
+                    ?? null;
+
+                if (! $intentId) {
+                    Log::warning('PayMongo webhook: payment.failed missing payment_intent_id', ['event_data' => $eventData]);
+                    break;
+                }
+
+                $transaction = Transaction::where('paymongo_intent_id', $intentId)->first();
+
+                if (! $transaction) {
+                    Log::warning('PayMongo webhook: no transaction for intent_id', ['intent_id' => $intentId]);
+                    break;
+                }
+
+                // Idempotent: markFailed() is a no-op if already FAILED
+                $transaction = $this->transactionService->markFailed($transaction);
+
+                // Broadcast so conductor + commuter show failure modal
+                broadcast(new PaymentStatusUpdated($transaction, 'FAILED'));
+                break;
+
+            default:
+                // Unknown event type — acknowledge to prevent retries,
+                // but log for debugging.
+                Log::info('PayMongo webhook: unhandled event type', ['type' => $eventType]);
+                break;
+        }
+
+        // ─── 5. Always return 200 for accepted events ───────────────
+        // PayMongo retries non-2xx responses. We return 200 even for
+        // unknown event types to avoid retry storms.
         return response()->json(['received' => true], 200);
     }
 }
