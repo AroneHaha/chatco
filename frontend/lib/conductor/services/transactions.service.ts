@@ -84,11 +84,21 @@ export async function createTransaction(
   txn: Omit<transactionsStore.Transaction, "transactionId" | "timestamp">
 ): Promise<transactionsStore.Transaction> {
   try {
+    // Fresh idempotency key per record-fare action. Lets the backend
+    // collapse a true retry (network re-send) without ever dropping a
+    // distinct fare — two passengers paying the same fare for the same
+    // segment get different keys and are both recorded.
+    const idempotencyKey =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
     const response = await api.post<{ data: transactionsStore.Transaction }>(
       CONDUCTOR_API.transactions.create,
       {
         ...txn,
         shiftId, // The proxy strips this; Laravel resolves the shift
+        idempotencyKey, // The proxy forwards this as idempotency_key
       }
     );
 

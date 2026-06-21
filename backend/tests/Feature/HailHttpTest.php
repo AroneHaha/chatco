@@ -132,7 +132,6 @@ class HailHttpTest extends TestCase
             'driver_name'    => 'Test Driver',
             'unit_number'    => $this->vehicle->unit_number,
             'plate_number'   => $this->vehicle->plate_number,
-            'route_name'     => null,
             'time_in'        => now(),
             'time_out'       => null,
             'is_active'      => true,
@@ -190,7 +189,7 @@ class HailHttpTest extends TestCase
         );
 
         $response = $this->actingAs($this->commuter, 'sanctum')
-            ->deleteJson("/api/commuter/hail/{$hail->id}");
+            ->deleteJson("/api/v1/commuter/hail/{$hail->id}");
 
         $response->assertOk();
         $response->assertJsonPath('data.status', 'CANCELLED');
@@ -225,7 +224,7 @@ class HailHttpTest extends TestCase
         );
 
         $response = $this->actingAs($this->conductor, 'sanctum')
-            ->postJson("/api/conductor/hails/{$hail->id}/accept");
+            ->postJson("/api/v1/conductor/hails/{$hail->id}/accept");
 
         $response->assertOk();
         $response->assertJsonPath('data.status', 'ACCEPTED');
@@ -241,7 +240,7 @@ class HailHttpTest extends TestCase
         );
 
         $response = $this->actingAs($this->conductor, 'sanctum')
-            ->postJson("/api/conductor/hails/{$hail->id}/reject");
+            ->postJson("/api/v1/conductor/hails/{$hail->id}/reject");
 
         $response->assertOk();
         $response->assertJsonPath('data.status', 'REJECTED');

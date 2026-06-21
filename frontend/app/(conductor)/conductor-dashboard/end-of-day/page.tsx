@@ -3,7 +3,7 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { endShift, formatTime } from "@/lib/conductor/services/shift.service";
+import { clearShift, formatTime } from "@/lib/conductor/services/shift.service";
 import { submitRemittance, type RemittanceRecord } from "@/lib/conductor/services/remittance.service";
 import type { Transaction } from "@/lib/conductor/services/transactions.service";
 import { useRemittanceData } from "@/app/(conductor)/hooks/use-remittance-data";
@@ -115,7 +115,6 @@ export default function EndOfDayPage() {
 
     try {
       await new Promise((resolve) => setTimeout(resolve, 1800));
-      const endedShift = await endShift();
       const record: RemittanceRecord = {
         shiftId: shiftInfo.shiftId,
         date: new Date().toISOString().split("T")[0],
@@ -137,9 +136,14 @@ export default function EndOfDayPage() {
         cashTotal: finalCashTotal,
         remittanceStatus: "Remitted",
         timeIn: shiftInfo.timeIn,
-        timeOut: endedShift?.timeOut || new Date().toISOString(),
+        timeOut: new Date().toISOString(),
       };
+      // submitRemittance posts to Laravel /conductor/remittances, which is
+      // the ONE authoritative way a shift ends (endShiftViaRemittance:
+      // creates the remittance row + flips shift_logs to ENDED).
       await submitRemittance(record);
+      // Forget the locally-cached active shift so the UI reflects ended state.
+      clearShift();
 
       // Capture the totals into state BEFORE showing the overlay.
       // endShift() clears the shift data, so the live summary will be 0.

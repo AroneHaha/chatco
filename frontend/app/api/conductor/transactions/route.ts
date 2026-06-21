@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
       discount_amount: txnBody.discountAmount ?? txnBody.discount_amount,
       passenger_name: txnBody.passengerName ?? txnBody.passenger_name,
       passenger_role: txnBody.passengerRole ?? txnBody.passenger_role,
+      idempotency_key: txnBody.idempotencyKey ?? txnBody.idempotency_key,
     };
 
     const result = await proxyToLaravel(request, "/conductor/transactions", {

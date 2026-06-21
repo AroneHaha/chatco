@@ -62,33 +62,35 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
 |--------------------------------------------------------------------------
 */
 Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->group(function () {
-    // Read endpoints — generous limit
-    Route::get('/shift', [ConductorController::class, 'shiftStatus']);
-    Route::get('/shift-logs', [ConductorController::class, 'shiftLogs']);
-    Route::get('/profile', [ConductorController::class, 'profile']);
-    Route::get('/units', [ConductorController::class, 'units']);
-    Route::get('/drivers', [ConductorController::class, 'drivers']);
+    // Read endpoints — 60 req/min (generous for UI polling)
+    Route::get('/shift', [ConductorController::class, 'shiftStatus'])->middleware('throttle:conductor-read');
+    Route::get('/shift-logs', [ConductorController::class, 'shiftLogs'])->middleware('throttle:conductor-read');
+    Route::get('/profile', [ConductorController::class, 'profile'])->middleware('throttle:conductor-read');
+    Route::get('/units', [ConductorController::class, 'units'])->middleware('throttle:conductor-read');
+    Route::get('/drivers', [ConductorController::class, 'drivers'])->middleware('throttle:conductor-read');
 
     // Mutations — strict limit (one shift per conductor at a time anyway)
-    Route::post('/shifts/start', [ConductorController::class, 'startShift']);
-    Route::post('/remittances', [ConductorController::class, 'remittances']);
+    Route::post('/shifts/start', [ConductorController::class, 'startShift'])->middleware('throttle:conductor-mutation');
+    Route::post('/remittances', [ConductorController::class, 'remittances'])->middleware('throttle:conductor-mutation');
 
     // GPS updates — allows 5-second cadence with headroom for retries/reconnects
-    Route::post('/location', [ConductorController::class, 'updateLocation']);
+    Route::post('/location', [ConductorController::class, 'updateLocation'])->middleware('throttle:conductor-gps');
 
     // Capacity status updates
-    Route::post('/capacity-status', [ConductorController::class, 'updateCapacityStatus']);
+    Route::post('/capacity-status', [ConductorController::class, 'updateCapacityStatus'])->middleware('throttle:conductor-write');
 
-    // Transaction lifecycle (S4-T5) — cash recording, GCash initiate, earnings
-    Route::get('/transactions', [ConductorController::class, 'transactions']);
-    Route::post('/transactions', [ConductorController::class, 'storeTransaction']);
-    Route::post('/payments/gcash/initiate', [ConductorController::class, 'initiateGcash']);
-    Route::get('/earnings', [ConductorController::class, 'earnings']);
+    // Transaction lifecycle (S4-T5) — cash recording, GCash initiate, earnings.
+    // POST fare recording uses conductor-write (30/min) — comfortably above
+    // the real boarding cadence; reads use conductor-read (60/min).
+    Route::get('/transactions', [ConductorController::class, 'transactions'])->middleware('throttle:conductor-read');
+    Route::post('/transactions', [ConductorController::class, 'storeTransaction'])->middleware('throttle:conductor-write');
+    Route::post('/payments/gcash/initiate', [ConductorController::class, 'initiateGcash'])->middleware('throttle:conductor-write');
+    Route::get('/earnings', [ConductorController::class, 'earnings'])->middleware('throttle:conductor-read');
 
-    // Hail lifecycle (conductor-side) — reads 60/min, mutations 10/min
-    Route::get('/hails', [ConductorHailController::class, 'index']);
-    Route::post('/hails/{id}/accept', [ConductorHailController::class, 'accept']);
-    Route::post('/hails/{id}/reject', [ConductorHailController::class, 'reject']);
+    // Hail lifecycle (conductor-side) — reads 60/min, mutations via write limiter
+    Route::get('/hails', [ConductorHailController::class, 'index'])->middleware('throttle:conductor-read');
+    Route::post('/hails/{id}/accept', [ConductorHailController::class, 'accept'])->middleware('throttle:conductor-write');
+    Route::post('/hails/{id}/reject', [ConductorHailController::class, 'reject'])->middleware('throttle:conductor-write');
 });
 
 /*
