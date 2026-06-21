@@ -97,11 +97,20 @@ export async function createTransaction(
       transactionsStore.cacheTransaction(shiftId, response.data);
     }
 
+    // Dispatch event so the dashboard + end-of-day hooks refresh
+    // (cacheTransaction no longer dispatches to avoid loops, but
+    // createTransaction MUST dispatch so the UI updates after recording)
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("conductor:transaction-updated"));
+    }
+
     return response.data;
   } catch (error) {
     // Only fall back on network errors (Laravel unreachable / 502).
     if (error instanceof NetworkError) {
-      return transactionsStore.saveTransaction(shiftId, txn);
+      const saved = transactionsStore.saveTransaction(shiftId, txn);
+      // saveTransaction already dispatches the event
+      return saved;
     }
 
     // Re-throw ApiError (401/403/422/500) and other unexpected errors
