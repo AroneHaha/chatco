@@ -2,9 +2,12 @@
 
 namespace App\Services;
 
+use App\Enums\PaymentMethod;
+use App\Enums\PaymentStatus;
 use App\Models\ShiftLog;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Support\Payments\PaymentGatewayException;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Str;
 
@@ -38,15 +41,18 @@ use Illuminate\Support\Str;
  */
 class TransactionService
 {
-    /**
-     * GCash transactions are claimable for this many minutes after
-     * creation. After that, claimGcash returns 410 Gone.
-     */
-    private const GCASH_CLAIM_TTL_MINUTES = 5;
-
     public function __construct(
         private PaymentService $paymentService
     ) {}
+
+    /**
+     * Minutes a conductor-generated GCash binding QR / PENDING transaction
+     * stays claimable (config-driven). After that, claimGcash returns 410.
+     */
+    private function claimTtlMinutes(): int
+    {
+        return (int) config('payments.gcash_claim_ttl_minutes', 5);
+    }
 
     // ─── Cash Flow ──────────────────────────────────────────────────
 
@@ -101,8 +107,8 @@ class TransactionService
         return Transaction::create([
             'transaction_id'   => $this->generateTransactionId(),
             'shift_id'         => $shift->shift_id,
-            'payment_method'   => 'CASH',
-            'status'           => 'PAID',
+            'payment_method'   => PaymentMethod::CASH->value,
+            'status'           => PaymentStatus::PAID->value,
             'idempotency_key'  => $idempotencyKey,
             'final_amount'     => $finalAmount,
             'base_fare'        => isset($data['base_fare']) ? (float) $data['base_fare'] : null,
@@ -142,15 +148,14 @@ class TransactionService
      * @return array {
      *     transaction:  Transaction  -- the PENDING transaction row
      *     qr_token:     string       -- opaque token for the binding QR
-     *     checkout_url: string|null  -- PayMongo hosted URL (null until PaymentService implemented)
+     *     checkout_url: string|null  -- gateway hosted authorize URL (null when
+     *                                   no real provider is configured / fake)
      *     amount:       float        -- the amount to charge
-     *     expires_at:   string       -- ISO 8601 timestamp when the QR/transaction expires
+     *     expires_at:   string       -- ISO 8601 timestamp when the QR expires
      * }
      *
      * @throws \Symfony\Component\HttpKernel\Exception\HttpException
-     *         422 if conductor has no active shift
-     * @throws \RuntimeException  If PaymentService::createGcashIntent() throws
-     *         (currently always -- PayMongo integration is a stub)
+     *         422 if conductor has no active shift; 502 on a real gateway failure
      */
     public function initiateGcashFare(User $conductor, array $data): array
     {
@@ -159,67 +164,54 @@ class TransactionService
         $finalAmount = (float) ($data['final_amount'] ?? 0);
         $amountCentavos = (int) round($finalAmount * 100);
 
-        // Generate a unique qr_token (32-char hex, opaque -- NOT the transaction_id)
+        // Opaque binding token (NOT the transaction_id) embedded in the QR.
         $qrToken = Str::random(32);
-        $expiresAt = now()->addMinutes(self::GCASH_CLAIM_TTL_MINUTES);
+        $expiresAt = now()->addMinutes($this->claimTtlMinutes());
 
-        // Create the PENDING transaction first so we have the transaction_id
-        // for PayMongo metadata
+        // Persist the PENDING transaction first so its id can be sent to the
+        // gateway as correlation metadata.
         $transaction = Transaction::create([
-            'transaction_id'  => $this->generateTransactionId(),
-            'shift_id'        => $shift->shift_id,
-            'payment_method'  => 'GCASH',
-            'status'          => 'PENDING',
-            'final_amount'    => $finalAmount,
-            'pickup_name'     => $data['pickup_name'] ?? null,
-            'dropoff_name'    => $data['dropoff_name'] ?? null,
-            'passenger_name'  => $data['passenger_name'] ?? null,
-            'conductor_name'  => $shift->conductor_name,
-            'unit_number'     => $shift->unit_number,
-            'driver_name'     => $shift->driver_name,
-            'pickup_stop_id'  => null,
-            'dropoff_stop_id' => null,
-            'qr_token'        => $qrToken,
-            // paymongo_intent_id + paymongo_checkout_url set below
+            'transaction_id'   => $this->generateTransactionId(),
+            'shift_id'         => $shift->shift_id,
+            'payment_method'   => PaymentMethod::GCASH->value,
+            'status'           => PaymentStatus::PENDING->value,
+            'final_amount'     => $finalAmount,
+            'base_fare'        => isset($data['base_fare']) ? (float) $data['base_fare'] : null,
+            'distance'         => isset($data['distance']) ? (float) $data['distance'] : null,
+            'discount_amount'  => isset($data['discount_amount']) ? (float) $data['discount_amount'] : null,
+            'pickup_name'      => $data['pickup_name'] ?? null,
+            'dropoff_name'     => $data['dropoff_name'] ?? null,
+            'passenger_name'   => $data['passenger_name'] ?? null,
+            'conductor_name'   => $shift->conductor_name,
+            'unit_number'      => $shift->unit_number,
+            'driver_name'      => $shift->driver_name,
+            'pickup_stop_id'   => null,
+            'dropoff_stop_id'  => null,
+            'qr_token'         => $qrToken,
+            'payment_provider' => $this->paymentService->gatewayName(),
         ]);
 
-        // Call PaymentService to create the PayMongo PaymentIntent.
-        $checkoutUrl = null;
-        $paymongoIntentId = null;
-        $paymongoConfigured = (bool) config('services.paymongo.secret');
+        // Create the gateway intent. The bound gateway is real when keys are
+        // configured, otherwise the FakeGateway (no checkout URL). A real
+        // provider failure surfaces as 502 and the orphan row is rolled back.
         try {
-            $intent = $this->paymentService->createGcashIntent($amountCentavos, [
-                'transaction_id' => $transaction->transaction_id,
-                'shift_id'       => $shift->shift_id,
-                'qr_token'       => $qrToken,
-            ]);
-            $paymongoIntentId = $intent['intent_id'] ?? null;
-            $checkoutUrl      = $intent['checkout_url'] ?? null;
+            $intent = $this->paymentService->createIntentFor($transaction, $amountCentavos);
 
             $transaction->update([
-                'paymongo_intent_id'    => $paymongoIntentId,
-                'paymongo_checkout_url' => $checkoutUrl,
+                'payment_reference'    => $intent->reference,
+                'payment_checkout_url' => $intent->checkoutUrl,
             ]);
             $transaction->refresh();
-        } catch (\RuntimeException $e) {
-            if ($paymongoConfigured) {
-                // A PayMongo key IS configured, so this is a REAL provider
-                // failure (outage, bad key, declined request). Surface it
-                // instead of silently returning a dead QR — and roll back the
-                // PENDING row so we don't orphan it.
-                $transaction->delete();
-                report($e);
-                abort(502, 'Unable to initiate GCash payment. Please try again.');
-            }
-            // No key configured (local/dev stub): leave paymongo_* null. The
-            // transaction stays PENDING with a valid qr_token so the binding +
-            // claim flow remains testable end-to-end without a PayMongo key.
+        } catch (PaymentGatewayException $e) {
+            $transaction->delete();
+            report($e);
+            abort(502, 'Unable to initiate GCash payment. Please try again.');
         }
 
         return [
             'transaction'  => $transaction,
             'qr_token'     => $qrToken,
-            'checkout_url' => $checkoutUrl,
+            'checkout_url' => $transaction->payment_checkout_url,
             'amount'       => $finalAmount,
             'expires_at'   => $expiresAt->toIso8601String(),
         ];
@@ -257,13 +249,13 @@ class TransactionService
             abort(404, 'Transaction not found');
         }
 
-        // 410 if not claimable: PAID, FAILED, or expired (created > TTL minutes ago)
-        if ($transaction->status !== 'PENDING') {
+        // 410 if not claimable: not PENDING (already PAID/FAILED/etc.) or expired.
+        if ($transaction->status !== PaymentStatus::PENDING) {
             abort(410, 'Transaction is no longer claimable');
         }
 
         $createdAt = $transaction->created_at;
-        if ($createdAt && $createdAt->diffInMinutes(now()) > self::GCASH_CLAIM_TTL_MINUTES) {
+        if ($createdAt && $createdAt->diffInMinutes(now()) > $this->claimTtlMinutes()) {
             abort(410, 'Transaction has expired');
         }
 
@@ -291,47 +283,6 @@ class TransactionService
         $transaction->refresh();
 
         return $this->formatClaimResponse($transaction);
-    }
-
-    /**
-     * Mark a transaction as PAID. Called by the PayMongo webhook.
-     *
-     * Idempotent: no-op if already PAID.
-     *
-     * @param  Transaction  $transaction
-     * @return Transaction  The updated transaction
-     */
-    public function markPaid(Transaction $transaction): Transaction
-    {
-        if ($transaction->status === 'PAID') {
-            return $transaction;
-        }
-
-        $transaction->update([
-            'status'  => 'PAID',
-            'paid_at' => now(),
-        ]);
-        $transaction->refresh();
-
-        return $transaction;
-    }
-
-    /**
-     * Mark a transaction as FAILED. Called by the PayMongo webhook.
-     *
-     * @param  Transaction  $transaction
-     * @return Transaction  The updated transaction
-     */
-    public function markFailed(Transaction $transaction): Transaction
-    {
-        if ($transaction->status === 'FAILED') {
-            return $transaction;
-        }
-
-        $transaction->update(['status' => 'FAILED']);
-        $transaction->refresh();
-
-        return $transaction;
     }
 
     // ─── Listing + Earnings ─────────────────────────────────────────
@@ -464,7 +415,7 @@ class TransactionService
     {
         return [
             'transaction_id' => $transaction->transaction_id,
-            'checkout_url'   => $transaction->paymongo_checkout_url,
+            'checkout_url'   => $transaction->payment_checkout_url,
             'amount'         => (float) $transaction->final_amount,
             'pickup_name'    => $transaction->pickup_name,
             'dropoff_name'   => $transaction->dropoff_name,
