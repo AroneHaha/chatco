@@ -2,29 +2,33 @@
 
 namespace App\Http\Controllers\Payment;
 
-use App\Events\PaymentStatusUpdated;
-use App\Http\Controllers\Controller;
+use App\Enums\PaymentMethod;
+use App\Enums\PaymentStatus;
 use App\Http\ApiResponse;
+use App\Http\Controllers\Controller;
 use App\Http\Requests\Commuter\ClaimGcashRequest;
 use App\Models\Transaction;
 use App\Services\PaymentService;
 use App\Services\TransactionService;
+use App\Support\Payments\PaymentGatewayException;
+use App\Support\Payments\WebhookEvent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 /**
- * PaymentController — thin controller for commuter payment actions +
- * the PayMongo webhook entry point.
+ * Thin controller for commuter payment actions, status polling, the
+ * provider-agnostic webhook entry point, and a dev-only simulation hook.
  *
- * All business logic delegates to TransactionService. Controllers stay
- * thin per S4-T5 spec.
+ * All business/payment logic lives in TransactionService / PaymentService.
  *
- * Routes:
- *   POST /api/commuter/payments/claim   -> claim()       (role:COMMUTER)
- *   GET  /api/commuter/payments         -> history()     (role:COMMUTER)
- *   GET  /api/payments/{id}/status      -> status()      (auth:sanctum, any role)
- *   POST /api/payments/webhook          -> webhook()     (public, S4-T6)
+ * Routes (api/v1):
+ *   POST /commuter/payments/claim        -> claim()    (role:COMMUTER)
+ *   GET  /commuter/payments              -> history()  (role:COMMUTER, paginated)
+ *   GET  /payments/{id}/status           -> status()   (auth, owner only)
+ *   POST /payments/{id}/simulate         -> simulate() (auth, DEV only)
+ *   POST /payments/webhook               -> webhook()  (public, signature-verified)
  */
 class PaymentController extends Controller
 {
@@ -32,22 +36,9 @@ class PaymentController extends Controller
 
     public function __construct(
         private TransactionService $transactionService,
-        private PaymentService $paymentService
+        private PaymentService $paymentService,
     ) {}
 
-    /**
-     * POST /api/commuter/payments/claim
-     *
-     * Commuter scans the conductor's binding QR and claims the GCash
-     * transaction. Delegates to TransactionService::claimGcash() which:
-     *   - Finds the PENDING transaction by qr_token (404 if missing)
-     *   - Checks expiry (410 if expired or non-PENDING)
-     *   - Binds passenger_id (idempotent for same commuter, 409 for
-     *     different commuter)
-     *
-     * Returns the spec-mandated payload for the commuter app to redirect
-     * to the PayMongo hosted checkout page.
-     */
     public function claim(ClaimGcashRequest $request): JsonResponse
     {
         $result = $this->transactionService->claimGcash(
@@ -59,233 +50,157 @@ class PaymentController extends Controller
     }
 
     /**
-     * GET /api/commuter/payments
-     *
-     * Returns the authenticated commuter's payment history (cash + GCash).
-     * Only transactions where passenger_id matches the commuter's
-     * commuter_profile are returned.
-     *
-     * Note: cash fares where the conductor didn't enter a passenger
-     * (passenger_id is null) will NOT appear here -- they appear in the
-     * conductor's shift transactions list instead.
+     * GET /commuter/payments — the authed commuter's payment history,
+     * paginated and newest-first. Only rows bound to this commuter
+     * (passenger_id) are returned.
      */
     public function history(Request $request): JsonResponse
     {
-        $commuter = $request->user();
-        $commuterProfileId = $commuter->commuterProfile?->id;
+        $commuterProfileId = $request->user()->commuterProfile?->id;
 
         if (! $commuterProfileId) {
             return $this->successResponse([], 'No commuter profile found');
         }
 
-        $transactions = Transaction::where('passenger_id', $commuterProfileId)
-            ->orderBy('created_at', 'desc')
-            ->get();
+        $perPage = min(max((int) $request->integer('per_page', 20), 1), 100);
 
-        return $this->successResponse($transactions, 'Payment history retrieved');
+        $payments = Transaction::query()
+            ->where('passenger_id', $commuterProfileId)
+            ->orderByDesc('created_at')
+            ->paginate($perPage);
+
+        return $this->successResponse($payments, 'Payment history retrieved');
     }
 
     /**
-     * GET /api/payments/{id}/status
-     *
-     * Returns the current status of a transaction. Authorized to:
-     *   - The conductor who owns the transaction's shift
-     *   - The commuter who claimed the transaction (passenger_id)
-     *
-     * Returns 403 if the authenticated user is neither.
+     * GET /payments/{id}/status — fast DB read of current status (the webhook
+     * keeps it fresh). Authorized to the conductor who owns the shift or the
+     * bound commuter.
      */
     public function status(Request $request, string $id): JsonResponse
     {
-        $transaction = Transaction::where('transaction_id', $id)->first();
+        $transaction = Transaction::with('shiftLog:shift_id,conductor_id')
+            ->where('transaction_id', $id)
+            ->first();
 
         if (! $transaction) {
             return $this->errorResponse('Transaction not found', 404);
         }
 
-        $user = $request->user();
-
-        // Authorization check: conductor who owns the shift OR bound commuter
-        $authorized = false;
-
-        // Check 1: is the user the conductor of this transaction's shift?
-        $shift = $transaction->shiftLog;
-        if ($shift && $user->conductorProfile && $shift->conductor_id === $user->conductorProfile->id) {
-            $authorized = true;
-        }
-
-        // Check 2: is the user the commuter who claimed this transaction?
-        if (! $authorized && $transaction->passenger_id && $user->commuterProfile && $transaction->passenger_id === $user->commuterProfile->id) {
-            $authorized = true;
-        }
-
-        if (! $authorized) {
+        if (! $this->userOwnsTransaction($request->user(), $transaction)) {
             return $this->errorResponse('Forbidden', 403);
         }
 
         return $this->successResponse([
-            'status' => $transaction->status,
+            'status' => $transaction->status->value,
             'paid_at' => $transaction->paid_at?->toIso8601String(),
         ], 'Transaction status retrieved');
     }
 
     /**
-     * POST /api/v1/payments/webhook
+     * POST /payments/{id}/simulate — DEV ONLY (config payments.allow_simulation).
      *
-     * PayMongo webhook entry point. Verifies the signature, then
-     * processes the event by type:
-     *   - payment.paid:   markPaid() + broadcast PaymentStatusUpdated("PAID")
-     *   - payment.failed: markFailed() + broadcast PaymentStatusUpdated("FAILED")
+     * Drives a PENDING GCash payment to a terminal status THROUGH THE REAL
+     * webhook/state-machine path, so GCash can be demonstrated before real
+     * provider keys exist. Disabled in production.
+     */
+    public function simulate(Request $request, string $id): JsonResponse
+    {
+        if (! config('payments.allow_simulation')) {
+            return $this->errorResponse('Payment simulation is disabled.', 403);
+        }
+
+        $validated = $request->validate([
+            'status' => 'required|string|in:PAID,FAILED',
+        ]);
+
+        $transaction = Transaction::with('shiftLog:shift_id,conductor_id')
+            ->where('transaction_id', $id)
+            ->first();
+
+        if (! $transaction) {
+            return $this->errorResponse('Transaction not found', 404);
+        }
+        if (! $this->userOwnsTransaction($request->user(), $transaction)) {
+            return $this->errorResponse('Forbidden', 403);
+        }
+        if ($transaction->payment_method !== PaymentMethod::GCASH) {
+            return $this->errorResponse('Only GCash transactions can be simulated.', 422);
+        }
+
+        $event = new WebhookEvent(
+            id: 'sim_'.Str::uuid()->toString(),
+            type: 'simulated.'.strtolower($validated['status']),
+            reference: $transaction->payment_reference ?? $transaction->transaction_id,
+            status: PaymentStatus::from($validated['status']),
+            metadata: ['transaction_id' => $transaction->transaction_id],
+        );
+
+        $transaction = $this->paymentService->applyWebhookEvent($event) ?? $transaction->fresh();
+
+        return $this->successResponse([
+            'status' => $transaction->status->value,
+        ], 'Payment simulated');
+    }
+
+    /**
+     * POST /payments/webhook — public, server-to-server.
      *
-     * Idempotency:
-     *   - markPaid() / markFailed() are idempotent (no-op if already in
-     *     that status). This handles PayMongo's retry behavior (PayMongo
-     *     retries non-2xx responses; if our broadcast fails after the
-     *     state change, PayMongo retries and we re-broadcast, which is
-     *     fine — Pusher deduplicates by event id).
-     *
-     * Always returns 200 quickly for accepted events. Returns 400 for
-     * invalid signatures (no state change). Returns 200 for unknown
-     * event types (acknowledge to prevent retries, but log for debugging).
-     *
-     * SECURITY: The webhook is PUBLIC (no auth:sanctum). Authentication
-     * is via the PayMongo webhook signature. The signature MUST be
-     * verified BEFORE any state change.
+     * Provider-agnostic: the bound gateway supplies its signature header,
+     * verifies the body, and parses it into a canonical WebhookEvent.
+     * PaymentService then applies it exactly once (payment_events idempotency)
+     * through the guarded state machine. Always 200 for accepted/ignored
+     * events; 400 only for a bad signature (no state change).
      */
     public function webhook(Request $request): JsonResponse
     {
-        // ─── 1. Get the RAW body (do NOT re-encode JSON) ─────────────
-        // The signature is computed over the exact bytes PayMongo sent.
-        // Laravel's $request->getContent() returns the raw body.
         $rawBody = $request->getContent();
-        $signatureHeader = $request->header('Paymongo-Signature');
-
-        // ─── 2. Verify the signature BEFORE any processing ───────────
-        if (! $signatureHeader) {
-            Log::warning('PayMongo webhook: missing Paymongo-Signature header');
-            return response()->json(['error' => 'Missing signature'], 400);
-        }
+        $signature = $request->header($this->paymentService->webhookSignatureHeader());
 
         try {
-            $valid = $this->paymentService->verifyWebhookSignature($rawBody, $signatureHeader);
-        } catch (\RuntimeException $e) {
-            // Webhook secret not configured
-            Log::error('PayMongo webhook: ' . $e->getMessage());
+            $valid = $this->paymentService->verifyWebhookSignature($rawBody, $signature);
+        } catch (PaymentGatewayException $e) {
+            Log::error('Payment webhook not configured: '.$e->getMessage());
+
             return response()->json(['error' => 'Webhook not configured'], 500);
         }
 
         if (! $valid) {
-            Log::warning('PayMongo webhook: invalid signature');
+            Log::warning('Payment webhook: invalid signature');
+
             return response()->json(['error' => 'Invalid signature'], 400);
         }
 
-        // ─── 3. Parse the event body ────────────────────────────────
-        // PayMongo webhook body shape:
-        //   {
-        //     "data": {
-        //       "id": "evt_...",
-        //       "type": "event",
-        //       "attributes": {
-        //         "type": "payment.paid",
-        //         "data": {
-        //           "id": "pay_...",
-        //           "type": "payment",
-        //           "attributes": {
-        //             "payment_intent_id": "pi_...",
-        //             "status": "paid",
-        //             ...
-        //           }
-        //         }
-        //       }
-        //     }
-        //   }
-        $payload = json_decode($rawBody, true);
-        $eventType = $payload['data']['attributes']['type'] ?? null;
-        $eventData = $payload['data']['attributes']['data'] ?? null;
-
-        if (! $eventType || ! $eventData) {
-            Log::warning('PayMongo webhook: malformed event body', ['body' => $rawBody]);
-            return response()->json(['error' => 'Malformed event'], 200);
+        $event = $this->paymentService->parseWebhookEvent($rawBody);
+        if (! $event) {
+            // Unhandled / malformed event type — acknowledge so the provider
+            // stops retrying, but record nothing.
+            return response()->json(['received' => true, 'handled' => false], 200);
         }
 
-        // ─── 4. Process by event type ───────────────────────────────
-        switch ($eventType) {
-            case 'payment.paid':
-                $transaction = $this->resolveTransactionFromEvent($eventData);
-
-                if (! $transaction) {
-                    Log::warning('PayMongo webhook: no transaction for payment.paid event', ['event_data' => $eventData]);
-                    break;
-                }
-
-                // Idempotent: markPaid() is a no-op if already PAID
-                $transaction = $this->transactionService->markPaid($transaction);
-
-                // Broadcast so conductor + commuter flip to success modal
-                broadcast(new PaymentStatusUpdated($transaction, 'PAID'));
-                break;
-
-            case 'payment.failed':
-                $transaction = $this->resolveTransactionFromEvent($eventData);
-
-                if (! $transaction) {
-                    Log::warning('PayMongo webhook: no transaction for payment.failed event', ['event_data' => $eventData]);
-                    break;
-                }
-
-                // Idempotent: markFailed() is a no-op if already FAILED
-                $transaction = $this->transactionService->markFailed($transaction);
-
-                // Broadcast so conductor + commuter show failure modal
-                broadcast(new PaymentStatusUpdated($transaction, 'FAILED'));
-                break;
-
-            default:
-                // Unknown event type — acknowledge to prevent retries,
-                // but log for debugging.
-                Log::info('PayMongo webhook: unhandled event type', ['type' => $eventType]);
-                break;
+        $transaction = $this->paymentService->applyWebhookEvent($event);
+        if (! $transaction) {
+            Log::warning('Payment webhook: no matching transaction', [
+                'reference' => $event->reference,
+            ]);
         }
 
-        // ─── 5. Always return 200 for accepted events ───────────────
-        // PayMongo retries non-2xx responses. We return 200 even for
-        // unknown event types to avoid retry storms.
         return response()->json(['received' => true], 200);
     }
 
     /**
-     * Resolve the local Transaction for a PayMongo payment event.
-     *
-     * Primary: match on paymongo_intent_id (indexed). Fallback: the
-     * transaction_id we set in the PaymentIntent metadata — a reliable
-     * correlation handle that survives differences in how PayMongo nests
-     * the payment_intent_id across event shapes.
+     * Whether the user is the conductor who owns the transaction's shift or
+     * the commuter bound to it.
      */
-    private function resolveTransactionFromEvent(?array $eventData): ?Transaction
+    private function userOwnsTransaction($user, Transaction $transaction): bool
     {
-        if (! $eventData) {
-            return null;
+        $shift = $transaction->shiftLog;
+        if ($shift && $user->conductorProfile && $shift->conductor_id === $user->conductorProfile->id) {
+            return true;
         }
 
-        $attributes = $eventData['attributes'] ?? [];
-
-        $intentId = $attributes['payment_intent_id']
-            ?? ($attributes['payment_intent']['id'] ?? null);
-
-        if ($intentId) {
-            $transaction = Transaction::where('paymongo_intent_id', $intentId)->first();
-            if ($transaction) {
-                return $transaction;
-            }
-        }
-
-        // Fallback: correlate via the metadata we attached to the intent.
-        $metaTransactionId = $attributes['metadata']['transaction_id']
-            ?? ($attributes['payment_intent']['attributes']['metadata']['transaction_id'] ?? null);
-
-        if ($metaTransactionId) {
-            return Transaction::where('transaction_id', $metaTransactionId)->first();
-        }
-
-        return null;
+        return $transaction->passenger_id
+            && $user->commuterProfile
+            && $transaction->passenger_id === $user->commuterProfile->id;
     }
 }
