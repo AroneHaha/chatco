@@ -86,14 +86,17 @@ class User extends Authenticatable
     public function getDisplayName(): string
     {
         return match ($this->role) {
-            UserRole::ADMIN =>
-                $this->adminProfile->first_name . ' ' . $this->adminProfile->last_name,
+            UserRole::ADMIN => $this->adminProfile
+                ? trim($this->adminProfile->first_name . ' ' . $this->adminProfile->last_name)
+                : $this->email,
 
-            UserRole::CONDUCTOR =>
-                $this->conductorProfile->first_name . ' ' . $this->conductorProfile->last_name,
+            UserRole::CONDUCTOR => $this->conductorProfile
+                ? trim($this->conductorProfile->first_name . ' ' . $this->conductorProfile->last_name)
+                : $this->email,
 
-            UserRole::COMMUTER =>
-                $this->commuterProfile->first_name . ' ' . $this->commuterProfile->surname,
+            UserRole::COMMUTER => $this->commuterProfile
+                ? trim($this->commuterProfile->first_name . ' ' . $this->commuterProfile->surname)
+                : $this->email,
         };
     }
 }

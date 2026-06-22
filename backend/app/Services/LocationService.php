@@ -85,6 +85,10 @@ class LocationService
     {
         return DB::table('vehicle_locations')
             ->join('vehicles', 'vehicle_locations.vehicle_id', '=', 'vehicles.id')
+            // Only show vehicles that have an ACTIVE shift. After remittance,
+            // active_shift_id is set to null — the vehicle should disappear
+            // from the commuter map immediately.
+            ->whereNotNull('vehicles.active_shift_id')
             ->leftJoin('shift_logs', function ($join) {
                 $join->on('vehicles.active_shift_id', '=', 'shift_logs.shift_id');
             })
