@@ -210,19 +210,10 @@ class PaymentController extends Controller
         // ─── 4. Process by event type ───────────────────────────────
         switch ($eventType) {
             case 'payment.paid':
-                $intentId = $eventData['attributes']['payment_intent_id']
-                    ?? $eventData['attributes']['payment_intent']['id']
-                    ?? null;
-
-                if (! $intentId) {
-                    Log::warning('PayMongo webhook: payment.paid missing payment_intent_id', ['event_data' => $eventData]);
-                    break;
-                }
-
-                $transaction = Transaction::where('paymongo_intent_id', $intentId)->first();
+                $transaction = $this->resolveTransactionFromEvent($eventData);
 
                 if (! $transaction) {
-                    Log::warning('PayMongo webhook: no transaction for intent_id', ['intent_id' => $intentId]);
+                    Log::warning('PayMongo webhook: no transaction for payment.paid event', ['event_data' => $eventData]);
                     break;
                 }
 
@@ -234,19 +225,10 @@ class PaymentController extends Controller
                 break;
 
             case 'payment.failed':
-                $intentId = $eventData['attributes']['payment_intent_id']
-                    ?? $eventData['attributes']['payment_intent']['id']
-                    ?? null;
-
-                if (! $intentId) {
-                    Log::warning('PayMongo webhook: payment.failed missing payment_intent_id', ['event_data' => $eventData]);
-                    break;
-                }
-
-                $transaction = Transaction::where('paymongo_intent_id', $intentId)->first();
+                $transaction = $this->resolveTransactionFromEvent($eventData);
 
                 if (! $transaction) {
-                    Log::warning('PayMongo webhook: no transaction for intent_id', ['intent_id' => $intentId]);
+                    Log::warning('PayMongo webhook: no transaction for payment.failed event', ['event_data' => $eventData]);
                     break;
                 }
 
@@ -268,5 +250,42 @@ class PaymentController extends Controller
         // PayMongo retries non-2xx responses. We return 200 even for
         // unknown event types to avoid retry storms.
         return response()->json(['received' => true], 200);
+    }
+
+    /**
+     * Resolve the local Transaction for a PayMongo payment event.
+     *
+     * Primary: match on paymongo_intent_id (indexed). Fallback: the
+     * transaction_id we set in the PaymentIntent metadata — a reliable
+     * correlation handle that survives differences in how PayMongo nests
+     * the payment_intent_id across event shapes.
+     */
+    private function resolveTransactionFromEvent(?array $eventData): ?Transaction
+    {
+        if (! $eventData) {
+            return null;
+        }
+
+        $attributes = $eventData['attributes'] ?? [];
+
+        $intentId = $attributes['payment_intent_id']
+            ?? ($attributes['payment_intent']['id'] ?? null);
+
+        if ($intentId) {
+            $transaction = Transaction::where('paymongo_intent_id', $intentId)->first();
+            if ($transaction) {
+                return $transaction;
+            }
+        }
+
+        // Fallback: correlate via the metadata we attached to the intent.
+        $metaTransactionId = $attributes['metadata']['transaction_id']
+            ?? ($attributes['payment_intent']['attributes']['metadata']['transaction_id'] ?? null);
+
+        if ($metaTransactionId) {
+            return Transaction::where('transaction_id', $metaTransactionId)->first();
+        }
+
+        return null;
     }
 }

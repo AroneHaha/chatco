@@ -260,8 +260,6 @@ class ConductorController extends Controller
             ? trim($profile->first_name . ' ' . $profile->last_name)
             : null;
 
-        $profile = $user->conductorProfile;
-
         return $this->successResponse([
             'id' => $user->id,
             'name' => $name,

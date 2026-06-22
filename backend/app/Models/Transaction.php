@@ -65,6 +65,8 @@ class Transaction extends Model
         'paymongo_checkout_url',
         'qr_token',
         'paid_at',
+        // ─── S4 hardening ─────────────────────────────────────────────
+        'idempotency_key',
     ];
 
     /**

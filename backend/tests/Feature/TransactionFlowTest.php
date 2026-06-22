@@ -265,21 +265,43 @@ class TransactionFlowTest extends TestCase
         $this->assertSame($txn->transaction_id, $list->first()->transaction_id);
     }
 
-    public function test_double_submitting_cash_fare_does_not_create_duplicate(): void
+    public function test_double_submitting_cash_fare_with_same_idempotency_key_does_not_create_duplicate(): void
     {
         $svc = app(TransactionService::class);
 
         $data = [
-            'final_amount'  => 15.00,
-            'pickup_name'   => 'Calumpit',
-            'dropoff_name'  => 'Bustos',
+            'final_amount'    => 15.00,
+            'pickup_name'     => 'Calumpit',
+            'dropoff_name'    => 'Bustos',
+            'idempotency_key' => 'fixed-key-123',
         ];
 
+        // Same key twice = a retry of ONE action -> single row.
         $txn1 = $svc->recordCashFare($this->conductor, $data);
         $txn2 = $svc->recordCashFare($this->conductor, $data);
 
         $this->assertSame($txn1->transaction_id, $txn2->transaction_id);
         $this->assertSame(1, Transaction::count());
+    }
+
+    public function test_identical_cash_fares_with_different_keys_are_both_recorded(): void
+    {
+        // Two passengers paying the same fare for the same segment within
+        // seconds is normal on a jeepney — both MUST be recorded. The old
+        // natural-key/time-window dedup wrongly dropped the second one.
+        $svc = app(TransactionService::class);
+
+        $base = [
+            'final_amount' => 15.00,
+            'pickup_name'  => 'Calumpit',
+            'dropoff_name' => 'Bustos',
+        ];
+
+        $txn1 = $svc->recordCashFare($this->conductor, $base + ['idempotency_key' => 'key-a']);
+        $txn2 = $svc->recordCashFare($this->conductor, $base + ['idempotency_key' => 'key-b']);
+
+        $this->assertNotSame($txn1->transaction_id, $txn2->transaction_id);
+        $this->assertSame(2, Transaction::count());
     }
 
     // ─── 2. GCash Initiation ────────────────────────────────────────

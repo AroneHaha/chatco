@@ -29,21 +29,15 @@ use Illuminate\Support\Str;
  *   - NO wallet / balance anywhere.
  *
  * Idempotency (recordCashFare):
- *   Uses a natural key: same shift_id + final_amount + pickup_name +
- *   dropoff_name within a 60-second window. If a matching PAID
- *   transaction exists, returns it instead of creating a duplicate.
- *   This handles accidental double-clicks (the common case) without
- *   requiring a schema change or frontend-generated idempotency_key.
+ *   Dedupes ONLY on the client-supplied idempotency_key (a fresh UUID per
+ *   "record fare" action, unique-indexed at the DB layer). A replayed
+ *   request returns the existing row; distinct fares are always kept.
+ *   NOTE: it deliberately does NOT use a natural key (shift+amount+pickup+
+ *   dropoff) — multiple passengers paying the same fare for the same
+ *   segment within seconds is normal and must each be recorded.
  */
 class TransactionService
 {
-    /**
-     * Idempotency window in seconds. Two cash fares with the same
-     * shift + amount + pickup + dropoff within this window are treated
-     * as a duplicate submit and the existing transaction is returned.
-     */
-    private const IDEMPOTENCY_WINDOW_SECONDS = 60;
-
     /**
      * GCash transactions are claimable for this many minutes after
      * creation. After that, claimGcash returns 410 Gone.
@@ -87,21 +81,20 @@ class TransactionService
         $finalAmount    = (float) ($data['final_amount'] ?? 0);
         $pickupName     = $data['pickup_name'] ?? null;
         $dropoffName    = $data['dropoff_name'] ?? null;
+        $idempotencyKey = $data['idempotency_key'] ?? null;
 
         // ─── Idempotency check ──────────────────────────────────────
-        // Natural key: shift + amount + pickup + dropoff within 60s window
-        $existing = Transaction::query()
-            ->where('shift_id', $shift->shift_id)
-            ->where('payment_method', 'CASH')
-            ->where('final_amount', $finalAmount)
-            ->where('pickup_name', $pickupName)
-            ->where('dropoff_name', $dropoffName)
-            ->where('status', 'PAID')
-            ->where('created_at', '>=', now()->subSeconds(self::IDEMPOTENCY_WINDOW_SECONDS))
-            ->first();
-
-        if ($existing) {
-            return $existing;
+        // Dedupe ONLY on the client-supplied idempotency_key, never on a
+        // natural key. Two different passengers paying the same fare for the
+        // same segment within seconds is normal on a jeepney — a natural-key
+        // window would silently DROP the second fare and undercount earnings.
+        // The key (a fresh UUID per "record fare" action) collapses true
+        // retries while keeping every distinct fare.
+        if ($idempotencyKey) {
+            $existing = Transaction::where('idempotency_key', $idempotencyKey)->first();
+            if ($existing) {
+                return $existing;
+            }
         }
 
         // ─── Persist with denormalized conductor/vehicle/driver info ──
@@ -110,6 +103,7 @@ class TransactionService
             'shift_id'         => $shift->shift_id,
             'payment_method'   => 'CASH',
             'status'           => 'PAID',
+            'idempotency_key'  => $idempotencyKey,
             'final_amount'     => $finalAmount,
             'base_fare'        => isset($data['base_fare']) ? (float) $data['base_fare'] : null,
             'distance'         => isset($data['distance']) ? (float) $data['distance'] : null,
@@ -190,10 +184,9 @@ class TransactionService
         ]);
 
         // Call PaymentService to create the PayMongo PaymentIntent.
-        // Currently throws RuntimeException (stub) -- when implemented,
-        // it returns ['intent_id' => ..., 'checkout_url' => ...].
         $checkoutUrl = null;
         $paymongoIntentId = null;
+        $paymongoConfigured = (bool) config('services.paymongo.secret');
         try {
             $intent = $this->paymentService->createGcashIntent($amountCentavos, [
                 'transaction_id' => $transaction->transaction_id,
@@ -209,12 +202,18 @@ class TransactionService
             ]);
             $transaction->refresh();
         } catch (\RuntimeException $e) {
-            // PaymentService is a stub -- leave paymongo_intent_id + checkout_url null.
-            // The transaction is still PENDING with a valid qr_token; the conductor
-            // can show the QR and the commuter can claim. PayMongo authorize happens
-            // later. This keeps the flow testable end-to-end without a real PayMongo key.
-            // Re-throw if you want strict behavior:
-            // throw $e;
+            if ($paymongoConfigured) {
+                // A PayMongo key IS configured, so this is a REAL provider
+                // failure (outage, bad key, declined request). Surface it
+                // instead of silently returning a dead QR — and roll back the
+                // PENDING row so we don't orphan it.
+                $transaction->delete();
+                report($e);
+                abort(502, 'Unable to initiate GCash payment. Please try again.');
+            }
+            // No key configured (local/dev stub): leave paymongo_* null. The
+            // transaction stays PENDING with a valid qr_token so the binding +
+            // claim flow remains testable end-to-end without a PayMongo key.
         }
 
         return [
@@ -382,17 +381,18 @@ class TransactionService
     {
         $shift = $this->verifyShiftOwnership($conductor, $shiftId);
 
-        $cashTotal = (float) Transaction::query()
+        // Single round-trip: conditional aggregation over the
+        // (shift_id, payment_method, status) composite index. Works on
+        // both MySQL and SQLite. Only PAID rows count toward earnings.
+        $row = Transaction::query()
             ->where('shift_id', $shift->shift_id)
-            ->cash()
-            ->paid()
-            ->sum('final_amount');
+            ->where('status', 'PAID')
+            ->selectRaw("COALESCE(SUM(CASE WHEN payment_method = 'CASH' THEN final_amount ELSE 0 END), 0) AS cash_total")
+            ->selectRaw("COALESCE(SUM(CASE WHEN payment_method = 'GCASH' THEN final_amount ELSE 0 END), 0) AS gcash_total")
+            ->first();
 
-        $gcashTotal = (float) Transaction::query()
-            ->where('shift_id', $shift->shift_id)
-            ->gcash()
-            ->paid()
-            ->sum('final_amount');
+        $cashTotal  = (float) ($row->cash_total ?? 0);
+        $gcashTotal = (float) ($row->gcash_total ?? 0);
 
         return [
             'cash_total'  => $cashTotal,
