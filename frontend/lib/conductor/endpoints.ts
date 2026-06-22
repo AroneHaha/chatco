@@ -28,6 +28,11 @@ export const CONDUCTOR_API = {
     list: "/api/conductor/remittances",
     create: "/api/conductor/remittances",
   },
+  payments: {
+    gcashInitiate: "/api/conductor/payments/gcash/initiate",
+    status: (id: string) => `/api/payments/${encodeURIComponent(id)}/status`,
+    simulate: (id: string) => `/api/payments/${encodeURIComponent(id)}/simulate`,
+  },
   ratings: (shiftId: string) =>
     `/api/conductor/ratings?shift_id=${encodeURIComponent(shiftId)}`,
   hails: "/api/conductor/hails",
