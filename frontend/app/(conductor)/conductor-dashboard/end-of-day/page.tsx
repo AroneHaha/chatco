@@ -119,8 +119,24 @@ export default function EndOfDayPage() {
           realGcashTotal = Number(earnings.gcash_total) || 0;
           realGrandTotal = Number(earnings.total) || 0;
         } catch {
-          // If earnings API fails, fall back to the summary values
+          // If earnings API fails, fall back to computing from transactions
         }
+      }
+
+      // Ultimate fallback: if API returned 0, compute from the transactions
+      // array that's already loaded in the page (from useRemittanceData).
+      if (realCashTotal === 0 && transactions.length > 0) {
+        realCashTotal = transactions
+          .filter((t) => t.paymentMethod === "Cash")
+          .reduce((sum, t) => sum + (Number(t.finalAmount) || 0), 0);
+      }
+      if (realGcashTotal === 0 && transactions.length > 0) {
+        realGcashTotal = transactions
+          .filter((t) => t.paymentMethod === "GCash_Scanned" || t.paymentMethod === "GCash_Direct")
+          .reduce((sum, t) => sum + (Number(t.finalAmount) || 0), 0);
+      }
+      if (realGrandTotal === 0) {
+        realGrandTotal = realCashTotal + realGcashTotal;
       }
 
       // Capture the totals BEFORE ending the shift.
