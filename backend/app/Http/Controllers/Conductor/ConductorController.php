@@ -194,9 +194,9 @@ class ConductorController extends Controller
      * POST /api/conductor/payments/gcash/initiate
      *
      * Initiates a GCash fare: creates a PENDING transaction with a
-     * unique qr_token, calls PaymentService::createGcashIntent() to
-     * get the PayMongo hosted checkout_url. Returns the binding-QR
-     * payload that the conductor app displays as a QR code.
+     * unique qr_token and asks the configured payment gateway (via
+     * TransactionService::initiateGcashFare) for a hosted checkout_url.
+     * Returns the binding-QR payload that the conductor app displays.
      *
      * Delegates to TransactionService::initiateGcashFare().
      */

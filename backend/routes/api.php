@@ -136,6 +136,11 @@ Route::prefix('payments')->group(function () {
     // Status polling — auth required, any role (conductor or commuter)
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{id}/status', [PaymentController::class, 'status'])->middleware('throttle:conductor-read');
+
+        // DEV ONLY (config payments.allow_simulation): drive a PENDING GCash
+        // payment to a terminal status without a real provider. Hard-disabled
+        // in production by the controller.
+        Route::post('/{id}/simulate', [PaymentController::class, 'simulate'])->middleware('throttle:conductor-write');
     });
 
     // PayMongo webhook — PUBLIC (server-to-server, signature-verified in S4-T6)

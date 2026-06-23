@@ -16,6 +16,9 @@ export const COMMUTER_API = {
   payments: {
     history: "/api/commuter/payments",
     create: "/api/commuter/payments",
+    claim: "/api/commuter/payments/claim",
+    status: (id: string) => `/api/payments/${encodeURIComponent(id)}/status`,
+    simulate: (id: string) => `/api/payments/${encodeURIComponent(id)}/simulate`,
   },
   rewards: {
     summary: "/api/commuter/rewards",
