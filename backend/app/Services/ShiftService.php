@@ -94,22 +94,21 @@ class ShiftService
         $shortage = max(0, $totalCollected - $remittedAmount);
 
         // ─── Compute cash_total and gcash_total DIRECTLY from the DB ───
-        // DO NOT trust the frontend to send these — the frontend's API
-        // calls can fail silently, resulting in ₱0 being stored.
-        // The backend is the source of truth for financial calculations.
-        $cashTotal = (float) \App\Models\Transaction::query()
+        // Use DB::table() (raw query) instead of the Eloquent model to
+        // bypass enum casts that can interfere with query builder where clauses.
+        $cashTotal = (float) DB::table('transactions')
             ->where('shift_id', $shiftLog->shift_id)
             ->where('payment_method', 'CASH')
             ->where('status', 'PAID')
             ->sum('final_amount');
 
-        $gcashTotal = (float) \App\Models\Transaction::query()
+        $gcashTotal = (float) DB::table('transactions')
             ->where('shift_id', $shiftLog->shift_id)
             ->where('payment_method', 'GCASH')
             ->where('status', 'PAID')
             ->sum('final_amount');
 
-        $totalPassengers = (int) \App\Models\Transaction::query()
+        $totalPassengers = (int) DB::table('transactions')
             ->where('shift_id', $shiftLog->shift_id)
             ->where('status', 'PAID')
             ->count();
