@@ -76,6 +76,8 @@ class ShiftService
         string $shiftId,
         float $totalCollected,
         float $remittedAmount,
+        float $cashTotal = 0,
+        float $gcashTotal = 0,
     ): ShiftLog {
         if (! $conductor->isConductor()) {
             abort(403, 'Forbidden');
@@ -102,7 +104,7 @@ class ShiftService
         // the same Carbon instance).
         $timeOut = now();
 
-        return DB::transaction(function () use ($shiftLog, $totalCollected, $remittedAmount, $shortage, $timeOut) {
+        return DB::transaction(function () use ($shiftLog, $totalCollected, $remittedAmount, $shortage, $timeOut, $cashTotal, $gcashTotal) {
             Remittance::create([
                 'shift_id' => $shiftLog->shift_id,
                 'conductor_id' => $shiftLog->conductor_id,
@@ -118,6 +120,8 @@ class ShiftService
                 'total_collected' => $totalCollected,
                 'remitted_amount' => $remittedAmount,
                 'shortage' => $shortage,
+                'cash_total' => $cashTotal,
+                'gcash_total' => $gcashTotal,
                 'remittance_status' => $shortage > 0 ? 'SHORTAGE' : 'COMPLETE',
             ]);
 
