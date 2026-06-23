@@ -230,97 +230,74 @@ class DatabaseSeeder extends Seeder
         }
 
         // ════════════════════════════════════════════════════
-        // 4. DRIVERS
+        // 4. DRIVERS + 5. VEHICLES (10 each, linked 1:1)
         // ════════════════════════════════════════════════════
+        // Generates 10 drivers + 10 vehicles with realistic Philippine
+        // names, proper plate numbers (XXX NNNN format), and unit
+        // numbers (UNIT-NNN format). Each driver is assigned to exactly
+        // one vehicle. Vehicles alternate between the two conductors.
 
-        $driver1 = Driver::create([
-            'first_name'          => 'Pedro',
-            'middle_name'         => null,
-            'last_name'           => 'Santos',
-            'birthday'            => '1985-06-10',
-            'contact'             => '+639171112222',
-            'license_number'      => 'DL-2024-0001',
-            'hire_date'           => '2023-01-15',
-            'profile_picture_url' => null,
-            'status'              => 'ACTIVE',
-            'vehicle_id'          => null,
-        ]);
+        $driverSpecs = [
+            ['Pedro',     'Santos',       '1985-06-10', '+639171112222', '2023-01-15'],
+            ['Ricardo',   'Cruz',         '1988-09-22', '+639172223333', '2023-03-01'],
+            ['Antonio',   'Garcia',       '1990-12-05', '+639173334444', '2023-06-20'],
+            ['Manuel',    'Reyes',        '1983-04-18', '+639174445555', '2022-11-10'],
+            ['Roberto',   'Flores',       '1987-08-30', '+639175556666', '2023-02-14'],
+            ['Eduardo',   'Lim',          '1991-01-25', '+639176667777', '2023-09-05'],
+            ['Fernando',  'Torres',       '1986-07-12', '+639177778888', '2023-04-22'],
+            ['Jose',      'Mendoza',      '1989-03-08', '+639178889999', '2023-07-30'],
+            ['Ramon',     'Villanueva',   '1984-11-17', '+639179990000', '2022-08-15'],
+            ['Carlos',    'Dela Rosa',    '1992-05-20', '+639170001111', '2023-10-12'],
+        ];
 
-        $driver2 = Driver::create([
-            'first_name'          => 'Ricardo',
-            'middle_name'         => 'G.',
-            'last_name'           => 'Cruz',
-            'birthday'            => '1988-09-22',
-            'contact'             => '+639172223333',
-            'license_number'      => 'DL-2024-0002',
-            'hire_date'           => '2023-03-01',
-            'profile_picture_url' => null,
-            'status'              => 'ACTIVE',
-            'vehicle_id'          => null,
-        ]);
+        // Plate number prefixes — Philippine region-style codes
+        $platePrefixes = ['NAA', 'NAB', 'NAC', 'NBC', 'NBD', 'DAB', 'DAC', 'AAD', 'AAE', 'PAA'];
 
-        $driver3 = Driver::create([
-            'first_name'          => 'Antonio',
-            'middle_name'         => null,
-            'last_name'           => 'Garcia',
-            'birthday'            => '1990-12-05',
-            'contact'             => '+639173334444',
-            'license_number'      => 'DL-2024-0003',
-            'hire_date'           => '2023-06-20',
-            'profile_picture_url' => null,
-            'status'              => 'ACTIVE',
-            'vehicle_id'          => null,
-        ]);
+        $conductors = [$conductor1->id, $conductor2->id];
 
-        // ════════════════════════════════════════════════════
-        // 5. VEHICLES (after routes + drivers + conductors)
-        // ════════════════════════════════════════════════════
+        foreach ($driverSpecs as $i => $spec) {
+            [$firstName, $lastName, $birthday, $contact, $hireDate] = $spec;
 
-        $vehicle1 = Vehicle::create([
-            'unit_number'          => 'BUS-001',
-            'plate_number'         => 'ABC-1234',
-            'route_id'             => $route->id,
-            'driver_id'            => $driver1->id,
-            'conductor_id'         => $conductor1->id,
-            'status'               => 'ACTIVE',
-            'speed'                => null,
-            'capacity_status'      => 'AVAILABLE',
-            'latitude'             => null,
-            'longitude'            => null,
-            'last_location_update' => null,
-        ]);
+            // Generate unique license number
+            $licenseNumber = 'DL-2024-' . str_pad($i + 1, 4, '0', STR_PAD_LEFT);
 
-        $vehicle2 = Vehicle::create([
-            'unit_number'          => 'JEEP-001',
-            'plate_number'         => 'DEF-5678',
-            'route_id'             => $route->id,
-            'driver_id'            => $driver2->id,
-            'conductor_id'         => $conductor2->id,
-            'status'               => 'ACTIVE',
-            'speed'                => null,
-            'capacity_status'      => 'AVAILABLE',
-            'latitude'             => null,
-            'longitude'            => null,
-            'last_location_update' => null,
-        ]);
+            // Create the driver
+            $driver = Driver::create([
+                'first_name'          => $firstName,
+                'middle_name'         => null,
+                'last_name'           => $lastName,
+                'birthday'            => $birthday,
+                'contact'             => $contact,
+                'license_number'      => $licenseNumber,
+                'hire_date'           => $hireDate,
+                'profile_picture_url' => null,
+                'status'              => 'ACTIVE',
+                'vehicle_id'          => null,
+            ]);
 
-        $vehicle3 = Vehicle::create([
-            'unit_number'          => 'JEEP-002',
-            'plate_number'         => 'GHI-9012',
-            'route_id'             => $route->id,
-            'driver_id'            => $driver3->id,
-            'conductor_id'         => $conductor1->id,
-            'status'               => 'ACTIVE',
-            'speed'                => null,
-            'capacity_status'      => 'AVAILABLE',
-            'latitude'             => null,
-            'longitude'            => null,
-            'last_location_update' => null,
-        ]);
+            // Generate unique plate: XXX NNNN (3 letters + space + 4 digits)
+            $plateNumber = $platePrefixes[$i] . ' ' . str_pad($i + 1, 4, '0', STR_PAD_LEFT);
 
-        // Update drivers with vehicle_id
-        $driver1->update(['vehicle_id' => $vehicle1->id]);
-        $driver2->update(['vehicle_id' => $vehicle2->id]);
-        $driver3->update(['vehicle_id' => $vehicle3->id]);
+            // Generate unique unit number: UNIT-001 through UNIT-010
+            $unitNumber = 'UNIT-' . str_pad($i + 1, 3, '0', STR_PAD_LEFT);
+
+            // Create the vehicle — alternate between conductor1 and conductor2
+            $vehicle = Vehicle::create([
+                'unit_number'          => $unitNumber,
+                'plate_number'         => $plateNumber,
+                'route_id'             => $route->id,
+                'driver_id'            => $driver->id,
+                'conductor_id'         => $conductors[$i % 2],
+                'status'               => 'ACTIVE',
+                'speed'                => null,
+                'capacity_status'      => 'AVAILABLE',
+                'latitude'             => null,
+                'longitude'            => null,
+                'last_location_update' => null,
+            ]);
+
+            // Link the driver back to the vehicle
+            $driver->update(['vehicle_id' => $vehicle->id]);
+        }
     }
 }

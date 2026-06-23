@@ -97,7 +97,12 @@ class ShiftService
 
         $shortage = max(0, $totalCollected - $remittedAmount);
 
-        return DB::transaction(function () use ($shiftLog, $totalCollected, $remittedAmount, $shortage) {
+        // Capture the time_out ONCE so both shift_logs and remittances
+        // get the EXACT same timestamp (not just "close" — literally
+        // the same Carbon instance).
+        $timeOut = now();
+
+        return DB::transaction(function () use ($shiftLog, $totalCollected, $remittedAmount, $shortage, $timeOut) {
             Remittance::create([
                 'shift_id' => $shiftLog->shift_id,
                 'conductor_id' => $shiftLog->conductor_id,
@@ -109,6 +114,7 @@ class ShiftService
                 'unit_number' => $shiftLog->unit_number,
                 'total_passengers' => 0,
                 'time_in' => $shiftLog->time_in,
+                'time_out' => $timeOut,
                 'total_collected' => $totalCollected,
                 'remitted_amount' => $remittedAmount,
                 'shortage' => $shortage,
@@ -118,7 +124,7 @@ class ShiftService
             $shiftLog->update([
                 'status' => ShiftStatus::ENDED->value,
                 'is_active' => false,
-                'time_out' => now(),
+                'time_out' => $timeOut,
             ]);
 
             if ($shiftLog->vehicle_id) {
