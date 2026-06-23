@@ -85,8 +85,6 @@ class ConductorController extends Controller
             $validated['shift_id'],
             (float) $validated['total_collected'],
             (float) $validated['remitted_amount'],
-            (float) ($validated['cash_total'] ?? 0),
-            (float) ($validated['gcash_total'] ?? 0),
         );
 
         return $this->successResponse(

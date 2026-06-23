@@ -76,8 +76,6 @@ class ShiftService
         string $shiftId,
         float $totalCollected,
         float $remittedAmount,
-        float $cashTotal = 0,
-        float $gcashTotal = 0,
     ): ShiftLog {
         if (! $conductor->isConductor()) {
             abort(403, 'Forbidden');
@@ -89,22 +87,36 @@ class ShiftService
             abort(403, 'Forbidden');
         }
 
-        // ShiftLog::casts()['status'] = ShiftStatus::class, so
-        // $shiftLog->status is a ShiftStatus enum instance — compare
-        // enum-to-enum, NOT enum-to-string (->value), which would
-        // always be true and incorrectly abort 422.
         if ($shiftLog->status !== ShiftStatus::ACTIVE) {
             abort(422, 'Shift is not active');
         }
 
         $shortage = max(0, $totalCollected - $remittedAmount);
 
-        // Capture the time_out ONCE so both shift_logs and remittances
-        // get the EXACT same timestamp (not just "close" — literally
-        // the same Carbon instance).
+        // ─── Compute cash_total and gcash_total DIRECTLY from the DB ───
+        // DO NOT trust the frontend to send these — the frontend's API
+        // calls can fail silently, resulting in ₱0 being stored.
+        // The backend is the source of truth for financial calculations.
+        $cashTotal = (float) \App\Models\Transaction::query()
+            ->where('shift_id', $shiftLog->shift_id)
+            ->where('payment_method', 'CASH')
+            ->where('status', 'PAID')
+            ->sum('final_amount');
+
+        $gcashTotal = (float) \App\Models\Transaction::query()
+            ->where('shift_id', $shiftLog->shift_id)
+            ->where('payment_method', 'GCASH')
+            ->where('status', 'PAID')
+            ->sum('final_amount');
+
+        $totalPassengers = (int) \App\Models\Transaction::query()
+            ->where('shift_id', $shiftLog->shift_id)
+            ->where('status', 'PAID')
+            ->count();
+
         $timeOut = now();
 
-        return DB::transaction(function () use ($shiftLog, $totalCollected, $remittedAmount, $shortage, $timeOut, $cashTotal, $gcashTotal) {
+        return DB::transaction(function () use ($shiftLog, $totalCollected, $remittedAmount, $shortage, $timeOut, $cashTotal, $gcashTotal, $totalPassengers) {
             Remittance::create([
                 'shift_id' => $shiftLog->shift_id,
                 'conductor_id' => $shiftLog->conductor_id,
@@ -114,7 +126,7 @@ class ShiftService
                 'conductor_name' => $shiftLog->conductor_name,
                 'driver_name' => $shiftLog->driver_name,
                 'unit_number' => $shiftLog->unit_number,
-                'total_passengers' => 0,
+                'total_passengers' => $totalPassengers,
                 'time_in' => $shiftLog->time_in,
                 'time_out' => $timeOut,
                 'total_collected' => $totalCollected,
