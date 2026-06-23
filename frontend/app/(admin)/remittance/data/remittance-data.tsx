@@ -291,21 +291,33 @@ const SEED_REMITTANCE: RemittanceRecord[] = [
 // an API call and this constant is removed.
 const CONDUCTOR_STORAGE_KEY = "conductor_remittance_history";
 
-// ─── API fetch helper (ready for backend) ──────────────────────────────
-// When the Laravel API endpoint is available, replace the localStorage
-// fallback with a real fetch call. The hook's return shape stays the same.
+// ─── API fetch helper ──────────────────────────────────────────────────
+// S4-T10: Now calls the real Laravel backend via the Next.js proxy.
+// Falls back to localStorage (conductor submissions) on network error,
+// then to seed data on first run.
 
 async function fetchRemittances(): Promise<RemittanceRecord[]> {
   // ── Stage 1: Try real API ──────────────────────────────────────────
-  // TODO: Uncomment when backend is ready
-  // const res = await fetch('/api/admin/remittances');
-  // if (!res.ok) throw new Error('Failed to fetch remittances');
-  // return res.json();
+  try {
+    const res = await fetch("/api/admin/remittances", {
+      headers: { Accept: "application/json" },
+    });
+    if (res.ok) {
+      const json = await res.json();
+      // The proxy returns { data: [...] } — extract the array
+      const apiRecords = json.data ?? json;
+      if (Array.isArray(apiRecords) && apiRecords.length > 0) {
+        // Map snake_case backend fields to camelCase frontend type
+        return apiRecords.map(mapLaravelRemittance);
+      }
+      // API returned empty array — no remittances in DB yet
+      return [];
+    }
+  } catch {
+    // Network error — fall through to localStorage
+  }
 
   // ── Stage 2: Dev fallback — read conductor submissions from localStorage
-  // This reads the SAME data that remittance-history.ts writes,
-  // so admin now sees real conductor submissions instead of disconnected
-  // hardcoded mock data.
   if (typeof window !== "undefined") {
     try {
       const raw = localStorage.getItem(CONDUCTOR_STORAGE_KEY);
@@ -330,6 +342,48 @@ async function fetchRemittances(): Promise<RemittanceRecord[]> {
 
   // ── Stage 3: Seed data (empty localStorage, first run) ─────────────
   return SEED_REMITTANCE;
+}
+
+/**
+ * Map a Laravel Remittance model (snake_case) to the frontend's
+ * RemittanceRecord type (camelCase).
+ *
+ * Backend fields (from Remittance model + migration):
+ *   shift_id, conductor_name, driver_name, unit_number, date,
+ *   time_in, time_out, total_collected, remitted_amount, shortage,
+ *   remittance_status, total_passengers, cash_total, gcash_total
+ *
+ * Frontend fields (from types/shift.ts RemittanceRecord):
+ *   shiftId, conductorName, driverName, unitNumber, date,
+ *   timeIn, timeOut, cashTotal, gcashTotal, remittanceStatus,
+ *   totalPassengers, cashlessBreakdown, totalCashless, cashDeclared
+ */
+function mapLaravelRemittance(r: Record<string, unknown>): RemittanceRecord {
+  const cashTotal = Number(r.cash_total ?? r.total_collected ?? 0);
+  const gcashTotal = Number(r.gcash_total ?? 0);
+
+  return {
+    shiftId: String(r.shift_id ?? ""),
+    date: String(r.date ?? ""),
+    conductorName: String(r.conductor_name ?? "—"),
+    driverName: String(r.driver_name ?? "—"),
+    unitNumber: String(r.unit_number ?? "—"),
+    totalPassengers: Number(r.total_passengers ?? 0),
+    cashlessBreakdown: {
+      gcashScanned: 0, // Legacy — not tracked separately in S4
+      gcashDirect: 0,
+      voucher: 0,
+    },
+    totalCashless: gcashTotal,
+    cashDeclared: Number(r.cash_declared ?? 0),
+    remittanceStatus: (r.remittance_status === "COMPLETE" || r.remittance_status === "Remitted")
+      ? "Remitted"
+      : "Pending",
+    timeIn: String(r.time_in ?? ""),
+    timeOut: String(r.time_out ?? ""),
+    cashTotal,
+    gcashTotal,
+  };
 }
 
 // ─── Hook ──────────────────────────────────────────────────────────────

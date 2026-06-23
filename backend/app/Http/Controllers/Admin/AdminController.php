@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Remittance;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 
@@ -40,9 +41,21 @@ class AdminController extends Controller
         return $this->notImplementedResponse();
     }
 
+    /**
+     * GET /api/v1/admin/remittances
+     *
+     * Returns all remittances across all shifts, ordered by date desc.
+     * Each remittance includes the cash total, GCash total, shortage,
+     * and denormalized conductor/driver/vehicle info.
+     */
     public function remittances(): JsonResponse
     {
-        return $this->notImplementedResponse();
+        $remittances = Remittance::query()
+            ->orderBy('date', 'desc')
+            ->orderBy('time_in', 'desc')
+            ->get();
+
+        return $this->successResponse($remittances, 'Remittances retrieved');
     }
 
     public function announcements(): JsonResponse
