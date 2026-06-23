@@ -97,20 +97,40 @@ class ShiftService
         // Use raw SQL to bypass ALL Laravel magic (enum casts, scopes, etc.)
         $shiftIdValue = $shiftLog->getRawOriginal('shift_id');
 
-        $cashTotal = (float) DB::selectOne(
+        \Log::info('S4-T9 endShiftViaRemittance: computing totals', [
+            'shift_id' => $shiftIdValue,
+            'conductor_id' => $shiftLog->conductor_id,
+        ]);
+
+        $cashResult = DB::selectOne(
             "SELECT COALESCE(SUM(final_amount), 0) as total FROM transactions WHERE shift_id = ? AND payment_method = 'CASH' AND status = 'PAID'",
             [$shiftIdValue]
-        )->total;
+        );
+        $cashTotal = (float) ($cashResult->total ?? 0);
 
-        $gcashTotal = (float) DB::selectOne(
+        \Log::info('S4-T9 cash query result', [
+            'shift_id' => $shiftIdValue,
+            'raw_result' => $cashResult,
+            'cash_total' => $cashTotal,
+        ]);
+
+        $gcashResult = DB::selectOne(
             "SELECT COALESCE(SUM(final_amount), 0) as total FROM transactions WHERE shift_id = ? AND payment_method = 'GCASH' AND status = 'PAID'",
             [$shiftIdValue]
-        )->total;
+        );
+        $gcashTotal = (float) ($gcashResult->total ?? 0);
 
         $totalPassengers = (int) DB::selectOne(
             "SELECT COUNT(*) as cnt FROM transactions WHERE shift_id = ? AND status = 'PAID'",
             [$shiftIdValue]
         )->cnt;
+
+        \Log::info('S4-T9 final totals', [
+            'shift_id' => $shiftIdValue,
+            'cash_total' => $cashTotal,
+            'gcash_total' => $gcashTotal,
+            'total_passengers' => $totalPassengers,
+        ]);
 
         $timeOut = now();
 
