@@ -25,6 +25,8 @@ class Remittance extends Model
         'remitted_amount',
         'shortage',
         'remittance_status',
+        'cash_total',
+        'gcash_total',
     ];
 
     protected function casts(): array
@@ -33,6 +35,8 @@ class Remittance extends Model
             'total_collected' => 'decimal:2',
             'remitted_amount' => 'decimal:2',
             'shortage' => 'decimal:2',
+            'cash_total' => 'decimal:2',
+            'gcash_total' => 'decimal:2',
         ];
     }
 
