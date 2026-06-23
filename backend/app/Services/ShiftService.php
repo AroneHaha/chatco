@@ -94,24 +94,23 @@ class ShiftService
         $shortage = max(0, $totalCollected - $remittedAmount);
 
         // ─── Compute cash_total and gcash_total DIRECTLY from the DB ───
-        // Use DB::table() (raw query) instead of the Eloquent model to
-        // bypass enum casts that can interfere with query builder where clauses.
-        $cashTotal = (float) DB::table('transactions')
-            ->where('shift_id', $shiftLog->shift_id)
-            ->where('payment_method', 'CASH')
-            ->where('status', 'PAID')
-            ->sum('final_amount');
+        // Use raw SQL to bypass ALL Laravel magic (enum casts, scopes, etc.)
+        $shiftIdValue = $shiftLog->getRawOriginal('shift_id');
 
-        $gcashTotal = (float) DB::table('transactions')
-            ->where('shift_id', $shiftLog->shift_id)
-            ->where('payment_method', 'GCASH')
-            ->where('status', 'PAID')
-            ->sum('final_amount');
+        $cashTotal = (float) DB::selectOne(
+            "SELECT COALESCE(SUM(final_amount), 0) as total FROM transactions WHERE shift_id = ? AND payment_method = 'CASH' AND status = 'PAID'",
+            [$shiftIdValue]
+        )->total;
 
-        $totalPassengers = (int) DB::table('transactions')
-            ->where('shift_id', $shiftLog->shift_id)
-            ->where('status', 'PAID')
-            ->count();
+        $gcashTotal = (float) DB::selectOne(
+            "SELECT COALESCE(SUM(final_amount), 0) as total FROM transactions WHERE shift_id = ? AND payment_method = 'GCASH' AND status = 'PAID'",
+            [$shiftIdValue]
+        )->total;
+
+        $totalPassengers = (int) DB::selectOne(
+            "SELECT COUNT(*) as cnt FROM transactions WHERE shift_id = ? AND status = 'PAID'",
+            [$shiftIdValue]
+        )->cnt;
 
         $timeOut = now();
 
