@@ -5,7 +5,7 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { clearShift, formatTime } from "@/lib/conductor/services/shift.service";
 import { submitRemittance, type RemittanceRecord } from "@/lib/conductor/services/remittance.service";
-import type { Transaction } from "@/lib/conductor/services/transactions.service";
+import { fetchShiftEarnings, type Transaction } from "@/lib/conductor/services/transactions.service";
 import { useRemittanceData } from "@/app/(conductor)/hooks/use-remittance-data";
 import { EndOfDaySkeleton } from "@/components/conductor/ui/skeleton";
 import { fmt, methodConfig } from "./helpers";
@@ -104,16 +104,32 @@ export default function EndOfDayPage() {
     setIsRemitting(true);
     setSubmitError(null);
 
-    // Capture the current totals BEFORE ending the shift.
-    // endShift() + refresh() will clear the shift data, so we must
-    // save the totals now to show them in the SuccessOverlay.
-    const finalGcashTotal = summary.gcashTotal;
-    const finalCashTotal = summary.cashTotal;
-    const finalGrandTotal = summary.grandTotal;
-    const finalTotalPassengers = summary.totalPassengers;
-    const finalBreakdown = summary.breakdown;
-
     try {
+      // Query the earnings API DIRECTLY to get the real DB totals right
+      // before remitting. Don't rely on the possibly-stale `summary` which
+      // may show ₱0 if the hook hasn't refreshed.
+      let realCashTotal = summary.cashTotal;
+      let realGcashTotal = summary.gcashTotal;
+      let realGrandTotal = summary.grandTotal;
+
+      if (shiftInfo.shiftId) {
+        try {
+          const earnings = await fetchShiftEarnings(shiftInfo.shiftId);
+          realCashTotal = Number(earnings.cash_total) || 0;
+          realGcashTotal = Number(earnings.gcash_total) || 0;
+          realGrandTotal = Number(earnings.total) || 0;
+        } catch {
+          // If earnings API fails, fall back to the summary values
+        }
+      }
+
+      // Capture the totals BEFORE ending the shift.
+      const finalGcashTotal = realGcashTotal;
+      const finalCashTotal = realCashTotal;
+      const finalGrandTotal = realGrandTotal;
+      const finalTotalPassengers = summary.totalPassengers;
+      const finalBreakdown = summary.breakdown;
+
       await new Promise((resolve) => setTimeout(resolve, 1800));
       const record: RemittanceRecord = {
         shiftId: shiftInfo.shiftId,
