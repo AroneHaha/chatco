@@ -79,33 +79,10 @@ export function ConductorDetailModal({ isOpen, onClose, record }: ConductorDetai
       return;
     }
 
-    // Seed the modal with the selected record plus any static history
-    // available for the same conductor.  When the API is ready this will
-    // be replaced with a real fetch.
-    const name = record.conductorName;
-    const staticHistory = getStaticRemittanceHistory(name);
-
-    // Merge: put the live record first, then deduplicate with static.
-    // Normalize static records to canonical shape.
-    const seen = new Set<string>([record.shiftId]);
-    const merged: RemittanceRecord[] = [record];
-    for (const r of staticHistory) {
-      if (!seen.has(r.shiftId)) {
-        seen.add(r.shiftId);
-        merged.push(normalizeRemittance(r as unknown as Record<string, unknown>));
-      }
-    }
-    setRemittanceRecords(merged);
-
-    const logs = getStaticShiftLogs(name);
-    setShiftLogs(logs);
-
-    const txnsMap: Record<string, Transaction[]> = {};
-    logs.forEach((l: ShiftLog) => {
-      txnsMap[l.shiftId] = getStaticShiftTransactions(l.shiftId, name);
-    });
-    setShiftTransactions(txnsMap);
-
+    // Show ONLY the real record passed in via props. No static mock data.
+    setRemittanceRecords([record]);
+    setShiftLogs([]);
+    setShiftTransactions({});
     setActiveTab('remittance');
     setExpandedShift(null);
     setStartDate('');

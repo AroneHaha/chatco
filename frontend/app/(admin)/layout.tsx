@@ -8,6 +8,7 @@ import { SettingsDrawerProvider, SettingsDrawer, useSettingsDrawer } from '@/com
 import { useAuth } from '@/contexts/auth-context';
 import { AdminSidebar } from '@/components/admin/layout/admin-sidebar';
 import { AdminBottomNav } from '@/components/admin/layout/admin-bottom-nav';
+import { NotificationBell } from '@/components/admin/layout/notification-bell';
 import { SidebarSkeleton, ContentSkeleton, MobileSkeleton } from '@/components/admin/layout/admin-layout-skeleton';
 
 // ─── Inner Layout (uses context) ───
@@ -91,6 +92,10 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
       <div className="flex h-screen bg-[#0B1120]">
         <AdminSidebar onSignOut={() => setIsSignOutOpen(true)} />
         <main className="flex-1 overflow-y-auto p-6 lg:p-8 text-white">
+          {/* Notification Bell — fixed top-right */}
+          <div className="fixed top-4 right-6 z-50">
+            <NotificationBell />
+          </div>
           {children}
         </main>
         <SignOutModal isOpen={isSignOutOpen} onClose={() => setIsSignOutOpen(false)} onConfirm={handleSignOut} />
@@ -102,6 +107,10 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
   // MOBILE
   return (
     <div className="min-h-screen bg-[#0B1120] text-white flex flex-col">
+      {/* Notification Bell — fixed top-right for mobile */}
+      <div className="fixed top-3 right-3 z-50">
+        <NotificationBell />
+      </div>
       <main className="flex-1 p-4 md:p-6 lg:p-8 pb-24 overflow-y-auto">
         {children}
       </main>

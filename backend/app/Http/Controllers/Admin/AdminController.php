@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Remittance;
+use App\Models\ShiftLog;
+use App\Models\Transaction;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 
@@ -37,12 +40,28 @@ class AdminController extends Controller
 
     public function transactions(): JsonResponse
     {
-        return $this->notImplementedResponse();
+        $transactions = Transaction::with(['shiftLog', 'passenger'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return $this->successResponse($transactions, 'Transactions retrieved');
     }
 
+    /**
+     * GET /api/v1/admin/remittances
+     *
+     * Returns all remittances across all shifts, ordered by date desc.
+     * Each remittance includes the cash total, GCash total, shortage,
+     * and denormalized conductor/driver/vehicle info.
+     */
     public function remittances(): JsonResponse
     {
-        return $this->notImplementedResponse();
+        $remittances = Remittance::query()
+            ->orderBy('date', 'desc')
+            ->orderBy('time_in', 'desc')
+            ->get();
+
+        return $this->successResponse($remittances, 'Remittances retrieved');
     }
 
     public function announcements(): JsonResponse
@@ -57,6 +76,10 @@ class AdminController extends Controller
 
     public function shiftLogs(): JsonResponse
     {
-        return $this->notImplementedResponse();
+        $shiftLogs = ShiftLog::with(['vehicle', 'driver', 'route'])
+            ->orderBy('time_in', 'desc')
+            ->get();
+
+        return $this->successResponse($shiftLogs, 'Shift logs retrieved');
     }
 }
