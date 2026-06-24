@@ -116,6 +116,13 @@ export function useReceiptsData() {
 
   useEffect(() => {
     refresh();
+
+    // Auto-poll every 10 seconds for real-time updates
+    const interval = setInterval(() => {
+      refresh();
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, [refresh]);
 
   return { records, isLoading, error, refresh };
