@@ -14,34 +14,7 @@ interface AdminNotification {
   read: boolean;
 }
 
-// ─── Mock data (replace with API call when backend is ready) ───────────
-
-const MOCK_NOTIFICATIONS: AdminNotification[] = [
-  {
-    id: 'n1',
-    type: 'warning',
-    title: 'Pending Remittance',
-    message: 'Conductor Juan Dela Cruz has a pending remittance for Shift SHF-3UTM.',
-    timestamp: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-    read: false,
-  },
-  {
-    id: 'n2',
-    type: 'success',
-    title: 'Shift Ended',
-    message: 'Conductor Maria Reyes ended shift SHF-DAW0 successfully.',
-    timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-    read: false,
-  },
-  {
-    id: 'n3',
-    type: 'info',
-    title: 'New Vehicle Added',
-    message: 'Vehicle UNIT-010 (PAA 0010) was added to the fleet.',
-    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    read: true,
-  },
-];
+// ─── Mock data removed — wire to API when backend notifications are ready ─
 
 // ─── Helper: format relative time ──────────────────────────────────────
 
@@ -73,7 +46,7 @@ function getNotificationStyle(type: AdminNotification['type']) {
 
 export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<AdminNotification[]>(MOCK_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<AdminNotification[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
