@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Remittance;
 use App\Models\ShiftLog;
+use App\Models\Transaction;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 
@@ -39,7 +40,11 @@ class AdminController extends Controller
 
     public function transactions(): JsonResponse
     {
-        return $this->notImplementedResponse();
+        $transactions = Transaction::with(['shiftLog', 'passenger'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return $this->successResponse($transactions, 'Transactions retrieved');
     }
 
     /**

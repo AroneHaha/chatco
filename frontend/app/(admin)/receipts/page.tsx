@@ -1,27 +1,31 @@
 // app/(admin)/receipts/page.tsx
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
 import { SearchBar } from '@/components/admin/ui/search-bar';
-import { CalendarDays, Download, Filter, Wallet, Ticket, ChevronLeft, ChevronRight } from 'lucide-react';
-import { initialReceiptData, type Receipt, type PaymentMethod } from '@/app/(admin)/receipts/data/receipts-data';
+import { CalendarDays, Download, Filter, Wallet, Ticket, Banknote, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
+import { useReceiptsData, type Receipt, type PaymentMethod } from '@/app/(admin)/receipts/data/receipts-data';
 
 const ROWS_PER_PAGE = 20;
 
 export default function ReceiptsPage() {
+  const { records, isLoading, error, refresh } = useReceiptsData();
   const [searchQuery, setSearchQuery] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [paymentFilter, setPaymentFilter] = useState<PaymentMethod | 'All'>('All');
   const [currentPage, setCurrentPage] = useState(1);
 
-  const paymentOptions: (PaymentMethod | 'All')[] = ['All', 'Gcash', 'Voucher'];
+  const paymentOptions: (PaymentMethod | 'All')[] = ['All', 'Cash', 'Gcash', 'Voucher'];
+
+  // Reset to page 1 when filters change
+  useEffect(() => { setCurrentPage(1); }, [searchQuery, startDate, endDate, paymentFilter]);
 
   // Filtered data
   const filteredData = useMemo(() => {
-    return initialReceiptData.filter((item: Receipt) => {
+    return records.filter((item: Receipt) => {
       const matchesPayment = paymentFilter === 'All' || item.paymentMethod === paymentFilter;
       const matchesSearch = item.commuterName.toLowerCase().includes(searchQuery.toLowerCase()) || item.id.toLowerCase().includes(searchQuery.toLowerCase());
       const itemDate = new Date(item.date);
@@ -29,10 +33,7 @@ export default function ReceiptsPage() {
       const matchesEnd = !endDate || itemDate <= new Date(endDate);
       return matchesPayment && matchesSearch && matchesStart && matchesEnd;
     });
-  }, [searchQuery, startDate, endDate, paymentFilter]);
-
-  // Reset to page 1 when filters change
-  useMemo(() => { setCurrentPage(1); }, [searchQuery, startDate, endDate, paymentFilter]);
+  }, [records, searchQuery, startDate, endDate, paymentFilter]);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filteredData.length / ROWS_PER_PAGE));
@@ -44,16 +45,16 @@ export default function ReceiptsPage() {
 
   // Summary stats
   const totalFare = filteredData.reduce((sum: number, item: Receipt) => sum + item.fare, 0);
+  const cashCount = filteredData.filter((item: Receipt) => item.paymentMethod === 'Cash').length;
   const gcashCount = filteredData.filter((item: Receipt) => item.paymentMethod === 'Gcash').length;
-  const voucherCount = filteredData.filter((item: Receipt) => item.paymentMethod === 'Voucher').length;
 
   const columns = [
     { key: 'id', label: 'Receipt ID' },
-    { key: 'commuterName', label: 'Commuter' },
+    { key: 'commuterName', label: 'Passenger' },
     { key: 'plateNumber', label: 'Vehicle' },
     { key: 'route', label: 'Route' },
     { key: 'fare', label: 'Fare', render: (value: number) => (
-      <span className="text-slate-200 font-medium">&#8369;{value.toFixed(2)}</span>
+      <span className="text-slate-200 font-medium">₱{value.toFixed(2)}</span>
     )},
     {
       key: 'paymentMethod',
@@ -61,10 +62,12 @@ export default function ReceiptsPage() {
       render: (value: PaymentMethod) => (
         <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${
           value === 'Gcash' ? 'bg-[#62A0EA]/15 text-[#62A0EA]'
-          : 'bg-pink-500/15 text-pink-400'
+          : value === 'Voucher' ? 'bg-pink-500/15 text-pink-400'
+          : 'bg-emerald-500/15 text-emerald-400'
         }`}>
           {value === 'Gcash' && <Wallet size={12} />}
           {value === 'Voucher' && <Ticket size={12} />}
+          {value === 'Cash' && <Banknote size={12} />}
           {value}
         </span>
       ),
@@ -72,15 +75,46 @@ export default function ReceiptsPage() {
     {
       key: 'status',
       label: 'Status',
-      render: () => (
-        <Badge variant="success">Completed</Badge>
-      ),
+      render: (value: string) => {
+        if (value === 'Pending') return <Badge variant="warning">Pending</Badge>;
+        if (value === 'Failed') return <Badge variant="danger">Failed</Badge>;
+        return <Badge variant="success">Completed</Badge>;
+      },
     },
     { key: 'date', label: 'Date' },
     { key: 'time', label: 'Time' },
   ];
 
   const hasActiveFilters = searchQuery || startDate || endDate || paymentFilter !== 'All';
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-[#62A0EA] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-sm text-slate-400">Loading receipts...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <AlertCircle className="h-12 w-12 text-red-400 mb-4" />
+        <h2 className="text-lg font-semibold text-white mb-2">Failed to load receipts</h2>
+        <p className="text-sm text-slate-400 mb-4">{error}</p>
+        <button
+          onClick={() => refresh()}
+          className="px-4 py-2 bg-[#62A0EA] hover:bg-[#4A8BD4] text-white rounded-md text-sm font-medium transition-colors"
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={{ touchAction: 'manipulation' }}>
@@ -92,15 +126,15 @@ export default function ReceiptsPage() {
         </div>
         <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4">
           <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Total Revenue</p>
-          <p className="text-xl lg:text-2xl font-bold text-[#62A0EA]">&#8369;{totalFare.toFixed(2)}</p>
+          <p className="text-xl lg:text-2xl font-bold text-[#62A0EA]">₱{totalFare.toFixed(2)}</p>
         </div>
         <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4">
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Gcash</p>
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Cash</p>
+          <p className="text-xl lg:text-2xl font-bold text-emerald-400">{cashCount}</p>
+        </div>
+        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4">
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">GCash</p>
           <p className="text-xl lg:text-2xl font-bold text-[#62A0EA]">{gcashCount}</p>
-        </div>
-        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4">
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Voucher</p>
-          <p className="text-xl lg:text-2xl font-bold text-pink-400">{voucherCount}</p>
         </div>
       </div>
 
@@ -139,7 +173,7 @@ export default function ReceiptsPage() {
         {/* Search & Date Filters */}
         <div className="flex flex-col lg:flex-row gap-3 w-full">
           <SearchBar
-            placeholder="Search by Commuter or Receipt ID..."
+            placeholder="Search by Passenger or Receipt ID..."
             value={searchQuery}
             onChange={setSearchQuery}
             className="w-full lg:w-64"
