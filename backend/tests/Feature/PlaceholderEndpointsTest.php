@@ -106,7 +106,7 @@ class PlaceholderEndpointsTest extends TestCase
     // Sprint 4 implemented /transactions + /earnings, so there are no
     // remaining conductor 501 stubs.
 
-    // ── Admin Endpoints (10) ─────────────────────────────────────
+    // ── Admin Endpoints (9) ──────────────────────────────────────
 
     public function test_admin_dashboard_returns_501(): void
     {
@@ -138,10 +138,7 @@ class PlaceholderEndpointsTest extends TestCase
         $this->assertNotImplementedResponse('getJson', '/api/v1/admin/transactions', $this->adminToken);
     }
 
-    public function test_admin_remittances_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('getJson', '/api/v1/admin/remittances', $this->adminToken);
-    }
+    // Admin /remittances implemented in Sprint 4 (returns real DB data).
 
     public function test_admin_announcements_returns_501(): void
     {
@@ -182,13 +179,13 @@ class PlaceholderEndpointsTest extends TestCase
 
     // ── Total Count Verification ─────────────────────────────────
 
-    public function test_total_placeholder_endpoints_is_16(): void
+    public function test_total_placeholder_endpoints_is_15(): void
     {
-        // 3 commuter + 10 admin + 3 QR = 16
+        // 3 commuter + 9 admin + 3 QR = 15
         // Wallet/topup stubs removed (wallet is permanently eliminated).
         // Sprint 2 implemented the conductor endpoints; Sprint 4 implemented
         // the conductor /transactions + the payment initiate/verify/history
-        // endpoints, so those are no longer 501 stubs.
-        $this->assertEquals(16, 3 + 10 + 3);
+        // endpoints + the admin /remittances endpoint, so those are no longer 501 stubs.
+        $this->assertEquals(15, 3 + 9 + 3);
     }
 }
