@@ -69,6 +69,29 @@ export default function MonitoringPage() {
     setSosAlerts(prev => prev.filter(alert => alert.id !== alertId));
   };
 
+  // Filtered Data Logic (MUST be before early returns to satisfy Rules of Hooks)
+  const filteredVehicles = useMemo(() => {
+    if (!showOverspeedOnly) return data.liveVehicles;
+    return data.liveVehicles.filter(v => v.status === "overspeeding");
+  }, [showOverspeedOnly, data.liveVehicles]);
+
+  const filteredSosHistory = useMemo(() => {
+    if (!filterSosDate) return sosHistory;
+    return sosHistory.filter(log => log.triggeredDate === filterSosDate);
+  }, [filterSosDate, sosHistory]);
+
+  const filteredOverspeedHistory = useMemo(() => {
+    if (!filterOverspeedDate) return data.overspeedHistory;
+    return data.overspeedHistory.filter(log => log.loggedDate === filterOverspeedDate);
+  }, [filterOverspeedDate, data.overspeedHistory]);
+
+  // Pagination Logic
+  const totalSosPages = Math.max(1, Math.ceil(filteredSosHistory.length / ROWS_PER_PAGE));
+  const currentSosData = filteredSosHistory.slice((sosPage - 1) * ROWS_PER_PAGE, sosPage * ROWS_PER_PAGE);
+
+  const totalOverspeedPages = Math.max(1, Math.ceil(filteredOverspeedHistory.length / ROWS_PER_PAGE));
+  const currentOverspeedData = filteredOverspeedHistory.slice((overspeedPage - 1) * ROWS_PER_PAGE, overspeedPage * ROWS_PER_PAGE);
+
   // ── Loading State ──
   if (isLoading) {
     return (
@@ -101,29 +124,6 @@ export default function MonitoringPage() {
       </div>
     );
   }
-
-  // Filtered Data Logic
-  const filteredVehicles = useMemo(() => {
-    if (!showOverspeedOnly) return data.liveVehicles;
-    return data.liveVehicles.filter(v => v.status === "overspeeding");
-  }, [showOverspeedOnly, data.liveVehicles]);
-
-  const filteredSosHistory = useMemo(() => {
-    if (!filterSosDate) return sosHistory;
-    return sosHistory.filter(log => log.triggeredDate === filterSosDate);
-  }, [filterSosDate, sosHistory]);
-
-  const filteredOverspeedHistory = useMemo(() => {
-    if (!filterOverspeedDate) return data.overspeedHistory;
-    return data.overspeedHistory.filter(log => log.loggedDate === filterOverspeedDate);
-  }, [filterOverspeedDate, data.overspeedHistory]);
-
-  // Pagination Logic
-  const totalSosPages = Math.max(1, Math.ceil(filteredSosHistory.length / ROWS_PER_PAGE));
-  const currentSosData = filteredSosHistory.slice((sosPage - 1) * ROWS_PER_PAGE, sosPage * ROWS_PER_PAGE);
-
-  const totalOverspeedPages = Math.max(1, Math.ceil(filteredOverspeedHistory.length / ROWS_PER_PAGE));
-  const currentOverspeedData = filteredOverspeedHistory.slice((overspeedPage - 1) * ROWS_PER_PAGE, overspeedPage * ROWS_PER_PAGE);
 
   // Reset pages when filters change
   const handleSosDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
