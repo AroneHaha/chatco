@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
   }
 
   const cashTotal = Number(record.cashTotal) || 0;
+  const gcashTotal = Number(record.gcashTotal) || 0;
 
   const result = await proxyToLaravel(request, "/conductor/remittances", {
     method: "POST",
@@ -46,6 +47,8 @@ export async function POST(request: NextRequest) {
       shift_id: record.shiftId,
       total_collected: cashTotal,
       remitted_amount: cashTotal,
+      cash_total: cashTotal,
+      gcash_total: gcashTotal,
     },
   });
 

@@ -87,17 +87,33 @@ class ShiftService
             abort(403, 'Forbidden');
         }
 
-        // ShiftLog::casts()['status'] = ShiftStatus::class, so
-        // $shiftLog->status is a ShiftStatus enum instance — compare
-        // enum-to-enum, NOT enum-to-string (->value), which would
-        // always be true and incorrectly abort 422.
         if ($shiftLog->status !== ShiftStatus::ACTIVE) {
             abort(422, 'Shift is not active');
         }
 
         $shortage = max(0, $totalCollected - $remittedAmount);
 
-        return DB::transaction(function () use ($shiftLog, $totalCollected, $remittedAmount, $shortage) {
+        // ─── Compute cash_total and gcash_total DIRECTLY from the DB ───
+        $shiftIdValue = $shiftLog->getRawOriginal('shift_id');
+
+        $cashTotal = (float) DB::selectOne(
+            "SELECT COALESCE(SUM(final_amount), 0) as total FROM transactions WHERE shift_id = ? AND payment_method = 'CASH' AND status = 'PAID'",
+            [$shiftIdValue]
+        )->total;
+
+        $gcashTotal = (float) DB::selectOne(
+            "SELECT COALESCE(SUM(final_amount), 0) as total FROM transactions WHERE shift_id = ? AND payment_method = 'GCASH' AND status = 'PAID'",
+            [$shiftIdValue]
+        )->total;
+
+        $totalPassengers = (int) DB::selectOne(
+            "SELECT COUNT(*) as cnt FROM transactions WHERE shift_id = ? AND status = 'PAID'",
+            [$shiftIdValue]
+        )->cnt;
+
+        $timeOut = now();
+
+        return DB::transaction(function () use ($shiftLog, $totalCollected, $remittedAmount, $shortage, $timeOut, $cashTotal, $gcashTotal, $totalPassengers) {
             Remittance::create([
                 'shift_id' => $shiftLog->shift_id,
                 'conductor_id' => $shiftLog->conductor_id,
@@ -107,18 +123,21 @@ class ShiftService
                 'conductor_name' => $shiftLog->conductor_name,
                 'driver_name' => $shiftLog->driver_name,
                 'unit_number' => $shiftLog->unit_number,
-                'total_passengers' => 0,
+                'total_passengers' => $totalPassengers,
                 'time_in' => $shiftLog->time_in,
+                'time_out' => $timeOut,
                 'total_collected' => $totalCollected,
                 'remitted_amount' => $remittedAmount,
                 'shortage' => $shortage,
+                'cash_total' => $cashTotal,
+                'gcash_total' => $gcashTotal,
                 'remittance_status' => $shortage > 0 ? 'SHORTAGE' : 'COMPLETE',
             ]);
 
             $shiftLog->update([
                 'status' => ShiftStatus::ENDED->value,
                 'is_active' => false,
-                'time_out' => now(),
+                'time_out' => $timeOut,
             ]);
 
             if ($shiftLog->vehicle_id) {
