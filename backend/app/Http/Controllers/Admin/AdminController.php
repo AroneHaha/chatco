@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Remittance;
+use App\Models\ShiftLog;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 
@@ -70,6 +71,10 @@ class AdminController extends Controller
 
     public function shiftLogs(): JsonResponse
     {
-        return $this->notImplementedResponse();
+        $shiftLogs = ShiftLog::with(['vehicle', 'driver', 'route'])
+            ->orderBy('time_in', 'desc')
+            ->get();
+
+        return $this->successResponse($shiftLogs, 'Shift logs retrieved');
     }
 }
