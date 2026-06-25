@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\AccountSuspendedException;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -29,6 +30,13 @@ class AuthService
             throw ValidationException::withMessages([
                 'login' => ['The provided credentials are incorrect.'],
             ]);
+        }
+
+        // Credentials are valid — block login for suspended commuter accounts
+        // (account_status set by an admin in S5-T3). Checked AFTER the password
+        // so it never reveals whether an email exists.
+        if ($user->isCommuter() && $user->commuterProfile?->account_status === 'SUSPENDED') {
+            throw new AccountSuspendedException();
         }
 
         $token = $user->createToken('auth-token')->plainTextToken;
