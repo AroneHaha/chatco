@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { jsonError, jsonData } from "@/lib/conductor/server/response";
+import { jsonError, jsonData, jsonValidationError } from "@/lib/conductor/server/response";
 import { proxyToLaravel } from "@/lib/conductor/server/proxy";
 
 /**
@@ -25,11 +25,17 @@ export async function POST(request: NextRequest) {
     body,
   });
 
-  if (!result.ok) return jsonError(result.message ?? "Failed to create vehicle.", result.status);
+  if (!result.ok) {
+    // 422 = Laravel validation failure — forward `errors` so the modal can
+    // show field-specific messages ("The unit_number has already been taken.").
+    if (result.status === 422) {
+      return jsonValidationError(
+        result.message ?? "Validation failed.",
+        result.errors,
+        422
+      );
+    }
+    return jsonError(result.message ?? "Failed to create vehicle.", result.status);
+  }
   return jsonData(result.data, 201);
 }
-
-/**
- * DELETE /api/admin/vehicles/{id}
- * Note: This is handled via a dynamic route file: [id]/route.ts
- */

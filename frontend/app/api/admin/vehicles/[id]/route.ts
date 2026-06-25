@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { jsonError, jsonData } from "@/lib/conductor/server/response";
+import { jsonError, jsonData, jsonValidationError } from "@/lib/conductor/server/response";
 import { proxyToLaravel } from "@/lib/conductor/server/proxy";
 
 /**
@@ -10,6 +10,14 @@ import { proxyToLaravel } from "@/lib/conductor/server/proxy";
  * Optional: driver_id, conductor_id, status.
  */
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+  // Defensive guard: if the frontend somehow sends "undefined" or empty as
+  // the ID (stale bundle, race condition, etc.), bail out with a clear error
+  // instead of forwarding the literal string "undefined" to Laravel (which
+  // would 404 with "No query results for model [App\Models\Vehicle] undefined").
+  if (!params.id || params.id === "undefined") {
+    return jsonError("Vehicle ID is missing. Please close and reopen the modal.", 400);
+  }
+
   let body: Record<string, unknown>;
   try {
     body = await request.json();
@@ -22,12 +30,25 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     body,
   });
 
-  if (!result.ok) return jsonError(result.message ?? "Failed to update vehicle.", result.status);
+  if (!result.ok) {
+    if (result.status === 422) {
+      return jsonValidationError(
+        result.message ?? "Validation failed.",
+        result.errors,
+        422
+      );
+    }
+    return jsonError(result.message ?? "Failed to update vehicle.", result.status);
+  }
   return jsonData(result.data);
 }
 
 // PATCH mirrors PUT — same controller method on Laravel side.
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+  if (!params.id || params.id === "undefined") {
+    return jsonError("Vehicle ID is missing. Please close and reopen the modal.", 400);
+  }
+
   let body: Record<string, unknown>;
   try {
     body = await request.json();
@@ -40,7 +61,16 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     body,
   });
 
-  if (!result.ok) return jsonError(result.message ?? "Failed to update vehicle.", result.status);
+  if (!result.ok) {
+    if (result.status === 422) {
+      return jsonValidationError(
+        result.message ?? "Validation failed.",
+        result.errors,
+        422
+      );
+    }
+    return jsonError(result.message ?? "Failed to update vehicle.", result.status);
+  }
   return jsonData(result.data);
 }
 
@@ -48,6 +78,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
  * DELETE /api/admin/vehicles/{id}
  */
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  if (!params.id || params.id === "undefined") {
+    return jsonError("Vehicle ID is missing.", 400);
+  }
+
   const result = await proxyToLaravel(request, `/admin/vehicles/${params.id}`, {
     method: "DELETE",
   });

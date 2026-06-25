@@ -42,6 +42,7 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
   const [conductors, setConductors] = useState<Conductor[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
   // Fetch routes, unassigned drivers, and conductors when modal opens
   useEffect(() => {
@@ -83,11 +84,13 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
     // Client-side guard: route_id is required (mirrors backend validation).
     if (!formData.route_id) {
       setError('Please select a route for this vehicle.');
+      setFieldErrors({ route_id: ['Please select a route.'] });
       return;
     }
 
     setIsSubmitting(true);
     setError(null);
+    setFieldErrors({});
 
     try {
       const res = await fetch('/api/admin/vehicles', {
@@ -106,11 +109,13 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
       const data = await res.json();
 
       if (!res.ok) {
-        // Laravel validation errors come back as { message, errors: {...} }
-        const laravelErrors = data.errors
-          ? Object.values(data.errors).flat().join(' ')
-          : null;
-        throw new Error(laravelErrors ?? data.message ?? 'Failed to create vehicle');
+        // Laravel 422: { message, errors: { field: ["msg", ...] } }
+        if (res.status === 422 && data.errors) {
+          setFieldErrors(data.errors);
+          const firstError = Object.values(data.errors)[0]?.[0] ?? 'Validation failed.';
+          throw new Error(firstError);
+        }
+        throw new Error(data.message ?? 'Failed to create vehicle');
       }
 
       // Reset form and close
@@ -141,7 +146,10 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
             Unit Number <span className="text-red-400">*</span>
           </label>
           <input type="text" id="unit_number" name="unit_number" value={formData.unit_number} onChange={handleChange} required placeholder="e.g., UNIT-011"
-            className={inputClasses} />
+            className={`${inputClasses} ${fieldErrors.unit_number ? 'border-red-500/50' : ''}`} />
+          {fieldErrors.unit_number && (
+            <p className="text-xs text-red-400 mt-1">{fieldErrors.unit_number[0]}</p>
+          )}
         </div>
 
         <div>
@@ -149,7 +157,10 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
             Plate Number <span className="text-red-400">*</span>
           </label>
           <input type="text" id="plate_number" name="plate_number" value={formData.plate_number} onChange={handleChange} required placeholder="e.g., NAA 0011"
-            className={inputClasses} />
+            className={`${inputClasses} ${fieldErrors.plate_number ? 'border-red-500/50' : ''}`} />
+          {fieldErrors.plate_number && (
+            <p className="text-xs text-red-400 mt-1">{fieldErrors.plate_number[0]}</p>
+          )}
         </div>
 
         <div>
@@ -157,12 +168,15 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
             Route <span className="text-red-400">*</span>
           </label>
           <select id="route_id" name="route_id" value={formData.route_id} onChange={handleChange} required
-            className={`${inputClasses} [color-scheme:dark]`}>
+            className={`${inputClasses} [color-scheme:dark] ${fieldErrors.route_id ? 'border-red-500/50' : ''}`}>
             <option value="" className="bg-gray-800" disabled>Select Route...</option>
             {routes.map(r => (
               <option key={r.id} value={r.id} className="bg-gray-800">{r.name}</option>
             ))}
           </select>
+          {fieldErrors.route_id && (
+            <p className="text-xs text-red-400 mt-1">{fieldErrors.route_id[0]}</p>
+          )}
           {routes.length === 0 && <p className="text-xs text-amber-400 mt-1">No routes available. Create a route first.</p>}
         </div>
 

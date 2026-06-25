@@ -65,6 +65,7 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingMeta, setIsLoadingMeta] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
   // Fetch all metadata + the raw vehicle record (so we get nested driver/conductor IDs).
   useEffect(() => {
@@ -138,14 +139,24 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
 
     if (!editingVehicle) return;
 
+    // Hard guard: never send a PUT if the vehicle ID is missing or literally
+    // the string "undefined". This prevents the Laravel 404
+    // "No query results for model [App\\Models\\Vehicle] undefined".
+    if (!editingVehicle.id || editingVehicle.id === 'undefined') {
+      setError('Vehicle ID is missing. Close this modal and try again. If the problem persists, refresh the page.');
+      return;
+    }
+
     // Client-side guard: route_id is required.
     if (!formData.route_id) {
       setError('Please select a route for this vehicle.');
+      setFieldErrors({ route_id: ['Please select a route.'] });
       return;
     }
 
     setIsSubmitting(true);
     setError(null);
+    setFieldErrors({});
 
     try {
       const res = await fetch(`/api/admin/vehicles/${editingVehicle.id}`, {
@@ -164,10 +175,13 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
       const data = await res.json();
 
       if (!res.ok) {
-        const laravelErrors = data.errors
-          ? Object.values(data.errors).flat().join(' ')
-          : null;
-        throw new Error(laravelErrors ?? data.message ?? 'Failed to update vehicle');
+        // Laravel 422: { message, errors: { field: ["msg", ...] } }
+        if (res.status === 422 && data.errors) {
+          setFieldErrors(data.errors);
+          const firstError = Object.values(data.errors)[0]?.[0] ?? 'Validation failed.';
+          throw new Error(firstError);
+        }
+        throw new Error(data.message ?? 'Failed to update vehicle');
       }
 
       onSaved();
@@ -212,8 +226,11 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
             required
             disabled={isLoadingMeta || isSubmitting}
             placeholder="e.g., UNIT-011"
-            className={inputClasses}
+            className={`${inputClasses} ${fieldErrors.unit_number ? 'border-red-500/50' : ''}`}
           />
+          {fieldErrors.unit_number && (
+            <p className="text-xs text-red-400 mt-1">{fieldErrors.unit_number[0]}</p>
+          )}
         </div>
 
         <div>
@@ -229,8 +246,11 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
             required
             disabled={isLoadingMeta || isSubmitting}
             placeholder="e.g., NAA 0011"
-            className={inputClasses}
+            className={`${inputClasses} ${fieldErrors.plate_number ? 'border-red-500/50' : ''}`}
           />
+          {fieldErrors.plate_number && (
+            <p className="text-xs text-red-400 mt-1">{fieldErrors.plate_number[0]}</p>
+          )}
         </div>
 
         <div>
@@ -244,13 +264,16 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
             onChange={handleChange}
             required
             disabled={isLoadingMeta || isSubmitting}
-            className={`${inputClasses} [color-scheme:dark]`}
+            className={`${inputClasses} [color-scheme:dark] ${fieldErrors.route_id ? 'border-red-500/50' : ''}`}
           >
             <option value="" disabled className="bg-gray-800">Select Route...</option>
             {routes.map(r => (
               <option key={r.id} value={r.id} className="bg-gray-800">{r.name}</option>
             ))}
           </select>
+          {fieldErrors.route_id && (
+            <p className="text-xs text-red-400 mt-1">{fieldErrors.route_id[0]}</p>
+          )}
           {routes.length === 0 && <p className="text-xs text-amber-400 mt-1">No routes available. Create a route first.</p>}
         </div>
 
