@@ -155,29 +155,12 @@ export default function VehiclesPage() {
     handleCloseDeletePersonnel();
   };
 
-  // Add Personnel Handler (from modal onSave callback)
-  const handleSaveNewPersonnel = (newPersonnelData: {
-    firstName: string;
-    middleName: string;
-    lastName: string;
-    birthday: string;
-    contact: string;
-    route: string;
-    role: 'Driver';
-    profilePicture: string | null;
-  }) => {
-    // TODO: Replace with API call when backend is ready
-    const newPerson: Personnel = {
-      id: Math.max(...data.personnel.map(p => p.id), 0) + 1,
-      name: `${newPersonnelData.firstName} ${newPersonnelData.middleName ? newPersonnelData.middleName + ' ' : ''}${newPersonnelData.lastName}`,
-      role: newPersonnelData.role,
-      contact: newPersonnelData.contact,
-      profilePic: newPersonnelData.profilePicture || `https://placehold.co/150x150/0A1E33/62A0EA?text=${newPersonnelData.firstName.charAt(0)}${newPersonnelData.lastName.charAt(0)}`,
-    };
-    setData(prev => ({
-      ...prev,
-      personnel: [...prev.personnel, newPerson],
-    }));
+  // Add Personnel Handler — modal calls real POST /api/admin/drivers and
+  // triggers this onSave() callback on success. We refetch from the API to
+  // get the canonical record with the auto-generated UUID + relationships.
+  const handleSaveNewPersonnel = () => {
+    refetch();
+    handleClosePersonnelModal();
   };
 
   // Shift & Conductor Handlers
@@ -200,13 +183,18 @@ export default function VehiclesPage() {
           
           {activeTab !== 'history' && (
             <>
-              <button
-                onClick={handleOpenCreateConductor}
-                className="flex items-center space-x-2 px-4 py-2 bg-[#62A0EA] text-white font-medium rounded-md hover:bg-[#4A8BD4] transition-colors flex-shrink-0"
-              >
-                <UserPlus size={20} />
-                <span className="hidden sm:inline">Conductor Account</span>
-              </button>
+              {/* Conductor Account button only shows on Personnel tab —
+                  vehicles tab doesn't need it since conductors are people,
+                  not vehicles. */}
+              {activeTab === 'personnel' && (
+                <button
+                  onClick={handleOpenCreateConductor}
+                  className="flex items-center space-x-2 px-4 py-2 bg-[#62A0EA] text-white font-medium rounded-md hover:bg-[#4A8BD4] transition-colors flex-shrink-0"
+                >
+                  <UserPlus size={20} />
+                  <span className="hidden sm:inline">Conductor Account</span>
+                </button>
+              )}
 
               <button
                 onClick={activeTab === 'vehicles' ? handleOpenVehicleModal : handleOpenPersonnelModal}

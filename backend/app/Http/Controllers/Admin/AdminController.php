@@ -36,6 +36,43 @@ class AdminController extends Controller
         return $this->successResponse($drivers, 'Drivers retrieved');
     }
 
+    /**
+     * POST /api/v1/admin/drivers
+     * Creates a new driver.
+     *
+     * Required fields: first_name, last_name, birthday, contact, license_number.
+     * Optional: middle_name, profile_picture_url.
+     * hire_date defaults to today (admin can edit later if backdating).
+     */
+    public function storeDriver(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'first_name' => 'required|string|max:100',
+            'middle_name' => 'nullable|string|max:100',
+            'last_name' => 'required|string|max:100',
+            'birthday' => 'required|date|before:today',
+            'contact' => 'required|string|max:20',
+            'license_number' => 'required|string|max:50|unique:drivers,license_number',
+            'profile_picture_url' => 'nullable|string|max:500',
+        ]);
+
+        $driver = Driver::create([
+            'first_name' => $validated['first_name'],
+            'middle_name' => $validated['middle_name'] ?? null,
+            'last_name' => $validated['last_name'],
+            'birthday' => $validated['birthday'],
+            'contact' => $validated['contact'],
+            'license_number' => $validated['license_number'],
+            'hire_date' => now()->toDateString(),
+            'profile_picture_url' => $validated['profile_picture_url'] ?? null,
+            'status' => 'ACTIVE',
+        ]);
+
+        $driver->load(['vehicle']);
+
+        return $this->successResponse($driver, 'Driver created successfully', 201);
+    }
+
     public function vehicles(): JsonResponse
     {
         $vehicles = Vehicle::with(['route', 'driver', 'conductor'])->get();
