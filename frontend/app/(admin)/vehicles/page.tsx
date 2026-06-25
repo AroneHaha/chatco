@@ -94,7 +94,7 @@ export default function VehiclesPage() {
   const handleCloseVehicleModal = () => setIsVehicleModalOpen(false);
   const handleOpenEditModal = (vehicle: Vehicle) => { setEditingVehicle(vehicle); setIsEditVehicleModalOpen(true); };
   const handleCloseEditModal = () => { setEditingVehicle(null); setIsEditVehicleModalOpen(false); };
-  const handleSaveVehicle = (newVehicle: Partial<Vehicle>) => { setVehicles(prev => [...prev, { ...newVehicle, id: prev.length + 1, speed: 0 } as Vehicle]); handleCloseVehicleModal(); };
+  const handleSaveVehicle = () => { refetch(); handleCloseVehicleModal(); };
   const handleUpdateVehicle = (updatedVehicle: Partial<Vehicle>) => { setVehicles(prev => prev.map(v => v.id === editingVehicle?.id ? { ...v, ...updatedVehicle } : v)); handleCloseEditModal(); };
 
   // Personnel Handlers
@@ -277,7 +277,7 @@ export default function VehiclesPage() {
       )}
 
       {/* All Modals */}
-      <AddVehicleModal isOpen={isVehicleModalOpen} onClose={handleCloseVehicleModal} onSave={handleSaveVehicle} unassignedDrivers={unassignedDrivers} unassignedConductors={unassignedConductors} />
+      <AddVehicleModal isOpen={isVehicleModalOpen} onClose={handleCloseVehicleModal} onSave={handleSaveVehicle} />
       <EditVehicleModal isOpen={isEditVehicleModalOpen} onClose={handleCloseEditModal} onSave={handleUpdateVehicle} editingVehicle={editingVehicle} allPersonnel={data.personnel} />
       <AddPersonnelModal isOpen={isPersonnelModalOpen} onClose={handleClosePersonnelModal} onSave={handleSaveNewPersonnel} />
       <EditPersonnelModal isOpen={isEditPersonnelOpen} onClose={handleCloseEditPersonnel} onSave={handleSaveEditPersonnel} editingData={editingPersonnelData} />

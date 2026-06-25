@@ -112,6 +112,8 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::get('/users', [AdminController::class, 'users']);
     Route::get('/drivers', [AdminController::class, 'drivers']);
     Route::get('/vehicles', [AdminController::class, 'vehicles']);
+    Route::post('/vehicles', [AdminController::class, 'storeVehicle']);
+    Route::delete('/vehicles/{id}', [AdminController::class, 'destroyVehicle']);
     Route::get('/routes', [AdminController::class, 'routes']);
     Route::get('/transactions', [AdminController::class, 'transactions']);
     Route::get('/remittances', [AdminController::class, 'remittances']);
