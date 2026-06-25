@@ -58,6 +58,10 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
   // we can pre-populate driver/conductor dropdowns with the currently-assigned
   // person even if they're already on another vehicle in the broader list.
   const [rawVehicle, setRawVehicle] = useState<Record<string, unknown> | null>(null);
+  // The canonical UUID to use for the PUT — sourced from the raw API record
+  // (more reliable than editingVehicle.id, which may be missing if the table
+  // mapping couldn't extract it).
+  const [canonicalId, setCanonicalId] = useState<string>('');
 
   const [routes, setRoutes] = useState<Route[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -74,6 +78,9 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
     setIsLoadingMeta(true);
     setError(null);
 
+    // Debug log — helps diagnose "Vehicle ID is missing" errors.
+    console.log('[EditVehicleModal] opened with editingVehicle:', editingVehicle);
+
     Promise.all([
       fetch('/api/admin/routes').then(r => r.json()),
       fetch('/api/admin/drivers').then(r => r.json()),
@@ -84,8 +91,32 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
       // Drivers: include the currently-assigned one + all unassigned.
       const allDrivers: Driver[] = driversRes.data ?? [];
       const allVehicles: Record<string, unknown>[] = vehiclesRes.data ?? [];
-      const currentVehicleRaw = allVehicles.find(v => String(v.id) === editingVehicle.id) ?? null;
+
+      // Debug log — see what the API actually returns.
+      console.log('[EditVehicleModal] allVehicles sample:', allVehicles[0]);
+
+      // Find the matching raw vehicle. Try by ID first, then fall back to
+      // plate_number (which is also unique). This handles the case where
+      // editingVehicle.id is missing but plateNumber is present.
+      let currentVehicleRaw = allVehicles.find(
+        v => String(v.id) === editingVehicle.id
+      ) ?? null;
+
+      if (!currentVehicleRaw && editingVehicle.plateNumber) {
+        currentVehicleRaw = allVehicles.find(
+          v => String(v.plate_number) === editingVehicle.plateNumber
+        ) ?? null;
+        if (currentVehicleRaw) {
+          console.log('[EditVehicleModal] found vehicle by plate_number fallback, id =', currentVehicleRaw.id);
+        }
+      }
+
       setRawVehicle(currentVehicleRaw);
+
+      // Set the canonical ID from the raw record — this is what we'll use for the PUT.
+      const rawId = currentVehicleRaw ? String(currentVehicleRaw.id ?? '') : '';
+      setCanonicalId(rawId);
+      console.log('[EditVehicleModal] canonicalId set to:', rawId);
 
       const currentDriverId = currentVehicleRaw
         ? String((currentVehicleRaw.driver as Record<string, unknown> | null)?.id ?? '')
@@ -121,6 +152,14 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
           conductor_id: con ? String(con.id) : '',
           status: apiStatus,
         });
+      } else {
+        // Couldn't find the vehicle in the API response — show a clear error.
+        setError(
+          `Could not find this vehicle in the database. ` +
+          `editingVehicle.id="${editingVehicle.id}", ` +
+          `plateNumber="${editingVehicle.plateNumber}". ` +
+          `Please refresh the page and try again.`
+        );
       }
     }).catch(() => {
       setError('Failed to load form data. Please try again.');
@@ -139,11 +178,22 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
 
     if (!editingVehicle) return;
 
+    // Use canonicalId (from raw API record) as primary, editingVehicle.id as fallback.
+    // This handles the case where the table row's id is missing/empty but the
+    // modal successfully fetched the raw vehicle by plate_number.
+    const vehicleId = canonicalId || editingVehicle.id;
+
+    console.log('[EditVehicleModal] handleSubmit — canonicalId:', canonicalId, 'editingVehicle.id:', editingVehicle.id, 'using:', vehicleId);
+
     // Hard guard: never send a PUT if the vehicle ID is missing or literally
     // the string "undefined". This prevents the Laravel 404
     // "No query results for model [App\\Models\\Vehicle] undefined".
-    if (!editingVehicle.id || editingVehicle.id === 'undefined') {
-      setError('Vehicle ID is missing. Close this modal and try again. If the problem persists, refresh the page.');
+    if (!vehicleId || vehicleId === 'undefined') {
+      setError(
+        `Vehicle ID is missing. canonicalId="${canonicalId}", ` +
+        `editingVehicle.id="${editingVehicle.id}". ` +
+        `Close this modal, refresh the page, and try again.`
+      );
       return;
     }
 
@@ -159,7 +209,7 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
     setFieldErrors({});
 
     try {
-      const res = await fetch(`/api/admin/vehicles/${editingVehicle.id}`, {
+      const res = await fetch(`/api/admin/vehicles/${vehicleId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -203,7 +253,7 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
     <Modal isOpen={isOpen} onClose={onClose}>
       <h2 className="text-lg sm:text-xl font-bold text-white mb-1">Edit Vehicle</h2>
       <p className="text-xs text-slate-400 mb-5">
-        Unit {rawVehicle ? String((rawVehicle as Record<string, unknown>).unit_number ?? '—') : editingVehicle.plateNumber} • ID: <span className="font-mono">{editingVehicle.id}</span>
+        Unit {rawVehicle ? String((rawVehicle as Record<string, unknown>).unit_number ?? '—') : editingVehicle.plateNumber} • ID: <span className="font-mono">{canonicalId || editingVehicle.id || '— MISSING —'}</span>
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
