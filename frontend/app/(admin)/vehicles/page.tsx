@@ -118,12 +118,10 @@ export default function VehiclesPage() {
     setEditingPersonnelData(null);
     setIsEditPersonnelOpen(false);
   };
-  const handleSaveEditPersonnel = (updatedPersonnel: Personnel) => {
-    // TODO: Replace with API call when backend is ready
-    setData(prev => ({
-      ...prev,
-      personnel: prev.personnel.map(p => p.id === updatedPersonnel.id ? updatedPersonnel : p),
-    }));
+  const handleSaveEditPersonnel = () => {
+    // Modal calls real PUT /api/admin/drivers/{id} and triggers this onSaved()
+    // callback on success. We refetch from the API to get the canonical record.
+    refetch();
     handleCloseEditPersonnel();
   };
 
@@ -279,7 +277,7 @@ export default function VehiclesPage() {
         vehicle={shiftHistoryVehicle}
       />
       <AddPersonnelModal isOpen={isPersonnelModalOpen} onClose={handleClosePersonnelModal} onSave={handleSaveNewPersonnel} />
-      <EditPersonnelModal isOpen={isEditPersonnelOpen} onClose={handleCloseEditPersonnel} onSave={handleSaveEditPersonnel} editingData={editingPersonnelData} />
+      <EditPersonnelModal isOpen={isEditPersonnelOpen} onClose={handleCloseEditPersonnel} onSaved={handleSaveEditPersonnel} editingData={editingPersonnelData} />
       <DeletePersonnelModal isOpen={isDeletePersonnelOpen} onClose={handleCloseDeletePersonnel} onConfirm={handleConfirmDeletePersonnel} personnelData={deletingPersonnelData} />
 
       <CreateConductorAccountModal isOpen={isCreateConductorOpen} onClose={handleCloseCreateConductor} onSave={handleSaveConductorAccount} />

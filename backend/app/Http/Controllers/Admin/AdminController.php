@@ -73,6 +73,42 @@ class AdminController extends Controller
         return $this->successResponse($driver, 'Driver created successfully', 201);
     }
 
+    /**
+     * PUT/PATCH /api/v1/admin/drivers/{id}
+     * Updates an existing driver.
+     *
+     * Required fields: first_name, last_name, birthday, contact, license_number.
+     * Optional: middle_name, profile_picture_url.
+     */
+    public function updateDriver(Request $request, string $id): JsonResponse
+    {
+        $driver = Driver::findOrFail($id);
+
+        $validated = $request->validate([
+            'first_name' => 'required|string|max:100',
+            'middle_name' => 'nullable|string|max:100',
+            'last_name' => 'required|string|max:100',
+            'birthday' => 'required|date|before:today',
+            'contact' => 'required|string|max:20',
+            'license_number' => 'required|string|max:50|unique:drivers,license_number,' . $id,
+            'profile_picture_url' => 'nullable|string|max:500',
+        ]);
+
+        $driver->update([
+            'first_name' => $validated['first_name'],
+            'middle_name' => $validated['middle_name'] ?? null,
+            'last_name' => $validated['last_name'],
+            'birthday' => $validated['birthday'],
+            'contact' => $validated['contact'],
+            'license_number' => $validated['license_number'],
+            'profile_picture_url' => $validated['profile_picture_url'] ?? $driver->profile_picture_url,
+        ]);
+
+        $driver->load(['vehicle']);
+
+        return $this->successResponse($driver, 'Driver updated successfully');
+    }
+
     public function vehicles(): JsonResponse
     {
         $vehicles = Vehicle::with(['route', 'driver', 'conductor'])->get();
