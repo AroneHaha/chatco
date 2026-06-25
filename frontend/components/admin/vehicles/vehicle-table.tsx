@@ -35,25 +35,27 @@ export function VehicleTable({ vehicles, searchQuery, onEdit, onEditShift }: Veh
       // We pass the whole row (vehicle) to the render function so we can trigger the modals
       render: (_: any, row: any) => (
         <div className="flex items-center justify-end gap-2">
-          {/* Edit Shift Icon */}
+          {/* Shift History Button (clock icon) */}
           <button 
             onClick={(e) => {
               e.stopPropagation();
               onEditShift(row);
             }}
-            title="Edit Shift"
+            title="View shift history"
+            aria-label={`View shift history for ${row.plateNumber}`}
             className="p-1.5 text-slate-400 hover:text-[#62A0EA] hover:bg-[#62A0EA]/10 rounded-md transition-colors"
           >
             <Clock size={16} />
           </button>
 
-          {/* Edit Vehicle Icon */}
+          {/* Edit Vehicle Button (pencil icon) */}
           <button 
             onClick={(e) => {
               e.stopPropagation();
               onEdit(row);
             }}
-            title="Edit Vehicle"
+            title="Edit vehicle"
+            aria-label={`Edit vehicle ${row.plateNumber}`}
             className="p-1.5 text-slate-400 hover:text-white hover:bg-[#1A2540] rounded-md transition-colors"
           >
             <Pencil size={16} />

@@ -46,13 +46,16 @@ class AdminController extends Controller
     /**
      * POST /api/v1/admin/vehicles
      * Creates a new vehicle.
+     *
+     * Required fields: unit_number, plate_number, route_id.
+     * Driver and conductor are optional (can be assigned later via update).
      */
     public function storeVehicle(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'unit_number' => 'required|string|max:20|unique:vehicles,unit_number',
             'plate_number' => 'required|string|max:20|unique:vehicles,plate_number',
-            'route_id' => 'nullable|uuid|exists:routes,id',
+            'route_id' => 'required|uuid|exists:routes,id',
             'driver_id' => 'nullable|uuid|exists:drivers,id',
             'conductor_id' => 'nullable|uuid|exists:conductor_profiles,id',
             'status' => 'nullable|string|in:ACTIVE,MAINTENANCE,INACTIVE',
@@ -61,7 +64,7 @@ class AdminController extends Controller
         $vehicle = Vehicle::create([
             'unit_number' => $validated['unit_number'],
             'plate_number' => $validated['plate_number'],
-            'route_id' => $validated['route_id'] ?? null,
+            'route_id' => $validated['route_id'],
             'driver_id' => $validated['driver_id'] ?? null,
             'conductor_id' => $validated['conductor_id'] ?? null,
             'status' => $validated['status'] ?? 'ACTIVE',
@@ -72,6 +75,40 @@ class AdminController extends Controller
         $vehicle->load(['route', 'driver', 'conductor']);
 
         return $this->successResponse($vehicle, 'Vehicle created successfully', 201);
+    }
+
+    /**
+     * PUT/PATCH /api/v1/admin/vehicles/{id}
+     * Updates an existing vehicle.
+     *
+     * Required fields: unit_number, plate_number, route_id.
+     * Driver/conductor can be cleared by sending null.
+     */
+    public function updateVehicle(Request $request, string $id): JsonResponse
+    {
+        $vehicle = Vehicle::findOrFail($id);
+
+        $validated = $request->validate([
+            'unit_number' => 'required|string|max:20|unique:vehicles,unit_number,' . $id,
+            'plate_number' => 'required|string|max:20|unique:vehicles,plate_number,' . $id,
+            'route_id' => 'required|uuid|exists:routes,id',
+            'driver_id' => 'nullable|uuid|exists:drivers,id',
+            'conductor_id' => 'nullable|uuid|exists:conductor_profiles,id',
+            'status' => 'nullable|string|in:ACTIVE,MAINTENANCE,INACTIVE',
+        ]);
+
+        $vehicle->update([
+            'unit_number' => $validated['unit_number'],
+            'plate_number' => $validated['plate_number'],
+            'route_id' => $validated['route_id'],
+            'driver_id' => $validated['driver_id'] ?? null,
+            'conductor_id' => $validated['conductor_id'] ?? null,
+            'status' => $validated['status'] ?? $vehicle->status,
+        ]);
+
+        $vehicle->load(['route', 'driver', 'conductor']);
+
+        return $this->successResponse($vehicle, 'Vehicle updated successfully');
     }
 
     /**
@@ -195,11 +232,24 @@ class AdminController extends Controller
         return $this->notImplementedResponse();
     }
 
-    public function shiftLogs(): JsonResponse
+    public function shiftLogs(Request $request): JsonResponse
     {
-        $shiftLogs = ShiftLog::with(['vehicle', 'driver', 'route'])
-            ->orderBy('time_in', 'desc')
-            ->get();
+        $query = ShiftLog::with(['vehicle', 'driver', 'route'])
+            ->orderBy('time_in', 'desc');
+
+        if ($request->has('vehicle_id')) {
+            $query->where('vehicle_id', $request->input('vehicle_id'));
+        }
+
+        if ($request->has('conductor_id')) {
+            $query->where('conductor_id', $request->input('conductor_id'));
+        }
+
+        if ($request->has('driver_id')) {
+            $query->where('driver_id', $request->input('driver_id'));
+        }
+
+        $shiftLogs = $query->get();
 
         return $this->successResponse($shiftLogs, 'Shift logs retrieved');
     }

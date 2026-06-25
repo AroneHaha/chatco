@@ -79,6 +79,13 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Client-side guard: route_id is required (mirrors backend validation).
+    if (!formData.route_id) {
+      setError('Please select a route for this vehicle.');
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
@@ -87,17 +94,23 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...formData,
-          route_id: formData.route_id || null,
+          unit_number: formData.unit_number,
+          plate_number: formData.plate_number,
+          route_id: formData.route_id, // Always present (required)
           driver_id: formData.driver_id || null,
           conductor_id: formData.conductor_id || null,
+          status: formData.status,
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.message || data.errors?.[0]?.message || 'Failed to create vehicle');
+        // Laravel validation errors come back as { message, errors: {...} }
+        const laravelErrors = data.errors
+          ? Object.values(data.errors).flat().join(' ')
+          : null;
+        throw new Error(laravelErrors ?? data.message ?? 'Failed to create vehicle');
       }
 
       // Reset form and close
@@ -124,26 +137,33 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
         )}
 
         <div>
-          <label htmlFor="unit_number" className="block text-xs font-medium text-slate-300 mb-1.5">Unit Number</label>
+          <label htmlFor="unit_number" className="block text-xs font-medium text-slate-300 mb-1.5">
+            Unit Number <span className="text-red-400">*</span>
+          </label>
           <input type="text" id="unit_number" name="unit_number" value={formData.unit_number} onChange={handleChange} required placeholder="e.g., UNIT-011"
             className={inputClasses} />
         </div>
 
         <div>
-          <label htmlFor="plate_number" className="block text-xs font-medium text-slate-300 mb-1.5">Plate Number</label>
+          <label htmlFor="plate_number" className="block text-xs font-medium text-slate-300 mb-1.5">
+            Plate Number <span className="text-red-400">*</span>
+          </label>
           <input type="text" id="plate_number" name="plate_number" value={formData.plate_number} onChange={handleChange} required placeholder="e.g., NAA 0011"
             className={inputClasses} />
         </div>
 
         <div>
-          <label htmlFor="route_id" className="block text-xs font-medium text-slate-300 mb-1.5">Route</label>
-          <select id="route_id" name="route_id" value={formData.route_id} onChange={handleChange}
+          <label htmlFor="route_id" className="block text-xs font-medium text-slate-300 mb-1.5">
+            Route <span className="text-red-400">*</span>
+          </label>
+          <select id="route_id" name="route_id" value={formData.route_id} onChange={handleChange} required
             className={`${inputClasses} [color-scheme:dark]`}>
-            <option value="" className="bg-gray-800">Select Route...</option>
+            <option value="" className="bg-gray-800" disabled>Select Route...</option>
             {routes.map(r => (
               <option key={r.id} value={r.id} className="bg-gray-800">{r.name}</option>
             ))}
           </select>
+          {routes.length === 0 && <p className="text-xs text-amber-400 mt-1">No routes available. Create a route first.</p>}
         </div>
 
         <div>

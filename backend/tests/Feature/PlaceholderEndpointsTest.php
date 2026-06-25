@@ -106,7 +106,11 @@ class PlaceholderEndpointsTest extends TestCase
     // Sprint 4 implemented /transactions + /earnings, so there are no
     // remaining conductor 501 stubs.
 
+<<<<<<< HEAD
     // ── Admin Endpoints (7) ──────────────────────────────────────
+=======
+    // ── Admin Endpoints (4 remaining stubs) ─────────────────────
+>>>>>>> 3f24a29af7577a3e326c94f31a3e69b34996692d
 
     public function test_admin_dashboard_returns_501(): void
     {
@@ -118,6 +122,7 @@ class PlaceholderEndpointsTest extends TestCase
         $this->assertNotImplementedResponse('getJson', '/api/v1/admin/users', $this->adminToken);
     }
 
+<<<<<<< HEAD
     public function test_admin_drivers_returns_501(): void
     {
         $this->assertNotImplementedResponse('getJson', '/api/v1/admin/drivers', $this->adminToken);
@@ -136,6 +141,11 @@ class PlaceholderEndpointsTest extends TestCase
     // Admin /transactions, /remittances, /shift-logs implemented in Sprint 4
     // (each returns real DB data, with eager-loading), so they are no longer
     // 501 stubs.
+=======
+    // Admin /drivers, /vehicles, /routes, /transactions, /shift-logs all
+    // implemented (return real DB data). Admin /remittances implemented in
+    // Sprint 4. Admin /vehicles POST/PUT/DELETE implemented for fleet CRUD.
+>>>>>>> 3f24a29af7577a3e326c94f31a3e69b34996692d
 
     public function test_admin_announcements_returns_501(): void
     {
@@ -171,6 +181,7 @@ class PlaceholderEndpointsTest extends TestCase
 
     // ── Total Count Verification ─────────────────────────────────
 
+<<<<<<< HEAD
     public function test_total_placeholder_endpoints_is_13(): void
     {
         // 3 commuter + 7 admin + 3 QR = 13
@@ -180,5 +191,18 @@ class PlaceholderEndpointsTest extends TestCase
         // endpoints, and the admin /transactions + /remittances + /shift-logs
         // endpoints, so those are no longer 501 stubs.
         $this->assertEquals(13, 3 + 7 + 3);
+=======
+    public function test_total_placeholder_endpoints_is_10(): void
+    {
+        // 3 commuter + 4 admin + 3 QR = 10
+        // Wallet/topup stubs removed (wallet is permanently eliminated).
+        // Sprint 2 implemented the conductor endpoints; Sprint 4 implemented
+        // the conductor /transactions + the payment initiate/verify/history
+        // endpoints + the admin /remittances endpoint.
+        // Sprint 5 implemented admin /drivers, /vehicles, /routes,
+        // /transactions, /shift-logs (all return real DB data now),
+        // plus admin vehicle CRUD (POST/PUT/DELETE /vehicles).
+        $this->assertEquals(10, 3 + 4 + 3);
+>>>>>>> 3f24a29af7577a3e326c94f31a3e69b34996692d
     }
 }
