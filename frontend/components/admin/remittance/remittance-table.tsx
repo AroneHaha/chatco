@@ -162,6 +162,7 @@ export function RemittanceTable({ searchQuery, startDate, endDate, statusFilter 
         isOpen={selectedRecord !== null}
         onClose={() => setSelectedRecord(null)}
         record={selectedRecord}
+        allRecords={records}
       />
     </div>
   );
