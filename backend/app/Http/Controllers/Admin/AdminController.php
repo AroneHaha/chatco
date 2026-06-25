@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Driver;
 use App\Models\Remittance;
 use App\Models\ShiftLog;
 use App\Models\Transaction;
+use App\Models\Vehicle;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 
@@ -25,12 +27,16 @@ class AdminController extends Controller
 
     public function drivers(): JsonResponse
     {
-        return $this->notImplementedResponse();
+        $drivers = Driver::with('vehicle')->get();
+
+        return $this->successResponse($drivers, 'Drivers retrieved');
     }
 
     public function vehicles(): JsonResponse
     {
-        return $this->notImplementedResponse();
+        $vehicles = Vehicle::with(['route', 'driver', 'conductor'])->get();
+
+        return $this->successResponse($vehicles, 'Vehicles retrieved');
     }
 
     public function routes(): JsonResponse
