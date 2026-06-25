@@ -106,7 +106,7 @@ class PlaceholderEndpointsTest extends TestCase
     // Sprint 4 implemented /transactions + /earnings, so there are no
     // remaining conductor 501 stubs.
 
-    // ── Admin Endpoints (9) ──────────────────────────────────────
+    // ── Admin Endpoints (4 remaining stubs) ─────────────────────
 
     public function test_admin_dashboard_returns_501(): void
     {
@@ -118,27 +118,9 @@ class PlaceholderEndpointsTest extends TestCase
         $this->assertNotImplementedResponse('getJson', '/api/v1/admin/users', $this->adminToken);
     }
 
-    public function test_admin_drivers_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('getJson', '/api/v1/admin/drivers', $this->adminToken);
-    }
-
-    public function test_admin_vehicles_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('getJson', '/api/v1/admin/vehicles', $this->adminToken);
-    }
-
-    public function test_admin_routes_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('getJson', '/api/v1/admin/routes', $this->adminToken);
-    }
-
-    public function test_admin_transactions_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('getJson', '/api/v1/admin/transactions', $this->adminToken);
-    }
-
-    // Admin /remittances implemented in Sprint 4 (returns real DB data).
+    // Admin /drivers, /vehicles, /routes, /transactions, /shift-logs all
+    // implemented (return real DB data). Admin /remittances implemented in
+    // Sprint 4. Admin /vehicles POST/PUT/DELETE implemented for fleet CRUD.
 
     public function test_admin_announcements_returns_501(): void
     {
@@ -148,11 +130,6 @@ class PlaceholderEndpointsTest extends TestCase
     public function test_admin_lost_items_returns_501(): void
     {
         $this->assertNotImplementedResponse('getJson', '/api/v1/admin/lost-items', $this->adminToken);
-    }
-
-    public function test_admin_shift_logs_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('getJson', '/api/v1/admin/shift-logs', $this->adminToken);
     }
 
     // ── Payment Endpoints ────────────────────────────────────────
@@ -179,13 +156,16 @@ class PlaceholderEndpointsTest extends TestCase
 
     // ── Total Count Verification ─────────────────────────────────
 
-    public function test_total_placeholder_endpoints_is_15(): void
+    public function test_total_placeholder_endpoints_is_10(): void
     {
-        // 3 commuter + 9 admin + 3 QR = 15
+        // 3 commuter + 4 admin + 3 QR = 10
         // Wallet/topup stubs removed (wallet is permanently eliminated).
         // Sprint 2 implemented the conductor endpoints; Sprint 4 implemented
         // the conductor /transactions + the payment initiate/verify/history
-        // endpoints + the admin /remittances endpoint, so those are no longer 501 stubs.
-        $this->assertEquals(15, 3 + 9 + 3);
+        // endpoints + the admin /remittances endpoint.
+        // Sprint 5 implemented admin /drivers, /vehicles, /routes,
+        // /transactions, /shift-logs (all return real DB data now),
+        // plus admin vehicle CRUD (POST/PUT/DELETE /vehicles).
+        $this->assertEquals(10, 3 + 4 + 3);
     }
 }

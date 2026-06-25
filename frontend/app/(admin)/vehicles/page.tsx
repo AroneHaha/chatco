@@ -5,6 +5,7 @@ import { useState, useMemo } from 'react';
 import { VehicleTable } from '@/components/admin/vehicles/vehicle-table';
 import { AddVehicleModal } from '@/components/admin/vehicles/add-vehicle-modal';
 import { EditVehicleModal } from '@/components/admin/vehicles/edit-vehicle-modal';
+import { ShiftHistoryModal } from '@/components/admin/vehicles/shift-history-modal';
 import { PersonnelTable } from '@/components/admin/vehicles/personnel-table';
 import { AddPersonnelModal } from '@/components/admin/vehicles/add-personnel-modal';
 import { EditPersonnelModal } from '@/components/admin/vehicles/edit-personnel-modal';
@@ -15,7 +16,7 @@ import { HistoryTable } from '@/components/admin/vehicles/history-table';
 import { SearchBar } from '@/components/admin/ui/search-bar';
 import { Plus, Users, Car, UserPlus, Archive, AlertCircle, RefreshCw } from 'lucide-react';
 import { useVehiclesData } from './data/vehicles-data';
-import type { Vehicle, Personnel, TerminatedPersonnel, ShiftLog } from './data/vehicles-data';
+import type { Vehicle, Personnel, TerminatedPersonnel } from './data/vehicles-data';
 import { SkeletonTable } from '@/components/admin/ui/skeleton';
 
 export default function VehiclesPage() {
@@ -26,12 +27,13 @@ export default function VehiclesPage() {
   const [isPersonnelModalOpen, setIsPersonnelModalOpen] = useState(false);
   const [isEditPersonnelOpen, setIsEditPersonnelOpen] = useState(false);
   const [isDeletePersonnelOpen, setIsDeletePersonnelOpen] = useState(false);
-  const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
+  const [isShiftHistoryOpen, setIsShiftHistoryOpen] = useState(false);
   const [isCreateConductorOpen, setIsCreateConductorOpen] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   
   const [createdAccountData, setCreatedAccountData] = useState<{ firstName: string; lastName: string; birthday: string; route: string } | null>(null);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
+  const [shiftHistoryVehicle, setShiftHistoryVehicle] = useState<Vehicle | null>(null);
   const [editingPersonnelData, setEditingPersonnelData] = useState<Personnel | null>(null);
   const [deletingPersonnelData, setDeletingPersonnelData] = useState<Personnel | null>(null);
   
@@ -95,7 +97,14 @@ export default function VehiclesPage() {
   const handleOpenEditModal = (vehicle: Vehicle) => { setEditingVehicle(vehicle); setIsEditVehicleModalOpen(true); };
   const handleCloseEditModal = () => { setEditingVehicle(null); setIsEditVehicleModalOpen(false); };
   const handleSaveVehicle = () => { refetch(); handleCloseVehicleModal(); };
-  const handleUpdateVehicle = (updatedVehicle: Partial<Vehicle>) => { setVehicles(prev => prev.map(v => v.id === editingVehicle?.id ? { ...v, ...updatedVehicle } : v)); handleCloseEditModal(); };
+
+  // After PUT succeeds — the EditVehicleModal calls onSaved() which triggers this.
+  // We refetch from the API to get the canonical record with fresh relationships.
+  const handleVehicleUpdated = () => { refetch(); handleCloseEditModal(); };
+
+  // Shift History Handlers — opens the modal that fetches /api/admin/shift-logs?vehicle_id=
+  const handleOpenShiftHistory = (vehicle: Vehicle) => { setShiftHistoryVehicle(vehicle); setIsShiftHistoryOpen(true); };
+  const handleCloseShiftHistory = () => { setShiftHistoryVehicle(null); setIsShiftHistoryOpen(false); };
 
   // Personnel Handlers
   const handleOpenPersonnelModal = () => setIsPersonnelModalOpen(true);
@@ -172,14 +181,6 @@ export default function VehiclesPage() {
   };
 
   // Shift & Conductor Handlers
-  const handleOpenShiftModal = (vehicle: Vehicle) => { setEditingVehicle(vehicle); setIsShiftModalOpen(true); };
-  const handleCloseShiftModal = () => { setEditingVehicle(null); setIsShiftModalOpen(false); };
-  const handleSaveShift = (shiftData: Record<string, string>) => {
-    // TODO: Replace with API call when backend is ready
-    console.log("Shift saved for vehicle:", editingVehicle?.plateNumber, shiftData);
-    handleCloseShiftModal();
-  };
-  
   const handleOpenCreateConductor = () => setIsCreateConductorOpen(true);
   const handleCloseCreateConductor = () => setIsCreateConductorOpen(false);
   const handleSaveConductorAccount = (accountData: { firstName: string; lastName: string; birthday: string; route: string }) => { setCreatedAccountData(accountData); setIsSuccessModalOpen(true); handleCloseCreateConductor(); };
@@ -257,7 +258,7 @@ export default function VehiclesPage() {
           vehicles={vehicles} 
           searchQuery={searchQuery} 
           onEdit={handleOpenEditModal}
-          onEditShift={handleOpenShiftModal} 
+          onEditShift={handleOpenShiftHistory} 
         />
       ) : activeTab === 'personnel' ? (
         <PersonnelTable 
@@ -278,7 +279,17 @@ export default function VehiclesPage() {
 
       {/* All Modals */}
       <AddVehicleModal isOpen={isVehicleModalOpen} onClose={handleCloseVehicleModal} onSave={handleSaveVehicle} />
-      <EditVehicleModal isOpen={isEditVehicleModalOpen} onClose={handleCloseEditModal} onSave={handleUpdateVehicle} editingVehicle={editingVehicle} allPersonnel={data.personnel} />
+      <EditVehicleModal
+        isOpen={isEditVehicleModalOpen}
+        onClose={handleCloseEditModal}
+        onSaved={handleVehicleUpdated}
+        editingVehicle={editingVehicle}
+      />
+      <ShiftHistoryModal
+        isOpen={isShiftHistoryOpen}
+        onClose={handleCloseShiftHistory}
+        vehicle={shiftHistoryVehicle}
+      />
       <AddPersonnelModal isOpen={isPersonnelModalOpen} onClose={handleClosePersonnelModal} onSave={handleSaveNewPersonnel} />
       <EditPersonnelModal isOpen={isEditPersonnelOpen} onClose={handleCloseEditPersonnel} onSave={handleSaveEditPersonnel} editingData={editingPersonnelData} />
       <DeletePersonnelModal isOpen={isDeletePersonnelOpen} onClose={handleCloseDeletePersonnel} onConfirm={handleConfirmDeletePersonnel} personnelData={deletingPersonnelData} />
