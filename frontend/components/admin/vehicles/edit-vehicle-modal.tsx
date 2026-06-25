@@ -209,20 +209,26 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
     setFieldErrors({});
 
     try {
+      const requestBody = {
+        unit_number: formData.unit_number,
+        plate_number: formData.plate_number,
+        route_id: formData.route_id,
+        driver_id: formData.driver_id || null,
+        conductor_id: formData.conductor_id || null,
+        status: formData.status,
+      };
+      console.log('[EditVehicleModal] PUT request body:', requestBody);
+
       const res = await fetch(`/api/admin/vehicles/${vehicleId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          unit_number: formData.unit_number,
-          plate_number: formData.plate_number,
-          route_id: formData.route_id,
-          driver_id: formData.driver_id || null,
-          conductor_id: formData.conductor_id || null,
-          status: formData.status,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
+      console.log('[EditVehicleModal] PUT response status:', res.status, 'ok:', res.ok);
+
       const data = await res.json();
+      console.log('[EditVehicleModal] PUT response body:', data);
 
       if (!res.ok) {
         // Laravel 422: { message, errors: { field: ["msg", ...] } }
@@ -231,12 +237,15 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
           const firstError = Object.values(data.errors)[0]?.[0] ?? 'Validation failed.';
           throw new Error(firstError);
         }
-        throw new Error(data.message ?? 'Failed to update vehicle');
+        // For any other error, show the full response so we can diagnose.
+        const msg = data.message ?? `Failed to update vehicle (HTTP ${res.status})`;
+        throw new Error(msg);
       }
 
       onSaved();
       onClose();
     } catch (err) {
+      console.error('[EditVehicleModal] PUT failed:', err);
       setError(err instanceof Error ? err.message : 'Failed to update vehicle');
     } finally {
       setIsSubmitting(false);
