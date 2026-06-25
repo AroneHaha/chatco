@@ -9,7 +9,10 @@ import { proxyToLaravel } from "@/lib/conductor/server/proxy";
  * Returns all transactions across all shifts (ordered by created_at desc).
  */
 export async function GET(request: NextRequest) {
-  const result = await proxyToLaravel(request, "/admin/transactions", {
+  const shiftId = request.nextUrl.searchParams.get("shift_id");
+  const path = shiftId ? `/admin/transactions?shift_id=${encodeURIComponent(shiftId)}` : "/admin/transactions";
+
+  const result = await proxyToLaravel(request, path, {
     method: "GET",
   });
 
