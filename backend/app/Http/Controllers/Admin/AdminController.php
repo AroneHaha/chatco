@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Driver;
 use App\Models\Remittance;
+use App\Models\Route as RouteModel;
 use App\Models\ShiftLog;
 use App\Models\Transaction;
 use App\Models\Vehicle;
@@ -12,6 +13,7 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class AdminController extends Controller
 {
@@ -41,9 +43,54 @@ class AdminController extends Controller
         return $this->successResponse($vehicles, 'Vehicles retrieved');
     }
 
+    /**
+     * POST /api/v1/admin/vehicles
+     * Creates a new vehicle.
+     */
+    public function storeVehicle(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'unit_number' => 'required|string|max:20|unique:vehicles,unit_number',
+            'plate_number' => 'required|string|max:20|unique:vehicles,plate_number',
+            'route_id' => 'nullable|uuid|exists:routes,id',
+            'driver_id' => 'nullable|uuid|exists:drivers,id',
+            'conductor_id' => 'nullable|uuid|exists:conductor_profiles,id',
+            'status' => 'nullable|string|in:ACTIVE,MAINTENANCE,INACTIVE',
+        ]);
+
+        $vehicle = Vehicle::create([
+            'unit_number' => $validated['unit_number'],
+            'plate_number' => $validated['plate_number'],
+            'route_id' => $validated['route_id'] ?? null,
+            'driver_id' => $validated['driver_id'] ?? null,
+            'conductor_id' => $validated['conductor_id'] ?? null,
+            'status' => $validated['status'] ?? 'ACTIVE',
+            'capacity_status' => 'AVAILABLE',
+        ]);
+
+        // Load relationships for the response
+        $vehicle->load(['route', 'driver', 'conductor']);
+
+        return $this->successResponse($vehicle, 'Vehicle created successfully', 201);
+    }
+
+    /**
+     * DELETE /api/v1/admin/vehicles/{id}
+     * Deletes a vehicle.
+     */
+    public function destroyVehicle(string $id): JsonResponse
+    {
+        $vehicle = Vehicle::findOrFail($id);
+        $vehicle->delete();
+
+        return $this->successResponse(null, 'Vehicle deleted successfully');
+    }
+
     public function routes(): JsonResponse
     {
-        return $this->notImplementedResponse();
+        $routes = RouteModel::orderBy('name', 'asc')->get();
+
+        return $this->successResponse($routes, 'Routes retrieved');
     }
 
     public function transactions(Request $request): JsonResponse
