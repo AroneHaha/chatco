@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ConductorProfile;
 use App\Models\Driver;
 use App\Models\Remittance;
 use App\Models\Route as RouteModel;
@@ -107,6 +108,114 @@ class AdminController extends Controller
         $driver->load(['vehicle']);
 
         return $this->successResponse($driver, 'Driver updated successfully');
+    }
+
+    /**
+     * GET /api/v1/admin/drivers/{id}
+     * Returns a single driver with full details for the profile modal.
+     * Includes: vehicle assignment, recent shift logs (assignment history).
+     */
+    public function showDriver(string $id): JsonResponse
+    {
+        $driver = Driver::with(['vehicle.route', 'vehicle.conductor'])
+            ->findOrFail($id);
+
+        // Fetch recent shift logs for this driver (assignment history).
+        $shiftLogs = ShiftLog::with(['vehicle', 'route'])
+            ->where('driver_id', $id)
+            ->orderBy('time_in', 'desc')
+            ->limit(20)
+            ->get();
+
+        $data = [
+            'id' => $driver->id,
+            'first_name' => $driver->first_name,
+            'middle_name' => $driver->middle_name,
+            'last_name' => $driver->last_name,
+            'birthday' => $driver->birthday?->toDateString(),
+            'contact' => $driver->contact,
+            'license_number' => $driver->license_number,
+            'hire_date' => $driver->hire_date?->toDateString(),
+            'profile_picture_url' => $driver->profile_picture_url,
+            'status' => $driver->status,
+            'vehicle' => $driver->vehicle ? [
+                'id' => $driver->vehicle->id,
+                'unit_number' => $driver->vehicle->unit_number,
+                'plate_number' => $driver->vehicle->plate_number,
+                'route' => $driver->vehicle->route?->name,
+            ] : null,
+            'conductor_partner' => $driver->vehicle?->conductor ? [
+                'id' => $driver->vehicle->conductor->id,
+                'name' => trim(($driver->vehicle->conductor->first_name ?? '') . ' ' . ($driver->vehicle->conductor->last_name ?? '')),
+            ] : null,
+            'assigned_route' => $driver->vehicle?->route?->name ?? 'Malolos - Meycauayan - Calumpit',
+            'shift_logs' => $shiftLogs->map(function ($log) {
+                return [
+                    'shift_id' => $log->shift_id,
+                    'unit_number' => $log->unit_number,
+                    'plate_number' => $log->plate_number,
+                    'route' => $log->route?->name,
+                    'time_in' => $log->time_in?->toDateTimeString(),
+                    'time_out' => $log->time_out?->toDateTimeString(),
+                    'status' => $log->status,
+                ];
+            }),
+        ];
+
+        return $this->successResponse($data, 'Driver details retrieved');
+    }
+
+    /**
+     * GET /api/v1/admin/conductors/{id}
+     * Returns a single conductor with full details for the profile modal.
+     * Includes: vehicle assignment, recent shift logs (assignment history).
+     */
+    public function showConductor(string $id): JsonResponse
+    {
+        $conductor = ConductorProfile::with(['vehicle.route', 'vehicle.driver'])
+            ->findOrFail($id);
+
+        // Fetch recent shift logs for this conductor (assignment history).
+        $shiftLogs = ShiftLog::with(['vehicle', 'route', 'driver'])
+            ->where('conductor_id', $id)
+            ->orderBy('time_in', 'desc')
+            ->limit(20)
+            ->get();
+
+        $data = [
+            'id' => $conductor->id,
+            'first_name' => $conductor->first_name,
+            'middle_name' => $conductor->middle_name,
+            'last_name' => $conductor->last_name,
+            'birthday' => $conductor->birthday?->toDateString(),
+            'profile_picture_url' => $conductor->profile_picture_url,
+            'generated_username' => $conductor->generated_username,
+            'vehicle' => $conductor->vehicle ? [
+                'id' => $conductor->vehicle->id,
+                'unit_number' => $conductor->vehicle->unit_number,
+                'plate_number' => $conductor->vehicle->plate_number,
+                'route' => $conductor->vehicle->route?->name,
+            ] : null,
+            'driver_partner' => $conductor->vehicle?->driver ? [
+                'id' => $conductor->vehicle->driver->id,
+                'name' => trim(($conductor->vehicle->driver->first_name ?? '') . ' ' . ($conductor->vehicle->driver->last_name ?? '')),
+            ] : null,
+            'assigned_route' => $conductor->vehicle?->route?->name ?? 'Malolos - Meycauayan - Calumpit',
+            'shift_logs' => $shiftLogs->map(function ($log) {
+                return [
+                    'shift_id' => $log->shift_id,
+                    'unit_number' => $log->unit_number,
+                    'plate_number' => $log->plate_number,
+                    'route' => $log->route?->name,
+                    'driver_name' => $log->driver_name,
+                    'time_in' => $log->time_in?->toDateTimeString(),
+                    'time_out' => $log->time_out?->toDateTimeString(),
+                    'status' => $log->status,
+                ];
+            }),
+        ];
+
+        return $this->successResponse($data, 'Conductor details retrieved');
     }
 
     public function vehicles(): JsonResponse
