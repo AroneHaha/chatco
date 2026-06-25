@@ -114,5 +114,19 @@ class AppServiceProvider extends ServiceProvider
                 ->by($request->user()?->id ?: $request->ip())
                 ->response($rateLimitResponse);
         });
+
+        // Admin read endpoints (e.g. user list/detail) — 60 req/min.
+        RateLimiter::for('admin-read', function (Request $request) use ($rateLimitResponse) {
+            return Limit::perMinute(60)
+                ->by($request->user()?->id ?: $request->ip())
+                ->response($rateLimitResponse);
+        });
+
+        // Admin mutations (update/delete) — 30 req/min.
+        RateLimiter::for('admin-write', function (Request $request) use ($rateLimitResponse) {
+            return Limit::perMinute(30)
+                ->by($request->user()?->id ?: $request->ip())
+                ->response($rateLimitResponse);
+        });
     }
 }

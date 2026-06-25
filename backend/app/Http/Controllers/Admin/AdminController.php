@@ -18,11 +18,6 @@ class AdminController extends Controller
         return $this->notImplementedResponse();
     }
 
-    public function users(): JsonResponse
-    {
-        return $this->notImplementedResponse();
-    }
-
     public function drivers(): JsonResponse
     {
         return $this->notImplementedResponse();

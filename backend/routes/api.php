@@ -8,6 +8,7 @@ use App\Http\Controllers\Commuter\VehicleLocationController;
 use App\Http\Controllers\Conductor\ConductorController;
 use App\Http\Controllers\Conductor\ConductorHailController;
 use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Payment\PaymentController;
 use App\Http\Controllers\Payment\QrController;
 
@@ -113,7 +114,13 @@ Route::prefix('vehicles')->middleware(['auth:sanctum'])->group(function () {
 */
 Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(function () {
     Route::get('/dashboard', [AdminController::class, 'dashboard']);
-    Route::get('/users', [AdminController::class, 'users']);
+
+    // User management CRUD (S5-T3) — reads 60/min, mutations 30/min.
+    Route::get('/users', [AdminUserController::class, 'index'])->middleware('throttle:admin-read');
+    Route::get('/users/{id}', [AdminUserController::class, 'show'])->middleware('throttle:admin-read');
+    Route::put('/users/{id}', [AdminUserController::class, 'update'])->middleware('throttle:admin-write');
+    Route::delete('/users/{id}', [AdminUserController::class, 'destroy'])->middleware('throttle:admin-write');
+
     Route::get('/drivers', [AdminController::class, 'drivers']);
     Route::get('/vehicles', [AdminController::class, 'vehicles']);
     Route::get('/routes', [AdminController::class, 'routes']);
