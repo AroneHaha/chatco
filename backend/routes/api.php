@@ -34,7 +34,11 @@ Route::middleware('auth:sanctum')->get('/user', [AuthController::class, 'user'])
 |--------------------------------------------------------------------------
 */
 Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(function () {
-    Route::get('/profile', [CommuterController::class, 'profile']);
+    // Self-service profile (S5-T1)
+    Route::get('/profile', [CommuterController::class, 'profile'])->middleware('throttle:commuter-read');
+    Route::put('/profile', [CommuterController::class, 'updateProfile'])->middleware('throttle:commuter-write');
+    Route::post('/change-password', [CommuterController::class, 'changePassword'])->middleware('throttle:commuter-security');
+
     Route::get('/trips', [CommuterController::class, 'trips']);
     Route::get('/rewards', [CommuterController::class, 'rewards']);
 
