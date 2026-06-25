@@ -135,8 +135,8 @@ export function ConductorDetailModal({ conductor, onClose }: ConductorDetailModa
     ?? `https://placehold.co/150x150/0A1E33/F59E0B?text=${conductor.name.charAt(0)}`;
 
   return (
-    <Modal isOpen={!!conductor} onClose={onClose} maxWidth="max-w-lg">
-      {/* ─── Header ─── */}
+    <Modal isOpen={!!conductor} onClose={onClose} maxWidth="max-w-4xl">
+      {/* ─── Header (full width) ─── */}
       <div className="flex items-start gap-4 mb-5">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -173,111 +173,121 @@ export function ConductorDetailModal({ conductor, onClose }: ConductorDetailModa
       )}
 
       {isLoading && !details ? (
-        <div className="space-y-3">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-14 bg-[#0E1628] border border-[#1E2D45] rounded-md animate-pulse" />
-          ))}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div className="space-y-3">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-14 bg-[#0E1628] border border-[#1E2D45] rounded-md animate-pulse" />
+            ))}
+          </div>
+          <div className="space-y-3">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-14 bg-[#0E1628] border border-[#1E2D45] rounded-md animate-pulse" />
+            ))}
+          </div>
         </div>
       ) : details ? (
-        <div className="space-y-5">
-          {/* ─── Personal Information ─── */}
-          <div>
-            <h3 className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-2.5 flex items-center gap-2">
-              <User size={13} />
-              Personal Information
-            </h3>
-            <div className="space-y-2">
-              {/* Birth Date + Age */}
-              <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
-                <Calendar size={16} className="text-slate-500 flex-shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] text-slate-600 uppercase">Birth Date</p>
-                  <p className="text-sm text-slate-300">{formatDate(details.birthday)}</p>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-[10px] text-slate-600 uppercase">Age</p>
-                  <p className="text-sm text-slate-400">{calculateAge(details.birthday)}</p>
-                </div>
-              </div>
-
-              {/* Username (account credentials) */}
-              {details.generated_username && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* ═══════ LEFT COLUMN: Personal + Assignment Info ═══════ */}
+          <div className="space-y-5">
+            {/* ─── Personal Information ─── */}
+            <div>
+              <h3 className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-2.5 flex items-center gap-2">
+                <User size={13} />
+                Personal Information
+              </h3>
+              <div className="space-y-2">
+                {/* Birth Date + Age */}
                 <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
-                  <AtSign size={16} className="text-slate-500 flex-shrink-0" />
+                  <Calendar size={16} className="text-slate-500 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] text-slate-600 uppercase">Login Username</p>
-                    <p className="text-sm text-slate-300 font-mono">{details.generated_username}</p>
+                    <p className="text-[10px] text-slate-600 uppercase">Birth Date</p>
+                    <p className="text-sm text-slate-300">{formatDate(details.birthday)}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-[10px] text-slate-600 uppercase">Age</p>
+                    <p className="text-sm text-slate-400">{calculateAge(details.birthday)}</p>
                   </div>
                 </div>
-              )}
 
-              {/* Fixed Route */}
-              <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
-                <MapPin size={16} className="text-slate-500 flex-shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] text-slate-600 uppercase">Fixed Assigned Route</p>
-                  <p className="text-sm text-slate-300">{details.assigned_route}</p>
+                {/* Username (account credentials) */}
+                {details.generated_username && (
+                  <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                    <AtSign size={16} className="text-slate-500 flex-shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] text-slate-600 uppercase">Login Username</p>
+                      <p className="text-sm text-slate-300 font-mono">{details.generated_username}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Fixed Route */}
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                  <MapPin size={16} className="text-slate-500 flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] text-slate-600 uppercase">Fixed Assigned Route</p>
+                    <p className="text-sm text-slate-300">{details.assigned_route}</p>
+                  </div>
+                </div>
+
+                {/* Employment Status */}
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                  <User size={16} className="text-slate-500 flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] text-slate-600 uppercase">Employment Status</p>
+                    <p className="text-sm text-emerald-400">Active</p>
+                  </div>
                 </div>
               </div>
+            </div>
 
-              {/* Employment Status */}
-              <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
-                <User size={16} className="text-slate-500 flex-shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] text-slate-600 uppercase">Employment Status</p>
-                  <p className="text-sm text-emerald-400">Active</p>
+            {/* ─── Assignment Information ─── */}
+            <div>
+              <h3 className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-2.5 flex items-center gap-2">
+                <Car size={13} />
+                Assignment Information
+              </h3>
+              <div className="space-y-2">
+                {/* Current Vehicle */}
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                  <Car size={16} className="text-slate-500 flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] text-slate-600 uppercase">Current Vehicle</p>
+                    {details.vehicle ? (
+                      <p className="text-sm text-slate-300">
+                        {details.vehicle.unit_number} <span className="text-slate-500">({details.vehicle.plate_number})</span>
+                      </p>
+                    ) : (
+                      <p className="text-sm text-slate-500 italic">Unassigned</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Current Driver Partner */}
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                  <Users size={16} className="text-slate-500 flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] text-slate-600 uppercase">Current Driver Partner</p>
+                    {details.driver_partner ? (
+                      <p className="text-sm text-slate-300">{details.driver_partner.name}</p>
+                    ) : (
+                      <p className="text-sm text-slate-500 italic">None</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Route Assignment */}
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                  <MapPin size={16} className="text-slate-500 flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] text-slate-600 uppercase">Route Assignment</p>
+                    <p className="text-sm text-slate-300">{details.vehicle?.route ?? details.assigned_route}</p>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* ─── Assignment Information ─── */}
-          <div>
-            <h3 className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-2.5 flex items-center gap-2">
-              <Car size={13} />
-              Assignment Information
-            </h3>
-            <div className="space-y-2">
-              {/* Current Vehicle */}
-              <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
-                <Car size={16} className="text-slate-500 flex-shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] text-slate-600 uppercase">Current Vehicle</p>
-                  {details.vehicle ? (
-                    <p className="text-sm text-slate-300">
-                      {details.vehicle.unit_number} <span className="text-slate-500">({details.vehicle.plate_number})</span>
-                    </p>
-                  ) : (
-                    <p className="text-sm text-slate-500 italic">Unassigned</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Current Driver Partner */}
-              <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
-                <Users size={16} className="text-slate-500 flex-shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] text-slate-600 uppercase">Current Driver Partner</p>
-                  {details.driver_partner ? (
-                    <p className="text-sm text-slate-300">{details.driver_partner.name}</p>
-                  ) : (
-                    <p className="text-sm text-slate-500 italic">None</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Route Assignment */}
-              <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
-                <MapPin size={16} className="text-slate-500 flex-shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] text-slate-600 uppercase">Route Assignment</p>
-                  <p className="text-sm text-slate-300">{details.vehicle?.route ?? details.assigned_route}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ─── Assignment History ─── */}
+          {/* ═══════ RIGHT COLUMN: Assignment History ═══════ */}
           <div>
             <h3 className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-2.5 flex items-center gap-2">
               <Clock size={13} />
@@ -287,12 +297,12 @@ export function ConductorDetailModal({ conductor, onClose }: ConductorDetailModa
               </span>
             </h3>
             {details.shift_logs.length === 0 ? (
-              <div className="text-center py-6">
-                <FileText size={24} className="text-slate-700 mx-auto mb-1.5" />
+              <div className="text-center py-10">
+                <FileText size={32} className="text-slate-700 mx-auto mb-2" />
                 <p className="text-xs text-slate-600 italic">No shift history yet.</p>
               </div>
             ) : (
-              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
                 {details.shift_logs.map((log) => (
                   <div key={log.shift_id} className="p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
                     <div className="flex items-center justify-between mb-1">
