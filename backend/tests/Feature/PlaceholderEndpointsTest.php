@@ -83,12 +83,9 @@ class PlaceholderEndpointsTest extends TestCase
         ]);
     }
 
-    // ── Commuter Endpoints (3) ───────────────────────────────────
-
-    public function test_commuter_profile_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('getJson', '/api/v1/commuter/profile', $this->commuterToken);
-    }
+    // ── Commuter Endpoints (2) ───────────────────────────────────
+    // Sprint 5 (S5-T1) implemented /commuter/profile (GET/PUT) and
+    // /commuter/change-password, so /profile is no longer a 501 stub.
 
     public function test_commuter_trips_returns_501(): void
     {
@@ -171,14 +168,15 @@ class PlaceholderEndpointsTest extends TestCase
 
     // ── Total Count Verification ─────────────────────────────────
 
-    public function test_total_placeholder_endpoints_is_13(): void
+    public function test_total_placeholder_endpoints_is_12(): void
     {
-        // 3 commuter + 7 admin + 3 QR = 13
+        // 2 commuter + 7 admin + 3 QR = 12
         // Wallet/topup stubs removed (wallet is permanently eliminated).
         // Sprint 2 implemented the conductor endpoints; Sprint 4 implemented
         // the conductor /transactions, the payment initiate/verify/history
         // endpoints, and the admin /transactions + /remittances + /shift-logs
-        // endpoints, so those are no longer 501 stubs.
-        $this->assertEquals(13, 3 + 7 + 3);
+        // endpoints; Sprint 5 (S5-T1) implemented /commuter/profile +
+        // /commuter/change-password, so those are no longer 501 stubs.
+        $this->assertEquals(12, 2 + 7 + 3);
     }
 }
