@@ -85,14 +85,18 @@ class RoleMiddlewareTest extends TestCase
 
     // ── Commuter Role Tests ──────────────────────────────────────
 
-    public function test_commuter_can_access_own_profile_and_gets_501(): void
+    public function test_commuter_can_access_own_profile(): void
     {
         $commuter = $this->createUserWithProfile('commuter@test.com', UserRole::COMMUTER);
 
         $response = $this->withHeader('Authorization', "Bearer {$this->authToken($commuter)}")
             ->getJson('/api/v1/commuter/profile');
 
-        $response->assertStatus(501);
+        // Profile is implemented (S5-T1): a commuter reaching their own
+        // profile route should get 200 with role-scoped data.
+        $response->assertStatus(200);
+        $response->assertJsonPath('success', true);
+        $response->assertJsonPath('data.user.role', 'COMMUTER');
     }
 
     public function test_commuter_cannot_access_admin_dashboard_and_gets_403(): void
