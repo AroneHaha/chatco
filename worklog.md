@@ -553,3 +553,35 @@ Stage Summary:
 - Commits authored as AroneHaha <165986448+AroneHaha@users.noreply.github.com> (matches existing arone convention)
 - Pre-existing Z User commits deeper in arone history (Sprint 1 era, from previous AI sessions) were NOT touched — they were already on the remote before this task
 - Ready for PR to dev (post-task requirement) — user can open PR #34 from arone→dev when ready
+
+---
+Task ID: S5-T4/T5/T6/T7-REVIEW
+Agent: main
+Task: Verify Mhak's S5-T4, T5, T6, T7 implementations on origin/sprintMhak are correct and error-free
+
+Work Log:
+- Looked up full ClickUp definitions for S5-T4/T5/T6/T7 from upload/clickup/clickup_full_dump.json
+- Clarified task scope: T4/T5/T6/T7 are BACKEND tasks (T10-T13 are the separate frontend wiring tasks, still "s4"/todo)
+- Extracted & reviewed from origin/sprintMhak:
+  - backend/app/Services/AdminService.php (270 lines)
+  - backend/app/Http/Controllers/Admin/AdminController.php (480 lines)
+  - backend/app/Http/Controllers/Admin/AdminVehicleController.php (99 lines)
+  - backend/app/Http/Controllers/Admin/AdminUserController.php (86 lines)
+  - backend/app/Http/Requests/Admin/{StoreVehicleRequest,UpdateVehicleRequest}.php
+  - backend/routes/api.php (175 lines)
+  - backend/tests/Feature/RoleAccessMatrixTest.php (537 lines)
+  - frontend/app/(admin)/monitoring/{page.tsx,data/data-monitoring.ts}
+  - frontend/app/api/admin/vehicles/route.ts
+- Searched for monitoring implementation across entire branch (git grep -l -i monitoring on backend/*)
+- Verified PHP is NOT installed in this sandbox — could NOT execute php artisan test (static review only)
+
+Stage Summary:
+- S5-T4 (Admin Vehicle CRUD): ✅ PROPERLY IMPLEMENTED — controller, service, form requests, routes, 409 active-shift guard, cross-role test all present and clean
+- S5-T5 (Admin Live Fleet Monitoring): ❌ NOT IMPLEMENTED — no /admin/monitoring route, no monitoring() method anywhere, no frontend proxy. Frontend data-monitoring.ts is a workaround pulling /api/admin/shift-logs with hardcoded speed:0 + status:"normal", polls 10s (spec: 5s), no stale-unit flagging
+- S5-T6 (Admin Analytics): ✅ PROPERLY IMPLEMENTED — analytics() method with PAID-only revenue, cash/gcash split, daily series, remittance summary, fleet counts, date_from/date_to filter, 30-day default. Minor nit: totalPassengers=paidCount 1:1 assumption (documented)
+- S5-T7 (Role-Scoped Security Audit): ⚠️ PARTIALLY DONE — RoleAccessMatrixTest (537 lines, 5 sections) is well-structured BUT has 3 coverage gaps:
+  1. Matrix provider omits /admin/monitoring (T5 not done) and /admin/users
+  2. Section 5 "no 501" check only covers 3 routes (vehicles, analytics, conductors) — skips /admin/users
+  3. File-grep for notImplementedResponse only checks 3 files — AdminController.php STILL HAS 5 stubs (dashboard, users, vehicles[dead], announcements, lostItems)
+- CRITICAL GAP T7 missed: /admin/users route still points to AdminController::users (501 stub) even though AdminUserController exists with full CRUD (S5-T3). Route was never rewired. S5-T3 is effectively unreachable via API.
+- Could not execute test suite (no PHP in sandbox) — verdict based on static analysis
