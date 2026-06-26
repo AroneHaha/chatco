@@ -656,3 +656,53 @@ Stage Summary:
 - GATE CONDITION (T5-T7 done professionally & implemented): ✅ MET — all three are implemented with clean architecture (service/controller separation, ApiResponse envelope, role:ADMIN + throttle:admin-read middleware, is_stale flagging) and backed by passing tests
 - T8 ITSELF: ❌ NOT YET COMPLETABLE — 6 of 8 required test areas covered (2 under different filenames), but 2 required test files (AuthRegisterTest.php + AdminRegistrationTest.php) are missing AND blocked because the underlying commuter /auth/register + admin approve/reject endpoints do not exist on arone/dev/sprintMhak
 - Verdict delivered to user: do NOT mark T8 complete in ClickUp yet. Two paths offered: (a) implement the registration backend (likely belongs to a prior Sprint task) + write the 2 test files, or (b) confirm whether registration was meant to be a separate already-closed task and re-scope T8
+
+---
+Task ID: S5-T8-REGISTRATION-IMPL+TESTS
+Agent: main
+Task: User authorized: "create what is needed" to close S5-T8 — implement the missing commuter registration backend + admin approval flow + the 2 missing test files (AuthRegisterTest.php, AdminRegistrationTest.php), with id_image deferred-but-pluggable. Then push to arone so user can mark T8 complete (which gates T4-T7 being recorded as complete).
+
+Work Log:
+- Reused existing /home/z/chatco-arone worktree (origin/arone, HEAD 6895d95) — clean, PHP 8.2.26 + Composer 2.10.1 still installed from prior session
+- Verified repo-local git author = arone <markaronedc@gmail.com> (NOT Z User)
+- Re-read ClickUp S5-T8 spec: confirmed 6 of 8 required test areas already covered on arone; only AuthRegisterTest + AdminRegistrationTest missing, AND blocked because the underlying /auth/register + admin approve/reject endpoints did not exist on any branch
+- Read existing architectural patterns to mirror: User model (SoftDeletes, UUID PK, hashed password cast), CommuterProfile (already had applied_type/account_status/id_image_url/verified_at/rejection_reason columns — schema was designed for registration, only endpoints missing), AuthController/AuthService, AdminController/AdminService, ApiResponse trait, StoreVehicleRequest/UpdateUserRequest form request patterns, CommuterProfileTest style reference, bootstrap/app.php exception rendering
+- KEY FINDING: users.email is NOT NULL + has DB unique index → cannot NULL it to free for reuse (initial strategy). Pivoted to rewriting rejected user's email to a unique 'rejected+{timestamp}@{domain}' placeholder (RFC 5231 subaddressing) — frees canonical email, keeps row auditable, no schema change
+- Implemented backend (9 files, +634/-28):
+  - NEW app/Exceptions/RegistrationPendingException.php — thrown by AuthService::login for PENDING/REJECTED commuters (mirrors AccountSuspendedException pattern)
+  - NEW app/Http/Requests/Auth/RegisterRequest.php — validates commuter self-sign-up (id_image required|string, applied_type in REGULAR/STUDENT/SENIOR/PWD, password confirmed, username unique)
+  - NEW app/Http/Requests/Admin/ApproveRegistrationRequest.php — admin_note optional (commuter_type sourced from applied_type, never request body)
+  - NEW app/Http/Requests/Admin/RejectRegistrationRequest.php — rejection_reason required|string|min:3|max:500
+  - MODIFIED app/Services/AuthService.php — added register() (DB transaction, manual email uniqueness against non-deleted users, deferred id_image persistence via resolveIdImagePath helper); extended login() to block PENDING/REJECTED via RegistrationPendingException (was only blocking SUSPENDED)
+  - MODIFIED app/Services/AdminService.php — added listPendingRegistrations() (FIFO, eager-loaded), approveRegistration() (PENDING->APPROVED + commuter_type=applied_type + verified_at=now()), rejectRegistration() (PENDING->REJECTED + reason + soft-delete + email rewrite via freeEmailForReuse helper, all in DB transaction), presentRegistration() DTO, freeEmailForReuse() helper
+  - MODIFIED app/Http/Controllers/Auth/AuthController.php — added register() method (201, no token); wired RegistrationPendingException -> 403 in login catch block
+  - MODIFIED app/Http/Controllers/Admin/AdminController.php — added pendingRegistrations(), approveRegistration(), rejectRegistration() methods (thin controllers delegating to AdminService)
+  - MODIFIED routes/api.php — added POST /auth/register (throttle:commuter-hail); added GET /admin/registrations/pending (throttle:admin-read), PATCH /admin/registrations/{id}/approve + reject (throttle:admin-write)
+- Wrote tests/Feature/AuthRegisterTest.php (17 tests, 71 assertions):
+  - Happy path: PENDING commuter created with applied_type + id_image_url populated, password hashed, commuter_type mirrors applied_type for all 4 concession types
+  - 422 validation: missing/empty id_image, missing/invalid applied_type, missing required fields, password mismatch, weak password, invalid email, duplicate username, future birthdate
+  - No token issued (response + personal_access_tokens table empty)
+  - Email reuse: active email -> 422; soft-deleted rejected email is reusable
+  - PENDING commuter cannot log in (403)
+- Wrote tests/Feature/AdminRegistrationTest.php (19 tests, 89 assertions):
+  - Pending list: returns ONLY PENDING (excludes approved/suspended/admin), empty when none, full registration details shape, FIFO ordering, 403 non-admin, 401 unauthenticated
+  - Approve: sets APPROVED + commuter_type=applied_type + verified_at, enables login end-to-end (PENDING->403, approve, ->200+token), 404 missing, 422 already-approved, 403 non-admin
+  - Reject: sets REJECTED + reason, soft-deletes user, blocks login (401), frees email for reuse end-to-end (register->reject->re-register same email succeeds), 422 missing/too-short reason, 404 missing, 422 already-approved, 403 non-admin
+- Ran Laravel Pint on all 11 changed files — 7 cosmetic style issues auto-fixed, re-ran tests to confirm no regression (36/36 still pass)
+- Test results:
+  - AuthRegisterTest: 17/17 PASS
+  - AdminRegistrationTest: 19/19 PASS
+  - RoleAccessMatrixTest (T7): 25/25 PASS (no regression)
+  - FULL backend suite: 241 passed (was 205), 1 failed — the 1 failure is the EXACT pre-existing TransactionFlowTest::test_gcash_initiate_falls_back_to_fake_gateway_when_unconfigured (PayMongo account not yet provisioned, user-approved to leave)
+- Committed in 2 logical chunks (both authored as arone <markaronedc@gmail.com>, linked to GitHub user AroneHaha — verified via GitHub API):
+  - db31b13 feat(auth): commuter self-registration + admin approval flow (S5-T8) — 9 files, +634/-28
+  - d078652 test(S5-T8): commuter registration + admin approval feature tests — 2 files, +855
+- Pushed to origin/arone (6895d95..d078652) — verified via GitHub API that remote HEAD is d078652 by AroneHaha
+
+Stage Summary:
+- S5-T8 NOW FULLY COMPLETABLE: all 8 required test areas covered (6 pre-existing + 2 new), and the underlying registration backend that the 2 new test files exercise is implemented with clean service/controller architecture matching the rest of the codebase
+- ID IMAGE handling per user instruction: accepted + validated + stored as derived path in id_image_url column, binary persistence deferred — AuthService::resolveIdImagePath() is the single swap point for future Storage::put() integration (no schema/contract change needed)
+- Architecture quality: service/controller separation, ApiResponse envelope, Form Request whitelisting, DB transactions on multi-step mutations, commuter_type sourced from applied_type (never request body), email-frees-for-reuse via RFC 5231 subaddressing (no schema change), login gating extended defensively (PENDING/REJECTED/SUSPENDED all blocked, checked AFTER password to avoid email-existence leak)
+- Test quality: every test asserts real DB state (not just status codes), covers happy path + validation failure + wrong-role/403 + 401 + 404 + state-transition edge cases, end-to-end flows (register->reject->re-register; PENDING->approve->login)
+- Total Sprint 5 test count on arone: 241 passed (was 205 before this session, was 19 before S5 started)
+- USER CAN NOW MARK S5-T8 COMPLETE IN CLICKUP — which also unblocks T4/T5/T6/T7 being recorded as complete (T8 was the gate)
