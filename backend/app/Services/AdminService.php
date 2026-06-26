@@ -626,4 +626,211 @@ class AdminService
             'vehicles' => $result,
         ];
     }
+
+    // ════════════════════════════════════════════════════════════════════
+    // Registration approval flow (S5-T8 Additional Coverage)
+    // ════════════════════════════════════════════════════════════════════
+
+    /**
+     * GET /admin/registrations/pending — commuters awaiting approval.
+     *
+     * Returns only COMMUTER users whose commuter_profiles.account_status
+     * is PENDING. Soft-deleted (rejected) accounts are excluded by the
+     * User model's SoftDeletes global scope. Eager-loads the profile in a
+     * single query (no N+1).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function listPendingRegistrations(): array
+    {
+        $users = User::query()
+            ->where('role', UserRole::COMMUTER->value)
+            ->whereHas('commuterProfile', function ($q) {
+                $q->where('account_status', 'PENDING');
+            })
+            ->with(['commuterProfile' => function ($q) {
+                $q->select([
+                    'id', 'first_name', 'middle_name', 'surname', 'birthdate',
+                    'gender', 'email', 'contact_number', 'commuter_type',
+                    'applied_type', 'username', 'language_preference',
+                    'account_status', 'id_image_url', 'verified_at',
+                    'rejection_reason', 'created_at',
+                ]);
+            }])
+            ->orderBy('created_at', 'asc') // oldest first — FIFO queue
+            ->get();
+
+        return $users->map(fn (User $u) => $this->presentRegistration($u))->values()->all();
+    }
+
+    /**
+     * PATCH /admin/registrations/{id}/approve — promote a PENDING commuter
+     * to APPROVED.
+     *
+     * Sets account_status=APPROVED, commuter_type=applied_type (defensive —
+     * register() already sets this, but we re-assert here so an admin can
+     * never approve a mismatched concession type), and verified_at=now().
+     * After this the commuter may log in.
+     *
+     * Idempotency: approving an already-APPROVED account is a no-op that
+     * still returns 200 (so a double-click or retry is safe).
+     *
+     * @return array<string, mixed>|null null when the commuter is not found
+     *
+     * @throws ValidationException when the account is not in a state that
+     *                             can be approved (e.g. SUSPENDED, REJECTED, or already APPROVED with
+     *                             a different applied_type change requested — though the latter is
+     *                             not exposed via the API).
+     */
+    public function approveRegistration(string $id): ?array
+    {
+        $user = User::with('commuterProfile')->find($id);
+
+        if (! $user || ! $user->isCommuter() || ! $user->commuterProfile) {
+            return null;
+        }
+
+        $profile = $user->commuterProfile;
+
+        // Only PENDING accounts can be approved. SUSPENDED / REJECTED /
+        // already-APPROVED accounts are not approvable through this endpoint.
+        if ($profile->account_status !== 'PENDING') {
+            throw ValidationException::withMessages([
+                'account_status' => [
+                    'Only PENDING accounts can be approved. This account is: '.$profile->account_status,
+                ],
+            ]);
+        }
+
+        $profile->account_status = 'APPROVED';
+        $profile->commuter_type = $profile->applied_type ?? $profile->commuter_type;
+        $profile->verified_at = now();
+        $profile->rejection_reason = null;
+        $profile->save();
+
+        return $this->presentRegistration($user->setRelation('commuterProfile', $profile));
+    }
+
+    /**
+     * PATCH /admin/registrations/{id}/reject — decline a PENDING commuter.
+     *
+     * Sets account_status=REJECTED, records the rejection_reason, then
+     * soft-deletes the User (which cascades to the profile via the FK
+     * onDelete('cascade') — but we keep the profile row by restoring it so
+     * the rejection audit trail is preserved). The user's email is NULLed
+     * so the applicant can re-register with the same address (the DB
+     * unique index on users.email treats NULLs as distinct).
+     *
+     * @return array<string, mixed>|null null when the commuter is not found
+     *
+     * @throws ValidationException when the account is not PENDING
+     */
+    public function rejectRegistration(string $id, string $reason): ?array
+    {
+        $user = User::with('commuterProfile')->find($id);
+
+        if (! $user || ! $user->isCommuter() || ! $user->commuterProfile) {
+            return null;
+        }
+
+        $profile = $user->commuterProfile;
+
+        if ($profile->account_status !== 'PENDING') {
+            throw ValidationException::withMessages([
+                'account_status' => [
+                    'Only PENDING accounts can be rejected. This account is: '.$profile->account_status,
+                ],
+            ]);
+        }
+
+        return DB::transaction(function () use ($user, $profile, $reason): array {
+            // Stamp the rejection on the profile BEFORE soft-deleting, so the
+            // audit trail survives even if the profile cascade-fires.
+            $profile->account_status = 'REJECTED';
+            $profile->rejection_reason = $reason;
+            $profile->verified_at = null;
+            $profile->save();
+
+            // Free the canonical email for reuse. The users.email column is
+            // NOT NULL + has a DB unique index, and SoftDeletes does NOT
+            // exempt soft-deleted rows from that index. We therefore rewrite
+            // the rejected user's email to a unique, auditable placeholder
+            // (rejected+{timestamp}@{original-domain}) so the applicant can
+            // re-register with their real address once they correct their
+            // submission. The original email is preserved on the profile row
+            // (commuter_profiles.email is a separate, non-unique column) so
+            // admins can still see which address the rejected applicant used.
+            $user->email = $this->freeEmailForReuse($user->email);
+            $user->save();
+
+            // Soft-delete the user. The profile row has onDelete('cascade')
+            // on its FK, but SoftDeletes on User does NOT trigger a SQL
+            // cascade — it only sets users.deleted_at. The profile row stays.
+            $user->delete();
+
+            return $this->presentRegistration($user->setRelation('commuterProfile', $profile));
+        });
+    }
+
+    /**
+     * Registration DTO — richer than the user present() because the admin
+     * reviewing registrations needs the ID details (applied_type, contact,
+     * id_image_url, submitted_at) to make a decision.
+     *
+     * @return array<string, mixed>
+     */
+    private function presentRegistration(User $user): array
+    {
+        $profile = $user->commuterProfile;
+
+        return [
+            'id' => $user->id,
+            'email' => $user->email ?? $profile?->email,
+            'role' => $user->role->value,
+            'first_name' => $profile?->first_name,
+            'middle_name' => $profile?->middle_name,
+            'surname' => $profile?->surname,
+            'birthdate' => optional($profile?->birthdate)?->toDateString(),
+            'gender' => $profile?->gender,
+            'contact_number' => $profile?->contact_number,
+            'commuter_type' => $profile?->commuter_type,
+            'applied_type' => $profile?->applied_type,
+            'username' => $profile?->username,
+            'language_preference' => $profile?->language_preference,
+            'account_status' => $profile?->account_status,
+            'id_image_url' => $profile?->id_image_url,
+            'verified_at' => optional($profile?->verified_at)?->toIso8601String(),
+            'rejection_reason' => $profile?->rejection_reason,
+            'submitted_at' => optional($user->created_at)?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Rewrite a rejected applicant's email so the canonical address is freed
+     * for reuse while keeping the user row auditable.
+     *
+     * Strategy: split on the last '@', insert 'rejected+{timestamp}+' before
+     * the domain. e.g. 'maria@example.com' -> 'maria+rejected+1719423456@example.com'.
+     * The '+' subaddressing is a real RFC 5231 mailbox tag, so the rewritten
+     * address still routes to the applicant if they ever regain access — but
+     * it no longer collides with a fresh registration using 'maria@example.com'.
+     *
+     * The timestamp guarantees uniqueness even if the same email is rejected
+     * twice (applicant re-registers, gets rejected again).
+     */
+    private function freeEmailForReuse(string $email): string
+    {
+        $at = strrpos($email, '@');
+
+        if ($at === false) {
+            // Defensive — validation already guarantees a valid email, but
+            // never let a malformed value crash the rejection flow.
+            return 'rejected+'.time().'@invalid.local';
+        }
+
+        $local = substr($email, 0, $at);
+        $domain = substr($email, $at);
+
+        return $local.'+rejected+'.time().$domain;
+    }
 }

@@ -21,6 +21,11 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
+
+    // Public commuter self-sign-up (S5-T8). Creates a PENDING account that
+    // an admin must approve via PATCH /admin/registrations/{id}/approve
+    // before the commuter can log in. No token is issued on registration.
+    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:commuter-hail');
 });
 
 /*
@@ -121,6 +126,13 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::get('/dashboard', [AdminController::class, 'dashboard']);
     Route::get('/analytics', [AdminController::class, 'analytics']);
     Route::get('/monitoring', [AdminController::class, 'monitoring'])->middleware('throttle:admin-read');
+
+    // Registration approval flow (S5-T8 Additional Coverage) — admins review
+    // commuter self-sign-ups (POST /auth/register) and approve or reject.
+    // Reads 60/min; mutations via the stricter admin-write limiter (30/min).
+    Route::get('/registrations/pending', [AdminController::class, 'pendingRegistrations'])->middleware('throttle:admin-read');
+    Route::patch('/registrations/{id}/approve', [AdminController::class, 'approveRegistration'])->middleware('throttle:admin-write');
+    Route::patch('/registrations/{id}/reject', [AdminController::class, 'rejectRegistration'])->middleware('throttle:admin-write');
 
     // User management CRUD (S5-T3) — reads 60/min, mutations 30/min.
     Route::get('/users', [AdminUserController::class, 'index'])->middleware('throttle:admin-read');

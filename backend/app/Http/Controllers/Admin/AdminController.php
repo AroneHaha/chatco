@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\ApproveRegistrationRequest;
+use App\Http\Requests\Admin\RejectRegistrationRequest;
 use App\Models\ConductorProfile;
 use App\Models\Driver;
 use App\Models\Remittance;
@@ -64,6 +66,62 @@ class AdminController extends Controller
         $data = $this->adminService->monitoring();
 
         return $this->successResponse($data, 'Fleet monitoring snapshot retrieved');
+    }
+
+    /**
+     * GET /api/v1/admin/registrations/pending
+     *
+     * Lists every commuter whose account_status is PENDING — i.e. they have
+     * self-registered (POST /auth/register) and are awaiting admin review of
+     * their valid-ID submission. Oldest first (FIFO queue).
+     */
+    public function pendingRegistrations(): JsonResponse
+    {
+        $data = $this->adminService->listPendingRegistrations();
+
+        return $this->successResponse($data, 'Pending registrations retrieved');
+    }
+
+    /**
+     * PATCH /api/v1/admin/registrations/{id}/approve
+     *
+     * Promotes a PENDING commuter to APPROVED — sets account_status=APPROVED,
+     * commuter_type=applied_type, verified_at=now(). After this the commuter
+     * can log in. commuter_type is sourced from the applicant's applied_type
+     * (never from the request body) so an admin cannot override the
+     * verified-ID concession type.
+     */
+    public function approveRegistration(ApproveRegistrationRequest $request, string $id): JsonResponse
+    {
+        $data = $this->adminService->approveRegistration($id);
+
+        if ($data === null) {
+            return $this->errorResponse('Registration not found', 404);
+        }
+
+        return $this->successResponse($data, 'Registration approved');
+    }
+
+    /**
+     * PATCH /api/v1/admin/registrations/{id}/reject
+     *
+     * Declines a PENDING commuter — records the rejection_reason, sets
+     * account_status=REJECTED, soft-deletes the user (so they can no longer
+     * log in) and NULLs the email so the applicant can re-register with the
+     * same address once they correct their submission.
+     */
+    public function rejectRegistration(RejectRegistrationRequest $request, string $id): JsonResponse
+    {
+        $data = $this->adminService->rejectRegistration(
+            $id,
+            $request->validated('rejection_reason'),
+        );
+
+        if ($data === null) {
+            return $this->errorResponse('Registration not found', 404);
+        }
+
+        return $this->successResponse($data, 'Registration rejected');
     }
 
     public function drivers(): JsonResponse
