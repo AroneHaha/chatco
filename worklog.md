@@ -585,3 +585,44 @@ Stage Summary:
   3. File-grep for notImplementedResponse only checks 3 files — AdminController.php STILL HAS 5 stubs (dashboard, users, vehicles[dead], announcements, lostItems)
 - CRITICAL GAP T7 missed: /admin/users route still points to AdminController::users (501 stub) even though AdminUserController exists with full CRUD (S5-T3). Route was never rewired. S5-T3 is effectively unreachable via API.
 - Could not execute test suite (no PHP in sandbox) — verdict based on static analysis
+
+---
+Task ID: S5-T5+T7-FIX-PUSH
+Agent: main
+Task: Fix flagged gaps from S5-T4/T5/T6/T7 review and push to arone branch
+
+Work Log:
+- Discovered arone branch already had S5-T3 (users route wired to AdminUserController), S5-T4 (vehicle CRUD), S5-T6 (analytics) properly implemented — only S5-T5 (monitoring) was missing
+- Built PHP 8.2.26 from source (with sqlite3, mbstring+mbregex, xml, dom, curl, openssl, session, iconv, pdo extensions) since no PHP was installed in sandbox — required downloading oniguruma header and linking libonig
+- Installed Composer 2.10.1 + Laravel 12 deps via composer install --ignore-platform-reqs
+- Ran baseline RoleAccessMatrixTest: 19/19 PASS
+- Implemented S5-T5 (live fleet monitoring):
+  - AdminService::monitoring() — aggregates vehicle_locations + active shift_logs + relations; flags is_stale=true for vehicles with location older than 10 min OR missing location row entirely
+  - AdminController::monitoring() — thin controller, ApiResponse envelope
+  - Route GET /api/v1/admin/monitoring behind throttle:admin-read (60/min)
+  - Response: generated_at, active_count, stale_count, vehicles[] with vehicle_id/lat/lng/speed/capacity_status/conductor_name/driver_name/route_name/shift_id/is_stale
+- Fixed S5-T7 role-scoped audit gaps:
+  - Added /admin/monitoring + /admin/users to cross-role matrix data provider
+  - Expanded Section 5 'no 501' check to cover monitoring + users routes
+  - Added AdminUserController to file-grep for notImplementedResponse()
+- Added 4 new dedicated monitoring tests (Section 6):
+  - test_monitoring_returns_empty_when_no_active_shifts
+  - test_monitoring_returns_active_vehicle_with_position (full shape assertion)
+  - test_monitoring_flags_stale_vehicle_over_10_minutes
+  - test_monitoring_flags_missing_location_as_stale
+- Ran Laravel Pint formatter on all 4 changed files (cosmetic only — import ordering, spacing)
+- Re-ran RoleAccessMatrixTest: 25/25 PASS
+- Ran full backend suite: 205/206 PASS — the 1 failure is TransactionFlowTest::test_gcash_initiate_falls_back_to_fake_gateway_when_unconfigured, pre-existing (fails on clean arone too), caused by PayMongo account not yet provisioned. User confirmed: "we're still waiting for paymongo account so regardin the gcash payment, leave it be"
+- Committed in 2 logical chunks (all authored by AroneHaha <165986448+AroneHaha@users.noreply.github.com>, NO Z User):
+  - 9f65d76 feat(admin): implement S5-T5 live fleet monitoring endpoint
+  - 6895d95 test(admin): expand role-scoped audit + cover monitoring endpoint (S5-T7)
+- Pushed to origin/arone (1a6647a..6895d95) — verified via GitHub API that remote HEAD is 6895d95 by AroneHaha
+
+Stage Summary:
+- S5-T5 (monitoring) — was MISSING, now FULLY IMPLEMENTED with route + controller + service + 4 dedicated tests
+- S5-T7 (security audit) — 3 coverage gaps CLOSED (monitoring + users in matrix, AdminUserController in grep, monitoring/users in no-501 check)
+- S5-T4 (vehicle CRUD) — was already correct on arone, no changes needed
+- S5-T6 (analytics) — was already correct on arone, no changes needed
+- Test results: 25/25 RoleAccessMatrixTest PASS, 205/206 full suite PASS (1 pre-existing GCash failure, user-approved to leave)
+- 2 commits pushed to origin/arone, both authored as AroneHaha (no Z User)
+- Total diff: 4 files, 526 insertions / 189 deletions
