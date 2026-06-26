@@ -255,13 +255,23 @@ class AdminController extends Controller
         $birthday = $validated['birthday'];
 
         // Generate username: firstinitial.lastname (e.g., j.delacruz)
+        // Uses the first character of the first name (after trimming) so a
+        // compound first name like "Mhaku Jose" still produces "m.delacruz".
+        $firstNameTrimmed = trim($firstName);
         $generatedUsername = strtolower(
-            substr($firstName, 0, 1) . '.' . preg_replace('/\s+/', '', $lastName)
+            substr($firstNameTrimmed, 0, 1) . '.' . preg_replace('/\s+/', '', $lastName)
         );
 
-        // Generate password: firstname.MMDDYYYY (e.g., juan.05142000)
+        // Generate password: firstword.restwordsMMDDYYYY
+        // For a single-word first name "Juan" → "juan.05142000"
+        // For a compound first name "Mhaku Jose" → "mhaku.jose05142000"
+        // (no spaces in the password — the dot separates the first word from
+        // any remaining words, and the birthday is appended directly)
         $birthdayFormatted = \Carbon\Carbon::parse($birthday)->format('mdY');
-        $generatedPassword = strtolower($firstName) . '.' . $birthdayFormatted;
+        $firstNameParts = preg_split('/\s+/', $firstNameTrimmed);
+        $firstPart = strtolower($firstNameParts[0]);
+        $restParts = implode('', array_map('strtolower', array_slice($firstNameParts, 1)));
+        $generatedPassword = $firstPart . '.' . $restParts . $birthdayFormatted;
 
         // Email is derived from username (conductor accounts don't have a real
         // email — they log in with the generated username via a custom field).
