@@ -762,3 +762,58 @@ Stage Summary:
 - Test results: frontend 0 lint errors, backend 241/242 (1 pre-existing GCash)
 - Browser-verified: page loads real data, edit modal works, API CRUD all passes
 - User can now mark S5-T9 and S5-T10 complete in ClickUp
+
+---
+Task ID: S5-T11-FRONTEND
+Agent: main
+Task: User asked: "now do tt11" — implement S5-T11 (Frontend Admin Vehicle Management CRUD Integration): wire frontend/app/(admin)/vehicles to the S5-T4 admin vehicle endpoints, replacing the vehicles/data mock. Create/edit/delete with validation; show driver + route + status. Surface plate-uniqueness + active-shift-delete errors. Push to arone only if all tests pass and no errors.
+
+Work Log:
+- Read S5-T11 spec from upload/clickup/clickup_full_dump.json (task index [6]): "Wire frontend/app/(admin)/vehicles to the admin vehicle endpoints (S5-T4), replacing the vehicles/data mock. Create/edit/delete with validation; show driver + route + status." Files: vehicle.service.ts (new), proxy routes, vehicles-data.ts, page/components. Acceptance: CRUD end-to-end; plate-uniqueness/active-shift-delete errors surfaced; mock removed.
+- Read reference patterns: T10 user.service.ts (service layer pattern to mirror), T10 delete-user-modal.tsx (delete confirm pattern), T10 users-data.ts (hook+service integration), backend S5-T4 AdminVehicleController + AdminService (vehicle CRUD contract), proxy.ts + response.ts (proxy forwarding).
+- AUDIT FINDING: The proxy routes (GET+POST /api/admin/vehicles, PUT/DELETE /api/admin/vehicles/[id]) ALREADY EXISTED and were real (forwarded 422 validation errors). vehicles-data.ts ALREADY fetched from the API (no mock vehicles). AddVehicleModal + EditVehicleModal ALREADY called the API with field-error surfacing. BUT: (1) NO vehicle.service.ts existed (spec explicitly requires it), (2) NO delete-vehicle flow existed at all (no delete button, no modal, no handler), (3) the DELETE proxy forwarded 409 as a generic "Conflict" message — losing the specific active-shift reason.
+- KEY CONTRACT FINDING: Backend deleteVehicle() throws ValidationException withMessages(['vehicle' => ['Cannot delete a vehicle that is currently on an active shift...']]) which the controller renders as HTTP 409 with { message: "Conflict", errors: { vehicle: [...] } }. The proxy's jsonError() only forwarded the "Conflict" message, dropping the errors map.
+- Created frontend/lib/admin/services/vehicle.service.ts (NEW, ~400 lines): CRUD gateway mirroring user.service.ts. Exports list/get/create/update/remove + AdminVehicle/VehicleListResult/VehicleMutationInput/VehicleOperationError types. VehicleOperationError codes: validation (422, field errors), conflict (409, active-shift), not_found, forbidden, unauthenticated, network. Snake→camel mapper (unit_number→unitNumber, status→statusLabel with ACTIVE→Operating etc., nested route/driver/conductor person mapping). remove() translates 409 → VehicleOperationError("conflict", firstErrorFromErrorsMap, errors).
+- Fixed app/api/admin/vehicles/[id]/route.ts: added forwardError() helper that forwards 409 with the errors map (same {message, errors} shape as 422, but status 409) via jsonValidationError(msg, errors, 409). Applied to PUT/PATCH/DELETE handlers. This lets vehicle.service.remove() extract the specific "Cannot delete a vehicle..." message.
+- Refactored app/(admin)/vehicles/data/vehicles-data.ts: replaced inline fetch+map with vehicleService.list({perPage:100}); added mapToVehicle() (AdminVehicle→legacy Vehicle with unitNumber + _raw); exposed createVehicleApi/updateVehicleApi/deleteVehicleApi (wrap service + refetch); kept personnel fetch (drivers+conductors) inline (not vehicle CRUD).
+- Refactored add-vehicle-modal.tsx + edit-vehicle-modal.tsx: replaced raw fetch POST/PUT with createVehicle()/updateVehicle() from the service; catch VehicleOperationError — if code==="validation" && errors, set fieldErrors + firstError; else set generic error. Removed debug console.logs.
+- Created components/admin/vehicles/delete-vehicle-modal.tsx (NEW): mirror of delete-user-modal.tsx; shows unit/plate/route/driver/conductor; confirm button calls onConfirm (page's deleteVehicleApi); catches VehicleOperationError + shows message inline (the 409 active-shift message surfaces here).
+- Added Delete button (Trash2 icon) to vehicle-table.tsx actions column; replaced any[] types with the typed Vehicle interface.
+- Wired page.tsx: added deletingVehicle state + isDeleteVehicleModalOpen + handleOpenDeleteVehicle/handleCloseDeleteVehicle/handleConfirmDeleteVehicle (calls deleteVehicleApi); rendered <DeleteVehicleModal>; passed onDelete to VehicleTable.
+- BONUS FIXES (pre-existing issues in files I touched): fixed setState-in-useMemo anti-pattern in page.tsx (derived vehicles directly from data.vehicles); removed unused STATUS_TO_LARAVEL constant in edit-vehicle-modal; escaped unescaped quotes in JSX; fixed any→Vehicle in vehicle-table; aligned delete-personnel-modal id type (number→string) to match Personnel.id (fixed 3 tsc errors); replaced setState-in-useEffect in delete-personnel-modal with React-recommended adjust-state-during-render pattern (fixed lint error).
+- Frontend lint: 0 errors on all T11 files (2 pre-existing warnings: unused unassignedDrivers/unassignedConductors — left as-is, not T11 scope).
+- Frontend tsc: 0 new errors. Fixed 5 pre-existing errors (3 page.tsx personnel id type + 1 add-vehicle-modal + 1 edit-vehicle-modal). Total tsc errors dropped from 11 to 6 (all 6 remaining are in untouched personnel components + conductor proxy).
+- Backend verification (curl, single-command with fresh Laravel + SQLite):
+  - LOGIN: success, token len 85
+  - LIST: 10 vehicles, first = UNIT-001 NAA 0001 ACTIVE route=McArthur Highway driver=Pedro
+  - CREATE dup plate → 422 errors:{plate_number:["The plate number has already been taken."]} ✅
+  - CREATE valid → success, returns UUID + plate XYZ 9999
+  - UPDATE → success, unit→UNIT-EDITED status→MAINTENANCE
+  - DELETE (no active shift) → success "Vehicle deleted successfully"
+- Backend tests: AdminVehicleCrudTest 9/9 PASS (incl. "create rejects duplicate plate or unit" + "delete blocked with 409 when on active shift"). Full suite: 241 passed, 1 failed (pre-existing GCash/PayMongo — unchanged, user-approved).
+- Browser verification (agent-browser, both servers in one command due to sandbox killing background processes between bash calls):
+  - Login as admin@gmail.com → redirected to /admin-dashboard ✅
+  - Navigated to /vehicles → "Fleet Management" page rendered ✅
+  - Vehicle table shows REAL API data: NAA 0001 | McArthur Highway — Calumpit to Meycauayan | Pedro Santos | Juan Dela Cruz | Operating (7+ rows visible) ✅
+  - Three action buttons per row: clock (shift history) + pencil (edit) + TRASH (delete — new T11 button) ✅
+  - "Add Vehicle" button present (blue, top-right) ✅
+  - No page errors ✅
+- VLM screenshot analysis confirmed: real vehicle data in table, 3 action buttons per row (including delete trash icon), Add Vehicle button present, clean dark theme, no layout issues.
+- Cleaned up: restored .env to original MySQL config, removed SQLite db file, killed servers.
+- Committed as arone <markaronedc@gmail.com> (verified via GitHub API: linked to AroneHaha, no Z User contamination):
+  - b1b83a2 feat(admin): wire vehicle management CRUD to real backend (S5-T11) — 9 files, +898/-178
+- Pushed to origin/arone (8b052a3..b1b83a2) — verified via GitHub API that remote HEAD is b1b83a2 by arone <markaronedc@gmail.com>
+
+Stage Summary:
+- S5-T11 (admin vehicle management frontend CRUD): ✅ FULLY IMPLEMENTED + BROWSER-VERIFIED
+  - vehicle.service.ts created (CRUD gateway with typed errors, snake→camel mapper, conflict code for 409)
+  - DELETE proxy fixed to forward 409 with errors map (so active-shift reason surfaces)
+  - DeleteVehicleModal created + Delete button added to every row + page delete flow wired
+  - AddVehicleModal + EditVehicleModal refactored to use the service (typed validation errors)
+  - vehicles-data.ts refactored to use the service (no more inline fetch+map)
+  - Mock vehicle data removed (table renders real API data — verified in browser)
+  - All acceptance criteria met: CRUD end-to-end; plate-uniqueness (422) + active-shift-delete (409) errors surfaced; mock removed
+- Architecture mirrors T9 (profile.service) + T10 (user.service): service is the single CRUD gateway, proxy forwards Laravel envelopes, hook exposes API methods, components use the service for typed errors
+- Test results: frontend 0 lint errors / 0 new tsc errors; backend 241/242 (1 pre-existing GCash); AdminVehicleCrudTest 9/9 (incl 422 + 409)
+- Browser-verified: admin login → /vehicles → real vehicle table with plate/route/driver/conductor/status + Add/Edit/Delete buttons + no errors
+- User can now mark S5-T11 complete in ClickUp
