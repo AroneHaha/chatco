@@ -1,0 +1,112 @@
+================================================================================
+CHATCO PROJECT — FULL SPRINT STATUS (from ClickUp, incl. closed)
+================================================================================
+Total tasks: 84
+
+
+### S1 — 14 tasks (14 closed, 0 open, 0 in-progress, 0 s4)
+--------------------------------------------------------------------------------
+  [complete          ] S1-T1 — Laravel 11 Project Initialization & Environment Configuration  | —
+  [complete          ] S1-T10 — API Response Trait & Consistent JSON Structure                | —
+  [complete          ] S1-T11 — Authentication System — AuthService & AuthController          | —
+  [complete          ] S1-T12 — API Routes & Controllers — All 28 Endpoints                   | —
+  [complete          ] S1-T13 — Database Seeder — All Seed Data                               | —
+  [complete          ] S1-T14 — Feature Testing & End-to-End Verification                     | —
+  [complete          ] S1-T2 — Sanctum & Breeze Authentication Setup                          | —
+  [complete          ] S1-T3 — Authentication & Profile Database Schema                       | —
+  [complete          ] S1-T4 — Database Migrations — Operational Tables                       | —
+  [complete          ] S1-T5 — Database Migrations — Transactions & Financial System          | —
+  [complete          ] S1-T6 — Migration Execution & Database Integrity Verification          | —
+  [complete          ] S1-T7 — Eloquent Models User & Profile Models                          | —
+  [complete          ] S1-T8 — Eloquent Models (Operational & System Models)                  | —
+  [complete          ] S1-T9 — UserRole Enum & Role-Based Access Control                      | —
+
+### S1-QA — 7 tasks (7 closed, 0 open, 0 in-progress, 0 s4)
+--------------------------------------------------------------------------------
+  [complete          ] S1-QA1 — Authentication Flow — Login, Logout & User Endpoint           | Marinel Carbonell
+  [complete          ] S1-QA2 — Role-Based Access Control — Middleware Enforcement            | Marinel Carbonell
+  [complete          ] S1-QA3 — API Placeholder Endpoints — All 28 Routes Return 501          | Marinel Carbonell
+  [complete          ] S1-QA4 — Database Schema — Table Existence & Wallet Absence Verificati | Marinel Carbonell
+  [complete          ] S1-QA5 — Seeded Data Verification — All 6 Accounts & Profile Integrity | Marinel Carbonell
+  [complete          ] S1-QA6 — API Response Format — Consistent JSON Structure Across All En | Marinel Carbonell
+  [complete          ] S1-QA7 — Automated Test Suite — php artisan test Verification          | Marinel Carbonell
+
+### S2 — 7 tasks (7 closed, 0 open, 0 in-progress, 0 s4)
+--------------------------------------------------------------------------------
+  [complete          ] S2-T1 — Shift & GPS Database Schema — Migrations & Schema Updates      | —
+  [complete          ] S2-T2 — Shift & Location Models — Eloquent Models & Relationships      | —
+  [complete          ] S2-T3 — ShiftService — Shift Lifecycle & Remittance Business Logic     | —
+  [complete          ] S2-T4 — LocationService — GPS Tracking, Vehicle Location Logic & Real- | —
+  [complete          ] S2-T5 — Shift & Location API — Controllers, Routes, FormRequests & Bro | —
+  [complete          ] S2-T6 — Feature Testing & End-to-End Verification                      | —
+  [complete          ] S2-T7 — Laravel Echo & Pusher — Real-Time Setup & Configuration        | —
+
+### S3 — 12 tasks (12 closed, 0 open, 0 in-progress, 0 s4)
+--------------------------------------------------------------------------------
+  [complete          ] S3-T1 -- Hail Database Migration & HailStatus Enum                     | —
+  [complete          ] S3-T10 -- Frontend Commuter Hail API Route Handlers (Next.js Proxies)  | —
+  [complete          ] S3-T11 -- Frontend Commuter Dashboard Hail Integration                 | —
+  [complete          ] S3-T12 -- GeoHelper Unit Test (Haversine Verification)                 | —
+  [complete          ] S3-T2 -- Hail Eloquent Model & Relationships                           | —
+  [complete          ] S3-T3 -- GeoHelper Utility (Server-Side Haversine Distance)            | —
+  [complete          ] S3-T4 -- HailService (Hail Lifecycle Business Logic & Radius Enforceme | —
+  [complete          ] S3-T5 -- CreateHailRequest FormRequest Validation                      | —
+  [complete          ] S3-T6 -- Hail Controllers, API Routes & Rate Limiting                  | —
+  [complete          ] S3-T7 -- Hail Expiry Scheduler (Artisan Command & Schedule)            | —
+  [complete          ] S3-T8 -- Pusher Broadcast Events for Real-Time Hail Notifications      | —
+  [complete          ] S3-T9 -- Frontend Commuter Proxy Infrastructure & Hail Service         | —
+
+### S4 — 13 tasks (11 closed, 0 open, 2 in-progress, 0 s4)
+--------------------------------------------------------------------------------
+  [complete          ] S4 CLEAN UP GUIDE                                                      | —
+  [complete          ] S4-T1 - Transaction Schema Finalization & Eloquent Model               | —
+  [complete          ] S4-T11 - Frontend Commuter Payment History Integration                 | —
+  [complete          ] S4-T2 - TransactionService (Fare Recording, Listing & Idempotency)     | —
+  [complete          ] S4-T3 - PaymentService (PayMongo GCash Wrapper - Sandbox)              | —
+  [complete          ] S4-T4 - Fare & Payment FormRequest Validation                          | —
+  [complete          ] S4-T5 - Transaction & Payment Controllers, Routes & Rate Limiting      | —
+  [complete          ] S4-T6 - PayMongo Webhook Handler (Signature + Idempotent Status Update | —
+  [complete          ] S4-T7 - Feature Tests: Transactions & GCash Payment Flow               | —
+  [complete          ] S4-T8 - Frontend Conductor Transactions Proxy & Service Wiring (Next.j | —
+  [complete          ] S4-T9 - Frontend Conductor Cash Payment UI Integration (Persist Fares  | —
+  [in progress       ] S4-T10 - Frontend Conductor GCash UI (Binding QR + PayMongo Sandbox)   | —
+  [in progress       ] S4-T12 - Frontend Commuter GCash Scan-to-Pay (Claim + PayMongo Authori | —
+
+### S5 — 17 tasks (3 closed, 10 open, 4 in-progress, 10 s4)
+--------------------------------------------------------------------------------
+  [complete          ] S5-T1 - Commuter Profile API & Password Change                         | —
+  [complete          ] S5-T2 - Conductor Remittance History Endpoint (GET)                    | —
+  [complete          ] S5-T3 - Admin User Management CRUD (List, View, Update, Delete)        | —
+  [s4                ] S5-T10 - Frontend Admin User Management CRUD Integration               | —
+  [s4                ] S5-T11 - Frontend Admin Vehicle Management CRUD Integration            | —
+  [s4                ] S5-T12 - Frontend Admin Live Fleet Monitoring Integration              | —
+  [s4                ] S5-T13 - Frontend Admin Analytics Dashboard Integration                | —
+  [s4                ] S5-T14 - Commuter Registration Endpoint & Valid-ID Upload              | —
+  [s4                ] S5-T15 - Admin Account Verification (Pending List, Approve & Reject +  | —
+  [s4                ] S5-T16 - Frontend Signup Registration & ID Upload Wiring               | —
+  [s4                ] S5-T17 - Frontend Admin Account Review Wiring (Approve / Reject)       | —
+  [in progress mhak  ] S5-T4 - Admin Vehicle Management CRUD (List, Create, Update, Delete)   | —
+  [in progress mhak  ] S5-T5 - Admin Live Fleet Monitoring Endpoint                           | —
+  [in progress mhak  ] S5-T6 - Admin Analytics Endpoint (Aggregated Metrics)                  | —
+  [in progress mhak  ] S5-T7 - Role-Scoped Security Audit & Data Isolation                    | —
+  [s4                ] S5-T8 - Feature Tests: Profile, Remittance, Admin CRUD, Monitoring & A | —
+  [s4                ] S5-T9 - Frontend Commuter Profile & Change-Password Integration        | —
+
+### OTHER — 14 tasks (14 closed, 0 open, 0 in-progress, 0 s4)
+--------------------------------------------------------------------------------
+  [complete          ] FIXING FOR NEXT DEV                                                    | —
+  [complete          ] [COMMUTER-FRONTEND] ETA of Nearest Unit                                | Rod Dulalia
+  [complete          ] [CONTEXT] S2 — Environment Setup & Installation Guide                  | —
+  [complete          ] [DOCU] Minor Revisions                                                 | Marinel Carbonell
+  [complete          ] [DOCU] Official Revisions(Panels)                                      | Marinel Carbonell
+  [complete          ] [DOCU] Updated ERD                                                     | Mark Arone Dela Cruz, Marinel Carbonell
+  [complete          ] [HANDOFF] S2 — Feature Test Suite Specification                        | Rod Dulalia
+  [complete          ] [HARDENING] S2 Remove Dead Wallet & Top-Up Route Stubs from API        | —
+  [complete          ] [HARDENING] S2 — Add Database Performance Indexes on vehicle_locations | Rod Dulalia
+  [complete          ] [HARDENING] S2 — Add Per-Route Rate Limiting to Conductor API Endpoint | —
+  [complete          ] [HARDENING] S2 — Repo Hygiene — Remove Debug Artifacts & Add Frontend  | Rod Dulalia
+  [complete          ] [INFRA] S2 — Migrate Real-Time Broadcasting to Queue-Based ShouldBroad | —
+  [complete          ] [INFRA] S2 — Prefix All API Routes with /v1/ for API Versioning        | Rod Dulalia
+  [complete          ] [VALIDATION] HailHttpTest -- confirm suite green after shift_logs.rout | —
+
+Saved status_report.txt
