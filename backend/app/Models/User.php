@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\UserRole;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
@@ -11,7 +12,12 @@ use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable;
+    // SoftDeletes: the users table already ships a deleted_at column. Enabling
+    // the trait makes admin deletes reversible/auditable, prevents a hard
+    // delete from cascading away a user's financial history (transactions,
+    // shift_logs, remittances) and profile, and — via the global scope —
+    // automatically locks soft-deleted users out of authentication.
+    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
 
     public $incrementing = false;
     protected $keyType = 'string';

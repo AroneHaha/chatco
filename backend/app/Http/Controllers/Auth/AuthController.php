@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Enums\UserRole;
+use App\Exceptions\AccountSuspendedException;
 use App\Services\AuthService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -33,6 +34,9 @@ class AuthController extends Controller
         } catch (ValidationException $e) {
             // Credentials incorrect → 401, not 422
             return $this->errorResponse('Invalid credentials', 401);
+        } catch (AccountSuspendedException $e) {
+            // Credentials were valid, but the account is suspended → 403
+            return $this->errorResponse($e->getMessage(), 403);
         }
 
         $user = $result['user'];
