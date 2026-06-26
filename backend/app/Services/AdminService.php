@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -68,8 +69,9 @@ class AdminService
     /**
      * GET /admin/users/{id} — a single user with its profile.
      *
-     * @throws ValidationException 404 is handled by the controller (null).
      * @return array<string, mixed>|null
+     *
+     * @throws ValidationException 404 is handled by the controller (null).
      */
     public function getUser(string $id): ?array
     {
@@ -82,9 +84,9 @@ class AdminService
      * PUT /admin/users/{id} — update the editable profile fields.
      *
      * @param  array<string, mixed>  $data  validated whitelist from UpdateUserRequest
-     * @return array<string, mixed>|null    null when the user does not exist
+     * @return array<string, mixed>|null null when the user does not exist
      *
-     * @throws ValidationException  on business-rule violations (422)
+     * @throws ValidationException on business-rule violations (422)
      */
     public function updateUser(string $id, array $data, User $actingAdmin): ?array
     {
@@ -155,7 +157,7 @@ class AdminService
      *
      * @return bool false when the user does not exist
      *
-     * @throws ValidationException  on guard violations (422)
+     * @throws ValidationException on guard violations (422)
      */
     public function deleteUser(string $id, User $actingAdmin): bool
     {
@@ -199,7 +201,7 @@ class AdminService
 
     private function applySearch($query, string $term): void
     {
-        $like = '%' . $term . '%';
+        $like = '%'.$term.'%';
 
         $query->where(function ($q) use ($like) {
             $q->where('email', 'like', $like)
@@ -247,15 +249,15 @@ class AdminService
         $commuter = $user->commuterProfile;
 
         return [
-            'id'             => $user->id,
-            'email'          => $user->email,
-            'role'           => $user->role->value,
-            'name'           => $user->getDisplayName(),
+            'id' => $user->id,
+            'email' => $user->email,
+            'role' => $user->role->value,
+            'name' => $user->getDisplayName(),
             'account_status' => $commuter?->account_status,
-            'commuter_type'  => $commuter?->commuter_type,
+            'commuter_type' => $commuter?->commuter_type,
             'contact_number' => $commuter?->contact_number,
-            'verified_at'    => optional($commuter?->verified_at)->toIso8601String(),
-            'created_at'     => optional($user->created_at)->toIso8601String(),
+            'verified_at' => optional($commuter?->verified_at)->toIso8601String(),
+            'created_at' => optional($user->created_at)->toIso8601String(),
         ];
     }
 
@@ -317,13 +319,13 @@ class AdminService
     {
         return DB::transaction(function () use ($data) {
             return Vehicle::create([
-                'unit_number'     => $data['unit_number'],
-                'plate_number'    => $data['plate_number'],
-                'vehicle_type'    => $data['vehicle_type'] ?? null,
-                'route_id'        => $data['route_id'] ?? null,
-                'driver_id'       => $data['driver_id'] ?? null,
-                'conductor_id'    => $data['conductor_id'] ?? null,
-                'status'          => $data['status'] ?? 'ACTIVE',
+                'unit_number' => $data['unit_number'],
+                'plate_number' => $data['plate_number'],
+                'vehicle_type' => $data['vehicle_type'] ?? null,
+                'route_id' => $data['route_id'] ?? null,
+                'driver_id' => $data['driver_id'] ?? null,
+                'conductor_id' => $data['conductor_id'] ?? null,
+                'status' => $data['status'] ?? 'ACTIVE',
                 'capacity_status' => $data['capacity_status'] ?? 'AVAILABLE',
             ])->fresh(['route', 'driver', 'conductor']);
         });
@@ -333,7 +335,8 @@ class AdminService
      * Update an existing vehicle's mutable fields.
      *
      * @param  array  $data  Validated payload from UpdateVehicleRequest.
-     * @throws \Illuminate\Database\Eloquent\ModelNotFoundException  If the vehicle doesn't exist.
+     *
+     * @throws ModelNotFoundException If the vehicle doesn't exist.
      */
     public function updateVehicle(string $id, array $data): Vehicle
     {
@@ -341,13 +344,13 @@ class AdminService
 
         DB::transaction(function () use ($vehicle, $data) {
             $vehicle->update(array_filter([
-                'unit_number'     => $data['unit_number'] ?? null,
-                'plate_number'    => $data['plate_number'] ?? null,
-                'vehicle_type'    => array_key_exists('vehicle_type', $data) ? $data['vehicle_type'] : null,
-                'route_id'        => array_key_exists('route_id', $data) ? $data['route_id'] : null,
-                'driver_id'       => array_key_exists('driver_id', $data) ? $data['driver_id'] : null,
-                'conductor_id'    => array_key_exists('conductor_id', $data) ? $data['conductor_id'] : null,
-                'status'          => $data['status'] ?? null,
+                'unit_number' => $data['unit_number'] ?? null,
+                'plate_number' => $data['plate_number'] ?? null,
+                'vehicle_type' => array_key_exists('vehicle_type', $data) ? $data['vehicle_type'] : null,
+                'route_id' => array_key_exists('route_id', $data) ? $data['route_id'] : null,
+                'driver_id' => array_key_exists('driver_id', $data) ? $data['driver_id'] : null,
+                'conductor_id' => array_key_exists('conductor_id', $data) ? $data['conductor_id'] : null,
+                'status' => $data['status'] ?? null,
                 'capacity_status' => $data['capacity_status'] ?? null,
             ], fn ($value) => $value !== null));
         });
@@ -360,8 +363,8 @@ class AdminService
      * reject with a 409 Conflict so the conductor's active shift is never
      * orphaned.
      *
-     * @throws ValidationException  When the vehicle has an active shift.
-     * @throws \Illuminate\Database\Eloquent\ModelNotFoundException  If the vehicle doesn't exist.
+     * @throws ValidationException When the vehicle has an active shift.
+     * @throws ModelNotFoundException If the vehicle doesn't exist.
      */
     public function deleteVehicle(string $id): void
     {
@@ -370,7 +373,7 @@ class AdminService
         if ($vehicle->active_shift_id) {
             throw ValidationException::withMessages([
                 'vehicle' => [
-                    'Cannot delete a vehicle that is currently on an active shift. ' .
+                    'Cannot delete a vehicle that is currently on an active shift. '.
                     'End the shift (via conductor remittance) before deleting.',
                 ],
             ]);
@@ -450,8 +453,8 @@ class AdminService
 
         $dailySeries = $dailyRows->map(function ($row) {
             return [
-                'date'  => $row->date,
-                'cash'  => (float) $row->cash,
+                'date' => $row->date,
+                'cash' => (float) $row->cash,
                 'gcash' => (float) $row->gcash,
                 'total' => (float) $row->total,
                 'count' => (int) $row->count,
@@ -483,31 +486,351 @@ class AdminService
         return [
             'date_range' => [
                 'from' => $dateFrom->toDateString(),
-                'to'   => $dateTo->toDateString(),
+                'to' => $dateTo->toDateString(),
                 'days' => (int) $dateFrom->diffInDays($dateTo) + 1,
             ],
             'totals' => [
-                'total_fares'      => $cashTotal + $gcashTotal,
-                'cash_total'       => $cashTotal,
-                'gcash_total'      => $gcashTotal,
-                'paid_count'       => $paidCount,
-                'pending_count'    => $pendingCount,
+                'total_fares' => $cashTotal + $gcashTotal,
+                'cash_total' => $cashTotal,
+                'gcash_total' => $gcashTotal,
+                'paid_count' => $paidCount,
+                'pending_count' => $pendingCount,
                 'total_passengers' => $totalPassengers,
             ],
             'payment_split' => $paymentSplit,
-            'daily_series'  => $dailySeries,
+            'daily_series' => $dailySeries,
             'remittances' => [
-                'total_remitted'   => $totalRemitted,
-                'total_collected'  => $totalCollected,
-                'total_shortage'   => $totalShortage,
-                'count'            => $remittanceCount,
+                'total_remitted' => $totalRemitted,
+                'total_collected' => $totalCollected,
+                'total_shortage' => $totalShortage,
+                'count' => $remittanceCount,
             ],
             'fleet' => [
-                'active_vehicles'   => $activeVehicles,
-                'total_vehicles'    => $totalVehicles,
+                'active_vehicles' => $activeVehicles,
+                'total_vehicles' => $totalVehicles,
                 'active_conductors' => $activeConductors,
-                'total_conductors'  => $totalConductors,
+                'total_conductors' => $totalConductors,
             ],
         ];
+    }
+
+    /**
+     * Live fleet monitoring — real-time positions of all active vehicles.
+     *
+     * Aggregates the latest vehicle_locations row + the active shift +
+     * conductor/driver/route for every vehicle that currently has an
+     * active_shift_id. Read-only — the admin dashboard polls this every
+     * 5 seconds (same cadence as the commuter map).
+     *
+     * Staleness: any vehicle whose location has not updated in 10 minutes
+     * is flagged with `is_stale = true` so the UI can visually distinguish
+     * it. The `updated_at` of the location row is always returned so the
+     * UI can compute its own staleness window if desired.
+     *
+     * No distance filter — all active units are returned (matches the
+     * all-units-visible rule from the commuter map).
+     *
+     * @return array{
+     *     generated_at: string,
+     *     active_count: int,
+     *     stale_count: int,
+     *     vehicles: array<int, array{
+     *         vehicle_id: string,
+     *         unit_number: string|null,
+     *         plate_number: string|null,
+     *         vehicle_type: string|null,
+     *         lat: string|null,
+     *         lng: string|null,
+     *         speed: string|null,
+     *         heading: string|null,
+     *         capacity_status: string,
+     *         conductor_id: string|null,
+     *         conductor_name: string|null,
+     *         driver_name: string|null,
+     *         route_name: string|null,
+     *         shift_id: string|null,
+     *         shift_started_at: string|null,
+     *         location_updated_at: string|null,
+     *         is_stale: bool
+     *     }>
+     * }
+     */
+    public function monitoring(): array
+    {
+        $staleThreshold = Carbon::now()->subMinutes(10);
+
+        // Active vehicles = those with an active_shift_id (set when the
+        // conductor starts a shift, cleared when they remit). We eager-load
+        // the location + shift + relations to avoid N+1 on the fleet list.
+        $vehicles = Vehicle::query()
+            ->whereNotNull('active_shift_id')
+            ->with([
+                'currentLocation',
+                'route',
+                'driver',
+                'conductor',
+            ])
+            ->get();
+
+        $result = $vehicles->map(function (Vehicle $vehicle) use ($staleThreshold) {
+            $location = $vehicle->currentLocation;
+            $shift = $vehicle->activeShift;
+
+            // Stale = location row missing OR location.updated_at older
+            // than 10 minutes. A missing location row means the vehicle
+            // started a shift but never sent a GPS ping — treat as stale.
+            $locationUpdatedAt = $location?->updated_at;
+            $isStale = $location === null
+                || $locationUpdatedAt === null
+                || $locationUpdatedAt->lt($staleThreshold);
+
+            // Conductor name: prefer the shift_logs denormalized name
+            // (set at shift start, always populated), fall back to the
+            // conductor profile if available.
+            $conductorName = $shift?->conductor_name;
+            if ($conductorName === null && $vehicle->conductor) {
+                $conductorName = trim(
+                    ($vehicle->conductor->first_name ?? '').' '.
+                    ($vehicle->conductor->last_name ?? '')
+                ) ?: null;
+            }
+
+            return [
+                'vehicle_id' => $vehicle->id,
+                'unit_number' => $vehicle->unit_number,
+                'plate_number' => $vehicle->plate_number,
+                'vehicle_type' => $vehicle->vehicle_type,
+                'lat' => $location?->lat !== null ? (string) $location->lat : null,
+                'lng' => $location?->lng !== null ? (string) $location->lng : null,
+                'speed' => $location?->speed !== null ? (string) $location->speed : null,
+                'heading' => $location?->heading !== null ? (string) $location->heading : null,
+                'capacity_status' => $location?->capacity_status?->value ?? 'AVAILABLE',
+                'conductor_id' => $vehicle->conductor_id ?? $location?->conductor_id,
+                'conductor_name' => $conductorName,
+                'driver_name' => $shift?->driver_name ?? ($vehicle->driver ? trim(
+                    ($vehicle->driver->first_name ?? '').' '.
+                    ($vehicle->driver->last_name ?? '')
+                ) : null),
+                'route_name' => $vehicle->route?->name,
+                'shift_id' => $vehicle->active_shift_id,
+                'shift_started_at' => $shift?->time_in?->toDateTimeString(),
+                'location_updated_at' => $locationUpdatedAt?->toDateTimeString(),
+                'is_stale' => $isStale,
+            ];
+        })->values()->toArray();
+
+        return [
+            'generated_at' => Carbon::now()->toDateTimeString(),
+            'active_count' => count($result),
+            'stale_count' => count(array_filter($result, fn ($v) => $v['is_stale'])),
+            'vehicles' => $result,
+        ];
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // Registration approval flow (S5-T8 Additional Coverage)
+    // ════════════════════════════════════════════════════════════════════
+
+    /**
+     * GET /admin/registrations/pending — commuters awaiting approval.
+     *
+     * Returns only COMMUTER users whose commuter_profiles.account_status
+     * is PENDING. Soft-deleted (rejected) accounts are excluded by the
+     * User model's SoftDeletes global scope. Eager-loads the profile in a
+     * single query (no N+1).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function listPendingRegistrations(): array
+    {
+        $users = User::query()
+            ->where('role', UserRole::COMMUTER->value)
+            ->whereHas('commuterProfile', function ($q) {
+                $q->where('account_status', 'PENDING');
+            })
+            ->with(['commuterProfile' => function ($q) {
+                $q->select([
+                    'id', 'first_name', 'middle_name', 'surname', 'birthdate',
+                    'gender', 'email', 'contact_number', 'commuter_type',
+                    'applied_type', 'username', 'language_preference',
+                    'account_status', 'id_image_url', 'verified_at',
+                    'rejection_reason', 'created_at',
+                ]);
+            }])
+            ->orderBy('created_at', 'asc') // oldest first — FIFO queue
+            ->get();
+
+        return $users->map(fn (User $u) => $this->presentRegistration($u))->values()->all();
+    }
+
+    /**
+     * PATCH /admin/registrations/{id}/approve — promote a PENDING commuter
+     * to APPROVED.
+     *
+     * Sets account_status=APPROVED, commuter_type=applied_type (defensive —
+     * register() already sets this, but we re-assert here so an admin can
+     * never approve a mismatched concession type), and verified_at=now().
+     * After this the commuter may log in.
+     *
+     * Idempotency: approving an already-APPROVED account is a no-op that
+     * still returns 200 (so a double-click or retry is safe).
+     *
+     * @return array<string, mixed>|null null when the commuter is not found
+     *
+     * @throws ValidationException when the account is not in a state that
+     *                             can be approved (e.g. SUSPENDED, REJECTED, or already APPROVED with
+     *                             a different applied_type change requested — though the latter is
+     *                             not exposed via the API).
+     */
+    public function approveRegistration(string $id): ?array
+    {
+        $user = User::with('commuterProfile')->find($id);
+
+        if (! $user || ! $user->isCommuter() || ! $user->commuterProfile) {
+            return null;
+        }
+
+        $profile = $user->commuterProfile;
+
+        // Only PENDING accounts can be approved. SUSPENDED / REJECTED /
+        // already-APPROVED accounts are not approvable through this endpoint.
+        if ($profile->account_status !== 'PENDING') {
+            throw ValidationException::withMessages([
+                'account_status' => [
+                    'Only PENDING accounts can be approved. This account is: '.$profile->account_status,
+                ],
+            ]);
+        }
+
+        $profile->account_status = 'APPROVED';
+        $profile->commuter_type = $profile->applied_type ?? $profile->commuter_type;
+        $profile->verified_at = now();
+        $profile->rejection_reason = null;
+        $profile->save();
+
+        return $this->presentRegistration($user->setRelation('commuterProfile', $profile));
+    }
+
+    /**
+     * PATCH /admin/registrations/{id}/reject — decline a PENDING commuter.
+     *
+     * Sets account_status=REJECTED, records the rejection_reason, then
+     * soft-deletes the User (which cascades to the profile via the FK
+     * onDelete('cascade') — but we keep the profile row by restoring it so
+     * the rejection audit trail is preserved). The user's email is NULLed
+     * so the applicant can re-register with the same address (the DB
+     * unique index on users.email treats NULLs as distinct).
+     *
+     * @return array<string, mixed>|null null when the commuter is not found
+     *
+     * @throws ValidationException when the account is not PENDING
+     */
+    public function rejectRegistration(string $id, string $reason): ?array
+    {
+        $user = User::with('commuterProfile')->find($id);
+
+        if (! $user || ! $user->isCommuter() || ! $user->commuterProfile) {
+            return null;
+        }
+
+        $profile = $user->commuterProfile;
+
+        if ($profile->account_status !== 'PENDING') {
+            throw ValidationException::withMessages([
+                'account_status' => [
+                    'Only PENDING accounts can be rejected. This account is: '.$profile->account_status,
+                ],
+            ]);
+        }
+
+        return DB::transaction(function () use ($user, $profile, $reason): array {
+            // Stamp the rejection on the profile BEFORE soft-deleting, so the
+            // audit trail survives even if the profile cascade-fires.
+            $profile->account_status = 'REJECTED';
+            $profile->rejection_reason = $reason;
+            $profile->verified_at = null;
+            $profile->save();
+
+            // Free the canonical email for reuse. The users.email column is
+            // NOT NULL + has a DB unique index, and SoftDeletes does NOT
+            // exempt soft-deleted rows from that index. We therefore rewrite
+            // the rejected user's email to a unique, auditable placeholder
+            // (rejected+{timestamp}@{original-domain}) so the applicant can
+            // re-register with their real address once they correct their
+            // submission. The original email is preserved on the profile row
+            // (commuter_profiles.email is a separate, non-unique column) so
+            // admins can still see which address the rejected applicant used.
+            $user->email = $this->freeEmailForReuse($user->email);
+            $user->save();
+
+            // Soft-delete the user. The profile row has onDelete('cascade')
+            // on its FK, but SoftDeletes on User does NOT trigger a SQL
+            // cascade — it only sets users.deleted_at. The profile row stays.
+            $user->delete();
+
+            return $this->presentRegistration($user->setRelation('commuterProfile', $profile));
+        });
+    }
+
+    /**
+     * Registration DTO — richer than the user present() because the admin
+     * reviewing registrations needs the ID details (applied_type, contact,
+     * id_image_url, submitted_at) to make a decision.
+     *
+     * @return array<string, mixed>
+     */
+    private function presentRegistration(User $user): array
+    {
+        $profile = $user->commuterProfile;
+
+        return [
+            'id' => $user->id,
+            'email' => $user->email ?? $profile?->email,
+            'role' => $user->role->value,
+            'first_name' => $profile?->first_name,
+            'middle_name' => $profile?->middle_name,
+            'surname' => $profile?->surname,
+            'birthdate' => optional($profile?->birthdate)?->toDateString(),
+            'gender' => $profile?->gender,
+            'contact_number' => $profile?->contact_number,
+            'commuter_type' => $profile?->commuter_type,
+            'applied_type' => $profile?->applied_type,
+            'username' => $profile?->username,
+            'language_preference' => $profile?->language_preference,
+            'account_status' => $profile?->account_status,
+            'id_image_url' => $profile?->id_image_url,
+            'verified_at' => optional($profile?->verified_at)?->toIso8601String(),
+            'rejection_reason' => $profile?->rejection_reason,
+            'submitted_at' => optional($user->created_at)?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Rewrite a rejected applicant's email so the canonical address is freed
+     * for reuse while keeping the user row auditable.
+     *
+     * Strategy: split on the last '@', insert 'rejected+{timestamp}+' before
+     * the domain. e.g. 'maria@example.com' -> 'maria+rejected+1719423456@example.com'.
+     * The '+' subaddressing is a real RFC 5231 mailbox tag, so the rewritten
+     * address still routes to the applicant if they ever regain access — but
+     * it no longer collides with a fresh registration using 'maria@example.com'.
+     *
+     * The timestamp guarantees uniqueness even if the same email is rejected
+     * twice (applicant re-registers, gets rejected again).
+     */
+    private function freeEmailForReuse(string $email): string
+    {
+        $at = strrpos($email, '@');
+
+        if ($at === false) {
+            // Defensive — validation already guarantees a valid email, but
+            // never let a malformed value crash the rejection flow.
+            return 'rejected+'.time().'@invalid.local';
+        }
+
+        $local = substr($email, 0, $at);
+        $domain = substr($email, $at);
+
+        return $local.'+rejected+'.time().$domain;
     }
 }

@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
+import { create as createVehicle, VehicleOperationError } from '@/lib/admin/services/vehicle.service';
 
 interface Route {
   id: string;
@@ -93,37 +94,32 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
     setFieldErrors({});
 
     try {
-      const res = await fetch('/api/admin/vehicles', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          unit_number: formData.unit_number,
-          plate_number: formData.plate_number,
-          route_id: formData.route_id, // Always present (required)
-          driver_id: formData.driver_id || null,
-          conductor_id: formData.conductor_id || null,
-          status: formData.status,
-        }),
+      await createVehicle({
+        unitNumber: formData.unit_number,
+        plateNumber: formData.plate_number,
+        routeId: formData.route_id, // Always present (required)
+        driverId: formData.driver_id || null,
+        conductorId: formData.conductor_id || null,
+        status: formData.status as 'ACTIVE' | 'MAINTENANCE' | 'INACTIVE',
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        // Laravel 422: { message, errors: { field: ["msg", ...] } }
-        if (res.status === 422 && data.errors) {
-          setFieldErrors(data.errors);
-          const firstError = Object.values(data.errors)[0]?.[0] ?? 'Validation failed.';
-          throw new Error(firstError);
-        }
-        throw new Error(data.message ?? 'Failed to create vehicle');
-      }
 
       // Reset form and close
       setFormData({ unit_number: '', plate_number: '', route_id: '', driver_id: '', conductor_id: '', status: 'ACTIVE' });
       onSave(); // Trigger refresh in parent
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create vehicle');
+      if (err instanceof VehicleOperationError) {
+        // 422 → field-level errors (plate/unit uniqueness surfaced per-field).
+        if (err.code === 'validation' && err.errors) {
+          setFieldErrors(err.errors);
+          const firstError = Object.values(err.errors)[0]?.[0] ?? err.message;
+          setError(firstError);
+        } else {
+          setError(err.message);
+        }
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to create vehicle');
+      }
     } finally {
       setIsSubmitting(false);
     }

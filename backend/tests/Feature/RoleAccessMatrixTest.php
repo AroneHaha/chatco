@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Enums\UserRole;
 use App\Enums\ShiftStatus;
+use App\Enums\UserRole;
 use App\Models\AdminProfile;
 use App\Models\CommuterProfile;
 use App\Models\ConductorProfile;
@@ -13,6 +13,7 @@ use App\Models\Route;
 use App\Models\ShiftLog;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Models\VehicleLocation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -43,7 +44,9 @@ class RoleAccessMatrixTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private User $conductor;
+
     private User $commuter;
 
     protected function setUp(): void
@@ -52,50 +55,50 @@ class RoleAccessMatrixTest extends TestCase
 
         // ── Admin ──────────────────────────────────────────────────────
         $this->admin = User::create([
-            'email'    => 'admin@matrix.test',
+            'email' => 'admin@matrix.test',
             'password' => Hash::make('password123'),
-            'role'     => UserRole::ADMIN,
+            'role' => UserRole::ADMIN,
         ]);
         AdminProfile::create([
-            'id'         => $this->admin->id,
+            'id' => $this->admin->id,
             'first_name' => 'Admin',
-            'last_name'  => 'Matrix',
+            'last_name' => 'Matrix',
         ]);
 
         // ── Conductor ──────────────────────────────────────────────────
         $this->conductor = User::create([
-            'email'    => 'conductor@matrix.test',
+            'email' => 'conductor@matrix.test',
             'password' => Hash::make('password123'),
-            'role'     => UserRole::CONDUCTOR,
+            'role' => UserRole::CONDUCTOR,
         ]);
         ConductorProfile::create([
-            'id'                 => $this->conductor->id,
-            'first_name'         => 'Conductor',
-            'last_name'          => 'Matrix',
-            'birthday'           => '1990-01-01',
+            'id' => $this->conductor->id,
+            'first_name' => 'Conductor',
+            'last_name' => 'Matrix',
+            'birthday' => '1990-01-01',
             'generated_username' => 'conductor_matrix',
             'generated_password' => Hash::make('password123'),
         ]);
 
         // ── Commuter ───────────────────────────────────────────────────
         $this->commuter = User::create([
-            'email'    => 'commuter@matrix.test',
+            'email' => 'commuter@matrix.test',
             'password' => Hash::make('password123'),
-            'role'     => UserRole::COMMUTER,
+            'role' => UserRole::COMMUTER,
         ]);
         CommuterProfile::create([
-            'id'                  => $this->commuter->id,
-            'first_name'          => 'Commuter',
-            'surname'             => 'Matrix',
-            'birthdate'           => '1995-01-01',
-            'gender'              => 'Male',
-            'email'               => 'commuter@matrix.test',
-            'contact_number'      => '+639170000000',
-            'commuter_type'       => 'Regular',
-            'username'            => 'commuter_matrix',
+            'id' => $this->commuter->id,
+            'first_name' => 'Commuter',
+            'surname' => 'Matrix',
+            'birthdate' => '1995-01-01',
+            'gender' => 'Male',
+            'email' => 'commuter@matrix.test',
+            'contact_number' => '+639170000000',
+            'commuter_type' => 'Regular',
+            'username' => 'commuter_matrix',
             'language_preference' => 'en',
-            'account_status'      => 'ACTIVE',
-            'verified_at'         => now(),
+            'account_status' => 'ACTIVE',
+            'verified_at' => now(),
         ]);
     }
 
@@ -111,46 +114,60 @@ class RoleAccessMatrixTest extends TestCase
         return [
             // ── Conductor S5 ────────────────────────────────────────────
             'conductor.remittances.index' => [
-                'method'  => 'GET',
-                'uri'     => '/api/v1/conductor/remittances',
+                'method' => 'GET',
+                'uri' => '/api/v1/conductor/remittances',
                 'allowed' => ['conductor'],
             ],
 
             // ── Admin S5 — Vehicles (CRUD) ──────────────────────────────
             'admin.vehicles.index' => [
-                'method'  => 'GET',
-                'uri'     => '/api/v1/admin/vehicles',
+                'method' => 'GET',
+                'uri' => '/api/v1/admin/vehicles',
                 'allowed' => ['admin'],
             ],
             'admin.vehicles.store' => [
-                'method'  => 'POST',
-                'uri'     => '/api/v1/admin/vehicles',
+                'method' => 'POST',
+                'uri' => '/api/v1/admin/vehicles',
                 'allowed' => ['admin'],
             ],
 
             // ── Admin S5 — Analytics ────────────────────────────────────
             'admin.analytics' => [
-                'method'  => 'GET',
-                'uri'     => '/api/v1/admin/analytics',
+                'method' => 'GET',
+                'uri' => '/api/v1/admin/analytics',
+                'allowed' => ['admin'],
+            ],
+
+            // ── Admin S5 — Monitoring (live fleet) ──────────────────────
+            'admin.monitoring' => [
+                'method' => 'GET',
+                'uri' => '/api/v1/admin/monitoring',
+                'allowed' => ['admin'],
+            ],
+
+            // ── Admin S5 — Users (user management CRUD) ────────────────
+            'admin.users.index' => [
+                'method' => 'GET',
+                'uri' => '/api/v1/admin/users',
                 'allowed' => ['admin'],
             ],
 
             // ── Admin S5 — Conductors ───────────────────────────────────
             'admin.conductors.index' => [
-                'method'  => 'GET',
-                'uri'     => '/api/v1/admin/conductors',
+                'method' => 'GET',
+                'uri' => '/api/v1/admin/conductors',
                 'allowed' => ['admin'],
             ],
             'admin.conductors.store' => [
-                'method'  => 'POST',
-                'uri'     => '/api/v1/admin/conductors',
+                'method' => 'POST',
+                'uri' => '/api/v1/admin/conductors',
                 'allowed' => ['admin'],
             ],
 
             // ── Admin S5 — Drivers ──────────────────────────────────────
             'admin.drivers.store' => [
-                'method'  => 'POST',
-                'uri'     => '/api/v1/admin/drivers',
+                'method' => 'POST',
+                'uri' => '/api/v1/admin/drivers',
                 'allowed' => ['admin'],
             ],
         ];
@@ -167,9 +184,9 @@ class RoleAccessMatrixTest extends TestCase
 
         // ── Each role: allowed roles get 2xx, forbidden roles get 403 ──
         $actors = [
-            'admin'     => $this->admin,
+            'admin' => $this->admin,
             'conductor' => $this->conductor,
-            'commuter'  => $this->commuter,
+            'commuter' => $this->commuter,
         ];
 
         foreach ($actors as $role => $user) {
@@ -200,22 +217,22 @@ class RoleAccessMatrixTest extends TestCase
     {
         return match ($uri) {
             '/api/v1/admin/vehicles' => [
-                'unit_number'  => 'UNIT-MATRIX-' . uniqid(),
-                'plate_number' => 'MAT-' . uniqid(),
+                'unit_number' => 'UNIT-MATRIX-'.uniqid(),
+                'plate_number' => 'MAT-'.uniqid(),
                 'vehicle_type' => 'Jeepney',
-                'status'       => 'ACTIVE',
+                'status' => 'ACTIVE',
             ],
             '/api/v1/admin/conductors' => [
                 'first_name' => 'Test',
-                'last_name'  => 'Conductor',
-                'birthday'   => '1990-01-01',
+                'last_name' => 'Conductor',
+                'birthday' => '1990-01-01',
             ],
             '/api/v1/admin/drivers' => [
-                'first_name'      => 'Test',
-                'last_name'       => 'Driver',
-                'birthday'        => '1985-01-01',
-                'contact'         => '+639170000000',
-                'license_number'  => 'LIC-' . uniqid(),
+                'first_name' => 'Test',
+                'last_name' => 'Driver',
+                'birthday' => '1985-01-01',
+                'contact' => '+639170000000',
+                'license_number' => 'LIC-'.uniqid(),
             ],
             default => [],
         };
@@ -229,72 +246,72 @@ class RoleAccessMatrixTest extends TestCase
     {
         // Create a SECOND conductor with a remittance.
         $otherConductor = User::create([
-            'email'    => 'other-conductor@matrix.test',
+            'email' => 'other-conductor@matrix.test',
             'password' => Hash::make('password123'),
-            'role'     => UserRole::CONDUCTOR,
+            'role' => UserRole::CONDUCTOR,
         ]);
         ConductorProfile::create([
-            'id'                 => $otherConductor->id,
-            'first_name'         => 'Other',
-            'last_name'          => 'Conductor',
-            'birthday'           => '1990-01-01',
+            'id' => $otherConductor->id,
+            'first_name' => 'Other',
+            'last_name' => 'Conductor',
+            'birthday' => '1990-01-01',
             'generated_username' => 'other_conductor',
             'generated_password' => Hash::make('password123'),
         ]);
 
         $route = Route::create(['name' => 'Test Route', 'status' => 'ACTIVE']);
         $driver = Driver::create([
-            'first_name'      => 'Driver',
-            'last_name'       => 'One',
-            'birthday'        => '1985-01-01',
-            'contact'         => '+639170000000',
-            'license_number'  => 'LIC-1',
-            'hire_date'       => now()->toDateString(),
-            'status'          => 'ACTIVE',
+            'first_name' => 'Driver',
+            'last_name' => 'One',
+            'birthday' => '1985-01-01',
+            'contact' => '+639170000000',
+            'license_number' => 'LIC-1',
+            'hire_date' => now()->toDateString(),
+            'status' => 'ACTIVE',
         ]);
         $vehicle = Vehicle::create([
-            'unit_number'  => 'UNIT-OTHER',
+            'unit_number' => 'UNIT-OTHER',
             'plate_number' => 'OTHER-001',
-            'route_id'     => $route->id,
-            'status'       => 'ACTIVE',
+            'route_id' => $route->id,
+            'status' => 'ACTIVE',
         ]);
 
         // Create a real ShiftLog first (remittances.shift_id is a FK to
         // shift_logs.shift_id with cascadeOnDelete — a remittance cannot
         // exist without a parent shift log).
-        $shiftId = 'shift-other-' . uniqid();
+        $shiftId = 'shift-other-'.uniqid();
         ShiftLog::create([
-            'shift_id'       => $shiftId,
-            'conductor_id'   => $otherConductor->id,
-            'driver_id'      => $driver->id,
-            'vehicle_id'     => $vehicle->id,
+            'shift_id' => $shiftId,
+            'conductor_id' => $otherConductor->id,
+            'driver_id' => $driver->id,
+            'vehicle_id' => $vehicle->id,
             'conductor_name' => 'Other Conductor',
-            'driver_name'    => 'Driver One',
-            'unit_number'    => 'UNIT-OTHER',
-            'plate_number'   => 'OTHER-001',
-            'time_in'        => now()->subHours(8),
-            'status'         => ShiftStatus::ENDED,
-            'is_active'      => false,
+            'driver_name' => 'Driver One',
+            'unit_number' => 'UNIT-OTHER',
+            'plate_number' => 'OTHER-001',
+            'time_in' => now()->subHours(8),
+            'status' => ShiftStatus::ENDED,
+            'is_active' => false,
         ]);
 
         // Remittance owned by the OTHER conductor — all FK columns populated.
         Remittance::create([
-            'shift_id'         => $shiftId,
-            'conductor_id'     => $otherConductor->id,
-            'driver_id'        => $driver->id,
-            'vehicle_id'       => $vehicle->id,
-            'conductor_name'   => 'Other Conductor',
-            'driver_name'      => 'Driver One',
-            'unit_number'      => 'UNIT-OTHER',
-            'date'             => now()->toDateString(),
-            'time_in'          => now()->subHours(8),
-            'time_out'         => now(),
-            'total_collected'  => 500,
-            'remitted_amount'  => 500,
-            'shortage'         => 0,
-            'remittance_status'=> 'Remitted',
-            'cash_total'       => 500,
-            'gcash_total'      => 0,
+            'shift_id' => $shiftId,
+            'conductor_id' => $otherConductor->id,
+            'driver_id' => $driver->id,
+            'vehicle_id' => $vehicle->id,
+            'conductor_name' => 'Other Conductor',
+            'driver_name' => 'Driver One',
+            'unit_number' => 'UNIT-OTHER',
+            'date' => now()->toDateString(),
+            'time_in' => now()->subHours(8),
+            'time_out' => now(),
+            'total_collected' => 500,
+            'remitted_amount' => 500,
+            'shortage' => 0,
+            'remittance_status' => 'Remitted',
+            'cash_total' => 500,
+            'gcash_total' => 0,
             'total_passengers' => 10,
         ]);
 
@@ -325,39 +342,39 @@ class RoleAccessMatrixTest extends TestCase
     {
         $route = Route::create(['name' => 'Test Route', 'status' => 'ACTIVE']);
         $driver = Driver::create([
-            'first_name'      => 'Driver',
-            'last_name'       => 'Active',
-            'birthday'        => '1985-01-01',
-            'contact'         => '+639170000000',
-            'license_number'  => 'LIC-ACTIVE',
-            'hire_date'       => now()->toDateString(),
-            'status'          => 'ACTIVE',
+            'first_name' => 'Driver',
+            'last_name' => 'Active',
+            'birthday' => '1985-01-01',
+            'contact' => '+639170000000',
+            'license_number' => 'LIC-ACTIVE',
+            'hire_date' => now()->toDateString(),
+            'status' => 'ACTIVE',
         ]);
 
         // Create the Vehicle FIRST (without active_shift_id) so the
         // ShiftLog's vehicle_id FK has a valid target.
         $vehicle = Vehicle::create([
-            'unit_number'  => 'UNIT-ACTIVE',
+            'unit_number' => 'UNIT-ACTIVE',
             'plate_number' => 'ACTIVE-001',
-            'route_id'     => $route->id,
-            'status'       => 'ACTIVE',
+            'route_id' => $route->id,
+            'status' => 'ACTIVE',
             // no active_shift_id yet — set after the ShiftLog exists
         ]);
 
         // Create a real ShiftLog pointing to the vehicle.
-        $shiftId = 'shift-active-' . uniqid();
+        $shiftId = 'shift-active-'.uniqid();
         ShiftLog::create([
-            'shift_id'       => $shiftId,
-            'conductor_id'   => $this->conductor->id,
-            'driver_id'      => $driver->id,
-            'vehicle_id'     => $vehicle->id,
+            'shift_id' => $shiftId,
+            'conductor_id' => $this->conductor->id,
+            'driver_id' => $driver->id,
+            'vehicle_id' => $vehicle->id,
             'conductor_name' => 'Conductor Matrix',
-            'driver_name'    => 'Driver Active',
-            'unit_number'    => 'UNIT-ACTIVE',
-            'plate_number'   => 'ACTIVE-001',
-            'time_in'        => now(),
-            'status'         => ShiftStatus::ACTIVE,
-            'is_active'      => true,
+            'driver_name' => 'Driver Active',
+            'unit_number' => 'UNIT-ACTIVE',
+            'plate_number' => 'ACTIVE-001',
+            'time_in' => now(),
+            'status' => ShiftStatus::ACTIVE,
+            'is_active' => true,
         ]);
 
         // NOW link the vehicle to the active shift.
@@ -379,10 +396,10 @@ class RoleAccessMatrixTest extends TestCase
     {
         $route = Route::create(['name' => 'Test Route 2', 'status' => 'ACTIVE']);
         $vehicle = Vehicle::create([
-            'unit_number'  => 'UNIT-FREE',
+            'unit_number' => 'UNIT-FREE',
             'plate_number' => 'FREE-001',
-            'route_id'     => $route->id,
-            'status'       => 'ACTIVE',
+            'route_id' => $route->id,
+            'status' => 'ACTIVE',
             // no active_shift_id
         ]);
 
@@ -400,7 +417,7 @@ class RoleAccessMatrixTest extends TestCase
     public function test_auth_login_response_does_not_leak_password_hash(): void
     {
         $response = $this->postJson('/api/v1/auth/login', [
-            'login'    => 'conductor@matrix.test',
+            'login' => 'conductor@matrix.test',
             'password' => 'password123',
         ]);
 
@@ -450,13 +467,13 @@ class RoleAccessMatrixTest extends TestCase
     public function test_admin_show_driver_does_not_leak_password(): void
     {
         $driver = Driver::create([
-            'first_name'      => 'Test',
-            'last_name'       => 'Driver',
-            'birthday'        => '1985-01-01',
-            'contact'         => '+639170000000',
-            'license_number'  => 'LIC-TEST-' . uniqid(),
-            'hire_date'       => now()->toDateString(),
-            'status'          => 'ACTIVE',
+            'first_name' => 'Test',
+            'last_name' => 'Driver',
+            'birthday' => '1985-01-01',
+            'contact' => '+639170000000',
+            'license_number' => 'LIC-TEST-'.uniqid(),
+            'hire_date' => now()->toDateString(),
+            'status' => 'ACTIVE',
         ]);
 
         $response = $this->actingAs($this->admin)
@@ -476,6 +493,8 @@ class RoleAccessMatrixTest extends TestCase
         $s5AdminRoutes = [
             ['GET', '/api/v1/admin/vehicles'],
             ['GET', '/api/v1/admin/analytics'],
+            ['GET', '/api/v1/admin/monitoring'],
+            ['GET', '/api/v1/admin/users'],
             ['GET', '/api/v1/admin/conductors'],
         ];
 
@@ -521,6 +540,7 @@ class RoleAccessMatrixTest extends TestCase
     {
         $files = [
             app_path('Http/Controllers/Admin/AdminVehicleController.php'),
+            app_path('Http/Controllers/Admin/AdminUserController.php'),
             app_path('Services/AdminService.php'),
             app_path('Services/ConductorService.php'),
         ];
@@ -533,5 +553,189 @@ class RoleAccessMatrixTest extends TestCase
                 "{$file} must not contain notImplementedResponse() — S5 file."
             );
         }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    // SECTION 6: Monitoring endpoint — live fleet + staleness flag
+    // ═════════════════════════════════════════════════════════════════════
+
+    public function test_monitoring_returns_empty_when_no_active_shifts(): void
+    {
+        $response = $this->actingAs($this->admin)
+            ->getJson('/api/v1/admin/monitoring');
+
+        $response->assertOk();
+        $response->assertJsonPath('data.active_count', 0);
+        $response->assertJsonPath('data.stale_count', 0);
+        $response->assertJsonPath('data.vehicles', []);
+    }
+
+    public function test_monitoring_returns_active_vehicle_with_position(): void
+    {
+        $route = Route::create(['name' => 'Monitoring Route', 'status' => 'ACTIVE']);
+        $driver = Driver::create([
+            'first_name' => 'Driver',
+            'last_name' => 'Monitor',
+            'birthday' => '1985-01-01',
+            'contact' => '+639170000000',
+            'license_number' => 'LIC-MON-'.uniqid(),
+            'hire_date' => now()->toDateString(),
+            'status' => 'ACTIVE',
+        ]);
+        $vehicle = Vehicle::create([
+            'unit_number' => 'UNIT-MON',
+            'plate_number' => 'MON-001',
+            'route_id' => $route->id,
+            'driver_id' => $driver->id,
+            'status' => 'ACTIVE',
+        ]);
+
+        $shiftId = 'shift-mon-'.uniqid();
+        ShiftLog::create([
+            'shift_id' => $shiftId,
+            'conductor_id' => $this->conductor->id,
+            'driver_id' => $driver->id,
+            'vehicle_id' => $vehicle->id,
+            'conductor_name' => 'Conductor Matrix',
+            'driver_name' => 'Driver Monitor',
+            'unit_number' => 'UNIT-MON',
+            'plate_number' => 'MON-001',
+            'time_in' => now(),
+            'status' => ShiftStatus::ACTIVE,
+            'is_active' => true,
+        ]);
+        $vehicle->update(['active_shift_id' => $shiftId]);
+
+        VehicleLocation::upsertPosition(
+            vehicleId: $vehicle->id,
+            lat: '14.5995000',
+            lng: '120.9842000',
+            conductorId: $this->conductor->id,
+            speed: '45.50',
+            heading: '180.00',
+        );
+
+        $response = $this->actingAs($this->admin)
+            ->getJson('/api/v1/admin/monitoring');
+
+        $response->assertOk();
+        $response->assertJsonPath('data.active_count', 1);
+        $response->assertJsonPath('data.stale_count', 0);
+
+        $vehicleData = $response->json('data.vehicles.0');
+        $this->assertSame($vehicle->id, $vehicleData['vehicle_id']);
+        $this->assertSame('UNIT-MON', $vehicleData['unit_number']);
+        $this->assertSame('14.5995000', $vehicleData['lat']);
+        $this->assertSame('120.9842000', $vehicleData['lng']);
+        $this->assertSame('45.50', $vehicleData['speed']);
+        $this->assertSame('Conductor Matrix', $vehicleData['conductor_name']);
+        $this->assertSame('Driver Monitor', $vehicleData['driver_name']);
+        $this->assertSame('Monitoring Route', $vehicleData['route_name']);
+        $this->assertFalse($vehicleData['is_stale'], 'Fresh location should not be stale.');
+    }
+
+    public function test_monitoring_flags_stale_vehicle_over_10_minutes(): void
+    {
+        $route = Route::create(['name' => 'Stale Route', 'status' => 'ACTIVE']);
+        $driver = Driver::create([
+            'first_name' => 'Driver',
+            'last_name' => 'Stale',
+            'birthday' => '1985-01-01',
+            'contact' => '+639170000000',
+            'license_number' => 'LIC-STALE-'.uniqid(),
+            'hire_date' => now()->toDateString(),
+            'status' => 'ACTIVE',
+        ]);
+        $vehicle = Vehicle::create([
+            'unit_number' => 'UNIT-STALE',
+            'plate_number' => 'STALE-001',
+            'route_id' => $route->id,
+            'status' => 'ACTIVE',
+        ]);
+
+        $shiftId = 'shift-stale-'.uniqid();
+        ShiftLog::create([
+            'shift_id' => $shiftId,
+            'conductor_id' => $this->conductor->id,
+            'driver_id' => $driver->id,
+            'vehicle_id' => $vehicle->id,
+            'conductor_name' => 'Conductor Matrix',
+            'driver_name' => 'Driver Stale',
+            'unit_number' => 'UNIT-STALE',
+            'plate_number' => 'STALE-001',
+            'time_in' => now(),
+            'status' => ShiftStatus::ACTIVE,
+            'is_active' => true,
+        ]);
+        $vehicle->update(['active_shift_id' => $shiftId]);
+
+        // Insert a location row with updated_at 15 minutes ago — stale.
+        VehicleLocation::upsertPosition(
+            vehicleId: $vehicle->id,
+            lat: '14.5000000',
+            lng: '120.9000000',
+        );
+        VehicleLocation::where('vehicle_id', $vehicle->id)
+            ->update(['updated_at' => now()->subMinutes(15)]);
+
+        $response = $this->actingAs($this->admin)
+            ->getJson('/api/v1/admin/monitoring');
+
+        $response->assertOk();
+        $response->assertJsonPath('data.active_count', 1);
+        $response->assertJsonPath('data.stale_count', 1);
+
+        $vehicleData = $response->json('data.vehicles.0');
+        $this->assertTrue($vehicleData['is_stale'], 'Location older than 10 min should be flagged stale.');
+    }
+
+    public function test_monitoring_flags_missing_location_as_stale(): void
+    {
+        $route = Route::create(['name' => 'No-GPS Route', 'status' => 'ACTIVE']);
+        $driver = Driver::create([
+            'first_name' => 'Driver',
+            'last_name' => 'NoGps',
+            'birthday' => '1985-01-01',
+            'contact' => '+639170000000',
+            'license_number' => 'LIC-NOGPS-'.uniqid(),
+            'hire_date' => now()->toDateString(),
+            'status' => 'ACTIVE',
+        ]);
+        $vehicle = Vehicle::create([
+            'unit_number' => 'UNIT-NOGPS',
+            'plate_number' => 'NOGPS-001',
+            'route_id' => $route->id,
+            'status' => 'ACTIVE',
+        ]);
+
+        $shiftId = 'shift-nogps-'.uniqid();
+        ShiftLog::create([
+            'shift_id' => $shiftId,
+            'conductor_id' => $this->conductor->id,
+            'driver_id' => $driver->id,
+            'vehicle_id' => $vehicle->id,
+            'conductor_name' => 'Conductor Matrix',
+            'driver_name' => 'Driver NoGps',
+            'unit_number' => 'UNIT-NOGPS',
+            'plate_number' => 'NOGPS-001',
+            'time_in' => now(),
+            'status' => ShiftStatus::ACTIVE,
+            'is_active' => true,
+        ]);
+        $vehicle->update(['active_shift_id' => $shiftId]);
+
+        // No VehicleLocation row created — vehicle started shift but never
+        // sent a GPS ping.
+
+        $response = $this->actingAs($this->admin)
+            ->getJson('/api/v1/admin/monitoring');
+
+        $response->assertOk();
+        $response->assertJsonPath('data.stale_count', 1);
+
+        $vehicleData = $response->json('data.vehicles.0');
+        $this->assertTrue($vehicleData['is_stale'], 'Missing location row should be flagged stale.');
+        $this->assertNull($vehicleData['lat']);
+        $this->assertNull($vehicleData['lng']);
     }
 }

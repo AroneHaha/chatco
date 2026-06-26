@@ -2,9 +2,14 @@
 
 namespace App\Services;
 
+use App\Enums\UserRole;
 use App\Exceptions\AccountSuspendedException;
+use App\Exceptions\RegistrationPendingException;
+use App\Models\CommuterProfile;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class AuthService
@@ -32,11 +37,27 @@ class AuthService
             ]);
         }
 
-        // Credentials are valid — block login for suspended commuter accounts
-        // (account_status set by an admin in S5-T3). Checked AFTER the password
-        // so it never reveals whether an email exists.
-        if ($user->isCommuter() && $user->commuterProfile?->account_status === 'SUSPENDED') {
-            throw new AccountSuspendedException();
+        // Credentials are valid — block login based on the commuter's
+        // account_status. Checked AFTER the password so it never reveals
+        // whether an email exists.
+        //   SUSPENDED  -> AccountSuspendedException      (admin set in S5-T3)
+        //   PENDING    -> RegistrationPendingException  (awaiting approval)
+        //   REJECTED   -> RegistrationPendingException  (admin declined)
+        //   APPROVED/ACTIVE -> allowed to log in
+        if ($user->isCommuter()) {
+            $status = $user->commuterProfile?->account_status;
+
+            if ($status === 'SUSPENDED') {
+                throw new AccountSuspendedException;
+            }
+
+            if ($status === 'PENDING' || $status === 'REJECTED') {
+                throw new RegistrationPendingException(
+                    $status === 'PENDING'
+                        ? 'Your account is pending admin approval.'
+                        : 'Your registration was rejected. Please contact support.'
+                );
+            }
         }
 
         $token = $user->createToken('auth-token')->plainTextToken;
@@ -65,5 +86,118 @@ class AuthService
             'conductorProfile',
             'commuterProfile',
         ]);
+    }
+
+    /**
+     * POST /auth/register — commuter self-sign-up.
+     *
+     * Creates a User (role=COMMUTER) + CommuterProfile with
+     * account_status=PENDING and commuter_type=applied_type. NO token is
+     * issued — the commuter cannot log in until an admin approves (see
+     * AdminService::approveRegistration).
+     *
+     * EMAIL UNIQUENESS
+     * ----------------
+     * A DB-level unique index backs users.email, and the SoftDeletes scope
+     * does NOT exempt soft-deleted rows from that index. The 'unique:users'
+     * validation rule in RegisterRequest by default ALSO matches soft-deleted
+     * rows, which would block reuse of an email freed by a prior rejection.
+     * We therefore enforce uniqueness manually against NON-deleted users
+     * here, so a previously-rejected email can be re-registered.
+     *
+     * ID IMAGE (DEFERRED PERSISTENCE)
+     * -------------------------------
+     * The valid-ID image is accepted and validated by RegisterRequest as a
+     * non-empty string, but the binary is NOT yet persisted to a storage
+     * disk — we only store a derived path/identifier in
+     * commuter_profiles.id_image_url so the API contract is honoured. When
+     * the storage decision is made (S3 / local / etc.), swap the
+     * resolveIdImagePath() call below for a real Storage::put() and write
+     * the resulting URL — no schema or contract change required.
+     *
+     * @param  array<string, mixed>  $data  validated payload from RegisterRequest
+     * @return array{user: User, profile: CommuterProfile}
+     *
+     * @throws ValidationException when the email is already held by a live user
+     */
+    public function register(array $data): array
+    {
+        // Manual uniqueness check against NON-deleted users. Soft-deleted
+        // (rejected) accounts have had their email rewritten to a unique
+        // 'rejected+{timestamp}' placeholder by AdminService::rejectRegistration,
+        // so they never collide with a fresh registration using the canonical
+        // address. We scope to non-deleted users explicitly for clarity and
+        // defence-in-depth.
+        $emailTaken = User::whereNull('users.deleted_at')
+            ->where('email', $data['email'])
+            ->exists();
+
+        if ($emailTaken) {
+            throw ValidationException::withMessages([
+                'email' => ['The email has already been taken.'],
+            ]);
+        }
+
+        return DB::transaction(function () use ($data): array {
+            $user = User::create([
+                'email' => $data['email'],
+                'password' => $data['password'], // 'hashed' cast on User
+                'role' => UserRole::COMMUTER,
+            ]);
+
+            $profile = CommuterProfile::create([
+                'id' => $user->id,
+                'first_name' => $data['first_name'],
+                'middle_name' => $data['middle_name'] ?? null,
+                'surname' => $data['surname'],
+                'birthdate' => $data['birthdate'],
+                'gender' => $data['gender'],
+                'email' => $data['email'],
+                'contact_number' => $data['contact_number'],
+                'commuter_type' => $data['applied_type'],
+                'applied_type' => $data['applied_type'],
+                'username' => $data['username'],
+                'language_preference' => $data['language_preference'] ?? 'English',
+                'account_status' => 'PENDING',
+                'id_image_url' => $this->resolveIdImagePath($user, $data['id_image']),
+                'verified_at' => null,
+                'rejection_reason' => null,
+            ]);
+
+            return [
+                'user' => $user,
+                'profile' => $profile,
+            ];
+        });
+    }
+
+    /**
+     * Derive a stable path/identifier for the submitted ID image.
+     *
+     * Binary persistence is intentionally deferred (see register() doc).
+     * Today we return a path-like string derived from the user id so the
+     * column is non-null and auditable, and so the test suite can assert
+     * that the registration recorded a non-empty id_image_url. When a real
+     * storage disk is wired in, replace the body with:
+     *
+     *   $path = "id-images/{$user->id}-".Str::random(16).'.'.
+     *       $this->detectExtension($raw);
+     *   Storage::disk(config('payments.id_image_disk', 'local'))
+     *       ->put($path, base64_decode($raw));
+     *   return Storage::disk(...)->url($path);
+     *
+     * No contract change required — callers still receive a string.
+     */
+    private function resolveIdImagePath(User $user, string $submitted): string
+    {
+        // Preserve any caller-supplied path/filename; otherwise synthesise one.
+        // We do NOT assume the submitted value is a URL — it may be a data URI
+        // or base64 blob — so we only use it as-is when it already looks like
+        // a path/URL, and otherwise derive a stable identifier.
+        if (preg_match('#^(https?://|/)#', $submitted)) {
+            return $submitted;
+        }
+
+        return 'id-images/'.$user->id.'-'.Str::random(16);
     }
 }

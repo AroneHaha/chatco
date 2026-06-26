@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Controller;
 use App\Enums\UserRole;
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\ApproveRegistrationRequest;
+use App\Http\Requests\Admin\RejectRegistrationRequest;
 use App\Models\ConductorProfile;
 use App\Models\Driver;
 use App\Models\Remittance;
@@ -14,10 +16,10 @@ use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\AdminService;
 use App\Traits\ApiResponse;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 
 class AdminController extends Controller
 {
@@ -42,12 +44,84 @@ class AdminController extends Controller
     {
         $filters = [
             'date_from' => $request->string('date_from')->toString() ?: null,
-            'date_to'   => $request->string('date_to')->toString() ?: null,
+            'date_to' => $request->string('date_to')->toString() ?: null,
         ];
 
         $data = $this->adminService->analytics($filters);
 
         return $this->successResponse($data, 'Analytics retrieved');
+    }
+
+    /**
+     * GET /api/v1/admin/monitoring
+     * Real-time fleet state — every active vehicle with its latest GPS
+     * position, capacity status, conductor/driver/route, and a staleness
+     * flag. Read-only; the admin dashboard polls this every 5 seconds.
+     *
+     * Behind throttle:admin-read (60 req/min — comfortably above the 5s
+     * poll cadence with ~5x headroom for reconnects/retries).
+     */
+    public function monitoring(): JsonResponse
+    {
+        $data = $this->adminService->monitoring();
+
+        return $this->successResponse($data, 'Fleet monitoring snapshot retrieved');
+    }
+
+    /**
+     * GET /api/v1/admin/registrations/pending
+     *
+     * Lists every commuter whose account_status is PENDING — i.e. they have
+     * self-registered (POST /auth/register) and are awaiting admin review of
+     * their valid-ID submission. Oldest first (FIFO queue).
+     */
+    public function pendingRegistrations(): JsonResponse
+    {
+        $data = $this->adminService->listPendingRegistrations();
+
+        return $this->successResponse($data, 'Pending registrations retrieved');
+    }
+
+    /**
+     * PATCH /api/v1/admin/registrations/{id}/approve
+     *
+     * Promotes a PENDING commuter to APPROVED — sets account_status=APPROVED,
+     * commuter_type=applied_type, verified_at=now(). After this the commuter
+     * can log in. commuter_type is sourced from the applicant's applied_type
+     * (never from the request body) so an admin cannot override the
+     * verified-ID concession type.
+     */
+    public function approveRegistration(ApproveRegistrationRequest $request, string $id): JsonResponse
+    {
+        $data = $this->adminService->approveRegistration($id);
+
+        if ($data === null) {
+            return $this->errorResponse('Registration not found', 404);
+        }
+
+        return $this->successResponse($data, 'Registration approved');
+    }
+
+    /**
+     * PATCH /api/v1/admin/registrations/{id}/reject
+     *
+     * Declines a PENDING commuter — records the rejection_reason, sets
+     * account_status=REJECTED, soft-deletes the user (so they can no longer
+     * log in) and NULLs the email so the applicant can re-register with the
+     * same address once they correct their submission.
+     */
+    public function rejectRegistration(RejectRegistrationRequest $request, string $id): JsonResponse
+    {
+        $data = $this->adminService->rejectRegistration(
+            $id,
+            $request->validated('rejection_reason'),
+        );
+
+        if ($data === null) {
+            return $this->errorResponse('Registration not found', 404);
+        }
+
+        return $this->successResponse($data, 'Registration rejected');
     }
 
     public function drivers(): JsonResponse
@@ -111,7 +185,7 @@ class AdminController extends Controller
             'last_name' => 'required|string|max:100',
             'birthday' => 'required|date|before:today',
             'contact' => 'required|string|max:20',
-            'license_number' => 'required|string|max:50|unique:drivers,license_number,' . $id,
+            'license_number' => 'required|string|max:50|unique:drivers,license_number,'.$id,
             'profile_picture_url' => 'nullable|string|max:500',
         ]);
 
@@ -166,7 +240,7 @@ class AdminController extends Controller
             ] : null,
             'conductor_partner' => $driver->vehicle?->conductor ? [
                 'id' => $driver->vehicle->conductor->id,
-                'name' => trim(($driver->vehicle->conductor->first_name ?? '') . ' ' . ($driver->vehicle->conductor->last_name ?? '')),
+                'name' => trim(($driver->vehicle->conductor->first_name ?? '').' '.($driver->vehicle->conductor->last_name ?? '')),
             ] : null,
             'assigned_route' => $driver->vehicle?->route?->name ?? 'Malolos - Meycauayan - Calumpit',
             'shift_logs' => $shiftLogs->map(function ($log) {
@@ -218,7 +292,7 @@ class AdminController extends Controller
             ] : null,
             'driver_partner' => $conductor->vehicle?->driver ? [
                 'id' => $conductor->vehicle->driver->id,
-                'name' => trim(($conductor->vehicle->driver->first_name ?? '') . ' ' . ($conductor->vehicle->driver->last_name ?? '')),
+                'name' => trim(($conductor->vehicle->driver->first_name ?? '').' '.($conductor->vehicle->driver->last_name ?? '')),
             ] : null,
             'assigned_route' => $conductor->vehicle?->route?->name ?? 'Malolos - Meycauayan - Calumpit',
             'shift_logs' => $shiftLogs->map(function ($log) {
@@ -277,7 +351,7 @@ class AdminController extends Controller
         // compound first name like "Mhaku Jose" still produces "m.delacruz".
         $firstNameTrimmed = trim($firstName);
         $generatedUsername = strtolower(
-            substr($firstNameTrimmed, 0, 1) . '.' . preg_replace('/\s+/', '', $lastName)
+            substr($firstNameTrimmed, 0, 1).'.'.preg_replace('/\s+/', '', $lastName)
         );
 
         // Generate password: firstword.restwordsMMDDYYYY
@@ -285,24 +359,24 @@ class AdminController extends Controller
         // For a compound first name "Mhaku Jose" → "mhaku.jose05142000"
         // (no spaces in the password — the dot separates the first word from
         // any remaining words, and the birthday is appended directly)
-        $birthdayFormatted = \Carbon\Carbon::parse($birthday)->format('mdY');
+        $birthdayFormatted = Carbon::parse($birthday)->format('mdY');
         $firstNameParts = preg_split('/\s+/', $firstNameTrimmed);
         $firstPart = strtolower($firstNameParts[0]);
         $restParts = implode('', array_map('strtolower', array_slice($firstNameParts, 1)));
-        $generatedPassword = $firstPart . '.' . $restParts . $birthdayFormatted;
+        $generatedPassword = $firstPart.'.'.$restParts.$birthdayFormatted;
 
         // Email is derived from username (conductor accounts don't have a real
         // email — they log in with the generated username via a custom field).
         // We store it as username@chatco.local to satisfy the NOT NULL email
         // constraint on the users table.
-        $email = $generatedUsername . '@chatco.local';
+        $email = $generatedUsername.'@chatco.local';
 
         // Ensure username/email uniqueness — append a number if taken.
         $originalUsername = $generatedUsername;
         $counter = 1;
         while (User::where('email', $email)->exists()) {
-            $generatedUsername = $originalUsername . $counter;
-            $email = $generatedUsername . '@chatco.local';
+            $generatedUsername = $originalUsername.$counter;
+            $email = $generatedUsername.'@chatco.local';
             $counter++;
         }
 
