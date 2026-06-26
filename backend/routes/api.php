@@ -1,17 +1,17 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\AdminUserController;
+use App\Http\Controllers\Admin\AdminVehicleController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Commuter\CommuterController;
 use App\Http\Controllers\Commuter\HailController;
 use App\Http\Controllers\Commuter\VehicleLocationController;
 use App\Http\Controllers\Conductor\ConductorController;
 use App\Http\Controllers\Conductor\ConductorHailController;
-use App\Http\Controllers\Admin\AdminController;
-use App\Http\Controllers\Admin\AdminUserController;
-use App\Http\Controllers\Admin\AdminVehicleController;
 use App\Http\Controllers\Payment\PaymentController;
 use App\Http\Controllers\Payment\QrController;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -120,6 +120,7 @@ Route::prefix('vehicles')->middleware(['auth:sanctum'])->group(function () {
 Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(function () {
     Route::get('/dashboard', [AdminController::class, 'dashboard']);
     Route::get('/analytics', [AdminController::class, 'analytics']);
+    Route::get('/monitoring', [AdminController::class, 'monitoring'])->middleware('throttle:admin-read');
 
     // User management CRUD (S5-T3) — reads 60/min, mutations 30/min.
     Route::get('/users', [AdminUserController::class, 'index'])->middleware('throttle:admin-read');
