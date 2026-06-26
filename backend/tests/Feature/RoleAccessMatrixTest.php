@@ -3,6 +3,9 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
+use App\Enums\ShiftStatus;
+use App\Models\AdminProfile;
+use App\Models\CommuterProfile;
 use App\Models\ConductorProfile;
 use App\Models\Driver;
 use App\Models\Remittance;
@@ -29,19 +32,11 @@ use Tests\TestCase;
  *  4. No admin-only field leaks (password hash, tokens, other users' rows).
  *  5. grep confirms no remaining notImplementedResponse() on shipped S5 routes.
  *
- * S5 routes covered:
- *   - GET  /api/v1/conductor/remittances            (conductor read)
- *   - GET  /api/v1/admin/vehicles                   (admin list, paginated)
- *   - POST /api/v1/admin/vehicles                   (admin create)
- *   - PUT  /api/v1/admin/vehicles/{id}              (admin update)
- *   - DELETE /api/v1/admin/vehicles/{id}            (admin delete, 409 guard)
- *   - GET  /api/v1/admin/analytics                  (admin aggregations)
- *   - GET  /api/v1/admin/conductors                 (admin list conductors)
- *   - POST /api/v1/admin/conductors                 (admin create conductor account)
- *   - GET  /api/v1/admin/conductors/{id}            (admin show conductor)
- *   - GET  /api/v1/admin/drivers/{id}               (admin show driver)
- *   - POST /api/v1/admin/drivers                    (admin create driver)
- *   - PUT  /api/v1/admin/drivers/{id}               (admin update driver)
+ * NOTE: Tests use actingAs($user) (session guard) rather than Bearer tokens
+ * because the app's default guard is 'web' (session), not 'sanctum'. The
+ * role:ADMIN/CONDUCTOR/COMMUTER middleware checks $request->user() which is
+ * populated by the session guard. This matches the pattern used by the
+ * existing Sprint2RoleAccessTest.
  */
 class RoleAccessMatrixTest extends TestCase
 {
@@ -50,9 +45,6 @@ class RoleAccessMatrixTest extends TestCase
     private User $admin;
     private User $conductor;
     private User $commuter;
-    private string $adminToken;
-    private string $conductorToken;
-    private string $commuterToken;
 
     protected function setUp(): void
     {
@@ -64,12 +56,11 @@ class RoleAccessMatrixTest extends TestCase
             'password' => Hash::make('password123'),
             'role'     => UserRole::ADMIN,
         ]);
-        \App\Models\AdminProfile::create([
+        AdminProfile::create([
             'id'         => $this->admin->id,
             'first_name' => 'Admin',
             'last_name'  => 'Matrix',
         ]);
-        $this->adminToken = $this->admin->createToken('test')->plainTextToken;
 
         // ── Conductor ──────────────────────────────────────────────────
         $this->conductor = User::create([
@@ -85,7 +76,6 @@ class RoleAccessMatrixTest extends TestCase
             'generated_username' => 'conductor_matrix',
             'generated_password' => Hash::make('password123'),
         ]);
-        $this->conductorToken = $this->conductor->createToken('test')->plainTextToken;
 
         // ── Commuter ───────────────────────────────────────────────────
         $this->commuter = User::create([
@@ -93,7 +83,7 @@ class RoleAccessMatrixTest extends TestCase
             'password' => Hash::make('password123'),
             'role'     => UserRole::COMMUTER,
         ]);
-        \App\Models\CommuterProfile::create([
+        CommuterProfile::create([
             'id'                  => $this->commuter->id,
             'first_name'          => 'Commuter',
             'surname'             => 'Matrix',
@@ -107,7 +97,6 @@ class RoleAccessMatrixTest extends TestCase
             'account_status'      => 'ACTIVE',
             'verified_at'         => now(),
         ]);
-        $this->commuterToken = $this->commuter->createToken('test')->plainTextToken;
     }
 
     // ═════════════════════════════════════════════════════════════════════
@@ -172,19 +161,19 @@ class RoleAccessMatrixTest extends TestCase
      */
     public function test_cross_role_access_matrix(string $method, string $uri, array $allowed): void
     {
-        // ── No token → 401 ──────────────────────────────────────────────
+        // ── No auth (no actingAs) → 401 ────────────────────────────────
         $this->json($method, $uri, $this->payloadFor($uri))
             ->assertStatus(401);
 
         // ── Each role: allowed roles get 2xx, forbidden roles get 403 ──
-        $roles = [
-            'admin'     => $this->adminToken,
-            'conductor' => $this->conductorToken,
-            'commuter'  => $this->commuterToken,
+        $actors = [
+            'admin'     => $this->admin,
+            'conductor' => $this->conductor,
+            'commuter'  => $this->commuter,
         ];
 
-        foreach ($roles as $role => $token) {
-            $response = $this->withHeader('Authorization', "Bearer {$token}")
+        foreach ($actors as $role => $user) {
+            $response = $this->actingAs($user)
                 ->json($method, $uri, $this->payloadFor($uri));
 
             if (in_array($role, $allowed, true)) {
@@ -195,9 +184,9 @@ class RoleAccessMatrixTest extends TestCase
                     "Role [{$role}] should be allowed access to {$method} {$uri} but got {$response->status()}."
                 );
             } else {
-                $this->assertContains(
+                $this->assertSame(
+                    403,
                     $response->status(),
-                    [403],
                     "Role [{$role}] should be FORBIDDEN from {$method} {$uri} but got {$response->status()}."
                 );
             }
@@ -254,6 +243,15 @@ class RoleAccessMatrixTest extends TestCase
         ]);
 
         $route = Route::create(['name' => 'Test Route', 'status' => 'ACTIVE']);
+        $driver = Driver::create([
+            'first_name'      => 'Driver',
+            'last_name'       => 'One',
+            'birthday'        => '1985-01-01',
+            'contact'         => '+639170000000',
+            'license_number'  => 'LIC-1',
+            'hire_date'       => now()->toDateString(),
+            'status'          => 'ACTIVE',
+        ]);
         $vehicle = Vehicle::create([
             'unit_number'  => 'UNIT-OTHER',
             'plate_number' => 'OTHER-001',
@@ -261,12 +259,15 @@ class RoleAccessMatrixTest extends TestCase
             'status'       => 'ACTIVE',
         ]);
 
-        // Remittance owned by the OTHER conductor.
+        // Remittance owned by the OTHER conductor — must include driver_id
+        // (NOT NULL constraint) and vehicle_id (FK).
         Remittance::create([
             'shift_id'         => 'shift-other-' . uniqid(),
             'conductor_id'     => $otherConductor->id,
+            'driver_id'        => $driver->id,
+            'vehicle_id'       => $vehicle->id,
             'conductor_name'   => 'Other Conductor',
-            'driver_name'      => 'Some Driver',
+            'driver_name'      => 'Driver One',
             'unit_number'      => 'UNIT-OTHER',
             'date'             => now()->toDateString(),
             'time_in'          => now()->subHours(8),
@@ -281,7 +282,7 @@ class RoleAccessMatrixTest extends TestCase
         ]);
 
         // Auth conductor (NOT the owner) requests the list.
-        $response = $this->withHeader('Authorization', "Bearer {$this->conductorToken}")
+        $response = $this->actingAs($this->conductor)
             ->getJson('/api/v1/conductor/remittances');
 
         $response->assertOk();
@@ -306,16 +307,45 @@ class RoleAccessMatrixTest extends TestCase
     public function test_admin_vehicle_delete_blocks_active_shift_with_409(): void
     {
         $route = Route::create(['name' => 'Test Route', 'status' => 'ACTIVE']);
+        $driver = Driver::create([
+            'first_name'      => 'Driver',
+            'last_name'       => 'Active',
+            'birthday'        => '1985-01-01',
+            'contact'         => '+639170000000',
+            'license_number'  => 'LIC-ACTIVE',
+            'hire_date'       => now()->toDateString(),
+            'status'          => 'ACTIVE',
+        ]);
+
+        // Create a real ShiftLog so the vehicle's active_shift_id FK is valid.
         $shiftId = 'shift-active-' . uniqid();
+        ShiftLog::create([
+            'shift_id'       => $shiftId,
+            'conductor_id'   => $this->conductor->id,
+            'driver_id'      => $driver->id,
+            'vehicle_id'     => null, // set after vehicle create
+            'conductor_name' => 'Conductor Matrix',
+            'driver_name'    => 'Driver Active',
+            'unit_number'    => 'UNIT-ACTIVE',
+            'plate_number'   => 'ACTIVE-001',
+            'time_in'        => now(),
+            'status'         => ShiftStatus::ACTIVE,
+            'is_active'      => true,
+        ]);
+
         $vehicle = Vehicle::create([
             'unit_number'     => 'UNIT-ACTIVE',
             'plate_number'    => 'ACTIVE-001',
             'route_id'        => $route->id,
             'status'          => 'ACTIVE',
-            'active_shift_id' => $shiftId, // ← on an active shift
+            'active_shift_id' => $shiftId,
         ]);
 
-        $response = $this->withHeader('Authorization', "Bearer {$this->adminToken}")
+        // Link the shift log back to the vehicle.
+        $shift = ShiftLog::where('shift_id', $shiftId)->first();
+        $shift->update(['vehicle_id' => $vehicle->id]);
+
+        $response = $this->actingAs($this->admin)
             ->deleteJson("/api/v1/admin/vehicles/{$vehicle->id}");
 
         $response->assertStatus(409);
@@ -338,7 +368,7 @@ class RoleAccessMatrixTest extends TestCase
             // no active_shift_id
         ]);
 
-        $response = $this->withHeader('Authorization', "Bearer {$this->adminToken}")
+        $response = $this->actingAs($this->admin)
             ->deleteJson("/api/v1/admin/vehicles/{$vehicle->id}");
 
         $response->assertOk();
@@ -364,7 +394,7 @@ class RoleAccessMatrixTest extends TestCase
 
     public function test_conductor_profile_response_does_not_leak_password_or_tokens(): void
     {
-        $response = $this->withHeader('Authorization', "Bearer {$this->conductorToken}")
+        $response = $this->actingAs($this->conductor)
             ->getJson('/api/v1/conductor/profile');
 
         $response->assertOk();
@@ -377,7 +407,7 @@ class RoleAccessMatrixTest extends TestCase
 
     public function test_user_endpoint_does_not_leak_password(): void
     {
-        $response = $this->withHeader('Authorization', "Bearer {$this->conductorToken}")
+        $response = $this->actingAs($this->conductor)
             ->getJson('/api/v1/user');
 
         $response->assertOk();
@@ -389,7 +419,7 @@ class RoleAccessMatrixTest extends TestCase
 
     public function test_admin_show_conductor_does_not_leak_generated_password(): void
     {
-        $response = $this->withHeader('Authorization', "Bearer {$this->adminToken}")
+        $response = $this->actingAs($this->admin)
             ->getJson("/api/v1/admin/conductors/{$this->conductor->id}");
 
         $response->assertOk();
@@ -411,7 +441,7 @@ class RoleAccessMatrixTest extends TestCase
             'status'          => 'ACTIVE',
         ]);
 
-        $response = $this->withHeader('Authorization', "Bearer {$this->adminToken}")
+        $response = $this->actingAs($this->admin)
             ->getJson("/api/v1/admin/drivers/{$driver->id}");
 
         $response->assertOk();
@@ -432,7 +462,7 @@ class RoleAccessMatrixTest extends TestCase
         ];
 
         foreach ($s5AdminRoutes as [$method, $uri]) {
-            $response = $this->withHeader('Authorization', "Bearer {$this->adminToken}")
+            $response = $this->actingAs($this->admin)
                 ->json($method, $uri);
 
             $this->assertNotEquals(
@@ -451,7 +481,7 @@ class RoleAccessMatrixTest extends TestCase
         ];
 
         foreach ($s5ConductorRoutes as [$method, $uri]) {
-            $response = $this->withHeader('Authorization', "Bearer {$this->conductorToken}")
+            $response = $this->actingAs($this->conductor)
                 ->json($method, $uri);
 
             $this->assertNotEquals(
