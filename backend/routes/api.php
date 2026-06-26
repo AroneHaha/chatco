@@ -73,6 +73,10 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->grou
     Route::post('/shifts/start', [ConductorController::class, 'startShift'])->middleware('throttle:conductor-mutation');
     Route::post('/remittances', [ConductorController::class, 'remittances'])->middleware('throttle:conductor-mutation');
 
+    // Read — conductor's own submitted remittance history (Week 5).
+    // Scoped to auth conductor in ConductorService::listRemittances().
+    Route::get('/remittances', [ConductorController::class, 'remittancesIndex'])->middleware('throttle:conductor-read');
+
     // GPS updates — allows 5-second cadence with headroom for retries/reconnects
     Route::post('/location', [ConductorController::class, 'updateLocation'])->middleware('throttle:conductor-gps');
 

@@ -12,6 +12,7 @@ use App\Http\Requests\Conductor\SubmitRemittanceRequest;
 use App\Models\Driver;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Services\ConductorService;
 use App\Services\LocationService;
 use App\Services\ShiftService;
 use App\Services\TransactionService;
@@ -26,15 +27,18 @@ class ConductorController extends Controller
     protected ShiftService $shiftService;
     protected LocationService $locationService;
     protected TransactionService $transactionService;
+    protected ConductorService $conductorService;
 
     public function __construct(
         ShiftService $shiftService,
         LocationService $locationService,
-        TransactionService $transactionService
+        TransactionService $transactionService,
+        ConductorService $conductorService
     ) {
         $this->shiftService = $shiftService;
         $this->locationService = $locationService;
         $this->transactionService = $transactionService;
+        $this->conductorService = $conductorService;
     }
 
     /**
@@ -91,6 +95,24 @@ class ConductorController extends Controller
             $shiftLog->load(['vehicle', 'driver', 'route', 'remittance']),
             'Shift ended via remittance',
         );
+    }
+
+    /**
+     * GET /api/conductor/remittances
+     * List the authenticated conductor's own submitted remittances (read-only).
+     * Scoped strictly to the auth conductor — never returns another conductor's
+     * records. Delegates the query to ConductorService::listRemittances().
+     */
+    public function remittancesIndex(Request $request): JsonResponse
+    {
+        $perPage = (int) $request->integer('per_page', 15);
+
+        $remittances = $this->conductorService->listRemittances(
+            $request->user(),
+            $perPage,
+        );
+
+        return $this->successResponse($remittances, 'Remittance history retrieved');
     }
 
     /**
