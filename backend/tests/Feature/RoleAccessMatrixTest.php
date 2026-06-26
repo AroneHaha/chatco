@@ -259,10 +259,27 @@ class RoleAccessMatrixTest extends TestCase
             'status'       => 'ACTIVE',
         ]);
 
-        // Remittance owned by the OTHER conductor — must include driver_id
-        // (NOT NULL constraint) and vehicle_id (FK).
+        // Create a real ShiftLog first (remittances.shift_id is a FK to
+        // shift_logs.shift_id with cascadeOnDelete — a remittance cannot
+        // exist without a parent shift log).
+        $shiftId = 'shift-other-' . uniqid();
+        ShiftLog::create([
+            'shift_id'       => $shiftId,
+            'conductor_id'   => $otherConductor->id,
+            'driver_id'      => $driver->id,
+            'vehicle_id'     => $vehicle->id,
+            'conductor_name' => 'Other Conductor',
+            'driver_name'    => 'Driver One',
+            'unit_number'    => 'UNIT-OTHER',
+            'plate_number'   => 'OTHER-001',
+            'time_in'        => now()->subHours(8),
+            'status'         => ShiftStatus::ENDED,
+            'is_active'      => false,
+        ]);
+
+        // Remittance owned by the OTHER conductor — all FK columns populated.
         Remittance::create([
-            'shift_id'         => 'shift-other-' . uniqid(),
+            'shift_id'         => $shiftId,
             'conductor_id'     => $otherConductor->id,
             'driver_id'        => $driver->id,
             'vehicle_id'       => $vehicle->id,
@@ -317,13 +334,23 @@ class RoleAccessMatrixTest extends TestCase
             'status'          => 'ACTIVE',
         ]);
 
-        // Create a real ShiftLog so the vehicle's active_shift_id FK is valid.
+        // Create the Vehicle FIRST (without active_shift_id) so the
+        // ShiftLog's vehicle_id FK has a valid target.
+        $vehicle = Vehicle::create([
+            'unit_number'  => 'UNIT-ACTIVE',
+            'plate_number' => 'ACTIVE-001',
+            'route_id'     => $route->id,
+            'status'       => 'ACTIVE',
+            // no active_shift_id yet — set after the ShiftLog exists
+        ]);
+
+        // Create a real ShiftLog pointing to the vehicle.
         $shiftId = 'shift-active-' . uniqid();
         ShiftLog::create([
             'shift_id'       => $shiftId,
             'conductor_id'   => $this->conductor->id,
             'driver_id'      => $driver->id,
-            'vehicle_id'     => null, // set after vehicle create
+            'vehicle_id'     => $vehicle->id,
             'conductor_name' => 'Conductor Matrix',
             'driver_name'    => 'Driver Active',
             'unit_number'    => 'UNIT-ACTIVE',
@@ -333,17 +360,8 @@ class RoleAccessMatrixTest extends TestCase
             'is_active'      => true,
         ]);
 
-        $vehicle = Vehicle::create([
-            'unit_number'     => 'UNIT-ACTIVE',
-            'plate_number'    => 'ACTIVE-001',
-            'route_id'        => $route->id,
-            'status'          => 'ACTIVE',
-            'active_shift_id' => $shiftId,
-        ]);
-
-        // Link the shift log back to the vehicle.
-        $shift = ShiftLog::where('shift_id', $shiftId)->first();
-        $shift->update(['vehicle_id' => $vehicle->id]);
+        // NOW link the vehicle to the active shift.
+        $vehicle->update(['active_shift_id' => $shiftId]);
 
         $response = $this->actingAs($this->admin)
             ->deleteJson("/api/v1/admin/vehicles/{$vehicle->id}");
