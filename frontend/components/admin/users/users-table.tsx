@@ -3,7 +3,7 @@ import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
 import { GlassCard } from '@/components/admin/ui/glass-card';
 import { Modal } from '@/components/admin/ui/modal';
-import { Clock, UserIcon, Mail, Phone, CreditCard, Pencil } from 'lucide-react';
+import { Clock, UserIcon, Mail, Phone, CreditCard, Pencil, Trash2 } from 'lucide-react';
 import type { ActiveUser, RejectedUser } from '@/app/(admin)/users/data/users-data';
 
 type User = ActiveUser | RejectedUser;
@@ -11,15 +11,16 @@ type User = ActiveUser | RejectedUser;
 interface UsersTableProps {
   users: User[];
   searchQuery: string;
-  onDeactivate: (userId: number) => void;
+  onDeactivate: (userId: string) => void;
   onEdit: (user: ActiveUser) => void;
+  onDelete: (user: ActiveUser) => void;
   onViewHistory: (userId: string) => void;
   isRejectedTab: boolean;
   selectedUser: User | null;
   onSelectUser: (user: User | null) => void;
 }
 
-export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onViewHistory, isRejectedTab, selectedUser, onSelectUser }: UsersTableProps) {
+export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete, onViewHistory, isRejectedTab, selectedUser, onSelectUser }: UsersTableProps) {
   const columns = [
     { key: 'name', label: 'Name' },
     { key: 'email', label: 'Email' },
@@ -27,7 +28,7 @@ export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onViewHis
     { 
       key: 'status', 
       label: 'Status', 
-      render: (value: string) => <Badge variant={value === 'Active' ? 'success' : value === 'Inactive' ? 'warning' : 'danger'}>{value}</Badge> 
+      render: (value: string) => <Badge variant={value === 'Active' ? 'success' : value === 'Suspended' ? 'warning' : 'danger'}>{value}</Badge> 
     },
     ...(isRejectedTab ? [{
       key: 'rejectionReason', label: 'Reason', render: (value: string) => <span className="text-xs text-slate-400 italic">{value || 'N/A'}</span>
@@ -60,6 +61,13 @@ export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onViewHis
                 title="View History"
               >
                 <Clock size={18} />
+              </button>
+              <button 
+                onClick={(e) => { e.stopPropagation(); onDelete(item as ActiveUser); }} 
+                className="text-slate-400 hover:text-red-400 p-1 rounded-md hover:bg-red-400/10 transition-colors" 
+                title="Delete User"
+              >
+                <Trash2 size={18} />
               </button>
             </>
           )}
@@ -140,14 +148,14 @@ export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onViewHis
 
             {/* Action Button */}
             <button 
-              onClick={() => { onDeactivate(selectedUser.id as number); onSelectUser(null); }}
+              onClick={() => { onDeactivate(selectedUser.id); onSelectUser(null); }}
               className={`w-full py-2.5 rounded-md text-sm font-medium transition-colors ${
                 selectedUser.status === 'Active' 
                   ? 'bg-red-400/10 text-red-400 border border-red-400/20 hover:bg-red-400/20' 
                   : 'bg-sky-400/10 text-sky-400 border border-sky-400/20 hover:bg-sky-400/20'
               }`}
             >
-              {selectedUser.status === 'Active' ? 'Deactivate Account' : 'Reactivate Account'}
+              {selectedUser.status === 'Active' ? 'Suspend Account' : 'Reactivate Account'}
             </button>
           </div>
         )}
