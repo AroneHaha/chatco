@@ -5,6 +5,7 @@ import { useState, useMemo } from 'react';
 import { VehicleTable } from '@/components/admin/vehicles/vehicle-table';
 import { AddVehicleModal } from '@/components/admin/vehicles/add-vehicle-modal';
 import { EditVehicleModal } from '@/components/admin/vehicles/edit-vehicle-modal';
+import { ShiftHistoryModal } from '@/components/admin/vehicles/shift-history-modal';
 import { PersonnelTable } from '@/components/admin/vehicles/personnel-table';
 import { AddPersonnelModal } from '@/components/admin/vehicles/add-personnel-modal';
 import { EditPersonnelModal } from '@/components/admin/vehicles/edit-personnel-modal';
@@ -15,7 +16,7 @@ import { HistoryTable } from '@/components/admin/vehicles/history-table';
 import { SearchBar } from '@/components/admin/ui/search-bar';
 import { Plus, Users, Car, UserPlus, Archive, AlertCircle, RefreshCw } from 'lucide-react';
 import { useVehiclesData } from './data/vehicles-data';
-import type { Vehicle, Personnel, TerminatedPersonnel, ShiftLog } from './data/vehicles-data';
+import type { Vehicle, Personnel, TerminatedPersonnel } from './data/vehicles-data';
 import { SkeletonTable } from '@/components/admin/ui/skeleton';
 
 export default function VehiclesPage() {
@@ -26,12 +27,19 @@ export default function VehiclesPage() {
   const [isPersonnelModalOpen, setIsPersonnelModalOpen] = useState(false);
   const [isEditPersonnelOpen, setIsEditPersonnelOpen] = useState(false);
   const [isDeletePersonnelOpen, setIsDeletePersonnelOpen] = useState(false);
-  const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
+  const [isShiftHistoryOpen, setIsShiftHistoryOpen] = useState(false);
   const [isCreateConductorOpen, setIsCreateConductorOpen] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   
-  const [createdAccountData, setCreatedAccountData] = useState<{ firstName: string; lastName: string; birthday: string; route: string } | null>(null);
+  const [createdAccountData, setCreatedAccountData] = useState<{
+    id: string;
+    first_name: string;
+    last_name: string;
+    generated_username: string;
+    generated_password: string;
+  } | null>(null);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
+  const [shiftHistoryVehicle, setShiftHistoryVehicle] = useState<Vehicle | null>(null);
   const [editingPersonnelData, setEditingPersonnelData] = useState<Personnel | null>(null);
   const [deletingPersonnelData, setDeletingPersonnelData] = useState<Personnel | null>(null);
   
@@ -94,8 +102,15 @@ export default function VehiclesPage() {
   const handleCloseVehicleModal = () => setIsVehicleModalOpen(false);
   const handleOpenEditModal = (vehicle: Vehicle) => { setEditingVehicle(vehicle); setIsEditVehicleModalOpen(true); };
   const handleCloseEditModal = () => { setEditingVehicle(null); setIsEditVehicleModalOpen(false); };
-  const handleSaveVehicle = (newVehicle: Partial<Vehicle>) => { setVehicles(prev => [...prev, { ...newVehicle, id: prev.length + 1, speed: 0 } as Vehicle]); handleCloseVehicleModal(); };
-  const handleUpdateVehicle = (updatedVehicle: Partial<Vehicle>) => { setVehicles(prev => prev.map(v => v.id === editingVehicle?.id ? { ...v, ...updatedVehicle } : v)); handleCloseEditModal(); };
+  const handleSaveVehicle = () => { refetch(); handleCloseVehicleModal(); };
+
+  // After PUT succeeds — the EditVehicleModal calls onSaved() which triggers this.
+  // We refetch from the API to get the canonical record with fresh relationships.
+  const handleVehicleUpdated = () => { refetch(); handleCloseEditModal(); };
+
+  // Shift History Handlers — opens the modal that fetches /api/admin/shift-logs?vehicle_id=
+  const handleOpenShiftHistory = (vehicle: Vehicle) => { setShiftHistoryVehicle(vehicle); setIsShiftHistoryOpen(true); };
+  const handleCloseShiftHistory = () => { setShiftHistoryVehicle(null); setIsShiftHistoryOpen(false); };
 
   // Personnel Handlers
   const handleOpenPersonnelModal = () => setIsPersonnelModalOpen(true);
@@ -109,12 +124,10 @@ export default function VehiclesPage() {
     setEditingPersonnelData(null);
     setIsEditPersonnelOpen(false);
   };
-  const handleSaveEditPersonnel = (updatedPersonnel: Personnel) => {
-    // TODO: Replace with API call when backend is ready
-    setData(prev => ({
-      ...prev,
-      personnel: prev.personnel.map(p => p.id === updatedPersonnel.id ? updatedPersonnel : p),
-    }));
+  const handleSaveEditPersonnel = () => {
+    // Modal calls real PUT /api/admin/drivers/{id} and triggers this onSaved()
+    // callback on success. We refetch from the API to get the canonical record.
+    refetch();
     handleCloseEditPersonnel();
   };
 
@@ -146,43 +159,32 @@ export default function VehiclesPage() {
     handleCloseDeletePersonnel();
   };
 
-  // Add Personnel Handler (from modal onSave callback)
-  const handleSaveNewPersonnel = (newPersonnelData: {
-    firstName: string;
-    middleName: string;
-    lastName: string;
-    birthday: string;
-    contact: string;
-    route: string;
-    role: 'Driver';
-    profilePicture: string | null;
-  }) => {
-    // TODO: Replace with API call when backend is ready
-    const newPerson: Personnel = {
-      id: Math.max(...data.personnel.map(p => p.id), 0) + 1,
-      name: `${newPersonnelData.firstName} ${newPersonnelData.middleName ? newPersonnelData.middleName + ' ' : ''}${newPersonnelData.lastName}`,
-      role: newPersonnelData.role,
-      contact: newPersonnelData.contact,
-      profilePic: newPersonnelData.profilePicture || `https://placehold.co/150x150/0A1E33/62A0EA?text=${newPersonnelData.firstName.charAt(0)}${newPersonnelData.lastName.charAt(0)}`,
-    };
-    setData(prev => ({
-      ...prev,
-      personnel: [...prev.personnel, newPerson],
-    }));
+  // Add Personnel Handler — modal calls real POST /api/admin/drivers and
+  // triggers this onSave() callback on success. We refetch from the API to
+  // get the canonical record with the auto-generated UUID + relationships.
+  const handleSaveNewPersonnel = () => {
+    refetch();
+    handleClosePersonnelModal();
   };
 
   // Shift & Conductor Handlers
-  const handleOpenShiftModal = (vehicle: Vehicle) => { setEditingVehicle(vehicle); setIsShiftModalOpen(true); };
-  const handleCloseShiftModal = () => { setEditingVehicle(null); setIsShiftModalOpen(false); };
-  const handleSaveShift = (shiftData: Record<string, string>) => {
-    // TODO: Replace with API call when backend is ready
-    console.log("Shift saved for vehicle:", editingVehicle?.plateNumber, shiftData);
-    handleCloseShiftModal();
-  };
-  
   const handleOpenCreateConductor = () => setIsCreateConductorOpen(true);
   const handleCloseCreateConductor = () => setIsCreateConductorOpen(false);
-  const handleSaveConductorAccount = (accountData: { firstName: string; lastName: string; birthday: string; route: string }) => { setCreatedAccountData(accountData); setIsSuccessModalOpen(true); handleCloseCreateConductor(); };
+  // Called by the modal after POST /api/admin/conductors succeeds — receives
+  // the real generated credentials from the backend, shows the success modal,
+  // and refetches the personnel list so the new conductor appears.
+  const handleConductorCreated = (account: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    generated_username: string;
+    generated_password: string;
+  }) => {
+    setCreatedAccountData(account);
+    setIsSuccessModalOpen(true);
+    handleCloseCreateConductor();
+    refetch();
+  };
   const handleCloseSuccessModal = () => { setIsSuccessModalOpen(false); setCreatedAccountData(null); };
 
   return (
@@ -199,13 +201,18 @@ export default function VehiclesPage() {
           
           {activeTab !== 'history' && (
             <>
-              <button
-                onClick={handleOpenCreateConductor}
-                className="flex items-center space-x-2 px-4 py-2 bg-[#62A0EA] text-white font-medium rounded-md hover:bg-[#4A8BD4] transition-colors flex-shrink-0"
-              >
-                <UserPlus size={20} />
-                <span className="hidden sm:inline">Conductor Account</span>
-              </button>
+              {/* Conductor Account button only shows on Personnel tab —
+                  vehicles tab doesn't need it since conductors are people,
+                  not vehicles. */}
+              {activeTab === 'personnel' && (
+                <button
+                  onClick={handleOpenCreateConductor}
+                  className="flex items-center space-x-2 px-4 py-2 bg-[#62A0EA] text-white font-medium rounded-md hover:bg-[#4A8BD4] transition-colors flex-shrink-0"
+                >
+                  <UserPlus size={20} />
+                  <span className="hidden sm:inline">Conductor Account</span>
+                </button>
+              )}
 
               <button
                 onClick={activeTab === 'vehicles' ? handleOpenVehicleModal : handleOpenPersonnelModal}
@@ -257,7 +264,7 @@ export default function VehiclesPage() {
           vehicles={vehicles} 
           searchQuery={searchQuery} 
           onEdit={handleOpenEditModal}
-          onEditShift={handleOpenShiftModal} 
+          onEditShift={handleOpenShiftHistory} 
         />
       ) : activeTab === 'personnel' ? (
         <PersonnelTable 
@@ -277,13 +284,23 @@ export default function VehiclesPage() {
       )}
 
       {/* All Modals */}
-      <AddVehicleModal isOpen={isVehicleModalOpen} onClose={handleCloseVehicleModal} onSave={handleSaveVehicle} unassignedDrivers={unassignedDrivers} unassignedConductors={unassignedConductors} />
-      <EditVehicleModal isOpen={isEditVehicleModalOpen} onClose={handleCloseEditModal} onSave={handleUpdateVehicle} editingVehicle={editingVehicle} allPersonnel={data.personnel} />
+      <AddVehicleModal isOpen={isVehicleModalOpen} onClose={handleCloseVehicleModal} onSave={handleSaveVehicle} />
+      <EditVehicleModal
+        isOpen={isEditVehicleModalOpen}
+        onClose={handleCloseEditModal}
+        onSaved={handleVehicleUpdated}
+        editingVehicle={editingVehicle}
+      />
+      <ShiftHistoryModal
+        isOpen={isShiftHistoryOpen}
+        onClose={handleCloseShiftHistory}
+        vehicle={shiftHistoryVehicle}
+      />
       <AddPersonnelModal isOpen={isPersonnelModalOpen} onClose={handleClosePersonnelModal} onSave={handleSaveNewPersonnel} />
-      <EditPersonnelModal isOpen={isEditPersonnelOpen} onClose={handleCloseEditPersonnel} onSave={handleSaveEditPersonnel} editingData={editingPersonnelData} />
+      <EditPersonnelModal isOpen={isEditPersonnelOpen} onClose={handleCloseEditPersonnel} onSaved={handleSaveEditPersonnel} editingData={editingPersonnelData} />
       <DeletePersonnelModal isOpen={isDeletePersonnelOpen} onClose={handleCloseDeletePersonnel} onConfirm={handleConfirmDeletePersonnel} personnelData={deletingPersonnelData} />
 
-      <CreateConductorAccountModal isOpen={isCreateConductorOpen} onClose={handleCloseCreateConductor} onSave={handleSaveConductorAccount} />
+      <CreateConductorAccountModal isOpen={isCreateConductorOpen} onClose={handleCloseCreateConductor} onCreated={handleConductorCreated} />
       <ConductorAccountSuccessModal isOpen={isSuccessModalOpen} onClose={handleCloseSuccessModal} accountData={createdAccountData} />
     </>
   );

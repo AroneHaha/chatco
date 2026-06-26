@@ -3,37 +3,33 @@
 
 import { useState, useRef } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
-import { UserPlus, MapPin, Upload, Check, User, Phone } from 'lucide-react';
+import { UserPlus, MapPin, Upload, Check, User, Phone, IdCard } from 'lucide-react';
 
 interface AddPersonnelModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: {
-    firstName: string;
-    middleName: string;
-    lastName: string;
-    birthday: string;
-    contact: string;
-    route: string;
-    role: 'Driver';
-    profilePicture: string | null;
-  }) => void;
+  /** Called after a successful POST — parent refetches the list. */
+  onSave: () => void;
 }
 
 export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const [formData, setFormData] = useState({
     firstName: '',
     middleName: '',
     lastName: '',
     birthday: '',
     contact: '',
-    route: 'Malolos - Meycauayan - Calumpit', // Fixed Route
+    licenseNumber: '',
   });
 
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
-  const [useDefaultPicture, setUseDefaultPicture] = useState<boolean>(true); // Default is checked
+  const [useDefaultPicture, setUseDefaultPicture] = useState<boolean>(true);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -46,7 +42,7 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
       const reader = new FileReader();
       reader.onloadend = () => {
         setProfilePicture(reader.result as string);
-        setUseDefaultPicture(false); // Uncheck default if they upload a custom one
+        setUseDefaultPicture(false);
       };
       reader.readAsDataURL(file);
     }
@@ -54,35 +50,84 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
 
   const handleRemoveImage = () => {
     setProfilePicture(null);
-    setUseDefaultPicture(true); // Revert to default when removed
+    setUseDefaultPicture(true);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    const payload = {
-      ...formData,
-      role: 'Driver' as const,
-      profilePicture: useDefaultPicture ? null : profilePicture, // Send null if default is used
-    };
 
-    onSave(payload);
-    onClose();
-    
-    // Reset form
-    setFormData({
-      firstName: '',
-      middleName: '',
-      lastName: '',
-      birthday: '',
-      contact: '',
-      route: 'Malolos - Meycauayan - Calumpit',
-    });
-    setProfilePicture(null);
-    setUseDefaultPicture(true);
+    setIsSubmitting(true);
+    setError(null);
+    setFieldErrors({});
+
+    try {
+      // Build the request body matching Laravel's storeDriver() validation.
+      // profile_picture_url is only sent if the user uploaded a custom image.
+      const requestBody: Record<string, unknown> = {
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        birthday: formData.birthday,
+        contact: formData.contact,
+        license_number: formData.licenseNumber,
+      };
+
+      if (formData.middleName.trim()) {
+        requestBody.middle_name = formData.middleName.trim();
+      }
+
+      if (!useDefaultPicture && profilePicture) {
+        requestBody.profile_picture_url = profilePicture;
+      }
+
+      const res = await fetch('/api/admin/drivers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        // Laravel 422: { message, errors: { field: ["msg", ...] } }
+        // Map backend field names back to frontend form field names for display.
+        if (res.status === 422 && data.errors) {
+          // Backend uses snake_case; map to camelCase for our form state.
+          const mapped: Record<string, string[]> = {};
+          if (data.errors.first_name) mapped.firstName = data.errors.first_name;
+          if (data.errors.middle_name) mapped.middleName = data.errors.middle_name;
+          if (data.errors.last_name) mapped.lastName = data.errors.last_name;
+          if (data.errors.birthday) mapped.birthday = data.errors.birthday;
+          if (data.errors.contact) mapped.contact = data.errors.contact;
+          if (data.errors.license_number) mapped.licenseNumber = data.errors.license_number;
+          if (data.errors.profile_picture_url) mapped.profilePicture = data.errors.profile_picture_url;
+          setFieldErrors(mapped);
+          const firstError = Object.values(data.errors)[0]?.[0] ?? 'Validation failed.';
+          throw new Error(firstError);
+        }
+        throw new Error(data.message ?? 'Failed to create driver');
+      }
+
+      // Success — reset form, trigger parent refetch, close modal.
+      setFormData({
+        firstName: '',
+        middleName: '',
+        lastName: '',
+        birthday: '',
+        contact: '',
+        licenseNumber: '',
+      });
+      setProfilePicture(null);
+      setUseDefaultPicture(true);
+      onSave();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create driver');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const inputClasses = "block w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors";
@@ -99,9 +144,14 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
           <p className="text-xs sm:text-sm text-slate-400">Register a driver to the fleet management system.</p>
         </div>
       </div>
-      
+
       <form onSubmit={handleSubmit} className="space-y-5">
-        
+        {error && (
+          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md">
+            <p className="text-sm text-red-400">{error}</p>
+          </div>
+        )}
+
         {/* Profile Picture Section */}
         <div className="flex items-center gap-5">
           {/* Image Preview */}
@@ -124,11 +174,12 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
               onChange={handleImageChange}
               className="hidden"
             />
-            
+
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-sm text-slate-300 hover:bg-[#1A2540] hover:text-white transition-colors active:scale-[0.98]"
+              disabled={isSubmitting}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-sm text-slate-300 hover:bg-[#1A2540] hover:text-white transition-colors active:scale-[0.98] disabled:opacity-50"
             >
               <Upload size={16} />
               Upload Photo
@@ -136,7 +187,7 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
 
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 cursor-pointer group">
-                <div 
+                <div
                   onClick={() => { setUseDefaultPicture(!useDefaultPicture); if(profilePicture) setProfilePicture(null); }}
                   className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
                     useDefaultPicture ? 'bg-[#62A0EA] border-[#62A0EA]' : 'border-[#1E2D45] group-hover:border-[#2A3A55]'
@@ -165,7 +216,9 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
         {/* Name Fields */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="firstName" className="block text-xs font-medium text-slate-300 mb-1.5">First Name <span className="text-red-400">*</span></label>
+            <label htmlFor="firstName" className="block text-xs font-medium text-slate-300 mb-1.5">
+              First Name <span className="text-red-400">*</span>
+            </label>
             <input
               type="text"
               id="firstName"
@@ -173,12 +226,18 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
               value={formData.firstName}
               onChange={handleChange}
               required
+              disabled={isSubmitting}
               placeholder="Juan"
-              className={inputClasses}
+              className={`${inputClasses} ${fieldErrors.firstName ? 'border-red-500/50' : ''}`}
             />
+            {fieldErrors.firstName && (
+              <p className="text-xs text-red-400 mt-1">{fieldErrors.firstName[0]}</p>
+            )}
           </div>
           <div>
-            <label htmlFor="lastName" className="block text-xs font-medium text-slate-300 mb-1.5">Last Name <span className="text-red-400">*</span></label>
+            <label htmlFor="lastName" className="block text-xs font-medium text-slate-300 mb-1.5">
+              Last Name <span className="text-red-400">*</span>
+            </label>
             <input
               type="text"
               id="lastName"
@@ -186,9 +245,13 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
               value={formData.lastName}
               onChange={handleChange}
               required
+              disabled={isSubmitting}
               placeholder="Dela Cruz"
-              className={inputClasses}
+              className={`${inputClasses} ${fieldErrors.lastName ? 'border-red-500/50' : ''}`}
             />
+            {fieldErrors.lastName && (
+              <p className="text-xs text-red-400 mt-1">{fieldErrors.lastName[0]}</p>
+            )}
           </div>
         </div>
 
@@ -200,14 +263,41 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
             name="middleName"
             value={formData.middleName}
             onChange={handleChange}
+            disabled={isSubmitting}
             placeholder="Optional"
-            className={inputClasses}
+            className={`${inputClasses} ${fieldErrors.middleName ? 'border-red-500/50' : ''}`}
           />
+          {fieldErrors.middleName && (
+            <p className="text-xs text-red-400 mt-1">{fieldErrors.middleName[0]}</p>
+          )}
+        </div>
+
+        {/* License Number */}
+        <div>
+          <label htmlFor="licenseNumber" className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-2">
+            <IdCard size={14} /> License Number <span className="text-red-400">*</span>
+          </label>
+          <input
+            type="text"
+            id="licenseNumber"
+            name="licenseNumber"
+            value={formData.licenseNumber}
+            onChange={handleChange}
+            required
+            disabled={isSubmitting}
+            placeholder="e.g. N01-23-045678"
+            className={`${inputClasses} ${fieldErrors.licenseNumber ? 'border-red-500/50' : ''}`}
+          />
+          {fieldErrors.licenseNumber && (
+            <p className="text-xs text-red-400 mt-1">{fieldErrors.licenseNumber[0]}</p>
+          )}
         </div>
 
         {/* Birthday */}
         <div>
-          <label htmlFor="birthday" className="block text-xs font-medium text-slate-300 mb-1.5">Birthday <span className="text-red-400">*</span></label>
+          <label htmlFor="birthday" className="block text-xs font-medium text-slate-300 mb-1.5">
+            Birthday <span className="text-red-400">*</span>
+          </label>
           <input
             type="date"
             id="birthday"
@@ -215,8 +305,12 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
             value={formData.birthday}
             onChange={handleChange}
             required
-            className={`${inputClasses} [color-scheme:dark]`}
+            disabled={isSubmitting}
+            className={`${inputClasses} [color-scheme:dark] ${fieldErrors.birthday ? 'border-red-500/50' : ''}`}
           />
+          {fieldErrors.birthday && (
+            <p className="text-xs text-red-400 mt-1">{fieldErrors.birthday[0]}</p>
+          )}
         </div>
 
         {/* Contact Number */}
@@ -231,12 +325,17 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
             value={formData.contact}
             onChange={handleChange}
             required
+            disabled={isSubmitting}
             placeholder="e.g. 0917 123 4567"
-            className={inputClasses}
+            className={`${inputClasses} ${fieldErrors.contact ? 'border-red-500/50' : ''}`}
           />
+          {fieldErrors.contact && (
+            <p className="text-xs text-red-400 mt-1">{fieldErrors.contact[0]}</p>
+          )}
         </div>
 
-        {/* Route Assignment */}
+        {/* Route Assignment — display only, drivers aren't tied to a route directly
+            (routes are on vehicles, drivers are assigned to vehicles). */}
         <div>
           <label htmlFor="driver-route" className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-2">
             <MapPin size={14} /> Assigned Route
@@ -244,30 +343,31 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
           <select
             id="driver-route"
             name="route"
-            value={formData.route}
             disabled
             className="block w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-slate-500 cursor-not-allowed text-sm [color-scheme:dark]"
           >
-            <option value="Malolos - Meycauayan - Calumpit" className="bg-gray-800">Malolos - Meycauayan - Calumpit</option>
+            <option value="" className="bg-gray-800">Assigned via vehicle — none yet</option>
           </select>
-          <p className="text-xs text-slate-600 mt-1">Currently fixed to the single active e-jeep corridor.</p>
+          <p className="text-xs text-slate-600 mt-1">Drivers inherit their route from the vehicle they're assigned to. Assign a vehicle in the Vehicles tab.</p>
         </div>
 
         {/* Footer Buttons */}
         <div className="flex justify-end gap-2 pt-4 border-t border-[#1E2D45]">
-          <button 
-            type="button" 
-            onClick={onClose} 
-            className="px-5 py-2.5 border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#131C2E] transition-colors"
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="px-5 py-2.5 border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#131C2E] transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
-          <button 
-            type="submit" 
-            className="flex items-center gap-2 px-5 py-2.5 bg-[#62A0EA] text-white font-medium rounded-md hover:bg-[#4A8BD4] transition-colors"
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#62A0EA] text-white font-medium rounded-md hover:bg-[#4A8BD4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <UserPlus size={16} />
-            Save Driver
+            {isSubmitting ? 'Saving...' : 'Save Driver'}
           </button>
         </div>
       </form>

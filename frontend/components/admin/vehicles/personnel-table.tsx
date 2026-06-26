@@ -7,6 +7,7 @@ import { GlassCard } from "@/components/admin/ui/glass-card";
 import { Edit, Trash, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Personnel } from "@/app/(admin)/vehicles/data/vehicles-data";
 import { DriverDetailModal } from "@/components/admin/vehicles/driver-detail-modal";
+import { ConductorDetailModal } from "@/components/admin/vehicles/conductor-detail-modal";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -15,13 +16,16 @@ interface PersonnelTableProps {
   searchQuery: string;
   onEdit: (personnel: Personnel) => void;
   onDelete: (personnel: Personnel) => void;
-  driverProfiles: Record<string, import("@/app/(admin)/vehicles/data/vehicles-data").DriverProfile>;
-  driverRatings: Record<string, import("@/app/(admin)/vehicles/data/vehicles-data").DriverRating[]>;
+  // Kept for backwards compatibility — no longer used by the new detail modals
+  // (they fetch their own data from the API). Will be removed in a future cleanup.
+  driverProfiles?: Record<string, import("@/app/(admin)/vehicles/data/vehicles-data").DriverProfile>;
+  driverRatings?: Record<string, import("@/app/(admin)/vehicles/data/vehicles-data").DriverRating[]>;
 }
 
-export function PersonnelTable({ personnel, searchQuery, onEdit, onDelete, driverProfiles, driverRatings }: PersonnelTableProps) {
+export function PersonnelTable({ personnel, searchQuery, onEdit, onDelete }: PersonnelTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedDriverId, setSelectedDriverId] = useState<number | null>(null);
+  const [selectedDriver, setSelectedDriver] = useState<Personnel | null>(null);
+  const [selectedConductor, setSelectedConductor] = useState<Personnel | null>(null);
 
   const filteredData = personnel.filter(
     (p) =>
@@ -89,7 +93,7 @@ export function PersonnelTable({ personnel, searchQuery, onEdit, onDelete, drive
         {/* Double-click hint */}
         <div className="flex items-center justify-end">
           <p className="text-[10px] text-slate-600 italic">
-            Double-click a driver row to view profile, ratings & messages
+            Double-click a row to view full profile
           </p>
         </div>
 
@@ -107,7 +111,9 @@ export function PersonnelTable({ personnel, searchQuery, onEdit, onDelete, drive
                 onRowDoubleClick={(item) => {
                   const p = item as Personnel;
                   if (p.role === "Driver") {
-                    setSelectedDriverId(p.id);
+                    setSelectedDriver(p);
+                  } else if (p.role === "Conductor") {
+                    setSelectedConductor(p);
                   }
                 }}
               />
@@ -173,12 +179,16 @@ export function PersonnelTable({ personnel, searchQuery, onEdit, onDelete, drive
         )}
       </GlassCard>
 
-      {/* Driver Detail Modal — ONLY for Drivers */}
+      {/* Driver Detail Modal — opens on double-click of a Driver row */}
       <DriverDetailModal
-        driverId={selectedDriverId}
-        onClose={() => setSelectedDriverId(null)}
-        driverProfiles={driverProfiles}
-        driverRatings={driverRatings}
+        driver={selectedDriver}
+        onClose={() => setSelectedDriver(null)}
+      />
+
+      {/* Conductor Detail Modal — opens on double-click of a Conductor row */}
+      <ConductorDetailModal
+        conductor={selectedConductor}
+        onClose={() => setSelectedConductor(null)}
       />
     </>
   );

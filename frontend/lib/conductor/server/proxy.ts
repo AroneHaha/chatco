@@ -20,6 +20,12 @@ export interface ProxyResult {
   data: unknown;
   /** The `message` field from Laravel's error envelope (if not ok). */
   message: string | null;
+  /**
+   * The `errors` field from Laravel's 422 validation response.
+   * Shape: `{ field_name: ["Error message 1", "Error message 2"] }`.
+   * Null for non-validation errors.
+   */
+  errors: Record<string, string[]> | null;
 }
 
 /**
@@ -74,16 +80,18 @@ export async function proxyToLaravel(
         status: res.status,
         data: null,
         message: body?.message ?? "Request failed.",
+        errors: body?.errors ?? null,
       };
     }
 
-    return { ok: true, status: res.status, data: body?.data ?? null, message: body?.message ?? null };
+    return { ok: true, status: res.status, data: body?.data ?? null, message: body?.message ?? null, errors: null };
   } catch {
     return {
       ok: false,
       status: 502,
       data: null,
       message: "Unable to reach the backend service. Please try again.",
+      errors: null,
     };
   }
 }

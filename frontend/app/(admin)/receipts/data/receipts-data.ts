@@ -97,33 +97,44 @@ function mapLaravelTransaction(r: Record<string, unknown>): Receipt {
 export function useReceiptsData() {
   const [records, setRecords] = useState<Receipt[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    setIsLoading(true);
+  const refresh = useCallback(async (isBackground = false) => {
+    if (isBackground) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
     setError(null);
+
     try {
       const data = await fetchTransactions();
       setRecords(data);
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Failed to load transactions";
-      setError(message);
+      // Only set error if it's not a background poll (so we don't flash error screens)
+      if (!isBackground) {
+        setError(message);
+      }
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
-    refresh();
+    // Initial load (shows skeleton)
+    refresh(false);
 
-    // Auto-poll every 10 seconds for real-time updates
+    // Background auto-poll every 10 seconds (no flicker)
     const interval = setInterval(() => {
-      refresh();
+      refresh(true);
     }, 10000);
 
     return () => clearInterval(interval);
   }, [refresh]);
 
-  return { records, isLoading, error, refresh };
+  return { records, isLoading, isRefreshing, error, refresh };
 }

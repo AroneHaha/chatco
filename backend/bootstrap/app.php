@@ -6,6 +6,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\Sanctum;
 
@@ -29,6 +30,21 @@ $app = Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
+        // Handle unauthenticated requests — return 401 JSON instead of trying
+        // to redirect to a 'login' named route (which doesn't exist in this
+        // API-only app, causing a RouteNotFoundException that Symfony renders
+        // as an HTML redirect page). This fixes the HTML redirect responses
+        // that were breaking curl/browser tests of API endpoints.
+        $exceptions->render(function (AuthenticationException $e, Request $request) {
+            return response()->json([
+                'success' => false,
+                'data'    => null,
+                'message' => 'Unauthenticated.',
+                'errors'  => null,
+                'meta'    => null,
+            ], 401);
+        });
+
         $exceptions->render(function (ValidationException $e, Request $request) {
             if ($request->expectsJson()) {
                 return response()->json([
