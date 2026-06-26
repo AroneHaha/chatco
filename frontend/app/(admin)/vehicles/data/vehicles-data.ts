@@ -88,7 +88,12 @@ async function fetchVehiclesData(): Promise<VehiclesData> {
   // extracting conductors from vehicle relationships.
   const conductorsJson = conductorsRes.ok ? await conductorsRes.json() : { data: [] };
 
-  const apiVehicles = vehiclesJson.data ?? [];
+  // The admin /vehicles endpoint now returns a paginated response (Week 5
+  // refactor): { data: { data: [...vehicles], current_page, total, ... } }
+  // The inner .data is the actual vehicle array. The outer .data is the
+  // Laravel paginator object. We extract the inner array here.
+  // Drivers + conductors endpoints still return flat arrays.
+  const apiVehicles = vehiclesJson.data?.data ?? vehiclesJson.data ?? [];
   const apiDrivers = driversJson.data ?? [];
   const apiConductors = conductorsJson.data ?? [];
 
