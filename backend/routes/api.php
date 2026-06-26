@@ -8,6 +8,7 @@ use App\Http\Controllers\Commuter\VehicleLocationController;
 use App\Http\Controllers\Conductor\ConductorController;
 use App\Http\Controllers\Conductor\ConductorHailController;
 use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\AdminVehicleController;
 use App\Http\Controllers\Payment\PaymentController;
 use App\Http\Controllers\Payment\QrController;
 
@@ -122,11 +123,11 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::get('/conductors/{id}', [AdminController::class, 'showConductor']);
     Route::get('/conductors', [AdminController::class, 'conductors']);
     Route::post('/conductors', [AdminController::class, 'storeConductor']);
-    Route::get('/vehicles', [AdminController::class, 'vehicles']);
-    Route::post('/vehicles', [AdminController::class, 'storeVehicle']);
-    Route::put('/vehicles/{id}', [AdminController::class, 'updateVehicle']);
-    Route::patch('/vehicles/{id}', [AdminController::class, 'updateVehicle']);
-    Route::delete('/vehicles/{id}', [AdminController::class, 'destroyVehicle']);
+    Route::get('/vehicles', [AdminVehicleController::class, 'index']);
+    Route::post('/vehicles', [AdminVehicleController::class, 'store']);
+    Route::put('/vehicles/{id}', [AdminVehicleController::class, 'update']);
+    Route::patch('/vehicles/{id}', [AdminVehicleController::class, 'update']);
+    Route::delete('/vehicles/{id}', [AdminVehicleController::class, 'destroy']);
     Route::get('/routes', [AdminController::class, 'routes']);
     Route::get('/transactions', [AdminController::class, 'transactions']);
     Route::get('/remittances', [AdminController::class, 'remittances']);

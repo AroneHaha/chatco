@@ -318,89 +318,11 @@ class AdminController extends Controller
 
     public function vehicles(): JsonResponse
     {
-        $vehicles = Vehicle::with(['route', 'driver', 'conductor'])->get();
-
-        return $this->successResponse($vehicles, 'Vehicles retrieved');
-    }
-
-    /**
-     * POST /api/v1/admin/vehicles
-     * Creates a new vehicle.
-     *
-     * Required fields: unit_number, plate_number, route_id.
-     * Driver and conductor are optional (can be assigned later via update).
-     */
-    public function storeVehicle(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'unit_number' => 'required|string|max:20|unique:vehicles,unit_number',
-            'plate_number' => 'required|string|max:20|unique:vehicles,plate_number',
-            'route_id' => 'required|uuid|exists:routes,id',
-            'driver_id' => 'nullable|uuid|exists:drivers,id',
-            'conductor_id' => 'nullable|uuid|exists:conductor_profiles,id',
-            'status' => 'nullable|string|in:ACTIVE,MAINTENANCE,INACTIVE',
-        ]);
-
-        $vehicle = Vehicle::create([
-            'unit_number' => $validated['unit_number'],
-            'plate_number' => $validated['plate_number'],
-            'route_id' => $validated['route_id'],
-            'driver_id' => $validated['driver_id'] ?? null,
-            'conductor_id' => $validated['conductor_id'] ?? null,
-            'status' => $validated['status'] ?? 'ACTIVE',
-            'capacity_status' => 'AVAILABLE',
-        ]);
-
-        // Load relationships for the response
-        $vehicle->load(['route', 'driver', 'conductor']);
-
-        return $this->successResponse($vehicle, 'Vehicle created successfully', 201);
-    }
-
-    /**
-     * PUT/PATCH /api/v1/admin/vehicles/{id}
-     * Updates an existing vehicle.
-     *
-     * Required fields: unit_number, plate_number, route_id.
-     * Driver/conductor can be cleared by sending null.
-     */
-    public function updateVehicle(Request $request, string $id): JsonResponse
-    {
-        $vehicle = Vehicle::findOrFail($id);
-
-        $validated = $request->validate([
-            'unit_number' => 'required|string|max:20|unique:vehicles,unit_number,' . $id,
-            'plate_number' => 'required|string|max:20|unique:vehicles,plate_number,' . $id,
-            'route_id' => 'required|uuid|exists:routes,id',
-            'driver_id' => 'nullable|uuid|exists:drivers,id',
-            'conductor_id' => 'nullable|uuid|exists:conductor_profiles,id',
-            'status' => 'nullable|string|in:ACTIVE,MAINTENANCE,INACTIVE',
-        ]);
-
-        $vehicle->update([
-            'unit_number' => $validated['unit_number'],
-            'plate_number' => $validated['plate_number'],
-            'route_id' => $validated['route_id'],
-            'driver_id' => $validated['driver_id'] ?? null,
-            'conductor_id' => $validated['conductor_id'] ?? null,
-            'status' => $validated['status'] ?? $vehicle->status,
-        ]);
-
-        $vehicle->load(['route', 'driver', 'conductor']);
-
-        return $this->successResponse($vehicle, 'Vehicle updated successfully');
-    }
-
-    /**
-     * DELETE /api/v1/admin/vehicles/{id}
-     * Deletes a vehicle.
-     */
-    public function destroyVehicle(string $id): JsonResponse
-    {
-        $vehicle = Vehicle::findOrFail($id);
-        $vehicle->delete();
-
-        return $this->successResponse(null, 'Vehicle deleted successfully');
+        // Vehicle CRUD moved to AdminVehicleController + AdminService (Week 5).
+        // This stub kept for backwards compat with any callers still hitting
+        // the old AdminController route — but the route now points to
+        // AdminVehicleController::index, so this method is effectively dead.
+        return $this->notImplementedResponse();
     }
 
     public function routes(): JsonResponse
