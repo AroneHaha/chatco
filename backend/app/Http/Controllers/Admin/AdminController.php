@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Enums\UserRole;
 use App\Models\ConductorProfile;
 use App\Models\Driver;
 use App\Models\Remittance;
 use App\Models\Route as RouteModel;
 use App\Models\ShiftLog;
 use App\Models\Transaction;
+use App\Models\User;
 use App\Models\Vehicle;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -216,6 +218,92 @@ class AdminController extends Controller
         ];
 
         return $this->successResponse($data, 'Conductor details retrieved');
+    }
+
+    /**
+     * GET /api/v1/admin/conductors
+     * Lists all conductor profiles (for the Personnel tab).
+     */
+    public function conductors(): JsonResponse
+    {
+        $conductors = ConductorProfile::with(['vehicle.route', 'vehicle.driver'])
+            ->orderBy('last_name', 'asc')
+            ->get();
+
+        return $this->successResponse($conductors, 'Conductors retrieved');
+    }
+
+    /**
+     * POST /api/v1/admin/conductors
+     * Creates a new conductor account: a User (with CONDUCTOR role) + a
+     * ConductorProfile. The username/password are generated server-side
+     * (deterministic from name + birthday) and returned in the response so
+     * the admin can hand them to the conductor.
+     */
+    public function storeConductor(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'first_name' => 'required|string|max:100',
+            'middle_name' => 'nullable|string|max:100',
+            'last_name' => 'required|string|max:100',
+            'birthday' => 'required|date|before:today',
+            'profile_picture_url' => 'nullable|string|max:500',
+        ]);
+
+        $firstName = $validated['first_name'];
+        $lastName = $validated['last_name'];
+        $birthday = $validated['birthday'];
+
+        // Generate username: firstinitial.lastname (e.g., j.delacruz)
+        $generatedUsername = strtolower(
+            substr($firstName, 0, 1) . '.' . preg_replace('/\s+/', '', $lastName)
+        );
+
+        // Generate password: firstname.MMDDYYYY (e.g., juan.05142000)
+        $birthdayFormatted = \Carbon\Carbon::parse($birthday)->format('mdY');
+        $generatedPassword = strtolower($firstName) . '.' . $birthdayFormatted;
+
+        // Email is derived from username (conductor accounts don't have a real
+        // email — they log in with the generated username via a custom field).
+        // We store it as username@chatco.local to satisfy the NOT NULL email
+        // constraint on the users table.
+        $email = $generatedUsername . '@chatco.local';
+
+        // Ensure username/email uniqueness — append a number if taken.
+        $originalUsername = $generatedUsername;
+        $counter = 1;
+        while (User::where('email', $email)->exists()) {
+            $generatedUsername = $originalUsername . $counter;
+            $email = $generatedUsername . '@chatco.local';
+            $counter++;
+        }
+
+        // Create the User account (CONDUCTOR role).
+        $user = User::create([
+            'email' => $email,
+            'password' => $generatedPassword,
+            'role' => UserRole::CONDUCTOR,
+        ]);
+
+        // Create the ConductorProfile (shares the same UUID PK as the User).
+        $conductor = ConductorProfile::create([
+            'id' => $user->id,
+            'first_name' => $firstName,
+            'middle_name' => $validated['middle_name'] ?? null,
+            'last_name' => $lastName,
+            'birthday' => $birthday,
+            'profile_picture_url' => $validated['profile_picture_url'] ?? null,
+            'generated_username' => $generatedUsername,
+            'generated_password' => $generatedPassword,
+        ]);
+
+        return $this->successResponse([
+            'id' => $conductor->id,
+            'first_name' => $conductor->first_name,
+            'last_name' => $conductor->last_name,
+            'generated_username' => $generatedUsername,
+            'generated_password' => $generatedPassword,
+        ], 'Conductor account created successfully', 201);
     }
 
     public function vehicles(): JsonResponse

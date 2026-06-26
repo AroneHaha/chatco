@@ -73,9 +73,10 @@ export interface VehiclesData {
 // ─── API fetch helper ──────────────────────────────────────────────────
 
 async function fetchVehiclesData(): Promise<VehiclesData> {
-  const [vehiclesRes, driversRes] = await Promise.all([
+  const [vehiclesRes, driversRes, conductorsRes] = await Promise.all([
     fetch("/api/admin/vehicles", { headers: { Accept: "application/json" } }),
     fetch("/api/admin/drivers", { headers: { Accept: "application/json" } }),
+    fetch("/api/admin/conductors", { headers: { Accept: "application/json" } }),
   ]);
 
   if (!vehiclesRes.ok) throw new Error("Failed to fetch vehicles");
@@ -83,9 +84,13 @@ async function fetchVehiclesData(): Promise<VehiclesData> {
 
   const vehiclesJson = await vehiclesRes.json();
   const driversJson = await driversRes.json();
+  // Conductors endpoint may fail if the server is older — fall back to
+  // extracting conductors from vehicle relationships.
+  const conductorsJson = conductorsRes.ok ? await conductorsRes.json() : { data: [] };
 
   const apiVehicles = vehiclesJson.data ?? [];
   const apiDrivers = driversJson.data ?? [];
+  const apiConductors = conductorsJson.data ?? [];
 
   // Map Laravel Vehicles to frontend Vehicle type
   const vehicles: Vehicle[] = apiVehicles.map((v: Record<string, unknown>) => {
@@ -121,26 +126,23 @@ async function fetchVehiclesData(): Promise<VehiclesData> {
     };
   });
 
-  // Note: Conductors are not fetched from a dedicated admin endpoint yet.
-  // For now, we extract them from the vehicle relationships.
-  const conductorPersonnel: Personnel[] = apiVehicles
-    .map((v: Record<string, unknown>) => v.conductor as Record<string, unknown> | null)
-    .filter((c): c is Record<string, unknown> => c !== null)
-    .map((c) => ({
-      id: String(c.id ?? ""),
-      name: `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim(),
-      role: 'Conductor' as const,
-      contact: "—", // Conductor contact not available in vehicle relationship
-      profilePic: `https://placehold.co/150x150/0A1E33/F59E0B?text=${String(c.first_name ?? 'C')[0]}`,
-    }));
-
-  // Deduplicate conductors (in case multiple vehicles share one)
-  const uniqueConductors = Array.from(new Map(conductorPersonnel.map(c => [c.id, c])).values());
+  // Map Laravel ConductorProfiles to frontend Personnel type.
+  // Uses the dedicated /admin/conductors endpoint (Batch 4) — no longer
+  // extracted from vehicle relationships, so unassigned conductors appear too.
+  const conductorPersonnel: Personnel[] = apiConductors.map((c: Record<string, unknown>) => ({
+    id: String(c.id ?? ""),
+    name: `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim(),
+    role: 'Conductor' as const,
+    contact: "—",
+    profilePic: c.profile_picture_url
+      ? String(c.profile_picture_url)
+      : `https://placehold.co/150x150/0A1E33/F59E0B?text=${String(c.first_name ?? 'C')[0]}`,
+  }));
 
   return {
-    personnel: [...driverPersonnel, ...uniqueConductors],
+    personnel: [...driverPersonnel, ...conductorPersonnel],
     vehicles,
-    terminatedPersonnel: [], // No backend endpoint yet
+    terminatedPersonnel: [], // No backend endpoint yet (Batch 7)
     shiftHistoryLog: [],     // No backend endpoint yet
     driverProfiles: {},      // No backend endpoint yet
     driverRatings: {},       // No backend endpoint yet

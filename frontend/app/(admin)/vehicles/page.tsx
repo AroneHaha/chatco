@@ -31,7 +31,13 @@ export default function VehiclesPage() {
   const [isCreateConductorOpen, setIsCreateConductorOpen] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   
-  const [createdAccountData, setCreatedAccountData] = useState<{ firstName: string; lastName: string; birthday: string; route: string } | null>(null);
+  const [createdAccountData, setCreatedAccountData] = useState<{
+    id: string;
+    first_name: string;
+    last_name: string;
+    generated_username: string;
+    generated_password: string;
+  } | null>(null);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [shiftHistoryVehicle, setShiftHistoryVehicle] = useState<Vehicle | null>(null);
   const [editingPersonnelData, setEditingPersonnelData] = useState<Personnel | null>(null);
@@ -164,7 +170,21 @@ export default function VehiclesPage() {
   // Shift & Conductor Handlers
   const handleOpenCreateConductor = () => setIsCreateConductorOpen(true);
   const handleCloseCreateConductor = () => setIsCreateConductorOpen(false);
-  const handleSaveConductorAccount = (accountData: { firstName: string; lastName: string; birthday: string; route: string }) => { setCreatedAccountData(accountData); setIsSuccessModalOpen(true); handleCloseCreateConductor(); };
+  // Called by the modal after POST /api/admin/conductors succeeds — receives
+  // the real generated credentials from the backend, shows the success modal,
+  // and refetches the personnel list so the new conductor appears.
+  const handleConductorCreated = (account: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    generated_username: string;
+    generated_password: string;
+  }) => {
+    setCreatedAccountData(account);
+    setIsSuccessModalOpen(true);
+    handleCloseCreateConductor();
+    refetch();
+  };
   const handleCloseSuccessModal = () => { setIsSuccessModalOpen(false); setCreatedAccountData(null); };
 
   return (
@@ -280,7 +300,7 @@ export default function VehiclesPage() {
       <EditPersonnelModal isOpen={isEditPersonnelOpen} onClose={handleCloseEditPersonnel} onSaved={handleSaveEditPersonnel} editingData={editingPersonnelData} />
       <DeletePersonnelModal isOpen={isDeletePersonnelOpen} onClose={handleCloseDeletePersonnel} onConfirm={handleConfirmDeletePersonnel} personnelData={deletingPersonnelData} />
 
-      <CreateConductorAccountModal isOpen={isCreateConductorOpen} onClose={handleCloseCreateConductor} onSave={handleSaveConductorAccount} />
+      <CreateConductorAccountModal isOpen={isCreateConductorOpen} onClose={handleCloseCreateConductor} onCreated={handleConductorCreated} />
       <ConductorAccountSuccessModal isOpen={isSuccessModalOpen} onClose={handleCloseSuccessModal} accountData={createdAccountData} />
     </>
   );

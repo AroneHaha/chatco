@@ -116,6 +116,8 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::put('/drivers/{id}', [AdminController::class, 'updateDriver']);
     Route::patch('/drivers/{id}', [AdminController::class, 'updateDriver']);
     Route::get('/conductors/{id}', [AdminController::class, 'showConductor']);
+    Route::get('/conductors', [AdminController::class, 'conductors']);
+    Route::post('/conductors', [AdminController::class, 'storeConductor']);
     Route::get('/vehicles', [AdminController::class, 'vehicles']);
     Route::post('/vehicles', [AdminController::class, 'storeVehicle']);
     Route::put('/vehicles/{id}', [AdminController::class, 'updateVehicle']);
