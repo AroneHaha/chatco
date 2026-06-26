@@ -50,11 +50,6 @@ class AdminController extends Controller
         return $this->successResponse($data, 'Analytics retrieved');
     }
 
-    public function users(): JsonResponse
-    {
-        return $this->notImplementedResponse();
-    }
-
     public function drivers(): JsonResponse
     {
         $drivers = Driver::with('vehicle')->get();
