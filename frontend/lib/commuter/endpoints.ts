@@ -8,6 +8,7 @@
 
 export const COMMUTER_API = {
   profile: "/api/commuter/profile",
+  changePassword: "/api/commuter/change-password",
   tracking: {
     nearby: "/api/commuter/tracking/nearby",
     hail: "/api/commuter/hail",
