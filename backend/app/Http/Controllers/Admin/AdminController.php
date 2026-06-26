@@ -12,6 +12,7 @@ use App\Models\ShiftLog;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Services\AdminService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,9 +23,31 @@ class AdminController extends Controller
 {
     use ApiResponse;
 
+    public function __construct(
+        private AdminService $adminService
+    ) {}
+
     public function dashboard(): JsonResponse
     {
         return $this->notImplementedResponse();
+    }
+
+    /**
+     * GET /api/v1/admin/analytics?date_from=&date_to=
+     * Aggregated business metrics from real DB tables (transactions,
+     * remittances, vehicles, shift_logs). Supports optional date range
+     * filtering; defaults to last 30 days.
+     */
+    public function analytics(Request $request): JsonResponse
+    {
+        $filters = [
+            'date_from' => $request->string('date_from')->toString() ?: null,
+            'date_to'   => $request->string('date_to')->toString() ?: null,
+        ];
+
+        $data = $this->adminService->analytics($filters);
+
+        return $this->successResponse($data, 'Analytics retrieved');
     }
 
     public function users(): JsonResponse

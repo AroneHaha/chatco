@@ -114,6 +114,7 @@ Route::prefix('vehicles')->middleware(['auth:sanctum'])->group(function () {
 */
 Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(function () {
     Route::get('/dashboard', [AdminController::class, 'dashboard']);
+    Route::get('/analytics', [AdminController::class, 'analytics']);
     Route::get('/users', [AdminController::class, 'users']);
     Route::get('/drivers', [AdminController::class, 'drivers']);
     Route::post('/drivers', [AdminController::class, 'storeDriver']);
