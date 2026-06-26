@@ -474,3 +474,29 @@ Stage Summary:
   - S5 Admin & Profile: 17 tasks — 3 COMPLETE, 4 in-progress (mhak), 10 in "s4" (todo) status
 - Plus 14 OTHER closed tasks (DOCU, COMMUTER-FRONTEND, HARDENING, INFRA, VALIDATION, FIXING FOR NEXT DEV)
 - Local git repo has no `origin` remote configured — only manual file sync from github.com/AroneHaha/chatco has been done
+
+---
+Task ID: GIT-REVIEW
+Agent: main
+Task: Wire up GitHub remote with PAT and review project architecture for context
+
+Work Log:
+- User provided GitHub PAT ([REDACTED]) for repo github.com/AroneHaha/chatco
+- PAT verified: authenticated as user AroneHaha (Mark Arone Dela Cruz)
+- Configured local /home/z/my-project as git repo with `origin` remote = https://<PAT>@github.com/AroneHaha/chatco.git
+- Fetched all 7 branches: main, dev, arone, mhak, rod, cze, sprintMhak
+- Inspected 33 PRs (#19-#33): most merged to dev, PR #24 (cze S3-T12 GeoHelper tests) still open
+- Reviewed dev branch file structure: backend/ (Laravel 12) + frontend/ (Next.js 16) at root
+- Reviewed backend: 31 migrations, 20 models, 11 services, 14 feature tests, all routes in /api/* with per-route throttle limiters
+- Reviewed frontend: App Router with (auth)/(commuter)/(conductor)/(admin) route groups, 35+ API proxy routes, lib/echo.ts for Pusher realtime, Leaflet maps, offline-first conductor persistence
+- Reviewed backend routes/api.php — full role-scoped route groups with throttle:commuter-read, conductor-gps, admin-write etc.
+- Compared local /home/z/my-project/src to origin/dev:frontend — local is STALE, missing ~50+ files including all app/api/admin/* proxy routes, app/api/conductor/{earnings,hails/*}, app/api/commuter/{hail,payments}/*, app/api/auth/{logout,me}, use-conductor-location-broadcast hook. Previous manual sync was Sprint 2-era.
+- Wrote comprehensive architectural context document to /home/z/my-project/upload/PROJECT_CONTEXT.md (11 sections: purpose, layout, branches, backend arch, frontend arch, DB schema, sprint progress, engineering patterns, gaps, team, local state)
+
+Stage Summary:
+- GitHub remote wired up — can pull/push/branch as needed
+- Full architectural context captured in upload/PROJECT_CONTEXT.md for future reference
+- Local src/ is significantly behind dev branch (Sprint 2-era snapshot) — must sync before any frontend work
+- Local has no Laravel backend running; only Next.js on port 3000. Real backend lives at origin/dev:backend/
+- Project is at 85% S4 complete, 25% S5 complete; 10 frontend S5 integration tasks queued (next big batch)
+- All 5 sprints discovered, no S6 planned yet
