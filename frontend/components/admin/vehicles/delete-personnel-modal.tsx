@@ -1,28 +1,36 @@
 // components/admin/vehicles/delete-personnel-modal.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import { AlertTriangle, Trash2 } from 'lucide-react';
 
 interface DeletePersonnelModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (data: { id: number; reason: string; terminationType: string }) => void;
-  personnelData: { id: number; name: string; role: string } | null;
+  onConfirm: (data: { id: string; reason: string; terminationType: string }) => void;
+  personnelData: { id: string; name: string; role: string } | null;
 }
 
 export function DeletePersonnelModal({ isOpen, onClose, onConfirm, personnelData }: DeletePersonnelModalProps) {
   const [terminationType, setTerminationType] = useState('Terminated');
   const [reason, setReason] = useState('');
 
-  // Reset form when modal opens or data changes
-  useEffect(() => {
+  // Reset the form whenever the modal transitions to open or the target
+  // personnel changes. Uses the React-recommended "adjust state during
+  // render" pattern (conditional setState during render) instead of a
+  // useEffect — this avoids the react-hooks/set-state-in-effect lint
+  // error and is the documented way to reset state on prop change.
+  // See: https://react.dev/reference/react/useState#storing-information-from-previous-renders
+  const [prevOpenKey, setPrevOpenKey] = useState<string | null>(null);
+  const openKey = isOpen ? `${personnelData?.id ?? 'none'}` : null;
+  if (openKey !== prevOpenKey) {
+    setPrevOpenKey(openKey);
     if (isOpen) {
       setTerminationType('Terminated');
       setReason('');
     }
-  }, [isOpen, personnelData]);
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
