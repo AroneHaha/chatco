@@ -8,7 +8,7 @@ use App\Http\Controllers\Commuter\VehicleLocationController;
 use App\Http\Controllers\Conductor\ConductorController;
 use App\Http\Controllers\Conductor\ConductorHailController;
 use App\Http\Controllers\Admin\AdminController;
-use App\Http\Controllers\Admin\AdminUserController;
+use App\Http\Controllers\Admin\AdminVehicleController;
 use App\Http\Controllers\Payment\PaymentController;
 use App\Http\Controllers\Payment\QrController;
 
@@ -35,11 +35,7 @@ Route::middleware('auth:sanctum')->get('/user', [AuthController::class, 'user'])
 |--------------------------------------------------------------------------
 */
 Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(function () {
-    // Self-service profile (S5-T1)
-    Route::get('/profile', [CommuterController::class, 'profile'])->middleware('throttle:commuter-read');
-    Route::put('/profile', [CommuterController::class, 'updateProfile'])->middleware('throttle:commuter-write');
-    Route::post('/change-password', [CommuterController::class, 'changePassword'])->middleware('throttle:commuter-security');
-
+    Route::get('/profile', [CommuterController::class, 'profile']);
     Route::get('/trips', [CommuterController::class, 'trips']);
     Route::get('/rewards', [CommuterController::class, 'rewards']);
 
@@ -78,6 +74,10 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->grou
     Route::post('/shifts/start', [ConductorController::class, 'startShift'])->middleware('throttle:conductor-mutation');
     Route::post('/remittances', [ConductorController::class, 'remittances'])->middleware('throttle:conductor-mutation');
 
+    // Read — conductor's own submitted remittance history (Week 5).
+    // Scoped to auth conductor in ConductorService::listRemittances().
+    Route::get('/remittances', [ConductorController::class, 'remittancesIndex'])->middleware('throttle:conductor-read');
+
     // GPS updates — allows 5-second cadence with headroom for retries/reconnects
     Route::post('/location', [ConductorController::class, 'updateLocation'])->middleware('throttle:conductor-gps');
 
@@ -114,15 +114,21 @@ Route::prefix('vehicles')->middleware(['auth:sanctum'])->group(function () {
 */
 Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(function () {
     Route::get('/dashboard', [AdminController::class, 'dashboard']);
-
-    // User management CRUD (S5-T3) — reads 60/min, mutations 30/min.
-    Route::get('/users', [AdminUserController::class, 'index'])->middleware('throttle:admin-read');
-    Route::get('/users/{id}', [AdminUserController::class, 'show'])->middleware('throttle:admin-read');
-    Route::put('/users/{id}', [AdminUserController::class, 'update'])->middleware('throttle:admin-write');
-    Route::delete('/users/{id}', [AdminUserController::class, 'destroy'])->middleware('throttle:admin-write');
-
+    Route::get('/analytics', [AdminController::class, 'analytics']);
+    Route::get('/users', [AdminController::class, 'users']);
     Route::get('/drivers', [AdminController::class, 'drivers']);
-    Route::get('/vehicles', [AdminController::class, 'vehicles']);
+    Route::post('/drivers', [AdminController::class, 'storeDriver']);
+    Route::get('/drivers/{id}', [AdminController::class, 'showDriver']);
+    Route::put('/drivers/{id}', [AdminController::class, 'updateDriver']);
+    Route::patch('/drivers/{id}', [AdminController::class, 'updateDriver']);
+    Route::get('/conductors/{id}', [AdminController::class, 'showConductor']);
+    Route::get('/conductors', [AdminController::class, 'conductors']);
+    Route::post('/conductors', [AdminController::class, 'storeConductor']);
+    Route::get('/vehicles', [AdminVehicleController::class, 'index']);
+    Route::post('/vehicles', [AdminVehicleController::class, 'store']);
+    Route::put('/vehicles/{id}', [AdminVehicleController::class, 'update']);
+    Route::patch('/vehicles/{id}', [AdminVehicleController::class, 'update']);
+    Route::delete('/vehicles/{id}', [AdminVehicleController::class, 'destroy']);
     Route::get('/routes', [AdminController::class, 'routes']);
     Route::get('/transactions', [AdminController::class, 'transactions']);
     Route::get('/remittances', [AdminController::class, 'remittances']);

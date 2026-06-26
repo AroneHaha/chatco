@@ -5,13 +5,13 @@ import { useState, useMemo, useEffect } from 'react';
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
 import { SearchBar } from '@/components/admin/ui/search-bar';
-import { CalendarDays, Download, Filter, Wallet, Ticket, Banknote, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
+import { CalendarDays, Download, Filter, Wallet, Ticket, Banknote, ChevronLeft, ChevronRight, AlertCircle, RefreshCw } from 'lucide-react';
 import { useReceiptsData, type Receipt, type PaymentMethod } from '@/app/(admin)/receipts/data/receipts-data';
 
 const ROWS_PER_PAGE = 20;
 
 export default function ReceiptsPage() {
-  const { records, isLoading, error, refresh } = useReceiptsData();
+  const { records, isLoading, isRefreshing, error, refresh } = useReceiptsData();
   const [searchQuery, setSearchQuery] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -87,27 +87,46 @@ export default function ReceiptsPage() {
 
   const hasActiveFilters = searchQuery || startDate || endDate || paymentFilter !== 'All';
 
-  // Loading state
+  // ─── Initial Loading State (Skeleton) ───
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-[#62A0EA] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-sm text-slate-400">Loading receipts...</p>
+      <div className="space-y-6 animate-pulse">
+        {/* Skeleton Summary Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4 h-24" />
+          ))}
+        </div>
+        {/* Skeleton Header */}
+        <div className="flex items-center justify-between">
+          <div className="h-8 w-32 rounded bg-[#131C2E]" />
+          <div className="h-10 w-28 rounded bg-[#131C2E]" />
+        </div>
+        {/* Skeleton Filters */}
+        <div className="flex gap-3">
+          <div className="h-10 w-64 rounded bg-[#131C2E]" />
+          <div className="h-10 w-48 rounded bg-[#131C2E]" />
+          <div className="h-10 w-48 rounded bg-[#131C2E]" />
+        </div>
+        {/* Skeleton Table */}
+        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5 space-y-4">
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="h-10 w-full rounded bg-[#0E1628]" />
+          ))}
         </div>
       </div>
     );
   }
 
-  // Error state
-  if (error) {
+  // ─── Error State (Only on initial load failure) ───
+  if (error && records.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <AlertCircle className="h-12 w-12 text-red-400 mb-4" />
         <h2 className="text-lg font-semibold text-white mb-2">Failed to load receipts</h2>
         <p className="text-sm text-slate-400 mb-4">{error}</p>
         <button
-          onClick={() => refresh()}
+          onClick={() => refresh(false)}
           className="px-4 py-2 bg-[#62A0EA] hover:bg-[#4A8BD4] text-white rounded-md text-sm font-medium transition-colors"
         >
           Try Again
@@ -141,10 +160,21 @@ export default function ReceiptsPage() {
       <div className="flex flex-col gap-6 mb-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-white">Receipts</h1>
-          <button className="flex items-center gap-2 px-4 py-2 bg-[#62A0EA] text-white text-sm font-medium rounded-md hover:bg-[#4A8BD4] transition-colors shadow-lg shadow-[#62A0EA]/25 active:scale-95">
-            <Download size={16} />
-            <span className="hidden sm:inline">Export</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Manual Refresh Button */}
+            <button
+              onClick={() => refresh(false)}
+              disabled={isRefreshing}
+              className="flex items-center gap-2 px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#1A2540] hover:text-white transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Refresh data"
+            >
+              <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
+            </button>
+            <button className="flex items-center gap-2 px-4 py-2 bg-[#62A0EA] text-white text-sm font-medium rounded-md hover:bg-[#4A8BD4] transition-colors shadow-lg shadow-[#62A0EA]/25 active:scale-95">
+              <Download size={16} />
+              <span className="hidden sm:inline">Export</span>
+            </button>
+          </div>
         </div>
 
         {/* Payment Method Filter */}
@@ -170,7 +200,7 @@ export default function ReceiptsPage() {
           </div>
         </div>
 
-        {/* Search & Date Filters */}
+        {/* Search & Date Filters + Refresh */}
         <div className="flex flex-col lg:flex-row gap-3 w-full">
           <SearchBar
             placeholder="Search by Passenger or Receipt ID..."

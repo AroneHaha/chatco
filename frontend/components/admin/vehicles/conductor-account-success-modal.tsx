@@ -8,11 +8,13 @@ import { CheckCircle, User, KeyRound, Copy, Check } from 'lucide-react';
 interface ConductorAccountSuccessModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Real credentials returned from the POST /api/admin/conductors response. */
   accountData: {
-    firstName: string;
-    lastName: string;
-    birthday: string;
-    route: string;
+    id: string;
+    first_name: string;
+    last_name: string;
+    generated_username: string;
+    generated_password: string;
   } | null;
 }
 
@@ -21,23 +23,10 @@ export function ConductorAccountSuccessModal({ isOpen, onClose, accountData }: C
 
   if (!accountData) return null;
 
-  // Format Birthday from YYYY-MM-DD to MMDDYYYY
-  const formatBirthday = (dateStr: string) => {
-    if (!dateStr) return '';
-    const [year, month, day] = dateStr.split('-');
-    return `${month}${day}${year}`;
-  };
-
-  // Generate Username: firstnameinitial.wholelastname (e.g., j.delacruz)
-  const generatedUsername = `${accountData.firstName.charAt(0).toLowerCase()}.${accountData.lastName.toLowerCase().replace(/\s/g, '')}`;
-
-  // Generate Password: firstname.birthdate (e.g., juan.05142000)
-  const generatedPassword = `${accountData.firstName.toLowerCase()}.${formatBirthday(accountData.birthday)}`;
-
   const handleCopy = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
     setCopiedField(field);
-    setTimeout(() => setCopiedField(null), 2000); // Reset icon after 2 seconds
+    setTimeout(() => setCopiedField(null), 2000);
   };
 
   return (
@@ -57,25 +46,25 @@ export function ConductorAccountSuccessModal({ isOpen, onClose, accountData }: C
         <div>
           <h2 className="text-2xl font-bold text-white">Account Created Successfully</h2>
           <p className="text-sm text-slate-400 mt-1">
-            Conductor account for <span className="text-white font-medium">{accountData.firstName} {accountData.lastName}</span>
+            Conductor account for <span className="text-white font-medium">{accountData.first_name} {accountData.last_name}</span>
           </p>
         </div>
 
         {/* Credentials Card */}
         <div className="bg-[#0E1628] border border-[#1E2D45] rounded-md p-5 space-y-4 text-left">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Scanner Login Credentials</p>
-          
+
           {/* Username Field */}
           <div className="flex items-center justify-between bg-[#0B1120] rounded-md p-3">
             <div className="flex items-center gap-3">
               <User size={18} className="text-[#62A0EA] flex-shrink-0" />
               <div>
                 <p className="text-xs text-slate-500 uppercase">Username</p>
-                <p className="text-lg font-mono font-bold text-white tracking-wide">{generatedUsername}</p>
+                <p className="text-lg font-mono font-bold text-white tracking-wide">{accountData.generated_username}</p>
               </div>
             </div>
             <button
-              onClick={() => handleCopy(generatedUsername, 'username')}
+              onClick={() => handleCopy(accountData.generated_username, 'username')}
               className="p-2 text-slate-500 hover:text-white hover:bg-[#1A2540] rounded-md transition-colors"
               title="Copy username"
             >
@@ -89,11 +78,11 @@ export function ConductorAccountSuccessModal({ isOpen, onClose, accountData }: C
               <KeyRound size={18} className="text-amber-400 flex-shrink-0" />
               <div>
                 <p className="text-xs text-slate-500 uppercase">Password</p>
-                <p className="text-lg font-mono font-bold text-white tracking-wide">{generatedPassword}</p>
+                <p className="text-lg font-mono font-bold text-white tracking-wide">{accountData.generated_password}</p>
               </div>
             </div>
             <button
-              onClick={() => handleCopy(generatedPassword, 'password')}
+              onClick={() => handleCopy(accountData.generated_password, 'password')}
               className="p-2 text-slate-500 hover:text-white hover:bg-[#1A2540] rounded-md transition-colors"
               title="Copy password"
             >
