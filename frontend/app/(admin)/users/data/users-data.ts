@@ -4,7 +4,7 @@
 //
 // ACTIVE USERS: fetched from GET /api/admin/users (real API)
 // PENDING: fetched from GET /api/admin/registrations (real API)
-// REJECTED: fetched from GET /api/admin/users?status=REJECTED (real API)
+// REJECTED: empty (rejected accounts are soft-deleted — not listed)
 //
 // No mock data anywhere.
 
@@ -19,10 +19,12 @@ import {
   type UpdateUserInput,
   type UserOperationError,
 } from "@/lib/admin/services/user.service";
+import * as registrationService from "@/lib/admin/services/registration.service";
 
 // ─── Re-exported types ───────────────────────────────────────────────
 
 export type { AdminUser, PaginationMeta, UserListFilters, UpdateUserInput };
+export type PendingRequest = registrationService.PendingRegistration;
 
 export interface ActiveUser {
   id: string;
@@ -34,21 +36,6 @@ export interface ActiveUser {
   languagePreference: string;
   idImageUrl: string;
   _raw: AdminUser;
-}
-
-export interface PendingRequest {
-  id: string;
-  name: string;
-  email: string;
-  phoneNumber: string;
-  commuterType: "Regular" | "Student" | "Senior Citizen" | "PWD";
-  languagePreference: "English" | "Filipino";
-  idImageUrl: string;
-  status: "Pending Verification";
-  birthdate: string;
-  gender: string;
-  username: string;
-  appliedType: string;
 }
 
 export interface RejectedUser {
@@ -70,83 +57,6 @@ export interface HistoryLog {
   details: string;
 }
 
-// ─── API helpers for registrations ───────────────────────────────────
-
-interface RawRegistration {
-  id: string;
-  email: string;
-  first_name: string;
-  middle_name: string | null;
-  surname: string;
-  birthdate: string;
-  gender: string;
-  contact_number: string;
-  username: string;
-  applied_type: string;
-  id_image_url: string;
-  account_status: string;
-  language_preference: string;
-  created_at: string;
-}
-
-const TYPE_LABELS: Record<string, "Regular" | "Student" | "Senior Citizen" | "PWD"> = {
-  REGULAR: "Regular",
-  STUDENT: "Student",
-  SENIOR: "Senior Citizen",
-  PWD: "PWD",
-};
-
-function mapToPendingRequest(r: RawRegistration): PendingRequest {
-  return {
-    id: r.id,
-    name: `${r.first_name} ${r.middle_name ? r.middle_name + ' ' : ''}${r.surname}`.trim(),
-    email: r.email,
-    phoneNumber: r.contact_number,
-    commuterType: TYPE_LABELS[r.applied_type] ?? "Regular",
-    languagePreference: (r.language_preference === "Filipino" ? "Filipino" : "English") as "English" | "Filipino",
-    idImageUrl: r.id_image_url,
-    status: "Pending Verification",
-    birthdate: r.birthdate,
-    gender: r.gender,
-    username: r.username,
-    appliedType: r.applied_type,
-  };
-}
-
-async function fetchPendingRegistrations(): Promise<PendingRequest[]> {
-  const res = await fetch("/api/admin/registrations", {
-    headers: { Accept: "application/json" },
-  });
-  if (!res.ok) throw new Error("Failed to fetch pending registrations");
-  const json = await res.json();
-  const rows = json.data?.data ?? json.data ?? [];
-  return (rows as RawRegistration[]).map(mapToPendingRequest);
-}
-
-async function approveRegistration(id: string): Promise<void> {
-  const res = await fetch(`/api/admin/registrations/${id}/approve`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({}),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => null);
-    throw new Error(data?.message ?? "Failed to approve registration");
-  }
-}
-
-async function rejectRegistration(id: string, reason: string): Promise<void> {
-  const res = await fetch(`/api/admin/registrations/${id}/reject`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ rejection_reason: reason }),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => null);
-    throw new Error(data?.message ?? "Failed to reject registration");
-  }
-}
-
 // ─── Hook ───────────────────────────────────────────────────────────
 
 export interface UseUsersDataReturn {
@@ -162,8 +72,8 @@ export interface UseUsersDataReturn {
   refetch: () => void;
   updateUserApi: (id: string, data: UpdateUserInput) => Promise<void>;
   deleteUserApi: (id: string) => Promise<void>;
-  approveRegistrationApi: (id: string) => Promise<void>;
-  rejectRegistrationApi: (id: string, reason: string) => Promise<void>;
+  approveRegistrationApi: (id: string) => Promise<string>;
+  rejectRegistrationApi: (id: string, reason: string) => Promise<string>;
 }
 
 function mapToActiveUser(u: AdminUser): ActiveUser {
@@ -199,8 +109,7 @@ export function useUsersData(): UseUsersDataReturn {
     setError(null);
     try {
       const result = await listUsers(f);
-      // Filter out PENDING and REJECTED from the Active tab — only show
-      // APPROVED / ACTIVE / SUSPENDED commuters.
+      // Filter out PENDING and REJECTED from the Active tab.
       const activeOnly = result.users.filter(
         (u) => u.accountStatus !== "PENDING" && u.accountStatus !== "REJECTED"
       );
@@ -217,10 +126,9 @@ export function useUsersData(): UseUsersDataReturn {
 
   const fetchPending = useCallback(async () => {
     try {
-      const pending = await fetchPendingRegistrations();
+      const pending = await registrationService.listPending();
       setPendingRequests(pending);
     } catch {
-      // Non-fatal — the Pending tab just shows empty
       setPendingRequests([]);
     }
   }, []);
@@ -265,22 +173,25 @@ export function useUsersData(): UseUsersDataReturn {
     [fetchUsers, filters, pagination, activeUsers.length]
   );
 
+  // ── Registration review (returns a success message for the UI) ──
+
   const approveRegistrationApi = useCallback(
-    async (id: string) => {
-      await approveRegistration(id);
-      // Refresh both lists: the pending list loses the row, the active
-      // list gains the newly-approved commuter.
+    async (id: string): Promise<string> => {
+      const result = await registrationService.approve(id);
+      // Refresh both lists: pending loses the row, active gains the commuter.
       await fetchPending();
       await fetchUsers(filters);
+      return `Approved ${result.name} — commuter type: ${result.commuter_type}. They can now log in.`;
     },
     [fetchPending, fetchUsers, filters]
   );
 
   const rejectRegistrationApi = useCallback(
-    async (id: string, reason: string) => {
-      await rejectRegistration(id, reason);
-      // Refresh the pending list (the rejected row is soft-deleted + removed)
+    async (id: string, reason: string): Promise<string> => {
+      await registrationService.reject(id, reason);
+      // Refresh the pending list (the rejected row is soft-deleted).
       await fetchPending();
+      return `Registration rejected. Reason: "${reason}". The email is now available for re-registration.`;
     },
     [fetchPending]
   );

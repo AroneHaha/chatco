@@ -10,7 +10,7 @@ import { EditUserModal } from '@/components/admin/users/edit-user-modal';
 import { UserHistoryModal } from '@/components/admin/users/user-history-modal';
 import { DeleteUserModal } from '@/components/admin/users/delete-user-modal';
 import { SearchBar } from '@/components/admin/ui/search-bar';
-import { Plus, UserCheck, Users, XCircle, AlertCircle, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, UserCheck, Users, XCircle, AlertCircle, RefreshCw, ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react';
 import { useUsersData } from './data/users-data';
 import type { ActiveUser, PendingRequest, RejectedUser } from './data/users-data';
 import type { UpdateUserInput } from '@/lib/admin/services/user.service';
@@ -37,6 +37,7 @@ export default function UsersPage() {
   const [activeTab, setActiveTab] = useState<'active' | 'pending' | 'rejected'>('active');
   const [searchQuery, setSearchQuery] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Modal States
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
@@ -178,9 +179,13 @@ export default function UsersPage() {
   const handleApproveRequest = async () => {
     if (!selectedRequest) return;
     setActionError(null);
+    setSuccessMessage(null);
     try {
-      await approveRegistrationApi(selectedRequest.id);
+      const msg = await approveRegistrationApi(selectedRequest.id);
+      setSuccessMessage(msg);
       handleCloseReviewModal();
+      // Auto-clear the success message after 5 seconds
+      setTimeout(() => setSuccessMessage(null), 5000);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Failed to approve registration.');
     }
@@ -189,9 +194,12 @@ export default function UsersPage() {
   const handleRejectRequest = async (reason: string) => {
     if (!selectedRequest) return;
     setActionError(null);
+    setSuccessMessage(null);
     try {
-      await rejectRegistrationApi(selectedRequest.id, reason);
+      const msg = await rejectRegistrationApi(selectedRequest.id, reason);
+      setSuccessMessage(msg);
       handleCloseReviewModal();
+      setTimeout(() => setSuccessMessage(null), 5000);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Failed to reject registration.');
     }
@@ -232,6 +240,19 @@ export default function UsersPage() {
         <div className="mb-4 bg-red-500/10 border border-red-500/30 rounded-md p-3 flex items-center justify-between">
           <p className="text-sm text-red-400">{actionError}</p>
           <button onClick={() => setActionError(null)} className="text-red-400 hover:text-red-300">
+            <XCircle size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* Success banner */}
+      {successMessage && (
+        <div className="mb-4 bg-emerald-500/10 border border-emerald-500/30 rounded-md p-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CheckCircle size={16} className="text-emerald-400 flex-shrink-0" />
+            <p className="text-sm text-emerald-400">{successMessage}</p>
+          </div>
+          <button onClick={() => setSuccessMessage(null)} className="text-emerald-400 hover:text-emerald-300">
             <XCircle size={16} />
           </button>
         </div>

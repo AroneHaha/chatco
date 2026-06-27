@@ -1,7 +1,7 @@
 // components/admin/users/review-request-modal.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import { Badge } from '@/components/admin/ui/badge';
 import { CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
@@ -18,6 +18,16 @@ interface ReviewRequestModalProps {
 export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReject }: ReviewRequestModalProps) {
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
+
+  // Reset internal state whenever the modal is closed or a different
+  // request is opened — prevents stale rejection reason from a previous
+  // review bleeding into the next one.
+  useEffect(() => {
+    if (!isOpen) {
+      setRejectionReason('');
+      setShowRejectConfirm(false);
+    }
+  }, [isOpen, request?.id]);
 
   if (!request) return null;
 
