@@ -1,0 +1,44 @@
+{
+  "86d3g1um2": {
+    "ok": true,
+    "name": "S6-T1 - Feedback Unit-QR Resolution Layer (generate/validate/scan) [DONE]",
+    "status": "complete",
+    "url": "https://app.clickup.com/t/86d3g1um2"
+  },
+  "86d3g1um4": {
+    "ok": true,
+    "name": "S6-T2 - Commuter Feedback Submission (scan-first flow) [DONE]",
+    "status": "complete",
+    "url": "https://app.clickup.com/t/86d3g1um4"
+  },
+  "86d3g1um5": {
+    "ok": true,
+    "name": "S6-T3 - Lost & Found Backend (Watchlist + Approve/Reject/Release + Audit) [REVISED]",
+    "status": "s4",
+    "url": "https://app.clickup.com/t/86d3g1um5"
+  },
+  "86d3g1uma": {
+    "ok": true,
+    "name": "S6-T6 - Frontend Feedback Unit-QR (Admin Generate + Commuter Scan) [REVISED]",
+    "status": "s4",
+    "url": "https://app.clickup.com/t/86d3g1uma"
+  },
+  "86d3g1umc": {
+    "ok": true,
+    "name": "S6-T7 - Frontend Commuter Feedback (scan-first flow) [REVISED]",
+    "status": "s4",
+    "url": "https://app.clickup.com/t/86d3g1umc"
+  },
+  "86d3g1umd": {
+    "ok": true,
+    "name": "S6-T8 - Frontend Lost & Found (Watchlist + Claim + Admin Workflow) [REVISED]",
+    "status": "s4",
+    "url": "https://app.clickup.com/t/86d3g1umd"
+  },
+  "86d3g1umg": {
+    "ok": true,
+    "name": "S6-T11 - Feature Tests (QR+Feedback DONE, L&F/Ann/SOS pending) [REVISED]",
+    "status": "s4",
+    "url": "https://app.clickup.com/t/86d3g1umg"
+  }
+}

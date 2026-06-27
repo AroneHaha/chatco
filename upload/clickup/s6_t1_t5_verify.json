@@ -1,0 +1,22 @@
+{
+  "S6-T1": {
+    "ok": false,
+    "error": "HTTP 401: {\"err\":\"Token invalid\",\"ECODE\":\"OAUTH_025\"}"
+  },
+  "S6-T2": {
+    "ok": false,
+    "error": "HTTP 401: {\"err\":\"Token invalid\",\"ECODE\":\"OAUTH_025\"}"
+  },
+  "S6-T3": {
+    "ok": false,
+    "error": "HTTP 401: {\"err\":\"Token invalid\",\"ECODE\":\"OAUTH_025\"}"
+  },
+  "S6-T4": {
+    "ok": false,
+    "error": "HTTP 401: {\"err\":\"Token invalid\",\"ECODE\":\"OAUTH_025\"}"
+  },
+  "S6-T5": {
+    "ok": false,
+    "error": "HTTP 401: {\"err\":\"Token invalid\",\"ECODE\":\"OAUTH_025\"}"
+  }
+}
