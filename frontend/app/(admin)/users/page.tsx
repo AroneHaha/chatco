@@ -30,6 +30,8 @@ export default function UsersPage() {
     refetch,
     updateUserApi,
     deleteUserApi,
+    approveRegistrationApi,
+    rejectRegistrationApi,
   } = useUsersData();
 
   const [activeTab, setActiveTab] = useState<'active' | 'pending' | 'rejected'>('active');
@@ -167,20 +169,32 @@ export default function UsersPage() {
     }
   };
 
-  // ─── Pending/Rejected mock handlers (T17 will wire to real API) ───
+  // ─── Registration handlers (real API) ───
   const handleSaveRegistration = () => {
-    // T17 will wire this to POST /api/v1/auth/register
     handleCloseRegisterModal();
+    refetch();
   };
 
-  const handleApproveRequest = () => {
-    // T17 will wire this to PATCH /api/v1/admin/registrations/{id}/approve
-    handleCloseReviewModal();
+  const handleApproveRequest = async () => {
+    if (!selectedRequest) return;
+    setActionError(null);
+    try {
+      await approveRegistrationApi(selectedRequest.id);
+      handleCloseReviewModal();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to approve registration.');
+    }
   };
 
-  const handleRejectRequest = () => {
-    // T17 will wire this to PATCH /api/v1/admin/registrations/{id}/reject
-    handleCloseReviewModal();
+  const handleRejectRequest = async (reason: string) => {
+    if (!selectedRequest) return;
+    setActionError(null);
+    try {
+      await rejectRegistrationApi(selectedRequest.id, reason);
+      handleCloseReviewModal();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to reject registration.');
+    }
   };
 
   // ─── Pagination controls ───
