@@ -8,6 +8,7 @@ use App\Http\Controllers\Commuter\VehicleLocationController;
 use App\Http\Controllers\Conductor\ConductorController;
 use App\Http\Controllers\Conductor\ConductorHailController;
 use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\AdminRegistrationController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminVehicleController;
 use App\Http\Controllers\Payment\PaymentController;
@@ -123,6 +124,9 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::put('/users/{id}', [AdminUserController::class, 'update']);
     Route::patch('/users/{id}', [AdminUserController::class, 'update']);
     Route::delete('/users/{id}', [AdminUserController::class, 'destroy']);
+    Route::get('/registrations', [AdminRegistrationController::class, 'pending']);
+    Route::post('/registrations/{id}/approve', [AdminRegistrationController::class, 'approve']);
+    Route::post('/registrations/{id}/reject', [AdminRegistrationController::class, 'reject']);
     Route::get('/drivers', [AdminController::class, 'drivers']);
     Route::post('/drivers', [AdminController::class, 'storeDriver']);
     Route::get('/drivers/{id}', [AdminController::class, 'showDriver']);

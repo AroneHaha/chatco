@@ -467,4 +467,141 @@ class AdminService
     {
         return in_array($status, self::ADMIN_TOGGLEABLE_STATUSES, true);
     }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // REGISTRATION REVIEW (S5-T15)
+    // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * GET /admin/registrations — list PENDING commuter accounts awaiting review.
+     *
+     * Returns commuters with account_status=PENDING, including their uploaded
+     * valid ID (id_image_url), applied_type (the discount tier they requested),
+     * and identifying fields so the admin can verify the ID matches the tier.
+     */
+    public function listPendingRegistrations(int $perPage = 15): LengthAwarePaginator
+    {
+        return User::where('role', UserRole::COMMUTER)
+            ->whereHas('commuterProfile', function ($q) {
+                $q->where('account_status', 'PENDING');
+            })
+            ->with(['commuterProfile:id,first_name,middle_name,surname,birthdate,gender,email,contact_number,commuter_type,applied_type,account_status,id_image_url,verified_at,rejection_reason,username,language_preference'])
+            ->orderBy('created_at', 'asc') // oldest first — FIFO review queue
+            ->paginate($perPage)
+            ->through(function (User $user) {
+                $c = $user->commuterProfile;
+                return [
+                    'id'              => $user->id,
+                    'email'           => $user->email,
+                    'first_name'      => $c?->first_name,
+                    'middle_name'     => $c?->middle_name,
+                    'surname'         => $c?->surname,
+                    'birthdate'       => $c?->birthdate?->toDateString(),
+                    'gender'          => $c?->gender,
+                    'contact_number'  => $c?->contact_number,
+                    'username'        => $c?->username,
+                    'applied_type'    => $c?->applied_type,
+                    'id_image_url'    => $c?->id_image_url,
+                    'account_status'  => $c?->account_status,
+                    'language_preference' => $c?->language_preference,
+                    'created_at'      => optional($user->created_at)->toIso8601String(),
+                ];
+            });
+    }
+
+    /**
+     * POST /admin/registrations/{id}/approve — approve a pending registration.
+     *
+     * - Copies applied_type → commuter_type (the validated discount tier)
+     * - Sets verified_at = now
+     * - Sets account_status = APPROVED
+     * - Clears rejection_reason
+     *
+     * The commuter can now log in and receives that tier's fare discount.
+     *
+     * @throws ValidationException if the user is not a PENDING commuter
+     */
+    public function approveRegistration(string $id): array
+    {
+        $user = User::with('commuterProfile')->find($id);
+
+        if (! $user || ! $user->commuterProfile) {
+            throw ValidationException::withMessages([
+                'registration' => ['Registration not found.'],
+            ]);
+        }
+
+        $profile = $user->commuterProfile;
+
+        if ($profile->account_status !== 'PENDING') {
+            throw ValidationException::withMessages([
+                'registration' => ['This registration has already been processed (status: ' . $profile->account_status . ').'],
+            ]);
+        }
+
+        $profile->update([
+            'commuter_type'     => $profile->applied_type ?? 'REGULAR',
+            'account_status'    => 'APPROVED',
+            'verified_at'       => now(),
+            'rejection_reason'  => null,
+        ]);
+
+        return [
+            'id'             => $user->id,
+            'email'          => $user->email,
+            'name'           => $user->getDisplayName(),
+            'commuter_type'  => $profile->fresh()->commuter_type,
+            'account_status' => 'APPROVED',
+            'verified_at'    => $profile->fresh()->verified_at?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * POST /admin/registrations/{id}/reject — reject a pending registration.
+     *
+     * - Sets account_status = REJECTED + rejection_reason
+     * - SOFT-DELETES the user + profile so the email frees up for re-registration
+     *   (per S5-T14: a previously rejected email can register again)
+     *
+     * @throws ValidationException if the user is not a PENDING commuter
+     */
+    public function rejectRegistration(string $id, string $reason): array
+    {
+        $user = User::with('commuterProfile')->find($id);
+
+        if (! $user || ! $user->commuterProfile) {
+            throw ValidationException::withMessages([
+                'registration' => ['Registration not found.'],
+            ]);
+        }
+
+        $profile = $user->commuterProfile;
+
+        if ($profile->account_status !== 'PENDING') {
+            throw ValidationException::withMessages([
+                'registration' => ['This registration has already been processed (status: ' . $profile->account_status . ').'],
+            ]);
+        }
+
+        // Rewrite the email to a unique placeholder BEFORE soft-deleting.
+        // This frees the canonical email for re-registration (the users.email
+        // column has a DB-level unique index that includes soft-deleted rows).
+        $placeholderEmail = 'rejected+' . time() . '@chatco.local';
+        $user->update(['email' => $placeholderEmail]);
+
+        $profile->update([
+            'account_status'   => 'REJECTED',
+            'rejection_reason' => $reason,
+        ]);
+
+        // Soft-delete the user (cascades to commuter_profile via shared PK).
+        $user->delete();
+
+        return [
+            'id'               => $user->id,
+            'email'            => $user->email, // placeholder
+            'account_status'   => 'REJECTED',
+            'rejection_reason' => $reason,
+        ];
+    }
 }
