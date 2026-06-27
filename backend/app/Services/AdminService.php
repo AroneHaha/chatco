@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Enums\UserRole;
 use App\Models\Remittance;
 use App\Models\ShiftLog;
+use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -13,6 +15,8 @@ use Illuminate\Validation\ValidationException;
 
 class AdminService
 {
+    /** Account statuses an admin may toggle a commuter between. */
+    private const ADMIN_TOGGLEABLE_STATUSES = ['ACTIVE', 'SUSPENDED'];
     /**
      * List vehicles with optional filters + pagination.
      *
@@ -266,5 +270,201 @@ class AdminService
                 'total_conductors'  => $totalConductors,
             ],
         ];
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // USER MANAGEMENT (S5-T3)
+    // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * GET /admin/users — paginated, role-filterable, searchable list.
+     */
+    public function listUsers(array $filters): LengthAwarePaginator
+    {
+        $perPage = (int) ($filters['per_page'] ?? 15);
+        $perPage = max(1, min($perPage, 100));
+
+        $query = User::query()
+            ->with($this->profileEagerLoads())
+            ->orderBy('created_at', 'desc');
+
+        if (! empty($filters['role'])) {
+            $query->where('role', $filters['role']);
+        }
+
+        if (! empty($filters['search'])) {
+            $this->applySearch($query, trim($filters['search']));
+        }
+
+        return $query->paginate($perPage)
+            ->withQueryString()
+            ->through(fn (User $user) => $this->present($user));
+    }
+
+    /**
+     * GET /admin/users/{id} — a single user with its profile.
+     */
+    public function getUser(string $id): ?array
+    {
+        $user = User::with($this->profileEagerLoads())->find($id);
+        return $user ? $this->present($user) : null;
+    }
+
+    /**
+     * PUT /admin/users/{id} — update the editable profile fields.
+     */
+    public function updateUser(string $id, array $data, User $actingAdmin): ?array
+    {
+        $user = User::with($this->profileEagerLoads())->find($id);
+
+        if (! $user) {
+            return null;
+        }
+
+        $profile = $this->profileOf($user);
+
+        if (! $profile) {
+            throw ValidationException::withMessages([
+                'user' => ['This user has no profile and cannot be edited.'],
+            ]);
+        }
+
+        if (array_key_exists('first_name', $data)) {
+            $profile->first_name = $data['first_name'];
+        }
+        if (array_key_exists('middle_name', $data)) {
+            $profile->middle_name = $data['middle_name'];
+        }
+        if (array_key_exists('last_name', $data)) {
+            $lastNameColumn = $user->isCommuter() ? 'surname' : 'last_name';
+            $profile->{$lastNameColumn} = $data['last_name'];
+        }
+
+        $commuterOnly = array_intersect_key($data, array_flip(['account_status', 'contact_number']));
+
+        if (! empty($commuterOnly) && ! $user->isCommuter()) {
+            throw ValidationException::withMessages([
+                'account_status' => ['Account status and contact number can only be set on commuter accounts.'],
+            ]);
+        }
+
+        if (array_key_exists('account_status', $data)) {
+            if ($user->id === $actingAdmin->id && $data['account_status'] === 'SUSPENDED') {
+                throw ValidationException::withMessages([
+                    'account_status' => ['You cannot suspend your own account.'],
+                ]);
+            }
+            $profile->account_status = $data['account_status'];
+        }
+
+        if (array_key_exists('contact_number', $data)) {
+            $profile->contact_number = $data['contact_number'];
+        }
+
+        if ($profile->isDirty()) {
+            $profile->save();
+        }
+
+        return $this->present($user->setRelation($this->relationName($user), $profile));
+    }
+
+    /**
+     * DELETE /admin/users/{id} — soft-delete a user account.
+     */
+    public function deleteUser(string $id, User $actingAdmin): bool
+    {
+        $user = User::find($id);
+
+        if (! $user) {
+            return false;
+        }
+
+        if ($user->id === $actingAdmin->id) {
+            throw ValidationException::withMessages([
+                'user' => ['You cannot delete your own account.'],
+            ]);
+        }
+
+        if ($user->isAdmin() && $this->activeAdminCount() <= 1) {
+            throw ValidationException::withMessages([
+                'user' => ['Cannot delete the last administrator account.'],
+            ]);
+        }
+
+        $user->delete();
+
+        return true;
+    }
+
+    // ── Internals ────────────────────────────────────────────────
+
+    private function profileEagerLoads(): array
+    {
+        return [
+            'adminProfile:id,first_name,middle_name,last_name',
+            'conductorProfile:id,first_name,middle_name,last_name,generated_username',
+            'commuterProfile:id,first_name,middle_name,surname,contact_number,commuter_type,account_status,verified_at,username',
+        ];
+    }
+
+    private function applySearch($query, string $term): void
+    {
+        $like = '%' . $term . '%';
+
+        $query->where(function ($q) use ($like) {
+            $q->where('email', 'like', $like)
+                ->orWhereHas('adminProfile', fn ($p) => $p
+                    ->where('first_name', 'like', $like)
+                    ->orWhere('last_name', 'like', $like))
+                ->orWhereHas('conductorProfile', fn ($p) => $p
+                    ->where('first_name', 'like', $like)
+                    ->orWhere('last_name', 'like', $like)
+                    ->orWhere('generated_username', 'like', $like))
+                ->orWhereHas('commuterProfile', fn ($p) => $p
+                    ->where('first_name', 'like', $like)
+                    ->orWhere('surname', 'like', $like)
+                    ->orWhere('username', 'like', $like));
+        });
+    }
+
+    private function relationName(User $user): string
+    {
+        return match ($user->role) {
+            UserRole::ADMIN => 'adminProfile',
+            UserRole::CONDUCTOR => 'conductorProfile',
+            UserRole::COMMUTER => 'commuterProfile',
+        };
+    }
+
+    private function profileOf(User $user)
+    {
+        return $user->{$this->relationName($user)};
+    }
+
+    private function activeAdminCount(): int
+    {
+        return User::where('role', UserRole::ADMIN->value)->count();
+    }
+
+    private function present(User $user): array
+    {
+        $commuter = $user->commuterProfile;
+
+        return [
+            'id'             => $user->id,
+            'email'          => $user->email,
+            'role'           => $user->role->value,
+            'name'           => $user->getDisplayName(),
+            'account_status' => $commuter?->account_status,
+            'commuter_type'  => $commuter?->commuter_type,
+            'contact_number' => $commuter?->contact_number,
+            'verified_at'    => optional($commuter?->verified_at)->toIso8601String(),
+            'created_at'     => optional($user->created_at)->toIso8601String(),
+        ];
+    }
+
+    public static function isToggleableStatus(string $status): bool
+    {
+        return in_array($status, self::ADMIN_TOGGLEABLE_STATUSES, true);
     }
 }

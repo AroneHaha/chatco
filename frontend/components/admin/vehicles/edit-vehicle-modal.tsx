@@ -90,7 +90,7 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
 
       // Drivers: include the currently-assigned one + all unassigned.
       const allDrivers: Driver[] = driversRes.data ?? [];
-      const allVehicles: Record<string, unknown>[] = vehiclesRes.data ?? [];
+      const allVehicles: Record<string, unknown>[] = (vehiclesRes.data?.data ?? vehiclesRes.data ?? []) as Record<string, unknown>[];
 
       // Debug log — see what the API actually returns.
       console.log('[EditVehicleModal] allVehicles sample:', allVehicles[0]);

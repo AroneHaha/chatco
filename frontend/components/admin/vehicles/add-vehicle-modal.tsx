@@ -59,10 +59,14 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
       // Filter to unassigned drivers (no vehicle_id)
       setDrivers(allDrivers.filter((d: Driver) => !d.vehicle_id));
 
-      // Extract unique conductors from existing vehicles
-      const allVehicles = vehiclesRes.data ?? [];
+      // Extract unique conductors from existing vehicles.
+      // The /admin/vehicles endpoint now returns a paginated response:
+      // { data: { data: [...vehicles], current_page, total, ... } }
+      // Extract the inner array (same pattern as vehicles-data.ts).
+      const vehiclesData = vehiclesRes.data?.data ?? vehiclesRes.data ?? [];
+      const allVehicles: Array<{ conductor?: Conductor | null }> = Array.isArray(vehiclesData) ? vehiclesData : [];
       const conductorMap = new Map<string, Conductor>();
-      allVehicles.forEach((v: { conductor?: Conductor | null }) => {
+      allVehicles.forEach((v) => {
         if (v.conductor && !conductorMap.has(v.conductor.id)) {
           conductorMap.set(v.conductor.id, v.conductor);
         }
