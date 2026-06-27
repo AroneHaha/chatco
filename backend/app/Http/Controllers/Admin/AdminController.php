@@ -13,6 +13,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\AdminService;
+use App\Services\LocationService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,7 +25,8 @@ class AdminController extends Controller
     use ApiResponse;
 
     public function __construct(
-        private AdminService $adminService
+        private AdminService $adminService,
+        private LocationService $locationService
     ) {}
 
     public function dashboard(): JsonResponse
@@ -48,6 +50,22 @@ class AdminController extends Controller
         $data = $this->adminService->analytics($filters);
 
         return $this->successResponse($data, 'Analytics retrieved');
+    }
+
+    /**
+     * GET /api/v1/admin/monitoring
+     * Returns the live fleet monitoring view: all vehicles with an ACTIVE
+     * shift, their latest GPS position, capacity status, speed, driver +
+     * conductor names, and a `is_stale` flag (true if the last location
+     * update was more than 10 minutes ago).
+     *
+     * Designed for 5-second polling from the admin monitoring dashboard.
+     */
+    public function monitoring(): JsonResponse
+    {
+        $fleet = $this->locationService->getMonitoringFleet();
+
+        return $this->successResponse($fleet, 'Live fleet retrieved');
     }
 
     public function users(): JsonResponse
