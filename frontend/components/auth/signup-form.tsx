@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import Link from "next/link";
-import { register, type AppliedType, type RegisterError } from "@/lib/auth/register";
+import { register, type AppliedType, RegisterError } from "@/lib/auth/register";
 
 // Map the form's display labels to the backend's enum values
 const COMMUTER_TYPE_OPTIONS: { label: string; value: AppliedType }[] = [
