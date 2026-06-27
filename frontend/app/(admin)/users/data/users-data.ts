@@ -1,29 +1,67 @@
 // frontend/app/(admin)/users/data/users-data.ts
+//
+// S5-T10 — Admin User Management data hook.
+//
+// ACTIVE USERS: fetched from the real Laravel API via the Next.js proxy
+//   (GET /api/admin/users → /api/v1/admin/users) with role filter, search,
+//   and pagination. No mock data.
+//
+// PENDING / REJECTED tabs: still backed by mock data. S5-T17 will wire
+//   these to the /admin/registrations/* endpoints (the backend already
+//   exists from S5-T8). The mock is kept here so the page remains
+//   functional in the interim — T17 will remove it.
+//
+// The ActiveUser type was changed from `id: number` to `id: string`
+// because the backend uses UUID primary keys.
 
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from "react";
+import {
+  list as listUsers,
+  update as updateUser,
+  remove as deleteUser,
+  type AdminUser,
+  type UserListFilters,
+  type PaginationMeta,
+  type UpdateUserInput,
+  type UserOperationError,
+} from "@/lib/admin/services/user.service";
 
-// ─── Interfaces (kept as API contracts) ───
+// ─── Re-exported types (used by components) ─────────────────────────
 
+export type { AdminUser, PaginationMeta, UserListFilters, UpdateUserInput };
+
+/**
+ * A user row in the Active tab.
+ *
+ * Wraps the service-layer `AdminUser` with the legacy field names the
+ * existing table/modal components expect (`phoneNumber`, `status`,
+ * `commuterType`, `languagePreference`, `idImageUrl`). This adapter
+ * type lets us wire real API data without rewriting every component.
+ */
 export interface ActiveUser {
-  id: number;
+  id: string;
   name: string;
   email: string;
   phoneNumber: string;
-  status: 'Active' | 'Inactive';
-  commuterType: 'Regular' | 'Student' | 'Senior Citizen' | 'PWD';
-  languagePreference: 'English' | 'Filipino';
+  status: "Active" | "Suspended";
+  commuterType: string;
+  languagePreference: string;
   idImageUrl: string;
+  /** The raw service-layer user (for API calls). */
+  _raw: AdminUser;
 }
+
+// ─── Pending / Rejected (mock — T17 will replace) ───────────────────
 
 export interface PendingRequest {
   id: string;
   name: string;
   email: string;
   phoneNumber: string;
-  commuterType: 'Regular' | 'Student' | 'Senior Citizen' | 'PWD';
-  languagePreference: 'English' | 'Filipino';
+  commuterType: "Regular" | "Student" | "Senior Citizen" | "PWD";
+  languagePreference: "English" | "Filipino";
   idImageUrl: string;
-  status: 'Pending Verification';
+  status: "Pending Verification";
 }
 
 export interface RejectedUser {
@@ -31,10 +69,10 @@ export interface RejectedUser {
   name: string;
   email: string;
   phoneNumber: string;
-  commuterType: 'Regular' | 'Student' | 'Senior Citizen' | 'PWD';
-  languagePreference: 'English' | 'Filipino';
+  commuterType: "Regular" | "Student" | "Senior Citizen" | "PWD";
+  languagePreference: "English" | "Filipino";
   idImageUrl: string;
-  status: 'Rejected';
+  status: "Rejected";
   rejectionReason: string;
 }
 
@@ -45,79 +83,147 @@ export interface HistoryLog {
   details: string;
 }
 
-// ─── Consolidated data shape ───
+// ─── Pending / Rejected mock (T17 will remove + wire to API) ────────
 
-export interface UsersData {
+const MOCK_PENDING_REQUESTS: PendingRequest[] = [
+  { id: "REQ-101", name: "Marinel Carbonel", email: "Mari.C@email.com", phoneNumber: "0919-345-6789", commuterType: "PWD", languagePreference: "English", idImageUrl: "https://placehold.co/150x150/0A1E33/FFFFFF?text=PWD+ID", status: "Pending Verification" },
+  { id: "REQ-102", name: "Stephen Hawkin", email: "Jeff.Stephen@email.com", phoneNumber: "0920-456-7890", commuterType: "PWD", languagePreference: "Filipino", idImageUrl: "https://placehold.co/150x150/0A1E33/FFFFFF?text=Senior+ID", status: "Pending Verification" },
+];
+
+const MOCK_REJECTED_USERS: RejectedUser[] = [
+  { id: "REQ-099", name: "Fake Account", email: "fake@email.com", phoneNumber: "0000-000-0000", commuterType: "Regular", languagePreference: "English", idImageUrl: "https://placehold.co/150x150/0A1E33/FFFFFF?text=Fake+ID", status: "Rejected", rejectionReason: "Invalid ID provided." },
+];
+
+const MOCK_HISTORY_LOGS: Record<string, HistoryLog[]> = {
+  // History logs are deferred — the backend trip-payment history endpoint
+  // is not part of S5-T10 scope. T17 or a later task will wire this.
+};
+
+// ─── Hook ───────────────────────────────────────────────────────────
+
+export interface UseUsersDataReturn {
   activeUsers: ActiveUser[];
   pendingRequests: PendingRequest[];
   rejectedUsers: RejectedUser[];
   historyLogs: Record<string, HistoryLog[]>;
+  pagination: PaginationMeta | null;
+  isLoading: boolean;
+  error: string | null;
+  filters: UserListFilters;
+  setFilters: (f: Partial<UserListFilters>) => void;
+  refetch: () => void;
+  /** Update a user via the API and refresh the list. */
+  updateUserApi: (id: string, data: UpdateUserInput) => Promise<void>;
+  /** Delete a user via the API and refresh the list. */
+  deleteUserApi: (id: string) => Promise<void>;
 }
 
-// ─── Mock data (consolidated for easy future deletion) ───
+function mapToActiveUser(u: AdminUser): ActiveUser {
+  return {
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    phoneNumber: u.contactNumber ?? "—",
+    status: u.statusLabel === "Suspended" ? "Suspended" : "Active",
+    commuterType: u.commuterTypeLabel,
+    languagePreference: "English", // not returned by the admin user endpoint
+    idImageUrl: "", // the admin user list endpoint doesn't return id_image_url
+    _raw: u,
+  };
+}
 
-export const MOCK_USERS_DATA: UsersData = {
-  activeUsers: [
-    { id: 1, name: 'Mhaku Jose Manalili', email: 'mhak@gmail.com', phoneNumber: '0917-123-4567', status: 'Active', commuterType: 'Regular', languagePreference: 'English', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=ID' },
-    { id: 4, name: 'Mark Arone Dela Cruz', email: 'MArone.c@email.com', phoneNumber: '0918-234-5678', status: 'Active', commuterType: 'Student', languagePreference: 'Filipino', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=ID' },
-    { id: 5, name: 'Rod Dulalia', email: 'Rod@gmail.com', phoneNumber: '0923-324-4327', status: 'Active', commuterType: 'Regular', languagePreference: 'English', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=ID' },
-  ],
-
-  pendingRequests: [
-    { id: 'REQ-101', name: 'Marinel Carbonel', email: 'Mari.C@email.com', phoneNumber: '0919-345-6789', commuterType: 'PWD', languagePreference: 'English', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=PWD+ID', status: 'Pending Verification' },
-    { id: 'REQ-102', name: 'Stephen Hawkin', email: 'Jeff.Stephen@email.com', phoneNumber: '0920-456-7890', commuterType: 'PWD', languagePreference: 'Filipino', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=Senior+ID', status: 'Pending Verification' },
-  ],
-
-  rejectedUsers: [
-    { id: 'REQ-099', name: 'Fake Account', email: 'fake@email.com', phoneNumber: '0000-000-0000', commuterType: 'Regular', languagePreference: 'English', idImageUrl: 'https://placehold.co/150x150/0A1E33/FFFFFF?text=Fake+ID', status: 'Rejected', rejectionReason: 'Invalid ID provided.' },
-  ],
-
-  historyLogs: {
-    "1": [
-      { id: 'H9', date: '2024-04-20 07:15 AM', action: 'Trip Payment', details: 'Malolos Terminal → Meycauayan Crossing. Paid ₱25.00 via GCash.' },
-      { id: 'H7', date: '2024-03-15 08:20 AM', action: 'Trip Payment', details: 'Malolos Terminal → Calumpit Town Proper. Paid ₱35.00 via GCash.' },
-      { id: 'H5', date: '2024-02-10 06:30 PM', action: 'Trip Payment', details: 'Meycauayan Crossing → Calumpit Town Proper. Paid ₱20.00 via Cash.' },
-      { id: 'H4', date: '2024-02-05 08:10 AM', action: 'Trip Payment', details: 'Malolos Terminal → Meycauayan Crossing. Paid ₱25.00 via GCash.' },
-      { id: 'H3', date: '2024-02-20 07:00 AM', action: 'Voucher Redeemed', details: 'Free ride voucher earned after 10 rides.' },
-    ],
-    "4": [
-      { id: 'H8', date: '2024-04-15 06:50 AM', action: 'Trip Payment', details: 'Calumpit Town Proper → Malolos Terminal. Paid ₱30.00 (Student Discount) via GCash.' },
-      { id: 'H7', date: '2024-04-01 07:10 AM', action: 'Trip Payment', details: 'Malolos Terminal → Calumpit Town Proper. Paid ₱30.00 (Student Discount) via GCash.' },
-      { id: 'H6', date: '2024-03-20 10:30 AM', action: 'Voucher Redeemed', details: 'Free ride voucher earned after 10 rides.' },
-      { id: 'H5', date: '2024-03-05 08:45 AM', action: 'Trip Payment', details: 'Meycauayan Crossing → Calumpit Town Proper. Paid ₱15.00 (Student Discount) via Cash.' },
-      { id: 'H4', date: '2024-02-25 07:30 AM', action: 'Trip Payment', details: 'Malolos Terminal → Meycauayan Crossing. Paid ₱20.00 (Student Discount) via GCash.' },
-      { id: 'H3', date: '2024-02-20 07:00 AM', action: 'Voucher Redeemed', details: 'Free ride voucher earned after 10 rides.' },
-    ],
-    "5": [
-      { id: 'H4', date: '2024-03-12 07:30 AM', action: 'Trip Payment', details: 'Malolos Terminal → Meycauayan Crossing. Paid ₱25.00 via GCash.' },
-      { id: 'H3', date: '2024-02-20 07:00 AM', action: 'Voucher Redeemed', details: 'Free ride voucher earned after 10 rides.' },
-    ],
-    "REQ-101": [
-      { id: 'H3', date: '2024-03-20 07:00 AM', action: 'Voucher Redeemed', details: 'Free ride voucher earned after 10 rides.' },
-    ],
-    "REQ-102": [
-      { id: 'H3', date: '2024-03-20 07:00 AM', action: 'Voucher Redeemed', details: 'Free ride voucher earned after 10 rides.' },
-    ],
-    "REQ-099": [],
-  },
-};
-
-// ─── Hook (mock for now, swap with API later) ───
-
-export function useUsersData() {
-  const [data, setData] = useState<UsersData>(MOCK_USERS_DATA);
-  const [isLoading, setIsLoading] = useState(false);
+export function useUsersData(): UseUsersDataReturn {
+  const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
+  const [pagination, setPagination] = useState<PaginationMeta | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filters, setFiltersState] = useState<UserListFilters>({
+    role: "COMMUTER",
+    search: "",
+    perPage: 10,
+    page: 1,
+  });
 
-  const refetch = useCallback(() => {
+  const fetchUsers = useCallback(async (f: UserListFilters) => {
     setIsLoading(true);
     setError(null);
-    // TODO: Replace with actual API call
-    setTimeout(() => {
-      setData(MOCK_USERS_DATA);
+    try {
+      const result = await listUsers(f);
+      setActiveUsers(result.users.map(mapToActiveUser));
+      setPagination(result.pagination);
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Failed to load users.";
+      setError(msg);
+      setActiveUsers([]);
+      setPagination(null);
+    } finally {
       setIsLoading(false);
-    }, 500);
+    }
   }, []);
 
-  return { data, isLoading, error, refetch, setData };
+  const refetch = useCallback(() => {
+    fetchUsers(filters);
+  }, [fetchUsers, filters]);
+
+  // Re-fetch whenever filters change.
+  useEffect(() => {
+    fetchUsers(filters);
+  }, [fetchUsers, filters]);
+
+  const setFilters = useCallback((f: Partial<UserListFilters>) => {
+    setFiltersState((prev) => {
+      // Changing role or search resets to page 1.
+      const roleChanged = f.role !== undefined && f.role !== prev.role;
+      const searchChanged = f.search !== undefined && f.search !== prev.search;
+      const next = { ...prev, ...f };
+      if (roleChanged || searchChanged) next.page = 1;
+      return next;
+    });
+  }, []);
+
+  const updateUserApi = useCallback(
+    async (id: string, data: UpdateUserInput) => {
+      await updateUser(id, data);
+      // Refresh the current page to show the updated row.
+      await fetchUsers(filters);
+    },
+    [fetchUsers, filters]
+  );
+
+  const deleteUserApi = useCallback(
+    async (id: string) => {
+      await deleteUser(id);
+      // If we just deleted the last row on page 2+, go back a page.
+      if (
+        pagination &&
+        pagination.currentPage > 1 &&
+        activeUsers.length === 1
+      ) {
+        setFiltersState((prev) => ({ ...prev, page: prev.page! - 1 }));
+      } else {
+        await fetchUsers(filters);
+      }
+    },
+    [fetchUsers, filters, pagination, activeUsers.length]
+  );
+
+  return {
+    activeUsers,
+    pendingRequests: MOCK_PENDING_REQUESTS,
+    rejectedUsers: MOCK_REJECTED_USERS,
+    historyLogs: MOCK_HISTORY_LOGS,
+    pagination,
+    isLoading,
+    error,
+    filters,
+    setFilters,
+    refetch,
+    updateUserApi,
+    deleteUserApi,
+  };
 }
+
+// ─── Error type re-export (for try/catch in the page) ──────────────
+
+export type { UserOperationError };

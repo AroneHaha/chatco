@@ -91,5 +91,42 @@ class AppServiceProvider extends ServiceProvider
                 ->by($request->user()?->id ?: $request->ip())
                 ->response($rateLimitResponse);
         });
+
+        // Commuter profile read — 60 req/min (generous for UI loads/refresh).
+        RateLimiter::for('commuter-read', function (Request $request) use ($rateLimitResponse) {
+            return Limit::perMinute(60)
+                ->by($request->user()?->id ?: $request->ip())
+                ->response($rateLimitResponse);
+        });
+
+        // Commuter profile update — 20 req/min (form saves don't need more).
+        RateLimiter::for('commuter-write', function (Request $request) use ($rateLimitResponse) {
+            return Limit::perMinute(20)
+                ->by($request->user()?->id ?: $request->ip())
+                ->response($rateLimitResponse);
+        });
+
+        // Password change — 6 req/min. Deliberately strict: this endpoint
+        // checks the current password, so a loose limit would allow it to be
+        // used as a current-password oracle / brute-force vector.
+        RateLimiter::for('commuter-security', function (Request $request) use ($rateLimitResponse) {
+            return Limit::perMinute(6)
+                ->by($request->user()?->id ?: $request->ip())
+                ->response($rateLimitResponse);
+        });
+
+        // Admin read endpoints (e.g. user list/detail) — 60 req/min.
+        RateLimiter::for('admin-read', function (Request $request) use ($rateLimitResponse) {
+            return Limit::perMinute(60)
+                ->by($request->user()?->id ?: $request->ip())
+                ->response($rateLimitResponse);
+        });
+
+        // Admin mutations (update/delete) — 30 req/min.
+        RateLimiter::for('admin-write', function (Request $request) use ($rateLimitResponse) {
+            return Limit::perMinute(30)
+                ->by($request->user()?->id ?: $request->ip())
+                ->response($rateLimitResponse);
+        });
     }
 }
