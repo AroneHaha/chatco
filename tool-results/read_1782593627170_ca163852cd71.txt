@@ -1,0 +1,602 @@
+     1→  5794→## S5 (17 tasks)
+     2→  5795→
+     3→  5796→### S5-T10 - Frontend Admin User Management CRUD Integration
+     4→  5797→- **ID:** `86d3fj2r0`
+     5→  5798→- **Status:** `s4` (open)
+     6→  5799→- **Assignees:** —
+     7→  5800→- **Created:** 2026-06-25 19:01
+     8→  5801→- **Updated:** 2026-06-25 19:17
+     9→  5802→- **URL:** https://app.clickup.com/t/86d3fj2r0
+    10→  5803→
+    11→  5804→**Description:**
+    12→  5805→```
+    13→  5806→Wire frontend/app/(admin)/users to the real admin user endpoints (S5-T3), replacing the mock data in users/data. List with role filter + pagination, view, edit, delete with confirm.
+    14→  5807→
+    15→  5808→Files to Create / Modify
+    16→  5809→
+    17→  5810→frontend/app/api/admin/users/route.ts (new) - GET (list, query passthrough) proxy.
+    18→  5811→frontend/app/api/admin/users/[id]/route.ts (new) - GET/PUT/DELETE proxy.
+    19→  5812→frontend/lib/admin/services/user.service.ts (new) - list(filters), get(id), update(id, data), remove(id).
+    20→  5813→frontend/app/(admin)/users/* - table with role filter + pagination, edit modal, delete confirm; remove the users/data mock.
+    21→  5814→
+    22→  5815→Acceptance Criteria
+    23→  5816→
+    24→  5817→Users load from the API with working role filter + pagination.
+    25→  5818→Edit and delete hit the API and refresh the list; errors surfaced.
+    26→  5819→Mock user data removed.
+    27→  5820→
+    28→  5821→Coordination (read before starting)
+    29→  5822→
+    30→  5823→Scope here = the approved-users management table (list / filter / edit / delete existing users). The PENDING-registration review (approve/reject + ID image) is handled in S5-T17. Both this task and S5-T17 touch frontend/app/(admin)/users/page.tsx + users-table.tsx: this task owns the base table and should be built FIRST; S5-T17 layers the review flow on top. Do not duplicate state between them.
+    31→  5824→
+    32→  5825→Post-Task Requirement
+    33→  5826→
+    34→  5827→Upon completion, push all changes to your feature branch and open a PR targeting dev.
+    35→  5828→```
+    36→  5829→
+    37→  5830→### S5-T11 - Frontend Admin Vehicle Management CRUD Integration
+    38→  5831→- **ID:** `86d3fj2r4`
+    39→  5832→- **Status:** `s4` (open)
+    40→  5833→- **Assignees:** —
+    41→  5834→- **Created:** 2026-06-25 19:01
+    42→  5835→- **Updated:** 2026-06-25 19:01
+    43→  5836→- **URL:** https://app.clickup.com/t/86d3fj2r4
+    44→  5837→
+    45→  5838→**Description:**
+    46→  5839→```
+    47→  5840→Wire frontend/app/(admin)/vehicles to the admin vehicle endpoints (S5-T4), replacing the vehicles/data mock. Create/edit/delete with validation; show driver + route + status.
+    48→  5841→
+    49→  5842→Files to Create / Modify
+    50→  5843→
+    51→  5844→frontend/app/api/admin/vehicles/route.ts (new) - GET + POST proxy.
+    52→  5845→frontend/app/api/admin/vehicles/[id]/route.ts (new) - PUT/DELETE proxy.
+    53→  5846→frontend/lib/admin/services/vehicle.service.ts (new) - CRUD methods.
+    54→  5847→frontend/app/(admin)/vehicles/* - table + create/edit form + delete confirm; remove mock.
+    55→  5848→
+    56→  5849→Acceptance Criteria
+    57→  5850→
+    58→  5851→CRUD works end to end against the API; plate-uniqueness / active-shift-delete errors surfaced.
+    59→  5852→Mock vehicle data removed.
+    60→  5853→
+    61→  5854→Post-Task Requirement
+    62→  5855→
+    63→  5856→Upon completion, push all changes to your feature branch and open a PR targeting dev.
+    64→  5857→```
+    65→  5858→
+    66→  5859→### S5-T12 - Frontend Admin Live Fleet Monitoring Integration
+    67→  5860→- **ID:** `86d3fj2r5`
+    68→  5861→- **Status:** `s4` (open)
+    69→  5862→- **Assignees:** —
+    70→  5863→- **Created:** 2026-06-25 19:01
+    71→  5864→- **Updated:** 2026-06-25 19:01
+    72→  5865→- **URL:** https://app.clickup.com/t/86d3fj2r5
+    73→  5866→
+    74→  5867→**Description:**
+    75→  5868→```
+    76→  5869→Wire frontend/app/(admin)/monitoring to GET /api/v1/admin/monitoring (S5-T5) with 5s polling, replacing the monitoring/data mock. Render live vehicle positions/markers + capacity + stale flag.
+    77→  5870→
+    78→  5871→Files to Create / Modify
+    79→  5872→
+    80→  5873→frontend/app/api/admin/monitoring/route.ts (new) - GET proxy.
+    81→  5874→frontend/lib/admin/services/monitoring.service.ts (new) - getFleet() + 5s poll helper.
+    82→  5875→frontend/app/(admin)/monitoring/* - map/list bound to live data; flag stale (>10 min) units; remove mock.
+    83→  5876→
+    84→  5877→Acceptance Criteria
+    85→  5878→
+    86→  5879→Live positions update on the 5s poll from real data.
+    87→  5880→Stale units are visibly flagged; no mock data remains.
+    88→  5881→
+    89→  5882→Post-Task Requirement
+    90→  5883→
+    91→  5884→Upon completion, push all changes to your feature branch and open a PR targeting dev.
+    92→  5885→```
+    93→  5886→
+    94→  5887→### S5-T13 - Frontend Admin Analytics Dashboard Integration
+    95→  5888→- **ID:** `86d3fj2r9`
+    96→  5889→- **Status:** `s4` (open)
+    97→  5890→- **Assignees:** —
+    98→  5891→- **Created:** 2026-06-25 19:01
+    99→  5892→- **Updated:** 2026-06-25 19:01
+   100→  5893→- **URL:** https://app.clickup.com/t/86d3fj2r9
+   101→  5894→
+   102→  5895→**Description:**
+   103→  5896→```
+   104→  5897→Wire frontend/app/(admin)/analytics to GET /api/v1/admin/analytics (S5-T6), replacing the analytics/data mock. Render the aggregated metrics + date-range filter + charts.
+   105→  5898→
+   106→  5899→Files to Create / Modify
+   107→  5900→
+   108→  5901→frontend/app/api/admin/analytics/route.ts (new) - GET proxy with date_from/date_to passthrough.
+   109→  5902→frontend/lib/admin/services/analytics.service.ts (new) - getAnalytics(range).
+   110→  5903→frontend/app/(admin)/analytics/* - bind cards/charts (cash vs GCash, per-day series, totals); date filter; remove mock.
+   111→  5904→
+   112→  5905→Acceptance Criteria
+   113→  5906→
+   114→  5907→Charts/cards reflect real aggregates and respond to the date filter.
+   115→  5908→No mock analytics data remains.
+   116→  5909→
+   117→  5910→Post-Task Requirement
+   118→  5911→
+   119→  5912→Upon completion, push all changes to your feature branch and open a PR targeting dev.
+   120→  5913→```
+   121→  5914→
+   122→  5915→### S5-T14 - Commuter Registration Endpoint & Valid-ID Upload
+   123→  5916→- **ID:** `86d3fj5ka`
+   124→  5917→- **Status:** `s4` (open)
+   125→  5918→- **Assignees:** —
+   126→  5919→- **Created:** 2026-06-25 19:14
+   127→  5920→- **Updated:** 2026-06-25 19:14
+   128→  5921→- **URL:** https://app.clickup.com/t/86d3fj5ka
+   129→  5922→
+   130→  5923→**Description:**
+   131→  5924→```
+   132→  5925→Build the missing public registration endpoint so a new commuter account can actually be created from the signup form. The commuter_profiles schema already supports this (account_status, applied_type, commuter_type, id_image_url, verified_at, rejection_reason) — only the backend is missing (AuthController currently has login/logout only). A new account is created in PENDING status and waits for admin review (S5-T15) before it can log in.
+   133→  5926→
+   134→  5927→Files to Create / Modify
+   135→  5928→
+   136→  5929→app/Http/Controllers/Auth/AuthController.php - add register().
+   137→  5930→app/Services/AuthService.php - add register(array) creating User + CommuterProfile in one transaction.
+   138→  5931→app/Http/Requests/Auth/RegisterRequest.php (new) - validate first_name/surname/birthdate/gender/contact_number/email/username, language_preference, applied_type, and the id_image upload (image mime, max size).
+   139→  5932→routes/api.php - add PUBLIC POST /auth/register (no auth) in the auth group.
+   140→  5933→Storage: save the uploaded ID to the configured disk (e.g. storage/app/public/ids); persist the path/URL to commuter_profiles.id_image_url. NEVER store the raw file in the DB.
+   141→  5934→
+   142→  5935→Behavior
+   143→  5936→
+   144→  5937→applied_type is the discount tier the commuter is requesting: REGULAR | STUDENT | PWD | SENIOR (match the signup form's options). commuter_type stays null/REGULAR until an admin approves.
+   145→  5938→On success: create User (role COMMUTER) + CommuterProfile with account_status = PENDING, applied_type set, id_image_url set, verified_at null.
+   146→  5939→Email reuse: the unique check must IGNORE soft-deleted (rejected) accounts so a previously rejected email can register again (see S5-T15 reject = soft-delete). username stays globally unique.
+   147→  5940→Do NOT issue a Sanctum token on register — the account is not yet approved.
+   148→  5941→
+   149→  5942→Acceptance Criteria
+   150→  5943→
+   151→  5944→POST /api/v1/auth/register creates a PENDING commuter + stores the ID image and applied_type; returns 201 with no token.
+   152→  5945→Invalid/missing ID image or bad applied_type -> 422.
+   153→  5946→An email belonging only to a soft-deleted/rejected account can be reused; an active account's email is rejected (422).
+   154→  5947→A PENDING account cannot log in yet (gate lives in S5-T15).
+   155→  5948→
+   156→  5949→Post-Task Requirement
+   157→  5950→
+   158→  5951→Upon completion, push all changes to your feature branch and open a PR targeting dev.
+   159→  5952→```
+   160→  5953→
+   161→  5954→### S5-T15 - Admin Account Verification (Pending List, Approve & Reject + Discount Tier)
+   162→  5955→- **ID:** `86d3fj5ke`
+   163→  5956→- **Status:** `s4` (open)
+   164→  5957→- **Assignees:** —
+   165→  5958→- **Created:** 2026-06-25 19:14
+   166→  5959→- **Updated:** 2026-06-25 19:14
+   167→  5960→- **URL:** https://app.clickup.com/t/86d3fj5ke
+   168→  5961→
+   169→  5962→**Description:**
+   170→  5963→```
+   171→  5964→Implement the admin review workflow for new commuter registrations. Admin sees pending accounts (with the uploaded valid ID), then approves — granting the requested discount tier — or rejects with a reason. The frontend review UI already exists (components/admin/users/review-request-modal.tsx) on mock data; this task builds the real endpoints behind it. All behind role:ADMIN.
+   172→  5965→
+   173→  5966→Files to Create / Modify
+   174→  5967→
+   175→  5968→app/Http/Controllers/Admin/AdminRegistrationController.php (new) - pending(), approve(id), reject(id).
+   176→  5969→app/Services/AdminService.php - listPendingRegistrations(), approveRegistration(id), rejectRegistration(id, reason).
+   177→  5970→app/Http/Requests/Admin/RejectRegistrationRequest.php (new) - rejection_reason required.
+   178→  5971→routes/api.php - admin group: GET /registrations (pending), POST /registrations/{id}/approve, POST /registrations/{id}/reject.
+   179→  5972→app/Services/AuthService.php (login) - block login unless account_status = APPROVED.
+   180→  5973→
+   181→  5974→Behavior
+   182→  5975→
+   183→  5976→GET /api/v1/admin/registrations - list account_status = PENDING commuters with id_image_url, applied_type, and identifying fields so the admin can verify the ID matches the requested tier.
+   184→  5977→APPROVE: set commuter_type = applied_type (the validated discount tier), verified_at = now, account_status = APPROVED, clear rejection_reason. The commuter can now log in and receives that tier's fare discount.
+   185→  5978→REJECT: set account_status = REJECTED + rejection_reason, then SOFT-DELETE the user/profile so the email frees up for re-registration (per S5-T14). The applicant can sign up again.
+   186→  5979→Login gate: a PENDING or REJECTED account is refused at login with a clear message (pending review / rejected).
+   187→  5980→Admin verifies the ID image is valid and matches applied_type before approving — reject if mismatched (e.g. no valid student/PWD/senior ID).
+   188→  5981→
+   189→  5982→Acceptance Criteria
+   190→  5983→
+   191→  5984→Pending list returns only PENDING commuters with their ID image + applied_type.
+   192→  5985→Approve flips account_status to APPROVED, copies applied_type -> commuter_type, sets verified_at; the account can then log in.
+   193→  5986→Reject records the reason, soft-deletes the account, and frees the email for reuse.
+   194→  5987→Non-admin tokens -> 403; PENDING/REJECTED accounts cannot log in.
+   195→  5988→
+   196→  5989→Post-Task Requirement
+   197→  5990→
+   198→  5991→Upon completion, push all changes to your feature branch and open a PR targeting dev.
+   199→  5992→```
+   200→  5993→
+   201→  5994→### S5-T16 - Frontend Signup Registration & ID Upload Wiring
+   202→  5995→- **ID:** `86d3fj5kh`
+   203→  5996→- **Status:** `s4` (open)
+   204→  5997→- **Assignees:** —
+   205→  5998→- **Created:** 2026-06-25 19:14
+   206→  5999→- **Updated:** 2026-06-25 19:14
+   207→  6000→- **URL:** https://app.clickup.com/t/86d3fj5kh
+   208→  6001→
+   209→  6002→**Description:**
+   210→  6003→```
+   211→  6004→Wire the existing signup form to the real registration endpoint (S5-T14), replacing any mock/stub submit. Capture the discount tier (applied_type) and the valid-ID image, submit as multipart, and land the user on a 'pending admin review' state.
+   212→  6005→
+   213→  6006→Files to Create / Modify
+   214→  6007→
+   215→  6008→frontend/app/api/auth/register/route.ts (new) - POST proxy forwarding multipart (ID image) -> Laravel /api/v1/auth/register.
+   216→  6009→frontend/components/auth/signup-form.tsx - submit real data: personal fields, applied_type (REGULAR|STUDENT|PWD|SENIOR), and the ID image file; client-side validate file type/size.
+   217→  6010→frontend/lib/api/* (or lib/auth) - add register(formData) service.
+   218→  6011→
+   219→  6012→Behavior
+   220→  6013→
+   221→  6014→Show the discount-tier selector; when STUDENT/PWD/SENIOR is chosen, require the valid-ID upload.
+   222→  6015→On success -> a 'Your account is pending admin approval' screen (no auto-login, since the account is PENDING).
+   223→  6016→Surface 422 validation errors inline (bad image, duplicate email of an active account, etc.).
+   224→  6017→
+   225→  6018→Acceptance Criteria
+   226→  6019→
+   227→  6020→Submitting the form creates a PENDING account via the API and uploads the ID image.
+   228→  6021→The user sees a pending-review confirmation, not a logged-in session.
+   229→  6022→Re-registering a previously rejected email works; an active email is blocked with the API message.
+   230→  6023→
+   231→  6024→Post-Task Requirement
+   232→  6025→
+   233→  6026→Upon completion, push all changes to your feature branch and open a PR targeting dev.
+   234→  6027→```
+   235→  6028→
+   236→  6029→### S5-T17 - Frontend Admin Account Review Wiring (Approve / Reject)
+   237→  6030→- **ID:** `86d3fj5kn`
+   238→  6031→- **Status:** `s4` (open)
+   239→  6032→- **Assignees:** —
+   240→  6033→- **Created:** 2026-06-25 19:14
+   241→  6034→- **Updated:** 2026-06-25 19:17
+   242→  6035→- **URL:** https://app.clickup.com/t/86d3fj5kn
+   243→  6036→
+   244→  6037→**Description:**
+   245→  6038→```
+   246→  6039→Wire the admin Users page and its review modals to the real verification endpoints (S5-T15), replacing the mock data in users/data. Admin reviews pending registrations, inspects the uploaded ID, then approves (granting the discount tier) or rejects with a reason.
+   247→  6040→
+   248→  6041→Files to Create / Modify
+   249→  6042→
+   250→  6043→frontend/app/api/admin/registrations/route.ts (new) - GET pending proxy.
+   251→  6044→frontend/app/api/admin/registrations/[id]/approve/route.ts + .../reject/route.ts (new) - POST proxies.
+   252→  6045→frontend/lib/admin/services/registration.service.ts (new) - listPending(), approve(id), reject(id, reason).
+   253→  6046→frontend/components/admin/users/review-request-modal.tsx - bind real pending data + the ID image; wire Approve / Reject (with reason) buttons.
+   254→  6047→frontend/components/admin/users/users-table.tsx + frontend/app/(admin)/users/page.tsx - show pending vs approved; remove users/data mock.
+   255→  6048→
+   256→  6049→Behavior
+   257→  6050→
+   258→  6051→The review modal displays the applicant's details, applied_type, and the uploaded valid ID for visual verification.
+   259→  6052→Approve -> calls approve endpoint -> row moves to approved (commuter_type = applied_type); Reject -> prompts for reason -> calls reject endpoint -> row removed/marked rejected.
+   260→  6053→Refresh the list after each action; surface errors.
+   261→  6054→
+   262→  6055→Acceptance Criteria
+   263→  6056→
+   264→  6057→Pending registrations load from the API with the ID image visible.
+   265→  6058→Approve and reject hit the real endpoints and update the list; reject captures a reason.
+   266→  6059→No mock user/registration data remains in the page.
+   267→  6060→
+   268→  6061→Coordination (read before starting)
+   269→  6062→
+   270→  6063→This builds on S5-T10, which owns the base users table. Add the pending-registration / review layer (review-request-modal + a pending view) ON TOP of that table — do not re-implement the CRUD table. Depends on S5-T15 (backend verification endpoints) and S5-T10 (frontend base table).
+   271→  6064→
+   272→  6065→Post-Task Requirement
+   273→  6066→
+   274→  6067→Upon completion, push all changes to your feature branch and open a PR targeting dev.
+   275→  6068→```
+   276→  6069→
+   277→  6070→### S5-T8 - Feature Tests: Profile, Remittance, Admin CRUD, Monitoring & Analytics
+   278→  6071→- **ID:** `86d3fj2qb`
+   279→  6072→- **Status:** `s4` (open)
+   280→  6073→- **Assignees:** —
+   281→  6074→- **Created:** 2026-06-25 19:01
+   282→  6075→- **Updated:** 2026-06-25 19:16
+   283→  6076→- **URL:** https://app.clickup.com/t/86d3fj2qb
+   284→  6077→
+   285→  6078→**Description:**
+   286→  6079→```
+   287→  6080→Cover all Sprint 5 backend endpoints with feature tests (SQLite in-memory, matching the existing suite). Tests must assert real persistence and the standard ApiResponse envelope â€” not just status codes.
+   288→  6081→
+   289→  6082→Files to Create / Modify
+   290→  6083→
+   291→  6084→tests/Feature/CommuterProfileTest.php - GET/PUT profile + change-password (wrong vs right current_password).
+   292→  6085→tests/Feature/ConductorRemittanceTest.php - GET history scoping + existing POST still green.
+   293→  6086→tests/Feature/AdminUserCrudTest.php - list/filter/paginate, show, update (role validation), delete guards.
+   294→  6087→tests/Feature/AdminVehicleCrudTest.php - CRUD + plate uniqueness + active-shift delete guard.
+   295→  6088→tests/Feature/AdminMonitoringTest.php - live aggregation reflects seeded vehicle_locations.
+   296→  6089→tests/Feature/AdminAnalyticsTest.php - aggregates reconcile with seeded transactions; date filtering.
+   297→  6090→
+   298→  6091→Acceptance Criteria
+   299→  6092→
+   300→  6093→php artisan test is green (MySQL dev assumptions + SQLite test DB).
+   301→  6094→Each endpoint has at least: happy path, a validation failure, and a wrong-role (403) case.
+   302→  6095→No test depends on mocked/static data â€” every assertion checks DB state.
+   303→  6096→
+   304→  6097→Additional Coverage — Registration & Verification
+   305→  6098→
+   306→  6099→tests/Feature/AuthRegisterTest.php - register creates a PENDING commuter + stores the ID image + applied_type; missing/invalid ID or bad applied_type -> 422; no token issued; an email belonging only to a soft-deleted (rejected) account is reusable while an active email -> 422.
+   307→  6100→tests/Feature/AdminRegistrationTest.php - pending list returns only PENDING accounts; approve sets account_status=APPROVED + commuter_type=applied_type + verified_at and enables login; reject soft-deletes the account, records rejection_reason, and frees the email; PENDING/REJECTED accounts cannot log in; non-admin -> 403.
+   308→  6101→
+   309→  6102→Post-Task Requirement
+   310→  6103→
+   311→  6104→Upon completion, push all changes to your feature branch and open a PR targeting dev.
+   312→  6105→```
+   313→  6106→
+   314→  6107→### S5-T9 - Frontend Commuter Profile & Change-Password Integration
+   315→  6108→- **ID:** `86d3fj2qn`
+   316→  6109→- **Status:** `s4` (open)
+   317→  6110→- **Assignees:** —
+   318→  6111→- **Created:** 2026-06-25 19:01
+   319→  6112→- **Updated:** 2026-06-25 19:01
+   320→  6113→- **URL:** https://app.clickup.com/t/86d3fj2qn
+   321→  6114→
+   322→  6115→**Description:**
+   323→  6116→```
+   324→  6117→Wire the commuter Profile page to the real backend (S5-T1), replacing any mock/local data. Add the Next.js proxies and a service, then bind the profile view, edit form, and change-password form.
+   325→  6118→
+   326→  6119→Files to Create / Modify
+   327→  6120→
+   328→  6121→frontend/app/api/commuter/profile/route.ts (new) - GET + PUT proxy (cookie auth) -> Laravel /api/v1/commuter/profile.
+   329→  6122→frontend/app/api/commuter/change-password/route.ts (new) - POST proxy -> /api/v1/commuter/change-password.
+   330→  6123→frontend/lib/commuter/services/profile.service.ts (new) - getProfile(), updateProfile(data), changePassword(data).
+   331→  6124→frontend/app/(commuter)/profile/* - bind real data; edit + password forms with validation + error toasts.
+   332→  6125→
+   333→  6126→Acceptance Criteria
+   334→  6127→
+   335→  6128→Profile loads from the API; editing persists and re-renders fresh data.
+   336→  6129→A wrong current_password surfaces the 422 message; success clears the form.
+   337→  6130→No mock profile data remains in the page.
+   338→  6131→
+   339→  6132→Post-Task Requirement
+   340→  6133→
+   341→  6134→Upon completion, push all changes to your feature branch and open a PR targeting dev.
+   342→  6135→```
+   343→  6136→
+   344→  6137→### S5-T1 - Commuter Profile API & Password Change
+   345→  6138→- **ID:** `86d3fj2ph`
+   346→  6139→- **Status:** `complete` (closed)
+   347→  6140→- **Assignees:** —
+   348→  6141→- **Created:** 2026-06-25 19:01
+   349→  6142→- **Updated:** 2026-06-25 20:08
+   350→  6143→- **Closed:** 2026-06-25 20:08
+   351→  6144→- **URL:** https://app.clickup.com/t/86d3fj2ph
+   352→  6145→
+   353→  6146→**Description:**
+   354→  6147→```
+   355→  6148→Implement the commuter self-service profile endpoints. CommuterController::profile() is currently a 501 stub; replace it with a real read + update, and add a password-change endpoint. All logic lives in a new CommuterService so the controller stays thin. A commuter may only read/modify their OWN record (scope by auth()->id()) — never accept or trust a user id from the request.
+   356→  6149→
+   357→  6150→Files to Create / Modify
+   358→  6151→
+   359→  6152→app/Services/CommuterService.php (new) - getProfile(User), updateProfile(User, array), changePassword(User, array).
+   360→  6153→app/Http/Controllers/Commuter/CommuterController.php - replace profile() stub; add update() + changePassword(); delegate to CommuterService only.
+   361→  6154→app/Http/Requests/Commuter/UpdateProfileRequest.php (new) - validate editable fields (name, phone, etc.); email/role/id are immutable.
+   362→  6155→app/Http/Requests/Commuter/ChangePasswordRequest.php (new) - current_password (required), password (required|confirmed + strength rules).
+   363→  6156→routes/api.php - in the commuter group add PUT /profile and POST /change-password (auth:sanctum + role:COMMUTER).
+   364→  6157→
+   365→  6158→Endpoints
+   366→  6159→
+   367→  6160→GET /api/v1/commuter/profile - return the authenticated commuter (User + CommuterProfile); never password/token fields.
+   368→  6161→PUT /api/v1/commuter/profile - update own editable fields; persist; return the fresh profile.
+   369→  6162→POST /api/v1/commuter/change-password - verify current_password with Hash::check before updating; wrong -> 422 and no write; correct -> re-hash new password.
+   370→  6163→
+   371→  6164→Acceptance Criteria
+   372→  6165→
+   373→  6166→GET returns only the authenticated commuter's profile via the standard ApiResponse envelope.
+   374→  6167→PUT persists to commuter_profiles/users and returns the updated record; email and role cannot be changed.
+   375→  6168→change-password rejects a wrong current_password with 422 (no update); a correct one re-hashes successfully.
+   376→  6169→A conductor/admin token cannot reach these routes (403).
+   377→  6170→
+   378→  6171→Post-Task Requirement
+   379→  6172→
+   380→  6173→Upon completion, push all changes to your feature branch and open a PR targeting dev.
+   381→  6174→```
+   382→  6175→
+   383→  6176→### S5-T2 - Conductor Remittance History Endpoint (GET)
+   384→  6177→- **ID:** `86d3fj2pn`
+   385→  6178→- **Status:** `complete` (closed)
+   386→  6179→- **Assignees:** —
+   387→  6180→- **Created:** 2026-06-25 19:01
+   388→  6181→- **Updated:** 2026-06-26 12:19
+   389→  6182→- **Closed:** 2026-06-26 12:19
+   390→  6183→- **URL:** https://app.clickup.com/t/86d3fj2pn
+   391→  6184→
+   392→  6185→**Description:**
+   393→  6186→```
+   394→  6187→Add the conductor-facing remittance history read. POST /conductor/remittances already exists (submit); Week 5 adds the GET so a conductor can review their own submitted remittances (one remittance per shift, own records only). Put the query in a ConductorService method and keep the controller thin.
+   395→  6188→
+   396→  6189→Files to Create / Modify
+   397→  6190→
+   398→  6191→app/Services/ConductorService.php (new, or add method) - listRemittances(User): own remittances, ordered date desc, eager-loaded.
+   399→  6192→app/Http/Controllers/Conductor/ConductorController.php - add remittancesIndex() for GET; keep existing remittances() as the POST submit.
+   400→  6193→routes/api.php - conductor group: add GET /remittances (throttle:conductor-read); keep POST /remittances.
+   401→  6194→
+   402→  6195→Behavior
+   403→  6196→
+   404→  6197→Scope strictly to the authenticated conductor (driver/conductor linkage = auth user) — never another conductor's remittances.
+   405→  6198→Each row returns: date, time_in, total_collected, cash_total, gcash_total, remitted_amount, shortage, shift_id + denormalized vehicle/route info.
+   406→  6199→Paginate/cap + order consistently with the other list endpoints.
+   407→  6200→
+   408→  6201→Acceptance Criteria
+   409→  6202→
+   410→  6203→GET /api/v1/conductor/remittances returns only the authenticated conductor's remittances.
+   411→  6204→The existing POST submit flow is unchanged and still links one remittance per shift_id.
+   412→  6205→A commuter/admin token cannot reach the route (403).
+   413→  6206→
+   414→  6207→Post-Task Requirement
+   415→  6208→
+   416→  6209→Upon completion, push all changes to your feature branch and open a PR targeting dev.
+   417→  6210→```
+   418→  6211→
+   419→  6212→### S5-T3 - Admin User Management CRUD (List, View, Update, Delete)
+   420→  6213→- **ID:** `86d3fj2pr`
+   421→  6214→- **Status:** `complete` (closed)
+   422→  6215→- **Assignees:** —
+   423→  6216→- **Created:** 2026-06-25 19:01
+   424→  6217→- **Updated:** 2026-06-25 20:08
+   425→  6218→- **Closed:** 2026-06-25 20:08
+   426→  6219→- **URL:** https://app.clickup.com/t/86d3fj2pr
+   427→  6220→
+   428→  6221→**Description:**
+   429→  6222→```
+   430→  6223→Replace the AdminController::users() 501 stub with full user management — list (paginated, filterable by role), view, update, delete — all behind role:ADMIN. There is NO impersonation / user-switching endpoint. Logic goes in a new AdminService; split into an Admin/AdminUserController for clarity.
+   431→  6224→
+   432→  6225→Files to Create / Modify
+   433→  6226→
+   434→  6227→app/Services/AdminService.php (new) - listUsers(filters), getUser(id), updateUser(id, data), deleteUser(id).
+   435→  6228→app/Http/Controllers/Admin/AdminUserController.php (new) - index/show/update/destroy (thin; calls AdminService).
+   436→  6229→app/Http/Requests/Admin/UpdateUserRequest.php (new) - validate name, role (must be a valid UserRole enum), status, phone; never accept password here.
+   437→  6230→routes/api.php - admin group: GET /users, GET /users/{id}, PUT /users/{id}, DELETE /users/{id}.
+   438→  6231→
+   439→  6232→Behavior
+   440→  6233→
+   441→  6234→GET /api/v1/admin/users?role=&search=&page= - paginated; filter by UserRole (ADMIN|CONDUCTOR|COMMUTER); eager-load the matching profile.
+   442→  6235→GET /users/{id} - full user + profile; 404 if missing.
+   443→  6236→PUT /users/{id} - update editable fields; guard against an admin changing their own role into a lockout; never write password.
+   444→  6237→DELETE /users/{id} - delete (soft if supported); block deleting self or the last remaining admin.
+   445→  6238→
+   446→  6239→Acceptance Criteria
+   447→  6240→
+   448→  6241→List is paginated and role-filterable; no password/token fields leak.
+   449→  6242→Update persists and returns the fresh record; invalid role -> 422.
+   450→  6243→Delete guards FKs sensibly and cannot lock the system out of admin access.
+   451→  6244→Commuter/conductor tokens get 403 on every route; no user-switching endpoint exists.
+   452→  6245→
+   453→  6246→Post-Task Requirement
+   454→  6247→
+   455→  6248→Upon completion, push all changes to your feature branch and open a PR targeting dev.
+   456→  6249→```
+   457→  6250→
+   458→  6251→### S5-T4 - Admin Vehicle Management CRUD (List, Create, Update, Delete)
+   459→  6252→- **ID:** `86d3fj2pt`
+   460→  6253→- **Status:** `in progress mhak` (custom)
+   461→  6254→- **Assignees:** —
+   462→  6255→- **Created:** 2026-06-25 19:01
+   463→  6256→- **Updated:** 2026-06-26 12:20
+   464→  6257→- **URL:** https://app.clickup.com/t/86d3fj2pt
+   465→  6258→
+   466→  6259→**Description:**
+   467→  6260→```
+   468→  6261→Replace the AdminController::vehicles() 501 stub with full vehicle CRUD so admins manage the fleet master list — behind role:ADMIN. Reuse the Vehicle model and the vehicle_type column added in S2.
+   469→  6262→
+   470→  6263→Files to Create / Modify
+   471→  6264→
+   472→  6265→app/Services/AdminService.php - add listVehicles(filters), createVehicle(data), updateVehicle(id, data), deleteVehicle(id).
+   473→  6266→app/Http/Controllers/Admin/AdminVehicleController.php (new) - index/store/update/destroy.
+   474→  6267→app/Http/Requests/Admin/StoreVehicleRequest.php + UpdateVehicleRequest.php (new) - validate plate_number (unique), vehicle_type, capacity, route_id (exists), status.
+   475→  6268→routes/api.php - admin group: GET /vehicles, POST /vehicles, PUT /vehicles/{id}, DELETE /vehicles/{id}.
+   476→  6269→
+   477→  6270→Behavior
+   478→  6271→
+   479→  6272→GET /api/v1/admin/vehicles?status=&route_id=&search= - paginated, with driver + route relations.
+   480→  6273→POST - create a vehicle; plate_number must be unique (422 on dup).
+   481→  6274→PUT /{id} - update mutable fields.
+   482→  6275→DELETE /{id} - block (409) if the vehicle has an active_shift_id; otherwise delete.
+   483→  6276→
+   484→  6277→Acceptance Criteria
+   485→  6278→
+   486→  6279→CRUD persists to the vehicles table; plate_number uniqueness enforced.
+   487→  6280→Deleting a vehicle bound to an active shift is rejected with a clear error.
+   488→  6281→Non-admin tokens -> 403.
+   489→  6282→
+   490→  6283→Post-Task Requirement
+   491→  6284→
+   492→  6285→Upon completion, push all changes to your feature branch and open a PR targeting dev.
+   493→  6286→```
+   494→  6287→
+   495→  6288→### S5-T5 - Admin Live Fleet Monitoring Endpoint
+   496→  6289→- **ID:** `86d3fj2pu`
+   497→  6290→- **Status:** `in progress mhak` (custom)
+   498→  6291→- **Assignees:** —
+   499→  6292→- **Created:** 2026-06-25 19:01
+   500→  6293→- **Updated:** 2026-06-26 12:19
+   501→  6294→- **URL:** https://app.clickup.com/t/86d3fj2pu
+   502→  6295→
+   503→  6296→**Description:**
+   504→  6297→```
+   505→  6298→Add GET /api/v1/admin/monitoring returning real-time fleet state aggregated from vehicle_locations + active shift_logs — the admin equivalent of the commuter map, with NO fake/static data. Read-only, polled every 5s by the admin dashboard (same cadence as the commuter map).
+   506→  6299→
+   507→  6300→Files to Create / Modify
+   508→  6301→
+   509→  6302→app/Services/AdminService.php - monitoring(): join active vehicles with their latest vehicle_locations row + active shift + conductor/driver.
+   510→  6303→app/Http/Controllers/Admin/AdminController.php - implement monitoring() (replace the dashboard/users stub pattern with real aggregation).
+   511→  6304→routes/api.php - admin group: GET /monitoring (read-limiter suited to 5s polling).
+   512→  6305→
+   513→  6306→Behavior
+   514→  6307→
+   515→  6308→Return every active vehicle with: vehicle_id, plate_number, lat, lng, capacity_status, conductor name, route, updated_at.
+   516→  6309→Surface staleness: flag (or expose updated_at so the UI can flag) any vehicle whose location has not updated in 10 minutes.
+   517→  6310→No distance filter — all active units returned (matches the all-units-visible rule).
+   518→  6311→
+   519→  6312→Acceptance Criteria
+   520→  6313→
+   521→  6314→Returns live positions sourced from vehicle_locations (verify against DB), not mocked values.
+   522→  6315→Stale vehicles are distinguishable (updated_at / inactive flag).
+   523→  6316→Non-admin -> 403; response uses the standard ApiResponse envelope.
+   524→  6317→
+   525→  6318→Post-Task Requirement
+   526→  6319→
+   527→  6320→Upon completion, push all changes to your feature branch and open a PR targeting dev.
+   528→  6321→```
+   529→  6322→
+   530→  6323→### S5-T6 - Admin Analytics Endpoint (Aggregated Metrics)
+   531→  6324→- **ID:** `86d3fj2q0`
+   532→  6325→- **Status:** `in progress mhak` (custom)
+   533→  6326→- **Assignees:** —
+   534→  6327→- **Created:** 2026-06-25 19:01
+   535→  6328→- **Updated:** 2026-06-26 15:23
+   536→  6329→- **URL:** https://app.clickup.com/t/86d3fj2q0
+   537→  6330→
+   538→  6331→**Description:**
+   539→  6332→```
+   540→  6333→Add GET /api/v1/admin/analytics returning aggregated business metrics computed from real tables — transactions by date / payment_method, remittances, active fleet counts. NO wallet metrics (none exist). All aggregation server-side via Eloquent/Query Builder; no static data.
+   541→  6334→
+   542→  6335→Files to Create / Modify
+   543→  6336→
+   544→  6337→app/Services/AdminService.php - analytics(filters): aggregate transactions (count, sum final_amount) grouped by date and payment_method (CASH|GCASH), plus a remittance summary.
+   545→  6338→app/Http/Controllers/Admin/AdminController.php - add analytics().
+   546→  6339→routes/api.php - admin group: GET /analytics?date_from=&date_to= .
+   547→  6340→
+   548→  6341→Behavior
+   549→  6342→
+   550→  6343→Support optional date_from/date_to range filtering (document the default window).
+   551→  6344→Return: total fares, cash vs GCash split, paid vs pending counts, a per-day series, total remitted, active vehicle/conductor counts.
+   552→  6345→Only PAID transactions count toward revenue; expose pending separately.
+   553→  6346→
+   554→  6347→Acceptance Criteria
+   555→  6348→
+   556→  6349→Numbers reconcile with raw DB aggregates over the same range (spot-check).
+   557→  6350→date_from/date_to filtering works.
+   558→  6351→No wallet/balance metric anywhere; non-admin -> 403.
+   559→  6352→
+   560→  6353→Post-Task Requirement
+   561→  6354→
+   562→  6355→Upon completion, push all changes to your feature branch and open a PR targeting dev.
+   563→  6356→```
+   564→  6357→
+   565→  6358→### S5-T7 - Role-Scoped Security Audit & Data Isolation
+   566→  6359→- **ID:** `86d3fj2q4`
+   567→  6360→- **Status:** `in progress mhak` (custom)
+   568→  6361→- **Assignees:** —
+   569→  6362→- **Created:** 2026-06-25 19:01
+   570→  6363→- **Updated:** 2026-06-26 16:04
+   571→  6364→- **URL:** https://app.clickup.com/t/86d3fj2q4
+   572→  6365→
+   573→  6366→**Description:**
+   574→  6367→```
+   575→  6368→Systematically verify every Sprint 5 endpoint (and the broader API) enforces auth:sanctum + the correct role middleware, and that no endpoint leaks another role's or another user's data. This is the Week 5 'role-scoped data access' gate.
+   576→  6369→
+   577→  6370→Scope
+   578→  6371→
+   579→  6372→Build a cross-role access matrix: for each protected route, assert the wrong actors get 401/403 and only the right role gets 2xx.
+   580→  6373→Confirm commuter profile / change-password and conductor remittance read scope strictly to auth()->id() — a user cannot read/modify another user's record by supplying a foreign id.
+   581→  6374→Confirm admin endpoints are all behind role:ADMIN and that there is NO impersonation / user-switching endpoint.
+   582→  6375→Confirm commuter/conductor responses never include admin-only fields (password hash, tokens, other users' rows).
+   583→  6376→
+   584→  6377→Files to Create / Modify
+   585→  6378→
+   586→  6379→tests/Feature/RoleAccessMatrixTest.php (new) - data-provider-driven cross-role assertions across the S5 routes.
+   587→  6380→Fix any controller/service that scopes by a request-supplied id instead of the authenticated user.
+   588→  6381→
+   589→  6382→Acceptance Criteria
+   590→  6383→
+   591→  6384→The access-matrix test passes: all wrong-role/owner combinations return 401/403; correct ones 2xx.
+   592→  6385→No endpoint returns another user's data when given a foreign id.
+   593→  6386→grep confirms no remaining notImplementedResponse() on shipped S5 routes.
+   594→  6387→
+   595→  6388→Post-Task Requirement
+   596→  6389→
+   597→  6390→Upon completion, push all changes to your feature branch and open a PR targeting dev.
+   598→  6391→```
+   599→  6392→
+   600→  6393→---
+   601→
+   602→[showing lines 5794-6393 of 6394; use offset=6394 with limit to continue reading]
