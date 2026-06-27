@@ -1,42 +1,55 @@
-import { NextRequest } from "next/server";
-import { jsonError, jsonData, jsonValidationError } from "@/lib/conductor/server/response";
-import { proxyToLaravel } from "@/lib/conductor/server/proxy";
+import { NextRequest, NextResponse } from "next/server";
 
 /**
  * POST /api/auth/register
  * PUBLIC — no auth required. Proxies to Laravel POST /api/v1/auth/register.
  *
- * Creates a new commuter account with account_status=PENDING. The commuter
- * cannot log in until an admin approves the registration.
+ * Forwards multipart form data (including the ID image file) directly to
+ * Laravel. Does NOT use the standard proxyToLaravel() because that
+ * stringifies the body as JSON — we need to forward the raw FormData so
+ * the file upload reaches Laravel intact.
  *
- * Body (multipart or JSON):
- *   first_name, middle_name?, surname, birthdate, gender, email,
- *   contact_number, username, password, password_confirmation,
- *   language_preference?, applied_type (REGULAR|STUDENT|SENIOR|PWD),
- *   id_image (base64 data URI or path)
+ * On success → 201 with { id, email, role, account_status, applied_type }
+ * On 422     → validation errors forwarded to the frontend
  */
+const API_URL = process.env.API_URL || "http://localhost:8000";
+const API_V1 = "/api/v1";
+
 export async function POST(request: NextRequest) {
-  let body: Record<string, unknown>;
   try {
-    body = await request.json();
-  } catch {
-    return jsonError("Invalid request body.", 400);
-  }
+    // Read the FormData from the browser request (multipart).
+    const formData = await request.formData();
 
-  const result = await proxyToLaravel(request, "/auth/register", {
-    method: "POST",
-    body,
-  });
+    // Forward directly to Laravel — fetch handles multipart boundary
+    // automatically when given a FormData body.
+    const res = await fetch(`${API_URL}${API_V1}/auth/register`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+      },
+      body: formData,
+    });
 
-  if (!result.ok) {
-    if (result.status === 422) {
-      return jsonValidationError(
-        result.message ?? "Validation failed.",
-        result.errors,
-        422
+    const data = await res.json();
+
+    if (!res.ok) {
+      if (res.status === 422) {
+        return NextResponse.json(
+          { message: data.message ?? "Validation failed.", errors: data.errors ?? {} },
+          { status: 422 }
+        );
+      }
+      return NextResponse.json(
+        { message: data.message ?? "Failed to register." },
+        { status: res.status }
       );
     }
-    return jsonError(result.message ?? "Failed to register.", result.status);
+
+    return NextResponse.json({ data: data.data }, { status: 201 });
+  } catch {
+    return NextResponse.json(
+      { message: "Unable to reach the backend service. Please try again." },
+      { status: 502 }
+    );
   }
-  return jsonData(result.data, 201);
 }
