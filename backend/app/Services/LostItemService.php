@@ -185,8 +185,8 @@ class LostItemService
                 'item_id'         => $item->id,
                 'claimant_id'     => $profile->id,
                 'claimant_name'   => trim($profile->first_name . ' ' . $profile->surname),
-                'claimant_contact'=> $data['claimant_contact'] ?? null,
-                'claimant_email'  => $data['claimant_email'] ?? $commuter->email,
+                'claimant_contact'=> $data['claimant_contact'] ?? $profile->contact_number,
+                'claimant_email'  => $data['claimant_email'] ?? $commuter->email ?? $profile->email,
                 'status'          => self::CLAIM_PENDING,
                 'proof'           => $data['proof'] ?? null,
             ]);
