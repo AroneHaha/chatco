@@ -5,11 +5,16 @@ namespace App\Services;
 use App\Models\Claim;
 use App\Models\CommuterProfile;
 use App\Models\LostItem;
+use App\Models\LostItemWatchlist;
 use App\Models\User;
 use App\Support\LostFound\LostFoundException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 /**
  * Sprint 6 (T3) — Lost & Found business logic.
@@ -17,14 +22,19 @@ use Illuminate\Support\Facades\DB;
  * Item lifecycle (status column on lost_items):
  *   AVAILABLE  → item reported by admin, no claims yet (or all claims rejected)
  *   CLAIMED    → at least one PENDING claim exists
- *   RELEASED   → a claim was APPROVED; released_to + released_at set
+ *   APPROVED   → a claim was APPROVED; awaiting handover (release)
+ *   RELEASED   → an APPROVED claim was released; released_to + released_at set
  *   CLOSED     → admin closes the item after handover is complete
  *
  * Claim lifecycle (status column on claims):
  *   PENDING    → submitted by a commuter, awaiting admin review
- *   APPROVED   → admin approved; parent item → RELEASED, other pending claims
- *                on the same item are auto-rejected
- *   REJECTED   → admin rejected; rejection_reason recorded
+ *   APPROVED   → admin approved; awaiting release (handover)
+ *   REJECTED   → admin rejected (from PENDING or APPROVED); rejection_reason recorded
+ *
+ * Two-stage approve workflow (revised S6 scope):
+ *   1. Admin reviews claim: approve OR reject (PENDING → APPROVED/REJECTED)
+ *   2. If approved: admin releases the item (APPROVED → RELEASED) OR may reject
+ *      if something later invalidates the approval (APPROVED → REJECTED).
  *
  * State-transition guards throw LostFoundException → mapped to 422/409 in
  * the controller. All mutations run inside a DB transaction to keep the
@@ -34,6 +44,7 @@ class LostItemService
 {
     private const ITEM_AVAILABLE = 'AVAILABLE';
     private const ITEM_CLAIMED   = 'CLAIMED';
+    private const ITEM_APPROVED  = 'APPROVED';
     private const ITEM_RELEASED  = 'RELEASED';
     private const ITEM_CLOSED    = 'CLOSED';
 
@@ -118,9 +129,38 @@ class LostItemService
     }
 
     /**
+     * Admin uploads an image for a lost item. Stores the file on the 'public'
+     * disk and updates image_url. Replaces any existing image.
+     *
+     * @throws LostFoundException  Item not found.
+     */
+    public function uploadImage(string $itemId, UploadedFile $file): LostItem
+    {
+        $item = $this->show($itemId);
+
+        // Delete the previous image if it was stored on the public disk.
+        if ($item->image_url) {
+            $oldPath = $this->extractPathFromUrl($item->image_url);
+            if ($oldPath && Storage::disk('public')->exists($oldPath)) {
+                Storage::disk('public')->delete($oldPath);
+            }
+        }
+
+        $extension = $file->getClientOriginalExtension() ?: 'jpg';
+        $filename = "{$itemId}-" . time() . "-" . Str::random(8) . ".{$extension}";
+        $path = $file->storeAs('lost-items', $filename, 'public');
+
+        $item->update([
+            'image_url' => Storage::disk('public')->url($path),
+        ]);
+
+        return $item->fresh(['vehicle', 'claims.claimant']);
+    }
+
+    /**
      * Commuter claims an item. Only allowed when item status is AVAILABLE
-     * or CLAIMED (i.e. not RELEASED/CLOSED). Creates a PENDING claim and
-     * flips item → CLAIMED if it was AVAILABLE.
+     * or CLAIMED (i.e. not APPROVED/RELEASED/CLOSED). Creates a PENDING claim
+     * and flips item → CLAIMED if it was AVAILABLE.
      *
      * @throws LostFoundException  Item not found, or not claimable.
      */
@@ -161,6 +201,73 @@ class LostItemService
         });
     }
 
+    // ── Watchlist ──────────────────────────────────────────────
+
+    /**
+     * Add an item to the commuter's watchlist. Idempotent — if already
+     * watching, returns the existing entry without error.
+     */
+    public function addToWatchlist(User $commuter, string $itemId): LostItemWatchlist
+    {
+        $item = $this->show($itemId);
+
+        /** @var CommuterProfile $profile */
+        $profile = $commuter->commuterProfile;
+        if (! $profile) {
+            throw LostFoundException::notFound('Commuter profile');
+        }
+
+        try {
+            return LostItemWatchlist::firstOrCreate(
+                [
+                    'item_id'      => $item->id,
+                    'commuter_id'  => $profile->id,
+                ],
+            );
+        } catch (UniqueConstraintViolationException) {
+            // Race condition — another request already created it. Fetch.
+            return LostItemWatchlist::where('item_id', $item->id)
+                ->where('commuter_id', $profile->id)
+                ->firstOrFail();
+        }
+    }
+
+    /**
+     * Remove an item from the commuter's watchlist. Idempotent — no error
+     * if not watching.
+     */
+    public function removeFromWatchlist(User $commuter, string $itemId): void
+    {
+        /** @var CommuterProfile $profile */
+        $profile = $commuter->commuterProfile;
+        if (! $profile) {
+            return;
+        }
+
+        LostItemWatchlist::where('item_id', $itemId)
+            ->where('commuter_id', $profile->id)
+            ->delete();
+    }
+
+    /**
+     * List the commuter's watchlist with item details, newest first.
+     */
+    public function myWatchlist(User $commuter, int $perPage = 15): LengthAwarePaginator
+    {
+        /** @var CommuterProfile $profile */
+        $profile = $commuter->commuterProfile;
+        if (! $profile) {
+            throw LostFoundException::notFound('Commuter profile');
+        }
+
+        return LostItemWatchlist::with(['item.vehicle'])
+            ->where('commuter_id', $profile->id)
+            ->orderByDesc('created_at')
+            ->paginate($perPage);
+    }
+
+    // ── Admin: claim review ────────────────────────────────────
+
     /**
      * List all claims for an item (admin only).
      */
@@ -175,12 +282,13 @@ class LostItemService
     }
 
     /**
-     * Admin approves a claim. Sets claim → APPROVED, item → RELEASED with
-     * released_to + released_at. All OTHER pending claims on the same item
-     * are auto-rejected (with reason 'Another claim was approved') so the
-     * audit trail shows why they closed.
+     * Admin approves a claim (Stage 1 of the 2-stage workflow).
      *
-     * @throws LostFoundException  Claim not found, not PENDING, or belongs to a non-CLAIMED item.
+     * Sets claim → APPROVED, item → APPROVED. Does NOT release the item —
+     * the admin must call releaseClaim() to record the handover. All OTHER
+     * pending claims on the same item are auto-rejected.
+     *
+     * @throws LostFoundException  Claim not found, not PENDING, or item CLOSED.
      */
     public function approveClaim(User $admin, string $itemId, string $claimId): Claim
     {
@@ -207,11 +315,9 @@ class LostItemService
                 'reviewed_at'  => now(),
             ]);
 
-            // Release the item to this claimant.
+            // Move item to APPROVED stage (awaiting release/handover).
             $item->update([
-                'status'      => self::ITEM_RELEASED,
-                'released_to' => $claim->claimant_id,
-                'released_at' => now(),
+                'status' => self::ITEM_APPROVED,
             ]);
 
             // Auto-reject other pending claims on the same item.
@@ -230,20 +336,85 @@ class LostItemService
     }
 
     /**
-     * Admin rejects a claim. Sets claim → REJECTED with optional reason.
-     * If the rejected claim was the last pending one, the item reverts to
-     * AVAILABLE so other commuters can still claim it.
+     * Admin releases an approved claim (Stage 2 of the 2-stage workflow).
      *
-     * @throws LostFoundException  Claim not found or not PENDING.
+     * Sets item → RELEASED with released_to + released_at. The claim stays
+     * APPROVED (it was already approved in Stage 1). This records the actual
+     * handover to the commuter.
+     *
+     * @throws LostFoundException  Claim not found, not APPROVED, or item not APPROVED.
+     */
+    public function releaseClaim(User $admin, string $itemId, string $claimId): Claim
+    {
+        return DB::transaction(function () use ($admin, $itemId, $claimId): Claim {
+            $claim = $this->loadClaimForItem($itemId, $claimId);
+
+            if ($claim->status !== self::CLAIM_APPROVED) {
+                throw LostFoundException::claimNotReviewable(
+                    "Only APPROVED claims can be released (current: {$claim->status})"
+                );
+            }
+
+            $item = $claim->item;
+
+            if ($item->status === self::ITEM_RELEASED) {
+                throw LostFoundException::claimNotReviewable(
+                    'Item is already released'
+                );
+            }
+
+            if ($item->status === self::ITEM_CLOSED) {
+                throw LostFoundException::claimNotReviewable(
+                    'Cannot release a claim on a closed item'
+                );
+            }
+
+            $item->update([
+                'status'      => self::ITEM_RELEASED,
+                'released_to' => $claim->claimant_id,
+                'released_at' => now(),
+            ]);
+
+            return $claim->fresh(['item', 'claimant', 'reviewer']);
+        });
+    }
+
+    /**
+     * Admin rejects a claim. Works on both PENDING and APPROVED claims
+     * (post-approval reversal — "if something later invalidates the approval").
+     *
+     * - Rejecting a PENDING claim: if no pending claims remain, item reverts
+     *   to AVAILABLE.
+     * - Rejecting an APPROVED claim: item reverts to CLAIMED if other pending
+     *   claims exist, or AVAILABLE if none remain.
+     *
+     * @throws LostFoundException  Claim not found, or already REJECTED.
      */
     public function rejectClaim(User $admin, string $itemId, string $claimId, ?string $reason): Claim
     {
         return DB::transaction(function () use ($admin, $itemId, $claimId, $reason): Claim {
             $claim = $this->loadClaimForItem($itemId, $claimId);
 
-            if ($claim->status !== self::CLAIM_PENDING) {
+            if ($claim->status === self::CLAIM_REJECTED) {
                 throw LostFoundException::claimNotReviewable(
-                    "Claim is already {$claim->status}"
+                    'Claim is already rejected'
+                );
+            }
+
+            // Only PENDING and APPROVED claims can be rejected.
+            if (! in_array($claim->status, [self::CLAIM_PENDING, self::CLAIM_APPROVED], true)) {
+                throw LostFoundException::claimNotReviewable(
+                    "Cannot reject a {$claim->status} claim"
+                );
+            }
+
+            // Cannot reject claims on RELEASED or CLOSED items — the item has
+            // already been handed over. Post-approval rejection is only valid
+            // while the item is still in the APPROVED (pre-handover) stage.
+            $item = $claim->item;
+            if (in_array($item->status, [self::ITEM_RELEASED, self::ITEM_CLOSED], true)) {
+                throw LostFoundException::claimNotReviewable(
+                    "Cannot reject a claim on a {$item->status} item"
                 );
             }
 
@@ -254,12 +425,21 @@ class LostItemService
                 'rejection_reason' => $reason,
             ]);
 
-            // If no pending claims remain, revert item to AVAILABLE.
+            // Determine the new item status based on remaining claims.
             $pendingCount = Claim::where('item_id', $claim->item_id)
                 ->where('status', self::CLAIM_PENDING)
                 ->count();
-            if ($pendingCount === 0 && $claim->item->status === self::ITEM_CLAIMED) {
-                $claim->item->update(['status' => self::ITEM_AVAILABLE]);
+
+            if ($pendingCount > 0) {
+                // Other pending claims exist → item goes back to CLAIMED.
+                if ($item->status !== self::ITEM_CLAIMED) {
+                    $item->update(['status' => self::ITEM_CLAIMED]);
+                }
+            } else {
+                // No pending claims remain → item reverts to AVAILABLE.
+                if ($item->status !== self::ITEM_AVAILABLE) {
+                    $item->update(['status' => self::ITEM_AVAILABLE]);
+                }
             }
 
             return $claim->fresh(['item', 'claimant', 'reviewer']);
@@ -290,6 +470,8 @@ class LostItemService
         return $item->fresh(['vehicle', 'releasedTo', 'closedBy']);
     }
 
+    // ── Private helpers ────────────────────────────────────────
+
     private function loadClaimForItem(string $itemId, string $claimId): Claim
     {
         try {
@@ -309,5 +491,24 @@ class LostItemService
             return trim($profile->first_name . ' ' . $profile->last_name);
         }
         return $admin->email;
+    }
+
+    /**
+     * Extract the relative path from a public-disk URL, so we can delete
+     * the old file when replacing an image. Returns null if the URL doesn't
+     * look like a storage URL.
+     */
+    private function extractPathFromUrl(string $url): ?string
+    {
+        // Storage::disk('public')->url() produces something like
+        // "http://localhost/storage/lost-items/abc.jpg". We need just
+        // "lost-items/abc.jpg".
+        $parts = parse_url($url);
+        $path = $parts['path'] ?? '';
+        // Strip the "/storage/" prefix if present.
+        if (str_starts_with($path, '/storage/')) {
+            $path = substr($path, strlen('/storage/'));
+        }
+        return $path !== '' ? $path : null;
     }
 }

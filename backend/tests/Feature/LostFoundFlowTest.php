@@ -7,28 +7,41 @@ use App\Models\Claim;
 use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 /**
- * Sprint 6 (T3) — Lost & Found workflow.
+ * Sprint 6 (T3) — Lost & Found workflow (revised scope).
  *
- * Covers the revised S6 scope: admin adds items, commuters browse + claim
- * with proof, admin approves/rejects claims, approved → released (record
- * receiver), admin closes, audit trail via reviewed_by/reviewed_at/
+ * Covers the revised S6 scope: admin adds items + uploads images, commuters
+ * browse + claim with proof + watchlist, admin approves/rejects claims,
+ * approved → released (2-stage: approve then release, with post-approval
+ * reject option), admin closes, audit trail via reviewed_by/reviewed_at/
  * rejection_reason on claims.
  *
+ * Two-stage approve workflow:
+ *   PENDING → (approve) → APPROVED [item → APPROVED] → (release) → item RELEASED
+ *   PENDING → (reject)  → REJECTED [item reverts to AVAILABLE if no pending claims]
+ *   APPROVED → (reject) → REJECTED [post-approval reversal; item reverts]
+ *
  * Endpoints:
- *   GET  /api/v1/lost-found                          (any auth)
- *   GET  /api/v1/lost-found/{itemId}                 (any auth)
- *   POST /api/v1/lost-found/{itemId}/claim           (COMMUTER)
- *   GET  /api/v1/admin/lost-items                    (ADMIN)
- *   POST /api/v1/admin/lost-items                    (ADMIN)
- *   GET  /api/v1/admin/lost-items/{itemId}           (ADMIN)
- *   GET  /api/v1/admin/lost-items/{itemId}/claims    (ADMIN)
- *   PATCH /api/v1/admin/lost-items/{itemId}/claims/{claimId}/approve (ADMIN)
- *   PATCH /api/v1/admin/lost-items/{itemId}/claims/{claimId}/reject  (ADMIN)
- *   PATCH /api/v1/admin/lost-items/{itemId}/close    (ADMIN)
+ *   GET    /api/v1/lost-found                          (any auth)
+ *   GET    /api/v1/lost-found/{itemId}                 (any auth)
+ *   POST   /api/v1/lost-found/{itemId}/claim           (COMMUTER)
+ *   POST   /api/v1/lost-found/{itemId}/watchlist       (COMMUTER)
+ *   DELETE /api/v1/lost-found/{itemId}/watchlist       (COMMUTER)
+ *   GET    /api/v1/commuter/watchlist                  (COMMUTER)
+ *   GET    /api/v1/admin/lost-items                    (ADMIN)
+ *   POST   /api/v1/admin/lost-items                    (ADMIN)
+ *   GET    /api/v1/admin/lost-items/{itemId}           (ADMIN)
+ *   POST   /api/v1/admin/lost-items/{itemId}/image     (ADMIN)
+ *   GET    /api/v1/admin/lost-items/{itemId}/claims    (ADMIN)
+ *   PATCH  /api/v1/admin/lost-items/{itemId}/claims/{claimId}/approve  (ADMIN)
+ *   PATCH  /api/v1/admin/lost-items/{itemId}/claims/{claimId}/release  (ADMIN)
+ *   PATCH  /api/v1/admin/lost-items/{itemId}/claims/{claimId}/reject   (ADMIN)
+ *   PATCH  /api/v1/admin/lost-items/{itemId}/close     (ADMIN)
  */
 class LostFoundFlowTest extends TestCase
 {
@@ -42,6 +55,7 @@ class LostFoundFlowTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Storage::fake('public');
 
         $this->admin = User::factory()->admin()->create();
         $this->commuter = User::factory()->commuter()->create();
@@ -233,17 +247,38 @@ class LostFoundFlowTest extends TestCase
         $response->assertStatus(403);
     }
 
-    public function test_cannot_claim_released_item(): void
+    public function test_cannot_claim_approved_item(): void
     {
         $item = $this->createItem();
 
-        // Approve a claim → item becomes RELEASED
         $this->commuter();
         $this->postJson("/api/v1/lost-found/{$item->id}/claim", ['proof' => 'mine']);
 
         $this->admin();
         $claim = Claim::where('item_id', $item->id)->first();
         $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/approve")
+            ->assertStatus(200);
+
+        // Second commuter tries to claim the now-APPROVED item
+        $this->otherCommuter();
+        $response = $this->postJson("/api/v1/lost-found/{$item->id}/claim", ['proof' => 'mine']);
+
+        $response->assertStatus(422);
+    }
+
+    public function test_cannot_claim_released_item(): void
+    {
+        $item = $this->createItem();
+
+        // Approve + release → item becomes RELEASED
+        $this->commuter();
+        $this->postJson("/api/v1/lost-found/{$item->id}/claim", ['proof' => 'mine']);
+
+        $this->admin();
+        $claim = Claim::where('item_id', $item->id)->first();
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/approve")
+            ->assertStatus(200);
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/release")
             ->assertStatus(200);
 
         // Second commuter tries to claim the now-RELEASED item
@@ -263,6 +298,7 @@ class LostFoundFlowTest extends TestCase
         $this->admin();
         $claim = Claim::where('item_id', $item->id)->first();
         $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/approve");
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/release");
         $this->patchJson("/api/v1/admin/lost-items/{$item->id}/close");
 
         $this->otherCommuter();
@@ -286,7 +322,7 @@ class LostFoundFlowTest extends TestCase
         $this->assertEquals(2, Claim::where('item_id', $item->id)->count());
     }
 
-    // ── Admin: approve / reject / close ─────────────────────────
+    // ── Admin: approve / release / reject / close ──────────────
 
     public function test_admin_can_approve_claim(): void
     {
@@ -301,13 +337,64 @@ class LostFoundFlowTest extends TestCase
         $response->assertStatus(200)
             ->assertJsonPath('data.status', 'APPROVED');
 
-        // Item → RELEASED, released_to set
+        // Stage 1: approve → item APPROVED (not RELEASED yet)
+        $this->assertDatabaseHas('lost_items', [
+            'id'          => $item->id,
+            'status'      => 'APPROVED',
+        ]);
+        // released_to/released_at NOT set until release
+        $this->assertNull(LostItem::find($item->id)->released_to);
+        $this->assertNull(LostItem::find($item->id)->released_at);
+    }
+
+    public function test_admin_can_release_approved_claim(): void
+    {
+        $item = $this->createItem();
+        $this->commuter();
+        $this->postJson("/api/v1/lost-found/{$item->id}/claim", ['proof' => 'mine']);
+
+        $this->admin();
+        $claim = Claim::where('item_id', $item->id)->first();
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/approve");
+
+        // Stage 2: release → item RELEASED, released_to set
+        $response = $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/release");
+        $response->assertStatus(200)
+            ->assertJsonPath('data.status', 'APPROVED');
+
         $this->assertDatabaseHas('lost_items', [
             'id'          => $item->id,
             'status'      => 'RELEASED',
             'released_to' => $this->commuter->commuterProfile->id,
         ]);
         $this->assertNotNull(LostItem::find($item->id)->released_at);
+    }
+
+    public function test_cannot_release_pending_claim(): void
+    {
+        $item = $this->createItem();
+        $this->commuter();
+        $this->postJson("/api/v1/lost-found/{$item->id}/claim", ['proof' => 'mine']);
+
+        $this->admin();
+        $claim = Claim::where('item_id', $item->id)->first();
+        // Try to release without approving first
+        $response = $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/release");
+        $response->assertStatus(422);
+    }
+
+    public function test_cannot_release_already_released(): void
+    {
+        $item = $this->createItem();
+        $this->commuter();
+        $this->postJson("/api/v1/lost-found/{$item->id}/claim", ['proof' => 'mine']);
+
+        $this->admin();
+        $claim = Claim::where('item_id', $item->id)->first();
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/approve");
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/release");
+        $response = $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/release");
+        $response->assertStatus(422);
     }
 
     public function test_approve_auto_rejects_other_pending_claims(): void
@@ -335,7 +422,7 @@ class LostFoundFlowTest extends TestCase
         $this->assertEquals('Another claim was approved', $otherClaim->fresh()->rejection_reason);
     }
 
-    public function test_admin_can_reject_claim_with_reason(): void
+    public function test_admin_can_reject_pending_claim_with_reason(): void
     {
         $item = $this->createItem();
         $this->commuter();
@@ -350,6 +437,31 @@ class LostFoundFlowTest extends TestCase
         $response->assertStatus(200)
             ->assertJsonPath('data.status', 'REJECTED')
             ->assertJsonPath('data.rejection_reason', 'Proof does not match item description');
+
+        // Item reverts to AVAILABLE (no pending claims remain)
+        $this->assertDatabaseHas('lost_items', [
+            'id'     => $item->id,
+            'status' => 'AVAILABLE',
+        ]);
+    }
+
+    public function test_admin_can_reject_approved_claim_post_approval(): void
+    {
+        // Post-approval reversal: approve then reject (something invalidates the approval)
+        $item = $this->createItem();
+        $this->commuter();
+        $this->postJson("/api/v1/lost-found/{$item->id}/claim", ['proof' => 'mine']);
+
+        $this->admin();
+        $claim = Claim::where('item_id', $item->id)->first();
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/approve");
+
+        $response = $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/reject", [
+            'rejection_reason' => 'Claimant could not provide ID at handover',
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.status', 'REJECTED');
 
         // Item reverts to AVAILABLE (no pending claims remain)
         $this->assertDatabaseHas('lost_items', [
@@ -395,6 +507,7 @@ class LostFoundFlowTest extends TestCase
         $this->admin();
         $claim = Claim::where('item_id', $item->id)->first();
         $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/approve");
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/release");
 
         $response = $this->patchJson("/api/v1/admin/lost-items/{$item->id}/close");
         $response->assertStatus(200)
@@ -408,6 +521,21 @@ class LostFoundFlowTest extends TestCase
         $item = $this->createItem();
 
         $this->admin();
+        $response = $this->patchJson("/api/v1/admin/lost-items/{$item->id}/close");
+        $response->assertStatus(422);
+    }
+
+    public function test_cannot_close_approved_item(): void
+    {
+        // APPROVED but not RELEASED → cannot close
+        $item = $this->createItem();
+        $this->commuter();
+        $this->postJson("/api/v1/lost-found/{$item->id}/claim", ['proof' => 'mine']);
+
+        $this->admin();
+        $claim = Claim::where('item_id', $item->id)->first();
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/approve");
+
         $response = $this->patchJson("/api/v1/admin/lost-items/{$item->id}/close");
         $response->assertStatus(422);
     }
@@ -443,5 +571,219 @@ class LostFoundFlowTest extends TestCase
         $this->admin();
         $response = $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/nonexistent-claim/approve");
         $response->assertStatus(404);
+    }
+
+    public function test_release_nonexistent_claim_returns_404(): void
+    {
+        $item = $this->createItem();
+        $this->admin();
+        $response = $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/nonexistent-claim/release");
+        $response->assertStatus(404);
+    }
+
+    // ── Watchlist (COMMUTER) ───────────────────────────────────
+
+    public function test_commuter_can_watchlist_item(): void
+    {
+        $item = $this->createItem();
+
+        $this->commuter();
+        $response = $this->postJson("/api/v1/lost-found/{$item->id}/watchlist");
+
+        $response->assertStatus(201)
+            ->assertJsonPath('success', true);
+
+        $this->assertDatabaseHas('lost_item_watchlists', [
+            'item_id'      => $item->id,
+            'commuter_id'  => $this->commuter->commuterProfile->id,
+        ]);
+    }
+
+    public function test_watchlist_is_idempotent(): void
+    {
+        $item = $this->createItem();
+
+        $this->commuter();
+        // First add → 201
+        $this->postJson("/api/v1/lost-found/{$item->id}/watchlist")
+            ->assertStatus(201);
+
+        // Second add → 200 (already watching)
+        $response = $this->postJson("/api/v1/lost-found/{$item->id}/watchlist");
+        $response->assertStatus(200);
+
+        // Still only one row
+        $this->assertDatabaseCount('lost_item_watchlists', 1);
+    }
+
+    public function test_commuter_can_unwatchlist_item(): void
+    {
+        $item = $this->createItem();
+
+        $this->commuter();
+        $this->postJson("/api/v1/lost-found/{$item->id}/watchlist");
+        $response = $this->deleteJson("/api/v1/lost-found/{$item->id}/watchlist");
+
+        $response->assertStatus(200);
+        $this->assertDatabaseMissing('lost_item_watchlists', [
+            'item_id' => $item->id,
+        ]);
+    }
+
+    public function test_unwatchlist_is_idempotent(): void
+    {
+        $item = $this->createItem();
+
+        $this->commuter();
+        // Delete without adding first → still 200
+        $response = $this->deleteJson("/api/v1/lost-found/{$item->id}/watchlist");
+        $response->assertStatus(200);
+    }
+
+    public function test_commuter_can_list_watchlist(): void
+    {
+        $item = $this->createItem();
+
+        $this->commuter();
+        $this->postJson("/api/v1/lost-found/{$item->id}/watchlist");
+
+        $response = $this->getJson('/api/v1/commuter/watchlist');
+        $response->assertStatus(200)
+            ->assertJsonPath('success', true);
+
+        $entries = $response->json('data.data');
+        $this->assertNotEmpty($entries);
+        $this->assertEquals($item->id, $entries[0]['item_id']);
+    }
+
+    public function test_admin_cannot_watchlist_item(): void
+    {
+        $item = $this->createItem();
+
+        $this->admin();
+        $response = $this->postJson("/api/v1/lost-found/{$item->id}/watchlist");
+        $response->assertStatus(403);
+    }
+
+    public function test_watchlist_deleted_when_item_deleted(): void
+    {
+        $item = $this->createItem();
+
+        $this->commuter();
+        $this->postJson("/api/v1/lost-found/{$item->id}/watchlist");
+        $this->assertDatabaseCount('lost_item_watchlists', 1);
+
+        // Delete the item (cascade should remove watchlist entries)
+        $item->delete();
+        $this->assertDatabaseCount('lost_item_watchlists', 0);
+    }
+
+    // ── Image upload (ADMIN) ───────────────────────────────────
+
+    public function test_admin_can_upload_lost_item_image(): void
+    {
+        $item = $this->createItem();
+
+        $this->admin();
+        $response = $this->postJson("/api/v1/admin/lost-items/{$item->id}/image", [
+            'image' => UploadedFile::fake()->image('backpack.jpg', 800, 600),
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('success', true);
+
+        // image_url is set and file exists on disk
+        $item->refresh();
+        $this->assertNotNull($item->image_url);
+        Storage::disk('public')->assertExists(
+            $this->extractPathFromUrl($item->image_url)
+        );
+    }
+
+    public function test_image_upload_validates_file_type(): void
+    {
+        $item = $this->createItem();
+
+        $this->admin();
+        $response = $this->postJson("/api/v1/admin/lost-items/{$item->id}/image", [
+            'image' => UploadedFile::fake()->create('document.pdf', 100, 'application/pdf'),
+        ]);
+
+        $response->assertStatus(422);
+    }
+
+    public function test_image_upload_validates_file_size(): void
+    {
+        $item = $this->createItem();
+
+        $this->admin();
+        // 6MB file → exceeds 5MB limit
+        $response = $this->postJson("/api/v1/admin/lost-items/{$item->id}/image", [
+            'image' => UploadedFile::fake()->image('huge.jpg')->size(6144),
+        ]);
+
+        $response->assertStatus(422);
+    }
+
+    public function test_commuter_cannot_upload_image(): void
+    {
+        $item = $this->createItem();
+
+        $this->commuter();
+        $response = $this->postJson("/api/v1/admin/lost-items/{$item->id}/image", [
+            'image' => UploadedFile::fake()->image('backpack.jpg', 100, 100),
+        ]);
+
+        $response->assertStatus(403);
+    }
+
+    public function test_image_upload_replaces_previous_image(): void
+    {
+        $item = $this->createItem();
+
+        $this->admin();
+        // First upload
+        $this->postJson("/api/v1/admin/lost-items/{$item->id}/image", [
+            'image' => UploadedFile::fake()->image('first.jpg', 800, 600),
+        ]);
+        $item->refresh();
+        $firstUrl = $item->image_url;
+        $firstPath = $this->extractPathFromUrl($firstUrl);
+        Storage::disk('public')->assertExists($firstPath);
+
+        // Second upload — should replace the first
+        $this->postJson("/api/v1/admin/lost-items/{$item->id}/image", [
+            'image' => UploadedFile::fake()->image('second.jpg', 800, 600),
+        ]);
+        $item->refresh();
+        $secondUrl = $item->image_url;
+
+        $this->assertNotEquals($firstUrl, $secondUrl);
+        // Old file should be deleted
+        Storage::disk('public')->assertMissing($firstPath);
+    }
+
+    public function test_image_upload_returns_404_for_missing_item(): void
+    {
+        $this->admin();
+        $response = $this->postJson('/api/v1/admin/lost-items/nonexistent-id/image', [
+            'image' => UploadedFile::fake()->image('test.jpg', 100, 100),
+        ]);
+
+        $response->assertStatus(404);
+    }
+
+    /**
+     * Extract the storage-relative path from a public-disk URL so we can
+     * use Storage::assertExists/assetMissing in tests.
+     */
+    private function extractPathFromUrl(string $url): string
+    {
+        $parts = parse_url($url);
+        $path = $parts['path'] ?? '';
+        if (str_starts_with($path, '/storage/')) {
+            $path = substr($path, strlen('/storage/'));
+        }
+        return $path;
     }
 }

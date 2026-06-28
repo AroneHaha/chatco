@@ -69,6 +69,11 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
     // Strictly rate-limited at 1/min per commuter (throttle:sos) to prevent
     // abuse. Admins acknowledge + resolve via /admin/sos endpoints.
     Route::post('/sos', [SosController::class, 'trigger'])->middleware('throttle:sos');
+
+    // Lost & Found watchlist (S6-T3) — commuter's bookmarked items.
+    // The browse + claim + watchlist toggle endpoints live in the shared
+    // /lost-found group (any auth role for browse, COMMUTER for claim/watch).
+    Route::get('/watchlist', [LostItemController::class, 'myWatchlist'])->middleware('throttle:conductor-read');
 });
 
 /*
@@ -178,8 +183,10 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::get('/lost-items', [AdminLostItemController::class, 'index'])->middleware('throttle:conductor-read');
     Route::post('/lost-items', [AdminLostItemController::class, 'store'])->middleware('throttle:admin-write');
     Route::get('/lost-items/{itemId}', [AdminLostItemController::class, 'show'])->middleware('throttle:conductor-read');
+    Route::post('/lost-items/{itemId}/image', [AdminLostItemController::class, 'uploadImage'])->middleware('throttle:admin-write');
     Route::get('/lost-items/{itemId}/claims', [AdminLostItemController::class, 'claims'])->middleware('throttle:conductor-read');
     Route::patch('/lost-items/{itemId}/claims/{claimId}/approve', [AdminLostItemController::class, 'approveClaim'])->middleware('throttle:admin-write');
+    Route::patch('/lost-items/{itemId}/claims/{claimId}/release', [AdminLostItemController::class, 'releaseClaim'])->middleware('throttle:admin-write');
     Route::patch('/lost-items/{itemId}/claims/{claimId}/reject', [AdminLostItemController::class, 'rejectClaim'])->middleware('throttle:admin-write');
     Route::patch('/lost-items/{itemId}/close', [AdminLostItemController::class, 'close'])->middleware('throttle:admin-write');
 
@@ -224,7 +231,9 @@ Route::prefix('payments')->group(function () {
 |--------------------------------------------------------------------------
 |   GET  /lost-found            (any auth role) — paginated browse
 |   GET  /lost-found/{itemId}   (any auth role) — item detail
-|   POST /lost-found/{itemId}/claim (COMMUTER)   — submit a claim with proof
+|   POST /lost-found/{itemId}/claim      (COMMUTER) — submit a claim with proof
+|   POST /lost-found/{itemId}/watchlist  (COMMUTER) — add to watchlist
+|   DELETE /lost-found/{itemId}/watchlist (COMMUTER) — remove from watchlist
 |
 | Admin management (create, review claims, close) lives in the /admin
 | group above via AdminLostItemController.
@@ -234,6 +243,8 @@ Route::prefix('lost-found')->middleware(['auth:sanctum'])->group(function () {
     Route::get('/', [LostItemController::class, 'index'])->middleware('throttle:commuter-read');
     Route::get('/{itemId}', [LostItemController::class, 'show'])->middleware('throttle:commuter-read');
     Route::post('/{itemId}/claim', [LostItemController::class, 'claim'])->middleware(['role:COMMUTER', 'throttle:commuter-write']);
+    Route::post('/{itemId}/watchlist', [LostItemController::class, 'watchlist'])->middleware(['role:COMMUTER', 'throttle:commuter-write']);
+    Route::delete('/{itemId}/watchlist', [LostItemController::class, 'unwatch'])->middleware(['role:COMMUTER', 'throttle:commuter-write']);
 });
 
 /*

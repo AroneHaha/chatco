@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LostFound\RejectClaimRequest;
 use App\Http\Requests\LostFound\StoreLostItemRequest;
+use App\Http\Requests\LostFound\UploadLostItemImageRequest;
 use App\Services\LostItemService;
 use App\Support\LostFound\LostFoundException;
 use App\Traits\ApiResponse;
@@ -17,8 +18,10 @@ use Illuminate\Http\Request;
  *   GET   /api/v1/admin/lost-items                          — list (with claims)
  *   POST  /api/v1/admin/lost-items                          — create reported item
  *   GET   /api/v1/admin/lost-items/{itemId}                 — detail + claims
+ *   POST  /api/v1/admin/lost-items/{itemId}/image           — upload item image
  *   GET   /api/v1/admin/lost-items/{itemId}/claims          — claims for an item
  *   PATCH /api/v1/admin/lost-items/{itemId}/claims/{claimId}/approve
+ *   PATCH /api/v1/admin/lost-items/{itemId}/claims/{claimId}/release
  *   PATCH /api/v1/admin/lost-items/{itemId}/claims/{claimId}/reject
  *   PATCH /api/v1/admin/lost-items/{itemId}/close           — close released item
  *
@@ -74,6 +77,24 @@ class AdminLostItemController extends Controller
     }
 
     /**
+     * POST /admin/lost-items/{itemId}/image
+     * Uploads an image for a lost item (multipart/form-data).
+     */
+    public function uploadImage(UploadLostItemImageRequest $request, string $itemId): JsonResponse
+    {
+        try {
+            $item = $this->lostItemService->uploadImage(
+                $itemId,
+                $request->file('image'),
+            );
+        } catch (LostFoundException $e) {
+            return $this->errorResponse($e->getMessage(), 404);
+        }
+
+        return $this->successResponse($item, 'Image uploaded');
+    }
+
+    /**
      * GET /admin/lost-items/{itemId}/claims
      */
     public function claims(string $itemId): JsonResponse
@@ -104,6 +125,26 @@ class AdminLostItemController extends Controller
         }
 
         return $this->successResponse($claim, 'Claim approved');
+    }
+
+    /**
+     * PATCH /admin/lost-items/{itemId}/claims/{claimId}/release
+     * Releases an approved claim — records handover (released_to + released_at).
+     */
+    public function releaseClaim(Request $request, string $itemId, string $claimId): JsonResponse
+    {
+        try {
+            $claim = $this->lostItemService->releaseClaim(
+                $request->user(),
+                $itemId,
+                $claimId,
+            );
+        } catch (LostFoundException $e) {
+            $status = str_contains($e->getMessage(), 'not found') ? 404 : 422;
+            return $this->errorResponse($e->getMessage(), $status);
+        }
+
+        return $this->successResponse($claim, 'Claim released');
     }
 
     /**

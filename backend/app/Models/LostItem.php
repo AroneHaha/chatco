@@ -76,4 +76,12 @@ class LostItem extends Model
     {
         return $this->belongsTo(User::class, 'closed_by');
     }
+
+    /**
+     * Commuters watching this item (watchlist entries).
+     */
+    public function watchlists()
+    {
+        return $this->hasMany(LostItemWatchlist::class, 'item_id');
+    }
 }
