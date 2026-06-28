@@ -307,4 +307,23 @@ class SchemaTest extends TestCase
         $this->assertTrue(Schema::hasColumn('announcements', 'created_by'), 'Missing column: announcements.created_by');
         $this->assertTrue(Schema::hasColumn('announcements', 'status'), 'Missing column: announcements.status');
     }
+
+    // ── Sprint 6 (T5) SOS alerts table ──────────────────────────
+
+    public function test_sos_alerts_table_exists(): void
+    {
+        $this->assertTrue(Schema::hasTable('sos_alerts'), 'Table [sos_alerts] does not exist.');
+    }
+
+    public function test_sos_alerts_has_required_columns(): void
+    {
+        $columns = ['id', 'commuter_id', 'lat', 'lng', 'note', 'status', 'acknowledged_by', 'acknowledged_at', 'resolved_by', 'resolved_at', 'created_at', 'updated_at'];
+
+        foreach ($columns as $column) {
+            $this->assertTrue(
+                Schema::hasColumn('sos_alerts', $column),
+                "Missing column: sos_alerts.{$column}"
+            );
+        }
+    }
 }

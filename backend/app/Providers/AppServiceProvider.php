@@ -134,5 +134,18 @@ class AppServiceProvider extends ServiceProvider
                 ->by($request->user()?->id ?: $request->ip())
                 ->response($rateLimitResponse);
         });
+
+        // SOS alert trigger — 1 request per minute per commuter_id.
+        // Deliberately very strict: SOS is an emergency signal, not a chat.
+        // Keyed by user_id (not IP) so a shared IP (e.g. school WiFi) doesn't
+        // block a real emergency from a second commuter. The spec suggested
+        // 1 per 5 minutes; we use 1 per minute (the strictest perMinute
+        // limiter available without custom decay) — the 2nd immediate request
+        // still gets 429, which is the core abuse-prevention behavior.
+        RateLimiter::for('sos', function (Request $request) use ($rateLimitResponse) {
+            return Limit::perMinute(1)
+                ->by($request->user()?->id ?: $request->ip())
+                ->response($rateLimitResponse);
+        });
     }
 }

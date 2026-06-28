@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Commuter\CommuterController;
 use App\Http\Controllers\Commuter\FeedbackController;
 use App\Http\Controllers\Commuter\HailController;
+use App\Http\Controllers\Commuter\SosController;
 use App\Http\Controllers\Commuter\VehicleLocationController;
 use App\Http\Controllers\Conductor\ConductorController;
 use App\Http\Controllers\Conductor\ConductorHailController;
@@ -14,6 +15,7 @@ use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminVehicleController;
 use App\Http\Controllers\Admin\AdminLostItemController;
 use App\Http\Controllers\Admin\AdminAnnouncementController;
+use App\Http\Controllers\Admin\AdminSosController;
 use App\Http\Controllers\LostItemController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\Payment\PaymentController;
@@ -62,6 +64,11 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
     // spam; the (commuter_id, shift_id) unique constraint also enforces
     // one-feedback-per-shift at the DB level.
     Route::post('/feedback', [FeedbackController::class, 'store'])->middleware('throttle:commuter-hail');
+
+    // SOS alert (S6-T5) — commuter triggers an emergency alert with lat/lng.
+    // Strictly rate-limited at 1/min per commuter (throttle:sos) to prevent
+    // abuse. Admins acknowledge + resolve via /admin/sos endpoints.
+    Route::post('/sos', [SosController::class, 'trigger'])->middleware('throttle:sos');
 });
 
 /*
@@ -175,6 +182,13 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::patch('/lost-items/{itemId}/claims/{claimId}/approve', [AdminLostItemController::class, 'approveClaim'])->middleware('throttle:admin-write');
     Route::patch('/lost-items/{itemId}/claims/{claimId}/reject', [AdminLostItemController::class, 'rejectClaim'])->middleware('throttle:admin-write');
     Route::patch('/lost-items/{itemId}/close', [AdminLostItemController::class, 'close'])->middleware('throttle:admin-write');
+
+    // ── SOS alert management (S6-T5) ────────────────────────────
+    // Admins monitor the live feed, acknowledge alerts (signal 'I see this'),
+    // and resolve them when the situation is handled.
+    Route::get('/sos', [AdminSosController::class, 'index'])->middleware('throttle:conductor-read');
+    Route::patch('/sos/{id}/acknowledge', [AdminSosController::class, 'acknowledge'])->middleware('throttle:admin-write');
+    Route::patch('/sos/{id}/resolve', [AdminSosController::class, 'resolve'])->middleware('throttle:admin-write');
 });
 
 /*
