@@ -53,8 +53,12 @@ class SosService
     }
 
     /**
-     * Admin list — paginated, default filter status=ACTIVE.
-     * Eager-loads commuter for name display.
+     * Admin list — paginated. Eager-loads commuter for name display.
+     *
+     * The status filter is owned by the controller (which defaults to ACTIVE
+     * when no param is supplied, and passes null only when status=ALL is
+     * explicitly requested). The service treats a null/empty status as "no
+     * filter" — return every alert regardless of status.
      */
     public function listActive(User $admin, array $filters, int $perPage = 15): LengthAwarePaginator
     {
@@ -63,10 +67,9 @@ class SosService
 
         if (! empty($filters['status'])) {
             $query->where('status', $filters['status']);
-        } else {
-            // Default to ACTIVE only (most useful for the live dashboard)
-            $query->where('status', self::STATUS_ACTIVE);
         }
+        // else: no filter → return all statuses (controller already
+        // defaulted to ACTIVE if the caller omitted the param entirely).
 
         return $query->paginate($perPage);
     }

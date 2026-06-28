@@ -29,13 +29,27 @@ class AdminSosController extends Controller
 
     /**
      * GET /admin/sos?status=&per_page=
-     * Default filter: status=ACTIVE (live dashboard). Pass status=ALL for everything.
+     *
+     * Status filter semantics:
+     *   - omitted         → defaults to ACTIVE (live dashboard feed)
+     *   - status=ALL      → returns EVERY status (ACTIVE + ACKNOWLEDGED + RESOLVED)
+     *   - status=ACTIVE   → ACTIVE only
+     *   - status=RESOLVED → RESOLVED only (etc.)
+     *
+     * The controller owns the "default to ACTIVE" behavior so the service can
+     * treat a null status filter as "no filter" (return all). This avoids the
+     * conflict where the service's else-branch would re-apply ACTIVE filtering
+     * even when the controller intended ALL.
      */
     public function index(Request $request): JsonResponse
     {
-        $status = $request->string('status')->toString() ?: null;
+        $statusInput = $request->string('status')->toString();
         $filters = [
-            'status' => ($status && strtoupper($status) !== 'ALL') ? $status : null,
+            'status' => match (true) {
+                $statusInput === ''                => 'ACTIVE', // default: live feed
+                strtoupper($statusInput) === 'ALL' => null,     // explicit ALL → no filter
+                default                            => $statusInput,
+            },
         ];
         $perPage = (int) $request->integer('per_page', 15);
 
