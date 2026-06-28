@@ -13,7 +13,9 @@ use App\Http\Controllers\Admin\AdminRegistrationController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminVehicleController;
 use App\Http\Controllers\Admin\AdminLostItemController;
+use App\Http\Controllers\Admin\AdminAnnouncementController;
 use App\Http\Controllers\LostItemController;
+use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\Payment\PaymentController;
 use App\Http\Controllers\Payment\QrController;
 
@@ -154,7 +156,12 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::get('/routes', [AdminController::class, 'routes'])->middleware('throttle:conductor-read');
     Route::get('/transactions', [AdminController::class, 'transactions'])->middleware('throttle:conductor-read');
     Route::get('/remittances', [AdminController::class, 'remittances'])->middleware('throttle:conductor-read');
-    Route::get('/announcements', [AdminController::class, 'announcements']);
+    Route::get('/announcements', [AdminAnnouncementController::class, 'index'])->middleware('throttle:conductor-read');
+    Route::post('/announcements', [AdminAnnouncementController::class, 'store'])->middleware('throttle:admin-write');
+    Route::get('/announcements/{id}', [AdminAnnouncementController::class, 'show'])->middleware('throttle:conductor-read');
+    Route::put('/announcements/{id}', [AdminAnnouncementController::class, 'update'])->middleware('throttle:admin-write');
+    Route::patch('/announcements/{id}', [AdminAnnouncementController::class, 'update'])->middleware('throttle:admin-write');
+    Route::patch('/announcements/{id}/archive', [AdminAnnouncementController::class, 'archive'])->middleware('throttle:admin-write');
     Route::get('/shift-logs', [AdminController::class, 'shiftLogs'])->middleware('throttle:conductor-read');
 
     // ── Lost & Found management (S6-T3) ─────────────────────────
@@ -213,6 +220,24 @@ Route::prefix('lost-found')->middleware(['auth:sanctum'])->group(function () {
     Route::get('/', [LostItemController::class, 'index'])->middleware('throttle:commuter-read');
     Route::get('/{itemId}', [LostItemController::class, 'show'])->middleware('throttle:commuter-read');
     Route::post('/{itemId}/claim', [LostItemController::class, 'claim'])->middleware(['role:COMMUTER', 'throttle:commuter-write']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Announcements — User-Facing Reads (S6-T4)
+|--------------------------------------------------------------------------
+|   GET  /announcements                (any auth role) — ACTIVE feed w/ is_read
+|   GET  /announcements/unread-count   (any auth role) — bell badge count
+|   POST /announcements/{id}/read      (any auth role) — mark-as-read (204)
+|
+| Admin CRUD (create/update/archive) lives in the /admin group above via
+| AdminAnnouncementController.
+|--------------------------------------------------------------------------
+*/
+Route::prefix('announcements')->middleware(['auth:sanctum'])->group(function () {
+    Route::get('/unread-count', [AnnouncementController::class, 'unreadCount'])->middleware('throttle:commuter-read');
+    Route::get('/', [AnnouncementController::class, 'index'])->middleware('throttle:commuter-read');
+    Route::post('/{id}/read', [AnnouncementController::class, 'markRead'])->middleware('throttle:commuter-write');
 });
 
 /*

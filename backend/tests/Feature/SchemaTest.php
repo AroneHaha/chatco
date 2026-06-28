@@ -270,4 +270,41 @@ class SchemaTest extends TestCase
             );
         }
     }
+
+    // ── Sprint 6 (T3) Lost & Found new columns ──────────────────
+
+    public function test_lost_items_has_release_and_audit_columns(): void
+    {
+        $columns = ['released_to', 'released_at', 'closed_by', 'closed_at'];
+        foreach ($columns as $column) {
+            $this->assertTrue(
+                Schema::hasColumn('lost_items', $column),
+                "Missing column: lost_items.{$column}"
+            );
+        }
+    }
+
+    public function test_claims_has_review_columns(): void
+    {
+        $columns = ['reviewed_by', 'reviewed_at', 'rejection_reason'];
+        foreach ($columns as $column) {
+            $this->assertTrue(
+                Schema::hasColumn('claims', $column),
+                "Missing column: claims.{$column}"
+            );
+        }
+    }
+
+    // ── Sprint 6 (T4) Announcements new table + columns ─────────
+
+    public function test_announcement_reads_table_exists(): void
+    {
+        $this->assertTrue(Schema::hasTable('announcement_reads'), 'Table [announcement_reads] does not exist.');
+    }
+
+    public function test_announcements_has_created_by_and_status(): void
+    {
+        $this->assertTrue(Schema::hasColumn('announcements', 'created_by'), 'Missing column: announcements.created_by');
+        $this->assertTrue(Schema::hasColumn('announcements', 'status'), 'Missing column: announcements.status');
+    }
 }

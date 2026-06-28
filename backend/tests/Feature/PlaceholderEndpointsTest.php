@@ -115,11 +115,6 @@ class PlaceholderEndpointsTest extends TestCase
     // implemented (return real DB data). Admin /remittances implemented in
     // Sprint 4. Admin /vehicles POST/PUT/DELETE implemented for fleet CRUD.
 
-    public function test_admin_announcements_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('getJson', '/api/v1/admin/announcements', $this->adminToken);
-    }
-
     // ── Payment Endpoints ────────────────────────────────────────
     // Sprint 4 replaced the initiate/verify/history stubs with the real
     // fare/payment flow (conductor GCash initiate, commuter claim, status
@@ -132,9 +127,9 @@ class PlaceholderEndpointsTest extends TestCase
 
     // ── Total Count Verification ─────────────────────────────────
 
-    public function test_total_placeholder_endpoints_is_4(): void
+    public function test_total_placeholder_endpoints_is_3(): void
     {
-        // 2 commuter + 2 admin = 4
+        // 2 commuter + 1 admin = 3
         // Wallet/topup stubs removed (wallet is permanently eliminated).
         // Sprint 2 implemented the conductor endpoints; Sprint 4 implemented
         // the conductor /transactions + the payment initiate/verify/history
@@ -148,8 +143,12 @@ class PlaceholderEndpointsTest extends TestCase
         // FeedbackQrFlowTest.
         // S6-T3 implemented admin /lost-items (browse/create/claim-review/close)
         // via AdminLostItemController — covered by LostFoundFlowTest.
+        // S6-T4 implemented admin /announcements (CRUD + archive) +
+        // user-facing /announcements (feed + mark-read + unread-count)
+        // via AdminAnnouncementController + AnnouncementController — covered
+        // by AnnouncementFlowTest.
         // Remaining stubs: commuter/trips, commuter/rewards,
-        // admin/dashboard, admin/announcements = 4.
-        $this->assertEquals(4, 2 + 2);
+        // admin/dashboard = 3.
+        $this->assertEquals(3, 2 + 1);
     }
 }
