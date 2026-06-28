@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\QrTokenService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 /**
@@ -389,17 +390,22 @@ class FeedbackQrFlowTest extends TestCase
     {
         $otherCommuter = User::factory()->commuter()->create();
 
-        $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
-            ->postJson('/api/v1/commuter/feedback', [
-                'shift_id' => $this->shift->shift_id,
-                'rating'   => 5,
-            ]);
+        // Use Sanctum::actingAs() instead of Bearer tokens for multi-user
+        // tests: the sanctum guard caches the resolved user on the (reused)
+        // app instance across requests in the same test, so a Bearer token
+        // on the 2nd request would be ignored in favour of the cached 1st
+        // user. actingAs() calls setUser() which overwrites the cache.
+        Sanctum::actingAs($this->commuter);
+        $this->postJson('/api/v1/commuter/feedback', [
+            'shift_id' => $this->shift->shift_id,
+            'rating'   => 5,
+        ]);
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $otherCommuter->createToken('test')->plainTextToken)
-            ->postJson('/api/v1/commuter/feedback', [
-                'shift_id' => $this->shift->shift_id,
-                'rating'   => 3,
-            ]);
+        Sanctum::actingAs($otherCommuter);
+        $response = $this->postJson('/api/v1/commuter/feedback', [
+            'shift_id' => $this->shift->shift_id,
+            'rating'   => 3,
+        ]);
 
         $response->assertStatus(201);
         $this->assertEquals(2, Feedback::where('shift_id', $this->shift->shift_id)->count());
