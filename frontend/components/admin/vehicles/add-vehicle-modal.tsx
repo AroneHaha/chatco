@@ -25,7 +25,10 @@ interface Conductor {
 interface AddVehicleModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: () => void; // Trigger refresh in parent
+  /** Called after a successful POST with the created vehicle's id.
+   *  The parent uses it to open the details modal so the new unit's
+   *  permanent QR is shown (and printable) right away. */
+  onSave: (createdVehicleId: string) => void;
 }
 
 export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProps) {
@@ -124,7 +127,10 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
 
       // Reset form and close
       setFormData({ unit_number: '', plate_number: '', route_id: '', driver_id: '', conductor_id: '', status: 'ACTIVE' });
-      onSave(); // Trigger refresh in parent
+      // Pass the created vehicle's id up so the parent can surface the
+      // freshly-generated permanent QR (downloadable / printable).
+      const createdId = String(data?.data?.id ?? '');
+      onSave(createdId);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create vehicle');

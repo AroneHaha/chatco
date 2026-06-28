@@ -6,6 +6,7 @@ import { VehicleTable } from '@/components/admin/vehicles/vehicle-table';
 import { AddVehicleModal } from '@/components/admin/vehicles/add-vehicle-modal';
 import { EditVehicleModal } from '@/components/admin/vehicles/edit-vehicle-modal';
 import { ShiftHistoryModal } from '@/components/admin/vehicles/shift-history-modal';
+import { VehicleDetailsModal } from '@/components/admin/vehicles/vehicle-details-modal';
 import { PersonnelTable } from '@/components/admin/vehicles/personnel-table';
 import { AddPersonnelModal } from '@/components/admin/vehicles/add-personnel-modal';
 import { EditPersonnelModal } from '@/components/admin/vehicles/edit-personnel-modal';
@@ -40,6 +41,8 @@ export default function VehiclesPage() {
   } | null>(null);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [shiftHistoryVehicle, setShiftHistoryVehicle] = useState<Vehicle | null>(null);
+  /** id of the vehicle whose details + permanent QR modal is open. null = closed. */
+  const [detailsVehicleId, setDetailsVehicleId] = useState<string | null>(null);
   const [editingPersonnelData, setEditingPersonnelData] = useState<Personnel | null>(null);
   const [deletingPersonnelData, setDeletingPersonnelData] = useState<Personnel | null>(null);
   
@@ -97,12 +100,23 @@ export default function VehiclesPage() {
     );
   }
 
+  // Double-click a vehicle row → open the details modal (vehicle info +
+  // today's driver/conductor + the permanent, printable unit QR).
+  const handleOpenDetails = (vehicle: Vehicle) => { setDetailsVehicleId(vehicle.id); };
+  const handleCloseDetails = () => { setDetailsVehicleId(null); };
+
   // Vehicle Handlers
   const handleOpenVehicleModal = () => setIsVehicleModalOpen(true);
   const handleCloseVehicleModal = () => setIsVehicleModalOpen(false);
   const handleOpenEditModal = (vehicle: Vehicle) => { setEditingVehicle(vehicle); setIsEditVehicleModalOpen(true); };
   const handleCloseEditModal = () => { setEditingVehicle(null); setIsEditVehicleModalOpen(false); };
-  const handleSaveVehicle = () => { refetch(); handleCloseVehicleModal(); };
+  const handleSaveVehicle = (createdVehicleId: string) => {
+    // Close the Add modal first, refresh the table, then surface the new
+    // unit's permanent QR so the admin can download/print it immediately.
+    handleCloseVehicleModal();
+    refetch();
+    if (createdVehicleId) setDetailsVehicleId(createdVehicleId);
+  };
 
   // After PUT succeeds — the EditVehicleModal calls onSaved() which triggers this.
   // We refetch from the API to get the canonical record with fresh relationships.
@@ -260,11 +274,12 @@ export default function VehiclesPage() {
 
       {/* Tab Content */}
       {activeTab === 'vehicles' ? (
-        <VehicleTable 
-          vehicles={vehicles} 
-          searchQuery={searchQuery} 
+        <VehicleTable
+          vehicles={vehicles}
+          searchQuery={searchQuery}
           onEdit={handleOpenEditModal}
-          onEditShift={handleOpenShiftHistory} 
+          onEditShift={handleOpenShiftHistory}
+          onRowDoubleClick={handleOpenDetails}
         />
       ) : activeTab === 'personnel' ? (
         <PersonnelTable 
@@ -295,6 +310,11 @@ export default function VehiclesPage() {
         isOpen={isShiftHistoryOpen}
         onClose={handleCloseShiftHistory}
         vehicle={shiftHistoryVehicle}
+      />
+      <VehicleDetailsModal
+        isOpen={detailsVehicleId !== null}
+        vehicleId={detailsVehicleId}
+        onClose={handleCloseDetails}
       />
       <AddPersonnelModal isOpen={isPersonnelModalOpen} onClose={handleClosePersonnelModal} onSave={handleSaveNewPersonnel} />
       <EditPersonnelModal isOpen={isEditPersonnelOpen} onClose={handleCloseEditPersonnel} onSaved={handleSaveEditPersonnel} editingData={editingPersonnelData} />
