@@ -504,6 +504,8 @@ class AdminService
                     'id_image_url'    => $c?->id_image_url,
                     'account_status'  => $c?->account_status,
                     'language_preference' => $c?->language_preference,
+                    'verified_at'     => $c?->verified_at?->toIso8601String(),
+                    'rejection_reason'=> $c?->rejection_reason,
                     'created_at'      => optional($user->created_at)->toIso8601String(),
                 ];
             });
