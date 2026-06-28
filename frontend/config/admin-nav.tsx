@@ -9,7 +9,6 @@ import {
   Users,
   FileText,
   Menu,
-  QrCode,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -32,7 +31,6 @@ export const operationsNav: NavItem[] = [
 
 export const managementNav: NavItem[] = [
   { href: "/vehicles", label: "Fleet Management", icon: Car },
-  { href: "/feedback-qr", label: "Feedback QR", icon: QrCode },
   { href: "/lost-found", label: "Lost & Found", icon: Package },
   { href: "/users", label: "User Management", icon: Users },
 ];
@@ -57,7 +55,6 @@ export const mobileOverflowItems: NavItem[] = [
 
 export const mobileMoreItems: NavItem[] = [
   { href: "/vehicles", label: "Fleet Management", icon: Car },
-  { href: "/feedback-qr", label: "Feedback QR", icon: QrCode },
   { href: "/lost-found", label: "Lost & Found", icon: Package },
   { href: "/users", label: "User Management", icon: Users },
   { href: "/settings", label: "Settings", icon: Sliders },

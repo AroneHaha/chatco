@@ -18,9 +18,15 @@ interface UsersTableProps {
   isRejectedTab: boolean;
   selectedUser: User | null;
   onSelectUser: (user: User | null) => void;
+  /**
+   * Optional double-click handler. Wired to the DataTable's onRowDoubleClick.
+   * The parent (users/page.tsx) uses this to open the Feedback modal for
+   * CONDUCTOR / DRIVER rows — other roles are ignored by the parent.
+   */
+  onRowDoubleClick?: (user: User) => void;
 }
 
-export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete, onViewHistory, isRejectedTab, selectedUser, onSelectUser }: UsersTableProps) {
+export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete, onViewHistory, isRejectedTab, selectedUser, onSelectUser, onRowDoubleClick }: UsersTableProps) {
   const columns = [
     { key: 'name', label: 'Name' },
     { key: 'email', label: 'Email' },
@@ -79,7 +85,13 @@ export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete,
   return (
     <>
       <GlassCard className="p-4">
-        <DataTable data={users} columns={columns} searchQuery={searchQuery} />
+        <DataTable
+          data={users}
+          columns={columns}
+          searchQuery={searchQuery}
+          onRowDoubleClick={onRowDoubleClick ? (item) => onRowDoubleClick(item) : undefined}
+          emptyMessage={isRejectedTab ? 'No rejected users.' : 'No users found.'}
+        />
       </GlassCard>
 
       {/* User Details Modal */}

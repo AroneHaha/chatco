@@ -15,6 +15,7 @@ use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminVehicleController;
 use App\Http\Controllers\Admin\AdminLostItemController;
 use App\Http\Controllers\Admin\AdminAnnouncementController;
+use App\Http\Controllers\Admin\AdminFeedbackController;
 use App\Http\Controllers\Admin\AdminSosController;
 use App\Http\Controllers\LostItemController;
 use App\Http\Controllers\AnnouncementController;
@@ -196,6 +197,13 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::get('/sos', [AdminSosController::class, 'index'])->middleware('throttle:conductor-read');
     Route::patch('/sos/{id}/acknowledge', [AdminSosController::class, 'acknowledge'])->middleware('throttle:admin-write');
     Route::patch('/sos/{id}/resolve', [AdminSosController::class, 'resolve'])->middleware('throttle:admin-write');
+
+    // ── Staff feedback listing (S6-T6 revised) ─────────────────
+    // Replaces the standalone admin "Feedback QR" module. The admin views
+    // driver/conductor feedback from User Management by double-clicking a
+    // row. Pass conductor_id OR driver_id. Returns paginated feedback + a
+    // summary (average_rating, total_count, 5→1 distribution).
+    Route::get('/feedback', [AdminFeedbackController::class, 'index'])->middleware('throttle:conductor-read');
 });
 
 /*

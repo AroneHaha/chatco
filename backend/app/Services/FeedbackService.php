@@ -2,10 +2,14 @@
 
 namespace App\Services;
 
+use App\Models\ConductorProfile;
+use App\Models\Driver;
 use App\Models\Feedback;
 use App\Models\ShiftLog;
 use App\Models\User;
 use App\Support\Feedback\FeedbackException;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -103,5 +107,105 @@ class FeedbackService
         } catch (UniqueConstraintViolationException) {
             throw new FeedbackException('You have already submitted feedback for this shift');
         }
+    }
+
+    /**
+     * List feedback for a conductor, paginated, with summary stats.
+     *
+     * Used by GET /admin/feedback?conductor_id=… — the admin "User Management"
+     * double-click flow. Summary includes average_rating, total_count, and a
+     * 5→1 rating distribution so the modal can render a breakdown chart.
+     *
+     * @throws FeedbackException  If the conductor profile doesn't exist.
+     */
+    public function listForConductor(string $conductorId, int $perPage = 10): array
+    {
+        if (! ConductorProfile::where('id', $conductorId)->exists()) {
+            throw new FeedbackException('Conductor not found');
+        }
+
+        $query = Feedback::where('conductor_id', $conductorId)
+            ->with(['vehicle:id,unit_number,plate_number', 'commuter:id,first_name,surname']);
+
+        return $this->buildListResponse($query, $perPage, 'CONDUCTOR', $conductorId);
+    }
+
+    /**
+     * List feedback for a driver, paginated, with summary stats.
+     *
+     * Used by GET /admin/feedback?driver_id=… — same admin flow as above but
+     * for the driver role. Drivers live in the `drivers` table (not users).
+     *
+     * @throws FeedbackException  If the driver doesn't exist.
+     */
+    public function listForDriver(string $driverId, int $perPage = 10): array
+    {
+        if (! Driver::where('id', $driverId)->exists()) {
+            throw new FeedbackException('Driver not found');
+        }
+
+        $query = Feedback::where('driver_id', $driverId)
+            ->with(['vehicle:id,unit_number,plate_number', 'commuter:id,first_name,surname']);
+
+        return $this->buildListResponse($query, $perPage, 'DRIVER', $driverId);
+    }
+
+    /**
+     * Build the paginated + summary response shape shared by both
+     * listForConductor() and listForDriver().
+     *
+     * The paginator is mapped to a plain array so the controller can hand it
+     * straight to successResponse() without further shaping.
+     */
+    private function buildListResponse(Builder $query, int $perPage, string $role, string $staffId): array
+    {
+        // Summary is computed over ALL feedback for this staff member
+        // (ignores pagination), so the modal always shows the true totals.
+        $all = (clone $query)->get();
+        $summary = $this->buildSummary($all);
+
+        $paginator = $query
+            ->orderByDesc('created_at')
+            ->paginate($perPage);
+
+        /** @var LengthAwarePaginator $paginator */
+        return [
+            'staff' => [
+                'id'   => $staffId,
+                'role' => $role,
+            ],
+            'summary'    => $summary,
+            'feedback'   => $paginator->items(),
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page'     => $paginator->perPage(),
+                'total'        => $paginator->total(),
+                'last_page'    => $paginator->lastPage(),
+                'from'         => $paginator->firstItem(),
+                'to'           => $paginator->lastItem(),
+            ],
+        ];
+    }
+
+    /**
+     * Compute aggregate stats from a collection of Feedback rows.
+     *
+     * Returns:
+     *   - average_rating: float rounded to 2dp (0.0 when no feedback)
+     *   - total_count:    int
+     *   - distribution:   array keyed 5→1 with per-star counts
+     */
+    private function buildSummary($feedback): array
+    {
+        $total = $feedback->count();
+        $distribution = collect(range(5, 1))->mapWithKeys(fn (int $star) => [
+            (string) $star => $feedback->where('rating', $star)->count(),
+        ])->all();
+
+        return [
+            'average_rating' => $total > 0 ? round($feedback->avg('rating'), 2) : 0.0,
+            'total_count'    => $total,
+            'distribution'   => $distribution,
+        ];
     }
 }
