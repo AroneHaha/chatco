@@ -56,18 +56,8 @@ class AdminRegistrationController extends Controller
      */
     public function approve(ApproveRegistrationRequest $request, string $id): JsonResponse
     {
-        try {
-            $result = $this->adminService->approveRegistration($id);
-            return $this->successResponse($result, 'Registration approved — commuter can now log in.');
-        } catch (ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'data'    => null,
-                'message' => 'Validation failed',
-                'errors'  => $e->errors(),
-                'meta'    => null,
-            ], 422);
-        }
+        $result = $this->adminService->approveRegistration($id);
+        return $this->successResponse($result, 'Registration approved — commuter can now log in.');
     }
 
     /**
@@ -78,20 +68,10 @@ class AdminRegistrationController extends Controller
      */
     public function reject(RejectRegistrationRequest $request, string $id): JsonResponse
     {
-        try {
-            $result = $this->adminService->rejectRegistration(
-                $id,
-                $request->validated()['rejection_reason']
-            );
-            return $this->successResponse($result, 'Registration rejected. The email is now available for re-registration.');
-        } catch (ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'data'    => null,
-                'message' => 'Validation failed',
-                'errors'  => $e->errors(),
-                'meta'    => null,
-            ], 422);
-        }
+        $result = $this->adminService->rejectRegistration(
+            $id,
+            $request->validated()['rejection_reason']
+        );
+        return $this->successResponse($result, 'Registration rejected. The email is now available for re-registration.');
     }
 }

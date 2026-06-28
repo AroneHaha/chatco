@@ -526,16 +526,14 @@ class AdminService
         $user = User::with('commuterProfile')->find($id);
 
         if (! $user || ! $user->commuterProfile) {
-            throw ValidationException::withMessages([
-                'registration' => ['Registration not found.'],
-            ]);
+            abort(404, 'Registration not found.');
         }
 
         $profile = $user->commuterProfile;
 
         if ($profile->account_status !== 'PENDING') {
             throw ValidationException::withMessages([
-                'registration' => ['This registration has already been processed (status: ' . $profile->account_status . ').'],
+                'account_status' => ['This registration has already been processed (status: ' . $profile->account_status . ').'],
             ]);
         }
 
@@ -546,13 +544,17 @@ class AdminService
             'rejection_reason'  => null,
         ]);
 
+        $fresh = $profile->fresh();
+
         return [
-            'id'             => $user->id,
-            'email'          => $user->email,
-            'name'           => $user->getDisplayName(),
-            'commuter_type'  => $profile->fresh()->commuter_type,
-            'account_status' => 'APPROVED',
-            'verified_at'    => $profile->fresh()->verified_at?->toIso8601String(),
+            'id'              => $user->id,
+            'email'           => $user->email,
+            'name'            => $user->getDisplayName(),
+            'commuter_type'   => $fresh->commuter_type,
+            'applied_type'    => $fresh->applied_type,
+            'account_status'  => 'APPROVED',
+            'verified_at'     => $fresh->verified_at?->toIso8601String(),
+            'rejection_reason'=> null,
         ];
     }
 
@@ -570,16 +572,14 @@ class AdminService
         $user = User::with('commuterProfile')->find($id);
 
         if (! $user || ! $user->commuterProfile) {
-            throw ValidationException::withMessages([
-                'registration' => ['Registration not found.'],
-            ]);
+            abort(404, 'Registration not found.');
         }
 
         $profile = $user->commuterProfile;
 
         if ($profile->account_status !== 'PENDING') {
             throw ValidationException::withMessages([
-                'registration' => ['This registration has already been processed (status: ' . $profile->account_status . ').'],
+                'account_status' => ['This registration has already been processed (status: ' . $profile->account_status . ').'],
             ]);
         }
 

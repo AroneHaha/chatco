@@ -116,6 +116,7 @@ class AuthRegisterTest extends TestCase
             $this->registerWithFile([
                 'email' => "applicant.{$type}@example.com",
                 'username' => "applicant.{$type}",
+                'applied_type' => $type,
             ]);
 
             $this->assertDatabaseHas('commuter_profiles', [

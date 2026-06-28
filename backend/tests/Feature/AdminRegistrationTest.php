@@ -8,6 +8,7 @@ use App\Models\CommuterProfile;
 use App\Models\ConductorProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -56,15 +57,14 @@ class AdminRegistrationTest extends TestCase
         $response->assertStatus(200)
             ->assertJsonPath('success', true);
 
-        $emails = array_column($response->json('data'), 'email');
+        $emails = array_column($response->json('data.data'), 'email');
         $this->assertContains('pending1@example.com', $emails);
         $this->assertContains('pending2@example.com', $emails);
         $this->assertNotContains('approved@example.com', $emails);
         $this->assertNotContains('suspended@example.com', $emails);
 
-        // Only the 2 PENDING commuters — not the approved/suspended ones,
-        // and not the admin themselves.
-        $this->assertCount(2, $response->json('data'));
+        // Only the 2 PENDING commuters — not the approved/suspended ones.
+        $this->assertCount(2, $response->json('data.data'));
     }
 
     public function test_pending_list_returns_empty_when_none_pending(): void
@@ -76,7 +76,7 @@ class AdminRegistrationTest extends TestCase
 
         $response->assertStatus(200)
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data', []);
+            ->assertJsonPath('data.data', []);
     }
 
     public function test_pending_list_includes_full_registration_details(): void
@@ -93,17 +93,18 @@ class AdminRegistrationTest extends TestCase
         $response->assertStatus(200)
             ->assertJsonStructure([
                 'data' => [
-                    '*' => [
-                        'id', 'email', 'role', 'first_name', 'middle_name',
-                        'surname', 'birthdate', 'gender', 'contact_number',
-                        'commuter_type', 'applied_type', 'username',
-                        'language_preference', 'account_status', 'id_image_url',
-                        'verified_at', 'rejection_reason', 'submitted_at',
+                    'data' => [
+                        '*' => [
+                            'id', 'email', 'first_name', 'middle_name',
+                            'surname', 'birthdate', 'gender', 'contact_number',
+                            'applied_type', 'username',
+                            'language_preference', 'account_status', 'id_image_url',
+                        ],
                     ],
                 ],
             ]);
 
-        $first = $response->json('data.0');
+        $first = $response->json('data.data.0');
         $this->assertEquals('SENIOR', $first['applied_type']);
         $this->assertEquals('PENDING', $first['account_status']);
         $this->assertNull($first['verified_at']);
@@ -123,7 +124,7 @@ class AdminRegistrationTest extends TestCase
         $response = $this->actingAs($this->admin)
             ->getJson('/api/v1/admin/registrations');
 
-        $emails = array_column($response->json('data'), 'email');
+        $emails = array_column($response->json('data.data'), 'email');
         $this->assertEquals(['older@example.com', 'newer@example.com'], $emails);
     }
 
@@ -312,7 +313,7 @@ class AdminRegistrationTest extends TestCase
 
         // The same email can now be re-registered (end-to-end: register ->
         // reject -> register again with the same email).
-        $response = $this->postJson('/api/v1/auth/register', [
+        $response = $this->post('/api/v1/auth/register', [
             'first_name' => 'New',
             'surname' => 'Applicant',
             'birthdate' => '1995-01-01',
@@ -323,8 +324,8 @@ class AdminRegistrationTest extends TestCase
             'password' => 'SecurePass123',
             'password_confirmation' => 'SecurePass123',
             'applied_type' => 'REGULAR',
-            'id_image' => 'data:image/png;base64,iVBORw0KGgo=',
-        ]);
+            'id_image' => UploadedFile::fake()->image('id.jpg', 800, 600),
+        ], ['Accept' => 'application/json']);
 
         $response->assertStatus(201)
             ->assertJsonPath('data.account_status', 'PENDING');
