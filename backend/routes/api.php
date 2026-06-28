@@ -1,17 +1,18 @@
 <?php
 
-use App\Http\Controllers\Admin\AdminController;
-use App\Http\Controllers\Admin\AdminUserController;
-use App\Http\Controllers\Admin\AdminVehicleController;
+use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Commuter\CommuterController;
 use App\Http\Controllers\Commuter\HailController;
 use App\Http\Controllers\Commuter\VehicleLocationController;
 use App\Http\Controllers\Conductor\ConductorController;
 use App\Http\Controllers\Conductor\ConductorHailController;
+use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\AdminRegistrationController;
+use App\Http\Controllers\Admin\AdminUserController;
+use App\Http\Controllers\Admin\AdminVehicleController;
 use App\Http\Controllers\Payment\PaymentController;
 use App\Http\Controllers\Payment\QrController;
-use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -19,13 +20,9 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 Route::prefix('auth')->group(function () {
-    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:commuter-hail');
+    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:commuter-hail'); // PUBLIC — commuter self-sign-up (S5-T15)
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
-
-    // Public commuter self-sign-up (S5-T8). Creates a PENDING account that
-    // an admin must approve via PATCH /admin/registrations/{id}/approve
-    // before the commuter can log in. No token is issued on registration.
-    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:commuter-hail');
 });
 
 /*
@@ -41,13 +38,11 @@ Route::middleware('auth:sanctum')->get('/user', [AuthController::class, 'user'])
 |--------------------------------------------------------------------------
 */
 Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(function () {
-    // Self-service profile (S5-T1)
-    Route::get('/profile', [CommuterController::class, 'profile'])->middleware('throttle:commuter-read');
-    Route::put('/profile', [CommuterController::class, 'updateProfile'])->middleware('throttle:commuter-write');
-    Route::post('/change-password', [CommuterController::class, 'changePassword'])->middleware('throttle:commuter-security');
-
-    Route::get('/trips', [CommuterController::class, 'trips']);
-    Route::get('/rewards', [CommuterController::class, 'rewards']);
+    Route::get('/profile', [CommuterController::class, 'profile'])->middleware('throttle:conductor-read');
+    Route::put('/profile', [CommuterController::class, 'updateProfile'])->middleware('throttle:conductor-write');
+    Route::post('/change-password', [CommuterController::class, 'changePassword'])->middleware('throttle:conductor-write');
+    Route::get('/trips', [CommuterController::class, 'trips'])->middleware('throttle:conductor-read');
+    Route::get('/rewards', [CommuterController::class, 'rewards'])->middleware('throttle:conductor-read');
 
     // Hail lifecycle (commuter-side) — 10 req/min per user
     Route::post('/hail', [HailController::class, 'store'])->middleware('throttle:commuter-hail');
@@ -124,41 +119,35 @@ Route::prefix('vehicles')->middleware(['auth:sanctum'])->group(function () {
 */
 Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(function () {
     Route::get('/dashboard', [AdminController::class, 'dashboard']);
-    Route::get('/analytics', [AdminController::class, 'analytics']);
-    Route::get('/monitoring', [AdminController::class, 'monitoring'])->middleware('throttle:admin-read');
-
-    // Registration approval flow (S5-T8 Additional Coverage) — admins review
-    // commuter self-sign-ups (POST /auth/register) and approve or reject.
-    // Reads 60/min; mutations via the stricter admin-write limiter (30/min).
-    Route::get('/registrations/pending', [AdminController::class, 'pendingRegistrations'])->middleware('throttle:admin-read');
-    Route::patch('/registrations/{id}/approve', [AdminController::class, 'approveRegistration'])->middleware('throttle:admin-write');
-    Route::patch('/registrations/{id}/reject', [AdminController::class, 'rejectRegistration'])->middleware('throttle:admin-write');
-
-    // User management CRUD (S5-T3) — reads 60/min, mutations 30/min.
-    Route::get('/users', [AdminUserController::class, 'index'])->middleware('throttle:admin-read');
-    Route::get('/users/{id}', [AdminUserController::class, 'show'])->middleware('throttle:admin-read');
-    Route::put('/users/{id}', [AdminUserController::class, 'update'])->middleware('throttle:admin-write');
-    Route::delete('/users/{id}', [AdminUserController::class, 'destroy'])->middleware('throttle:admin-write');
-
-    Route::get('/drivers', [AdminController::class, 'drivers']);
-    Route::post('/drivers', [AdminController::class, 'storeDriver']);
-    Route::get('/drivers/{id}', [AdminController::class, 'showDriver']);
-    Route::put('/drivers/{id}', [AdminController::class, 'updateDriver']);
-    Route::patch('/drivers/{id}', [AdminController::class, 'updateDriver']);
-    Route::get('/conductors/{id}', [AdminController::class, 'showConductor']);
-    Route::get('/conductors', [AdminController::class, 'conductors']);
-    Route::post('/conductors', [AdminController::class, 'storeConductor']);
-    Route::get('/vehicles', [AdminVehicleController::class, 'index']);
-    Route::post('/vehicles', [AdminVehicleController::class, 'store']);
-    Route::put('/vehicles/{id}', [AdminVehicleController::class, 'update']);
-    Route::patch('/vehicles/{id}', [AdminVehicleController::class, 'update']);
-    Route::delete('/vehicles/{id}', [AdminVehicleController::class, 'destroy']);
-    Route::get('/routes', [AdminController::class, 'routes']);
-    Route::get('/transactions', [AdminController::class, 'transactions']);
-    Route::get('/remittances', [AdminController::class, 'remittances']);
+    Route::get('/analytics', [AdminController::class, 'analytics'])->middleware('throttle:conductor-read');
+    Route::get('/monitoring', [AdminController::class, 'monitoring'])->middleware('throttle:conductor-read');
+    Route::get('/users', [AdminUserController::class, 'index'])->middleware('throttle:conductor-read');
+    Route::get('/users/{id}', [AdminUserController::class, 'show'])->middleware('throttle:conductor-read');
+    Route::put('/users/{id}', [AdminUserController::class, 'update'])->middleware('throttle:conductor-write');
+    Route::patch('/users/{id}', [AdminUserController::class, 'update'])->middleware('throttle:conductor-write');
+    Route::delete('/users/{id}', [AdminUserController::class, 'destroy'])->middleware('throttle:conductor-write');
+    Route::get('/registrations', [AdminRegistrationController::class, 'pending'])->middleware('throttle:conductor-read');
+    Route::post('/registrations/{id}/approve', [AdminRegistrationController::class, 'approve'])->middleware('throttle:conductor-write');
+    Route::post('/registrations/{id}/reject', [AdminRegistrationController::class, 'reject'])->middleware('throttle:conductor-write');
+    Route::get('/drivers', [AdminController::class, 'drivers'])->middleware('throttle:conductor-read');
+    Route::post('/drivers', [AdminController::class, 'storeDriver'])->middleware('throttle:conductor-write');
+    Route::get('/drivers/{id}', [AdminController::class, 'showDriver'])->middleware('throttle:conductor-read');
+    Route::put('/drivers/{id}', [AdminController::class, 'updateDriver'])->middleware('throttle:conductor-write');
+    Route::patch('/drivers/{id}', [AdminController::class, 'updateDriver'])->middleware('throttle:conductor-write');
+    Route::get('/conductors/{id}', [AdminController::class, 'showConductor'])->middleware('throttle:conductor-read');
+    Route::get('/conductors', [AdminController::class, 'conductors'])->middleware('throttle:conductor-read');
+    Route::post('/conductors', [AdminController::class, 'storeConductor'])->middleware('throttle:conductor-write');
+    Route::get('/vehicles', [AdminVehicleController::class, 'index'])->middleware('throttle:conductor-read');
+    Route::post('/vehicles', [AdminVehicleController::class, 'store'])->middleware('throttle:conductor-write');
+    Route::put('/vehicles/{id}', [AdminVehicleController::class, 'update'])->middleware('throttle:conductor-write');
+    Route::patch('/vehicles/{id}', [AdminVehicleController::class, 'update'])->middleware('throttle:conductor-write');
+    Route::delete('/vehicles/{id}', [AdminVehicleController::class, 'destroy'])->middleware('throttle:conductor-write');
+    Route::get('/routes', [AdminController::class, 'routes'])->middleware('throttle:conductor-read');
+    Route::get('/transactions', [AdminController::class, 'transactions'])->middleware('throttle:conductor-read');
+    Route::get('/remittances', [AdminController::class, 'remittances'])->middleware('throttle:conductor-read');
     Route::get('/announcements', [AdminController::class, 'announcements']);
     Route::get('/lost-items', [AdminController::class, 'lostItems']);
-    Route::get('/shift-logs', [AdminController::class, 'shiftLogs']);
+    Route::get('/shift-logs', [AdminController::class, 'shiftLogs'])->middleware('throttle:conductor-read');
 });
 
 /*

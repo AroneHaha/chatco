@@ -4,7 +4,6 @@
 import { useState, useEffect } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import type { Vehicle } from '@/app/(admin)/vehicles/data/vehicles-data';
-import { update as updateVehicle, VehicleOperationError } from '@/lib/admin/services/vehicle.service';
 
 interface Route {
   id: string;
@@ -33,9 +32,12 @@ interface EditVehicleModalProps {
   editingVehicle: Vehicle | null;
 }
 
-// Reverse-map frontend status label -> Laravel enum value (kept for
-// future client-side pre-mapping; the form currently stores raw Laravel
-// values directly).
+// Reverse-map frontend status label -> Laravel enum value.
+const STATUS_TO_LARAVEL: Record<Vehicle['status'], string> = {
+  'Operating': 'ACTIVE',
+  'Under Maintenance': 'MAINTENANCE',
+  'Out of Service / Damaged': 'INACTIVE',
+};
 const STATUS_FROM_LARAVEL: Record<string, Vehicle['status']> = {
   'ACTIVE': 'Operating',
   'MAINTENANCE': 'Under Maintenance',
@@ -88,7 +90,7 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
 
       // Drivers: include the currently-assigned one + all unassigned.
       const allDrivers: Driver[] = driversRes.data ?? [];
-      const allVehicles: Record<string, unknown>[] = vehiclesRes.data ?? [];
+      const allVehicles: Record<string, unknown>[] = (vehiclesRes.data?.data ?? vehiclesRes.data ?? []) as Record<string, unknown>[];
 
       // Debug log — see what the API actually returns.
       console.log('[EditVehicleModal] allVehicles sample:', allVehicles[0]);
@@ -207,30 +209,44 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
     setFieldErrors({});
 
     try {
-      await updateVehicle(vehicleId, {
-        unitNumber: formData.unit_number,
-        plateNumber: formData.plate_number,
-        routeId: formData.route_id,
-        driverId: formData.driver_id || null,
-        conductorId: formData.conductor_id || null,
-        status: formData.status as 'ACTIVE' | 'MAINTENANCE' | 'INACTIVE',
+      const requestBody = {
+        unit_number: formData.unit_number,
+        plate_number: formData.plate_number,
+        route_id: formData.route_id,
+        driver_id: formData.driver_id || null,
+        conductor_id: formData.conductor_id || null,
+        status: formData.status,
+      };
+      console.log('[EditVehicleModal] PUT request body:', requestBody);
+
+      const res = await fetch(`/api/admin/vehicles/${vehicleId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
       });
+
+      console.log('[EditVehicleModal] PUT response status:', res.status, 'ok:', res.ok);
+
+      const data = await res.json();
+      console.log('[EditVehicleModal] PUT response body:', data);
+
+      if (!res.ok) {
+        // Laravel 422: { message, errors: { field: ["msg", ...] } }
+        if (res.status === 422 && data.errors) {
+          setFieldErrors(data.errors);
+          const firstError = Object.values(data.errors)[0]?.[0] ?? 'Validation failed.';
+          throw new Error(firstError);
+        }
+        // For any other error, show the full response so we can diagnose.
+        const msg = data.message ?? `Failed to update vehicle (HTTP ${res.status})`;
+        throw new Error(msg);
+      }
 
       onSaved();
       onClose();
     } catch (err) {
-      if (err instanceof VehicleOperationError) {
-        // 422 → field-level errors (plate/unit uniqueness surfaced per-field).
-        if (err.code === 'validation' && err.errors) {
-          setFieldErrors(err.errors);
-          const firstError = Object.values(err.errors)[0]?.[0] ?? err.message;
-          setError(firstError);
-        } else {
-          setError(err.message);
-        }
-      } else {
-        setError(err instanceof Error ? err.message : 'Failed to update vehicle');
-      }
+      console.error('[EditVehicleModal] PUT failed:', err);
+      setError(err instanceof Error ? err.message : 'Failed to update vehicle');
     } finally {
       setIsSubmitting(false);
     }
@@ -378,7 +394,7 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
           </select>
           {conductors.length === 0 && (
             <p className="text-xs text-slate-500 mt-1">
-              No conductor profiles exist yet. Create one with the &quot;Conductor Account&quot; button.
+              No conductor profiles exist yet. Create one with the "Conductor Account" button.
             </p>
           )}
         </div>

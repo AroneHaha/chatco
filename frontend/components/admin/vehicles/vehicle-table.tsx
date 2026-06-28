@@ -1,20 +1,18 @@
 // components/admin/vehicles/vehicle-table.tsx
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
-import { Pencil, Clock, Trash2 } from 'lucide-react';
-import type { Vehicle } from '@/app/(admin)/vehicles/data/vehicles-data';
+import { Pencil, Clock } from 'lucide-react'; // Added icons
 
 // REMOVED the hardcoded mockVehicles array since we are getting it from the page now
 
 interface VehicleTableProps {
-  vehicles: Vehicle[];
+  vehicles: any[]; // Added vehicles prop
   searchQuery: string;
-  onEdit: (vehicle: Vehicle) => void;
-  onEditShift: (vehicle: Vehicle) => void;
-  onDelete: (vehicle: Vehicle) => void; // S5-T11
+  onEdit: (vehicle: any) => void; // Added edit handler
+  onEditShift: (vehicle: any) => void; // Added shift handler
 }
 
-export function VehicleTable({ vehicles, searchQuery, onEdit, onEditShift, onDelete }: VehicleTableProps) {
+export function VehicleTable({ vehicles, searchQuery, onEdit, onEditShift }: VehicleTableProps) {
   const columns = [
     { key: 'plateNumber', label: 'Plate' },
     { key: 'route', label: 'Route' },
@@ -35,7 +33,7 @@ export function VehicleTable({ vehicles, searchQuery, onEdit, onEditShift, onDel
       key: 'actions',
       label: 'Actions',
       // We pass the whole row (vehicle) to the render function so we can trigger the modals
-      render: (_: unknown, row: Vehicle) => (
+      render: (_: any, row: any) => (
         <div className="flex items-center justify-end gap-2">
           {/* Shift History Button (clock icon) */}
           <button 
@@ -51,7 +49,7 @@ export function VehicleTable({ vehicles, searchQuery, onEdit, onEditShift, onDel
           </button>
 
           {/* Edit Vehicle Button (pencil icon) */}
-          <button
+          <button 
             onClick={(e) => {
               e.stopPropagation();
               onEdit(row);
@@ -61,19 +59,6 @@ export function VehicleTable({ vehicles, searchQuery, onEdit, onEditShift, onDel
             className="p-1.5 text-slate-400 hover:text-white hover:bg-[#1A2540] rounded-md transition-colors"
           >
             <Pencil size={16} />
-          </button>
-
-          {/* Delete Vehicle Button (trash icon) — S5-T11 */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(row);
-            }}
-            title="Delete vehicle"
-            aria-label={`Delete vehicle ${row.plateNumber}`}
-            className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors"
-          >
-            <Trash2 size={16} />
           </button>
         </div>
       )

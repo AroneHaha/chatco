@@ -8,6 +8,7 @@ use App\Models\CommuterProfile;
 use App\Models\ConductorProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -15,9 +16,9 @@ use Tests\TestCase;
  * S5-T8 Additional Coverage — Admin registration review & verification.
  *
  * Covers the admin side of the commuter self-registration flow:
- *   GET   /admin/registrations/pending
- *   PATCH /admin/registrations/{id}/approve
- *   PATCH /admin/registrations/{id}/reject
+ *   GET   /admin/registrations
+ *   POST  /admin/registrations/{id}/approve
+ *   POST  /admin/registrations/{id}/reject
  *
  * Every test asserts real DB state, not just status codes — matching the
  * S5-T8 acceptance criteria:
@@ -41,7 +42,7 @@ class AdminRegistrationTest extends TestCase
         $this->admin = $this->seedAdmin();
     }
 
-    // ── GET /admin/registrations/pending ─────────────────────────
+    // ── GET /admin/registrations ─────────────────────────
 
     public function test_pending_list_returns_only_pending_commuters(): void
     {
@@ -51,20 +52,19 @@ class AdminRegistrationTest extends TestCase
         $suspended = $this->seedSuspendedCommuter(['email' => 'suspended@example.com', 'username' => 'suspended']);
 
         $response = $this->actingAs($this->admin)
-            ->getJson('/api/v1/admin/registrations/pending');
+            ->getJson('/api/v1/admin/registrations');
 
         $response->assertStatus(200)
             ->assertJsonPath('success', true);
 
-        $emails = array_column($response->json('data'), 'email');
+        $emails = array_column($response->json('data.data'), 'email');
         $this->assertContains('pending1@example.com', $emails);
         $this->assertContains('pending2@example.com', $emails);
         $this->assertNotContains('approved@example.com', $emails);
         $this->assertNotContains('suspended@example.com', $emails);
 
-        // Only the 2 PENDING commuters — not the approved/suspended ones,
-        // and not the admin themselves.
-        $this->assertCount(2, $response->json('data'));
+        // Only the 2 PENDING commuters — not the approved/suspended ones.
+        $this->assertCount(2, $response->json('data.data'));
     }
 
     public function test_pending_list_returns_empty_when_none_pending(): void
@@ -72,11 +72,11 @@ class AdminRegistrationTest extends TestCase
         $this->seedApprovedCommuter(['email' => 'a@example.com', 'username' => 'a']);
 
         $response = $this->actingAs($this->admin)
-            ->getJson('/api/v1/admin/registrations/pending');
+            ->getJson('/api/v1/admin/registrations');
 
         $response->assertStatus(200)
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data', []);
+            ->assertJsonPath('data.data', []);
     }
 
     public function test_pending_list_includes_full_registration_details(): void
@@ -88,22 +88,23 @@ class AdminRegistrationTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->admin)
-            ->getJson('/api/v1/admin/registrations/pending');
+            ->getJson('/api/v1/admin/registrations');
 
         $response->assertStatus(200)
             ->assertJsonStructure([
                 'data' => [
-                    '*' => [
-                        'id', 'email', 'role', 'first_name', 'middle_name',
-                        'surname', 'birthdate', 'gender', 'contact_number',
-                        'commuter_type', 'applied_type', 'username',
-                        'language_preference', 'account_status', 'id_image_url',
-                        'verified_at', 'rejection_reason', 'submitted_at',
+                    'data' => [
+                        '*' => [
+                            'id', 'email', 'first_name', 'middle_name',
+                            'surname', 'birthdate', 'gender', 'contact_number',
+                            'applied_type', 'username',
+                            'language_preference', 'account_status', 'id_image_url',
+                        ],
                     ],
                 ],
             ]);
 
-        $first = $response->json('data.0');
+        $first = $response->json('data.data.0');
         $this->assertEquals('SENIOR', $first['applied_type']);
         $this->assertEquals('PENDING', $first['account_status']);
         $this->assertNull($first['verified_at']);
@@ -121,9 +122,9 @@ class AdminRegistrationTest extends TestCase
         $newer->forceFill(['created_at' => now()->subHour()])->save();
 
         $response = $this->actingAs($this->admin)
-            ->getJson('/api/v1/admin/registrations/pending');
+            ->getJson('/api/v1/admin/registrations');
 
-        $emails = array_column($response->json('data'), 'email');
+        $emails = array_column($response->json('data.data'), 'email');
         $this->assertEquals(['older@example.com', 'newer@example.com'], $emails);
     }
 
@@ -132,17 +133,17 @@ class AdminRegistrationTest extends TestCase
         $conductor = $this->seedConductor();
 
         $this->actingAs($conductor)
-            ->getJson('/api/v1/admin/registrations/pending')
+            ->getJson('/api/v1/admin/registrations')
             ->assertStatus(403);
     }
 
     public function test_pending_list_requires_authentication(): void
     {
-        $this->getJson('/api/v1/admin/registrations/pending')
+        $this->getJson('/api/v1/admin/registrations')
             ->assertStatus(401);
     }
 
-    // ── PATCH /admin/registrations/{id}/approve ──────────────────
+    // ── POST  /admin/registrations/{id}/approve ──────────────────
 
     public function test_approve_sets_status_approved_and_commuter_type_and_verified_at(): void
     {
@@ -153,7 +154,7 @@ class AdminRegistrationTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->admin)
-            ->patchJson("/api/v1/admin/registrations/{$pending->id}/approve");
+            ->postJson("/api/v1/admin/registrations/{$pending->id}/approve");
 
         $response->assertStatus(200)
             ->assertJsonPath('success', true)
@@ -194,7 +195,7 @@ class AdminRegistrationTest extends TestCase
 
         // Approve.
         $this->actingAs($this->admin)
-            ->patchJson("/api/v1/admin/registrations/{$pending->id}/approve")
+            ->postJson("/api/v1/admin/registrations/{$pending->id}/approve")
             ->assertStatus(200);
 
         // After approval — can log in and gets a token.
@@ -212,7 +213,7 @@ class AdminRegistrationTest extends TestCase
     public function test_approve_returns_404_for_missing_registration(): void
     {
         $this->actingAs($this->admin)
-            ->patchJson('/api/v1/admin/registrations/'.fake()->uuid.'/approve')
+            ->postJson('/api/v1/admin/registrations/'.fake()->uuid.'/approve')
             ->assertStatus(404);
     }
 
@@ -224,7 +225,7 @@ class AdminRegistrationTest extends TestCase
         ]);
 
         $this->actingAs($this->admin)
-            ->patchJson("/api/v1/admin/registrations/{$approved->id}/approve")
+            ->postJson("/api/v1/admin/registrations/{$approved->id}/approve")
             ->assertStatus(422)
             ->assertJsonStructure(['errors' => ['account_status']]);
     }
@@ -235,7 +236,7 @@ class AdminRegistrationTest extends TestCase
         $conductor = $this->seedConductor();
 
         $this->actingAs($conductor)
-            ->patchJson("/api/v1/admin/registrations/{$pending->id}/approve")
+            ->postJson("/api/v1/admin/registrations/{$pending->id}/approve")
             ->assertStatus(403);
 
         // The account is still PENDING — no side effects.
@@ -245,7 +246,7 @@ class AdminRegistrationTest extends TestCase
         ]);
     }
 
-    // ── PATCH /admin/registrations/{id}/reject ───────────────────
+    // ── POST  /admin/registrations/{id}/reject ───────────────────
 
     public function test_reject_sets_status_rejected_and_records_reason(): void
     {
@@ -255,7 +256,7 @@ class AdminRegistrationTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->admin)
-            ->patchJson("/api/v1/admin/registrations/{$pending->id}/reject", [
+            ->postJson("/api/v1/admin/registrations/{$pending->id}/reject", [
                 'rejection_reason' => 'ID image is blurry and unreadable.',
             ]);
 
@@ -281,7 +282,7 @@ class AdminRegistrationTest extends TestCase
         ]);
 
         $this->actingAs($this->admin)
-            ->patchJson("/api/v1/admin/registrations/{$pending->id}/reject", [
+            ->postJson("/api/v1/admin/registrations/{$pending->id}/reject", [
                 'rejection_reason' => 'Invalid ID document.',
             ])
             ->assertStatus(200);
@@ -305,14 +306,14 @@ class AdminRegistrationTest extends TestCase
         ]);
 
         $this->actingAs($this->admin)
-            ->patchJson("/api/v1/admin/registrations/{$pending->id}/reject", [
+            ->postJson("/api/v1/admin/registrations/{$pending->id}/reject", [
                 'rejection_reason' => 'Blurry ID.',
             ])
             ->assertStatus(200);
 
         // The same email can now be re-registered (end-to-end: register ->
         // reject -> register again with the same email).
-        $response = $this->postJson('/api/v1/auth/register', [
+        $response = $this->post('/api/v1/auth/register', [
             'first_name' => 'New',
             'surname' => 'Applicant',
             'birthdate' => '1995-01-01',
@@ -323,8 +324,8 @@ class AdminRegistrationTest extends TestCase
             'password' => 'SecurePass123',
             'password_confirmation' => 'SecurePass123',
             'applied_type' => 'REGULAR',
-            'id_image' => 'data:image/png;base64,iVBORw0KGgo=',
-        ]);
+            'id_image' => UploadedFile::fake()->image('id.jpg', 800, 600),
+        ], ['Accept' => 'application/json']);
 
         $response->assertStatus(201)
             ->assertJsonPath('data.account_status', 'PENDING');
@@ -353,7 +354,7 @@ class AdminRegistrationTest extends TestCase
         $pending = $this->seedPendingCommuter(['email' => 'noreason@example.com', 'username' => 'noreason']);
 
         $this->actingAs($this->admin)
-            ->patchJson("/api/v1/admin/registrations/{$pending->id}/reject", [])
+            ->postJson("/api/v1/admin/registrations/{$pending->id}/reject", [])
             ->assertStatus(422)
             ->assertJsonStructure(['errors' => ['rejection_reason']]);
 
@@ -369,7 +370,7 @@ class AdminRegistrationTest extends TestCase
         $pending = $this->seedPendingCommuter(['email' => 'short@example.com', 'username' => 'short']);
 
         $this->actingAs($this->admin)
-            ->patchJson("/api/v1/admin/registrations/{$pending->id}/reject", [
+            ->postJson("/api/v1/admin/registrations/{$pending->id}/reject", [
                 'rejection_reason' => 'ok',
             ])
             ->assertStatus(422)
@@ -379,7 +380,7 @@ class AdminRegistrationTest extends TestCase
     public function test_reject_returns_404_for_missing_registration(): void
     {
         $this->actingAs($this->admin)
-            ->patchJson('/api/v1/admin/registrations/'.fake()->uuid.'/reject', [
+            ->postJson('/api/v1/admin/registrations/'.fake()->uuid.'/reject', [
                 'rejection_reason' => 'Not found test.',
             ])
             ->assertStatus(404);
@@ -393,7 +394,7 @@ class AdminRegistrationTest extends TestCase
         ]);
 
         $this->actingAs($this->admin)
-            ->patchJson("/api/v1/admin/registrations/{$approved->id}/reject", [
+            ->postJson("/api/v1/admin/registrations/{$approved->id}/reject", [
                 'rejection_reason' => 'Too late, already approved.',
             ])
             ->assertStatus(422)
@@ -406,7 +407,7 @@ class AdminRegistrationTest extends TestCase
         $conductor = $this->seedConductor();
 
         $this->actingAs($conductor)
-            ->patchJson("/api/v1/admin/registrations/{$pending->id}/reject", [
+            ->postJson("/api/v1/admin/registrations/{$pending->id}/reject", [
                 'rejection_reason' => 'Should not work.',
             ])
             ->assertStatus(403);

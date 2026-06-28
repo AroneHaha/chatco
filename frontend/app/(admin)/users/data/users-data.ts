@@ -1,18 +1,12 @@
 // frontend/app/(admin)/users/data/users-data.ts
 //
-// S5-T10 — Admin User Management data hook.
+// Admin User Management data hook.
 //
-// ACTIVE USERS: fetched from the real Laravel API via the Next.js proxy
-//   (GET /api/admin/users → /api/v1/admin/users) with role filter, search,
-//   and pagination. No mock data.
+// ACTIVE USERS: fetched from GET /api/admin/users (real API)
+// PENDING: fetched from GET /api/admin/registrations (real API)
+// REJECTED: empty (rejected accounts are soft-deleted — not listed)
 //
-// PENDING / REJECTED tabs: still backed by mock data. S5-T17 will wire
-//   these to the /admin/registrations/* endpoints (the backend already
-//   exists from S5-T8). The mock is kept here so the page remains
-//   functional in the interim — T17 will remove it.
-//
-// The ActiveUser type was changed from `id: number` to `id: string`
-// because the backend uses UUID primary keys.
+// No mock data anywhere.
 
 import { useState, useEffect, useCallback } from "react";
 import {
@@ -25,19 +19,13 @@ import {
   type UpdateUserInput,
   type UserOperationError,
 } from "@/lib/admin/services/user.service";
+import * as registrationService from "@/lib/admin/services/registration.service";
 
-// ─── Re-exported types (used by components) ─────────────────────────
+// ─── Re-exported types ───────────────────────────────────────────────
 
 export type { AdminUser, PaginationMeta, UserListFilters, UpdateUserInput };
+export type PendingRequest = registrationService.PendingRegistration;
 
-/**
- * A user row in the Active tab.
- *
- * Wraps the service-layer `AdminUser` with the legacy field names the
- * existing table/modal components expect (`phoneNumber`, `status`,
- * `commuterType`, `languagePreference`, `idImageUrl`). This adapter
- * type lets us wire real API data without rewriting every component.
- */
 export interface ActiveUser {
   id: string;
   name: string;
@@ -47,21 +35,7 @@ export interface ActiveUser {
   commuterType: string;
   languagePreference: string;
   idImageUrl: string;
-  /** The raw service-layer user (for API calls). */
   _raw: AdminUser;
-}
-
-// ─── Pending / Rejected (mock — T17 will replace) ───────────────────
-
-export interface PendingRequest {
-  id: string;
-  name: string;
-  email: string;
-  phoneNumber: string;
-  commuterType: "Regular" | "Student" | "Senior Citizen" | "PWD";
-  languagePreference: "English" | "Filipino";
-  idImageUrl: string;
-  status: "Pending Verification";
 }
 
 export interface RejectedUser {
@@ -83,22 +57,6 @@ export interface HistoryLog {
   details: string;
 }
 
-// ─── Pending / Rejected mock (T17 will remove + wire to API) ────────
-
-const MOCK_PENDING_REQUESTS: PendingRequest[] = [
-  { id: "REQ-101", name: "Marinel Carbonel", email: "Mari.C@email.com", phoneNumber: "0919-345-6789", commuterType: "PWD", languagePreference: "English", idImageUrl: "https://placehold.co/150x150/0A1E33/FFFFFF?text=PWD+ID", status: "Pending Verification" },
-  { id: "REQ-102", name: "Stephen Hawkin", email: "Jeff.Stephen@email.com", phoneNumber: "0920-456-7890", commuterType: "PWD", languagePreference: "Filipino", idImageUrl: "https://placehold.co/150x150/0A1E33/FFFFFF?text=Senior+ID", status: "Pending Verification" },
-];
-
-const MOCK_REJECTED_USERS: RejectedUser[] = [
-  { id: "REQ-099", name: "Fake Account", email: "fake@email.com", phoneNumber: "0000-000-0000", commuterType: "Regular", languagePreference: "English", idImageUrl: "https://placehold.co/150x150/0A1E33/FFFFFF?text=Fake+ID", status: "Rejected", rejectionReason: "Invalid ID provided." },
-];
-
-const MOCK_HISTORY_LOGS: Record<string, HistoryLog[]> = {
-  // History logs are deferred — the backend trip-payment history endpoint
-  // is not part of S5-T10 scope. T17 or a later task will wire this.
-};
-
 // ─── Hook ───────────────────────────────────────────────────────────
 
 export interface UseUsersDataReturn {
@@ -112,10 +70,10 @@ export interface UseUsersDataReturn {
   filters: UserListFilters;
   setFilters: (f: Partial<UserListFilters>) => void;
   refetch: () => void;
-  /** Update a user via the API and refresh the list. */
   updateUserApi: (id: string, data: UpdateUserInput) => Promise<void>;
-  /** Delete a user via the API and refresh the list. */
   deleteUserApi: (id: string) => Promise<void>;
+  approveRegistrationApi: (id: string) => Promise<string>;
+  rejectRegistrationApi: (id: string, reason: string) => Promise<string>;
 }
 
 function mapToActiveUser(u: AdminUser): ActiveUser {
@@ -126,14 +84,16 @@ function mapToActiveUser(u: AdminUser): ActiveUser {
     phoneNumber: u.contactNumber ?? "—",
     status: u.statusLabel === "Suspended" ? "Suspended" : "Active",
     commuterType: u.commuterTypeLabel,
-    languagePreference: "English", // not returned by the admin user endpoint
-    idImageUrl: "", // the admin user list endpoint doesn't return id_image_url
+    languagePreference: "English",
+    idImageUrl: "",
     _raw: u,
   };
 }
 
 export function useUsersData(): UseUsersDataReturn {
   const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
+  const [rejectedUsers, setRejectedUsers] = useState<RejectedUser[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -149,12 +109,14 @@ export function useUsersData(): UseUsersDataReturn {
     setError(null);
     try {
       const result = await listUsers(f);
-      setActiveUsers(result.users.map(mapToActiveUser));
+      // Filter out PENDING and REJECTED from the Active tab.
+      const activeOnly = result.users.filter(
+        (u) => u.accountStatus !== "PENDING" && u.accountStatus !== "REJECTED"
+      );
+      setActiveUsers(activeOnly.map(mapToActiveUser));
       setPagination(result.pagination);
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Failed to load users.";
-      setError(msg);
+      setError(err instanceof Error ? err.message : "Failed to load users.");
       setActiveUsers([]);
       setPagination(null);
     } finally {
@@ -162,18 +124,27 @@ export function useUsersData(): UseUsersDataReturn {
     }
   }, []);
 
+  const fetchPending = useCallback(async () => {
+    try {
+      const pending = await registrationService.listPending();
+      setPendingRequests(pending);
+    } catch {
+      setPendingRequests([]);
+    }
+  }, []);
+
   const refetch = useCallback(() => {
     fetchUsers(filters);
-  }, [fetchUsers, filters]);
+    fetchPending();
+  }, [fetchUsers, fetchPending, filters]);
 
-  // Re-fetch whenever filters change.
   useEffect(() => {
     fetchUsers(filters);
-  }, [fetchUsers, filters]);
+    fetchPending();
+  }, [fetchUsers, fetchPending, filters]);
 
   const setFilters = useCallback((f: Partial<UserListFilters>) => {
     setFiltersState((prev) => {
-      // Changing role or search resets to page 1.
       const roleChanged = f.role !== undefined && f.role !== prev.role;
       const searchChanged = f.search !== undefined && f.search !== prev.search;
       const next = { ...prev, ...f };
@@ -185,7 +156,6 @@ export function useUsersData(): UseUsersDataReturn {
   const updateUserApi = useCallback(
     async (id: string, data: UpdateUserInput) => {
       await updateUser(id, data);
-      // Refresh the current page to show the updated row.
       await fetchUsers(filters);
     },
     [fetchUsers, filters]
@@ -194,12 +164,7 @@ export function useUsersData(): UseUsersDataReturn {
   const deleteUserApi = useCallback(
     async (id: string) => {
       await deleteUser(id);
-      // If we just deleted the last row on page 2+, go back a page.
-      if (
-        pagination &&
-        pagination.currentPage > 1 &&
-        activeUsers.length === 1
-      ) {
+      if (pagination && pagination.currentPage > 1 && activeUsers.length === 1) {
         setFiltersState((prev) => ({ ...prev, page: prev.page! - 1 }));
       } else {
         await fetchUsers(filters);
@@ -208,11 +173,34 @@ export function useUsersData(): UseUsersDataReturn {
     [fetchUsers, filters, pagination, activeUsers.length]
   );
 
+  // ── Registration review (returns a success message for the UI) ──
+
+  const approveRegistrationApi = useCallback(
+    async (id: string): Promise<string> => {
+      const result = await registrationService.approve(id);
+      // Refresh both lists: pending loses the row, active gains the commuter.
+      await fetchPending();
+      await fetchUsers(filters);
+      return `Approved ${result.name} — commuter type: ${result.commuter_type}. They can now log in.`;
+    },
+    [fetchPending, fetchUsers, filters]
+  );
+
+  const rejectRegistrationApi = useCallback(
+    async (id: string, reason: string): Promise<string> => {
+      await registrationService.reject(id, reason);
+      // Refresh the pending list (the rejected row is soft-deleted).
+      await fetchPending();
+      return `Registration rejected. Reason: "${reason}". The email is now available for re-registration.`;
+    },
+    [fetchPending]
+  );
+
   return {
     activeUsers,
-    pendingRequests: MOCK_PENDING_REQUESTS,
-    rejectedUsers: MOCK_REJECTED_USERS,
-    historyLogs: MOCK_HISTORY_LOGS,
+    pendingRequests,
+    rejectedUsers,
+    historyLogs: {},
     pagination,
     isLoading,
     error,
@@ -221,9 +209,9 @@ export function useUsersData(): UseUsersDataReturn {
     refetch,
     updateUserApi,
     deleteUserApi,
+    approveRegistrationApi,
+    rejectRegistrationApi,
   };
 }
-
-// ─── Error type re-export (for try/catch in the page) ──────────────
 
 export type { UserOperationError };

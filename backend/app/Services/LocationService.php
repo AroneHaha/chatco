@@ -97,6 +97,7 @@ class LocationService
                 'vehicle_locations.vehicle_id',
                 'vehicles.plate_number',
                 'vehicles.vehicle_type',
+                'vehicles.unit_number',
                 'vehicles.capacity_status as vehicle_capacity_status',
                 'vehicle_locations.lat',
                 'vehicle_locations.lng',
@@ -108,6 +109,75 @@ class LocationService
             ])
             ->orderBy('vehicle_locations.updated_at', 'desc')
             ->get();
+    }
+
+    /**
+     * Get the live fleet monitoring view for admins.
+     *
+     * Returns all vehicles with an ACTIVE shift, their latest GPS position,
+     * capacity status, speed, and a `is_stale` flag (true if the last
+     * location update was more than 10 minutes ago — the unit may have
+     * lost connectivity or the conductor forgot to broadcast).
+     *
+     * Includes driver + conductor names from the active shift log.
+     *
+     * @return \Illuminate\Support\Collection<int, object>
+     */
+    public function getMonitoringFleet(): Collection
+    {
+        $now = now();
+        $staleThresholdMinutes = 10;
+
+        return DB::table('vehicle_locations')
+            ->join('vehicles', 'vehicle_locations.vehicle_id', '=', 'vehicles.id')
+            ->whereNotNull('vehicles.active_shift_id')
+            ->leftJoin('shift_logs', function ($join) {
+                $join->on('vehicles.active_shift_id', '=', 'shift_logs.shift_id');
+            })
+            ->leftJoin('routes', 'shift_logs.route_id', '=', 'routes.id')
+            ->leftJoin('drivers', 'shift_logs.driver_id', '=', 'drivers.id')
+            ->leftJoin('conductor_profiles', 'shift_logs.conductor_id', '=', 'conductor_profiles.id')
+            ->select([
+                'vehicle_locations.vehicle_id as id',
+                'vehicles.unit_number',
+                'vehicles.plate_number',
+                'vehicles.vehicle_type',
+                'vehicle_locations.lat',
+                'vehicle_locations.lng',
+                'vehicle_locations.speed',
+                'vehicle_locations.heading',
+                'vehicle_locations.capacity_status',
+                'routes.name as route_name',
+                'vehicle_locations.updated_at as last_update',
+                'drivers.first_name as driver_first_name',
+                'drivers.last_name as driver_last_name',
+                'conductor_profiles.first_name as conductor_first_name',
+                'conductor_profiles.last_name as conductor_last_name',
+            ])
+            ->orderBy('vehicle_locations.updated_at', 'desc')
+            ->get()
+            ->map(function ($row) use ($now, $staleThresholdMinutes) {
+                $lastUpdate = $row->last_update ? \Illuminate\Support\Carbon::parse($row->last_update) : null;
+                $minutesSinceUpdate = $lastUpdate ? $now->diffInMinutes($lastUpdate) : null;
+
+                return [
+                    'id'                  => $row->id,
+                    'unit_number'         => $row->unit_number,
+                    'plate_number'        => $row->plate_number,
+                    'vehicle_type'        => $row->vehicle_type,
+                    'lat'                 => $row->lat !== null ? (float) $row->lat : null,
+                    'lng'                 => $row->lng !== null ? (float) $row->lng : null,
+                    'speed'               => $row->speed !== null ? (int) $row->speed : null,
+                    'heading'             => $row->heading,
+                    'capacity_status'     => $row->capacity_status ?? 'AVAILABLE',
+                    'route_name'          => $row->route_name,
+                    'driver_name'         => trim(($row->driver_first_name ?? '') . ' ' . ($row->driver_last_name ?? '')) ?: null,
+                    'conductor_name'      => trim(($row->conductor_first_name ?? '') . ' ' . ($row->conductor_last_name ?? '')) ?: null,
+                    'last_update'         => $lastUpdate?->toDateTimeString(),
+                    'minutes_since_update'=> $minutesSinceUpdate,
+                    'is_stale'            => $minutesSinceUpdate !== null && $minutesSinceUpdate > $staleThresholdMinutes,
+                ];
+            });
     }
 
     /**

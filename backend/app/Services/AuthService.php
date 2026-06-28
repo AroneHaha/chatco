@@ -159,7 +159,7 @@ class AuthService
                 'username' => $data['username'],
                 'language_preference' => $data['language_preference'] ?? 'English',
                 'account_status' => 'PENDING',
-                'id_image_url' => $this->resolveIdImagePath($user, $data['id_image']),
+                'id_image_url' => $this->storeIdImage($user, $data['id_image']),
                 'verified_at' => null,
                 'rejection_reason' => null,
             ]);
@@ -172,32 +172,22 @@ class AuthService
     }
 
     /**
-     * Derive a stable path/identifier for the submitted ID image.
+     * Store the uploaded valid-ID image to the configured disk and return
+     * the storage path. The file is saved to storage/app/public/ids/ so it
+     * can be served via the public storage symlink. NEVER store the raw
+     * file in the DB — only the path.
      *
-     * Binary persistence is intentionally deferred (see register() doc).
-     * Today we return a path-like string derived from the user id so the
-     * column is non-null and auditable, and so the test suite can assert
-     * that the registration recorded a non-empty id_image_url. When a real
-     * storage disk is wired in, replace the body with:
-     *
-     *   $path = "id-images/{$user->id}-".Str::random(16).'.'.
-     *       $this->detectExtension($raw);
-     *   Storage::disk(config('payments.id_image_disk', 'local'))
-     *       ->put($path, base64_decode($raw));
-     *   return Storage::disk(...)->url($path);
-     *
-     * No contract change required — callers still receive a string.
+     * @param  User  $user
+     * @param  \Illuminate\Http\UploadedFile  $file
+     * @return string  The storage path (e.g. 'ids/uuid-abc123.jpg')
      */
-    private function resolveIdImagePath(User $user, string $submitted): string
+    private function storeIdImage(User $user, $file): string
     {
-        // Preserve any caller-supplied path/filename; otherwise synthesise one.
-        // We do NOT assume the submitted value is a URL — it may be a data URI
-        // or base64 blob — so we only use it as-is when it already looks like
-        // a path/URL, and otherwise derive a stable identifier.
-        if (preg_match('#^(https?://|/)#', $submitted)) {
-            return $submitted;
-        }
+        // Store to the 'public' disk (storage/app/public/ids/)
+        // The filename includes the user ID for traceability.
+        $extension = $file->getClientOriginalExtension() ?: 'jpg';
+        $filename = $user->id . '-' . Str::random(16) . '.' . $extension;
 
-        return 'id-images/'.$user->id.'-'.Str::random(16);
+        return $file->storeAs('ids', $filename, 'public');
     }
 }

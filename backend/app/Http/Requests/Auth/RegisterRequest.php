@@ -25,11 +25,10 @@ use Illuminate\Validation\Rule;
  *
  * ID IMAGE
  * --------
- * The valid-ID image is REQUIRED at the API contract level (the test suite
- * asserts 422 on missing/empty). The binary itself is NOT persisted yet —
- * we store only a derived path/identifier in commuter_profiles.id_image_url
- * so the contract is honoured and a future Storage::put() can be slotted in
- * without changing the request shape. See AuthService::register().
+ * The valid-ID image is uploaded as a multipart file. We validate it's an
+ * image (jpeg/png/webp) with a 5MB max. The file is stored to
+ * storage/app/public/ids/ and the path is persisted to
+ * commuter_profiles.id_image_url. NEVER store the raw file in the DB.
  */
 class RegisterRequest extends FormRequest
 {
@@ -52,9 +51,7 @@ class RegisterRequest extends FormRequest
             'password' => ['required', 'string', 'min:8', 'max:128', 'confirmed'],
             'language_preference' => ['nullable', 'string', 'max:20'],
             'applied_type' => ['required', 'string', Rule::in(['REGULAR', 'STUDENT', 'SENIOR', 'PWD'])],
-            // Accepted as a non-empty string (data URI / base64 / future
-            // upload token). Binary persistence is deferred — see class doc.
-            'id_image' => ['required', 'string', 'min:1'],
+            'id_image' => ['required', 'file', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
         ];
     }
 

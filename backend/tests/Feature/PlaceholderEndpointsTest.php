@@ -84,8 +84,7 @@ class PlaceholderEndpointsTest extends TestCase
     }
 
     // ── Commuter Endpoints (2) ───────────────────────────────────
-    // Sprint 5 (S5-T1) implemented /commuter/profile (GET/PUT) and
-    // /commuter/change-password, so /profile is no longer a 501 stub.
+    // /profile implemented in S5-T1 (returns real commuter profile data).
 
     public function test_commuter_trips_returns_501(): void
     {
@@ -103,16 +102,18 @@ class PlaceholderEndpointsTest extends TestCase
     // Sprint 4 implemented /transactions + /earnings, so there are no
     // remaining conductor 501 stubs.
 
-    // ── Admin Endpoints (3) ──────────────────────────────────────
-    // Sprint 5 implemented: /admin/users CRUD (S5-T3), /admin/analytics (S5-T6),
-    // /admin/vehicles CRUD (S5-T4, via AdminVehicleController), and /admin/drivers
-    // + /admin/routes + /admin/conductors (fleet management) — none are stubs now.
-    // Sprint 4 implemented /transactions + /remittances + /shift-logs.
+    // ── Admin Endpoints (2 remaining stubs) ─────────────────────
 
     public function test_admin_dashboard_returns_501(): void
     {
         $this->assertNotImplementedResponse('getJson', '/api/v1/admin/dashboard', $this->adminToken);
     }
+
+    // Admin /users implemented in S5-T3 (AdminUserController::index).
+
+    // Admin /drivers, /vehicles, /routes, /transactions, /shift-logs all
+    // implemented (return real DB data). Admin /remittances implemented in
+    // Sprint 4. Admin /vehicles POST/PUT/DELETE implemented for fleet CRUD.
 
     public function test_admin_announcements_returns_501(): void
     {
@@ -150,16 +151,18 @@ class PlaceholderEndpointsTest extends TestCase
 
     public function test_total_placeholder_endpoints_is_8(): void
     {
-        // 2 commuter (trips, rewards) + 3 admin (dashboard, announcements,
-        // lost-items) + 3 QR = 8.
+        // 2 commuter + 3 admin + 3 QR = 8
         // Wallet/topup stubs removed (wallet is permanently eliminated).
         // Sprint 2 implemented the conductor endpoints; Sprint 4 implemented
-        // the conductor /transactions, the payment flow, and the admin
-        // /transactions + /remittances + /shift-logs; Sprint 5 implemented
-        // /commuter/profile + /commuter/change-password (S5-T1), /admin/users
-        // CRUD (S5-T3), /admin/analytics (S5-T6), /admin/vehicles CRUD (S5-T4),
-        // and the fleet endpoints (/admin/drivers, /admin/routes,
-        // /admin/conductors) — so those are no longer 501 stubs.
+        // the conductor /transactions + the payment initiate/verify/history
+        // endpoints + the admin /remittances endpoint.
+        // Sprint 5 implemented admin /drivers, /vehicles, /routes,
+        // /transactions, /shift-logs, /users (all return real DB data now),
+        // plus admin vehicle CRUD (POST/PUT/DELETE /vehicles).
+        // S5-T1 implemented commuter /profile (PUT + GET).
+        // Remaining stubs: commuter/trips, commuter/rewards,
+        // admin/dashboard, admin/announcements, admin/lost-items,
+        // qr/generate, qr/validate, qr/scan = 8.
         $this->assertEquals(8, 2 + 3 + 3);
     }
 }

@@ -5,7 +5,6 @@ import { useState, useMemo } from 'react';
 import { VehicleTable } from '@/components/admin/vehicles/vehicle-table';
 import { AddVehicleModal } from '@/components/admin/vehicles/add-vehicle-modal';
 import { EditVehicleModal } from '@/components/admin/vehicles/edit-vehicle-modal';
-import { DeleteVehicleModal } from '@/components/admin/vehicles/delete-vehicle-modal';
 import { ShiftHistoryModal } from '@/components/admin/vehicles/shift-history-modal';
 import { PersonnelTable } from '@/components/admin/vehicles/personnel-table';
 import { AddPersonnelModal } from '@/components/admin/vehicles/add-personnel-modal';
@@ -21,7 +20,7 @@ import type { Vehicle, Personnel, TerminatedPersonnel } from './data/vehicles-da
 import { SkeletonTable } from '@/components/admin/ui/skeleton';
 
 export default function VehiclesPage() {
-  const { data, isLoading, error, refetch, setData, deleteVehicleApi } = useVehiclesData();
+  const { data, isLoading, error, refetch, setData } = useVehiclesData();
 
   const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
   const [isEditVehicleModalOpen, setIsEditVehicleModalOpen] = useState(false);
@@ -40,19 +39,19 @@ export default function VehiclesPage() {
     generated_password: string;
   } | null>(null);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
-  const [deletingVehicle, setDeletingVehicle] = useState<Vehicle | null>(null);
-  const [isDeleteVehicleModalOpen, setIsDeleteVehicleModalOpen] = useState(false);
   const [shiftHistoryVehicle, setShiftHistoryVehicle] = useState<Vehicle | null>(null);
   const [editingPersonnelData, setEditingPersonnelData] = useState<Personnel | null>(null);
   const [deletingPersonnelData, setDeletingPersonnelData] = useState<Personnel | null>(null);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'vehicles' | 'personnel' | 'history'>('vehicles');
+  
+  const [vehicles, setVehicles] = useState<Vehicle[]>(data.vehicles);
 
-  // Derive `vehicles` directly from the API data — no local state copy.
-  // (Previously this used a useState + setState-in-useMemo sync which is an
-  // anti-pattern that can cause infinite render loops.)
-  const vehicles = data.vehicles;
+  // Sync vehicles when data changes
+  useMemo(() => {
+    setVehicles(data.vehicles);
+  }, [data.vehicles]);
 
   const { unassignedDrivers, unassignedConductors } = useMemo(() => {
     const assignedDrivers = new Set(vehicles.filter(v => v.driver).map(v => v.driver));
@@ -109,23 +108,6 @@ export default function VehiclesPage() {
   // We refetch from the API to get the canonical record with fresh relationships.
   const handleVehicleUpdated = () => { refetch(); handleCloseEditModal(); };
 
-  // Delete Vehicle Handlers — opens the confirm modal, then calls the API
-  // via the hook's deleteVehicleApi (which routes through vehicle.service
-  // and refetches the list). The 409 active-shift conflict is surfaced as
-  // an inline error inside the modal by the service's typed error.
-  const handleOpenDeleteVehicle = (vehicle: Vehicle) => {
-    setDeletingVehicle(vehicle);
-    setIsDeleteVehicleModalOpen(true);
-  };
-  const handleCloseDeleteVehicle = () => {
-    setDeletingVehicle(null);
-    setIsDeleteVehicleModalOpen(false);
-  };
-  const handleConfirmDeleteVehicle = async (): Promise<void> => {
-    if (!deletingVehicle) return;
-    await deleteVehicleApi(deletingVehicle.id);
-  };
-
   // Shift History Handlers — opens the modal that fetches /api/admin/shift-logs?vehicle_id=
   const handleOpenShiftHistory = (vehicle: Vehicle) => { setShiftHistoryVehicle(vehicle); setIsShiftHistoryOpen(true); };
   const handleCloseShiftHistory = () => { setShiftHistoryVehicle(null); setIsShiftHistoryOpen(false); };
@@ -157,7 +139,7 @@ export default function VehiclesPage() {
     setDeletingPersonnelData(null);
     setIsDeletePersonnelOpen(false);
   };
-  const handleConfirmDeletePersonnel = (deleteData: { id: string; reason: string; terminationType: string }) => {
+  const handleConfirmDeletePersonnel = (deleteData: { id: number; reason: string; terminationType: string }) => {
     // TODO: Replace with API call when backend is ready
     const person = data.personnel.find(p => p.id === deleteData.id);
     if (person) {
@@ -282,8 +264,7 @@ export default function VehiclesPage() {
           vehicles={vehicles} 
           searchQuery={searchQuery} 
           onEdit={handleOpenEditModal}
-          onEditShift={handleOpenShiftHistory}
-          onDelete={handleOpenDeleteVehicle}
+          onEditShift={handleOpenShiftHistory} 
         />
       ) : activeTab === 'personnel' ? (
         <PersonnelTable 
@@ -309,12 +290,6 @@ export default function VehiclesPage() {
         onClose={handleCloseEditModal}
         onSaved={handleVehicleUpdated}
         editingVehicle={editingVehicle}
-      />
-      <DeleteVehicleModal
-        isOpen={isDeleteVehicleModalOpen}
-        onClose={handleCloseDeleteVehicle}
-        onConfirm={handleConfirmDeleteVehicle}
-        vehicle={deletingVehicle}
       />
       <ShiftHistoryModal
         isOpen={isShiftHistoryOpen}
