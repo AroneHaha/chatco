@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Commuter\CommuterController;
+use App\Http\Controllers\Commuter\FeedbackController;
 use App\Http\Controllers\Commuter\HailController;
 use App\Http\Controllers\Commuter\VehicleLocationController;
 use App\Http\Controllers\Conductor\ConductorController;
@@ -51,6 +52,12 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
     // Payment lifecycle (commuter-side) — claim GCash + view history
     Route::post('/payments/claim', [PaymentController::class, 'claim'])->middleware('throttle:commuter-hail');
     Route::get('/payments', [PaymentController::class, 'history'])->middleware('throttle:conductor-read');
+
+    // Feedback submission (S6) — commuter submits a rating for a shift_id
+    // resolved via /qr/scan. Throttled at commuter-hail (10/min) to deter
+    // spam; the (commuter_id, shift_id) unique constraint also enforces
+    // one-feedback-per-shift at the DB level.
+    Route::post('/feedback', [FeedbackController::class, 'store'])->middleware('throttle:commuter-hail');
 });
 
 /*
@@ -179,11 +186,21 @@ Route::prefix('payments')->group(function () {
 
 /*
 |--------------------------------------------------------------------------
-| QR Routes (Authenticated — any role)
+| QR Routes — Feedback Unit-QR (S6)
+|--------------------------------------------------------------------------
+| Repurposed from S1 501 stubs. These are NOT the GCash payment QR — the
+| GCash flow uses /conductor/payments/gcash/initiate + /commuter/payments/claim.
+|
+|   POST /qr/generate  (ADMIN)    — issue HMAC-signed unit-QR for a vehicle
+|   POST /qr/validate  (COMMUTER) — verify signature + expiry (pre-check)
+|   POST /qr/scan      (COMMUTER) — verify + resolve today's driver+conductor
+|
+| Each route has its own role middleware (the 3 roles are split, not shared)
+| because the issuer (admin) and the consumers (commuters) are different.
 |--------------------------------------------------------------------------
 */
 Route::prefix('qr')->middleware(['auth:sanctum'])->group(function () {
-    Route::post('/generate', [QrController::class, 'generate']);
-    Route::post('/validate', [QrController::class, 'validate']);
-    Route::post('/scan', [QrController::class, 'scan']);
+    Route::post('/generate', [QrController::class, 'generate'])->middleware(['role:ADMIN', 'throttle:admin-write']);
+    Route::post('/validate', [QrController::class, 'verify'])->middleware(['role:COMMUTER', 'throttle:commuter-write']);
+    Route::post('/scan', [QrController::class, 'scan'])->middleware(['role:COMMUTER', 'throttle:commuter-write']);
 });

@@ -251,4 +251,23 @@ class SchemaTest extends TestCase
     {
         $this->assertTrue(Schema::hasColumn('drivers', 'active_shift_id'), 'drivers missing [active_shift_id] column.');
     }
+
+    // ── Sprint 6 Tables ──────────────────────────────────────────
+
+    public function test_feedback_table_exists(): void
+    {
+        $this->assertTrue(Schema::hasTable('feedback'), 'Table [feedback] does not exist.');
+    }
+
+    public function test_feedback_has_required_columns(): void
+    {
+        $columns = ['id', 'shift_id', 'vehicle_id', 'driver_id', 'conductor_id', 'commuter_id', 'rating', 'category', 'comment', 'created_at', 'updated_at'];
+
+        foreach ($columns as $column) {
+            $this->assertTrue(
+                Schema::hasColumn('feedback', $column),
+                "Missing column: feedback.{$column}"
+            );
+        }
+    }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Services\QrTokenService;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -12,7 +13,12 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        // QrTokenService needs primitive config values (secret + TTL) that
+        // the container can't auto-resolve. Bind via the fromConfig() factory
+        // so controllers get a ready instance via DI.
+        $this->app->singleton(QrTokenService::class, function () {
+            return QrTokenService::fromConfig();
+        });
     }
 
     public function boot(): void

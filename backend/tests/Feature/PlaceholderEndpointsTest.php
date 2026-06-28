@@ -130,28 +130,16 @@ class PlaceholderEndpointsTest extends TestCase
     // fare/payment flow (conductor GCash initiate, commuter claim, status
     // polling, webhook), so there are no remaining payment 501 stubs.
 
-    // ── QR Endpoints (3) ─────────────────────────────────────────
-
-    public function test_qr_generate_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('postJson', '/api/v1/qr/generate', $this->commuterToken);
-    }
-
-    public function test_qr_validate_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('postJson', '/api/v1/qr/validate', $this->commuterToken);
-    }
-
-    public function test_qr_scan_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('postJson', '/api/v1/qr/scan', $this->commuterToken);
-    }
+    // ── QR Endpoints ─────────────────────────────────────────────
+    // Sprint 6 repurposed the 3 QR stubs for the feedback unit-QR flow
+    // (generate/validate/scan). They are now implemented and covered by
+    // FeedbackQrFlowTest. No remaining QR 501 stubs.
 
     // ── Total Count Verification ─────────────────────────────────
 
-    public function test_total_placeholder_endpoints_is_8(): void
+    public function test_total_placeholder_endpoints_is_5(): void
     {
-        // 2 commuter + 3 admin + 3 QR = 8
+        // 2 commuter + 3 admin = 5
         // Wallet/topup stubs removed (wallet is permanently eliminated).
         // Sprint 2 implemented the conductor endpoints; Sprint 4 implemented
         // the conductor /transactions + the payment initiate/verify/history
@@ -160,9 +148,11 @@ class PlaceholderEndpointsTest extends TestCase
         // /transactions, /shift-logs, /users (all return real DB data now),
         // plus admin vehicle CRUD (POST/PUT/DELETE /vehicles).
         // S5-T1 implemented commuter /profile (PUT + GET).
+        // Sprint 6 repurposed the 3 QR stubs for the feedback unit-QR flow
+        // (generate/validate/scan) — now implemented, covered by
+        // FeedbackQrFlowTest.
         // Remaining stubs: commuter/trips, commuter/rewards,
-        // admin/dashboard, admin/announcements, admin/lost-items,
-        // qr/generate, qr/validate, qr/scan = 8.
-        $this->assertEquals(8, 2 + 3 + 3);
+        // admin/dashboard, admin/announcements, admin/lost-items = 5.
+        $this->assertEquals(5, 2 + 3);
     }
 }
