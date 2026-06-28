@@ -54,6 +54,19 @@ export const ADMIN_API = {
   receipts: {
     list: "/api/admin/receipts",
   },
+  /**
+   * Sprint 6 — Feedback Unit-QR generation.
+   *
+   * Admin selects a vehicle and the backend issues an HMAC-signed QR token
+   * that encodes the vehicle_id + TTL. The token is stateless (no DB row at
+   * issue time) — revocation is via TTL expiry.
+   *
+   * The validate + scan routes live under COMMUTER_API.feedbackQr because
+   * they're commuter-facing.
+   */
+  feedbackQr: {
+    generate: "/api/qr/generate",
+  },
   settings: {
     fareMatrix: "/api/admin/settings/fare-matrix",
     financialRules: "/api/admin/settings/financial-rules",

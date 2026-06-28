@@ -1,80 +1,121 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation"; // Added for routing
+import { useRouter } from "next/navigation";
 import { useFeedback } from "./use-feedback";
+import { QrScanner } from "@/components/commuter/feedback/qr-scanner";
+import { AlertTriangle, RotateCcw } from "lucide-react";
 
+/**
+ * Sprint 6 — Commuter Feedback page (S6-T6 scan flow wired; S6-T7 will
+ * wire the actual feedback submission to POST /commuter/feedback).
+ *
+ * State machine (driven by `scanStatus` from useFeedback):
+ *   scanning   → QrScanner component (camera + manual entry)
+ *   verifying  → spinner ("Verifying QR signature…")
+ *   resolving  → spinner ("Resolving today's crew…")
+ *   error      → typed error message + "Try again" button
+ *   resolved   → driver card + rating/tags/comment form (existing UI)
+ *
+ * On submit success (mock for now — T7 will wire), shows the existing
+ * success state with a 3-second countdown back to /dashboard.
+ */
 export default function FeedbackPage() {
-  const router = useRouter(); // Initialize router
-  
+  const router = useRouter();
+
   const {
-    isScanning, driver, rating, hoverRating, setHoverRating, handleSetRating,
-    activeTags, selectedTags, toggleTag, comment, setComment,
-    isSubmitting, isSubmitted, resetForNewScan, submitFeedback
+    scanStatus,
+    scanError,
+    crew,
+    handleToken,
+    resetForNewScan,
+    rating,
+    hoverRating,
+    setHoverRating,
+    handleSetRating,
+    activeTags,
+    selectedTags,
+    toggleTag,
+    comment,
+    setComment,
+    isSubmitting,
+    isSubmitted,
+    submitFeedback,
   } = useFeedback();
 
   const displayRating = hoverRating || rating;
 
-  // --- COUNTDOWN & AUTO-CLOSE LOGIC ---
+  // --- COUNTDOWN & AUTO-CLOSE LOGIC (kept from original) ---
   const [countdown, setCountdown] = useState(3);
 
   useEffect(() => {
-    // Only run the timer if the feedback was successfully submitted
     if (!isSubmitted) return;
-
-    // If countdown hits 0, go back to dashboard
     if (countdown === 0) {
       router.push("/dashboard");
       return;
     }
-
-    // Decrease countdown every 1 second
     const timer = setTimeout(() => {
       setCountdown((prev) => prev - 1);
     }, 1000);
-
-    // Cleanup timer if component unmounts or if they click "Scan another"
     return () => clearTimeout(timer);
   }, [isSubmitted, countdown, router]);
 
   const handleScanAnother = () => {
-    setCountdown(3); // Reset countdown for next time
-    resetForNewScan(); // Reset the hook states
+    setCountdown(3);
+    resetForNewScan();
   };
 
-  // --- 1. SCANNING STATE ---
-  if (isScanning) {
+  // ─── 1. SCANNING STATE — render the QR scanner ──────────────
+  if (scanStatus === "scanning") {
+    return <QrScanner onToken={handleToken} onCancel={() => router.push("/dashboard")} />;
+  }
+
+  // ─── 2. VERIFYING / RESOLVING — spinner ─────────────────────
+  if (scanStatus === "verifying" || scanStatus === "resolving") {
     return (
       <div className="h-full w-full bg-[#050F1A] flex flex-col items-center justify-center p-6">
-        <div className="relative w-64 h-64 border-2 border-white/30 rounded-2xl overflow-hidden shadow-2xl mb-8">
-          <div className="absolute left-0 right-0 h-0.5 bg-[#62A0EA] shadow-[0_0_10px_#62A0EA] animate-scan-line z-10" />
-          <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-[#62A0EA] rounded-tl-xl" />
-          <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-[#62A0EA] rounded-tr-xl" />
-          <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-[#62A0EA] rounded-bl-xl" />
-          <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-[#62A0EA] rounded-br-xl" />
-          <div className="absolute inset-0 bg-[#071A2E]/50 flex items-center justify-center">
-            <svg className="w-16 h-16 text-white/10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75ZM6.75 16.5h.75v.75h-.75v-.75ZM16.5 6.75h.75v.75h-.75v-.75Z" /></svg>
-          </div>
-        </div>
-
-        <p className="text-white font-bold text-lg animate-pulse">Scanning Unit QR...</p>
-        <p className="text-white/40 text-sm mt-1">Align the QR code inside the frame</p>
-
-        <style jsx global>{`
-          @keyframes scan-line {
-            0% { top: 0%; }
-            50% { top: 100%; }
-            100% { top: 0%; }
-          }
-          .animate-scan-line {
-            animation: scan-line 2s ease-in-out infinite;
-          }
-        `}</style>
+        <div className="w-16 h-16 rounded-full border-4 border-[#62A0EA] border-t-transparent animate-spin mb-4" />
+        <p className="text-white font-semibold text-sm">
+          {scanStatus === "verifying"
+            ? "Verifying QR signature…"
+            : "Resolving today's crew…"}
+        </p>
+        <p className="text-white/40 text-xs mt-1">
+          {scanStatus === "verifying"
+            ? "Checking the QR is genuine and not expired."
+            : "Looking up the driver and conductor on duty."}
+        </p>
       </div>
     );
   }
 
-  // --- 2. SUCCESS STATE ---
+  // ─── 3. ERROR STATE — typed message + retry ─────────────────
+  if (scanStatus === "error" && scanError) {
+    return (
+      <div className="h-full w-full bg-[#050F1A] flex flex-col items-center justify-center p-6">
+        <div className="max-w-sm w-full bg-[#071A2E] border border-red-500/20 rounded-2xl p-8 flex flex-col items-center text-center space-y-4">
+          <div className="w-14 h-14 rounded-full bg-red-500/10 flex items-center justify-center">
+            <AlertTriangle className="w-7 h-7 text-red-400" />
+          </div>
+          <h3 className="text-white font-bold text-lg">
+            {errorTitleForCode(scanError.code)}
+          </h3>
+          <p className="text-white/50 text-sm max-w-xs">
+            {errorMessageForCode(scanError.code, scanError.message)}
+          </p>
+          <button
+            onClick={resetForNewScan}
+            className="mt-2 flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] text-white text-sm font-semibold transition-colors shadow-lg shadow-[#1A5FB4]/20"
+          >
+            <RotateCcw size={14} />
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── 4. SUCCESS STATE (post-submit) — kept from original ────
   if (isSubmitted) {
     return (
       <div className="h-full w-full bg-[#050F1A] overflow-y-auto pb-28 lg:pb-8 flex items-center justify-center">
@@ -84,24 +125,21 @@ export default function FeedbackPage() {
           </div>
           <h3 className="text-white font-bold text-xl">Thank You!</h3>
           <p className="text-white/50 text-sm max-w-xs">Your feedback has been recorded and will help us improve our service.</p>
-          
+
           {/* Circular Countdown Timer */}
           <div className="relative w-24 h-24 flex items-center justify-center mt-2">
             <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 100 100">
-              {/* Background Track */}
               <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="6" />
-              {/* Animated Depleting Ring */}
-              <circle 
-                cx="50" cy="50" r="40" 
-                fill="none" 
-                stroke="#62A0EA" 
-                strokeWidth="6" 
+              <circle
+                cx="50" cy="50" r="40"
+                fill="none"
+                stroke="#62A0EA"
+                strokeWidth="6"
                 strokeLinecap="round"
                 strokeDasharray="251.3"
                 className="countdown-ring"
               />
             </svg>
-            {/* Number in the center */}
             <span className="text-3xl font-extrabold text-white">{countdown}</span>
           </div>
 
@@ -112,7 +150,6 @@ export default function FeedbackPage() {
           </button>
         </div>
 
-        {/* CSS for the circular depletion animation */}
         <style jsx global>{`
           @keyframes circle-deplete {
             from { stroke-dashoffset: 0; }
@@ -126,41 +163,47 @@ export default function FeedbackPage() {
     );
   }
 
-  // --- 3. FEEDBACK FORM STATE ---
+  // ─── 5. FEEDBACK FORM STATE — crew resolved, ready to rate ──
   return (
     <div className="h-full w-full bg-[#050F1A] overflow-y-auto pb-28 lg:pb-8">
       <div className="max-w-2xl mx-auto p-6 lg:p-8 space-y-6">
-        
+
         <div>
           <h1 className="text-white font-bold text-2xl">Driver Feedback</h1>
           <p className="text-white/40 text-sm mt-1">Help us improve our service. Your reviews are anonymous to drivers.</p>
         </div>
 
-        {/* Driver Card */}
-        {driver && (
+        {/* Crew Card — driver + conductor + unit info from /qr/scan */}
+        {crew && (
           <div className="bg-[#071A2E] border border-white/10 rounded-2xl p-5 shadow-lg animate-fade-in">
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold text-xl flex-shrink-0 border-2 border-white/10">
-                {driver.name[0]}
+                {crew.driverName[0] ?? "?"}
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-white font-bold text-lg truncate">{driver.name}</h3>
-                <p className="text-white/40 text-xs mt-0.5">Driver • Plate: {driver.plateNumber}</p>
-                <p className="text-[#62A0EA] text-xs font-medium mt-0.5">Route: {driver.route}</p>
+                <h3 className="text-white font-bold text-lg truncate">{crew.driverName}</h3>
+                <p className="text-white/40 text-xs mt-0.5">
+                  Driver
+                  {crew.unitNumber ? ` · Unit ${crew.unitNumber}` : ""}
+                  {` · Plate: ${crew.plateNumber}`}
+                </p>
+                <p className="text-[#62A0EA] text-xs font-medium mt-0.5">
+                  Conductor: {crew.conductorName}
+                </p>
               </div>
             </div>
           </div>
         )}
 
         <div className="space-y-8">
-          
+
           {/* Star Rating */}
           <div className="bg-[#071A2E] border border-white/10 rounded-2xl p-6 flex flex-col items-center">
             <h3 className="text-white/70 text-sm font-semibold mb-4">How was your ride?</h3>
             <div className="flex gap-3">
               {[1, 2, 3, 4, 5].map((star) => (
-                <button 
-                  key={star} 
+                <button
+                  key={star}
                   onMouseEnter={() => setHoverRating(star)}
                   onMouseLeave={() => setHoverRating(0)}
                   onClick={() => handleSetRating(star)}
@@ -193,13 +236,13 @@ export default function FeedbackPage() {
                 {activeTags.map((tag) => {
                   const isSelected = selectedTags.includes(tag);
                   const isPositive = rating >= 4;
-                  
+
                   return (
-                    <button 
+                    <button
                       key={tag}
                       onClick={() => toggleTag(tag)}
                       className={`px-4 py-2 rounded-full text-xs font-semibold border transition-all duration-200 ${
-                        isSelected 
+                        isSelected
                           ? (isPositive ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-lg shadow-emerald-500/10" : "bg-red-500/20 border-red-500/50 text-red-400 shadow-lg shadow-red-500/10")
                           : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10"
                       }`}
@@ -216,7 +259,7 @@ export default function FeedbackPage() {
           {rating > 0 && selectedTags.length > 0 && (
             <div className="space-y-3 animate-fade-in">
               <h3 className="text-white/70 text-sm font-semibold">Additional Comments (Optional)</h3>
-              <textarea 
+              <textarea
                 rows={3}
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
@@ -228,7 +271,7 @@ export default function FeedbackPage() {
 
           {/* Submit Button */}
           {rating > 0 && (
-            <button 
+            <button
               onClick={submitFeedback}
               disabled={isSubmitting || selectedTags.length === 0}
               className="w-full py-4 rounded-xl text-base font-bold bg-[#FF6D3A] text-white hover:bg-[#e55a2b] transition-colors shadow-lg shadow-[#FF6D3A]/30 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -252,4 +295,50 @@ export default function FeedbackPage() {
       `}</style>
     </div>
   );
+}
+
+// ─── Error message helpers (kept local — switch on stable codes) ──
+
+function errorTitleForCode(code: string): string {
+  switch (code) {
+    case "invalid_signature":
+      return "Invalid QR";
+    case "expired":
+      return "QR Expired";
+    case "malformed":
+      return "Unreadable QR";
+    case "no_crew_today":
+      return "No Active Crew";
+    case "forbidden":
+      return "Not Allowed";
+    case "unauthenticated":
+      return "Session Expired";
+    case "validation":
+      return "Invalid Token";
+    case "network":
+    default:
+      return "Connection Error";
+  }
+}
+
+function errorMessageForCode(code: string, fallback: string): string {
+  switch (code) {
+    case "invalid_signature":
+      return "This QR is invalid or has been tampered with. Ask the operator to issue a new one.";
+    case "expired":
+      return "This QR has expired. Ask the operator to issue a fresh one for this unit.";
+    case "malformed":
+      return "The QR couldn't be read. Try re-scanning, or use manual entry to paste the token.";
+    case "no_crew_today":
+      return "This unit has no active crew today. Feedback is only available during or after a ride.";
+    case "forbidden":
+      return "Only commuter accounts can submit ride feedback.";
+    case "unauthenticated":
+      return "Your session has expired. Please log in again.";
+    case "validation":
+      return fallback || "The QR token didn't pass validation.";
+    case "network":
+    default:
+      return "We couldn't reach the backend. Check your connection and try again.";
+  }
 }

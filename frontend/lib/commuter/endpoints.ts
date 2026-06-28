@@ -36,6 +36,19 @@ export const COMMUTER_API = {
   feedback: {
     submit: "/api/commuter/feedback",
   },
+  /**
+   * Sprint 6 — Feedback Unit-QR resolution layer (S6-T6 frontend wiring).
+   *
+   *   validate  — pre-check a scanned token's signature + expiry (no DB hit)
+   *   scan      — verify + resolve today's driver + conductor from shift_logs
+   *
+   * Both are commuter-only. The scan response carries the `shift_id` that
+   * the subsequent POST /commuter/feedback (S6-T2) consumes.
+   */
+  feedbackQr: {
+    validate: "/api/qr/validate",
+    scan: "/api/qr/scan",
+  },
   sos: {
     create: "/api/commuter/sos",
   },
