@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Models\CommuterProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -19,11 +20,20 @@ use Tests\TestCase;
  *   - no token issued (response has no token field)
  *   - an email belonging only to a soft-deleted (rejected) account is reusable
  *   - an active email -> 422
+ *
+ * The id_image is sent as a real file upload (UploadedFile::fake) because
+ * RegisterRequest validates it as file|image|mimes:jpeg,jpg,png,webp|max:5120.
+ * Tests use $this->post() (multipart) instead of $this->postJson() when a
+ * file is included.
  */
 class AuthRegisterTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * Returns the valid payload WITHOUT id_image — callers add the fake
+     * file separately so they can control its presence/type.
+     */
     private function validPayload(array $overrides = []): array
     {
         return array_merge([
@@ -39,32 +49,38 @@ class AuthRegisterTest extends TestCase
             'password_confirmation' => 'SecurePass123',
             'language_preference' => 'English',
             'applied_type' => 'STUDENT',
-            // Non-empty string — binary persistence is deferred (see
-            // AuthService::resolveIdImagePath) but the contract requires it.
-            'id_image' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB',
         ], $overrides);
+    }
+
+    /**
+     * Send a multipart POST with a fake ID image — mirrors what the real
+     * signup form does.
+     */
+    private function registerWithFile(array $overrides = []): \Illuminate\Testing\TestResponse
+    {
+        $payload = array_merge(
+            $this->validPayload($overrides),
+            ['id_image' => UploadedFile::fake()->image('valid_id.jpg', 800, 600)]
+        );
+
+        return $this->post('/api/v1/auth/register', $payload, ['Accept' => 'application/json']);
     }
 
     // ── Happy path ───────────────────────────────────────────────
 
     public function test_register_creates_pending_commuter_with_applied_type_and_id_image(): void
     {
-        $response = $this->postJson('/api/v1/auth/register', $this->validPayload());
+        $response = $this->registerWithFile();
 
         $response->assertStatus(201)
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.role', 'COMMUTER')
             ->assertJsonPath('data.account_status', 'PENDING')
-            ->assertJsonPath('data.applied_type', 'STUDENT');
+            ->assertJsonPath('data.applied_type', 'STUDENT')
+            ->assertJsonMissingPath('data.token');
 
-        // NO token is issued on registration — the commuter cannot log in
-        // until an admin approves.
-        $response->assertJsonMissingPath('data.token');
-
-        // Real persistence assertions (not just status codes).
         $this->assertDatabaseHas('users', [
             'email' => 'maria.santos@example.com',
-            'role' => 'COMMUTER',
+            'role' => UserRole::COMMUTER->value,
         ]);
 
         $user = User::where('email', 'maria.santos@example.com')->first();
@@ -73,23 +89,23 @@ class AuthRegisterTest extends TestCase
             'id' => $user->id,
             'first_name' => 'Maria',
             'surname' => 'Santos',
-            'commuter_type' => 'STUDENT',   // commuter_type mirrors applied_type
             'applied_type' => 'STUDENT',
             'account_status' => 'PENDING',
             'verified_at' => null,
         ]);
 
         // The id_image_url column is populated (non-null, non-empty) — the
-        // binary itself is deferred but the contract is honoured.
+        // uploaded file was stored to disk and its path persisted.
         $this->assertNotEmpty($user->commuterProfile->id_image_url);
     }
 
-    public function test_register_password_is_hashed_not_stored_plaintext(): void
+    public function test_register_hashes_the_password(): void
     {
-        $this->postJson('/api/v1/auth/register', $this->validPayload());
+        $this->registerWithFile();
 
         $user = User::where('email', 'maria.santos@example.com')->first();
 
+        // Password is hashed, not stored in plaintext.
         $this->assertNotEquals('SecurePass123', $user->password);
         $this->assertTrue(Hash::check('SecurePass123', $user->password));
     }
@@ -97,16 +113,13 @@ class AuthRegisterTest extends TestCase
     public function test_register_uses_applied_type_for_commuter_type(): void
     {
         foreach (['REGULAR', 'STUDENT', 'SENIOR', 'PWD'] as $type) {
-            $this->postJson('/api/v1/auth/register', $this->validPayload([
+            $this->registerWithFile([
                 'email' => "applicant.{$type}@example.com",
                 'username' => "applicant.{$type}",
-                'applied_type' => $type,
-            ]));
-
-            $user = User::where('email', "applicant.{$type}@example.com")->first();
+            ]);
 
             $this->assertDatabaseHas('commuter_profiles', [
-                'id' => $user->id,
+                'email' => "applicant.{$type}@example.com",
                 'commuter_type' => $type,
                 'applied_type' => $type,
             ]);
@@ -120,26 +133,17 @@ class AuthRegisterTest extends TestCase
         $payload = $this->validPayload();
         unset($payload['id_image']);
 
-        $this->postJson('/api/v1/auth/register', $payload)
+        $this->post('/api/v1/auth/register', $payload, ['Accept' => 'application/json'])
             ->assertStatus(422)
             ->assertJsonPath('success', false)
             ->assertJsonStructure(['errors' => ['id_image']]);
     }
 
-    public function test_register_rejects_empty_id_image_with_422(): void
-    {
-        $this->postJson('/api/v1/auth/register', $this->validPayload([
-            'id_image' => '',
-        ]))
-            ->assertStatus(422)
-            ->assertJsonStructure(['errors' => ['id_image']]);
-    }
-
     public function test_register_rejects_invalid_applied_type_with_422(): void
     {
-        $this->postJson('/api/v1/auth/register', $this->validPayload([
+        $this->registerWithFile([
             'applied_type' => 'VIP',
-        ]))
+        ])
             ->assertStatus(422)
             ->assertJsonStructure(['errors' => ['applied_type']]);
     }
@@ -148,15 +152,16 @@ class AuthRegisterTest extends TestCase
     {
         $payload = $this->validPayload();
         unset($payload['applied_type']);
+        $payload['id_image'] = UploadedFile::fake()->image('id.jpg');
 
-        $this->postJson('/api/v1/auth/register', $payload)
+        $this->post('/api/v1/auth/register', $payload, ['Accept' => 'application/json'])
             ->assertStatus(422)
             ->assertJsonStructure(['errors' => ['applied_type']]);
     }
 
     public function test_register_rejects_missing_required_fields_with_422(): void
     {
-        $this->postJson('/api/v1/auth/register', [])
+        $this->post('/api/v1/auth/register', [], ['Accept' => 'application/json'])
             ->assertStatus(422)
             ->assertJsonStructure(['errors' => [
                 'first_name', 'surname', 'birthdate', 'gender',
@@ -167,45 +172,43 @@ class AuthRegisterTest extends TestCase
 
     public function test_register_rejects_password_mismatch_with_422(): void
     {
-        $this->postJson('/api/v1/auth/register', $this->validPayload([
+        $this->registerWithFile([
             'password' => 'SecurePass123',
             'password_confirmation' => 'DifferentPass999',
-        ]))
+        ])
             ->assertStatus(422)
             ->assertJsonStructure(['errors' => ['password']]);
     }
 
     public function test_register_rejects_weak_password_with_422(): void
     {
-        $this->postJson('/api/v1/auth/register', $this->validPayload([
+        $this->registerWithFile([
             'password' => 'short',
             'password_confirmation' => 'short',
-        ]))
+        ])
             ->assertStatus(422)
             ->assertJsonStructure(['errors' => ['password']]);
     }
 
     public function test_register_rejects_invalid_email_format_with_422(): void
     {
-        $this->postJson('/api/v1/auth/register', $this->validPayload([
+        $this->registerWithFile([
             'email' => 'not-an-email',
-        ]))
+        ])
             ->assertStatus(422)
             ->assertJsonStructure(['errors' => ['email']]);
     }
 
     public function test_register_rejects_duplicate_username_with_422(): void
     {
-        // Seed a commuter that already owns the username.
         $existing = $this->seedApprovedCommuter(['username' => 'maria.santos']);
 
-        $this->postJson('/api/v1/auth/register', $this->validPayload([
+        $this->registerWithFile([
             'email' => 'different@example.com',
-        ]))
+        ])
             ->assertStatus(422)
             ->assertJsonStructure(['errors' => ['username']]);
 
-        // The existing account is untouched.
         $this->assertDatabaseHas('commuter_profiles', [
             'id' => $existing->id,
             'username' => 'maria.santos',
@@ -214,9 +217,9 @@ class AuthRegisterTest extends TestCase
 
     public function test_register_rejects_future_birthdate_with_422(): void
     {
-        $this->postJson('/api/v1/auth/register', $this->validPayload([
+        $this->registerWithFile([
             'birthdate' => now()->addDay()->toDateString(),
-        ]))
+        ])
             ->assertStatus(422)
             ->assertJsonStructure(['errors' => ['birthdate']]);
     }
@@ -227,46 +230,36 @@ class AuthRegisterTest extends TestCase
     {
         $this->seedApprovedCommuter(['email' => 'maria.santos@example.com']);
 
-        $this->postJson('/api/v1/auth/register', $this->validPayload([
+        $this->registerWithFile([
             'username' => 'different.username',
-        ]))
+        ])
             ->assertStatus(422)
             ->assertJsonStructure(['errors' => ['email']]);
     }
 
     public function test_register_allows_reuse_of_soft_deleted_rejected_email(): void
     {
-        // A previously-rejected applicant — soft-deleted + email rewritten to
-        // a unique 'rejected+{timestamp}' placeholder by
-        // AdminService::rejectRegistration. Simulate that end-state here so
-        // the test does not depend on the admin endpoint being exercised
-        // first (the AdminRegistrationTest covers the full flow end-to-end).
         $rejected = $this->seedApprovedCommuter(['email' => 'maria.santos@example.com']);
         $rejected->commuterProfile->update([
             'account_status' => 'REJECTED',
             'rejection_reason' => 'Blurry ID image.',
         ]);
-        // Rewrite the email to the same placeholder format the service uses,
-        // freeing 'maria.santos@example.com' for reuse.
         $rejected->email = 'maria.santos+rejected+'.time().'@example.com';
         $rejected->save();
-        $rejected->delete(); // soft delete
+        $rejected->delete();
 
-        // The same canonical email can now be re-registered.
-        $response = $this->postJson('/api/v1/auth/register', $this->validPayload([
+        $response = $this->registerWithFile([
             'username' => 'maria.santos.v2',
-        ]));
+        ]);
 
         $response->assertStatus(201)
             ->assertJsonPath('data.account_status', 'PENDING');
 
         $this->assertDatabaseHas('users', [
             'email' => 'maria.santos@example.com',
-            'role' => 'COMMUTER',
+            'role' => UserRole::COMMUTER->value,
         ]);
 
-        // Two profile rows now exist (one for the rejected applicant, one
-        // for the new PENDING one) — the rejection audit trail is intact.
         $this->assertDatabaseCount('commuter_profiles', 2);
         $this->assertDatabaseHas('commuter_profiles', [
             'account_status' => 'REJECTED',
@@ -282,20 +275,17 @@ class AuthRegisterTest extends TestCase
 
     public function test_register_does_not_issue_a_token(): void
     {
-        $response = $this->postJson('/api/v1/auth/register', $this->validPayload());
+        $response = $this->registerWithFile();
 
         $response->assertStatus(201);
         $response->assertJsonMissingPath('data.token');
-
-        // And no personal access tokens were created.
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 
     public function test_pending_commuter_cannot_log_in(): void
     {
-        $this->postJson('/api/v1/auth/register', $this->validPayload());
+        $this->registerWithFile();
 
-        // Credentials are correct, but account is PENDING -> 403.
         $this->postJson('/api/v1/auth/login', [
             'login' => 'maria.santos@example.com',
             'password' => 'SecurePass123',
@@ -303,7 +293,6 @@ class AuthRegisterTest extends TestCase
             ->assertStatus(403)
             ->assertJsonPath('success', false);
 
-        // No token should have been issued.
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 

@@ -83,12 +83,8 @@ class PlaceholderEndpointsTest extends TestCase
         ]);
     }
 
-    // ── Commuter Endpoints (3) ───────────────────────────────────
-
-    public function test_commuter_profile_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('getJson', '/api/v1/commuter/profile', $this->commuterToken);
-    }
+    // ── Commuter Endpoints (2) ───────────────────────────────────
+    // /profile implemented in S5-T1 (returns real commuter profile data).
 
     public function test_commuter_trips_returns_501(): void
     {
@@ -106,17 +102,14 @@ class PlaceholderEndpointsTest extends TestCase
     // Sprint 4 implemented /transactions + /earnings, so there are no
     // remaining conductor 501 stubs.
 
-    // ── Admin Endpoints (4 remaining stubs) ─────────────────────
+    // ── Admin Endpoints (2 remaining stubs) ─────────────────────
 
     public function test_admin_dashboard_returns_501(): void
     {
         $this->assertNotImplementedResponse('getJson', '/api/v1/admin/dashboard', $this->adminToken);
     }
 
-    public function test_admin_users_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('getJson', '/api/v1/admin/users', $this->adminToken);
-    }
+    // Admin /users implemented in S5-T3 (AdminUserController::index).
 
     // Admin /drivers, /vehicles, /routes, /transactions, /shift-logs all
     // implemented (return real DB data). Admin /remittances implemented in
@@ -156,16 +149,20 @@ class PlaceholderEndpointsTest extends TestCase
 
     // ── Total Count Verification ─────────────────────────────────
 
-    public function test_total_placeholder_endpoints_is_10(): void
+    public function test_total_placeholder_endpoints_is_8(): void
     {
-        // 3 commuter + 4 admin + 3 QR = 10
+        // 2 commuter + 3 admin + 3 QR = 8
         // Wallet/topup stubs removed (wallet is permanently eliminated).
         // Sprint 2 implemented the conductor endpoints; Sprint 4 implemented
         // the conductor /transactions + the payment initiate/verify/history
         // endpoints + the admin /remittances endpoint.
         // Sprint 5 implemented admin /drivers, /vehicles, /routes,
-        // /transactions, /shift-logs (all return real DB data now),
+        // /transactions, /shift-logs, /users (all return real DB data now),
         // plus admin vehicle CRUD (POST/PUT/DELETE /vehicles).
-        $this->assertEquals(10, 3 + 4 + 3);
+        // S5-T1 implemented commuter /profile (PUT + GET).
+        // Remaining stubs: commuter/trips, commuter/rewards,
+        // admin/dashboard, admin/announcements, admin/lost-items,
+        // qr/generate, qr/validate, qr/scan = 8.
+        $this->assertEquals(8, 2 + 3 + 3);
     }
 }
