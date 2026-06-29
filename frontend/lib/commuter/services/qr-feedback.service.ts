@@ -98,6 +98,8 @@ export type QrFeedbackErrorCode =
   | "expired"
   /** 422 — token wasn't in `base64url.signature` format / payload wasn't JSON */
   | "malformed"
+  /** The scanned QR isn't a Chatco unit-QR (wrong format / wrong payload) */
+  | "invalid_format"
   /** 422 — generic validation (e.g. token field missing entirely) */
   | "validation"
   /** 404 — token is valid but no shift_logs row exists for the vehicle today */
@@ -244,6 +246,119 @@ export async function scan(token: string): Promise<ScannedCrew> {
           throw new QrFeedbackError(classifyValidationMessage(message), message);
         case 404:
           throw new QrFeedbackError("no_crew_today", message);
+        case 403:
+          throw new QrFeedbackError("forbidden", message);
+        case 401:
+          throw new QrFeedbackError("unauthenticated", message);
+        default:
+          throw new QrFeedbackError("network", message);
+      }
+    }
+    throw new QrFeedbackError(
+      "network",
+      err instanceof Error ? err.message : "Unable to reach the backend service."
+    );
+  }
+}
+
+// ─── Permanent unit-QR (no signature/expiry) ────────────────────────
+
+/**
+ * Shape of the JSON payload encoded in the PERMANENT unit-QR printed inside
+ * each jeepney. Built by the admin Fleet Management modal from the vehicle's
+ * immutable identifiers — it NEVER changes for a given unit, so the printed
+ * QR is good for the life of the unit.
+ */
+interface UnitQrPayload {
+  chatco: "unit-qr";
+  v: number;
+  vehicleId: string;
+  unitNumber?: string;
+  plateNumber?: string;
+}
+
+/**
+ * Parse a raw scanned string and decide whether it's a Chatco permanent
+ * unit-QR. Returns the extracted `vehicleId` on success.
+ *
+ * @throws {QrFeedbackError} `invalid_format` if the string isn't JSON, or
+ *   isn't a `{chatco:"unit-qr", vehicleId}` payload. The commuter UI uses
+ *   this to show "This isn't a Chatco unit QR" without hitting the network.
+ */
+export function parseUnitQr(raw: string): string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new QrFeedbackError(
+      "invalid_format",
+      "This QR is not a Chatco unit QR."
+    );
+  }
+
+  if (
+    typeof parsed !== "object" ||
+    parsed === null ||
+    (parsed as Record<string, unknown>).chatco !== "unit-qr" ||
+    typeof (parsed as Record<string, unknown>).vehicleId !== "string" ||
+    !(parsed as Record<string, unknown>).vehicleId
+  ) {
+    throw new QrFeedbackError(
+      "invalid_format",
+      "This QR is not a Chatco unit QR."
+    );
+  }
+
+  return (parsed as UnitQrPayload).vehicleId;
+}
+
+/**
+ * Resolve today's driver + conductor for a vehicle from its PERMANENT unit-QR.
+ *
+ * The commuter scans the printed QR → the frontend calls `parseUnitQr()` to
+ * extract the `vehicleId` → calls this function with it. The backend looks up
+ * TODAY's latest shift_log for that vehicle (the daily driver+conductor
+ * assignment recorded when the conductor logged in for the day) and returns
+ * the crew + the `shiftId` needed for POST /commuter/feedback.
+ *
+ * No signature/expiry check — the QR is permanent by design. The crew shown
+ * depends entirely on who is assigned to the unit TODAY (the daily
+ * assignment model), not on who was assigned when the QR was printed.
+ *
+ * @throws {QrFeedbackError}
+ *   - 404 → `no_crew_today` (no shift_logs row for this vehicle today)
+ *   - 422 → `validation` (vehicle_id missing / not a UUID / doesn't exist)
+ *   - 403 → `forbidden` (non-commuter)
+ *   - 401 → `unauthenticated`
+ *   - 5xx → `network`
+ */
+export async function scanPublic(vehicleId: string): Promise<ScannedCrew> {
+  try {
+    const response = await api.post<ApiResponseEnvelope<RawScannedCrew>>(
+      COMMUTER_API.feedbackQr.scanPublic,
+      { vehicle_id: vehicleId }
+    );
+    return {
+      shiftId: response.data.shift_id,
+      vehicleId: response.data.vehicle_id,
+      unitNumber: response.data.unit_number,
+      plateNumber: response.data.plate_number,
+      driverId: response.data.driver_id,
+      driverName: response.data.driver_name,
+      conductorId: response.data.conductor_id,
+      conductorName: response.data.conductor_name,
+    };
+  } catch (err) {
+    if (err instanceof ApiError) {
+      const message =
+        (err.body as { message?: string } | null)?.message ??
+        "Unable to resolve crew for this unit.";
+
+      switch (err.status) {
+        case 404:
+          throw new QrFeedbackError("no_crew_today", message);
+        case 422:
+          throw new QrFeedbackError("validation", message);
         case 403:
           throw new QrFeedbackError("forbidden", message);
         case 401:

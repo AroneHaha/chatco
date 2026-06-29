@@ -48,6 +48,8 @@ export const COMMUTER_API = {
   feedbackQr: {
     validate: "/api/qr/validate",
     scan: "/api/qr/scan",
+    /** Permanent unit-QR: resolves today's crew from a bare vehicle_id. */
+    scanPublic: "/api/qr/scan-public",
   },
   sos: {
     create: "/api/commuter/sos",

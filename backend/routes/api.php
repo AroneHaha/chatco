@@ -292,4 +292,7 @@ Route::prefix('qr')->middleware(['auth:sanctum'])->group(function () {
     Route::post('/generate', [QrController::class, 'generate'])->middleware(['role:ADMIN', 'throttle:admin-write']);
     Route::post('/validate', [QrController::class, 'verify'])->middleware(['role:COMMUTER', 'throttle:commuter-write']);
     Route::post('/scan', [QrController::class, 'scan'])->middleware(['role:COMMUTER', 'throttle:commuter-write']);
+    // Permanent unit-QR: commuter scans the printed QR, frontend extracts the
+    // vehicle_id, this resolves today's driver + conductor from shift_logs.
+    Route::post('/scan-public', [QrController::class, 'scanPublic'])->middleware(['role:COMMUTER', 'throttle:commuter-write']);
 });

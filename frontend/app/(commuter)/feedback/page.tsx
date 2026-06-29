@@ -301,6 +301,8 @@ export default function FeedbackPage() {
 
 function errorTitleForCode(code: string): string {
   switch (code) {
+    case "invalid_format":
+      return "Not a Unit QR";
     case "invalid_signature":
       return "Invalid QR";
     case "expired":
@@ -323,6 +325,8 @@ function errorTitleForCode(code: string): string {
 
 function errorMessageForCode(code: string, fallback: string): string {
   switch (code) {
+    case "invalid_format":
+      return "This QR is not a Chatco unit QR. Scan the feedback QR posted inside the jeepney.";
     case "invalid_signature":
       return "This QR is invalid or has been tampered with. Ask the operator to issue a new one.";
     case "expired":

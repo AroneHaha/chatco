@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Payment;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Qr\GenerateQrRequest;
+use App\Http\Requests\Qr\ScanPublicQrRequest;
 use App\Http\Requests\Qr\ValidateQrRequest;
 use App\Services\FeedbackService;
 use App\Services\QrTokenService;
@@ -19,9 +20,11 @@ use Illuminate\Http\JsonResponse;
  * payment QR — that lives under /conductor/payments/gcash/initiate +
  * /commuter/payments/claim). They were S1 501 stubs, now repurposed:
  *
- *   POST /qr/generate  (ADMIN)   — issue HMAC-signed unit-QR for a vehicle
- *   POST /qr/validate  (COMMUTER)— verify signature + expiry (pre-check)
- *   POST /qr/scan      (COMMUTER)— verify + resolve today's driver+conductor
+ *   POST /qr/generate   (ADMIN)    — issue HMAC-signed unit-QR for a vehicle
+ *   POST /qr/validate   (COMMUTER) — verify signature + expiry (pre-check)
+ *   POST /qr/scan       (COMMUTER) — verify + resolve today's driver+conductor
+ *   POST /qr/scan-public(COMMUTER) — resolve today's crew from a PERMANENT
+ *                                    unit-QR's vehicle_id (no signature/expiry)
  *
  * Feedback PERSISTENCE is a separate route (POST /commuter/feedback) handled
  * by FeedbackController, keeping resolution and persistence decoupled —
@@ -85,6 +88,45 @@ class QrController extends Controller
 
         try {
             $shift = $this->feedbackService->resolveCrewForVehicle($payload['vehicle_id']);
+        } catch (FeedbackException $e) {
+            return $this->errorResponse($e->getMessage(), 404);
+        }
+
+        return $this->successResponse([
+            'shift_id'       => $shift->shift_id,
+            'vehicle_id'     => $shift->vehicle_id,
+            'unit_number'    => $shift->unit_number,
+            'plate_number'   => $shift->plate_number,
+            'driver_id'      => $shift->driver_id,
+            'driver_name'    => $shift->driver_name,
+            'conductor_id'   => $shift->conductor_id,
+            'conductor_name' => $shift->conductor_name,
+        ], 'Crew resolved');
+    }
+
+    /**
+     * POST /api/v1/qr/scan-public  (COMMUTER)
+     *
+     * Resolve today's driver + conductor for a vehicle from the PERMANENT
+     * unit-QR. Unlike /qr/scan, this accepts a bare `vehicle_id` (extracted
+     * by the frontend from the permanent QR's JSON payload) — there is no
+     * HMAC signature to verify and no expiry to check, because the QR
+     * printed inside the jeepney is permanent by design (it encodes the
+     * unit's immutable id + unit number + plate).
+     *
+     * The crew is resolved from shift_logs (today's latest shift for the
+     * vehicle), so whoever the conductor logged in as today's driver +
+     * unit gets the feedback — exactly matching the daily-assignment
+     * model. The returned shift_id anchors the subsequent
+     * POST /commuter/feedback, which stamps the feedback to BOTH the
+     * driver and the conductor.
+     */
+    public function scanPublic(ScanPublicQrRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+
+        try {
+            $shift = $this->feedbackService->resolveCrewForVehicle($validated['vehicle_id']);
         } catch (FeedbackException $e) {
             return $this->errorResponse($e->getMessage(), 404);
         }

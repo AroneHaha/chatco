@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import {
-  validate as validateQr,
-  scan as scanQr,
+  parseUnitQr,
+  scanPublic,
   QrFeedbackError,
   type ScannedCrew,
   type QrFeedbackErrorCode,
@@ -78,13 +78,14 @@ const NEGATIVE_TAGS = [
  * will wire the actual submitFeedback to the real backend).
  *
  * State machine:
- *   scanning → verifying → resolving → resolved
- *                  ↓           ↓
- *                error ← ← ← ← ←  (any failure)
+ *   scanning → resolving → resolved
+ *        ↓         ↓
+ *      error ← ← ←  (any failure)
  *
  * The hook owns: scan status, crew data, scan error, rating/tags/comment
- * form state, and the (still-mock) submit flow. T6 wires the scan half;
- * T7 will replace `submitFeedback` with a real POST /commuter/feedback.
+ * form state, and the (still-mock) submit flow. The scan half parses the
+ * permanent unit-QR JSON (printed inside the jeepney) and resolves today's
+ * crew; T7 will replace `submitFeedback` with a real POST /commuter/feedback.
  */
 export function useFeedback() {
   const [scanStatus, setScanStatus] = useState<ScanStatus>("scanning");
@@ -105,29 +106,36 @@ export function useFeedback() {
 
   // ─── Scan flow ──────────────────────────────────────────────
   /**
-   * Called by the QrScanner when a token is decoded (camera or manual).
-   * Runs validate() → scan() and surfaces typed errors.
+   * Called by the QrScanner when the permanent unit-QR is decoded (camera
+   * or manual). Parses the QR's JSON payload to extract the vehicleId, then
+   * resolves today's driver + conductor via POST /qr/scan-public.
+   *
+   * No signature/expiry check — the QR is permanent by design. The crew
+   * shown depends on who is assigned to the unit TODAY (the daily
+   * assignment recorded when the conductor logged in for the day).
    */
-  const handleToken = useCallback(async (token: string) => {
+  const handleToken = useCallback(async (raw: string) => {
     setScanError(null);
-    setScanStatus("verifying");
+
+    // 1. Parse the permanent unit-QR JSON → extract vehicleId.
+    //    Fail fast (no network) if it isn't a Chatco unit-QR.
+    let vehicleId: string;
     try {
-      // 1. Pre-check: signature + expiry. Cheap (no DB hit).
-      await validateQr(token);
+      vehicleId = parseUnitQr(raw);
     } catch (err) {
       const code: ScanErrorCode =
-        err instanceof QrFeedbackError ? err.code : "network";
+        err instanceof QrFeedbackError ? err.code : "invalid_format";
       const message =
-        err instanceof Error ? err.message : "QR token is not valid.";
+        err instanceof Error ? err.message : "This QR is not a Chatco unit QR.";
       setScanError({ code, message });
       setScanStatus("error");
       return;
     }
 
+    // 2. Resolve today's driver + conductor from shift_logs.
     setScanStatus("resolving");
     try {
-      // 2. Resolve today's driver + conductor from shift_logs.
-      const scanned: ScannedCrew = await scanQr(token);
+      const scanned: ScannedCrew = await scanPublic(vehicleId);
       setCrew({
         shiftId: scanned.shiftId,
         driverId: scanned.driverId,
@@ -150,7 +158,7 @@ export function useFeedback() {
       const message =
         err instanceof Error
           ? err.message
-          : "Unable to resolve crew from QR token.";
+          : "Unable to resolve crew for this unit.";
       setScanError({ code, message });
       setScanStatus("error");
     }

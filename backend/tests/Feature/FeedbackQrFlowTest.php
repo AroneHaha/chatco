@@ -431,4 +431,83 @@ class FeedbackQrFlowTest extends TestCase
 
         $response->assertStatus(401);
     }
+
+    // ── POST /qr/scan-public (COMMUTER) — permanent unit-QR ──────
+
+    /**
+     * The permanent unit-QR flow: the commuter scans the QR printed inside
+     * the jeepney, the frontend extracts the vehicle_id, and this endpoint
+     * resolves TODAY's driver + conductor from shift_logs — the daily
+     * assignment recorded when the conductor logged in for the day.
+     */
+    public function test_scan_public_resolves_today_crew(): void
+    {
+        $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+            ->postJson('/api/v1/qr/scan-public', [
+                'vehicle_id' => $this->vehicle->id,
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.shift_id', $this->shift->shift_id)
+            ->assertJsonPath('data.vehicle_id', $this->vehicle->id)
+            ->assertJsonPath('data.driver_id', $this->driver->id)
+            ->assertJsonPath('data.driver_name', 'Test Driver')
+            ->assertJsonPath('data.conductor_id', $this->conductor->id)
+            ->assertJsonPath('data.conductor_name', 'Test Conductor')
+            ->assertJsonPath('data.unit_number', $this->vehicle->unit_number)
+            ->assertJsonPath('data.plate_number', $this->vehicle->plate_number);
+    }
+
+    public function test_scan_public_returns_404_when_no_shift_today(): void
+    {
+        // A vehicle with no shift_logs row for today.
+        $otherVehicle = Vehicle::factory()->create();
+
+        $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+            ->postJson('/api/v1/qr/scan-public', [
+                'vehicle_id' => $otherVehicle->id,
+            ]);
+
+        $response->assertStatus(404)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('message', 'No active crew for this unit today');
+    }
+
+    public function test_scan_public_rejects_missing_vehicle_id(): void
+    {
+        $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+            ->postJson('/api/v1/qr/scan-public', []);
+
+        $response->assertStatus(422);
+    }
+
+    public function test_scan_public_rejects_nonexistent_vehicle(): void
+    {
+        $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+            ->postJson('/api/v1/qr/scan-public', [
+                'vehicle_id' => '00000000-0000-0000-0000-000000000000',
+            ]);
+
+        $response->assertStatus(422);
+    }
+
+    public function test_admin_cannot_scan_public(): void
+    {
+        $response = $this->withHeader('Authorization', 'Bearer ' . $this->adminToken())
+            ->postJson('/api/v1/qr/scan-public', [
+                'vehicle_id' => $this->vehicle->id,
+            ]);
+
+        $response->assertStatus(403);
+    }
+
+    public function test_scan_public_requires_authentication(): void
+    {
+        $response = $this->postJson('/api/v1/qr/scan-public', [
+            'vehicle_id' => $this->vehicle->id,
+        ]);
+
+        $response->assertStatus(401);
+    }
 }
