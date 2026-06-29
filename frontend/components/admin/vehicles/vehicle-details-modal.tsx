@@ -19,7 +19,7 @@ import {
   Users,
 } from 'lucide-react';
 import {
-  get as getVehicle,
+  list as listVehicles,
   type AdminVehicle,
   type VehiclePerson,
 } from '@/lib/admin/services/vehicle.service';
@@ -109,13 +109,23 @@ export function VehicleDetailsModal({ isOpen, vehicleId, onClose }: VehicleDetai
   const [error, setError] = useState<string | null>(null);
   const qrWrapperRef = useRef<HTMLDivElement>(null);
 
+  // We fetch via the LIST endpoint (GET /api/admin/vehicles) and find the
+  // matching record by id, because the backend doesn't expose a dedicated
+  // GET /admin/vehicles/{id} (show) route yet — only list/create/update/
+  // delete. The list response already eager-loads route + driver +
+  // conductor, so it has everything the modal needs. For a typical fleet
+  // (tens of vehicles) this is a single fast request.
   const load = useCallback(async (id: string) => {
     setIsLoading(true);
     setError(null);
     setVehicle(null);
     try {
-      const v = await getVehicle(id);
-      setVehicle(v);
+      const result = await listVehicles({ perPage: 200 });
+      const found = result.vehicles.find((v) => v.id === id);
+      if (!found) {
+        throw new Error('Vehicle not found. It may have been removed.');
+      }
+      setVehicle(found);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load vehicle details.');
     } finally {
