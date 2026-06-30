@@ -151,6 +151,41 @@ class FeedbackService
     }
 
     /**
+     * List the authenticated commuter's OWN feedback, newest first.
+     *
+     * Used by GET /commuter/feedback (S6-T7 commuter ride-history flow). The
+     * commuter opens the Payment History modal → the frontend fetches this
+     * list once → builds a {shift_id → feedback} map → marks each PAID ride
+     * row as "Feedback submitted" (read-only) or "Leave Feedback" (submit).
+     *
+     * Lightweight: returns only the feedback columns (no eager-loaded staff
+     * names — the ride row already carries conductor_name + unit_number from
+     * the payment history, so the read-only modal has everything it needs).
+     *
+     * @param  User  $commuter  The authenticated commuter (auth()->id()).
+     * @param  int   $perPage   Page size (clamped 1–100 by the controller).
+     */
+    public function listForCommuter(User $commuter, int $perPage = 20): array
+    {
+        $paginator = Feedback::where('commuter_id', $commuter->id)
+            ->orderByDesc('created_at')
+            ->paginate($perPage);
+
+        /** @var LengthAwarePaginator $paginator */
+        return [
+            'feedback'   => $paginator->items(),
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page'     => $paginator->perPage(),
+                'total'        => $paginator->total(),
+                'last_page'    => $paginator->lastPage(),
+                'from'         => $paginator->firstItem(),
+                'to'           => $paginator->lastItem(),
+            ],
+        ];
+    }
+
+    /**
      * Build the paginated + summary response shape shared by both
      * listForConductor() and listForDriver().
      *

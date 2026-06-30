@@ -8,6 +8,7 @@ use App\Services\FeedbackService;
 use App\Support\Feedback\FeedbackException;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 /**
  * Sprint 6 — Commuter feedback submission.
@@ -44,5 +45,31 @@ class FeedbackController extends Controller
         }
 
         return $this->successResponse($feedback, 'Feedback submitted', 201);
+    }
+
+    /**
+     * GET /api/v1/commuter/feedback — the authenticated commuter's own
+     * feedback history (newest first), paginated.
+     *
+     * Sprint 6 (S6-T7) — powers the commuter ride-history "Leave Feedback" /
+     * "View Feedback" flow. The frontend fetches this once when the Payment
+     * History modal opens, builds a {shift_id → feedback} map, and uses it to
+     * (a) mark each PAID ride row as already-feedback-submitted, and (b)
+     * populate the read-only feedback modal when the commuter reopens it.
+     *
+     * The commuter_id is ALWAYS auth()->id() — never read from the query — so
+     * a commuter can only ever see their own feedback. Role enforcement
+     * (COMMUTER only) is inherited from the /commuter route group.
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $perPage = max(1, min((int) $request->query('per_page', 20), 100));
+
+        $result = $this->feedbackService->listForCommuter(
+            $request->user(),
+            $perPage
+        );
+
+        return $this->successResponse($result, 'Feedback history retrieved');
     }
 }

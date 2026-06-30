@@ -66,6 +66,13 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
     // one-feedback-per-shift at the DB level.
     Route::post('/feedback', [FeedbackController::class, 'store'])->middleware('throttle:commuter-hail');
 
+    // Feedback history (S6-T7) — the commuter's OWN feedback, newest first.
+    // Powers the ride-history "Leave Feedback" / "View Feedback" flow: the
+    // frontend fetches this once, builds a {shift_id → feedback} map, and
+    // marks each PAID ride accordingly. Read-throttled (conductor-read =
+    // 60/min). commuter_id is always auth()->id() server-side.
+    Route::get('/feedback', [FeedbackController::class, 'index'])->middleware('throttle:conductor-read');
+
     // SOS alert (S6-T5) — commuter triggers an emergency alert with lat/lng.
     // Strictly rate-limited at 1/min per commuter (throttle:sos) to prevent
     // abuse. Admins acknowledge + resolve via /admin/sos endpoints.

@@ -34,7 +34,10 @@ export const COMMUTER_API = {
     claim: "/api/commuter/lost-found/claim",
   },
   feedback: {
+    /** POST — submit a rating (+ optional comment) for a ride's shift_id (S6-T7). */
     submit: "/api/commuter/feedback",
+    /** GET — the commuter's own feedback history, for the read-only "View Feedback" state (S6-T7). */
+    history: "/api/commuter/feedback/history",
   },
   /**
    * Sprint 6 — Feedback Unit-QR resolution layer (S6-T6 frontend wiring).
