@@ -193,10 +193,16 @@ export async function submit(params: {
   shiftId: string;
   rating: number;
   comment?: string;
+  /**
+   * Optional category label (max 50 chars per backend StoreFeedbackRequest).
+   * The QR-scan feedback page sends the commuter's selected tag labels
+   * joined here; the ride-history modal leaves it null.
+   */
+  category?: string;
   /** Accepted for API symmetry with the S6-T7 spec; NOT forwarded (server-derived). */
   conductorId?: string;
 }): Promise<Feedback> {
-  const { shiftId, rating, comment } = params;
+  const { shiftId, rating, comment, category } = params;
 
   try {
     const response = await api.post<ApiResponseEnvelope<RawFeedback>>(
@@ -206,6 +212,8 @@ export async function submit(params: {
         rating,
         // Omit comment entirely when empty so the backend treats it as null.
         ...(comment && comment.trim() ? { comment: comment.trim() } : {}),
+        // Omit category when empty so the backend treats it as null.
+        ...(category && category.trim() ? { category: category.trim() } : {}),
       }
     );
 

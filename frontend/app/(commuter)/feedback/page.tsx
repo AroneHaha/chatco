@@ -7,8 +7,8 @@ import { QrScanner } from "@/components/commuter/feedback/qr-scanner";
 import { AlertTriangle, RotateCcw } from "lucide-react";
 
 /**
- * Sprint 6 — Commuter Feedback page (S6-T6 scan flow wired; S6-T7 will
- * wire the actual feedback submission to POST /commuter/feedback).
+ * Sprint 6 — Commuter Feedback page (S6-T6 scan + S6-T7 submit, both
+ * wired to the real backend).
  *
  * State machine (driven by `scanStatus` from useFeedback):
  *   scanning   → QrScanner component (camera + manual entry)
@@ -17,8 +17,10 @@ import { AlertTriangle, RotateCcw } from "lucide-react";
  *   error      → typed error message + "Try again" button
  *   resolved   → driver card + rating/tags/comment form (existing UI)
  *
- * On submit success (mock for now — T7 will wire), shows the existing
- * success state with a 3-second countdown back to /dashboard.
+ * On submit success (real POST /commuter/feedback → 201), shows the
+ * success state with a 3-second countdown back to /dashboard. On submit
+ * error (409 already-submitted / 422 validation / network), surfaces an
+ * inline error banner above the submit button.
  */
 export default function FeedbackPage() {
   const router = useRouter();
@@ -40,6 +42,7 @@ export default function FeedbackPage() {
     setComment,
     isSubmitting,
     isSubmitted,
+    submitError,
     submitFeedback,
   } = useFeedback();
 
@@ -270,6 +273,21 @@ export default function FeedbackPage() {
           )}
 
           {/* Submit Button */}
+          {rating > 0 && selectedTags.length > 0 && (
+            submitError && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 flex items-start gap-2 animate-fade-in">
+                <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                <p className="text-red-400 text-xs font-medium leading-relaxed">
+                  {submitError.code === "already_submitted"
+                    ? "You already left feedback for this ride today. Scan another unit to rate a different ride."
+                    : submitError.code === "unauthenticated"
+                      ? "Your session has expired. Please log in again."
+                      : submitError.message}
+                </p>
+              </div>
+            )
+          )}
+
           {rating > 0 && (
             <button
               onClick={submitFeedback}

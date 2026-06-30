@@ -6,6 +6,11 @@ import {
   type ScannedCrew,
   type QrFeedbackErrorCode,
 } from "@/lib/commuter/services/qr-feedback.service";
+import {
+  submit as submitFeedbackApi,
+  FeedbackOperationError,
+  type FeedbackErrorCode,
+} from "@/lib/commuter/services/feedback.service";
 
 // ─── View-model ────────────────────────────────────────────────────
 
@@ -49,6 +54,19 @@ export interface ScanError {
   message: string;
 }
 
+/**
+ * Inline error from the feedback SUBMIT call (POST /commuter/feedback).
+ *
+ * Mirrors the scan error shape so the page can render both with the same
+ * helper. `already_submitted` (409) is the common case — the commuter
+ * already rated this shift today — and the page surfaces a friendly message
+ * + offers "Scan another unit".
+ */
+export interface SubmitError {
+  code: FeedbackErrorCode;
+  message: string;
+}
+
 // ─── Tag presets (kept from the previous mock hook) ────────────────
 const POSITIVE_TAGS = [
   "Safe Driving",
@@ -74,18 +92,21 @@ const NEGATIVE_TAGS = [
 // ─── Hook ──────────────────────────────────────────────────────────
 
 /**
- * Sprint 6 — Commuter feedback flow hook (S6-T6 scan half wired; S6-T7
- * will wire the actual submitFeedback to the real backend).
+ * Sprint 6 — Commuter feedback flow hook (S6-T6 scan + S6-T7 submit, both
+ * wired to the real backend).
  *
  * State machine:
- *   scanning → resolving → resolved
- *        ↓         ↓
- *      error ← ← ←  (any failure)
+ *   scanning → resolving → resolved → (submit) → submitted
+ *        ↓         ↓                      ↓
+ *      error ← ← ←  (any failure)      submitError (inline)
  *
  * The hook owns: scan status, crew data, scan error, rating/tags/comment
- * form state, and the (still-mock) submit flow. The scan half parses the
- * permanent unit-QR JSON (printed inside the jeepney) and resolves today's
- * crew; T7 will replace `submitFeedback` with a real POST /commuter/feedback.
+ * form state, and the submit flow. The scan half parses the permanent
+ * unit-QR JSON (printed inside the jeepney) and resolves today's crew via
+ * POST /qr/scan-public. The submit half POSTs { shift_id, rating, comment?,
+ * category? } to /commuter/feedback — the backend derives driver_id +
+ * conductor_id + vehicle_id from the shift_log, so feedback lands on BOTH
+ * the driver's and conductor's profiles for today's ride on that unit.
  */
 export function useFeedback() {
   const [scanStatus, setScanStatus] = useState<ScanStatus>("scanning");
@@ -101,6 +122,7 @@ export function useFeedback() {
   const [comment, setComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState<SubmitError | null>(null);
 
   const activeTags = rating >= 4 ? POSITIVE_TAGS : NEGATIVE_TAGS;
 
@@ -188,15 +210,51 @@ export function useFeedback() {
     setSelectedTags([]); // Reset tags when rating changes
   };
 
-  // ⚠️ MOCK SUBMIT — T7 will replace this with a real POST /commuter/feedback
-  // using `crew.shiftId` + `rating` + `comment`. Kept as a placeholder so
-  // the existing form UI continues to function end-to-end.
+  /**
+   * Submit the commuter's feedback to POST /api/v1/commuter/feedback.
+   *
+   * Sends { shift_id, rating, comment?, category? }. The backend derives
+   * driver_id + conductor_id + vehicle_id from the shift_log row (never
+   * trusts client input for those), so the feedback is stamped to BOTH the
+   * driver's and conductor's profiles — the daily crew registered on the
+   * unit for today.
+   *
+   * `category` carries the selected tag labels (comma-joined, truncated to
+   * the backend's max:50) so the tag selection isn't lost.
+   *
+   * On 201 → flip to the success state (countdown back to /dashboard).
+   * On 409 (already_submitted) → inline error; the commuter can scan
+   * another unit. On 422 → inline validation message. On 401 → inline
+   * "session expired" (the page's scan-error helper already handles
+   * redirect-worthy codes for the scan half; submit errors surface inline).
+   */
   const submitFeedback = async () => {
     if (!crew || rating === 0) return;
     setIsSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    setIsSubmitting(false);
-    setIsSubmitted(true);
+    setSubmitError(null);
+    try {
+      await submitFeedbackApi({
+        shiftId: crew.shiftId,
+        rating,
+        comment: comment.trim() || undefined,
+        category:
+          selectedTags.length > 0
+            ? selectedTags.join(", ").slice(0, 50)
+            : undefined,
+      });
+      setIsSubmitted(true);
+    } catch (err) {
+      if (err instanceof FeedbackOperationError) {
+        setSubmitError({ code: err.code, message: err.message });
+      } else {
+        setSubmitError({
+          code: "network",
+          message: err instanceof Error ? err.message : "Unable to submit feedback.",
+        });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return {
@@ -219,6 +277,7 @@ export function useFeedback() {
     // submit state
     isSubmitting,
     isSubmitted,
+    submitError,
     submitFeedback,
   };
 }
