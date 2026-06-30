@@ -4,7 +4,7 @@
 
 export type ItemCategory = 'ACCESSORY' | 'BAG' | 'WALLET' | 'GADGET' | 'CLOTHING' | 'DOCUMENT' | 'OTHER';
 
-export type ItemStatus = 'Unmatched' | 'Claimed' | 'Released' | 'Returned' | 'Rejected';
+export type ItemStatus = 'Unmatched' | 'Claimed' | 'Released' | 'Returned' | 'Rejected' | 'Closed';
 
 export type ClaimStatus = 'Pending' | 'Approved' | 'Rejected' | 'Released' | 'Returned';
 
@@ -25,13 +25,15 @@ export interface LostFoundItem {
 }
 
 export interface Claim {
-  id: number;
+  id: string;
   itemId: string;
   claimantName: string;
   claimantContact: string;
   claimantEmail?: string;
   claimDate: string;
   status: ClaimStatus;
+  /** The commuter's proof-of-ownership description (admin review only). */
+  proof?: string;
 }
 
 export interface HistoryEvent {
@@ -85,9 +87,9 @@ export const initialLostFoundItems: LostFoundItem[] = [
 ];
 
 export const initialClaims: Claim[] = [
-  { id: 1, itemId: "lf_001", claimantName: "John Doe", claimantContact: "0917-123-4567", claimDate: "2026-04-07 09:00 AM", status: "Pending" },
-  { id: 2, itemId: "lf_002", claimantName: "Jane Smith", claimantContact: "0918-234-5678", claimDate: "2026-04-06 10:30 AM", status: "Approved" },
-  { id: 3, itemId: "lf_003", claimantName: "Fake Claimant", claimantContact: "0920-456-7890", claimDate: "2026-04-06 11:00 AM", status: "Rejected" },
+  { id: "claim-1", itemId: "lf_001", claimantName: "John Doe", claimantContact: "0917-123-4567", claimDate: "2026-04-07 09:00 AM", status: "Pending" },
+  { id: "claim-2", itemId: "lf_002", claimantName: "Jane Smith", claimantContact: "0918-234-5678", claimDate: "2026-04-06 10:30 AM", status: "Approved" },
+  { id: "claim-3", itemId: "lf_003", claimantName: "Fake Claimant", claimantContact: "0920-456-7890", claimDate: "2026-04-06 11:00 AM", status: "Rejected" },
 ];
 
 export const initialHistoryLog: HistoryEvent[] = [

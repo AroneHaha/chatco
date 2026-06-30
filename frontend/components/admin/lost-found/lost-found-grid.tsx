@@ -1,16 +1,17 @@
 // components/admin/lost-found/lost-found-grid.tsx
 import { Badge } from '@/components/admin/ui/badge';
-import { Eye, History, List } from 'lucide-react';
+import { Eye, List, CheckCircle } from 'lucide-react';
 import type { LostFoundItem } from '@/app/(admin)/lost-found/data/lost-found-data';
 
 interface LostFoundGridProps {
   items: LostFoundItem[];
   onViewClaims: (itemId: string) => void;
-  onViewHistory: (itemId: string) => void;
   onViewDetails: (itemId: string) => void;
+  onClose?: (itemId: string) => void;
+  isActing?: boolean;
 }
 
-export function LostFoundGrid({ items, onViewClaims, onViewHistory, onViewDetails }: LostFoundGridProps) {
+export function LostFoundGrid({ items, onViewClaims, onViewDetails, onClose, isActing }: LostFoundGridProps) {
   return (
     <>
       {items.map((item) => (
@@ -70,10 +71,17 @@ export function LostFoundGrid({ items, onViewClaims, onViewHistory, onViewDetail
               <List size={16} />
               <span className="lg:hidden">Claims</span>
             </button>
-            <button onClick={() => onViewHistory(item.id)} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-slate-300 hover:bg-white/10 hover:text-white text-xs font-medium transition-colors active:scale-95" title="View History">
-              <History size={16} />
-              <span className="lg:hidden">History</span>
-            </button>
+            {onClose && item.status === 'Released' && (
+              <button
+                onClick={() => onClose(item.id)}
+                disabled={isActing}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-md text-emerald-300 hover:bg-emerald-500/10 hover:text-emerald-200 text-xs font-medium transition-colors active:scale-95 disabled:opacity-50"
+                title="Close item (finalize handover)"
+              >
+                <CheckCircle size={16} />
+                <span className="lg:hidden">Close</span>
+              </button>
+            )}
           </div>
         </div>
       ))}
