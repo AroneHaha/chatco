@@ -8,10 +8,16 @@ import { useMonitoringData, type DemandZone } from './data/data-monitoring';
 import { SkeletonMetric, SkeletonTable, SkeletonMap } from '@/components/admin/ui/skeleton';
 
 // Dynamically import the map and disable SSR (Leaflet requires the window object)
+interface SosMapAlert {
+  coordinates: [number, number];
+  commuter: string;
+  approximate: boolean;
+}
+
 interface CommuterMapProps {
   isDesktop?: boolean;
   demandZones: DemandZone[];
-  sosLocations: [number, number][];
+  sosAlerts: SosMapAlert[];
 }
 
 const CommuterMap = dynamic<CommuterMapProps>(() => import('@/components/admin/admin-commuter-map'), {
@@ -164,7 +170,17 @@ export default function MonitoringPage() {
                       <p className="text-sm text-slate-300 mt-1">
                         Commuter: <span className="font-medium text-white">{alert.commuter}</span>
                       </p>
-                      <p className="text-xs text-slate-500 mt-1 font-mono">Coords: {alert.coordinates[0].toFixed(5)}, {alert.coordinates[1].toFixed(5)}</p>
+                      <p className="text-xs text-slate-500 mt-1 font-mono flex items-center gap-2">
+                        Coords: {alert.coordinates[0].toFixed(5)}, {alert.coordinates[1].toFixed(5)}
+                        {alert.approximate && (
+                          <span className="inline-flex items-center gap-1 text-amber-400 bg-amber-400/10 border border-amber-400/30 rounded-full px-2 py-0.5 text-[10px] font-medium">
+                            <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                            </svg>
+                            Approximate
+                          </span>
+                        )}
+                      </p>
                       <div className="flex items-center gap-3 text-xs text-slate-500 mt-2">
                         <span className="flex items-center">
                           <Clock size={12} className="mr-1" />
@@ -217,7 +233,7 @@ export default function MonitoringPage() {
         <CommuterMap
           isDesktop={true}
           demandZones={data.demandZones}
-          sosLocations={sosAlerts.map(a => a.coordinates)}
+          sosAlerts={sosAlerts.map(a => ({ coordinates: a.coordinates, commuter: a.commuter, approximate: a.approximate }))}
         />
       </div>
 

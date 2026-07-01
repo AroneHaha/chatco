@@ -26,6 +26,7 @@ export interface SosAlert {
   time: string;
   triggeredDate: string;
   coordinates: [number, number];
+  approximate: boolean;
   status: "ACTIVE" | "ACKNOWLEDGED" | "RESOLVED";
   acknowledgedAt: string | null;
   createdAt: string;
@@ -39,6 +40,7 @@ export interface SosHistoryLog {
   resolvedAt: string;
   triggeredDate: string;
   coordinates: [number, number];
+  approximate: boolean;
 }
 
 export interface OverspeedLog {
@@ -129,6 +131,7 @@ interface BackendAlert {
   commuterName: string;
   lat: number;
   lng: number;
+  approximate: boolean;
   message: string | null;
   status: "ACTIVE" | "ACKNOWLEDGED" | "RESOLVED";
   acknowledgedAt: string | null;
@@ -144,6 +147,7 @@ function mapAlert(raw: BackendAlert): SosAlert {
     time: formatRelativeTime(raw.createdAt),
     triggeredDate: dateKey(raw.createdAt),
     coordinates: [raw.lat, raw.lng],
+    approximate: raw.approximate ?? false,
     status: raw.status,
     acknowledgedAt: raw.acknowledgedAt,
     createdAt: raw.createdAt,
@@ -159,6 +163,7 @@ function mapHistory(raw: BackendAlert): SosHistoryLog {
     resolvedAt: raw.resolvedAt ? formatAbsoluteTime(raw.resolvedAt) : "—",
     triggeredDate: dateKey(raw.createdAt),
     coordinates: [raw.lat, raw.lng],
+    approximate: raw.approximate ?? false,
   };
 }
 

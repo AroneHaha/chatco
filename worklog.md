@@ -855,3 +855,34 @@ Stage Summary:
 - All 10 Sprint 5 commits (S5-T5/T7/T8/T9/T10/T11) now live on dev
 - Sprint 5 backend integration is complete; frontend wired to real backend across commuter profile + admin users + admin vehicles
 - Test status at merge time: 241/242 backend (1 pre-existing GCash), 0 frontend lint errors
+
+---
+Task ID: S6-SOS-FIX
+Agent: main
+Task: User reported: "when i click the sos on commuter account, it does nott reflect on admin side and it does nott show the location of commuter who send the sos to the mmap on monitoring module" — fix the commuter→admin SOS flow and push.
+
+Work Log:
+- Investigated the full SOS chain: commuter modal (sos-modal.tsx) → POST /api/commuter/sos → DB (SosAlert) → admin hook polls GET /api/admin/sos → monitoring page renders alert card + map marker.
+- Found root cause: the commuter SOS modal used navigator.geolocation.getCurrentPosition with NO fallback. In the cloud-sandbox preview (no GPS), geolocation fails (permission denied / timeout) → modal shows error screen → POST is NEVER sent → no alert created → admin sees nothing, no marker on map.
+- Fix 1 (sos-modal.tsx): Extracted sendSos(lat, lng, approximate) callback. On GPS failure (denied/unavailable/timeout), fall back to DEFAULT_LOCATION (14.8434, 120.875 — Meycauayan, route centre) and still send the POST. Added isApproximate state + "Approximate location (GPS unavailable)" badge on the active screen. Reduced GPS timeout 10s→6s for faster fallback.
+- Fix 2 (schema + all 5 SOS API routes): Added `approximate Boolean @default(false)` to SosAlert model. Ran `prisma db push`. Updated commuter POST route to accept + store `approximate`. Updated admin GET, commuter GET [id], admin acknowledge, admin resolve routes to return `approximate` in serialized output.
+- Fix 3 (admin monitoring data hook): Added `approximate` to SosAlert + SosHistoryLog + BackendAlert interfaces, mapped it through mapAlert/mapHistory.
+- Fix 4 (admin monitoring page): Added "Approximate" amber badge to the alert card (next to coords). Changed map prop from `sosLocations: [number,number][]` to `sosAlerts: {coordinates, commuter, approximate}[]`.
+- Fix 5 (admin-commuter-map.tsx): SOS marker now renders with a pulsing red icon (zIndexOffset 1500) + a rich popup showing commuter name, coords, and an "Approx" badge + "GPS was unavailable — location is an estimate" note when approximate.
+- Fix 6 (admin SOS GET route): Changed `?status=ACTIVE` to return BOTH ACTIVE + ACKNOWLEDGED alerts (all unresolved). Previously, acknowledging an alert removed it from the feed on the next 5s poll, so the admin couldn't click "Confirm & Resolve". Now acknowledged alerts stay visible until resolved.
+- Lint: 0 errors in all modified files (pre-existing errors in untouched files remain).
+- Browser-verified end-to-end with agent-browser (2 sessions: commuter + admin):
+  - Commuter login → dashboard → click SOS → "Send SOS" → GPS fails → fallback → modal shows "SOS IS ACTIVE" + "Approximate location" badge ✅
+  - Admin login → /monitoring → "Active SOS Alerts" panel shows alert with commuter name "Arone Dela Cruz", coords, "Approximate" badge ✅
+  - SOS marker (red pulsing) appears on the map ✅ (sosMarkerCount: 1)
+  - Admin clicks "Acknowledge" → commuter modal switches to "Signal Received" (RESPONDED) ✅
+  - After 7s poll, acknowledged alert STAYS on admin feed with "Acknowledged" badge + "Confirm & Resolve" button ✅ (the fix)
+  - Admin clicks "Confirm & Resolve" → alert moves to SOS History, marker removed from map, Active SOS metric → 0 ✅
+
+Stage Summary:
+- Root cause: geolocation failure in cloud sandbox blocked the SOS POST from ever being sent.
+- Fix: GPS fallback to default route-centre coordinate + approximate flag end-to-end (modal → API → DB → admin feed → map).
+- Bonus fix: acknowledged alerts now stay on the admin monitoring feed until resolved (previously disappeared on next poll).
+- All 6 fixes browser-verified end-to-end: commuter SOS → admin sees alert + map marker → acknowledge → commuter gets response → resolve → moves to history.
+- 11 files modified: sos-modal.tsx, schema.prisma, 5 API routes, data-monitoring.ts, monitoring/page.tsx, admin-commuter-map.tsx, db/custom.db.
+- NOTE: The SOS code lives on the `main` branch (Z.ai sandbox Next.js project, src/ structure), NOT on the `arone` branch (which is the separate chatco Laravel/frontend project with no common ancestor). Pushed to origin/main.

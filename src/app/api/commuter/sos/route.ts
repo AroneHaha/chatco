@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   const commuter = auth.user;
 
   // ── Parse + validate body ──
-  let body: { lat?: unknown; lng?: unknown; message?: unknown };
+  let body: { lat?: unknown; lng?: unknown; message?: unknown; approximate?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { lat, lng, message } = body;
+  const { lat, lng, message, approximate } = body;
   if (
     typeof lat !== "number" ||
     typeof lng !== "number" ||
@@ -63,6 +63,9 @@ export async function POST(request: Request) {
 
   const messageStr =
     typeof message === "string" ? message.trim().slice(0, 500) : null;
+  // `approximate` is true when the commuter's GPS was unavailable and the
+  // client fell back to a default route-centre coordinate. Defaults to false.
+  const approximateBool = approximate === true;
 
   // ── One active SOS per commuter ──
   const existing = await db.sosAlert.findFirst({
@@ -85,6 +88,7 @@ export async function POST(request: Request) {
       commuterName: nameFor(commuter.id),
       lat,
       lng,
+      approximate: approximateBool,
       message: messageStr,
       status: "ACTIVE",
     },
@@ -99,6 +103,7 @@ function serializeAlert(a: {
   commuterName: string;
   lat: number;
   lng: number;
+  approximate: boolean;
   message: string | null;
   status: string;
   acknowledgedBy: string | null;
@@ -113,6 +118,7 @@ function serializeAlert(a: {
     commuterName: a.commuterName,
     lat: a.lat,
     lng: a.lng,
+    approximate: a.approximate,
     message: a.message,
     status: a.status as "ACTIVE" | "ACKNOWLEDGED" | "RESOLVED",
     acknowledgedAt: a.acknowledgedAt?.toISOString() ?? null,

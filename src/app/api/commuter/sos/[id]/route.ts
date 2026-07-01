@@ -47,6 +47,7 @@ export async function GET(
       commuterName: alert.commuterName,
       lat: alert.lat,
       lng: alert.lng,
+      approximate: alert.approximate,
       message: alert.message,
       status: alert.status as "ACTIVE" | "ACKNOWLEDGED" | "RESOLVED",
       acknowledgedAt: alert.acknowledgedAt?.toISOString() ?? null,

@@ -32,6 +32,12 @@ export interface DemandZone {
   intensity: 'LOW' | 'MEDIUM' | 'HIGH';
 }
 
+export interface SosMapAlert {
+  coordinates: [number, number];
+  commuter: string;
+  approximate: boolean;
+}
+
 // --- 2. ROUTE DATA (static geometry — stays) ---
 const ROUTE_COORDS: [number, number][] = [
   [14.925460996033356, 120.76512235423647], [14.92420402124189, 120.76528787872712],
@@ -179,18 +185,18 @@ function LocationFinder({
 }
 
 // --- 4. MAIN COMPONENT ---
-export default function AdminCommuterMap({ 
-  isDesktop = false, 
+export default function AdminCommuterMap({
+  isDesktop = false,
   vehicles = [],
   commuters = [],
   demandZones = [],
-  sosLocations 
-}: { 
+  sosAlerts = []
+}: {
   isDesktop?: boolean;
   vehicles?: ActiveVehicle[];
   commuters?: CommuterData[];
   demandZones?: DemandZone[];
-  sosLocations?: [number, number][];
+  sosAlerts?: SosMapAlert[];
 }) {
   const [isDomReady, setIsDomReady] = useState(false);
   const [userActualLocation, setUserActualLocation] = useState<[number, number] | null>(null);
@@ -302,15 +308,31 @@ export default function AdminCommuterMap({
         })}
 
         {/* --- SOS LOCATIONS --- */}
-        {sosLocations && sosLocations.map((loc, idx) => (
-          <Marker key={`sos-${idx}`} position={loc} icon={new L.DivIcon({
+        {sosAlerts && sosAlerts.map((alert, idx) => (
+          <Marker key={`sos-${idx}`} position={alert.coordinates} icon={new L.DivIcon({
             className: 'custom-sos-icon',
-            html: `<div style="width:24px;height:24px;background:#ef4444;border:3px solid white;border-radius:50%;box-shadow:0 0 12px rgba(239,68,68,0.8);"></div>`,
+            html: `<div style="position:relative;width:24px;height:24px;">
+                     <div style="position:absolute;inset:-6px;background:rgba(239,68,68,0.3);border-radius:50%;animation:pulse 1.5s infinite;"></div>
+                     <div style="position:relative;width:24px;height:24px;background:#ef4444;border:3px solid white;border-radius:50%;box-shadow:0 0 12px rgba(239,68,68,0.9);"></div>
+                   </div>`,
             iconSize: [24, 24], iconAnchor: [12, 12]
-          })}>
+          })} zIndexOffset={1500}>
             <Popup>
-              <div className="font-bold text-red-600 text-sm">SOS Location</div>
-              <div className="text-xs text-gray-500">Coords: {loc[0]}, {loc[1]}</div>
+              <div className="space-y-1 min-w-[180px]">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-red-600 text-sm">SOS Alert</span>
+                  {alert.approximate && (
+                    <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-300">Approx</span>
+                  )}
+                </div>
+                <div className="text-xs text-gray-700"><span className="font-medium">Commuter:</span> {alert.commuter}</div>
+                <div className="text-xs text-gray-500 font-mono">Coords: {alert.coordinates[0].toFixed(5)}, {alert.coordinates[1].toFixed(5)}</div>
+                {alert.approximate && (
+                  <div className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1">
+                    GPS was unavailable — location is an estimate.
+                  </div>
+                )}
+              </div>
             </Popup>
           </Marker>
         ))}

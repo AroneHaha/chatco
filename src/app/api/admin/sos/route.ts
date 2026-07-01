@@ -5,7 +5,13 @@
 //   GET /api/admin/sos?status=ACTIVE
 //     - Auth: role ADMIN
 //     - Returns SOS alerts, newest first.
-//     - status filter: ACTIVE (default) | ACKNOWLEDGED | RESOLVED | ALL
+//     - status filter:
+//         ACTIVE (default) → all UNRESOLVED alerts (ACTIVE + ACKNOWLEDGED),
+//                            so the admin can still see acknowledged alerts
+//                            to click "Confirm & Resolve"
+//         ACKNOWLEDGED     → only ACKNOWLEDGED
+//         RESOLVED         → only RESOLVED (used for the SOS History panel)
+//         ALL              → everything
 //
 // The admin monitoring page polls this every 5s and renders each active alert
 // as a card + a marker on the live map.
@@ -21,8 +27,15 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const statusParam = (searchParams.get("status") ?? "ACTIVE").toUpperCase();
 
+  // "ACTIVE" is treated as "all unresolved" (ACTIVE + ACKNOWLEDGED) so the
+  // admin feed keeps an alert visible after it's acknowledged — until it is
+  // resolved and moves to the SOS History panel.
   const where =
-    statusParam === "ALL" ? {} : { status: statusParam };
+    statusParam === "ALL"
+      ? {}
+      : statusParam === "ACTIVE"
+      ? { status: { in: ["ACTIVE", "ACKNOWLEDGED"] } }
+      : { status: statusParam };
 
   const alerts = await db.sosAlert.findMany({
     where,
@@ -37,6 +50,7 @@ export async function GET(request: Request) {
       commuterName: a.commuterName,
       lat: a.lat,
       lng: a.lng,
+      approximate: a.approximate,
       message: a.message,
       status: a.status as "ACTIVE" | "ACKNOWLEDGED" | "RESOLVED",
       acknowledgedBy: a.acknowledgedBy,

@@ -6,11 +6,17 @@
 //
 // Flow:
 //   confirming  -> user taps "Send SOS"
-//   locating    -> navigator.geolocation.getCurrentPosition (high accuracy, 10s)
-//   sending     -> POST /api/commuter/sos { lat, lng }
+//   locating    -> navigator.geolocation.getCurrentPosition (high accuracy, 6s)
+//   sending     -> POST /api/commuter/sos { lat, lng, approximate }
 //   active      -> polling GET /api/commuter/sos/{id} every 3s, waiting for admin
 //   responded   -> admin acknowledged/resolved -> success screen
-//   error       -> geolocation denied/failed OR network/API error
+//   error       -> network/API error only (GPS failure falls back to default)
+//
+// GPS FALLBACK: If geolocation is unavailable/denied/times out (common in
+// desktop/cloud-preview environments), the SOS is still sent using a default
+// route-centre coordinate so the alert always reaches the admin and a marker
+// always appears on the monitoring map. The `approximate` flag is passed to
+// the backend so the admin feed can badge it.
 //
 // State transitions are one-way except for a "Try again" button on the error
 // screen which returns to `confirming`. The screen is locked (no backdrop
@@ -43,6 +49,10 @@ interface AlertPayload {
 
 const POLL_INTERVAL_MS = 3000;
 
+// Default fallback coordinate — Meycauayan area, central on the CHATCO route.
+// Used only when the device GPS is unavailable so the SOS still goes through.
+const DEFAULT_LOCATION: { lat: number; lng: number } = { lat: 14.8434, lng: 120.875 };
+
 export default function SosModal({
   commuterId: _commuterId,
   commuterName: _commuterName,
@@ -52,6 +62,8 @@ export default function SosModal({
   const [activeSeconds, setActiveSeconds] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [alertId, setAlertId] = useState<string | null>(null);
+  // True when the SOS was sent with the fallback coordinate (GPS unavailable).
+  const [isApproximate, setIsApproximate] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -115,86 +127,94 @@ export default function SosModal({
   // Clean up everything on unmount.
   useEffect(() => stopPolling, [stopPolling]);
 
+  // ── Send the SOS to the backend ──
+  // Extracted so both the GPS-success path and the GPS-failure fallback can
+  // reuse it. `approximate` is true when the coordinates came from the
+  // fallback (GPS unavailable) so the backend + admin feed can badge it.
+  const sendSos = useCallback(
+    async (lat: number, lng: number, approximate: boolean) => {
+      setStatus("sending");
+      setIsApproximate(approximate);
+      try {
+        const res = await fetch("/api/commuter/sos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ lat, lng, approximate }),
+        });
+
+        if (res.status === 401) {
+          setStatus("error");
+          setErrorMessage("Your session has expired. Please log in again to send an SOS.");
+          return;
+        }
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setStatus("error");
+          setErrorMessage(data.message ?? "Unable to send the SOS signal. Please try again.");
+          return;
+        }
+
+        const data = await res.json();
+        const alert: AlertPayload | undefined = data.alert;
+        if (!alert) {
+          setStatus("error");
+          setErrorMessage("The server did not return an alert. Please try again.");
+          return;
+        }
+
+        // If the admin already responded to a resumed alert, skip straight to responded.
+        if (alert.status === "ACKNOWLEDGED" || alert.status === "RESOLVED") {
+          setStatus("responded");
+          return;
+        }
+
+        setAlertId(alert.id);
+        setStatus("active");
+      } catch {
+        setStatus("error");
+        setErrorMessage("Network error. Please check your connection and try again.");
+      }
+    },
+    []
+  );
+
   // ── Trigger: capture GPS, POST, go active ──
+  // GPS failure is NOT fatal — we fall back to a default route-centre
+  // coordinate so the distress signal always reaches the admin. This is
+  // essential for desktop/cloud-preview environments where geolocation is
+  // unavailable, and for devices with location services disabled. The
+  // `approximate` flag is forwarded so the admin knows the location is
+  // estimated.
   const handleActivate = useCallback(() => {
     setStatus("locating");
     setErrorMessage("");
 
+    // No geolocation API at all → send with the fallback immediately.
     if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setStatus("error");
-      setErrorMessage(
-        "Geolocation is not supported by your browser. Please use a different device or call the emergency hotline directly."
-      );
+      void sendSos(DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng, true);
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
-      async (position) => {
+      (position) => {
         const { latitude, longitude } = position.coords;
-        setStatus("sending");
-        try {
-          const res = await fetch("/api/commuter/sos", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ lat: latitude, lng: longitude }),
-          });
-
-          if (res.status === 401) {
-            setStatus("error");
-            setErrorMessage("Your session has expired. Please log in again to send an SOS.");
-            return;
-          }
-          if (!res.ok) {
-            const data = await res.json().catch(() => ({}));
-            setStatus("error");
-            setErrorMessage(data.message ?? "Unable to send the SOS signal. Please try again.");
-            return;
-          }
-
-          const data = await res.json();
-          const alert: AlertPayload | undefined = data.alert;
-          if (!alert) {
-            setStatus("error");
-            setErrorMessage("The server did not return an alert. Please try again.");
-            return;
-          }
-
-          // If the admin already responded to a resumed alert, skip straight to responded.
-          if (alert.status === "ACKNOWLEDGED" || alert.status === "RESOLVED") {
-            setStatus("responded");
-            return;
-          }
-
-          setAlertId(alert.id);
-          setStatus("active");
-        } catch {
-          setStatus("error");
-          setErrorMessage("Network error. Please check your connection and try again.");
-        }
+        void sendSos(latitude, longitude, false);
       },
-      (err) => {
-        setStatus("error");
-        if (err.code === err.PERMISSION_DENIED) {
-          setErrorMessage(
-            "Location access was denied. Please enable location services in your browser settings to send an SOS."
-          );
-        } else if (err.code === err.POSITION_UNAVAILABLE) {
-          setErrorMessage("Your current location is unavailable. Please try again from an open area.");
-        } else if (err.code === err.TIMEOUT) {
-          setErrorMessage("Location request timed out. Please try again.");
-        } else {
-          setErrorMessage("Unable to determine your location. Please try again.");
-        }
+      () => {
+        // GPS denied / unavailable / timed out → fall back to default.
+        // The SOS must still go through so the admin is notified.
+        void sendSos(DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng, true);
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
     );
-  }, []);
+  }, [sendSos]);
 
   const handleRetry = () => {
     setErrorMessage("");
     setAlertId(null);
     setActiveSeconds(0);
+    setIsApproximate(false);
     setStatus("confirming");
   };
 
@@ -322,6 +342,15 @@ export default function SosModal({
             <p className="text-xs text-gray-400 leading-relaxed max-w-[250px] mx-auto">
               Please keep the app open. This screen will automatically update once the admin responds.
             </p>
+
+            {isApproximate && (
+              <p className="mt-4 inline-flex items-center gap-1.5 text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                </svg>
+                Approximate location (GPS unavailable)
+              </p>
+            )}
           </div>
         )}
 

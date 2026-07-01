@@ -42,6 +42,10 @@ model SosAlert {
   // GPS coordinates captured on the commuter device at trigger time.
   lat            Float
   lng            Float
+  // True when the coordinates are a fallback (GPS was unavailable/denied/
+  // timed out). The admin feed badges these so respondents know the location
+  // is an estimate, not a precise pin.
+  approximate    Boolean   @default(false)
   // Optional free-form note from the commuter.
   message        String?
   // ACTIVE -> ACKNOWLEDGED -> RESOLVED

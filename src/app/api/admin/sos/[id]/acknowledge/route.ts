@@ -58,6 +58,7 @@ function serialize(a: {
   commuterName: string;
   lat: number;
   lng: number;
+  approximate: boolean;
   message: string | null;
   status: string;
   acknowledgedBy: string | null;
@@ -72,6 +73,7 @@ function serialize(a: {
     commuterName: a.commuterName,
     lat: a.lat,
     lng: a.lng,
+    approximate: a.approximate,
     message: a.message,
     status: a.status as "ACTIVE" | "ACKNOWLEDGED" | "RESOLVED",
     acknowledgedBy: a.acknowledgedBy,
