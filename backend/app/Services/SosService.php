@@ -53,6 +53,31 @@ class SosService
     }
 
     /**
+     * Commuter fetches their own alert by ID (for polling status changes).
+     *
+     * Scoped to the authenticated commuter's profile — a commuter cannot
+     * read another commuter's alert. Used by the commuter SOS modal to
+     * detect when the admin acknowledges / resolves the alert so the UI
+     * can flip to the "responded" screen.
+     *
+     * @throws \RuntimeException  Profile not found, or alert not found.
+     */
+    public function findForCommuter(User $commuter, string $id): SosAlert
+    {
+        $profile = $commuter->commuterProfile;
+        if (! $profile) {
+            throw new \RuntimeException('Commuter profile not found');
+        }
+
+        $alert = SosAlert::where('commuter_id', $profile->id)->find($id);
+        if (! $alert) {
+            throw new \RuntimeException('SOS alert not found');
+        }
+
+        return $alert->load('commuter');
+    }
+
+    /**
      * Admin list — paginated. Eager-loads commuter for name display.
      *
      * The status filter is owned by the controller (which defaults to ACTIVE

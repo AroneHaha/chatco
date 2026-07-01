@@ -39,9 +39,13 @@ export const ADMIN_API = {
     update: (id: string) => `/api/admin/lost-found/${id}`,
   },
   monitoring: {
-    live: "/api/admin/monitoring/live",
-    sos: "/api/admin/monitoring/sos",
-    resolveSos: (id: string) => `/api/admin/monitoring/sos/${id}/resolve`,
+    live: "/api/admin/monitoring",
+    /** GET — active SOS feed (polls every 5s). Use ?status=RESOLVED for history. */
+    sos: "/api/admin/sos",
+    /** PATCH — acknowledge an active SOS (ACTIVE → ACKNOWLEDGED). */
+    acknowledgeSos: (id: string) => `/api/admin/sos/${encodeURIComponent(id)}/acknowledge`,
+    /** PATCH — resolve an SOS (any → RESOLVED, terminal). */
+    resolveSos: (id: string) => `/api/admin/sos/${encodeURIComponent(id)}/resolve`,
     overspeed: "/api/admin/monitoring/overspeed",
     demandZones: "/api/admin/monitoring/demand-zones",
   },

@@ -78,6 +78,11 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
     // abuse. Admins acknowledge + resolve via /admin/sos endpoints.
     Route::post('/sos', [SosController::class, 'trigger'])->middleware('throttle:sos');
 
+    // SOS status poll (S6-T10) — commuter polls their own alert to detect
+    // when the admin acknowledges / resolves. Read-throttled (60/min) so the
+    // modal can poll every 3s. Scoped to auth commuter in the service.
+    Route::get('/sos/{id}', [SosController::class, 'show'])->middleware('throttle:conductor-read');
+
     // Lost & Found watchlist (S6-T3) — commuter's bookmarked items.
     // The browse + claim + watchlist toggle endpoints live in the shared
     // /lost-found group (any auth role for browse, COMMUTER for claim/watch).

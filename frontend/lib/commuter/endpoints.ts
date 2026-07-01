@@ -55,6 +55,9 @@ export const COMMUTER_API = {
     scanPublic: "/api/qr/scan-public",
   },
   sos: {
+    /** POST — trigger a new emergency SOS alert with lat/lng (S6-T10). */
     create: "/api/commuter/sos",
+    /** GET — poll the commuter's own alert status (ACTIVE/ACKNOWLEDGED/RESOLVED). */
+    status: (id: string) => `/api/commuter/sos/${encodeURIComponent(id)}`,
   },
 } as const;
