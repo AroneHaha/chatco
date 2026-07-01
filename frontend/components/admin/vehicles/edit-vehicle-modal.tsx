@@ -3,24 +3,12 @@
 
 import { useState, useEffect } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
+import { Info, User, UserCheck } from 'lucide-react';
 import type { Vehicle } from '@/app/(admin)/vehicles/data/vehicles-data';
 
 interface Route {
   id: string;
   name: string;
-}
-
-interface Driver {
-  id: string;
-  first_name: string;
-  last_name: string;
-  vehicle_id: string | null;
-}
-
-interface Conductor {
-  id: string;
-  first_name: string;
-  last_name: string;
 }
 
 interface EditVehicleModalProps {
@@ -32,72 +20,64 @@ interface EditVehicleModalProps {
   editingVehicle: Vehicle | null;
 }
 
-// Reverse-map frontend status label -> Laravel enum value.
-const STATUS_TO_LARAVEL: Record<Vehicle['status'], string> = {
-  'Operating': 'ACTIVE',
-  'Under Maintenance': 'MAINTENANCE',
-  'Out of Service / Damaged': 'INACTIVE',
-};
+// Reverse-map Laravel enum value -> frontend status label.
 const STATUS_FROM_LARAVEL: Record<string, Vehicle['status']> = {
   'ACTIVE': 'Operating',
   'MAINTENANCE': 'Under Maintenance',
   'INACTIVE': 'Out of Service / Damaged',
 };
 
+/**
+ * Edit Vehicle modal.
+ *
+ * Only the vehicle's own attributes (unit number, plate, route, status) are
+ * editable. Driver and conductor are shown as READ-ONLY current-assignment
+ * info — they are managed exclusively by the conductor login / EOD workflow
+ * to preserve a single source of truth and prevent conflicting manual edits.
+ */
 export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: EditVehicleModalProps) {
   const [formData, setFormData] = useState({
     unit_number: '',
     plate_number: '',
     route_id: '',
-    driver_id: '',
-    conductor_id: '',
     status: 'ACTIVE' as string,
   });
 
   // Hold the raw API record (with nested driver/conductor/route objects) so
-  // we can pre-populate driver/conductor dropdowns with the currently-assigned
-  // person even if they're already on another vehicle in the broader list.
+  // we can display the current assignment read-only and source the canonical
+  // UUID for the PUT.
   const [rawVehicle, setRawVehicle] = useState<Record<string, unknown> | null>(null);
-  // The canonical UUID to use for the PUT — sourced from the raw API record
-  // (more reliable than editingVehicle.id, which may be missing if the table
-  // mapping couldn't extract it).
   const [canonicalId, setCanonicalId] = useState<string>('');
 
+  // Current assignment display values (read-only).
+  const [currentDriverName, setCurrentDriverName] = useState<string | null>(null);
+  const [currentConductorName, setCurrentConductorName] = useState<string | null>(null);
+
   const [routes, setRoutes] = useState<Route[]>([]);
-  const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [conductors, setConductors] = useState<Conductor[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingMeta, setIsLoadingMeta] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
-  // Fetch all metadata + the raw vehicle record (so we get nested driver/conductor IDs).
+  // Fetch routes + the raw vehicle record (for canonical ID + current
+  // assignment display). Drivers/conductors are no longer fetched —
+  // assignment is read-only and managed by the conductor workflow.
   useEffect(() => {
     if (!isOpen || !editingVehicle) return;
 
     setIsLoadingMeta(true);
     setError(null);
 
-    // Debug log — helps diagnose "Vehicle ID is missing" errors.
-    console.log('[EditVehicleModal] opened with editingVehicle:', editingVehicle);
-
     Promise.all([
       fetch('/api/admin/routes').then(r => r.json()),
-      fetch('/api/admin/drivers').then(r => r.json()),
       fetch('/api/admin/vehicles').then(r => r.json()),
-    ]).then(([routesRes, driversRes, vehiclesRes]) => {
+    ]).then(([routesRes, vehiclesRes]) => {
       setRoutes(routesRes.data ?? []);
 
-      // Drivers: include the currently-assigned one + all unassigned.
-      const allDrivers: Driver[] = driversRes.data ?? [];
       const allVehicles: Record<string, unknown>[] = (vehiclesRes.data?.data ?? vehiclesRes.data ?? []) as Record<string, unknown>[];
 
-      // Debug log — see what the API actually returns.
-      console.log('[EditVehicleModal] allVehicles sample:', allVehicles[0]);
-
       // Find the matching raw vehicle. Try by ID first, then fall back to
-      // plate_number (which is also unique). This handles the case where
-      // editingVehicle.id is missing but plateNumber is present.
+      // plate_number (which is also unique).
       let currentVehicleRaw = allVehicles.find(
         v => String(v.id) === editingVehicle.id
       ) ?? null;
@@ -106,54 +86,33 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
         currentVehicleRaw = allVehicles.find(
           v => String(v.plate_number) === editingVehicle.plateNumber
         ) ?? null;
-        if (currentVehicleRaw) {
-          console.log('[EditVehicleModal] found vehicle by plate_number fallback, id =', currentVehicleRaw.id);
-        }
       }
 
       setRawVehicle(currentVehicleRaw);
 
-      // Set the canonical ID from the raw record — this is what we'll use for the PUT.
       const rawId = currentVehicleRaw ? String(currentVehicleRaw.id ?? '') : '';
       setCanonicalId(rawId);
-      console.log('[EditVehicleModal] canonicalId set to:', rawId);
 
-      const currentDriverId = currentVehicleRaw
-        ? String((currentVehicleRaw.driver as Record<string, unknown> | null)?.id ?? '')
-        : '';
-      setDrivers(allDrivers.filter(d => !d.vehicle_id || d.id === currentDriverId));
+      // Extract current assignment names (read-only display).
+      const drv = currentVehicleRaw?.driver as Record<string, unknown> | null | undefined;
+      const con = currentVehicleRaw?.conductor as Record<string, unknown> | null | undefined;
+      setCurrentDriverName(
+        drv ? `${drv.first_name ?? ''} ${drv.last_name ?? ''}`.trim() || null : null
+      );
+      setCurrentConductorName(
+        con ? `${con.first_name ?? ''} ${con.last_name ?? ''}`.trim() || null : null
+      );
 
-      // Conductors: extract unique conductors from existing vehicles (same logic as add modal).
-      const conductorMap = new Map<string, Conductor>();
-      allVehicles.forEach((v) => {
-        const c = v.conductor as Record<string, unknown> | null;
-        if (c && !conductorMap.has(String(c.id))) {
-          conductorMap.set(String(c.id), {
-            id: String(c.id),
-            first_name: String(c.first_name ?? ''),
-            last_name: String(c.last_name ?? ''),
-          });
-        }
-      });
-      setConductors(Array.from(conductorMap.values()));
-
-      // Pre-populate form fields from raw API record (so we get IDs, not display names).
+      // Pre-populate editable form fields from raw API record.
       if (currentVehicleRaw) {
-        const drv = currentVehicleRaw.driver as Record<string, unknown> | null;
-        const con = currentVehicleRaw.conductor as Record<string, unknown> | null;
         const rte = currentVehicleRaw.route as Record<string, unknown> | null;
-        const apiStatus = String(currentVehicleRaw.status ?? 'ACTIVE');
-
         setFormData({
           unit_number: String(currentVehicleRaw.unit_number ?? ''),
           plate_number: String(currentVehicleRaw.plate_number ?? ''),
           route_id: rte ? String(rte.id) : '',
-          driver_id: drv ? String(drv.id) : '',
-          conductor_id: con ? String(con.id) : '',
-          status: apiStatus,
+          status: String(currentVehicleRaw.status ?? 'ACTIVE'),
         });
       } else {
-        // Couldn't find the vehicle in the API response — show a clear error.
         setError(
           `Could not find this vehicle in the database. ` +
           `editingVehicle.id="${editingVehicle.id}", ` +
@@ -178,16 +137,8 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
 
     if (!editingVehicle) return;
 
-    // Use canonicalId (from raw API record) as primary, editingVehicle.id as fallback.
-    // This handles the case where the table row's id is missing/empty but the
-    // modal successfully fetched the raw vehicle by plate_number.
     const vehicleId = canonicalId || editingVehicle.id;
 
-    console.log('[EditVehicleModal] handleSubmit — canonicalId:', canonicalId, 'editingVehicle.id:', editingVehicle.id, 'using:', vehicleId);
-
-    // Hard guard: never send a PUT if the vehicle ID is missing or literally
-    // the string "undefined". This prevents the Laravel 404
-    // "No query results for model [App\\Models\\Vehicle] undefined".
     if (!vehicleId || vehicleId === 'undefined') {
       setError(
         `Vehicle ID is missing. canonicalId="${canonicalId}", ` +
@@ -213,11 +164,12 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
         unit_number: formData.unit_number,
         plate_number: formData.plate_number,
         route_id: formData.route_id,
-        driver_id: formData.driver_id || null,
-        conductor_id: formData.conductor_id || null,
         status: formData.status,
+        // NOTE: driver_id and conductor_id are intentionally NOT sent.
+        // Assignment is managed exclusively by the conductor login / EOD
+        // workflow — manual admin editing is disabled to preserve a single
+        // source of truth and prevent conflicting assignments.
       };
-      console.log('[EditVehicleModal] PUT request body:', requestBody);
 
       const res = await fetch(`/api/admin/vehicles/${vehicleId}`, {
         method: 'PUT',
@@ -225,19 +177,14 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
         body: JSON.stringify(requestBody),
       });
 
-      console.log('[EditVehicleModal] PUT response status:', res.status, 'ok:', res.ok);
-
       const data = await res.json();
-      console.log('[EditVehicleModal] PUT response body:', data);
 
       if (!res.ok) {
-        // Laravel 422: { message, errors: { field: ["msg", ...] } }
         if (res.status === 422 && data.errors) {
           setFieldErrors(data.errors);
           const firstError = Object.values(data.errors)[0]?.[0] ?? 'Validation failed.';
           throw new Error(firstError);
         }
-        // For any other error, show the full response so we can diagnose.
         const msg = data.message ?? `Failed to update vehicle (HTTP ${res.status})`;
         throw new Error(msg);
       }
@@ -245,7 +192,6 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
       onSaved();
       onClose();
     } catch (err) {
-      console.error('[EditVehicleModal] PUT failed:', err);
       setError(err instanceof Error ? err.message : 'Failed to update vehicle');
     } finally {
       setIsSubmitting(false);
@@ -357,46 +303,39 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
           )}
         </div>
 
-        <div>
-          <label htmlFor="edit-driver_id" className="block text-xs font-medium text-slate-300 mb-1.5">Assign Driver</label>
-          <select
-            id="edit-driver_id"
-            name="driver_id"
-            value={formData.driver_id}
-            onChange={handleChange}
-            disabled={isLoadingMeta || isSubmitting}
-            className={`${inputClasses} [color-scheme:dark]`}
-          >
-            <option value="" className="bg-gray-800">-- Unassign Driver --</option>
-            {drivers.map(d => (
-              <option key={d.id} value={d.id} className="bg-gray-800">
-                {d.first_name} {d.last_name}{d.vehicle_id && d.id !== formData.driver_id ? ' (currently on another vehicle)' : ''}
-              </option>
-            ))}
-          </select>
-          {drivers.length === 0 && <p className="text-xs text-amber-400 mt-1">No available drivers</p>}
+        {/* ─── Read-only current assignment ───
+            Driver/conductor are managed by the conductor login workflow,
+            not by manual admin editing. Shown here for visibility only. */}
+        <div className="space-y-2 pt-2">
+          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Current Assignment</p>
+
+          <div className="flex items-center gap-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md px-3.5 py-2.5">
+            <User size={16} className="text-slate-400 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider">Driver</p>
+              <p className={`text-sm font-medium truncate ${currentDriverName ? 'text-white' : 'text-slate-500 italic'}`}>
+                {currentDriverName || 'Unassigned'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md px-3.5 py-2.5">
+            <UserCheck size={16} className="text-slate-400 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider">Conductor</p>
+              <p className={`text-sm font-medium truncate ${currentConductorName ? 'text-white' : 'text-slate-500 italic'}`}>
+                {currentConductorName || 'Unassigned'}
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div>
-          <label htmlFor="edit-conductor_id" className="block text-xs font-medium text-slate-300 mb-1.5">Assign Conductor</label>
-          <select
-            id="edit-conductor_id"
-            name="conductor_id"
-            value={formData.conductor_id}
-            onChange={handleChange}
-            disabled={isLoadingMeta || isSubmitting}
-            className={`${inputClasses} [color-scheme:dark]`}
-          >
-            <option value="" className="bg-gray-800">-- Unassign Conductor --</option>
-            {conductors.map(c => (
-              <option key={c.id} value={c.id} className="bg-gray-800">{c.first_name} {c.last_name}</option>
-            ))}
-          </select>
-          {conductors.length === 0 && (
-            <p className="text-xs text-slate-500 mt-1">
-              No conductor profiles exist yet. Create one with the "Conductor Account" button.
-            </p>
-          )}
+        <div className="flex items-start gap-2.5 bg-[#62A0EA]/8 border border-[#62A0EA]/20 rounded-md px-3.5 py-2.5">
+          <Info size={15} className="text-[#62A0EA] flex-shrink-0 mt-0.5" />
+          <p className="text-[11px] text-slate-300 leading-relaxed">
+            Driver and conductor are assigned automatically when a conductor logs in and starts a
+            shift, and cleared after their End-of-Day remittance. They cannot be edited manually.
+          </p>
         </div>
 
         <div className="flex justify-end gap-2 pt-4 border-t border-[#1E2D45]">
