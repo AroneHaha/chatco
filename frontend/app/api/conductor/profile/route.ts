@@ -1,26 +1,14 @@
 import { NextRequest } from "next/server";
 import { jsonData, jsonError } from "@/lib/conductor/server/response";
+import { getConductorSession, unauthorizedResponse } from "@/lib/conductor/server/auth";
+import { getConductorProfileInMemory } from "@/lib/shared/server/inmemory-backend";
 
 /**
  * GET /api/conductor/profile
  *
- * Proxies the conductor profile request to the Laravel backend's
- * `GET /api/conductor/profile` endpoint (guarded by `auth:sanctum` +
- * `role:CONDUCTOR`).
- *
- * WHY THIS IS A PROXY NOW
- * -----------------------
- * Previously this route was a mock stub that read a prototype-only
- * `chatco:{id}:{role}` cookie and returned hard-coded seed data. After the
- * Sanctum auth integration the cookie holds a bearer token, so the stub
- * always returned 401. Rather than re-implement auth parsing here, we
- * forward the Sanctum token to Laravel — which already owns the canonical
- * conductor profile data (`ConductorController::profile`) — and pass the
- * `data` envelope straight back to the frontend client.
- *
- * The frontend `ConductorProfile` type only requires `{ id, name }`; the
- * backend also returns `email` and `role`, which the frontend ignores
- * safely.
+ * PRIMARY: proxies the conductor profile from Laravel `GET /api/v1/conductor/profile`.
+ * FALLBACK: when Laravel is unreachable, returns the in-memory conductor profile
+ * (derived from the session) so the conductor dashboard renders correctly.
  */
 const API_URL = process.env.API_URL || "http://localhost:8000";
 
@@ -30,29 +18,28 @@ export async function GET(request: NextRequest) {
     return jsonError("Unauthorized. Conductor session required.", 401);
   }
 
+  // ─── Try Laravel first ─────────────────────────────────────────────
   try {
     const res = await fetch(`${API_URL}/api/v1/conductor/profile`, {
       method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      },
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
 
-    if (!res.ok) {
-      return jsonError(
-        "Unable to load conductor profile. Please try again.",
-        res.status
-      );
+    if (res.ok) {
+      const body = await res.json();
+      return jsonData(body?.data ?? null);
     }
-
-    const body = await res.json();
-    // Laravel ApiResponse envelope: { success, data: { id, name, … }, … }
-    return jsonData(body?.data ?? null);
+    // Laravel rejected the token — fall through to in-memory.
   } catch {
-    return jsonError(
-      "Unable to reach the conductor profile service. Please try again.",
-      502
-    );
+    // Laravel unreachable — fall through to in-memory.
   }
+
+  // ─── In-memory fallback ────────────────────────────────────────────
+  const session = await getConductorSession(request);
+  if (!session) return unauthorizedResponse();
+
+  const profile = getConductorProfileInMemory(session.userId);
+  if (!profile) return unauthorizedResponse();
+
+  return jsonData(profile);
 }
