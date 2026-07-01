@@ -1,0 +1,472 @@
+     1→"use client";
+     2→
+     3→import { useState, useCallback } from "react";
+     4→import dynamic from "next/dynamic";
+     5→import type { NearbyVehicle, GpsStatus } from "@/lib/shared/geo/nearby-detector";
+     6→import { useAuth } from "@/contexts/auth-context";
+     7→
+     8→import PaymentHistoryModal from "@/components/commuter/modals/payment-history-modal";
+     9→import ShareRideModal from "@/components/commuter/modals/share-ride-modal";
+    10→import SosModal from "@/components/commuter/modals/sos-modal";
+    11→
+    12→const CommuterMap = dynamic(
+    13→  () => import("@/components/commuter/commuter-map/commuter-map"),
+    14→  { ssr: false, loading: () => <div className="absolute inset-0 bg-[#050F1A]" /> }
+    15→);
+    16→
+    17→const ScanModal = dynamic(
+    18→  () => import("@/components/commuter/modals/scan-modal"),
+    19→  { ssr: false }
+    20→);
+    21→
+    22→export default function CommuterHome() {
+    23→  const { user, commuterProfile, isLoading: authLoading } = useAuth();
+    24→
+    25→  const [showScan, setShowScan] = useState(false);
+    26→  const [showHistory, setShowHistory] = useState(false);
+    27→  const [showShareRide, setShowShareRide] = useState(false);
+    28→  const [showSOS, setShowSOS] = useState(false);
+    29→
+    30→  const [isHailing, setIsHailing] = useState(false);
+    31→  const [showSheet, setShowSheet] = useState(true);
+    32→
+    33→  // ─── CONDUCTOR RADIUS + GPS TRACKING ────────────────────────────────
+    34→  const [nearbyVehicles, setNearbyVehicles] = useState<NearbyVehicle[]>([]);
+    35→  const [gpsStatus, setGpsStatus] = useState<GpsStatus>("loading");
+    36→
+    37→  // canHail requires BOTH: GPS available AND commuter within conductor radius
+    38→  const canHail = gpsStatus === "available" && nearbyVehicles.length > 0;
+    39→  const nearestVehicle = canHail ? nearbyVehicles[0] : null;
+    40→
+    41→  const handleNearbyVehiclesChange = useCallback((vehicles: NearbyVehicle[], status: GpsStatus) => {
+    42→    setNearbyVehicles(vehicles);
+    43→    setGpsStatus(status);
+    44→  }, []);
+    45→
+    46→  const handleHailToggle = () => {
+    47→    if (!isHailing && !canHail) return;
+    48→    setIsHailing(!isHailing);
+    49→  };
+    50→
+    51→  // ─── Derive display values from auth context ────────────────────────
+    52→  const displayName = commuterProfile?.firstName ?? user?.email?.split("@")[0] ?? "Commuter";
+    53→  const commuterType = commuterProfile?.commuterType ?? "REGULAR";
+    54→  const commuterId = commuterProfile?.id ?? user?.id ?? "unknown";
+    55→
+    56→  const quickActions = [
+    57→    {
+    58→      label: "Share Ride",
+    59→      iconPath:
+    60→        "M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z",
+    61→      action: () => setShowShareRide(true),
+    62→      isSos: false,
+    63→    },
+    64→    {
+    65→      label: "SOS",
+    66→      iconPath:
+    67→        "M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z",
+    68→      action: () => setShowSOS(true),
+    69→      isSos: true,
+    70→    },
+    71→  ];
+    72→
+    73→  // ─── Auth loading state ─────────────────────────────────────────────
+    74→  if (authLoading) {
+    75→    return (
+    76→      <div className="h-full w-full bg-[#050F1A] flex items-center justify-center">
+    77→        <div className="w-12 h-12 rounded-full border-4 border-[#1A5FB4] border-t-transparent animate-spin" />
+    78→      </div>
+    79→    );
+    80→  }
+    81→
+    82→  return (
+    83→    <div className="relative h-full w-full bg-[#050F1A]">
+    84→      {/* --- ACTUAL MAP --- */}
+    85→      <div className="absolute inset-0 z-0 lg:right-[336px] xl:right-[400px]">
+    86→        <CommuterMap onNearbyVehiclesChange={handleNearbyVehiclesChange} />
+    87→      </div>
+    88→
+    89→      {/* ========================================== */}
+    90→      {/* --- MOBILE UI (Hidden on Desktop) --- */}
+    91→      {/* ========================================== */}
+    92→      <div className="lg:hidden absolute top-0 inset-x-0 z-20 p-4 flex items-center justify-between pointer-events-none">
+    93→        <div className="pointer-events-auto bg-black/40 backdrop-blur-md rounded-2xl px-4 py-3 border border-white/10">
+    94→          <h1 className="text-white font-bold text-base">
+    95→            Good morning, {displayName}!
+    96→          </h1>
+    97→          <span className="text-[10px] font-semibold text-[#62A0EA] bg-[#62A0EA]/10 px-2 py-0.5 rounded-full mt-1 inline-block">
+    98→            {commuterType === "REGULAR" ? "Regular" : commuterType === "STUDENT" ? "Student" : commuterType === "SENIOR_CITIZEN" ? "Senior Citizen" : commuterType === "PWD" ? "PWD" : commuterType}
+    99→          </span>
+   100→        </div>
+   101→        <div className="pointer-events-auto w-10 h-10 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold shadow-lg border-2 border-white/20">
+   102→          {displayName[0]}
+   103→        </div>
+   104→      </div>
+   105→
+   106→      <div
+   107→        className={`lg:hidden absolute bottom-0 inset-x-0 z-20 bg-[#071A2E] rounded-t-3xl border-t border-white/10 transition-transform duration-300 ease-in-out ${
+   108→          showSheet ? "translate-y-0" : "translate-y-[calc(80%-64px)]"
+   109→        }`}
+   110→      >
+   111→        <div className="absolute -top-23 right-4 z-30">
+   112→          <button
+   113→            onClick={handleHailToggle}
+   114→            disabled={!isHailing && !canHail}
+   115→            className={`w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 border-4 ${
+   116→              isHailing
+   117→                ? "bg-red-500 border-red-300 shadow-red-500/50 animate-bounce"
+   118→                : canHail
+   119→                  ? "bg-[#FF6D3A] border-[#FF9A76] hover:bg-[#e55a2b] shadow-[#FF6D3A]/50"
+   120→                  : "bg-gray-600 border-gray-500 shadow-gray-600/30 opacity-50 cursor-not-allowed"
+   121→            }`}
+   122→          >
+   123→            {isHailing ? (
+   124→              <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+   125→                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+   126→              </svg>
+   127→            ) : (
+   128→              <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+   129→                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+   130→                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+   131→              </svg>
+   132→            )}
+   133→          </button>
+   134→          <span className="block text-center text-[10px] font-extrabold text-white mt-2 drop-shadow-lg uppercase tracking-wider">
+   135→            {isHailing ? "Cancel" : canHail ? "Hail Me" : gpsStatus === "loading" ? "Locating..." : gpsStatus === "denied" ? "No GPS" : "Too Far"}
+   136→          </span>
+   137→        </div>
+   138→        <div
+   139→          className="h-16 flex flex-col items-center justify-center cursor-pointer flex-shrink-0"
+   140→          onClick={() => setShowSheet(!showSheet)}
+   141→        >
+   142→          <div className={`w-10 h-1 rounded-full transition-colors duration-300 ${showSheet ? "bg-white/30" : "bg-white/60"}`} />
+   143→          {!showSheet && (
+   144→            <div className="flex items-center gap-1.5 mt-2 text-white/50">
+   145→              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+   146→                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+   147→              </svg>
+   148→              <span className="text-[10px] font-semibold uppercase tracking-wider">Tools</span>
+   149→            </div>
+   150→          )}
+   151→        </div>
+   152→        <div className="px-5 pb-24 overflow-y-auto max-h-[60vh]">
+   153→          {/* --- ETA / STATUS SECTION (Mobile) --- */}
+   154→          {gpsStatus === "loading" && (
+   155→            <div className="bg-white/5 border border-white/10 rounded-xl p-3 mb-3 flex items-center gap-2.5">
+   156→              <div className="w-4 h-4 rounded-full border-2 border-[#62A0EA] border-t-transparent animate-spin flex-shrink-0" />
+   157→              <span className="text-xs text-white/50">Locating you...</span>
+   158→            </div>
+   159→          )}
+   160→
+   161→          {gpsStatus === "denied" && (
+   162→            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 mb-3">
+   163→              <div className="flex items-center gap-2">
+   164→                <svg className="w-4 h-4 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+   165→                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+   166→                </svg>
+   167→                <span className="text-xs font-semibold text-red-400">Location access denied</span>
+   168→              </div>
+   169→              <p className="text-[10px] text-white/40 mt-1">Enable location to see ETA and hail vehicles.</p>
+   170→            </div>
+   171→          )}
+   172→
+   173→          {gpsStatus === "unavailable" && (
+   174→            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 mb-3">
+   175→              <div className="flex items-center gap-2">
+   176→                <svg className="w-4 h-4 text-yellow-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+   177→                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+   178→                </svg>
+   179→                <span className="text-xs font-semibold text-yellow-400">Location unavailable</span>
+   180→              </div>
+   181→              <p className="text-[10px] text-white/40 mt-1">GPS is not available on this device.</p>
+   182→            </div>
+   183→          )}
+   184→
+   185→          {gpsStatus === "available" && canHail && nearestVehicle && (
+   186→            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 mb-3">
+   187→              <div className="flex items-center justify-between">
+   188→                <div className="flex items-center gap-2">
+   189→                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+   190→                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Live</span>
+   191→                </div>
+   192→                <span className="text-lg font-extrabold text-white">~{nearestVehicle.estimatedArrivalMinutes} min</span>
+   193→              </div>
+   194→              <div className="flex items-center justify-between mt-1.5">
+   195→                <span className="text-[10px] text-white/40">{nearestVehicle.plateNumber}</span>
+   196→                <span className="text-[10px] text-white/50">{(nearestVehicle.distanceInMeters / 1000).toFixed(1)} km away</span>
+   197→              </div>
+   198→            </div>
+   199→          )}
+   200→
+   201→          {gpsStatus === "available" && !canHail && (
+   202→            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 mb-3">
+   203→              <div className="flex items-center gap-2">
+   204→                <svg className="w-4 h-4 text-yellow-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+   205→                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+   206→                </svg>
+   207→                <span className="text-xs font-semibold text-yellow-400">Outside service radius</span>
+   208→              </div>
+   209→              <p className="text-[10px] text-white/40 mt-1">Move within 1km of a conductor unit to hail.</p>
+   210→            </div>
+   211→          )}
+   212→
+   213→          {/* GCash Pay Card — commuter SCANS conductor's QR */}
+   214→          <div
+   215→            onClick={() => setShowScan(true)}
+   216→            className="relative rounded-2xl border border-white/10 bg-gradient-to-br from-[#1A5FB4] to-[#123B6E] overflow-hidden cursor-pointer hover:from-[#1E6BC6] hover:to-[#154782] active:scale-[0.98] transition-all shadow-lg shadow-[#1A5FB4]/20"
+   217→          >
+   218→            {/* Subtle decorative circle */}
+   219→            <div className="absolute top-0 right-0 w-40 h-40 bg-white/[0.04] rounded-full -translate-y-1/2 translate-x-1/3" />
+   220→            <div className="relative p-5 flex items-center gap-4">
+   221→              {/* QR Scan visual */}
+   222→              <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center flex-shrink-0 border border-white/10">
+   223→                <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+   224→                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" />
+   225→                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75ZM6.75 16.5h.75v.75h-.75v-.75ZM16.5 6.75h.75v.75h-.75v-.75ZM13.5 13.5h.75v.75h-.75v-.75ZM13.5 19.5h.75v.75h-.75v-.75ZM19.5 13.5h.75v.75h-.75v-.75ZM19.5 19.5h.75v.75h-.75v-.75ZM16.5 16.5h.75v.75h-.75v-.75Z" />
+   226→                </svg>
+   227→              </div>
+   228→              {/* Content */}
+   229→              <div className="flex-1 min-w-0">
+   230→                <div className="flex items-center justify-between">
+   231→                  <p className="text-white text-lg font-bold leading-tight">Pay with GCash</p>
+   232→                  <button
+   233→                    onClick={(e) => { e.stopPropagation(); setShowHistory(true); }}
+   234→                    className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors border border-white/10"
+   235→                    title="Payment History"
+   236→                  >
+   237→                    <svg className="w-4 h-4 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+   238→                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+   239→                    </svg>
+   240→                  </button>
+   241→                </div>
+   242→                <p className="text-white/50 text-[11px] mt-1 leading-snug">
+   243→                  Tap to scan conductor&apos;s QR code
+   244→                </p>
+   245→                <div className="flex items-center gap-1.5 mt-2.5">
+   246→                  <span className="inline-flex items-center gap-1 bg-white/15 backdrop-blur-sm text-white text-[10px] font-semibold py-1 px-2.5 rounded-full">
+   247→                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+   248→                      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 3.75H6A2.25 2.25 0 0 0 3.75 6v1.5M16.5 3.75H18A2.25 2.25 0 0 1 20.25 6v1.5m0 9V18A2.25 2.25 0 0 1 18 20.25h-1.5m-9 0H6A2.25 2.25 0 0 1 3.75 18v-1.5" />
+   249→                    </svg>
+   250→                    Scan to Pay
+   251→                  </span>
+   252→                </div>
+   253→              </div>
+   254→            </div>
+   255→          </div>
+   256→
+   257→          {/* Quick Actions Grid */}
+   258→          <div className="grid grid-cols-2 gap-3 mt-4">
+   259→            {quickActions.map((action) => (
+   260→              <button key={action.label} onClick={action.action} className={`flex items-center justify-center gap-2 py-2.5 rounded-xl transition-colors ${action.isSos ? "bg-red-500/10 hover:bg-red-500/20 border border-red-500/20" : "bg-white/5 hover:bg-white/10 border border-white/10"}`}>
+   261→                <svg className={`w-4 h-4 ${action.isSos ? "text-red-400" : "text-blue-300"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+   262→                  <path strokeLinecap="round" strokeLinejoin="round" d={action.iconPath} />
+   263→                </svg>
+   264→                <span className={`text-xs font-semibold ${action.isSos ? "text-red-400" : "text-white/70"}`}>{action.label}</span>
+   265→              </button>
+   266→            ))}
+   267→          </div>
+   268→        </div>
+   269→      </div>
+   270→
+   271→      {/* ========================================== */}
+   272→      {/* --- DESKTOP UI (Hidden on Mobile) --- */}
+   273→      {/* ========================================== */}
+   274→      <div className="hidden lg:flex absolute right-4 top-4 bottom-4 w-80 xl:w-96 z-20 bg-[#071A2E]/95 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl flex-col overflow-hidden">
+   275→        <div className="p-6 border-b border-white/10 flex items-center justify-between">
+   276→          <div>
+   277→            <h1 className="text-white font-bold text-lg">
+   278→              Good morning, {displayName}!
+   279→            </h1>
+   280→            <span className="text-xs font-semibold text-[#62A0EA] bg-[#62A0EA]/10 px-2 py-0.5 rounded-full mt-1 inline-block">
+   281→              {commuterType === "REGULAR" ? "Regular" : commuterType === "STUDENT" ? "Student" : commuterType === "SENIOR_CITIZEN" ? "Senior Citizen" : commuterType === "PWD" ? "PWD" : commuterType}
+   282→            </span>
+   283→          </div>
+   284→          <div className="w-11 h-11 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold shadow-lg border-2 border-white/20 text-base">
+   285→            {displayName[0]}
+   286→          </div>
+   287→        </div>
+   288→        <div className="flex-1 p-6 overflow-y-auto space-y-6">
+   289→          {/* GCash Pay Card — Desktop */}
+   290→          <div
+   291→            onClick={() => setShowScan(true)}
+   292→            className="relative rounded-2xl border border-white/10 bg-gradient-to-br from-[#1A5FB4] to-[#123B6E] overflow-hidden cursor-pointer hover:from-[#1E6BC6] hover:to-[#154782] active:scale-[0.98] transition-all shadow-lg shadow-[#1A5FB4]/20"
+   293→          >
+   294→            {/* Subtle decorative circle */}
+   295→            <div className="absolute top-0 right-0 w-40 h-40 bg-white/[0.04] rounded-full -translate-y-1/2 translate-x-1/3" />
+   296→            <div className="relative p-5 flex items-center gap-5">
+   297→              {/* QR Scan visual */}
+   298→              <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center flex-shrink-0 border border-white/10">
+   299→                <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+   300→                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" />
+   301→                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75ZM6.75 16.5h.75v.75h-.75v-.75ZM16.5 6.75h.75v.75h-.75v-.75ZM13.5 13.5h.75v.75h-.75v-.75ZM13.5 19.5h.75v.75h-.75v-.75ZM19.5 13.5h.75v.75h-.75v-.75ZM19.5 19.5h.75v.75h-.75v-.75ZM16.5 16.5h.75v.75h-.75v-.75Z" />
+   302→                </svg>
+   303→              </div>
+   304→              {/* Content */}
+   305→              <div className="flex-1 min-w-0">
+   306→                <div className="flex items-center justify-between">
+   307→                  <p className="text-white text-lg font-bold leading-tight">Pay with GCash</p>
+   308→                  <button
+   309→                    onClick={(e) => { e.stopPropagation(); setShowHistory(true); }}
+   310→                    className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors border border-white/10"
+   311→                    title="Payment History"
+   312→                  >
+   313→                    <svg className="w-4 h-4 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+   314→                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+   315→                    </svg>
+   316→                  </button>
+   317→                </div>
+   318→                <p className="text-white/50 text-xs mt-1 leading-snug">
+   319→                  Tap to scan conductor&apos;s QR code
+   320→                </p>
+   321→                <div className="flex items-center gap-1.5 mt-3">
+   322→                  <span className="inline-flex items-center gap-1.5 bg-white/15 backdrop-blur-sm text-white text-xs font-semibold py-1.5 px-3 rounded-full">
+   323→                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+   324→                      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 3.75H6A2.25 2.25 0 0 0 3.75 6v1.5M16.5 3.75H18A2.25 2.25 0 0 1 20.25 6v1.5m0 9V18A2.25 2.25 0 0 1 18 20.25h-1.5m-9 0H6A2.25 2.25 0 0 1 3.75 18v-1.5" />
+   325→                    </svg>
+   326→                    Scan to Pay
+   327→                  </span>
+   328→                </div>
+   329→              </div>
+   330→            </div>
+   331→          </div>
+   332→
+   333→          {/* --- ETA / STATUS SECTION (Desktop) --- */}
+   334→          {gpsStatus === "loading" && (
+   335→            <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center gap-3">
+   336→              <div className="w-5 h-5 rounded-full border-2 border-[#62A0EA] border-t-transparent animate-spin flex-shrink-0" />
+   337→              <div>
+   338→                <span className="text-sm text-white/60">Locating you...</span>
+   339→                <p className="text-[10px] text-white/30 mt-0.5">Waiting for GPS signal</p>
+   340→              </div>
+   341→            </div>
+   342→          )}
+   343→
+   344→          {gpsStatus === "denied" && (
+   345→            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
+   346→              <div className="flex items-center gap-2">
+   347→                <svg className="w-5 h-5 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+   348→                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+   349→                </svg>
+   350→                <span className="text-sm font-semibold text-red-400">Location access denied</span>
+   351→              </div>
+   352→              <p className="text-xs text-white/40 mt-1.5">Enable location permission to see ETA and hail vehicles.</p>
+   353→            </div>
+   354→          )}
+   355→
+   356→          {gpsStatus === "unavailable" && (
+   357→            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
+   358→              <div className="flex items-center gap-2">
+   359→                <svg className="w-5 h-5 text-yellow-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+   360→                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+   361→                </svg>
+   362→                <span className="text-sm font-semibold text-yellow-400">Location unavailable</span>
+   363→              </div>
+   364→              <p className="text-xs text-white/40 mt-1.5">GPS is not available on this device.</p>
+   365→            </div>
+   366→          )}
+   367→
+   368→          {gpsStatus === "available" && canHail && nearestVehicle && (
+   369→            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4">
+   370→              <div className="flex items-center justify-between mb-2">
+   371→                <div className="flex items-center gap-2">
+   372→                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+   373→                  <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Live Tracking</span>
+   374→                </div>
+   375→                <span className="text-2xl font-extrabold text-white">~{nearestVehicle.estimatedArrivalMinutes} min</span>
+   376→              </div>
+   377→              <div className="flex items-center justify-between">
+   378→                <span className="text-xs text-white/40">{nearestVehicle.plateNumber}</span>
+   379→                <span className="text-xs text-white/50">{(nearestVehicle.distanceInMeters / 1000).toFixed(1)} km away</span>
+   380→              </div>
+   381→              {nearbyVehicles.length > 1 && (
+   382→                <p className="text-[10px] text-emerald-400/60 mt-2">+{nearbyVehicles.length - 1} more vehicle{nearbyVehicles.length > 2 ? "s" : ""} in range</p>
+   383→              )}
+   384→            </div>
+   385→          )}
+   386→
+   387→          {gpsStatus === "available" && !canHail && (
+   388→            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
+   389→              <div className="flex items-center gap-2">
+   390→                <svg className="w-5 h-5 text-yellow-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+   391→                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+   392→                </svg>
+   393→                <span className="text-sm font-semibold text-yellow-400">You are outside the conductor service radius</span>
+   394→              </div>
+   395→              <p className="text-xs text-white/40 mt-1.5">Move within 1km of a conductor unit to see ETA and hail. Vehicle locations are still visible on the map.</p>
+   396→            </div>
+   397→          )}
+   398→
+   399→          {/* Quick Actions */}
+   400→          <div>
+   401→            <h3 className="text-xs font-semibold text-white/30 uppercase tracking-wider mb-2">Quick Actions</h3>
+   402→            <div className="grid grid-cols-2 gap-3">
+   403→              {quickActions.map((action) => (
+   404→                <button key={action.label} onClick={action.action} className={`flex items-center justify-center gap-2 py-2.5 rounded-xl transition-colors ${action.isSos ? "bg-red-500/10 hover:bg-red-500/20 border border-red-500/20" : "bg-white/5 hover:bg-white/10 border border-white/10"}`}>
+   405→                  <svg className={`w-4 h-4 ${action.isSos ? "text-red-400" : "text-blue-300"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+   406→                    <path strokeLinecap="round" strokeLinejoin="round" d={action.iconPath} />
+   407→                  </svg>
+   408→                  <span className={`text-xs font-semibold ${action.isSos ? "text-red-400" : "text-white/70"}`}>{action.label}</span>
+   409→                </button>
+   410→              ))}
+   411→            </div>
+   412→          </div>
+   413→        </div>
+   414→        <div className="p-6 border-t border-white/10">
+   415→          <button
+   416→            onClick={handleHailToggle}
+   417→            disabled={!isHailing && !canHail}
+   418→            className={`w-full flex items-center justify-center gap-3 py-4 rounded-xl text-base font-bold transition-all duration-300 ${
+   419→              isHailing
+   420→                ? "bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/40"
+   421→                : canHail
+   422→                  ? "bg-[#FF6D3A] hover:bg-[#e55a2b] shadow-lg shadow-[#FF6D3A]/40 text-white"
+   423→                  : "bg-gray-600 text-gray-300 cursor-not-allowed shadow-none"
+   424→            }`}
+   425→          >
+   426→            {isHailing ? (
+   427→              <>
+   428→                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+   429→                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+   430→                </svg>{" "}
+   431→                Cancel Hail
+   432→              </>
+   433→            ) : (
+   434→              <>
+   435→                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+   436→                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+   437→                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+   438→                </svg>{" "}
+   439→                {gpsStatus === "loading" ? "Locating..." : gpsStatus === "denied" || gpsStatus === "unavailable" ? "No GPS Access" : canHail ? "Hail Me" : "Outside Service Radius"}
+   440→              </>
+   441→            )}
+   442→          </button>
+   443→        </div>
+   444→      </div>
+   445→
+   446→      {/* --- MODALS --- */}
+   447→      {showScan && (
+   448→        <ScanModal
+   449→          commuterId={commuterId}
+   450→          commuterName={displayName}
+   451→          onClose={() => setShowScan(false)}
+   452→        />
+   453→      )}
+   454→      {showHistory && (
+   455→        <PaymentHistoryModal onClose={() => setShowHistory(false)} />
+   456→      )}
+   457→      {showShareRide && (
+   458→        <ShareRideModal
+   459→          commuterName={displayName}
+   460→          onClose={() => setShowShareRide(false)}
+   461→        />
+   462→      )}
+   463→      {showSOS && (
+   464→        <SosModal
+   465→          commuterId={commuterId}
+   466→          commuterName={displayName}
+   467→          onClose={() => setShowSOS(false)}
+   468→        />
+   469→      )}
+   470→    </div>
+   471→  );
+   472→}

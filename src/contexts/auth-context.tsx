@@ -118,8 +118,8 @@ const MOCK_PROFILES: Record<
 
 /**
  * Parse the prototype session cookie to get user info.
- * Cookie format: "chatco:{id}:{role}:{timestamp}:{hmac}"
- * The HMAC is verified by middleware, so if we reach this point the cookie is valid.
+ * Cookie format: "chatco:{id}:{role}:{timestamp}" (4 colon-separated parts).
+ * The login route (src/app/api/auth/login/route.ts) sets this exact format.
  */
 function parseSessionCookie(): { id: string; role: UserRole } | null {
   if (typeof document === "undefined") return null;
@@ -127,7 +127,7 @@ function parseSessionCookie(): { id: string; role: UserRole } | null {
   if (!match) return null;
   const token = decodeURIComponent(match[1]);
   const parts = token.split(":");
-  if (parts.length !== 5 || parts[0] !== "chatco") return null;
+  if (parts.length !== 4 || parts[0] !== "chatco") return null;
   const [, id, role] = parts;
   if (!["COMMUTER", "ADMIN", "CONDUCTOR"].includes(role)) return null;
   return { id, role: role as UserRole };

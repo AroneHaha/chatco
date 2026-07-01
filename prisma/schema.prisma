@@ -30,3 +30,30 @@ model Post {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+/// Emergency SOS alert triggered by a commuter. The admin monitoring page
+/// polls active alerts and renders their location on the live map.
+model SosAlert {
+  id             String    @id @default(cuid())
+  // Commuter who triggered the SOS (matches the session user id).
+  commuterId     String
+  // Denormalized for the admin feed (avoids a join on every poll).
+  commuterName   String
+  // GPS coordinates captured on the commuter device at trigger time.
+  lat            Float
+  lng            Float
+  // Optional free-form note from the commuter.
+  message        String?
+  // ACTIVE -> ACKNOWLEDGED -> RESOLVED
+  status         String    @default("ACTIVE")
+  // Admin who acknowledged / resolved (session user id).
+  acknowledgedBy String?
+  acknowledgedAt DateTime?
+  resolvedBy     String?
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status])
+  @@index([commuterId])
+}

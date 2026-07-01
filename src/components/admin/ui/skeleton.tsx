@@ -57,3 +57,32 @@ export function SkeletonMap({ height = "100%", label = "Loading…" }: SkeletonM
     </div>
   );
 }
+
+interface SkeletonTableProps {
+  rows?: number;
+  columns?: number;
+  title?: string;
+}
+
+export function SkeletonTable({ rows = 5, columns = 4, title }: SkeletonTableProps) {
+  return (
+    <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5">
+      {title && (
+        <div className="h-5 w-40 rounded bg-gray-700 animate-pulse mb-4" />
+      )}
+      <div className="space-y-3">
+        {Array.from({ length: rows }).map((_, r) => (
+          <div key={r} className="flex gap-4">
+            {Array.from({ length: columns }).map((_, c) => (
+              <div
+                key={c}
+                className="h-4 flex-1 rounded bg-gray-700 animate-pulse"
+                style={{ maxWidth: `${100 / columns}%` }}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

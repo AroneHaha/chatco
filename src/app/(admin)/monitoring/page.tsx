@@ -4,7 +4,7 @@
 import { useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { Gauge, Clock, MapPin, AlertTriangle, Archive, CalendarDays, AlertCircle } from 'lucide-react';
-import { useMonitoringData, type SosAlert, type SosHistoryLog, type DemandZone } from './data/data-monitoring';
+import { useMonitoringData, type DemandZone } from './data/data-monitoring';
 import { SkeletonMetric, SkeletonTable, SkeletonMap } from '@/components/admin/ui/skeleton';
 
 // Dynamically import the map and disable SSR (Leaflet requires the window object)
@@ -20,10 +20,12 @@ const CommuterMap = dynamic<CommuterMapProps>(() => import('@/components/admin/a
 });
 
 export default function MonitoringPage() {
-  const { data, isLoading, error, refetch } = useMonitoringData();
+  const { data, isLoading, error, refetch, acknowledgeSos, resolveSos } = useMonitoringData();
 
-  const [sosAlerts, setSosAlerts] = useState<SosAlert[]>(data.sosAlerts);
-  const [sosHistory, setSosHistory] = useState<SosHistoryLog[]>(data.sosHistory);
+  // SOS alerts come straight from the polled hook (no local mirror — that
+  // would drift out of sync with the server).
+  const sosAlerts = data.sosAlerts;
+  const sosHistory = data.sosHistory;
 
   // Pagination States
   const [sosPage, setSosPage] = useState(1);
@@ -41,33 +43,29 @@ export default function MonitoringPage() {
   const metrics = [
     { title: 'Overspeeding', value: overspeedCount.toString(), icon: Gauge, color: 'text-red-400' },
     { title: 'Idle Vehicles', value: idleCount.toString(), icon: Clock, color: 'text-amber-400' },
-    { title: 'Demand Heatmap', value: data.demandZones.length.toString(), icon: MapPin, color: 'text-[#62A0EA]' },
+    { title: 'Active SOS', value: sosAlerts.length.toString(), icon: MapPin, color: 'text-[#62A0EA]' },
   ];
 
-  // TODO: Replace with API call to resolve SOS
+  // Wire the resolve button to the real backend (optimistic update inside the hook).
   const handleConfirmSos = (alertId: string) => {
-    const alertToResolve = sosAlerts.find(a => a.id === alertId);
-    if (!alertToResolve) return;
-
-    const now = new Date();
-    const formattedNow = now.toLocaleString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute:'2-digit', hour12: true
-    });
-
-    const historyLog: SosHistoryLog = {
-      id: alertToResolve.id,
-      conductor: alertToResolve.conductor,
-      vehicle: alertToResolve.vehicle,
-      message: alertToResolve.message,
-      triggeredAt: `Today - ${alertToResolve.time}`,
-      resolvedAt: formattedNow,
-      triggeredDate: alertToResolve.triggeredDate,
-      coordinates: alertToResolve.coordinates,
-    };
-
-    setSosHistory(prev => [historyLog, ...prev]);
-    setSosAlerts(prev => prev.filter(alert => alert.id !== alertId));
+    void resolveSos(alertId);
   };
+
+  // Filtered Data Logic (declared BEFORE early returns so hook order is stable).
+  const filteredVehicles = useMemo(() => {
+    if (!showOverspeedOnly) return data.liveVehicles;
+    return data.liveVehicles.filter(v => v.status === "overspeeding");
+  }, [showOverspeedOnly, data.liveVehicles]);
+
+  const filteredSosHistory = useMemo(() => {
+    if (!filterSosDate) return sosHistory;
+    return sosHistory.filter(log => log.triggeredDate === filterSosDate);
+  }, [filterSosDate, sosHistory]);
+
+  const filteredOverspeedHistory = useMemo(() => {
+    if (!filterOverspeedDate) return data.overspeedHistory;
+    return data.overspeedHistory.filter(log => log.loggedDate === filterOverspeedDate);
+  }, [filterOverspeedDate, data.overspeedHistory]);
 
   // ── Loading State ──
   if (isLoading) {
@@ -101,22 +99,6 @@ export default function MonitoringPage() {
       </div>
     );
   }
-
-  // Filtered Data Logic
-  const filteredVehicles = useMemo(() => {
-    if (!showOverspeedOnly) return data.liveVehicles;
-    return data.liveVehicles.filter(v => v.status === "overspeeding");
-  }, [showOverspeedOnly, data.liveVehicles]);
-
-  const filteredSosHistory = useMemo(() => {
-    if (!filterSosDate) return sosHistory;
-    return sosHistory.filter(log => log.triggeredDate === filterSosDate);
-  }, [filterSosDate, sosHistory]);
-
-  const filteredOverspeedHistory = useMemo(() => {
-    if (!filterOverspeedDate) return data.overspeedHistory;
-    return data.overspeedHistory.filter(log => log.loggedDate === filterOverspeedDate);
-  }, [filterOverspeedDate, data.overspeedHistory]);
 
   // Pagination Logic
   const totalSosPages = Math.max(1, Math.ceil(filteredSosHistory.length / ROWS_PER_PAGE));
@@ -170,7 +152,9 @@ export default function MonitoringPage() {
           </div>
 
           <div className="space-y-3">
-            {sosAlerts.map((alert) => (
+            {sosAlerts.map((alert) => {
+              const isAcknowledged = alert.status === "ACKNOWLEDGED";
+              return (
               <div key={alert.id} className="bg-red-400/5 border border-red-400/20 rounded-lg p-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-start space-x-3">
@@ -178,25 +162,52 @@ export default function MonitoringPage() {
                     <div>
                       <p className="text-base font-semibold text-white">{alert.message}</p>
                       <p className="text-sm text-slate-300 mt-1">
-                        Vehicle: <span className="font-medium text-white">{alert.vehicle}</span> | Conductor: <span className="font-medium text-white">{alert.conductor}</span>
+                        Commuter: <span className="font-medium text-white">{alert.commuter}</span>
                       </p>
-                      <p className="text-xs text-slate-500 mt-1 font-mono">Coords: {alert.coordinates[0]}, {alert.coordinates[1]}</p>
-                      <div className="flex items-center text-xs text-slate-500 mt-2">
-                        <Clock size={12} className="mr-1" />
-                        {alert.time}
+                      <p className="text-xs text-slate-500 mt-1 font-mono">Coords: {alert.coordinates[0].toFixed(5)}, {alert.coordinates[1].toFixed(5)}</p>
+                      <div className="flex items-center gap-3 text-xs text-slate-500 mt-2">
+                        <span className="flex items-center">
+                          <Clock size={12} className="mr-1" />
+                          {alert.time}
+                        </span>
+                        {isAcknowledged ? (
+                          <span className="flex items-center gap-1 text-amber-400 font-medium">
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                            Acknowledged
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-red-400 font-medium">
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                            </span>
+                            Awaiting response
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => handleConfirmSos(alert.id)}
-                    className="flex-shrink-0 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm font-medium transition-colors shadow-lg shadow-red-500/25"
-                  >
-                    Confirm & Resolve SOS
-                  </button>
+                  <div className="flex flex-shrink-0 gap-2">
+                    {!isAcknowledged && (
+                      <button
+                        onClick={() => void acknowledgeSos(alert.id)}
+                        className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-medium transition-colors shadow-lg shadow-amber-500/25"
+                      >
+                        Acknowledge
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleConfirmSos(alert.id)}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm font-medium transition-colors shadow-lg shadow-red-500/25"
+                    >
+                      Confirm &amp; Resolve
+                    </button>
+                  </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -338,8 +349,7 @@ export default function MonitoringPage() {
                 <table className="w-full text-left">
                   <thead>
                     <tr className="border-b border-[#1E2D45]">
-                      <th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Conductor</th>
-                      <th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Vehicle</th>
+                      <th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Commuter</th>
                       <th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">Triggered</th>
                       <th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Resolved</th>
                     </tr>
@@ -348,10 +358,8 @@ export default function MonitoringPage() {
                     {currentSosData.map((log) => (
                       <tr key={log.id} className="hover:bg-[#0E1628] transition-colors opacity-70 hover:opacity-100">
                         <td className="py-3 pr-3">
-                          <span className="text-sm text-slate-300 font-medium">{log.conductor}</span>
-                        </td>
-                        <td className="py-3 pr-3">
-                          <span className="text-sm text-slate-400 font-mono">{log.vehicle}</span>
+                          <span className="text-sm text-slate-300 font-medium">{log.commuter}</span>
+                          <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{log.message}</p>
                         </td>
                         <td className="py-3 pr-3 hidden md:table-cell">
                           <span className="text-xs text-slate-500">{log.triggeredAt}</span>
