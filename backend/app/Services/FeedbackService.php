@@ -194,6 +194,46 @@ class FeedbackService
     }
 
     /**
+     * List all feedback for a single shift, scoped to the authenticated
+     * conductor (a conductor may only read feedback for shifts they crewed).
+     *
+     * Powers GET /conductor/ratings — the conductor metrics page. Each row
+     * carries BOTH the driver rating (rating/comment) and the independent
+     * conductor rating (conductor_rating/conductor_comment); the frontend
+     * splits each into a DRIVER + CONDUCTOR entry.
+     *
+     * @param  User  $conductor  The authenticated conductor (auth()->user()).
+     * @return array<int, array<string, mixed>>
+     */
+    public function listForShift(string $shiftId, User $conductor): array
+    {
+        return Feedback::where('shift_id', $shiftId)
+            ->where('conductor_id', $conductor->id)
+            ->with(['commuter:id,first_name,surname'])
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn (Feedback $f): array => [
+                'id'                 => $f->id,
+                'shift_id'           => $f->shift_id,
+                'vehicle_id'         => $f->vehicle_id,
+                'driver_id'          => $f->driver_id,
+                'conductor_id'       => $f->conductor_id,
+                'commuter_id'        => $f->commuter_id,
+                'commuter_name'      => $f->commuter
+                    ? trim(($f->commuter->first_name ?? '').' '.($f->commuter->surname ?? '')) ?: null
+                    : null,
+                'rating'             => $f->rating,
+                'category'           => $f->category,
+                'comment'            => $f->comment,
+                'conductor_rating'   => $f->conductor_rating,
+                'conductor_category' => $f->conductor_category,
+                'conductor_comment'  => $f->conductor_comment,
+                'created_at'         => optional($f->created_at)->toIso8601String(),
+            ])
+            ->all();
+    }
+
+    /**
      * Build the paginated + summary response shape shared by both
      * listForConductor() and listForDriver().
      *

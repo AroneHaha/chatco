@@ -294,10 +294,13 @@ class FeedbackQrFlowTest extends TestCase
     {
         $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
             ->postJson('/api/v1/commuter/feedback', [
-                'shift_id' => $this->shift->shift_id,
-                'rating'   => 5,
-                'category' => 'driving',
-                'comment'  => 'Smooth ride, very professional.',
+                'shift_id'           => $this->shift->shift_id,
+                'rating'             => 5,
+                'category'           => 'driving',
+                'comment'            => 'Smooth ride, very professional.',
+                'conductor_rating'   => 4,
+                'conductor_category' => 'courtesy',
+                'conductor_comment'  => 'Polite and helpful.',
             ]);
 
         $response->assertStatus(201)
@@ -315,6 +318,9 @@ class FeedbackQrFlowTest extends TestCase
             'rating'       => 5,
             'category'     => 'driving',
             'comment'      => 'Smooth ride, very professional.',
+            'conductor_rating'   => 4,
+            'conductor_category' => 'courtesy',
+            'conductor_comment'  => 'Polite and helpful.',
         ]);
     }
 
@@ -322,33 +328,53 @@ class FeedbackQrFlowTest extends TestCase
     {
         $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
             ->postJson('/api/v1/commuter/feedback', [
-                'shift_id' => $this->shift->shift_id,
-                'rating'   => 1,
+                'shift_id'         => $this->shift->shift_id,
+                'rating'           => 1,
+                'conductor_rating' => 1,
             ]);
 
         $response->assertStatus(201);
     }
 
-    public function test_feedback_rejects_rating_out_of_range(): void
+    public function test_feedback_rejects_missing_conductor_rating(): void
     {
+        // Since the driver/conductor rating split, the conductor rating is
+        // required alongside the driver rating.
         $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
             ->postJson('/api/v1/commuter/feedback', [
                 'shift_id' => $this->shift->shift_id,
-                'rating'   => 6,
+                'rating'   => 5,
             ]);
 
-        $response->assertStatus(422);
+        $response->assertStatus(422)
+            ->assertJsonStructure(['errors' => ['conductor_rating']]);
+    }
+
+    public function test_feedback_rejects_rating_out_of_range(): void
+    {
+        // conductor_rating is valid so the 422 is attributable to `rating`.
+        $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+            ->postJson('/api/v1/commuter/feedback', [
+                'shift_id'         => $this->shift->shift_id,
+                'rating'           => 6,
+                'conductor_rating' => 3,
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonStructure(['errors' => ['rating']]);
     }
 
     public function test_feedback_rejects_rating_zero(): void
     {
         $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
             ->postJson('/api/v1/commuter/feedback', [
-                'shift_id' => $this->shift->shift_id,
-                'rating'   => 0,
+                'shift_id'         => $this->shift->shift_id,
+                'rating'           => 0,
+                'conductor_rating' => 3,
             ]);
 
-        $response->assertStatus(422);
+        $response->assertStatus(422)
+            ->assertJsonStructure(['errors' => ['rating']]);
     }
 
     public function test_duplicate_feedback_returns_409(): void
@@ -356,15 +382,17 @@ class FeedbackQrFlowTest extends TestCase
         // First submission succeeds.
         $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
             ->postJson('/api/v1/commuter/feedback', [
-                'shift_id' => $this->shift->shift_id,
-                'rating'   => 4,
+                'shift_id'         => $this->shift->shift_id,
+                'rating'           => 4,
+                'conductor_rating' => 4,
             ]);
 
         // Second submission for the same shift → 409 (unique constraint).
         $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
             ->postJson('/api/v1/commuter/feedback', [
-                'shift_id' => $this->shift->shift_id,
-                'rating'   => 2,
+                'shift_id'         => $this->shift->shift_id,
+                'rating'           => 2,
+                'conductor_rating' => 2,
             ]);
 
         $response->assertStatus(409)
@@ -377,10 +405,12 @@ class FeedbackQrFlowTest extends TestCase
 
     public function test_feedback_rejects_nonexistent_shift(): void
     {
+        // conductor_rating is valid so the 422 is attributable to the shift.
         $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
             ->postJson('/api/v1/commuter/feedback', [
-                'shift_id' => 'SFT-DOES-NOT-EXIST',
-                'rating'   => 3,
+                'shift_id'         => 'SFT-DOES-NOT-EXIST',
+                'rating'           => 3,
+                'conductor_rating' => 3,
             ]);
 
         $response->assertStatus(422);
@@ -397,14 +427,16 @@ class FeedbackQrFlowTest extends TestCase
         // user. actingAs() calls setUser() which overwrites the cache.
         Sanctum::actingAs($this->commuter);
         $this->postJson('/api/v1/commuter/feedback', [
-            'shift_id' => $this->shift->shift_id,
-            'rating'   => 5,
+            'shift_id'         => $this->shift->shift_id,
+            'rating'           => 5,
+            'conductor_rating' => 5,
         ]);
 
         Sanctum::actingAs($otherCommuter);
         $response = $this->postJson('/api/v1/commuter/feedback', [
-            'shift_id' => $this->shift->shift_id,
-            'rating'   => 3,
+            'shift_id'         => $this->shift->shift_id,
+            'rating'           => 3,
+            'conductor_rating' => 3,
         ]);
 
         $response->assertStatus(201);

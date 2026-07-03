@@ -13,6 +13,7 @@ use App\Models\Driver;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\ConductorService;
+use App\Services\FeedbackService;
 use App\Services\LocationService;
 use App\Services\ShiftService;
 use App\Services\TransactionService;
@@ -28,17 +29,20 @@ class ConductorController extends Controller
     protected LocationService $locationService;
     protected TransactionService $transactionService;
     protected ConductorService $conductorService;
+    protected FeedbackService $feedbackService;
 
     public function __construct(
         ShiftService $shiftService,
         LocationService $locationService,
         TransactionService $transactionService,
-        ConductorService $conductorService
+        ConductorService $conductorService,
+        FeedbackService $feedbackService
     ) {
         $this->shiftService = $shiftService;
         $this->locationService = $locationService;
         $this->transactionService = $transactionService;
         $this->conductorService = $conductorService;
+        $this->feedbackService = $feedbackService;
     }
 
     /**
@@ -113,6 +117,27 @@ class ConductorController extends Controller
         );
 
         return $this->successResponse($remittances, 'Remittance history retrieved');
+    }
+
+    /**
+     * GET /api/conductor/ratings?shift_id=…
+     *
+     * Feedback for one of the conductor's shifts — powers the metrics page.
+     * Each row carries BOTH the driver rating and the (independent) conductor
+     * rating; the frontend splits each into a DRIVER + CONDUCTOR entry. Scoped
+     * to the authenticated conductor in the service (a conductor can only read
+     * feedback for shifts they crewed).
+     */
+    public function ratings(Request $request): JsonResponse
+    {
+        $shiftId = $request->query('shift_id');
+        if (! $shiftId) {
+            return $this->errorResponse('shift_id query parameter is required.', 422);
+        }
+
+        $ratings = $this->feedbackService->listForShift($shiftId, $request->user());
+
+        return $this->successResponse($ratings, 'Ratings retrieved');
     }
 
     /**

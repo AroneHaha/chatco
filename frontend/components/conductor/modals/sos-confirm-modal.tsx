@@ -1,14 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react";
+// components/conductor/modals/sos-confirm-modal.tsx
+//
+// Conductor Emergency SOS modal — wired to the real Laravel backend.
+//
+// Flow (mirrors the commuter SOS modal):
+//   confirming  → conductor taps "Send SOS"
+//   locating    → navigator.geolocation.getCurrentPosition (high accuracy, 6s)
+//   sending     → POST /api/conductor/sos { lat, lng, note? }
+//   active      → polling GET /api/conductor/sos/{id} every 3s, waiting for admin
+//   responded   → admin acknowledged/resolved → success screen
+//   error       → network/API error (GPS failure falls back to a default coord)
+//
+// GPS FALLBACK: if geolocation is unavailable/denied/times out (common on
+// desktop/cloud previews), the SOS is still sent using a default route-centre
+// coordinate so the alert always reaches the admin and a marker always appears
+// on the monitoring map.
 
-// --- BACKEND CONTEXT & TYPES ---
-// Maps to: EmergencyAlert table (Conductor-triggered SOS)
-// Real-time flow:
-// 1. Frontend sends SOS ping via WebSocket/REST.
-// 2. Frontend listens to WebSocket channel `conductor_sos_status_{conductorId}`.
-// 3. When Admin clicks "Respond" on their web portal, backend emits status change.
-// 4. Frontend receives event -> sets status to 'responded'.
+import { useState, useEffect, useRef, useCallback } from "react";
 
 interface SosConfirmModalProps {
   isOpen: boolean;
@@ -17,83 +26,203 @@ interface SosConfirmModalProps {
   onClose: () => void;
 }
 
+type SosStatus =
+  | "confirming"
+  | "locating"
+  | "sending"
+  | "active"
+  | "responded"
+  | "error";
+
+interface AlertPayload {
+  id: string;
+  status: "ACTIVE" | "ACKNOWLEDGED" | "RESOLVED";
+}
+
+const POLL_INTERVAL_MS = 3000;
+
+// Default fallback coordinate — Meycauayan area, central on the CHATCO route.
+// Used only when the device GPS is unavailable so the SOS still goes through.
+const DEFAULT_LOCATION: { lat: number; lng: number } = { lat: 14.8434, lng: 120.875 };
+
 export default function SosConfirmModal({
   isOpen,
-  conductorId,
-  conductorName,
+  conductorId: _conductorId,
+  conductorName: _conductorName,
   onClose,
 }: SosConfirmModalProps) {
-  const [status, setStatus] = useState<'confirming' | 'active' | 'responded'>('confirming');
+  const [status, setStatus] = useState<SosStatus>("confirming");
   const [activeSeconds, setActiveSeconds] = useState(0);
+  const [errorMessage, setErrorMessage] = useState<string>("");
+  const [alertId, setAlertId] = useState<string | null>(null);
 
-  // Reset state when modal opens
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Reset state whenever the modal opens.
   useEffect(() => {
     if (isOpen) {
-      setStatus('confirming');
+      setStatus("confirming");
       setActiveSeconds(0);
+      setErrorMessage("");
+      setAlertId(null);
     }
   }, [isOpen]);
 
+  // Active-state elapsed timer.
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    let adminTimeout: NodeJS.Timeout;
+    if (status === "active") {
+      timerRef.current = setInterval(() => setActiveSeconds((p) => p + 1), 1000);
+    }
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [status]);
 
-    if (status === 'active') {
-      // 1. Timer visual
-      interval = setInterval(() => {
-        setActiveSeconds((prev) => prev + 1);
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
 
-        // --- FUTURE BACKEND INTEGRATION ---
-        // const coords = await getCurrentPosition();
-        // socket.emit('conductor_sos_ping', { conductorId, lat: coords.latitude, lng: coords.longitude });
-      }, 1000);
+  const pollAlert = useCallback(
+    async (id: string) => {
+      try {
+        const res = await fetch(`/api/conductor/sos/${id}`, { credentials: "include" });
+        if (!res.ok) return; // keep polling on transient errors
+        const data = await res.json();
+        const alert: AlertPayload | undefined = data.data;
+        if (!alert) return;
+        if (alert.status === "ACKNOWLEDGED" || alert.status === "RESOLVED") {
+          stopPolling();
+          setStatus("responded");
+        }
+      } catch {
+        // Network blip — keep polling, the admin may still respond.
+      }
+    },
+    [stopPolling]
+  );
 
-      // 2. PROTOTYPE SIMULATION: Auto-resolve after 5 seconds
-      adminTimeout = setTimeout(() => {
-        setStatus('responded');
-        // --- FUTURE BACKEND INTEGRATION ---
-        // In real app, this state change is triggered by:
-        // socket.on(`admin_responded_${conductorId}`, () => setStatus('responded'));
-      }, 5000);
+  useEffect(() => {
+    if (status === "active" && alertId) {
+      pollRef.current = setInterval(() => void pollAlert(alertId), POLL_INTERVAL_MS);
+    }
+    return stopPolling;
+  }, [status, alertId, pollAlert, stopPolling]);
+
+  // Clean up polling on unmount.
+  useEffect(() => stopPolling, [stopPolling]);
+
+  // POST the SOS to the backend.
+  const sendSos = useCallback(async (lat: number, lng: number) => {
+    setStatus("sending");
+    try {
+      const res = await fetch("/api/conductor/sos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ lat, lng }),
+      });
+
+      if (res.status === 401) {
+        setStatus("error");
+        setErrorMessage("Your session has expired. Please log in again to send an SOS.");
+        return;
+      }
+      if (res.status === 429) {
+        setStatus("error");
+        setErrorMessage("You've already sent an SOS recently. Please wait before trying again.");
+        return;
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setStatus("error");
+        setErrorMessage(data.message ?? "Unable to send the SOS signal. Please try again.");
+        return;
+      }
+
+      const data = await res.json();
+      const alert: AlertPayload | undefined = data.data;
+      if (!alert) {
+        setStatus("error");
+        setErrorMessage("The server did not return an alert. Please try again.");
+        return;
+      }
+
+      if (alert.status === "ACKNOWLEDGED" || alert.status === "RESOLVED") {
+        setStatus("responded");
+        return;
+      }
+
+      setAlertId(alert.id);
+      setStatus("active");
+    } catch {
+      setStatus("error");
+      setErrorMessage("Network error. Please check your connection and try again.");
+    }
+  }, []);
+
+  // Trigger: capture GPS (falling back to a default coord), then POST.
+  const handleActivate = useCallback(() => {
+    setStatus("locating");
+    setErrorMessage("");
+
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      void sendSos(DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng);
+      return;
     }
 
-    return () => {
-      clearInterval(interval);
-      clearTimeout(adminTimeout);
-    };
-  }, [status, conductorId]);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        void sendSos(latitude, longitude);
+      },
+      () => {
+        // GPS denied / unavailable / timed out → fall back to default.
+        void sendSos(DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng);
+      },
+      { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
+    );
+  }, [sendSos]);
 
-  const handleActivate = () => {
-    setStatus('active');
-    // --- FUTURE BACKEND INTEGRATION ---
-    // POST /api/conductor/emergency/sos
-    // Body: { conductorId, initialLat, initialLng, timestamp }
+  const handleRetry = () => {
+    setErrorMessage("");
+    setAlertId(null);
+    setActiveSeconds(0);
+    setStatus("confirming");
   };
 
   const formatTimer = (seconds: number) => {
-    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
-    const s = (seconds % 60).toString().padStart(2, '0');
+    const m = Math.floor(seconds / 60).toString().padStart(2, "0");
+    const s = (seconds % 60).toString().padStart(2, "0");
     return `${m}:${s}`;
   };
 
   if (!isOpen) return null;
 
+  const isLocked = status === "locating" || status === "sending" || status === "active";
+
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
-      {/* Backdrop - Red when active, normal when confirming/responded. Cannot click to close when active! */}
+      {/* Backdrop — red while locked; cannot click to close while an SOS is in flight. */}
       <div
         className={`absolute inset-0 backdrop-blur-sm transition-colors duration-500 ${
-          status === 'active' ? 'bg-red-900/60' : 'bg-black/60'
+          isLocked ? "bg-red-900/60" : "bg-black/60"
         }`}
-        onClick={status === 'confirming' ? onClose : undefined}
+        onClick={status === "confirming" ? onClose : undefined}
       />
 
       {/* Modal Card */}
       <div className={`relative sm:rounded-3xl rounded-t-3xl shadow-2xl w-full sm:max-w-md overflow-hidden animate-slide-in-from-bottom duration-300 pb-safe border-2 transition-colors duration-300 ${
-        status === 'active' ? 'bg-white border-red-500' : 'bg-[#1A2540] border-[#2A3A55]'
+        status === "active" || status === "locating" || status === "sending" ? "bg-white border-red-500" : "bg-[#1A2540] border-[#2A3A55]"
       }`}>
 
-        {status === 'confirming' && (
+        {status === "confirming" && (
           /* --- CONFIRMATION STATE --- */
           <div className="p-6 text-center">
             <div className="w-20 h-20 rounded-full bg-red-500/15 border-2 border-red-500/25 flex items-center justify-center mx-auto mb-5">
@@ -121,7 +250,40 @@ export default function SosConfirmModal({
           </div>
         )}
 
-        {status === 'active' && (
+        {status === "locating" && (
+          /* --- LOCATING (getting GPS) --- */
+          <div className="p-6 text-center">
+            <div className="relative w-28 h-28 mx-auto mb-6 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full bg-red-500/10 animate-ping" />
+              <div className="relative w-20 h-20 rounded-full bg-red-100 flex items-center justify-center">
+                <svg className="w-9 h-9 text-red-500 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+                </svg>
+              </div>
+            </div>
+            <h2 className="text-xl font-extrabold text-[#071A2E] mb-1">Getting your location…</h2>
+            <p className="text-sm text-gray-500 leading-relaxed">
+              Please allow location access. We need your GPS coordinates to direct respondents to you.
+            </p>
+            <div className="mt-6 w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-full bg-red-500 animate-pulse" style={{ width: "65%" }} />
+            </div>
+          </div>
+        )}
+
+        {status === "sending" && (
+          /* --- SENDING (POSTing to backend) --- */
+          <div className="p-6 text-center">
+            <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-5 border-2 border-red-100">
+              <div className="w-8 h-8 border-2 border-red-200 border-t-red-600 rounded-full animate-spin" />
+            </div>
+            <h2 className="text-xl font-extrabold text-[#071A2E] mb-1">Sending distress signal…</h2>
+            <p className="text-sm text-gray-500">Transmitting your location to the CHATCO Admin team.</p>
+          </div>
+        )}
+
+        {status === "active" && (
           /* --- ACTIVE/TRACKING STATE (LOCKED SCREEN) --- */
           <div className="p-6 text-center">
             <div className="relative w-32 h-32 mx-auto mb-6 flex items-center justify-center">
@@ -148,7 +310,7 @@ export default function SosConfirmModal({
           </div>
         )}
 
-        {status === 'responded' && (
+        {status === "responded" && (
           /* --- RESPONDED STATE --- */
           <div className="p-6 text-center animate-in fade-in duration-300">
             <div className="w-20 h-20 rounded-full bg-[#F0FDF4] flex items-center justify-center mx-auto mb-5 border-2 border-green-100">
@@ -170,6 +332,29 @@ export default function SosConfirmModal({
             >
               Understood
             </button>
+          </div>
+        )}
+
+        {status === "error" && (
+          /* --- ERROR STATE --- */
+          <div className="p-6 text-center">
+            <div className="w-20 h-20 rounded-full bg-red-500/15 border-2 border-red-500/25 flex items-center justify-center mx-auto mb-5">
+              <svg className="w-10 h-10 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+              </svg>
+            </div>
+
+            <h2 className="text-xl font-extrabold text-white mb-2">SOS Could Not Be Sent</h2>
+            <p className="text-sm text-white/40 leading-relaxed mb-8">{errorMessage}</p>
+
+            <div className="flex gap-3">
+              <button onClick={onClose} className="flex-1 px-4 py-3.5 rounded-xl text-sm font-semibold border border-white/10 text-white/70 hover:bg-white/10 transition-colors">
+                Close
+              </button>
+              <button onClick={handleRetry} className="flex-1 px-4 py-3.5 rounded-xl text-sm font-bold bg-red-500 text-white hover:bg-red-600 transition-colors shadow-lg shadow-red-500/30">
+                Try Again
+              </button>
+            </div>
           </div>
         )}
       </div>

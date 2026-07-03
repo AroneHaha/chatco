@@ -161,7 +161,10 @@ export default function MonitoringPage() {
                     <AlertTriangle className="text-red-400 mt-0.5 flex-shrink-0" size={24} />
                     <div>
                       <p className="text-base font-semibold text-white">{alert.note}</p>
-                      <p className="text-sm text-slate-300 mt-1">Commuter: <span className="font-medium text-white">{alert.commuter}</span></p>
+                      <p className="text-sm text-slate-300 mt-1 flex items-center gap-2">
+                        <span>{alert.senderRole === "CONDUCTOR" ? "Conductor" : "Commuter"}: <span className="font-medium text-white">{alert.sender}</span></span>
+                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${alert.senderRole === "CONDUCTOR" ? "bg-sky-400/15 text-sky-300" : "bg-purple-400/15 text-purple-300"}`}>{alert.senderRole === "CONDUCTOR" ? "Conductor" : "Commuter"}</span>
+                      </p>
                       <p className="text-xs text-slate-500 mt-1 font-mono">Coords: {alert.coordinates[0].toFixed(5)}, {alert.coordinates[1].toFixed(5)}</p>
                       <div className="flex items-center gap-3 text-xs text-slate-500 mt-2">
                         <span className="flex items-center"><Clock size={12} className="mr-1" />{alert.time}</span>
@@ -265,11 +268,15 @@ export default function MonitoringPage() {
             <>
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
-                  <thead><tr className="border-b border-[#1E2D45]"><th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Commuter</th><th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">Triggered</th><th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Resolved</th></tr></thead>
+                  <thead><tr className="border-b border-[#1E2D45]"><th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Sender</th><th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">Triggered</th><th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Resolved</th></tr></thead>
                   <tbody className="divide-y divide-[#1E2D45]">
                     {currentSosData.map((log) => (
                       <tr key={log.id} className="hover:bg-[#0E1628] transition-colors opacity-70 hover:opacity-100">
-                        <td className="py-3 pr-3"><span className="text-sm text-slate-300 font-medium">{log.commuter}</span><p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{log.note}</p></td>
+                        <td className="py-3 pr-3">
+                          <span className="text-sm text-slate-300 font-medium">{log.sender}</span>
+                          <span className={`ml-2 inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${log.senderRole === "CONDUCTOR" ? "bg-sky-400/15 text-sky-300" : "bg-purple-400/15 text-purple-300"}`}>{log.senderRole === "CONDUCTOR" ? "Conductor" : "Commuter"}</span>
+                          <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{log.note}</p>
+                        </td>
                         <td className="py-3 pr-3 hidden md:table-cell"><span className="text-xs text-slate-500">{log.triggeredAt}</span></td>
                         <td className="py-3"><span className="inline-flex items-center gap-1 text-xs text-sky-400/70 bg-sky-400/10 px-2 py-0.5 rounded-md"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>{log.resolvedAt}</span></td>
                       </tr>

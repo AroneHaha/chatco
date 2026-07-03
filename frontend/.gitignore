@@ -49,6 +49,3 @@ out
 npm-debug.log
 yarn-error.log
 .DS_Store
-
-# sandbox SQLite DB (dev/demo persistence when Laravel is unreachable)
-/.data/
