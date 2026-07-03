@@ -201,6 +201,83 @@ class LostItemService
         });
     }
 
+    /**
+     * The commuter's own claims, newest first, with the item eager-loaded.
+     *
+     * Powers the commuter Lost & Found "My Claims" tab + the per-card claim
+     * badges, so claim state survives reloads instead of living in React
+     * state. Capped at the latest 100 claims — far above the 3-pending cap
+     * the UI enforces.
+     *
+     * @throws LostFoundException  Commuter profile missing.
+     */
+    public function myClaims(User $commuter): array
+    {
+        /** @var CommuterProfile $profile */
+        $profile = $commuter->commuterProfile;
+        if (! $profile) {
+            throw LostFoundException::notFound('Commuter profile');
+        }
+
+        return Claim::with('item.vehicle')
+            ->where('claimant_id', $profile->id)
+            ->orderByDesc('created_at')
+            ->limit(100)
+            ->get()
+            ->all();
+    }
+
+    /**
+     * Commuter cancels (withdraws) their own PENDING claim.
+     *
+     * The claim row is deleted — a withdrawal, not a review, so no REJECTED
+     * audit row is left behind. If the item was CLAIMED and no other pending
+     * claims remain, it reverts to AVAILABLE so other commuters can claim it.
+     *
+     * APPROVED/REJECTED claims cannot be cancelled (the review has already
+     * happened); the guards below throw → 422 in the controller.
+     *
+     * @throws LostFoundException  Claim not found / not owned / not PENDING.
+     */
+    public function cancelClaim(User $commuter, string $claimId): void
+    {
+        /** @var CommuterProfile $profile */
+        $profile = $commuter->commuterProfile;
+        if (! $profile) {
+            throw LostFoundException::notFound('Commuter profile');
+        }
+
+        DB::transaction(function () use ($profile, $claimId): void {
+            $claim = Claim::where('id', $claimId)
+                ->where('claimant_id', $profile->id)
+                ->with('item')
+                ->first();
+
+            if (! $claim) {
+                throw LostFoundException::notFound('Claim');
+            }
+
+            if ($claim->status !== self::CLAIM_PENDING) {
+                throw LostFoundException::claimNotReviewable(
+                    "Only PENDING claims can be cancelled (current: {$claim->status})"
+                );
+            }
+
+            $item = $claim->item;
+            $claim->delete();
+
+            // If this was the item's last pending claim, make it claimable again.
+            if ($item && $item->status === self::ITEM_CLAIMED) {
+                $remaining = Claim::where('item_id', $item->id)
+                    ->where('status', self::CLAIM_PENDING)
+                    ->count();
+                if ($remaining === 0) {
+                    $item->update(['status' => self::ITEM_AVAILABLE]);
+                }
+            }
+        });
+    }
+
     // ── Watchlist ──────────────────────────────────────────────
 
     /**

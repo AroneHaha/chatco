@@ -20,6 +20,7 @@ import {
   listForAdmin,
   claimsForItem,
   report as reportItem,
+  uploadImage as apiUploadImage,
   approveClaim as apiApproveClaim,
   releaseClaim as apiReleaseClaim,
   rejectClaim as apiRejectClaim,
@@ -112,20 +113,37 @@ export default function LostFoundPage() {
   const handleOpenDetailModal = (itemId: string) => { setSelectedItemId(itemId); setIsDetailModalOpen(true); };
   const handleCloseDetailModal = () => { setSelectedItemId(null); setIsDetailModalOpen(false); };
 
-  /** Admin reports a new lost item → POST /admin/lost-items. */
+  /**
+   * Admin reports a new lost item → POST /admin/lost-items, then uploads the
+   * photo (if one was attached) via the multipart endpoint. The base64
+   * preview is NEVER sent as image_url — the backend caps that column at 500
+   * chars, so a data-URI would fail validation; the real file goes through
+   * POST /admin/lost-items/{id}/image instead.
+   */
   const handleSaveItem = async (newItem: LostFoundFormData) => {
     setActionError(null);
     try {
-      await reportItem({
+      const created = await reportItem({
         itemName: newItem.itemName,
         description: newItem.description,
-        imageUrl: newItem.imagePreview || undefined,
         plateNumber: newItem.plateNumber || undefined,
         driverName: newItem.driverName || undefined,
         conductorName: newItem.conductorName || undefined,
         estimatedTimeLost: newItem.estimatedTimeLost || undefined,
         category: newItem.category,
       });
+      if (newItem.imageFile) {
+        try {
+          await apiUploadImage(created.id, newItem.imageFile);
+        } catch (err) {
+          // The item exists — surface the photo failure without rolling back.
+          setActionError(
+            err instanceof LostFoundOperationError
+              ? `Item created, but the photo failed to upload: ${err.message}`
+              : 'Item created, but the photo failed to upload.'
+          );
+        }
+      }
       setIsAddModalOpen(false);
       void refresh();
     } catch (err) {

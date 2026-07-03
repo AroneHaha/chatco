@@ -45,6 +45,10 @@ export default function LostItemCard({ item, isWatched, claimStatus, claimLimitR
             </button>
           ) : claimStatus === "PENDING" ? (
             <button onClick={() => onCancelClaim(item.id)} className="flex-1 bg-white/5 hover:bg-white/10 text-white/60 hover:text-white text-sm font-medium py-2.5 rounded-xl border border-white/10 transition-colors flex items-center justify-center gap-2">Cancel Claim</button>
+          ) : claimStatus === "REJECTED" ? (
+            <button onClick={() => claimLimitReached ? null : onOpenClaimModal(item)} className={`flex-1 text-sm font-bold py-2.5 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 ${claimLimitReached ? "bg-white/5 text-white/30 cursor-not-allowed shadow-none" : "bg-[#FF6D3A] hover:bg-[#e55a2b] text-white shadow-[#FF6D3A]/30"}`}>
+              {claimLimitReached ? "Claim Limit Reached" : "Claim Again"}
+            </button>
           ) : (
             <div className="flex-1 bg-white/5 text-sm font-semibold py-2.5 rounded-xl text-center text-emerald-400">Validated - Proceed</div>
           )}
