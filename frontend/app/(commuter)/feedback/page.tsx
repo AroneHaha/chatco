@@ -40,6 +40,15 @@ export default function FeedbackPage() {
     toggleTag,
     comment,
     setComment,
+    conductorRating,
+    conductorHoverRating,
+    setConductorHoverRating,
+    handleSetConductorRating,
+    activeConductorTags,
+    conductorSelectedTags,
+    toggleConductorTag,
+    conductorComment,
+    setConductorComment,
     isSubmitting,
     isSubmitted,
     submitError,
@@ -47,6 +56,10 @@ export default function FeedbackPage() {
   } = useFeedback();
 
   const displayRating = hoverRating || rating;
+  const displayConductorRating = conductorHoverRating || conductorRating;
+  // Both crew members must be fully rated (star + at least one tag) to submit.
+  const driverComplete = rating > 0 && selectedTags.length > 0;
+  const conductorComplete = conductorRating > 0 && conductorSelectedTags.length > 0;
 
   // --- COUNTDOWN & AUTO-CLOSE LOGIC (kept from original) ---
   const [countdown, setCountdown] = useState(3);
@@ -272,26 +285,109 @@ export default function FeedbackPage() {
             </div>
           )}
 
-          {/* Submit Button */}
-          {rating > 0 && selectedTags.length > 0 && (
-            submitError && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 flex items-start gap-2 animate-fade-in">
-                <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-                <p className="text-red-400 text-xs font-medium leading-relaxed">
-                  {submitError.code === "already_submitted"
-                    ? "You already left feedback for this ride today. Scan another unit to rate a different ride."
-                    : submitError.code === "unauthenticated"
-                      ? "Your session has expired. Please log in again."
-                      : submitError.message}
+          {/* ─── CONDUCTOR RATING — mirrors the driver section above, shown
+                once the driver has been fully rated ─────────────────────── */}
+          {driverComplete && (
+            <div className="space-y-8 pt-2 border-t border-white/5 animate-fade-in">
+              <div className="pt-2">
+                <h2 className="text-white font-bold text-lg">Rate the Conductor</h2>
+                <p className="text-white/40 text-xs mt-1">
+                  {crew ? `${crew.conductorName} · ` : ""}How was the conductor?
                 </p>
               </div>
-            )
+
+              {/* Conductor Star Rating */}
+              <div className="bg-[#071A2E] border border-white/10 rounded-2xl p-6 flex flex-col items-center">
+                <h3 className="text-white/70 text-sm font-semibold mb-4">How was the conductor?</h3>
+                <div className="flex gap-3">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      onMouseEnter={() => setConductorHoverRating(star)}
+                      onMouseLeave={() => setConductorHoverRating(0)}
+                      onClick={() => handleSetConductorRating(star)}
+                      className="transition-transform duration-150 hover:scale-110 focus:outline-none"
+                    >
+                      <svg className={`w-10 h-10 transition-colors duration-150 ${star <= displayConductorRating ? "text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.4)]" : "text-white/10"}`} fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z" />
+                      </svg>
+                    </button>
+                  ))}
+                </div>
+                {conductorRating > 0 && (
+                  <p className="text-white/40 text-xs mt-3 font-medium animate-pulse">
+                    {conductorRating === 1 && "Terrible"}
+                    {conductorRating === 2 && "Poor"}
+                    {conductorRating === 3 && "Average"}
+                    {conductorRating === 4 && "Good"}
+                    {conductorRating === 5 && "Excellent"}
+                  </p>
+                )}
+              </div>
+
+              {/* Conductor Dynamic Tags */}
+              {conductorRating > 0 && (
+                <div className="animate-fade-in">
+                  <h3 className="text-white/70 text-sm font-semibold mb-3">
+                    {conductorRating >= 4 ? "What went well?" : "What could be improved?"}
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {activeConductorTags.map((tag) => {
+                      const isSelected = conductorSelectedTags.includes(tag);
+                      const isPositive = conductorRating >= 4;
+
+                      return (
+                        <button
+                          key={tag}
+                          onClick={() => toggleConductorTag(tag)}
+                          className={`px-4 py-2 rounded-full text-xs font-semibold border transition-all duration-200 ${
+                            isSelected
+                              ? (isPositive ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-lg shadow-emerald-500/10" : "bg-red-500/20 border-red-500/50 text-red-400 shadow-lg shadow-red-500/10")
+                              : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10"
+                          }`}
+                        >
+                          {tag}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Conductor Comment Box */}
+              {conductorRating > 0 && conductorSelectedTags.length > 0 && (
+                <div className="space-y-3 animate-fade-in">
+                  <h3 className="text-white/70 text-sm font-semibold">Additional Comments (Optional)</h3>
+                  <textarea
+                    rows={3}
+                    value={conductorComment}
+                    onChange={(e) => setConductorComment(e.target.value)}
+                    placeholder="Tell us more about the conductor..."
+                    className="w-full bg-[#071A2E] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#62A0EA] transition-colors resize-none"
+                  />
+                </div>
+              )}
+            </div>
           )}
 
-          {rating > 0 && (
+          {/* Submit Button — enabled only when BOTH crew members are rated */}
+          {driverComplete && submitError && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 flex items-start gap-2 animate-fade-in">
+              <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+              <p className="text-red-400 text-xs font-medium leading-relaxed">
+                {submitError.code === "already_submitted"
+                  ? "You already left feedback for this ride today. Scan another unit to rate a different ride."
+                  : submitError.code === "unauthenticated"
+                    ? "Your session has expired. Please log in again."
+                    : submitError.message}
+              </p>
+            </div>
+          )}
+
+          {driverComplete && (
             <button
               onClick={submitFeedback}
-              disabled={isSubmitting || selectedTags.length === 0}
+              disabled={isSubmitting || !conductorComplete}
               className="w-full py-4 rounded-xl text-base font-bold bg-[#FF6D3A] text-white hover:bg-[#e55a2b] transition-colors shadow-lg shadow-[#FF6D3A]/30 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {isSubmitting ? (

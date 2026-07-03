@@ -42,6 +42,9 @@ interface RawFeedback {
   rating: number;
   category: string | null;
   comment: string | null;
+  conductor_rating?: number | null;
+  conductor_category?: string | null;
+  conductor_comment?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -81,6 +84,9 @@ export interface Feedback {
   rating: number;
   category: string | null;
   comment: string | null;
+  conductorRating: number | null;
+  conductorCategory: string | null;
+  conductorComment: string | null;
   createdAt: string;
 }
 
@@ -142,6 +148,10 @@ function mapFeedback(raw: RawFeedback): Feedback {
     rating: typeof raw.rating === "number" ? raw.rating : Number(raw.rating) || 0,
     category: raw.category ?? null,
     comment: raw.comment ?? null,
+    conductorRating:
+      typeof raw.conductor_rating === "number" ? raw.conductor_rating : null,
+    conductorCategory: raw.conductor_category ?? null,
+    conductorComment: raw.conductor_comment ?? null,
     createdAt: raw.created_at,
   };
 }
@@ -199,10 +209,18 @@ export async function submit(params: {
    * joined here; the ride-history modal leaves it null.
    */
   category?: string;
+  /**
+   * Conductor rating — a SEPARATE score from the driver's (required by the
+   * backend). `conductorCategory` carries the conductor's selected tags,
+   * `conductorComment` the optional conductor comment.
+   */
+  conductorRating: number;
+  conductorCategory?: string;
+  conductorComment?: string;
   /** Accepted for API symmetry with the S6-T7 spec; NOT forwarded (server-derived). */
   conductorId?: string;
 }): Promise<Feedback> {
-  const { shiftId, rating, comment, category } = params;
+  const { shiftId, rating, comment, category, conductorRating, conductorCategory, conductorComment } = params;
 
   try {
     const response = await api.post<ApiResponseEnvelope<RawFeedback>>(
@@ -214,6 +232,10 @@ export async function submit(params: {
         ...(comment && comment.trim() ? { comment: comment.trim() } : {}),
         // Omit category when empty so the backend treats it as null.
         ...(category && category.trim() ? { category: category.trim() } : {}),
+        // Conductor rating (required) + its optional tags/comment.
+        conductor_rating: conductorRating,
+        ...(conductorCategory && conductorCategory.trim() ? { conductor_category: conductorCategory.trim() } : {}),
+        ...(conductorComment && conductorComment.trim() ? { conductor_comment: conductorComment.trim() } : {}),
       }
     );
 

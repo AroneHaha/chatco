@@ -111,6 +111,10 @@ export interface InMemoryFeedback {
   rating: number;
   category: string | null;
   comment: string | null;
+  /** Conductor rating — a separate score from the driver's (null on legacy rows). */
+  conductorRating: number | null;
+  conductorCategory: string | null;
+  conductorComment: string | null;
   createdAt: string;
 }
 
@@ -167,6 +171,7 @@ interface FeedbackRow {
   id: string; shift_id: string; vehicle_id: string; driver_id: string;
   conductor_id: string; commuter_id: string; commuter_name: string | null;
   rating: number; category: string | null; comment: string | null;
+  conductor_rating: number | null; conductor_category: string | null; conductor_comment: string | null;
   created_at: string; updated_at: string;
 }
 
@@ -259,6 +264,9 @@ function mapFeedback(r: FeedbackRow): InMemoryFeedback {
     rating: r.rating,
     category: r.category,
     comment: r.comment,
+    conductorRating: r.conductor_rating,
+    conductorCategory: r.conductor_category,
+    conductorComment: r.conductor_comment,
     createdAt: r.created_at,
   };
 }
@@ -565,7 +573,15 @@ export function endShiftViaRemittanceInMemory(
  */
 export function submitFeedbackInMemory(
   commuterId: string,
-  data: { shiftId: string; rating: number; comment?: string; category?: string }
+  data: {
+    shiftId: string;
+    rating: number;
+    comment?: string;
+    category?: string;
+    conductorRating?: number;
+    conductorComment?: string;
+    conductorCategory?: string;
+  }
 ): InMemoryFeedback {
   const database = db();
 
@@ -580,9 +596,9 @@ export function submitFeedbackInMemory(
 
   try {
     database.prepare(
-      `INSERT INTO feedback (id, shift_id, vehicle_id, driver_id, conductor_id, commuter_id, commuter_name, rating, category, comment, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(id, data.shiftId, shift.vehicle_id, shift.driver_id, shift.conductor_id, commuterId, commuterName, data.rating, data.category ?? null, data.comment ?? null, now, now);
+      `INSERT INTO feedback (id, shift_id, vehicle_id, driver_id, conductor_id, commuter_id, commuter_name, rating, category, comment, conductor_rating, conductor_category, conductor_comment, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(id, data.shiftId, shift.vehicle_id, shift.driver_id, shift.conductor_id, commuterId, commuterName, data.rating, data.category ?? null, data.comment ?? null, data.conductorRating ?? null, data.conductorCategory ?? null, data.conductorComment ?? null, now, now);
   } catch (e) {
     // SQLite UNIQUE constraint violation → 409 (one feedback per commuter per shift).
     const msg = e instanceof Error ? e.message : "";

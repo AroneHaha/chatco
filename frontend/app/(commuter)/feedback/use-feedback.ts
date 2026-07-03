@@ -89,6 +89,26 @@ const NEGATIVE_TAGS = [
   "Overloading",
 ];
 
+// Conductor-specific presets — the conductor handles fares/change + courtesy,
+// so the tags differ from the driver's (which are about driving).
+const POSITIVE_TAGS_CONDUCTOR = [
+  "Polite",
+  "Honest Change",
+  "Helpful",
+  "Accurate Fare",
+  "Respectful",
+  "Efficient",
+];
+
+const NEGATIVE_TAGS_CONDUCTOR = [
+  "Rude Behavior",
+  "Wrong Change",
+  "Overcharging",
+  "Unhelpful",
+  "Ignored Me",
+  "Slow Service",
+];
+
 // ─── Hook ──────────────────────────────────────────────────────────
 
 /**
@@ -124,7 +144,15 @@ export function useFeedback() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
 
+  // Conductor rating — a SEPARATE score from the driver's, mirroring the
+  // driver form state (star + preset tags + optional comment).
+  const [conductorRating, setConductorRating] = useState(0);
+  const [conductorHoverRating, setConductorHoverRating] = useState(0);
+  const [conductorSelectedTags, setConductorSelectedTags] = useState<string[]>([]);
+  const [conductorComment, setConductorComment] = useState("");
+
   const activeTags = rating >= 4 ? POSITIVE_TAGS : NEGATIVE_TAGS;
+  const activeConductorTags = conductorRating >= 4 ? POSITIVE_TAGS_CONDUCTOR : NEGATIVE_TAGS_CONDUCTOR;
 
   // ─── Scan flow ──────────────────────────────────────────────
   /**
@@ -172,6 +200,10 @@ export function useFeedback() {
       setHoverRating(0);
       setSelectedTags([]);
       setComment("");
+      setConductorRating(0);
+      setConductorHoverRating(0);
+      setConductorSelectedTags([]);
+      setConductorComment("");
       setIsSubmitted(false);
       setScanStatus("resolved");
     } catch (err) {
@@ -195,6 +227,10 @@ export function useFeedback() {
     setHoverRating(0);
     setSelectedTags([]);
     setComment("");
+    setConductorRating(0);
+    setConductorHoverRating(0);
+    setConductorSelectedTags([]);
+    setConductorComment("");
     setIsSubmitted(false);
   }, []);
 
@@ -208,6 +244,18 @@ export function useFeedback() {
   const handleSetRating = (val: number) => {
     setRating(val);
     setSelectedTags([]); // Reset tags when rating changes
+  };
+
+  // Conductor handlers — mirror the driver handlers exactly.
+  const toggleConductorTag = (tag: string) => {
+    setConductorSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  };
+
+  const handleSetConductorRating = (val: number) => {
+    setConductorRating(val);
+    setConductorSelectedTags([]); // Reset tags when rating changes
   };
 
   /**
@@ -229,7 +277,8 @@ export function useFeedback() {
    * redirect-worthy codes for the scan half; submit errors surface inline).
    */
   const submitFeedback = async () => {
-    if (!crew || rating === 0) return;
+    // Both the driver AND the conductor must be rated (required).
+    if (!crew || rating === 0 || conductorRating === 0) return;
     setIsSubmitting(true);
     setSubmitError(null);
     try {
@@ -240,6 +289,12 @@ export function useFeedback() {
         category:
           selectedTags.length > 0
             ? selectedTags.join(", ").slice(0, 50)
+            : undefined,
+        conductorRating,
+        conductorComment: conductorComment.trim() || undefined,
+        conductorCategory:
+          conductorSelectedTags.length > 0
+            ? conductorSelectedTags.join(", ").slice(0, 50)
             : undefined,
       });
       setIsSubmitted(true);
@@ -274,6 +329,16 @@ export function useFeedback() {
     toggleTag,
     comment,
     setComment,
+    // conductor form state (mirrors the driver form)
+    conductorRating,
+    conductorHoverRating,
+    setConductorHoverRating,
+    handleSetConductorRating,
+    activeConductorTags,
+    conductorSelectedTags,
+    toggleConductorTag,
+    conductorComment,
+    setConductorComment,
     // submit state
     isSubmitting,
     isSubmitted,

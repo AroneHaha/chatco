@@ -99,9 +99,14 @@ class FeedbackService
                     'driver_id' => $shift->driver_id,
                     'conductor_id' => $shift->conductor_id,
                     'commuter_id' => $commuter->id,
+                    // Driver rating (the original columns).
                     'rating' => $data['rating'],
                     'category' => $data['category'] ?? null,
                     'comment' => $data['comment'] ?? null,
+                    // Conductor rating — a separate, independent score.
+                    'conductor_rating' => $data['conductor_rating'] ?? null,
+                    'conductor_category' => $data['conductor_category'] ?? null,
+                    'conductor_comment' => $data['conductor_comment'] ?? null,
                 ]);
             });
         } catch (UniqueConstraintViolationException) {
@@ -124,10 +129,13 @@ class FeedbackService
             throw new FeedbackException('Conductor not found');
         }
 
+        // Only rows that carry a conductor rating (historical rows predating
+        // the driver/conductor split have a null conductor_rating).
         $query = Feedback::where('conductor_id', $conductorId)
+            ->whereNotNull('conductor_rating')
             ->with(['vehicle:id,unit_number,plate_number', 'commuter:id,first_name,surname']);
 
-        return $this->buildListResponse($query, $perPage, 'CONDUCTOR', $conductorId);
+        return $this->buildListResponse($query, $perPage, 'CONDUCTOR', $conductorId, 'conductor');
     }
 
     /**
@@ -192,16 +200,33 @@ class FeedbackService
      * The paginator is mapped to a plain array so the controller can hand it
      * straight to successResponse() without further shaping.
      */
-    private function buildListResponse(Builder $query, int $perPage, string $role, string $staffId): array
+    private function buildListResponse(Builder $query, int $perPage, string $role, string $staffId, string $ratee = 'driver'): array
     {
+        // For the conductor listing, the relevant score lives in the
+        // conductor_* columns. We aggregate over those and expose them under
+        // the canonical rating/category/comment keys so the admin modal +
+        // conductor metrics render the CONDUCTOR's own rating, not the driver's.
+        $ratingColumn = $ratee === 'conductor' ? 'conductor_rating' : 'rating';
+
         // Summary is computed over ALL feedback for this staff member
         // (ignores pagination), so the modal always shows the true totals.
         $all = (clone $query)->get();
-        $summary = $this->buildSummary($all);
+        $summary = $this->buildSummary($all, $ratingColumn);
 
         $paginator = $query
             ->orderByDesc('created_at')
             ->paginate($perPage);
+
+        // Remap the conductor columns onto rating/category/comment so the
+        // response shape stays identical for both driver and conductor.
+        $items = collect($paginator->items())->map(function (Feedback $f) use ($ratee) {
+            if ($ratee === 'conductor') {
+                $f->setAttribute('rating', $f->conductor_rating);
+                $f->setAttribute('category', $f->conductor_category);
+                $f->setAttribute('comment', $f->conductor_comment);
+            }
+            return $f;
+        })->all();
 
         /** @var LengthAwarePaginator $paginator */
         return [
@@ -210,7 +235,7 @@ class FeedbackService
                 'role' => $role,
             ],
             'summary'    => $summary,
-            'feedback'   => $paginator->items(),
+            'feedback'   => $items,
             'pagination' => [
                 'current_page' => $paginator->currentPage(),
                 'per_page'     => $paginator->perPage(),
@@ -230,15 +255,15 @@ class FeedbackService
      *   - total_count:    int
      *   - distribution:   array keyed 5→1 with per-star counts
      */
-    private function buildSummary($feedback): array
+    private function buildSummary($feedback, string $ratingColumn = 'rating'): array
     {
         $total = $feedback->count();
         $distribution = collect(range(5, 1))->mapWithKeys(fn (int $star) => [
-            (string) $star => $feedback->where('rating', $star)->count(),
+            (string) $star => $feedback->where($ratingColumn, $star)->count(),
         ])->all();
 
         return [
-            'average_rating' => $total > 0 ? round($feedback->avg('rating'), 2) : 0.0,
+            'average_rating' => $total > 0 ? round($feedback->avg($ratingColumn), 2) : 0.0,
             'total_count'    => $total,
             'distribution'   => $distribution,
         ];

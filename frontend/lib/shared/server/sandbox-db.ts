@@ -176,6 +176,9 @@ function initSchema(db: Database.Database): void {
       rating       INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
       category     TEXT,
       comment      TEXT,
+      conductor_rating   INTEGER CHECK (conductor_rating BETWEEN 1 AND 5),
+      conductor_category TEXT,
+      conductor_comment  TEXT,
       created_at   TEXT NOT NULL,
       updated_at   TEXT NOT NULL,
       UNIQUE (commuter_id, shift_id)

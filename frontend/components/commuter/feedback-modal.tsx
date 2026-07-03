@@ -115,6 +115,10 @@ export default function FeedbackModal({
   const [rating, setRating] = useState(existingFeedback?.rating ?? 0);
   const [hoverRating, setHoverRating] = useState(0);
   const [comment, setComment] = useState(existingFeedback?.comment ?? "");
+  // Conductor rating — a separate score from the driver's (required to submit).
+  const [conductorRating, setConductorRating] = useState(existingFeedback?.conductorRating ?? 0);
+  const [conductorHoverRating, setConductorHoverRating] = useState(0);
+  const [conductorComment, setConductorComment] = useState(existingFeedback?.conductorComment ?? "");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<InlineError | null>(null);
 
@@ -124,11 +128,18 @@ export default function FeedbackModal({
     setRating(existingFeedback?.rating ?? 0);
     setHoverRating(0);
     setComment(existingFeedback?.comment ?? "");
+    setConductorRating(existingFeedback?.conductorRating ?? 0);
+    setConductorHoverRating(0);
+    setConductorComment(existingFeedback?.conductorComment ?? "");
     setError(null);
   }, [existingFeedback, ride.id]);
 
   const canSubmit =
-    mode === "submit" && rating >= 1 && rating <= 5 && comment.length <= COMMENT_MAX && !isSubmitting;
+    mode === "submit" &&
+    rating >= 1 && rating <= 5 &&
+    conductorRating >= 1 && conductorRating <= 5 &&
+    comment.length <= COMMENT_MAX && conductorComment.length <= COMMENT_MAX &&
+    !isSubmitting;
 
   const handleSubmit = async () => {
     if (!canSubmit || !ride.shiftId) return;
@@ -139,6 +150,8 @@ export default function FeedbackModal({
         shiftId: ride.shiftId,
         rating,
         comment: comment.trim() || undefined,
+        conductorRating,
+        conductorComment: conductorComment.trim() || undefined,
       });
       onSubmitted(feedback);
     } catch (err) {
@@ -278,6 +291,51 @@ export default function FeedbackModal({
             <div className="flex justify-end mt-1">
               <span className={`text-[11px] ${comment.length > COMMENT_MAX ? "text-red-500" : "text-gray-400"}`}>
                 {comment.length} / {COMMENT_MAX}
+              </span>
+            </div>
+          </div>
+
+          {/* Conductor star rating — a separate score from the driver's */}
+          <div>
+            <label className="block text-xs font-semibold text-[#071A2E] mb-2">
+              Conductor Rating <span className="text-red-500">*</span>
+            </label>
+            <StarPicker
+              value={conductorRating}
+              hover={conductorHoverRating}
+              interactive={mode === "submit"}
+              onChange={setConductorRating}
+              onHover={setConductorHoverRating}
+            />
+            {mode === "submit" && conductorRating === 0 && (
+              <p className="text-[11px] text-gray-400 mt-1.5">Tap a star to rate the conductor (1–5).</p>
+            )}
+          </div>
+
+          {/* Conductor comment */}
+          <div>
+            <label className="block text-xs font-semibold text-[#071A2E] mb-2">
+              Conductor Comment <span className="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <textarea
+              value={conductorComment}
+              onChange={(e) => setConductorComment(e.target.value)}
+              maxLength={COMMENT_MAX}
+              readOnly={mode === "view"}
+              disabled={mode === "view"}
+              rows={4}
+              placeholder={
+                mode === "view"
+                  ? "No comment was left."
+                  : "Tell us about the conductor…"
+              }
+              className={`w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-[#071A2E] placeholder:text-gray-300 resize-none focus:outline-none focus:ring-2 focus:ring-[#1A5FB4]/30 focus:border-[#1A5FB4] ${
+                mode === "view" ? "bg-gray-50 cursor-default" : "bg-white"
+              }`}
+            />
+            <div className="flex justify-end mt-1">
+              <span className={`text-[11px] ${conductorComment.length > COMMENT_MAX ? "text-red-500" : "text-gray-400"}`}>
+                {conductorComment.length} / {COMMENT_MAX}
               </span>
             </div>
           </div>

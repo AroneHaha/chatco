@@ -31,12 +31,16 @@ class Feedback extends Model
         'rating',
         'category',
         'comment',
+        'conductor_rating',
+        'conductor_category',
+        'conductor_comment',
     ];
 
     protected function casts(): array
     {
         return [
             'rating' => 'integer',
+            'conductor_rating' => 'integer',
         ];
     }
 

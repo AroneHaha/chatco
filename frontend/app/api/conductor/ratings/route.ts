@@ -36,8 +36,11 @@ export async function GET(request: NextRequest) {
 
   const feedback = listFeedbackForShiftInMemory(shiftId);
 
-  // Emit a DRIVER + CONDUCTOR entry per feedback so the metrics page can
-  // split averages by role. Both entries share the commuter's score + comment.
+  // Emit a DRIVER + CONDUCTOR entry per feedback so the metrics page can split
+  // averages by role. The driver + conductor now carry INDEPENDENT scores +
+  // comments (the commuter rates each separately). Rows predating the split
+  // have a null conductor rating — fall back to the driver's score so the
+  // conductor entry still renders sensibly.
   const ratings: ConductorRating[] = feedback.flatMap((f) => [
     {
       ratingId: `${f.id}-drv`,
@@ -57,8 +60,8 @@ export async function GET(request: NextRequest) {
       shiftId: f.shiftId,
       targetRole: "CONDUCTOR",
       targetId: f.conductorId,
-      score: f.rating,
-      comment: f.comment ?? "",
+      score: f.conductorRating ?? f.rating,
+      comment: f.conductorComment ?? "",
       createdAt: f.createdAt,
     },
   ]);

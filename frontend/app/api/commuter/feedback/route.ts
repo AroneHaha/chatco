@@ -70,7 +70,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let payload: { shift_id?: string; rating?: number; comment?: string; category?: string };
+  let payload: {
+    shift_id?: string; rating?: number; comment?: string; category?: string;
+    conductor_rating?: number; conductor_comment?: string; conductor_category?: string;
+  };
   try {
     payload = JSON.parse(rawBody);
   } catch {
@@ -80,10 +83,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { shift_id, rating, comment, category } = payload;
+  const { shift_id, rating, comment, category, conductor_rating, conductor_comment, conductor_category } = payload;
   if (!shift_id || typeof rating !== "number" || rating < 1 || rating > 5) {
     return NextResponse.json(
       { success: false, message: "shift_id and a rating (1–5) are required.", data: null, errors: null, meta: null },
+      { status: 422 }
+    );
+  }
+  if (typeof conductor_rating !== "number" || conductor_rating < 1 || conductor_rating > 5) {
+    return NextResponse.json(
+      { success: false, message: "A conductor rating (1–5) is required.", data: null, errors: null, meta: null },
       { status: 422 }
     );
   }
@@ -94,6 +103,9 @@ export async function POST(request: NextRequest) {
       rating,
       comment: comment?.trim() || undefined,
       category: category?.trim() || undefined,
+      conductorRating: conductor_rating,
+      conductorComment: conductor_comment?.trim() || undefined,
+      conductorCategory: conductor_category?.trim() || undefined,
     });
 
     return NextResponse.json(
@@ -109,6 +121,9 @@ export async function POST(request: NextRequest) {
           rating: feedback.rating,
           category: feedback.category,
           comment: feedback.comment,
+          conductor_rating: feedback.conductorRating,
+          conductor_category: feedback.conductorCategory,
+          conductor_comment: feedback.conductorComment,
           created_at: feedback.createdAt,
           updated_at: feedback.createdAt,
         },

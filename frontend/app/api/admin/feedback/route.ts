@@ -55,9 +55,21 @@ export async function GET(request: NextRequest) {
     return jsonError("Either conductor_id or driver_id is required.", 422);
   }
 
-  const allFeedback = conductorId
-    ? listFeedbackForConductorInMemory(conductorId)
-    : listFeedbackForDriverInMemory(driverId!);
+  const isConductor = !!conductorId;
+  // For a conductor, the relevant score lives in the conductor_* columns.
+  // Drop legacy rows without a conductor rating, then normalize the score/
+  // category/comment onto the canonical fields so the summary + rows below
+  // render the CONDUCTOR's own rating (not the driver's).
+  const allFeedback = (
+    isConductor
+      ? listFeedbackForConductorInMemory(conductorId).filter((f) => f.conductorRating != null)
+      : listFeedbackForDriverInMemory(driverId!)
+  ).map((f) => ({
+    ...f,
+    rating: isConductor ? (f.conductorRating as number) : f.rating,
+    category: isConductor ? f.conductorCategory : f.category,
+    comment: isConductor ? f.conductorComment : f.comment,
+  }));
 
   // Build the summary (average_rating, total_count, 5→1 distribution) to
   // match the Laravel AdminFeedbackController::index response shape.

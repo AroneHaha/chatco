@@ -33,6 +33,11 @@ class StoreFeedbackRequest extends FormRequest
             'rating'   => 'required|integer|min:1|max:5',
             'category' => 'nullable|string|max:50',
             'comment'  => 'nullable|string|max:2000',
+            // Conductor rating — a SEPARATE score from the driver's. Required
+            // (mirrors the driver): the commuter rates both crew members.
+            'conductor_rating'   => 'required|integer|min:1|max:5',
+            'conductor_category' => 'nullable|string|max:50',
+            'conductor_comment'  => 'nullable|string|max:2000',
         ];
     }
 
@@ -47,6 +52,12 @@ class StoreFeedbackRequest extends FormRequest
             'rating.max'        => 'Rating must be at most 5',
             'category.max'      => 'Category must be at most 50 characters',
             'comment.max'       => 'Comment must be at most 2000 characters',
+            'conductor_rating.required' => 'Conductor rating is required',
+            'conductor_rating.integer'  => 'Conductor rating must be an integer',
+            'conductor_rating.min'      => 'Conductor rating must be at least 1',
+            'conductor_rating.max'      => 'Conductor rating must be at most 5',
+            'conductor_category.max'    => 'Conductor category must be at most 50 characters',
+            'conductor_comment.max'     => 'Conductor comment must be at most 2000 characters',
         ];
     }
 }
