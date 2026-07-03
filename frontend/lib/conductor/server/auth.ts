@@ -1,6 +1,5 @@
 import type { NextRequest } from "next/server";
 import { jsonError } from "@/lib/conductor/server/response";
-import { resolveSessionInMemory } from "@/lib/shared/server/inmemory-backend";
 
 export interface ConductorSession {
   userId: string;
@@ -19,15 +18,10 @@ const API_URL = process.env.API_URL || "http://localhost:8000";
  * Resolve the conductor session from the Sanctum bearer token stored in the
  * `chatco_session` cookie.
  *
- * PRIMARY PATH (production): validate the token against Laravel
- * `GET /api/v1/user` (guarded by `auth:sanctum`). If the authenticated user's
- * role is `CONDUCTOR`, return a {@link ConductorSession}.
- *
- * FALLBACK PATH (dev/demo): when the Laravel backend is unreachable (the PHP
- * runtime is unavailable in the sandbox preview), resolve the token against
- * the in-memory session store. This keeps the conductor flow demoable
- * end-to-end without a live Laravel instance. Production deployments with a
- * live Laravel instance never reach the fallback.
+ * Validates the token against Laravel `GET /api/v1/user` (guarded by
+ * `auth:sanctum`). If the authenticated user's role is `CONDUCTOR`, returns a
+ * {@link ConductorSession}; otherwise (rejected token or unreachable backend)
+ * returns null.
  */
 export async function getConductorSession(
   request: NextRequest
@@ -45,9 +39,8 @@ export async function getConductorSession(
     });
 
     if (!res.ok) {
-      // Laravel is up but rejected the token — try the in-memory fallback
-      // (the token may have been issued by the in-memory login path).
-      return resolveInMemory(token);
+      // Laravel is up but rejected the token.
+      return null;
     }
 
     const body = await res.json();
@@ -63,20 +56,9 @@ export async function getConductorSession(
       name: user.name,
     };
   } catch {
-    // Backend unreachable / network error → fall back to in-memory sessions.
-    return resolveInMemory(token);
+    // Backend unreachable / network error.
+    return null;
   }
-}
-
-function resolveInMemory(token: string): ConductorSession | null {
-  const user = resolveSessionInMemory(token);
-  if (!user || user.role !== "CONDUCTOR") return null;
-  return {
-    userId: user.id,
-    role: user.role,
-    email: user.email,
-    name: user.name,
-  };
 }
 
 export function unauthorizedResponse() {

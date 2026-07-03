@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveSessionInMemory } from "@/lib/shared/server/inmemory-backend";
 
 const API_URL = process.env.API_URL || "http://localhost:8000";
 
 /**
  * GET /api/auth/me
  *
- * PRIMARY: proxies to Laravel `GET /api/v1/user` (Sanctum) and returns the
+ * Proxies to Laravel `GET /api/v1/user` (Sanctum) and returns the
  * authenticated user + commuter profile.
- * FALLBACK: when Laravel is unreachable, resolves the `chatco_session` cookie
- * against the in-memory session store so the client's auth context keeps
- * working in the sandbox preview (no PHP runtime).
  */
 export async function GET(request: NextRequest) {
   const token = request.cookies.get("chatco_session")?.value;
@@ -52,39 +48,13 @@ export async function GET(request: NextRequest) {
         : null;
       return NextResponse.json({ user: backend.user, profile });
     }
-    // Laravel rejected the token — fall through to in-memory.
-  } catch {
-    // Laravel unreachable — fall through to in-memory.
-  }
-
-  // ─── In-memory fallback ────────────────────────────────────────────
-  const user = resolveSessionInMemory(token);
-  if (!user) {
+    // Laravel rejected the token.
     return NextResponse.json({ message: "Unauthenticated." }, { status: 401 });
+  } catch {
+    // Laravel unreachable.
+    return NextResponse.json(
+      { message: "Unable to reach the backend service. Please try again." },
+      { status: 502 }
+    );
   }
-
-  return NextResponse.json({
-    user: { id: user.id, email: user.email, role: user.role, name: user.name },
-    profile: user.profile
-      ? {
-          id: user.id,
-          firstName: user.profile.firstName,
-          middleName: null,
-          surname: user.profile.surname,
-          birthdate: null,
-          gender: null,
-          email: user.email,
-          contactNumber: user.profile.contactNumber,
-          commuterType: user.profile.commuterType,
-          appliedType: undefined,
-          username: undefined,
-          languagePreference: "English",
-          accountStatus: user.profile.accountStatus,
-          idImageUrl: null,
-          verifiedAt: null,
-          createdAt: new Date().toISOString(),
-          updatedAt: undefined,
-        }
-      : null,
-  });
 }

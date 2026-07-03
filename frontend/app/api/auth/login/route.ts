@@ -1,22 +1,13 @@
 import { NextResponse } from "next/server";
-import { loginInMemory } from "@/lib/shared/server/inmemory-backend";
 
 const API_URL = process.env.API_URL || "http://localhost:8000";
 
 /**
  * POST /api/auth/login
  *
- * PRIMARY: proxies to Laravel `POST /api/v1/auth/login` (Sanctum token auth).
- * FALLBACK: when Laravel is unreachable (sandbox preview has no PHP runtime),
- * authenticates against the in-memory user store so the full commuter →
- * conductor feedback loop stays demoable. The in-memory path issues a token
- * and sets the same `chatco_session` httpOnly cookie the Laravel path uses,
- * so every downstream route (which reads that cookie) works unchanged.
- *
- * Demo credentials (in-memory):
- *   commuter@chatco.ph  / commuter123   → /dashboard
- *   conductor@chatco.ph / conductor123  → /unit-verification
- *   admin@chatco.ph     / admin123      → /admin-dashboard
+ * Proxies to Laravel `POST /api/v1/auth/login` (Sanctum token auth). On
+ * success it issues the `chatco_session` httpOnly cookie that every
+ * downstream route reads to attach the bearer token.
  */
 export async function POST(request: Request) {
   let body: { email?: string; password?: string };
@@ -49,25 +40,18 @@ export async function POST(request: Request) {
         { status: res.status }
       );
     }
-    // 5xx / unreachable → fall through to in-memory fallback.
+    // 5xx — backend error.
+    return NextResponse.json(
+      { message: data?.message || "The authentication service is unavailable. Please try again." },
+      { status: 502 }
+    );
   } catch {
-    // Network error (Laravel unreachable) → fall through to in-memory fallback.
+    // Network error — Laravel unreachable.
+    return NextResponse.json(
+      { message: "Unable to reach the authentication service. Please try again." },
+      { status: 502 }
+    );
   }
-
-  // ─── In-memory fallback ────────────────────────────────────────────
-  const result = loginInMemory(email ?? "", password ?? "");
-  if (!result) {
-    return NextResponse.json({ message: "Invalid credentials." }, { status: 401 });
-  }
-
-  const { user, token } = result;
-  return issueSession({
-    id: user.id,
-    email: user.email,
-    role: user.role,
-    name: user.name,
-    token,
-  });
 }
 
 function issueSession(user: { id: string; email: string; role: string; name: string; token: string }) {
