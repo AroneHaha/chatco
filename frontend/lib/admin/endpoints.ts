@@ -39,9 +39,13 @@ export const ADMIN_API = {
     update: (id: string) => `/api/admin/lost-found/${id}`,
   },
   monitoring: {
-    live: "/api/admin/monitoring/live",
-    sos: "/api/admin/monitoring/sos",
-    resolveSos: (id: string) => `/api/admin/monitoring/sos/${id}/resolve`,
+    live: "/api/admin/monitoring",
+    /** GET — active SOS feed (polls every 5s). Use ?status=RESOLVED for history. */
+    sos: "/api/admin/sos",
+    /** PATCH — acknowledge an active SOS (ACTIVE → ACKNOWLEDGED). */
+    acknowledgeSos: (id: string) => `/api/admin/sos/${encodeURIComponent(id)}/acknowledge`,
+    /** PATCH — resolve an SOS (any → RESOLVED, terminal). */
+    resolveSos: (id: string) => `/api/admin/sos/${encodeURIComponent(id)}/resolve`,
     overspeed: "/api/admin/monitoring/overspeed",
     demandZones: "/api/admin/monitoring/demand-zones",
   },
@@ -53,6 +57,22 @@ export const ADMIN_API = {
   },
   receipts: {
     list: "/api/admin/receipts",
+  },
+  /**
+   * Sprint 6 (T6 revised) — Staff feedback listing.
+   *
+   * Replaces the standalone admin "Feedback QR" module. The admin views
+   * driver/conductor feedback from User Management by double-clicking a
+   * row. Pass conductor_id OR driver_id (mutually exclusive). Returns
+   * paginated feedback + a summary (average_rating, total_count, 5→1
+   * distribution).
+   *
+   * The commuter-side QR scan flow (validate + scan) lives under
+   * COMMUTER_API.feedbackQr — commuters still scan the unit-QR to
+   * resolve today's crew before submitting feedback.
+   */
+  feedback: {
+    list: "/api/admin/feedback",
   },
   settings: {
     fareMatrix: "/api/admin/settings/fare-matrix",

@@ -20,3 +20,13 @@ Artisan::command('inspire', function () {
 // `php artisan schedule:work` (dev) or a system cron entry running
 // `php artisan schedule:run` every minute.
 Schedule::command('hails:expire')->everyMinute();
+
+// ─── Automatic daily vehicle-assignment reset (12:00 AM) ─────────────
+// Per the vehicle-assignment workflow refactor: at midnight every day the
+// CURRENT driver + conductor + active-shift assignment on EVERY vehicle is
+// cleared, so each unit starts the new day unassigned. Historical records
+// (shift_logs, remittances, transactions) are NEVER touched — only the
+// mutable current-assignment columns on the vehicles table are reset.
+// Assignment is re-established automatically when a conductor logs in and
+// starts a new shift.
+Schedule::command('vehicles:reset-daily-assignments')->dailyAt('00:00');

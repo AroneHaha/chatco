@@ -10,9 +10,11 @@ interface VehicleTableProps {
   searchQuery: string;
   onEdit: (vehicle: any) => void; // Added edit handler
   onEditShift: (vehicle: any) => void; // Added shift handler
+  /** Double-clicking a row opens the vehicle details (incl. permanent QR). */
+  onRowDoubleClick?: (vehicle: any) => void;
 }
 
-export function VehicleTable({ vehicles, searchQuery, onEdit, onEditShift }: VehicleTableProps) {
+export function VehicleTable({ vehicles, searchQuery, onEdit, onEditShift, onRowDoubleClick }: VehicleTableProps) {
   const columns = [
     { key: 'plateNumber', label: 'Plate' },
     { key: 'route', label: 'Route' },
@@ -34,7 +36,12 @@ export function VehicleTable({ vehicles, searchQuery, onEdit, onEditShift }: Veh
       label: 'Actions',
       // We pass the whole row (vehicle) to the render function so we can trigger the modals
       render: (_: any, row: any) => (
-        <div className="flex items-center justify-end gap-2">
+        // Stop double-click on the action buttons from also opening the
+        // details modal — the row-level onDoubleClick handles that intent.
+        <div
+          className="flex items-center justify-end gap-2"
+          onDoubleClick={(e) => e.stopPropagation()}
+        >
           {/* Shift History Button (clock icon) */}
           <button 
             onClick={(e) => {
@@ -66,5 +73,12 @@ export function VehicleTable({ vehicles, searchQuery, onEdit, onEditShift }: Veh
   ];
 
   // Changed mockVehicles to the vehicles prop
-  return <DataTable data={vehicles} columns={columns} searchQuery={searchQuery} />;
+  return (
+    <DataTable
+      data={vehicles}
+      columns={columns}
+      searchQuery={searchQuery}
+      onRowDoubleClick={onRowDoubleClick}
+    />
+  );
 }

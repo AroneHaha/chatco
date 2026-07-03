@@ -161,7 +161,7 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
           if (data.errors.contact) mapped.contact = data.errors.contact;
           if (data.errors.license_number) mapped.license_number = data.errors.license_number;
           setFieldErrors(mapped);
-          const firstError = Object.values(data.errors)[0]?.[0] ?? 'Validation failed.';
+          const firstError = (Object.values(data.errors)[0] as string[] | undefined)?.[0] ?? 'Validation failed.';
           throw new Error(firstError);
         }
         throw new Error(data.message ?? 'Failed to update driver');

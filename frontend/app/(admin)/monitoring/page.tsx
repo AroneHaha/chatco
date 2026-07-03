@@ -10,7 +10,7 @@ import {
 import { useFleetPoll } from '@/lib/admin/services/monitoring.service';
 import {
   useMonitoringData,
-  type SosAlert, type SosHistoryLog, type DemandZone,
+  type DemandZone,
 } from './data/data-monitoring';
 import { SkeletonMetric, SkeletonTable, SkeletonMap } from '@/components/admin/ui/skeleton';
 
@@ -27,11 +27,11 @@ const AdminCommuterMap = dynamic<{
 export default function MonitoringPage() {
   // Live fleet data (real API, 5s poll)
   const { fleet, isLoading, isRefreshing, error, lastFetchedAt, refetch } = useFleetPoll(5000);
-  // Mock monitoring data (SOS, overspeed, demand — no backend yet)
-  const { data: mockData } = useMonitoringData();
+  // Real SOS alerts (polls /api/admin/sos every 5s) + mock overspeed/demand
+  const { data, acknowledgeSos, resolveSos } = useMonitoringData();
 
-  const [sosAlerts, setSosAlerts] = useState<SosAlert[]>(mockData.sosAlerts);
-  const [sosHistory, setSosHistory] = useState<SosHistoryLog[]>(mockData.sosHistory);
+  const sosAlerts = data.sosAlerts;
+  const sosHistory = data.sosHistory;
 
   // Pagination States
   const [sosPage, setSosPage] = useState(1);
@@ -45,13 +45,12 @@ export default function MonitoringPage() {
 
   // Metrics from live fleet
   const staleCount = fleet.filter(v => v.is_stale).length;
-  const fullCount = fleet.filter(v => v.capacity_status === 'FULL').length;
   const activeCount = fleet.length;
 
   const metrics = [
     { title: 'Active Vehicles', value: activeCount.toString(), icon: MapPin, color: 'text-[#62A0EA]' },
     { title: 'Stale Units (>10min)', value: staleCount.toString(), icon: WifiOff, color: 'text-amber-400' },
-    { title: 'Full Capacity', value: fullCount.toString(), icon: Gauge, color: 'text-red-400' },
+    { title: 'Active SOS', value: sosAlerts.length.toString(), icon: AlertTriangle, color: 'text-red-400' },
   ];
 
   const filteredFleet = useMemo(() => {
@@ -78,17 +77,12 @@ export default function MonitoringPage() {
     [fleet]
   );
 
-  // SOS handlers (mock — no backend yet)
-  const handleConfirmSos = (alertId: string) => {
-    const alert = sosAlerts.find(a => a.id === alertId);
-    if (!alert) return;
-    const now = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
-    setSosHistory(prev => [{ ...alert, triggeredAt: `Today - ${alert.time}`, resolvedAt: now }, ...prev]);
-    setSosAlerts(prev => prev.filter(a => a.id !== alertId));
-  };
+  // SOS handlers — wired to real backend (acknowledge + resolve).
+  const handleConfirmSos = (alertId: string) => { void resolveSos(alertId); };
+  const handleAcknowledgeSos = (alertId: string) => { void acknowledgeSos(alertId); };
 
   const filteredSosHistory = useMemo(() => filterSosDate ? sosHistory.filter(l => l.triggeredDate === filterSosDate) : sosHistory, [filterSosDate, sosHistory]);
-  const filteredOverspeedHistory = useMemo(() => filterOverspeedDate ? mockData.overspeedHistory.filter(l => l.loggedDate === filterOverspeedDate) : mockData.overspeedHistory, [filterOverspeedDate, mockData.overspeedHistory]);
+  const filteredOverspeedHistory = useMemo(() => filterOverspeedDate ? data.overspeedHistory.filter(l => l.loggedDate === filterOverspeedDate) : data.overspeedHistory, [filterOverspeedDate, data.overspeedHistory]);
 
   const totalSosPages = Math.max(1, Math.ceil(filteredSosHistory.length / ROWS_PER_PAGE));
   const currentSosData = filteredSosHistory.slice((sosPage - 1) * ROWS_PER_PAGE, sosPage * ROWS_PER_PAGE);
@@ -158,29 +152,50 @@ export default function MonitoringPage() {
             <span className="relative flex h-3 w-3 ml-1"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span></span>
           </div>
           <div className="space-y-3">
-            {sosAlerts.map((alert) => (
+            {sosAlerts.map((alert) => {
+              const isAcknowledged = alert.status === "ACKNOWLEDGED";
+              return (
               <div key={alert.id} className="bg-red-400/5 border border-red-400/20 rounded-lg p-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-start space-x-3">
                     <AlertTriangle className="text-red-400 mt-0.5 flex-shrink-0" size={24} />
                     <div>
-                      <p className="text-base font-semibold text-white">{alert.message}</p>
-                      <p className="text-sm text-slate-300 mt-1">Vehicle: <span className="font-medium text-white">{alert.vehicle}</span> | Conductor: <span className="font-medium text-white">{alert.conductor}</span></p>
-                      <p className="text-xs text-slate-500 mt-1 font-mono">Coords: {alert.coordinates[0]}, {alert.coordinates[1]}</p>
-                      <div className="flex items-center text-xs text-slate-500 mt-2"><Clock size={12} className="mr-1" />{alert.time}</div>
+                      <p className="text-base font-semibold text-white">{alert.note}</p>
+                      <p className="text-sm text-slate-300 mt-1">Commuter: <span className="font-medium text-white">{alert.commuter}</span></p>
+                      <p className="text-xs text-slate-500 mt-1 font-mono">Coords: {alert.coordinates[0].toFixed(5)}, {alert.coordinates[1].toFixed(5)}</p>
+                      <div className="flex items-center gap-3 text-xs text-slate-500 mt-2">
+                        <span className="flex items-center"><Clock size={12} className="mr-1" />{alert.time}</span>
+                        {isAcknowledged ? (
+                          <span className="flex items-center gap-1 text-amber-400 font-medium">
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                            Acknowledged
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-red-400 font-medium">
+                            <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span></span>
+                            Awaiting response
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <button onClick={() => handleConfirmSos(alert.id)} className="flex-shrink-0 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm font-medium transition-colors shadow-lg shadow-red-500/25">Confirm & Resolve SOS</button>
+                  <div className="flex flex-shrink-0 gap-2">
+                    {!isAcknowledged && (
+                      <button onClick={() => handleAcknowledgeSos(alert.id)} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-medium transition-colors shadow-lg shadow-amber-500/25">Acknowledge</button>
+                    )}
+                    <button onClick={() => handleConfirmSos(alert.id)} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm font-medium transition-colors shadow-lg shadow-red-500/25">Confirm &amp; Resolve</button>
+                  </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
 
       {/* Map Container */}
       <div className="h-[calc(100vh-280px)] min-h-[400px]">
-        <AdminCommuterMap liveVehicles={liveMapVehicles} demandZones={mockData.demandZones} sosLocations={sosAlerts.map(a => a.coordinates)} />
+        <AdminCommuterMap liveVehicles={liveMapVehicles} demandZones={data.demandZones} sosLocations={sosAlerts.map(a => a.coordinates)} />
       </div>
 
       {/* ─── LIVE VEHICLE TRACKING TABLE ─── */}
@@ -250,12 +265,11 @@ export default function MonitoringPage() {
             <>
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
-                  <thead><tr className="border-b border-[#1E2D45]"><th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Conductor</th><th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Vehicle</th><th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">Triggered</th><th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Resolved</th></tr></thead>
+                  <thead><tr className="border-b border-[#1E2D45]"><th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Commuter</th><th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">Triggered</th><th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Resolved</th></tr></thead>
                   <tbody className="divide-y divide-[#1E2D45]">
                     {currentSosData.map((log) => (
                       <tr key={log.id} className="hover:bg-[#0E1628] transition-colors opacity-70 hover:opacity-100">
-                        <td className="py-3 pr-3"><span className="text-sm text-slate-300 font-medium">{log.conductor}</span></td>
-                        <td className="py-3 pr-3"><span className="text-sm text-slate-400 font-mono">{log.vehicle}</span></td>
+                        <td className="py-3 pr-3"><span className="text-sm text-slate-300 font-medium">{log.commuter}</span><p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{log.note}</p></td>
                         <td className="py-3 pr-3 hidden md:table-cell"><span className="text-xs text-slate-500">{log.triggeredAt}</span></td>
                         <td className="py-3"><span className="inline-flex items-center gap-1 text-xs text-sky-400/70 bg-sky-400/10 px-2 py-0.5 rounded-md"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>{log.resolvedAt}</span></td>
                       </tr>

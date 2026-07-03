@@ -460,16 +460,6 @@ class AdminController extends Controller
         return $this->successResponse($unified, 'Remittances retrieved');
     }
 
-    public function announcements(): JsonResponse
-    {
-        return $this->notImplementedResponse();
-    }
-
-    public function lostItems(): JsonResponse
-    {
-        return $this->notImplementedResponse();
-    }
-
     public function shiftLogs(Request $request): JsonResponse
     {
         $query = ShiftLog::with(['vehicle', 'driver', 'route'])

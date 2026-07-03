@@ -12,7 +12,7 @@ interface HistoryTableProps {
 }
 
 export function HistoryTable({ terminatedPersonnel, shiftHistoryLog, searchQuery }: HistoryTableProps) {
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Filter personnel based on search
   const filteredPersonnel = terminatedPersonnel.filter((p) =>
@@ -21,7 +21,7 @@ export function HistoryTable({ terminatedPersonnel, shiftHistoryLog, searchQuery
     p.lastVehicle.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const toggleExpand = (id: number) => {
+  const toggleExpand = (id: string) => {
     setExpandedId(expandedId === id ? null : id);
   };
 

@@ -9,6 +9,7 @@ import { AddRegistrationModal } from '@/components/admin/users/add-registration-
 import { EditUserModal } from '@/components/admin/users/edit-user-modal';
 import { UserHistoryModal } from '@/components/admin/users/user-history-modal';
 import { DeleteUserModal } from '@/components/admin/users/delete-user-modal';
+import { FeedbackModal, type FeedbackModalStaff } from '@/components/admin/users/feedback-modal';
 import { SearchBar } from '@/components/admin/ui/search-bar';
 import { Plus, UserCheck, Users, XCircle, AlertCircle, RefreshCw, ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react';
 import { useUsersData } from './data/users-data';
@@ -45,12 +46,14 @@ export default function UsersPage() {
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
 
   const [selectedRequest, setSelectedRequest] = useState<PendingRequest | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<ActiveUser | RejectedUser | null>(null);
   const [editingUser, setEditingUser] = useState<ActiveUser | null>(null);
   const [deletingUser, setDeletingUser] = useState<ActiveUser | null>(null);
+  const [feedbackStaff, setFeedbackStaff] = useState<FeedbackModalStaff | null>(null);
 
   // ─── Debounced search → API filter ────────────────────────────
   // The SearchBar updates `searchQuery` immediately (for responsive UX),
@@ -156,6 +159,23 @@ export default function UsersPage() {
     await deleteUserApi(deletingUser.id);
   };
 
+  // ─── Feedback modal (S6-T6 revised) ────────────────────────────
+  // Double-click a CONDUCTOR or DRIVER row → open the Feedback modal.
+  // Other roles (COMMUTER, ADMIN) are ignored — the standalone admin
+  // "Feedback QR" module was removed; feedback review now lives here.
+  const handleRowDoubleClick = (user: ActiveUser | RejectedUser): void => {
+    // Rejected rows don't have a role field — skip.
+    if (!('role' in user)) return;
+    const { id, role, name } = user as ActiveUser;
+    if (role !== 'CONDUCTOR' && role !== 'DRIVER') return;
+    setFeedbackStaff({ id, role, name });
+    setIsFeedbackModalOpen(true);
+  };
+  const handleCloseFeedbackModal = () => {
+    setIsFeedbackModalOpen(false);
+    setFeedbackStaff(null);
+  };
+
   // Suspend / Reactivate — toggles account_status via the API.
   const handleDeactivateUser = async (userId: string): Promise<void> => {
     const user = activeUsers.find(u => u.id === userId);
@@ -224,6 +244,7 @@ export default function UsersPage() {
               <option value="" className="bg-gray-800">All Roles</option>
               <option value="COMMUTER" className="bg-gray-800">Commuters</option>
               <option value="CONDUCTOR" className="bg-gray-800">Conductors</option>
+              <option value="DRIVER" className="bg-gray-800">Drivers</option>
               <option value="ADMIN" className="bg-gray-800">Admins</option>
             </select>
           )}
@@ -281,6 +302,7 @@ export default function UsersPage() {
             onEdit={handleOpenEditModal}
             onDelete={handleOpenDeleteModal}
             onViewHistory={handleOpenHistoryModal}
+            onRowDoubleClick={handleRowDoubleClick}
             isRejectedTab={false}
             selectedUser={selectedUser}
             onSelectUser={setSelectedUser}
@@ -357,6 +379,12 @@ export default function UsersPage() {
       />
 
       <UserHistoryModal isOpen={isHistoryModalOpen} onClose={handleCloseHistoryModal} logs={historyLogs[selectedUserId || ''] || []} />
+
+      <FeedbackModal
+        isOpen={isFeedbackModalOpen}
+        onClose={handleCloseFeedbackModal}
+        staff={feedbackStaff}
+      />
     </>
   );
 }

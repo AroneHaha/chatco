@@ -3,7 +3,9 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Commuter\CommuterController;
+use App\Http\Controllers\Commuter\FeedbackController;
 use App\Http\Controllers\Commuter\HailController;
+use App\Http\Controllers\Commuter\SosController;
 use App\Http\Controllers\Commuter\VehicleLocationController;
 use App\Http\Controllers\Conductor\ConductorController;
 use App\Http\Controllers\Conductor\ConductorHailController;
@@ -11,6 +13,12 @@ use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AdminRegistrationController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminVehicleController;
+use App\Http\Controllers\Admin\AdminLostItemController;
+use App\Http\Controllers\Admin\AdminAnnouncementController;
+use App\Http\Controllers\Admin\AdminFeedbackController;
+use App\Http\Controllers\Admin\AdminSosController;
+use App\Http\Controllers\LostItemController;
+use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\Payment\PaymentController;
 use App\Http\Controllers\Payment\QrController;
 
@@ -51,6 +59,34 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
     // Payment lifecycle (commuter-side) — claim GCash + view history
     Route::post('/payments/claim', [PaymentController::class, 'claim'])->middleware('throttle:commuter-hail');
     Route::get('/payments', [PaymentController::class, 'history'])->middleware('throttle:conductor-read');
+
+    // Feedback submission (S6) — commuter submits a rating for a shift_id
+    // resolved via /qr/scan. Throttled at commuter-hail (10/min) to deter
+    // spam; the (commuter_id, shift_id) unique constraint also enforces
+    // one-feedback-per-shift at the DB level.
+    Route::post('/feedback', [FeedbackController::class, 'store'])->middleware('throttle:commuter-hail');
+
+    // Feedback history (S6-T7) — the commuter's OWN feedback, newest first.
+    // Powers the ride-history "Leave Feedback" / "View Feedback" flow: the
+    // frontend fetches this once, builds a {shift_id → feedback} map, and
+    // marks each PAID ride accordingly. Read-throttled (conductor-read =
+    // 60/min). commuter_id is always auth()->id() server-side.
+    Route::get('/feedback', [FeedbackController::class, 'index'])->middleware('throttle:conductor-read');
+
+    // SOS alert (S6-T5) — commuter triggers an emergency alert with lat/lng.
+    // Strictly rate-limited at 1/min per commuter (throttle:sos) to prevent
+    // abuse. Admins acknowledge + resolve via /admin/sos endpoints.
+    Route::post('/sos', [SosController::class, 'trigger'])->middleware('throttle:sos');
+
+    // SOS status poll (S6-T10) — commuter polls their own alert to detect
+    // when the admin acknowledges / resolves. Read-throttled (60/min) so the
+    // modal can poll every 3s. Scoped to auth commuter in the service.
+    Route::get('/sos/{id}', [SosController::class, 'show'])->middleware('throttle:conductor-read');
+
+    // Lost & Found watchlist (S6-T3) — commuter's bookmarked items.
+    // The browse + claim + watchlist toggle endpoints live in the shared
+    // /lost-found group (any auth role for browse, COMMUTER for claim/watch).
+    Route::get('/watchlist', [LostItemController::class, 'myWatchlist'])->middleware('throttle:conductor-read');
 });
 
 /*
@@ -145,9 +181,41 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::get('/routes', [AdminController::class, 'routes'])->middleware('throttle:conductor-read');
     Route::get('/transactions', [AdminController::class, 'transactions'])->middleware('throttle:conductor-read');
     Route::get('/remittances', [AdminController::class, 'remittances'])->middleware('throttle:conductor-read');
-    Route::get('/announcements', [AdminController::class, 'announcements']);
-    Route::get('/lost-items', [AdminController::class, 'lostItems']);
+    Route::get('/announcements', [AdminAnnouncementController::class, 'index'])->middleware('throttle:conductor-read');
+    Route::post('/announcements', [AdminAnnouncementController::class, 'store'])->middleware('throttle:admin-write');
+    Route::get('/announcements/{id}', [AdminAnnouncementController::class, 'show'])->middleware('throttle:conductor-read');
+    Route::put('/announcements/{id}', [AdminAnnouncementController::class, 'update'])->middleware('throttle:admin-write');
+    Route::patch('/announcements/{id}', [AdminAnnouncementController::class, 'update'])->middleware('throttle:admin-write');
+    Route::patch('/announcements/{id}/archive', [AdminAnnouncementController::class, 'archive'])->middleware('throttle:admin-write');
     Route::get('/shift-logs', [AdminController::class, 'shiftLogs'])->middleware('throttle:conductor-read');
+
+    // ── Lost & Found management (S6-T3) ─────────────────────────
+    // Replaces the old AdminController::lostItems() 501 stub. Admin creates
+    // reported items, reviews claims (approve/reject), and closes released
+    // items. Commuter-side browse + claim live in the /lost-found group.
+    Route::get('/lost-items', [AdminLostItemController::class, 'index'])->middleware('throttle:conductor-read');
+    Route::post('/lost-items', [AdminLostItemController::class, 'store'])->middleware('throttle:admin-write');
+    Route::get('/lost-items/{itemId}', [AdminLostItemController::class, 'show'])->middleware('throttle:conductor-read');
+    Route::post('/lost-items/{itemId}/image', [AdminLostItemController::class, 'uploadImage'])->middleware('throttle:admin-write');
+    Route::get('/lost-items/{itemId}/claims', [AdminLostItemController::class, 'claims'])->middleware('throttle:conductor-read');
+    Route::patch('/lost-items/{itemId}/claims/{claimId}/approve', [AdminLostItemController::class, 'approveClaim'])->middleware('throttle:admin-write');
+    Route::patch('/lost-items/{itemId}/claims/{claimId}/release', [AdminLostItemController::class, 'releaseClaim'])->middleware('throttle:admin-write');
+    Route::patch('/lost-items/{itemId}/claims/{claimId}/reject', [AdminLostItemController::class, 'rejectClaim'])->middleware('throttle:admin-write');
+    Route::patch('/lost-items/{itemId}/close', [AdminLostItemController::class, 'close'])->middleware('throttle:admin-write');
+
+    // ── SOS alert management (S6-T5) ────────────────────────────
+    // Admins monitor the live feed, acknowledge alerts (signal 'I see this'),
+    // and resolve them when the situation is handled.
+    Route::get('/sos', [AdminSosController::class, 'index'])->middleware('throttle:conductor-read');
+    Route::patch('/sos/{id}/acknowledge', [AdminSosController::class, 'acknowledge'])->middleware('throttle:admin-write');
+    Route::patch('/sos/{id}/resolve', [AdminSosController::class, 'resolve'])->middleware('throttle:admin-write');
+
+    // ── Staff feedback listing (S6-T6 revised) ─────────────────
+    // Replaces the standalone admin "Feedback QR" module. The admin views
+    // driver/conductor feedback from User Management by double-clicking a
+    // row. Pass conductor_id OR driver_id. Returns paginated feedback + a
+    // summary (average_rating, total_count, 5→1 distribution).
+    Route::get('/feedback', [AdminFeedbackController::class, 'index'])->middleware('throttle:conductor-read');
 });
 
 /*
@@ -179,11 +247,64 @@ Route::prefix('payments')->group(function () {
 
 /*
 |--------------------------------------------------------------------------
-| QR Routes (Authenticated — any role)
+| Lost & Found — Shared Browse + Commuter Claim (S6-T3)
+|--------------------------------------------------------------------------
+|   GET  /lost-found            (any auth role) — paginated browse
+|   GET  /lost-found/{itemId}   (any auth role) — item detail
+|   POST /lost-found/{itemId}/claim      (COMMUTER) — submit a claim with proof
+|   POST /lost-found/{itemId}/watchlist  (COMMUTER) — add to watchlist
+|   DELETE /lost-found/{itemId}/watchlist (COMMUTER) — remove from watchlist
+|
+| Admin management (create, review claims, close) lives in the /admin
+| group above via AdminLostItemController.
+|--------------------------------------------------------------------------
+*/
+Route::prefix('lost-found')->middleware(['auth:sanctum'])->group(function () {
+    Route::get('/', [LostItemController::class, 'index'])->middleware('throttle:commuter-read');
+    Route::get('/{itemId}', [LostItemController::class, 'show'])->middleware('throttle:commuter-read');
+    Route::post('/{itemId}/claim', [LostItemController::class, 'claim'])->middleware(['role:COMMUTER', 'throttle:commuter-write']);
+    Route::post('/{itemId}/watchlist', [LostItemController::class, 'watchlist'])->middleware(['role:COMMUTER', 'throttle:commuter-write']);
+    Route::delete('/{itemId}/watchlist', [LostItemController::class, 'unwatch'])->middleware(['role:COMMUTER', 'throttle:commuter-write']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Announcements — User-Facing Reads (S6-T4)
+|--------------------------------------------------------------------------
+|   GET  /announcements                (any auth role) — ACTIVE feed w/ is_read
+|   GET  /announcements/unread-count   (any auth role) — bell badge count
+|   POST /announcements/{id}/read      (any auth role) — mark-as-read (204)
+|
+| Admin CRUD (create/update/archive) lives in the /admin group above via
+| AdminAnnouncementController.
+|--------------------------------------------------------------------------
+*/
+Route::prefix('announcements')->middleware(['auth:sanctum'])->group(function () {
+    Route::get('/unread-count', [AnnouncementController::class, 'unreadCount'])->middleware('throttle:commuter-read');
+    Route::get('/', [AnnouncementController::class, 'index'])->middleware('throttle:commuter-read');
+    Route::post('/{id}/read', [AnnouncementController::class, 'markRead'])->middleware('throttle:commuter-write');
+});
+
+/*
+|--------------------------------------------------------------------------
+| QR Routes — Feedback Unit-QR (S6)
+|--------------------------------------------------------------------------
+| Repurposed from S1 501 stubs. These are NOT the GCash payment QR — the
+| GCash flow uses /conductor/payments/gcash/initiate + /commuter/payments/claim.
+|
+|   POST /qr/generate  (ADMIN)    — issue HMAC-signed unit-QR for a vehicle
+|   POST /qr/validate  (COMMUTER) — verify signature + expiry (pre-check)
+|   POST /qr/scan      (COMMUTER) — verify + resolve today's driver+conductor
+|
+| Each route has its own role middleware (the 3 roles are split, not shared)
+| because the issuer (admin) and the consumers (commuters) are different.
 |--------------------------------------------------------------------------
 */
 Route::prefix('qr')->middleware(['auth:sanctum'])->group(function () {
-    Route::post('/generate', [QrController::class, 'generate']);
-    Route::post('/validate', [QrController::class, 'validate']);
-    Route::post('/scan', [QrController::class, 'scan']);
+    Route::post('/generate', [QrController::class, 'generate'])->middleware(['role:ADMIN', 'throttle:admin-write']);
+    Route::post('/validate', [QrController::class, 'verify'])->middleware(['role:COMMUTER', 'throttle:commuter-write']);
+    Route::post('/scan', [QrController::class, 'scan'])->middleware(['role:COMMUTER', 'throttle:commuter-write']);
+    // Permanent unit-QR: commuter scans the printed QR, frontend extracts the
+    // vehicle_id, this resolves today's driver + conductor from shift_logs.
+    Route::post('/scan-public', [QrController::class, 'scanPublic'])->middleware(['role:COMMUTER', 'throttle:commuter-write']);
 });

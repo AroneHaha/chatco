@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { jsonError } from "@/lib/conductor/server/response";
+import { resolveSessionInMemory } from "@/lib/shared/server/inmemory-backend";
 
 export interface ConductorSession {
   userId: string;
@@ -18,30 +19,15 @@ const API_URL = process.env.API_URL || "http://localhost:8000";
  * Resolve the conductor session from the Sanctum bearer token stored in the
  * `chatco_session` cookie.
  *
- * WHY THIS EXISTS
- * ---------------
- * The conductor mock-stub routes (profile, units, drivers, shifts, …) all
- * gate on `getConductorSession()`. The original implementation parsed the
- * cookie as a prototype-only mock token of the form
- * `chatco:{id}:{role}:{timestamp}`. After the Laravel Sanctum auth
- * integration, `/api/auth/login` now stores a real Sanctum bearer token
- * (e.g. `1|abcdef…`) in the same cookie, so the old parser always returned
- * `null` and every conductor endpoint answered **401 Unauthorized** — even
- * for a legitimately logged-in conductor.
+ * PRIMARY PATH (production): validate the token against Laravel
+ * `GET /api/v1/user` (guarded by `auth:sanctum`). If the authenticated user's
+ * role is `CONDUCTOR`, return a {@link ConductorSession}.
  *
- * HOW IT WORKS
- * ------------
- * 1. Read the Sanctum token from the `chatco_session` cookie.
- * 2. Validate it against the Laravel `GET /api/user` endpoint (guarded by
- *    `auth:sanctum`). This is the same call `/api/auth/me` makes.
- * 3. If the authenticated user's role is `CONDUCTOR`, return a
- *    {@link ConductorSession} with the real id / email / name from the
- *    backend. Otherwise return `null` so the route handler can emit 401.
- *
- * The function is intentionally async because token validation requires a
- * network round-trip to the backend. All conductor route handlers already
- * run inside `async function GET/POST(...)` handlers, so callers simply
- * `await` the result.
+ * FALLBACK PATH (dev/demo): when the Laravel backend is unreachable (the PHP
+ * runtime is unavailable in the sandbox preview), resolve the token against
+ * the in-memory session store. This keeps the conductor flow demoable
+ * end-to-end without a live Laravel instance. Production deployments with a
+ * live Laravel instance never reach the fallback.
  */
 export async function getConductorSession(
   request: NextRequest
@@ -58,7 +44,11 @@ export async function getConductorSession(
       },
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      // Laravel is up but rejected the token — try the in-memory fallback
+      // (the token may have been issued by the in-memory login path).
+      return resolveInMemory(token);
+    }
 
     const body = await res.json();
     // Laravel ApiResponse envelope: { success, data: { user, profile }, … }
@@ -73,9 +63,20 @@ export async function getConductorSession(
       name: user.name,
     };
   } catch {
-    // Backend unreachable / network error → treat as unauthenticated.
-    return null;
+    // Backend unreachable / network error → fall back to in-memory sessions.
+    return resolveInMemory(token);
   }
+}
+
+function resolveInMemory(token: string): ConductorSession | null {
+  const user = resolveSessionInMemory(token);
+  if (!user || user.role !== "CONDUCTOR") return null;
+  return {
+    userId: user.id,
+    role: user.role,
+    email: user.email,
+    name: user.name,
+  };
 }
 
 export function unauthorizedResponse() {

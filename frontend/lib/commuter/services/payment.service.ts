@@ -29,6 +29,13 @@ export interface CommuterPayment {
   dropoffName: string;
   conductorName?: string;
   unitNumber?: string;
+  /**
+   * The shift_log row that served this ride (S6-T7). Links the payment to
+   * the daily driver+conductor assignment. Present on PAID rides; may be
+   * null for legacy/edge rows. The feedback modal uses this as the anchor
+   * for POST /commuter/feedback (the backend derives the crew from it).
+   */
+  shiftId?: string;
   createdAt: string;
   paidAt: string | null;
 }
@@ -59,6 +66,8 @@ interface RawTransaction {
   dropoff_name: string | null;
   conductor_name: string | null;
   unit_number: string | null;
+  /** shift_logs.shift_id — present on rows bound to a conductor's shift (S6-T7). */
+  shift_id: string | null;
   created_at: string;
   paid_at: string | null;
 }
@@ -88,6 +97,7 @@ function mapPayment(raw: RawTransaction): CommuterPayment {
     dropoffName: raw.dropoff_name ?? "—",
     conductorName: raw.conductor_name ?? undefined,
     unitNumber: raw.unit_number ?? undefined,
+    shiftId: raw.shift_id ?? undefined,
     createdAt: raw.created_at,
     paidAt: raw.paid_at,
   };

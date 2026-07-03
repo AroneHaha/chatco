@@ -48,13 +48,19 @@ class UserFactory extends Factory
 
     /**
      * Indicate that the user is an admin (also creates an AdminProfile).
+     *
+     * NOTE: We query the DB directly (AdminProfile::find) instead of accessing
+     * the $user->adminProfile relation. Accessing the relation in afterCreating
+     * would cache null on the model (the profile doesn't exist yet), and since
+     * Sanctum::actingAs() reuses the same object, later service-layer accesses
+     * to $user->adminProfile would get the stale null instead of re-querying.
      */
     public function admin(): static
     {
         return $this->state(fn (array $attributes) => [
             'role' => UserRole::ADMIN->value,
         ])->afterCreating(function (User $user) {
-            if (! $user->adminProfile) {
+            if (! AdminProfile::find($user->id)) {
                 AdminProfile::create([
                     'id' => $user->id,
                     'first_name' => fake()->firstName(),
@@ -66,13 +72,16 @@ class UserFactory extends Factory
 
     /**
      * Indicate that the user is a conductor (also creates a ConductorProfile).
+     *
+     * Same DB-direct query rationale as admin() above — avoids caching a
+     * stale null relation on the User instance.
      */
     public function conductor(): static
     {
         return $this->state(fn (array $attributes) => [
             'role' => UserRole::CONDUCTOR->value,
         ])->afterCreating(function (User $user) {
-            if (! $user->conductorProfile) {
+            if (! ConductorProfile::find($user->id)) {
                 ConductorProfile::create([
                     'id' => $user->id,
                     'first_name' => fake()->firstName(),
@@ -87,13 +96,18 @@ class UserFactory extends Factory
 
     /**
      * Indicate that the user is a commuter (also creates a CommuterProfile).
+     *
+     * Same DB-direct query rationale as admin() above — avoids caching a
+     * stale null relation on the User instance. This is critical for S6
+     * Lost & Found tests where Sanctum::actingAs() reuses the factory-built
+     * User object and the service layer reads $commuter->commuterProfile.
      */
     public function commuter(): static
     {
         return $this->state(fn (array $attributes) => [
             'role' => UserRole::COMMUTER->value,
         ])->afterCreating(function (User $user) {
-            if (! $user->commuterProfile) {
+            if (! CommuterProfile::find($user->id)) {
                 CommuterProfile::create([
                     'id' => $user->id,
                     'first_name' => fake()->firstName(),
