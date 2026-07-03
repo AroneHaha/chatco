@@ -108,6 +108,19 @@ class FeedbackAdminListTest extends TestCase
                 'rating'       => $ratings[$i] ?? 5,
                 'category'     => 'Cleanliness',
                 'comment'      => 'Test comment ' . $i,
+                // The conductor listing aggregates over the conductor_*
+                // columns (rows without a conductor_rating are filtered out),
+                // so the conductor's score/category/comment must be stamped.
+                'conductor_rating'   => $ratings[$i] ?? 5,
+                'conductor_category' => 'Cleanliness',
+                'conductor_comment'  => 'Test comment ' . $i,
+            ]);
+
+            // Distinct created_at per row — the whole loop runs within one
+            // second, so without this the "newest first" ordering would tie
+            // and the returned order would be nondeterministic.
+            Feedback::where('shift_id', $shiftId)->update([
+                'created_at' => now()->addSeconds($i),
             ]);
         }
     }
@@ -187,7 +200,7 @@ class FeedbackAdminListTest extends TestCase
         $response->assertStatus(200)
             ->assertJsonPath('data.feedback.0.vehicle.unit_number', $this->vehicle->unit_number)
             ->assertJsonPath('data.feedback.0.vehicle.plate_number', $this->vehicle->plate_number)
-            ->assertJsonStructured([
+            ->assertJsonStructure([
                 'data' => [
                     'feedback' => [
                         '*' => ['id', 'shift_id', 'rating', 'category', 'comment', 'vehicle', 'commuter'],
@@ -263,6 +276,11 @@ class FeedbackAdminListTest extends TestCase
                 'rating'       => 5,
                 'category'     => 'Cleanliness',
                 'comment'      => 'Iso test ' . $i,
+                // Required so the conductor listing (which filters on
+                // whereNotNull(conductor_rating)) counts these rows.
+                'conductor_rating'   => 5,
+                'conductor_category' => 'Cleanliness',
+                'conductor_comment'  => 'Iso test ' . $i,
             ]);
         }
         $this->admin();

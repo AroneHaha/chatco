@@ -111,6 +111,11 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->grou
     Route::get('/units', [ConductorController::class, 'units'])->middleware('throttle:conductor-read');
     Route::get('/drivers', [ConductorController::class, 'drivers'])->middleware('throttle:conductor-read');
 
+    // Ratings for a shift the conductor crewed — powers the metrics page.
+    // shift_id is required; the service scopes rows to auth()->id() so a
+    // conductor can only read feedback for their own shifts.
+    Route::get('/ratings', [ConductorController::class, 'ratings'])->middleware('throttle:conductor-read');
+
     // Mutations — strict limit (one shift per conductor at a time anyway)
     Route::post('/shifts/start', [ConductorController::class, 'startShift'])->middleware('throttle:conductor-mutation');
     Route::post('/remittances', [ConductorController::class, 'remittances'])->middleware('throttle:conductor-mutation');
@@ -118,6 +123,13 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->grou
     // Read — conductor's own submitted remittance history (Week 5).
     // Scoped to auth conductor in ConductorService::listRemittances().
     Route::get('/remittances', [ConductorController::class, 'remittancesIndex'])->middleware('throttle:conductor-read');
+
+    // SOS alert — conductor triggers an emergency alert with lat/lng, mirroring
+    // the commuter flow (sender_role=CONDUCTOR). Admins acknowledge + resolve
+    // via /admin/sos. Mutation-throttled; the poll is read-throttled (60/min)
+    // so the modal can poll every 3s. Scoped to the auth conductor in the service.
+    Route::post('/sos', [\App\Http\Controllers\Conductor\SosController::class, 'trigger'])->middleware('throttle:conductor-mutation');
+    Route::get('/sos/{id}', [\App\Http\Controllers\Conductor\SosController::class, 'show'])->middleware('throttle:conductor-read');
 
     // GPS updates — allows 5-second cadence with headroom for retries/reconnects
     Route::post('/location', [ConductorController::class, 'updateLocation'])->middleware('throttle:conductor-gps');

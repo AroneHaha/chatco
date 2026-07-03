@@ -14,9 +14,13 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 /* ─── INTERFACES (API contracts) ─── */
 
+export type SosSenderRole = "COMMUTER" | "CONDUCTOR";
+
 export interface SosAlert {
   id: string;
-  commuter: string;
+  /** Display name of whoever raised the alert (commuter OR conductor). */
+  sender: string;
+  senderRole: SosSenderRole;
   note: string;
   time: string;
   triggeredDate: string;
@@ -28,7 +32,8 @@ export interface SosAlert {
 
 export interface SosHistoryLog {
   id: string;
-  commuter: string;
+  sender: string;
+  senderRole: SosSenderRole;
   note: string;
   triggeredAt: string;
   resolvedAt: string;
@@ -114,9 +119,17 @@ interface BackendCommuter {
   surname: string | null;
 }
 
+interface BackendConductor {
+  first_name: string | null;
+  middle_name: string | null;
+  last_name: string | null;
+}
+
 interface BackendAlert {
   id: string;
-  commuter_id: string;
+  sender_role?: "COMMUTER" | "CONDUCTOR" | null;
+  commuter_id: string | null;
+  conductor_id?: string | null;
   lat: string | number;
   lng: string | number;
   note: string | null;
@@ -128,19 +141,38 @@ interface BackendAlert {
   created_at: string;
   updated_at: string;
   commuter: BackendCommuter | null;
+  conductor?: BackendConductor | null;
 }
 
-function commuterName(c: BackendCommuter | null): string {
-  if (!c) return "Unknown Commuter";
-  const parts = [c.first_name, c.surname].filter(Boolean);
+/** Resolve the sender's role, defaulting to COMMUTER for legacy rows. */
+function senderRole(raw: BackendAlert): SosSenderRole {
+  return raw.sender_role === "CONDUCTOR" ? "CONDUCTOR" : "COMMUTER";
+}
+
+/** Resolve the sender's display name (commuter uses surname, conductor last_name). */
+function senderName(raw: BackendAlert): string {
+  if (senderRole(raw) === "CONDUCTOR") {
+    const c = raw.conductor;
+    const parts = c ? [c.first_name, c.last_name].filter(Boolean) : [];
+    return parts.length > 0 ? parts.join(" ").trim() : "Unknown Conductor";
+  }
+  const c = raw.commuter;
+  const parts = c ? [c.first_name, c.surname].filter(Boolean) : [];
   return parts.length > 0 ? parts.join(" ").trim() : "Unknown Commuter";
+}
+
+function defaultNote(raw: BackendAlert): string {
+  return senderRole(raw) === "CONDUCTOR"
+    ? "Emergency SOS triggered by conductor."
+    : "Emergency SOS triggered by commuter.";
 }
 
 function mapAlert(raw: BackendAlert): SosAlert {
   return {
     id: raw.id,
-    commuter: commuterName(raw.commuter),
-    note: raw.note ?? "Emergency SOS triggered by commuter.",
+    sender: senderName(raw),
+    senderRole: senderRole(raw),
+    note: raw.note ?? defaultNote(raw),
     time: formatRelativeTime(raw.created_at),
     triggeredDate: dateKey(raw.created_at),
     coordinates: [parseFloat(String(raw.lat)), parseFloat(String(raw.lng))],
@@ -153,8 +185,9 @@ function mapAlert(raw: BackendAlert): SosAlert {
 function mapHistory(raw: BackendAlert): SosHistoryLog {
   return {
     id: raw.id,
-    commuter: commuterName(raw.commuter),
-    note: raw.note ?? "Emergency SOS triggered by commuter.",
+    sender: senderName(raw),
+    senderRole: senderRole(raw),
+    note: raw.note ?? defaultNote(raw),
     triggeredAt: formatAbsoluteTime(raw.created_at),
     resolvedAt: raw.resolved_at ? formatAbsoluteTime(raw.resolved_at) : "—",
     triggeredDate: dateKey(raw.created_at),

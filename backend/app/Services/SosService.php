@@ -44,12 +44,55 @@ class SosService
         }
 
         return SosAlert::create([
+            'sender_role' => 'COMMUTER',
             'commuter_id' => $profile->id,
             'lat'         => $data['lat'],
             'lng'         => $data['lng'],
             'note'        => $data['note'] ?? null,
             'status'      => self::STATUS_ACTIVE,
         ])->load('commuter');
+    }
+
+    /**
+     * Conductor triggers an SOS. Stores the alert with status=ACTIVE and
+     * sender_role=CONDUCTOR (commuter_id stays null; conductor_id is set).
+     */
+    public function triggerForConductor(User $conductor, array $data): SosAlert
+    {
+        $profile = $conductor->conductorProfile;
+        if (! $profile) {
+            throw new \RuntimeException('Conductor profile not found');
+        }
+
+        return SosAlert::create([
+            'sender_role'  => 'CONDUCTOR',
+            'conductor_id' => $profile->id,
+            'lat'          => $data['lat'],
+            'lng'          => $data['lng'],
+            'note'         => $data['note'] ?? null,
+            'status'       => self::STATUS_ACTIVE,
+        ])->load('conductor');
+    }
+
+    /**
+     * Conductor fetches their own alert by ID (for polling status changes).
+     * Scoped to the authenticated conductor's profile.
+     *
+     * @throws \RuntimeException  Profile not found, or alert not found.
+     */
+    public function findForConductor(User $conductor, string $id): SosAlert
+    {
+        $profile = $conductor->conductorProfile;
+        if (! $profile) {
+            throw new \RuntimeException('Conductor profile not found');
+        }
+
+        $alert = SosAlert::where('conductor_id', $profile->id)->find($id);
+        if (! $alert) {
+            throw new \RuntimeException('SOS alert not found');
+        }
+
+        return $alert->load('conductor');
     }
 
     /**
@@ -87,7 +130,7 @@ class SosService
      */
     public function listActive(User $admin, array $filters, int $perPage = 15): LengthAwarePaginator
     {
-        $query = SosAlert::with('commuter')
+        $query = SosAlert::with(['commuter', 'conductor'])
             ->orderByDesc('created_at');
 
         if (! empty($filters['status'])) {
@@ -121,7 +164,7 @@ class SosService
             ]);
         }
 
-        return $alert->fresh('commuter');
+        return $alert->fresh(['commuter', 'conductor']);
     }
 
     /**
@@ -144,7 +187,7 @@ class SosService
             'resolved_at' => now(),
         ]);
 
-        return $alert->fresh(['commuter', 'acknowledger', 'resolver']);
+        return $alert->fresh(['commuter', 'conductor', 'acknowledger', 'resolver']);
     }
 
     private function findOrFail(string $id): SosAlert
