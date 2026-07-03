@@ -481,6 +481,10 @@ class TransactionFlowTest extends TestCase
 
     private function forgetGateway(): void
     {
+        // Temporarily clear the PayMongo secret so the service provider
+        // falls back to FakeGateway when the singleton is re-resolved.
+        // This simulates "PayMongo not configured" even when .env has keys.
+        config(['payments.gateways.paymongo.secret' => null]);
         $this->app->forgetInstance(PaymentGateway::class);
     }
 
