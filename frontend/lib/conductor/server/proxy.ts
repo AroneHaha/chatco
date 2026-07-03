@@ -54,7 +54,7 @@ export async function proxyToLaravel(
 ): Promise<ProxyResult> {
   const token = request.cookies.get("chatco_session")?.value;
   if (!token) {
-    return { ok: false, status: 401, data: null, message: "Unauthorized. Conductor session required." };
+    return { ok: false, status: 401, data: null, message: "Unauthorized. Conductor session required.", errors: null };
   }
 
   try {

@@ -153,7 +153,7 @@ export default function VehiclesPage() {
     setDeletingPersonnelData(null);
     setIsDeletePersonnelOpen(false);
   };
-  const handleConfirmDeletePersonnel = (deleteData: { id: number; reason: string; terminationType: string }) => {
+  const handleConfirmDeletePersonnel = (deleteData: { id: string; reason: string; terminationType: string }) => {
     // TODO: Replace with API call when backend is ready
     const person = data.personnel.find(p => p.id === deleteData.id);
     if (person) {

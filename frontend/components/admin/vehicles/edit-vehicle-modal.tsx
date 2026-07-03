@@ -182,7 +182,7 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
       if (!res.ok) {
         if (res.status === 422 && data.errors) {
           setFieldErrors(data.errors);
-          const firstError = Object.values(data.errors)[0]?.[0] ?? 'Validation failed.';
+          const firstError = (Object.values(data.errors)[0] as string[] | undefined)?.[0] ?? 'Validation failed.';
           throw new Error(firstError);
         }
         const msg = data.message ?? `Failed to update vehicle (HTTP ${res.status})`;

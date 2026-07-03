@@ -95,7 +95,7 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
         // Laravel 422: { message, errors: { field: ["msg", ...] } }
         if (res.status === 422 && data.errors) {
           setFieldErrors(data.errors);
-          const firstError = Object.values(data.errors)[0]?.[0] ?? 'Validation failed.';
+          const firstError = (Object.values(data.errors)[0] as string[] | undefined)?.[0] ?? 'Validation failed.';
           throw new Error(firstError);
         }
         throw new Error(data.message ?? 'Failed to create vehicle');
