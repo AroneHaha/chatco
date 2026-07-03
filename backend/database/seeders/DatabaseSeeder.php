@@ -230,12 +230,18 @@ class DatabaseSeeder extends Seeder
         }
 
         // ════════════════════════════════════════════════════
-        // 4. DRIVERS + 5. VEHICLES (10 each, linked 1:1)
+        // 4. DRIVERS + 5. VEHICLES (10 each)
         // ════════════════════════════════════════════════════
         // Generates 10 drivers + 10 vehicles with realistic Philippine
         // names, proper plate numbers (XXX NNNN format), and unit
-        // numbers (UNIT-NNN format). Each driver is assigned to exactly
-        // one vehicle. Vehicles alternate between the two conductors.
+        // numbers (UNIT-NNN format).
+        //
+        // Vehicles start UNASSIGNED — no current driver or conductor. The
+        // driver + conductor assignment happens dynamically through the
+        // conductor login workflow (startShift sets vehicle.driver_id /
+        // conductor_id) and is cleared on EOD / the daily reset. Drivers
+        // likewise start with no vehicle so they appear in the conductor's
+        // available-driver pool.
 
         $driverSpecs = [
             ['Pedro',     'Santos',       '1985-06-10', '+639171112222', '2023-01-15'],
@@ -253,16 +259,14 @@ class DatabaseSeeder extends Seeder
         // Plate number prefixes — Philippine region-style codes
         $platePrefixes = ['NAA', 'NAB', 'NAC', 'NBC', 'NBD', 'DAB', 'DAC', 'AAD', 'AAE', 'PAA'];
 
-        $conductors = [$conductor1->id, $conductor2->id];
-
         foreach ($driverSpecs as $i => $spec) {
             [$firstName, $lastName, $birthday, $contact, $hireDate] = $spec;
 
             // Generate unique license number
             $licenseNumber = 'DL-2024-' . str_pad($i + 1, 4, '0', STR_PAD_LEFT);
 
-            // Create the driver
-            $driver = Driver::create([
+            // Create the driver — starts with no vehicle (unassigned pool).
+            Driver::create([
                 'first_name'          => $firstName,
                 'middle_name'         => null,
                 'last_name'           => $lastName,
@@ -281,13 +285,14 @@ class DatabaseSeeder extends Seeder
             // Generate unique unit number: UNIT-001 through UNIT-010
             $unitNumber = 'UNIT-' . str_pad($i + 1, 3, '0', STR_PAD_LEFT);
 
-            // Create the vehicle — alternate between conductor1 and conductor2
-            $vehicle = Vehicle::create([
+            // Create the vehicle — starts UNASSIGNED (no current driver or
+            // conductor). Assignment happens at conductor login, not here.
+            Vehicle::create([
                 'unit_number'          => $unitNumber,
                 'plate_number'         => $plateNumber,
                 'route_id'             => $route->id,
-                'driver_id'            => $driver->id,
-                'conductor_id'         => $conductors[$i % 2],
+                'driver_id'            => null,
+                'conductor_id'         => null,
                 'status'               => 'ACTIVE',
                 'speed'                => null,
                 'capacity_status'      => 'AVAILABLE',
@@ -295,9 +300,6 @@ class DatabaseSeeder extends Seeder
                 'longitude'            => null,
                 'last_location_update' => null,
             ]);
-
-            // Link the driver back to the vehicle
-            $driver->update(['vehicle_id' => $vehicle->id]);
         }
     }
 }

@@ -40,26 +40,48 @@ export async function GET(request: NextRequest) {
   }
 
   const vehicles = listAllVehiclesInMemory();
+
+  // Resolve the CURRENT assigned driver + conductor names so the admin fleet
+  // table can display who's on each unit. The frontend builds the display name
+  // from `driver.first_name` + `driver.last_name`, so we return the full name
+  // in first_name (last_name empty) — this matches how the Laravel eager-loaded
+  // relationship is consumed. Assignment is set by startShiftInMemory and
+  // cleared on EOD / daily reset, so this reflects the live assignment.
+  const driverName = (id: string | null): string | null => {
+    if (!id) return null;
+    const r = db().prepare("SELECT name FROM drivers WHERE id = ?").get(id) as { name: string } | undefined;
+    return r?.name ?? null;
+  };
+  const conductorName = (id: string | null): string | null => {
+    if (!id) return null;
+    const r = db().prepare("SELECT name FROM users WHERE id = ?").get(id) as { name: string } | undefined;
+    return r?.name ?? null;
+  };
+
   // Shape to match the Laravel AdminVehicleController::index response so the
   // admin vehicle-table component renders identically. Include the current
   // driver + conductor assignment so the admin can see who's on each unit.
   return jsonData({
-    data: vehicles.map((v) => ({
-      id: v.id,
-      unit_number: v.unitNumber,
-      plate_number: v.plateNumber,
-      vehicle_type: v.vehicleType,
-      route: v.route,
-      route_id: null,
-      status: v.status === "in-use" ? "ACTIVE" : v.status.toUpperCase(),
-      capacity_status: "AVAILABLE",
-      driver_id: v.driverId,
-      conductor_id: v.conductorId,
-      active_shift_id: v.activeShiftId,
-      driver: null,
-      conductor: null,
-      route_obj: null,
-    })),
+    data: vehicles.map((v) => {
+      const dName = driverName(v.driverId);
+      const cName = conductorName(v.conductorId);
+      return {
+        id: v.id,
+        unit_number: v.unitNumber,
+        plate_number: v.plateNumber,
+        vehicle_type: v.vehicleType,
+        route: v.route,
+        route_id: null,
+        status: v.status === "in-use" ? "ACTIVE" : v.status.toUpperCase(),
+        capacity_status: "AVAILABLE",
+        driver_id: v.driverId,
+        conductor_id: v.conductorId,
+        active_shift_id: v.activeShiftId,
+        driver: dName ? { first_name: dName, last_name: "" } : null,
+        conductor: cName ? { first_name: cName, last_name: "" } : null,
+        route_obj: null,
+      };
+    }),
     meta: {
       current_page: 1,
       per_page: vehicles.length,
