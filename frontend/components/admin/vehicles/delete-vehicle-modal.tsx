@@ -71,7 +71,7 @@ export function DeleteVehicleModal({ isOpen, onClose, onConfirm, vehicle }: Dele
         {vehicle && (
           <div className="bg-[#0E1628] border border-[#1E2D45] rounded-md p-4 space-y-1">
             <p className="text-white font-medium">
-              Unit {vehicle.unitNumber || '—'} &bull; {vehicle.plateNumber}
+              Unit {vehicle.plateNumber}
             </p>
             <p className="text-sm text-slate-400">Route: {vehicle.route}</p>
             <p className="text-sm text-slate-400">

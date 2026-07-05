@@ -115,43 +115,21 @@ class PlaceholderEndpointsTest extends TestCase
     // implemented (return real DB data). Admin /remittances implemented in
     // Sprint 4. Admin /vehicles POST/PUT/DELETE implemented for fleet CRUD.
 
-    public function test_admin_announcements_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('getJson', '/api/v1/admin/announcements', $this->adminToken);
-    }
-
-    public function test_admin_lost_items_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('getJson', '/api/v1/admin/lost-items', $this->adminToken);
-    }
-
     // ── Payment Endpoints ────────────────────────────────────────
     // Sprint 4 replaced the initiate/verify/history stubs with the real
     // fare/payment flow (conductor GCash initiate, commuter claim, status
     // polling, webhook), so there are no remaining payment 501 stubs.
 
-    // ── QR Endpoints (3) ─────────────────────────────────────────
-
-    public function test_qr_generate_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('postJson', '/api/v1/qr/generate', $this->commuterToken);
-    }
-
-    public function test_qr_validate_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('postJson', '/api/v1/qr/validate', $this->commuterToken);
-    }
-
-    public function test_qr_scan_returns_501(): void
-    {
-        $this->assertNotImplementedResponse('postJson', '/api/v1/qr/scan', $this->commuterToken);
-    }
+    // ── QR Endpoints ─────────────────────────────────────────────
+    // Sprint 6 repurposed the 3 QR stubs for the feedback unit-QR flow
+    // (generate/validate/scan). They are now implemented and covered by
+    // FeedbackQrFlowTest. No remaining QR 501 stubs.
 
     // ── Total Count Verification ─────────────────────────────────
 
-    public function test_total_placeholder_endpoints_is_8(): void
+    public function test_total_placeholder_endpoints_is_3(): void
     {
-        // 2 commuter + 3 admin + 3 QR = 8
+        // 2 commuter + 1 admin = 3
         // Wallet/topup stubs removed (wallet is permanently eliminated).
         // Sprint 2 implemented the conductor endpoints; Sprint 4 implemented
         // the conductor /transactions + the payment initiate/verify/history
@@ -160,9 +138,17 @@ class PlaceholderEndpointsTest extends TestCase
         // /transactions, /shift-logs, /users (all return real DB data now),
         // plus admin vehicle CRUD (POST/PUT/DELETE /vehicles).
         // S5-T1 implemented commuter /profile (PUT + GET).
+        // Sprint 6 repurposed the 3 QR stubs for the feedback unit-QR flow
+        // (generate/validate/scan) — now implemented, covered by
+        // FeedbackQrFlowTest.
+        // S6-T3 implemented admin /lost-items (browse/create/claim-review/close)
+        // via AdminLostItemController — covered by LostFoundFlowTest.
+        // S6-T4 implemented admin /announcements (CRUD + archive) +
+        // user-facing /announcements (feed + mark-read + unread-count)
+        // via AdminAnnouncementController + AnnouncementController — covered
+        // by AnnouncementFlowTest.
         // Remaining stubs: commuter/trips, commuter/rewards,
-        // admin/dashboard, admin/announcements, admin/lost-items,
-        // qr/generate, qr/validate, qr/scan = 8.
-        $this->assertEquals(8, 2 + 3 + 3);
+        // admin/dashboard = 3.
+        $this->assertEquals(3, 2 + 1);
     }
 }

@@ -9,6 +9,7 @@ import {
   Users,
   FileText,
   Menu,
+  Megaphone,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -32,6 +33,7 @@ export const operationsNav: NavItem[] = [
 export const managementNav: NavItem[] = [
   { href: "/vehicles", label: "Fleet Management", icon: Car },
   { href: "/lost-found", label: "Lost & Found", icon: Package },
+  { href: "/announcements", label: "Announcements", icon: Megaphone },
   { href: "/users", label: "User Management", icon: Users },
 ];
 
@@ -56,6 +58,7 @@ export const mobileOverflowItems: NavItem[] = [
 export const mobileMoreItems: NavItem[] = [
   { href: "/vehicles", label: "Fleet Management", icon: Car },
   { href: "/lost-found", label: "Lost & Found", icon: Package },
+  { href: "/announcements", label: "Announcements", icon: Megaphone },
   { href: "/users", label: "User Management", icon: Users },
   { href: "/settings", label: "Settings", icon: Sliders },
 ];

@@ -16,7 +16,14 @@ export default function LostItemCard({ item, isWatched, claimStatus, claimLimitR
   return (
     <div className="bg-[#071A2E] rounded-2xl border border-white/10 overflow-hidden flex flex-col group hover:border-white/20 transition-all shadow-lg shadow-black/20">
       <div className="relative h-48 bg-[#0A1E33] overflow-hidden">
-        <img src={item.imageUrl} alt={item.itemName} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500" />
+        {item.imageUrl ? (
+          <img src={item.imageUrl} alt={item.itemName} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500" />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-white/20">
+            <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A1.5 1.5 0 0021.75 19.5V4.5A1.5 1.5 0 0020.25 3H3.75A1.5 1.5 0 002.25 4.5v15A1.5 1.5 0 003.75 21z" /></svg>
+            <span className="text-[10px] font-semibold uppercase tracking-wider">No photo yet</span>
+          </div>
+        )}
         <button onClick={() => onToggleWatchlist(item.id)} className={`absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center transition-all backdrop-blur-sm border ${isWatched ? "bg-[#1A5FB4] border-[#62A0EA] shadow-lg shadow-[#1A5FB4]/40" : "bg-black/40 border-white/20 hover:bg-black/60"}`}>
           <svg className={`w-5 h-5 transition-colors ${isWatched ? "text-white fill-white" : "text-white/80"}`} fill={isWatched ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" /></svg>
         </button>
@@ -45,6 +52,10 @@ export default function LostItemCard({ item, isWatched, claimStatus, claimLimitR
             </button>
           ) : claimStatus === "PENDING" ? (
             <button onClick={() => onCancelClaim(item.id)} className="flex-1 bg-white/5 hover:bg-white/10 text-white/60 hover:text-white text-sm font-medium py-2.5 rounded-xl border border-white/10 transition-colors flex items-center justify-center gap-2">Cancel Claim</button>
+          ) : claimStatus === "REJECTED" ? (
+            <button onClick={() => claimLimitReached ? null : onOpenClaimModal(item)} className={`flex-1 text-sm font-bold py-2.5 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 ${claimLimitReached ? "bg-white/5 text-white/30 cursor-not-allowed shadow-none" : "bg-[#FF6D3A] hover:bg-[#e55a2b] text-white shadow-[#FF6D3A]/30"}`}>
+              {claimLimitReached ? "Claim Limit Reached" : "Claim Again"}
+            </button>
           ) : (
             <div className="flex-1 bg-white/5 text-sm font-semibold py-2.5 rounded-xl text-center text-emerald-400">Validated - Proceed</div>
           )}

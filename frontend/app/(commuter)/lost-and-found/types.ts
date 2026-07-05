@@ -16,8 +16,12 @@ export interface LostItem {
 }
 
 export interface ClaimData {
+  /** The backend claim row id — needed to cancel (withdraw) the claim. */
+  claimId: string;
   status: ClaimStatus;
   proof: string;
+  /** The claimed item (eager-loaded by GET /commuter/claims); null if deleted. */
+  item: LostItem | null;
 }
 
 export interface PaginatedAPIResponse {

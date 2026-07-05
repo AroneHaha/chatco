@@ -104,7 +104,7 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
           if (data.errors.license_number) mapped.licenseNumber = data.errors.license_number;
           if (data.errors.profile_picture_url) mapped.profilePicture = data.errors.profile_picture_url;
           setFieldErrors(mapped);
-          const firstError = Object.values(data.errors)[0]?.[0] ?? 'Validation failed.';
+          const firstError = (Object.values(data.errors)[0] as string[] | undefined)?.[0] ?? 'Validation failed.';
           throw new Error(firstError);
         }
         throw new Error(data.message ?? 'Failed to create driver');

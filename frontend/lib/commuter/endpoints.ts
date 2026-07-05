@@ -34,9 +34,30 @@ export const COMMUTER_API = {
     claim: "/api/commuter/lost-found/claim",
   },
   feedback: {
+    /** POST — submit a rating (+ optional comment) for a ride's shift_id (S6-T7). */
     submit: "/api/commuter/feedback",
+    /** GET — the commuter's own feedback history, for the read-only "View Feedback" state (S6-T7). */
+    history: "/api/commuter/feedback/history",
+  },
+  /**
+   * Sprint 6 — Feedback Unit-QR resolution layer (S6-T6 frontend wiring).
+   *
+   *   validate  — pre-check a scanned token's signature + expiry (no DB hit)
+   *   scan      — verify + resolve today's driver + conductor from shift_logs
+   *
+   * Both are commuter-only. The scan response carries the `shift_id` that
+   * the subsequent POST /commuter/feedback (S6-T2) consumes.
+   */
+  feedbackQr: {
+    validate: "/api/qr/validate",
+    scan: "/api/qr/scan",
+    /** Permanent unit-QR: resolves today's crew from a bare vehicle_id. */
+    scanPublic: "/api/qr/scan-public",
   },
   sos: {
+    /** POST — trigger a new emergency SOS alert with lat/lng (S6-T10). */
     create: "/api/commuter/sos",
+    /** GET — poll the commuter's own alert status (ACTIVE/ACKNOWLEDGED/RESOLVED). */
+    status: (id: string) => `/api/commuter/sos/${encodeURIComponent(id)}`,
   },
 } as const;

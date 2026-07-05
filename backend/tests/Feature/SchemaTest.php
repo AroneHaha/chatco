@@ -251,4 +251,79 @@ class SchemaTest extends TestCase
     {
         $this->assertTrue(Schema::hasColumn('drivers', 'active_shift_id'), 'drivers missing [active_shift_id] column.');
     }
+
+    // ── Sprint 6 Tables ──────────────────────────────────────────
+
+    public function test_feedback_table_exists(): void
+    {
+        $this->assertTrue(Schema::hasTable('feedback'), 'Table [feedback] does not exist.');
+    }
+
+    public function test_feedback_has_required_columns(): void
+    {
+        $columns = ['id', 'shift_id', 'vehicle_id', 'driver_id', 'conductor_id', 'commuter_id', 'rating', 'category', 'comment', 'created_at', 'updated_at'];
+
+        foreach ($columns as $column) {
+            $this->assertTrue(
+                Schema::hasColumn('feedback', $column),
+                "Missing column: feedback.{$column}"
+            );
+        }
+    }
+
+    // ── Sprint 6 (T3) Lost & Found new columns ──────────────────
+
+    public function test_lost_items_has_release_and_audit_columns(): void
+    {
+        $columns = ['released_to', 'released_at', 'closed_by', 'closed_at'];
+        foreach ($columns as $column) {
+            $this->assertTrue(
+                Schema::hasColumn('lost_items', $column),
+                "Missing column: lost_items.{$column}"
+            );
+        }
+    }
+
+    public function test_claims_has_review_columns(): void
+    {
+        $columns = ['reviewed_by', 'reviewed_at', 'rejection_reason'];
+        foreach ($columns as $column) {
+            $this->assertTrue(
+                Schema::hasColumn('claims', $column),
+                "Missing column: claims.{$column}"
+            );
+        }
+    }
+
+    // ── Sprint 6 (T4) Announcements new table + columns ─────────
+
+    public function test_announcement_reads_table_exists(): void
+    {
+        $this->assertTrue(Schema::hasTable('announcement_reads'), 'Table [announcement_reads] does not exist.');
+    }
+
+    public function test_announcements_has_created_by_and_status(): void
+    {
+        $this->assertTrue(Schema::hasColumn('announcements', 'created_by'), 'Missing column: announcements.created_by');
+        $this->assertTrue(Schema::hasColumn('announcements', 'status'), 'Missing column: announcements.status');
+    }
+
+    // ── Sprint 6 (T5) SOS alerts table ──────────────────────────
+
+    public function test_sos_alerts_table_exists(): void
+    {
+        $this->assertTrue(Schema::hasTable('sos_alerts'), 'Table [sos_alerts] does not exist.');
+    }
+
+    public function test_sos_alerts_has_required_columns(): void
+    {
+        $columns = ['id', 'commuter_id', 'lat', 'lng', 'note', 'status', 'acknowledged_by', 'acknowledged_at', 'resolved_by', 'resolved_at', 'created_at', 'updated_at'];
+
+        foreach ($columns as $column) {
+            $this->assertTrue(
+                Schema::hasColumn('sos_alerts', $column),
+                "Missing column: sos_alerts.{$column}"
+            );
+        }
+    }
 }

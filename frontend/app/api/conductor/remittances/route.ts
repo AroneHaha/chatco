@@ -5,13 +5,16 @@ import { proxyToLaravel } from "@/lib/conductor/server/proxy";
 import * as store from "@/lib/conductor/server/store";
 import type { RemittanceRecord } from "@/lib/conductor/persistence/remittance.store";
 
-// GET stays on the local store — there is no conductor-side remittance history
-// endpoint on the backend yet (only POST /conductor/remittances exists).
 export async function GET(request: NextRequest) {
   const session = await getConductorSession(request);
   if (!session) return unauthorizedResponse();
 
-  return jsonData(store.listRemittances(session.userId));
+  const result = await proxyToLaravel(request, "/conductor/remittances", { method: "GET" });
+  if (result.ok) {
+    return jsonData(result.data);
+  }
+
+  return jsonError(result.message ?? "Unable to load remittances.", result.status);
 }
 
 /**
@@ -19,7 +22,11 @@ export async function GET(request: NextRequest) {
  *
  * Proxies to Laravel `POST /api/v1/conductor/remittances`, which runs
  * `endShiftViaRemittance`: it writes a `remittances` row AND flips the
- * `shift_log` to ENDED — so the end-of-shift is persisted to the DB.
+ * `shift_log` to ENDED — so the end-of-shift is persisted to the DB. Laravel
+ * ALSO clears the vehicle's current driver/conductor/active_shift assignment
+ * (ShiftService::endShiftViaRemittance). On success we mirror the record into
+ * the local conductor store so the frontend's remittance-history modal stays
+ * consistent.
  *
  * Cash-focused remittance: the conductor is accountable for the cash they
  * collected and remits all of it (GCash/voucher are already digital), so
@@ -52,11 +59,14 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  if (!result.ok) {
-    return jsonError(result.message ?? "Unable to submit remittance.", result.status);
+  if (result.ok) {
+    // Laravel succeeded — also mirror into the local conductor store so the
+    // frontend's remittance history modal (which reads from the local store
+    // when the API mode is off) stays consistent.
+    const session = await getConductorSession(request);
+    if (session) store.addRemittance(session.userId, record);
+    return jsonData([record], 201);
   }
 
-  // The backend returns the ended ShiftLog; the frontend service only needs a
-  // truthy data array for its local history, so echo back the submitted record.
-  return jsonData([record], 201);
+  return jsonError(result.message ?? "Unable to submit remittance.", result.status);
 }

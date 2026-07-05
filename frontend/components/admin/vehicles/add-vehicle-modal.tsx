@@ -3,78 +3,56 @@
 
 import { useState, useEffect } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
+import { Info } from 'lucide-react';
 
 interface Route {
   id: string;
   name: string;
 }
 
-interface Driver {
-  id: string;
-  first_name: string;
-  last_name: string;
-  vehicle_id: string | null;
-}
-
-interface Conductor {
-  id: string;
-  first_name: string;
-  last_name: string;
-}
-
 interface AddVehicleModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: () => void; // Trigger refresh in parent
+  /** Called after a successful POST with the created vehicle's id.
+   *  The parent uses it to open the details modal so the new unit's
+   *  permanent QR is shown (and printable) right away. */
+  onSave: (createdVehicleId: string) => void;
 }
 
+/**
+ * Add New Vehicle modal.
+ *
+ * Per the vehicle-assignment refactor, this modal ONLY captures the
+ * vehicle's own attributes (unit number, plate, route, status). Driver and
+ * conductor assignment is intentionally excluded — a newly created vehicle
+ * starts with NO current driver or conductor. Assignment happens
+ * automatically through the conductor login (shift-start) workflow.
+ */
 export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProps) {
   const [formData, setFormData] = useState({
     unit_number: '',
     plate_number: '',
     route_id: '',
-    driver_id: '',
-    conductor_id: '',
     status: 'ACTIVE',
   });
   const [routes, setRoutes] = useState<Route[]>([]);
-  const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [conductors, setConductors] = useState<Conductor[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
-  // Fetch routes, unassigned drivers, and conductors when modal opens
+  // Fetch routes only (drivers/conductors no longer needed — assignment is
+  // automatic via conductor login).
   useEffect(() => {
     if (!isOpen) return;
 
-    Promise.all([
-      fetch('/api/admin/routes').then(r => r.json()),
-      fetch('/api/admin/drivers').then(r => r.json()),
-      fetch('/api/admin/vehicles').then(r => r.json()),
-    ]).then(([routesRes, driversRes, vehiclesRes]) => {
-      setRoutes(routesRes.data ?? []);
-
-      const allDrivers = driversRes.data ?? [];
-      // Filter to unassigned drivers (no vehicle_id)
-      setDrivers(allDrivers.filter((d: Driver) => !d.vehicle_id));
-
-      // Extract unique conductors from existing vehicles.
-      // The /admin/vehicles endpoint now returns a paginated response:
-      // { data: { data: [...vehicles], current_page, total, ... } }
-      // Extract the inner array (same pattern as vehicles-data.ts).
-      const vehiclesData = vehiclesRes.data?.data ?? vehiclesRes.data ?? [];
-      const allVehicles: Array<{ conductor?: Conductor | null }> = Array.isArray(vehiclesData) ? vehiclesData : [];
-      const conductorMap = new Map<string, Conductor>();
-      allVehicles.forEach((v) => {
-        if (v.conductor && !conductorMap.has(v.conductor.id)) {
-          conductorMap.set(v.conductor.id, v.conductor);
-        }
+    fetch('/api/admin/routes')
+      .then(r => r.json())
+      .then((routesRes) => {
+        setRoutes(routesRes.data ?? []);
+      })
+      .catch(() => {
+        setError('Failed to load routes. Please try again.');
       });
-      setConductors(Array.from(conductorMap.values()));
-    }).catch(() => {
-      setError('Failed to load form data. Please try again.');
-    });
   }, [isOpen]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -104,9 +82,10 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
           unit_number: formData.unit_number,
           plate_number: formData.plate_number,
           route_id: formData.route_id, // Always present (required)
-          driver_id: formData.driver_id || null,
-          conductor_id: formData.conductor_id || null,
           status: formData.status,
+          // NOTE: driver_id and conductor_id are intentionally NOT sent.
+          // A new vehicle starts unassigned; personnel are linked
+          // automatically when a conductor logs in and starts a shift.
         }),
       });
 
@@ -116,15 +95,18 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
         // Laravel 422: { message, errors: { field: ["msg", ...] } }
         if (res.status === 422 && data.errors) {
           setFieldErrors(data.errors);
-          const firstError = Object.values(data.errors)[0]?.[0] ?? 'Validation failed.';
+          const firstError = (Object.values(data.errors)[0] as string[] | undefined)?.[0] ?? 'Validation failed.';
           throw new Error(firstError);
         }
         throw new Error(data.message ?? 'Failed to create vehicle');
       }
 
       // Reset form and close
-      setFormData({ unit_number: '', plate_number: '', route_id: '', driver_id: '', conductor_id: '', status: 'ACTIVE' });
-      onSave(); // Trigger refresh in parent
+      setFormData({ unit_number: '', plate_number: '', route_id: '', status: 'ACTIVE' });
+      // Pass the created vehicle's id up so the parent can surface the
+      // freshly-generated permanent QR (downloadable / printable).
+      const createdId = String(data?.data?.id ?? '');
+      onSave(createdId);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create vehicle');
@@ -185,29 +167,6 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
         </div>
 
         <div>
-          <label htmlFor="driver_id" className="block text-xs font-medium text-slate-300 mb-1.5">Assign Driver</label>
-          <select id="driver_id" name="driver_id" value={formData.driver_id} onChange={handleChange}
-            className={`${inputClasses} [color-scheme:dark]`}>
-            <option value="" className="bg-gray-800">Select Unassigned Driver...</option>
-            {drivers.map(d => (
-              <option key={d.id} value={d.id} className="bg-gray-800">{d.first_name} {d.last_name}</option>
-            ))}
-          </select>
-          {drivers.length === 0 && <p className="text-xs text-amber-400 mt-1">No available drivers</p>}
-        </div>
-
-        <div>
-          <label htmlFor="conductor_id" className="block text-xs font-medium text-slate-300 mb-1.5">Assign Conductor</label>
-          <select id="conductor_id" name="conductor_id" value={formData.conductor_id} onChange={handleChange}
-            className={`${inputClasses} [color-scheme:dark]`}>
-            <option value="" className="bg-gray-800">Select Conductor...</option>
-            {conductors.map(c => (
-              <option key={c.id} value={c.id} className="bg-gray-800">{c.first_name} {c.last_name}</option>
-            ))}
-          </select>
-        </div>
-
-        <div>
           <label htmlFor="status" className="block text-xs font-medium text-slate-300 mb-1.5">Status</label>
           <select id="status" name="status" value={formData.status} onChange={handleChange}
             className={`${inputClasses} [color-scheme:dark]`}>
@@ -215,6 +174,16 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
             <option value="MAINTENANCE" className="bg-gray-800">Under Maintenance</option>
             <option value="INACTIVE" className="bg-gray-800">Out of Service</option>
           </select>
+        </div>
+
+        {/* Information note explaining the new assignment workflow */}
+        <div className="flex items-start gap-2.5 bg-[#62A0EA]/8 border border-[#62A0EA]/20 rounded-md px-3.5 py-3">
+          <Info size={16} className="text-[#62A0EA] flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-slate-300 leading-relaxed">
+            Driver and conductor are <span className="font-semibold text-white">not assigned here</span>.
+            A new vehicle starts unassigned. Personnel are linked to this unit automatically when a
+            conductor logs in and starts a shift.
+          </p>
         </div>
 
         <div className="flex justify-end gap-2 pt-4 border-t border-[#1E2D45]">

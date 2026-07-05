@@ -5,11 +5,14 @@ import { proxyToLaravel } from "@/lib/conductor/server/proxy";
 /**
  * GET /api/admin/vehicles
  * POST /api/admin/vehicles
+ *
+ * Proxies to Laravel's admin vehicle endpoints.
  */
 export async function GET(request: NextRequest) {
   const result = await proxyToLaravel(request, "/admin/vehicles", { method: "GET" });
-  if (!result.ok) return jsonError(result.message ?? "Failed to load vehicles.", result.status);
-  return jsonData(result.data);
+  if (result.ok) return jsonData(result.data);
+
+  return jsonError(result.message ?? "Failed to load vehicles.", result.status);
 }
 
 export async function POST(request: NextRequest) {
@@ -25,17 +28,16 @@ export async function POST(request: NextRequest) {
     body,
   });
 
-  if (!result.ok) {
-    // 422 = Laravel validation failure — forward `errors` so the modal can
-    // show field-specific messages ("The unit_number has already been taken.").
-    if (result.status === 422) {
-      return jsonValidationError(
-        result.message ?? "Validation failed.",
-        result.errors,
-        422
-      );
-    }
-    return jsonError(result.message ?? "Failed to create vehicle.", result.status);
+  if (result.ok) {
+    return jsonData(result.data, 201);
   }
-  return jsonData(result.data, 201);
+
+  if (result.status === 422) {
+    return jsonValidationError(
+      result.message ?? "Validation failed.",
+      result.errors,
+      422
+    );
+  }
+  return jsonError(result.message ?? "Failed to create vehicle.", result.status);
 }

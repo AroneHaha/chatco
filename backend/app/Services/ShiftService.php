@@ -60,7 +60,20 @@ class ShiftService
                 'plate_number' => $vehicle->plate_number,
             ]);
 
-            $vehicle->update(['active_shift_id' => $shiftId]);
+            // ─── Auto-assign driver + conductor to the vehicle ─────────────
+            // Per the vehicle-assignment refactor: the conductor login (shift
+            // start) is the ONLY place where a vehicle's CURRENT driver +
+            // conductor are set. The assignment is immediately visible across
+            // the system (admin fleet table, monitoring, etc.).
+            //
+            // vehicle.driver_id  → the selected driver
+            // vehicle.conductor_id → the logged-in conductor's profile
+            // vehicle.active_shift_id → the new shift (for quick "on shift" lookup)
+            $vehicle->update([
+                'active_shift_id' => $shiftId,
+                'driver_id'       => $driverId,
+                'conductor_id'    => $conductorProfile?->id,
+            ]);
             $driver->update(['active_shift_id' => $shiftId]);
 
             return $shiftLog;
@@ -141,7 +154,17 @@ class ShiftService
             ]);
 
             if ($shiftLog->vehicle_id) {
-                Vehicle::where('id', $shiftLog->vehicle_id)->update(['active_shift_id' => null]);
+                // ─── Clear the vehicle's CURRENT active assignment ───────────
+                // Per the refactor: a successful End-of-Day / Remittance removes
+                // the current assigned driver AND conductor from the vehicle so
+                // it becomes available again. Historical records (this shift_log
+                // row, the remittance row, transactions) are NEVER deleted —
+                // only the CURRENT assignment is cleared.
+                Vehicle::where('id', $shiftLog->vehicle_id)->update([
+                    'active_shift_id' => null,
+                    'driver_id'       => null,
+                    'conductor_id'    => null,
+                ]);
             }
 
             if ($shiftLog->driver_id) {

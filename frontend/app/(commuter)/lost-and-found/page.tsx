@@ -8,9 +8,10 @@ import { ViewTab } from "./types";
 export default function LostAndFoundPage() {
   const {
     activeTab, handleTabChange, activeCategory, handleCategoryChange, searchQuery, handleSearch,
-    currentPage, setCurrentPage, apiData, isLoading,
+    currentPage, setCurrentPage, apiData, isLoading, listError,
     watchlist, toggleWatchlist, claims, pendingClaimsCount, openClaimModal, cancelClaim,
-    showClaimModal, setShowClaimModal, itemToClaim, proofText, setProofText, submitClaim,
+    showClaimModal, setShowClaimModal, itemToClaim, proofText, setProofText,
+    submitClaim, claimError, isSubmittingClaim,
     displayItems, formatDate, getStatusBadge, MAX_PENDING_CLAIMS
   } = useLostAndFound();
 
@@ -53,6 +54,11 @@ export default function LostAndFoundPage() {
           <div className="h-full flex flex-col items-center justify-center">
             <div className="w-8 h-8 border-2 border-white/20 border-t-[#62A0EA] rounded-full animate-spin" />
             <p className="text-white/40 text-sm mt-4">Fetching items...</p>
+          </div>
+        ) : listError ? (
+          <div className="h-full flex flex-col items-center justify-center text-center px-4">
+            <p className="text-red-400 font-medium text-sm mb-3">{listError}</p>
+            <button onClick={() => handleTabChange(activeTab)} className="px-4 py-2 rounded-full text-xs font-semibold bg-[#1A5FB4] text-white">Try again</button>
           </div>
         ) : displayItems.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center px-4">
@@ -105,6 +111,12 @@ export default function LostAndFoundPage() {
                 <textarea rows={3} value={proofText} onChange={(e) => setProofText(e.target.value)} placeholder="Describe a specific detail..." className="w-full bg-[#050F1A] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#62A0EA] transition-colors resize-none" />
                 <p className="text-[10px] text-white/30 mt-2">This will be reviewed by the admin.</p>
               </div>
+              {claimError && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 flex items-start gap-2">
+                  <svg className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
+                  <p className="text-red-400 text-xs font-medium">{claimError}</p>
+                </div>
+              )}
               <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-start gap-3">
                 <svg className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
                 <div>
@@ -115,7 +127,11 @@ export default function LostAndFoundPage() {
             </div>
             <div className="p-6 border-t border-white/10 flex gap-3">
               <button onClick={() => setShowClaimModal(false)} className="flex-1 bg-white/5 hover:bg-white/10 text-white/70 text-sm font-semibold py-3 rounded-xl border border-white/10 transition-colors">Cancel</button>
-              <button onClick={submitClaim} disabled={!proofText.trim()} className={`flex-1 text-sm font-bold py-3 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 ${!proofText.trim() ? "bg-white/10 text-white/30 cursor-not-allowed" : "bg-[#FF6D3A] hover:bg-[#e55a2b] text-white shadow-[#FF6D3A]/30"}`}>Submit Claim</button>
+              <button onClick={submitClaim} disabled={!proofText.trim() || isSubmittingClaim} className={`flex-1 text-sm font-bold py-3 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 ${!proofText.trim() || isSubmittingClaim ? "bg-white/10 text-white/30 cursor-not-allowed" : "bg-[#FF6D3A] hover:bg-[#e55a2b] text-white shadow-[#FF6D3A]/30"}`}>
+                {isSubmittingClaim ? (
+                  <span className="inline-flex items-center gap-2"><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Submitting...</span>
+                ) : "Submit Claim"}
+              </button>
             </div>
           </div>
         </div>

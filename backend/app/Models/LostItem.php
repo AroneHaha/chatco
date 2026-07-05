@@ -29,6 +29,15 @@ class LostItem extends Model
         'reporter_name',
         'status',
         'claimed_by',
+        'released_to',
+        'released_at',
+        'closed_by',
+        'closed_at',
+    ];
+
+    protected $casts = [
+        'released_at' => 'datetime',
+        'closed_at'   => 'datetime',
     ];
 
     /**
@@ -56,5 +65,23 @@ class LostItem extends Model
     public function claims()
     {
         return $this->hasMany(Claim::class, 'item_id');
+    }
+
+    public function releasedTo()
+    {
+        return $this->belongsTo(CommuterProfile::class, 'released_to');
+    }
+
+    public function closedBy()
+    {
+        return $this->belongsTo(User::class, 'closed_by');
+    }
+
+    /**
+     * Commuters watching this item (watchlist entries).
+     */
+    public function watchlists()
+    {
+        return $this->hasMany(LostItemWatchlist::class, 'item_id');
     }
 }

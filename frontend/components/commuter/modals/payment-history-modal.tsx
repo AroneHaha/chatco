@@ -6,6 +6,11 @@ import {
   type CommuterPayment,
   type PaymentStatus,
 } from "@/lib/commuter/services/payment.service";
+import {
+  listMy,
+  type Feedback,
+} from "@/lib/commuter/services/feedback.service";
+import FeedbackModal from "@/components/commuter/feedback-modal";
 
 interface PaymentHistoryModalProps {
   onClose: () => void;
@@ -38,6 +43,42 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
   const [lastPage, setLastPage] = useState(1);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // ─── S6-T7 feedback state ─────────────────────────────────────
+  // Map of { shiftId → Feedback } for the commuter's already-submitted
+  // feedback. Fetched once on mount so each PAID ride row can show
+  // "Leave Feedback" (not in map) or "View Feedback" (in map, read-only).
+  const [feedbackMap, setFeedbackMap] = useState<Record<string, Feedback>>({});
+  // The ride whose feedback modal is currently open (null = closed).
+  const [activeFeedbackRide, setActiveFeedbackRide] = useState<CommuterPayment | null>(null);
+  // Transient success toast ("Feedback submitted").
+  const [toast, setToast] = useState<string | null>(null);
+
+  // Auto-dismiss the toast after 2.5s.
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 2500);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  /** Fetch the commuter's own feedback and rebuild the {shiftId → Feedback} map. */
+  const refreshFeedbackMap = useCallback(async () => {
+    try {
+      const mine = await listMy();
+      const next: Record<string, Feedback> = {};
+      for (const f of mine) next[f.shiftId] = f;
+      setFeedbackMap(next);
+    } catch {
+      // Non-fatal — if the feedback history can't load (e.g. transient
+      // network), we simply hide the "View Feedback" state; the commuter
+      // can still submit (the backend's 409 catches true duplicates).
+      setFeedbackMap({});
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshFeedbackMap();
+  }, [refreshFeedbackMap]);
 
   const loadPage = useCallback(async (target: number) => {
     target === 1 ? setIsLoading(true) : setIsLoadingMore(true);
@@ -261,6 +302,37 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
                             <span className="font-bold text-[#071A2E]">₱{tx.amount.toFixed(2)}</span>
                           </div>
                         </div>
+
+                        {/* S6-T7 — Leave / View Feedback. Only on PAID rides that
+                            are bound to a shift (shiftId present). Submitted rides
+                            show a read-only "View Feedback" + checkmark; others
+                            show "Leave Feedback" which opens the submit modal. */}
+                        {tx.status === "paid" && tx.shiftId && (
+                          <button
+                            onClick={() => setActiveFeedbackRide(tx)}
+                            className={`w-full mt-2 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${
+                              feedbackMap[tx.shiftId]
+                                ? "bg-green-50 text-green-700 hover:bg-green-100"
+                                : "bg-[#1A5FB4] text-white hover:bg-[#155a9c]"
+                            }`}
+                          >
+                            {feedbackMap[tx.shiftId] ? (
+                              <>
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                                </svg>
+                                Feedback Submitted · View
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" />
+                                </svg>
+                                Leave Feedback
+                              </>
+                            )}
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -280,6 +352,42 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
           )}
         </div>
       </div>
+
+      {/* S6-T7 — Feedback modal overlay. Rendered above this modal (z-110 vs
+          this modal's z-100). The same modal handles both submit (no existing
+          feedback) and read-only view (existing feedback present) modes. */}
+      {activeFeedbackRide && (
+        <FeedbackModal
+          ride={activeFeedbackRide}
+          existingFeedback={
+            activeFeedbackRide.shiftId
+              ? feedbackMap[activeFeedbackRide.shiftId] ?? null
+              : null
+          }
+          onClose={() => setActiveFeedbackRide(null)}
+          onSubmitted={(feedback) => {
+            // Add to the map so the row instantly flips to "View Feedback".
+            setFeedbackMap((prev) => ({ ...prev, [feedback.shiftId]: feedback }));
+            setActiveFeedbackRide(null);
+            setToast("Feedback submitted — thank you!");
+          }}
+          onAlreadySubmitted={() => {
+            // 409 — feedback was created in another session since the map was
+            // built. Refetch so the modal flips to read-only with the real row.
+            void refreshFeedbackMap();
+          }}
+        />
+      )}
+
+      {/* S6-T7 — transient success toast (auto-dismisses after 2.5s). */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[120] bg-[#071A2E] text-white text-sm font-medium px-4 py-2.5 rounded-full shadow-lg flex items-center gap-2">
+          <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+          </svg>
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
