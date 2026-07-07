@@ -179,6 +179,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::get('/dashboard', [AdminController::class, 'dashboard']);
     Route::get('/analytics', [AdminController::class, 'analytics'])->middleware('throttle:conductor-read');
     Route::get('/monitoring', [AdminController::class, 'monitoring'])->middleware('throttle:conductor-read');
+    Route::get('/monitoring/overspeed', [AdminController::class, 'overspeed'])->middleware('throttle:conductor-read');
     Route::get('/users', [AdminUserController::class, 'index'])->middleware('throttle:conductor-read');
     Route::get('/users/{id}', [AdminUserController::class, 'show'])->middleware('throttle:conductor-read');
     Route::put('/users/{id}', [AdminUserController::class, 'update'])->middleware('throttle:conductor-write');

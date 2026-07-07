@@ -33,7 +33,13 @@ class AdminController extends Controller
 
     public function dashboard(): JsonResponse
     {
-        return $this->notImplementedResponse();
+        // Returns the same analytics summary as /admin/analytics (default
+        // 30-day window) — the frontend dashboard page fetches /analytics
+        // directly, but this endpoint exists for completeness and any future
+        // dashboard-specific aggregations.
+        $data = $this->adminService->analytics([]);
+
+        return $this->successResponse($data, 'Dashboard data retrieved');
     }
 
     /**
@@ -68,6 +74,18 @@ class AdminController extends Controller
         $fleet = $this->locationService->getMonitoringFleet();
 
         return $this->successResponse($fleet, 'Live fleet retrieved');
+    }
+
+    /**
+     * GET /api/v1/admin/monitoring/overspeed?threshold=60
+     * Returns vehicles currently exceeding the speed threshold.
+     */
+    public function overspeed(Request $request): JsonResponse
+    {
+        $threshold = (int) $request->integer('threshold', 60);
+        $vehicles = $this->locationService->getOverspeedingVehicles($threshold);
+
+        return $this->successResponse($vehicles, 'Overspeeding vehicles retrieved');
     }
 
     public function drivers(): JsonResponse
@@ -354,14 +372,7 @@ class AdminController extends Controller
         ], 'Conductor account created successfully', 201);
     }
 
-    public function vehicles(): JsonResponse
-    {
-        // Vehicle CRUD moved to AdminVehicleController + AdminService (Week 5).
-        // This stub kept for backwards compat with any callers still hitting
-        // the old AdminController route — but the route now points to
-        // AdminVehicleController::index, so this method is effectively dead.
-        return $this->notImplementedResponse();
-    }
+    // Vehicle CRUD moved to AdminVehicleController — this method removed.
 
     public function routes(): JsonResponse
     {
