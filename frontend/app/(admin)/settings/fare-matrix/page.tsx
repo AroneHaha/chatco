@@ -2,26 +2,43 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Save, X, MapPin, Search, RefreshCw, AlertCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Save, X, MapPin, Search, Route, RefreshCw } from 'lucide-react';
 import * as farePointService from '@/lib/admin/services/fare-point.service';
-import type { FarePoint } from '@/lib/admin/services/fare-point.service';
+import type { FarePoint as ApiFarePoint } from '@/lib/admin/services/fare-point.service';
 
-interface RouteOption {
+// Adapter: convert API fare point to the format the original UI expects
+interface FarePoint {
   id: string;
+  pointNumber: number;
   name: string;
+  regularFare: number;
+  discountedFare: number;
+  subStops?: string[];
+  landmarks?: string;
+}
+
+function mapApiToLocal(api: ApiFarePoint): FarePoint {
+  return {
+    id: api.id,
+    pointNumber: api.point_number,
+    name: api.name,
+    regularFare: Number(api.regular_fare),
+    discountedFare: Number(api.discounted_fare),
+    subStops: api.sub_stops ? api.sub_stops.split(',').map(s => s.trim()).filter(Boolean) : undefined,
+    landmarks: api.landmarks ?? undefined,
+  };
 }
 
 export default function FareMatrixPage() {
   const [farePoints, setFarePoints] = useState<FarePoint[]>([]);
-  const [routes, setRoutes] = useState<RouteOption[]>([]);
-  const [selectedRouteId, setSelectedRouteId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const [expandedPoint, setExpandedPoint] = useState<string | null>(null);
+  const [expandedPoint, setExpandedPoint] = useState<number | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingPoint, setEditingPoint] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Fare preview
@@ -30,53 +47,35 @@ export default function FareMatrixPage() {
 
   // New point form state
   const [newName, setNewName] = useState('');
-  const [newCode, setNewCode] = useState('');
-  const [newPointNumber, setNewPointNumber] = useState('');
   const [newRegular, setNewRegular] = useState('18');
   const [newDiscounted, setNewDiscounted] = useState('14.4');
-  const [newLandmarks, setNewLandmarks] = useState('');
   const [newSubStops, setNewSubStops] = useState('');
 
   // Edit form state
   const [editName, setEditName] = useState('');
-  const [editCode, setEditCode] = useState('');
-  const [editPointNumber, setEditPointNumber] = useState('');
   const [editRegular, setEditRegular] = useState('');
   const [editDiscounted, setEditDiscounted] = useState('');
-  const [editLandmarks, setEditLandmarks] = useState('');
   const [editSubStops, setEditSubStops] = useState('');
 
-  // Fetch routes for dropdown
-  useEffect(() => {
-    fetch('/api/admin/routes', { headers: { Accept: 'application/json' } })
-      .then(r => r.json())
-      .then(res => {
-        const routeList = (res.data ?? []) as RouteOption[];
-        setRoutes(routeList);
-        if (routeList.length > 0 && !selectedRouteId) {
-          setSelectedRouteId(routeList[0].id);
-        }
-      })
-      .catch(() => {});
-  }, []);
+  const [isSaved, setIsSaved] = useState(false);
 
-  // Fetch fare points
+  // Fetch fare points from API
   const fetchFarePoints = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await farePointService.list(selectedRouteId || undefined);
-      setFarePoints(data);
+      const data = await farePointService.list();
+      setFarePoints(data.map(mapApiToLocal));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load fare points');
     } finally {
       setIsLoading(false);
     }
-  }, [selectedRouteId]);
+  }, []);
 
   useEffect(() => {
-    if (selectedRouteId) fetchFarePoints();
-  }, [fetchFarePoints, selectedRouteId]);
+    fetchFarePoints();
+  }, [fetchFarePoints]);
 
   // Filtered points by search
   const filteredPoints = useMemo(() => {
@@ -84,109 +83,133 @@ export default function FareMatrixPage() {
     const q = searchQuery.toLowerCase();
     return farePoints.filter(p =>
       p.name.toLowerCase().includes(q) ||
-      String(p.point_number).includes(q) ||
-      p.code.toLowerCase().includes(q)
+      String(p.pointNumber).includes(q) ||
+      (p.subStops?.some(s => s.toLowerCase().includes(q)))
     );
   }, [farePoints, searchQuery]);
 
-  // Fare preview calculation
-  const previewResult = useMemo(() => {
-    if (previewFrom === null || previewTo === null || previewFrom === previewTo) return null;
-    const from = farePoints.find(p => p.point_number === previewFrom);
-    const to = farePoints.find(p => p.point_number === previewTo);
+  // Fare preview calculation (simple diff — original used calculateFare which
+  // depended on the hardcoded initialFarePoints; we compute inline now)
+  const farePreview = useMemo(() => {
+    if (!previewFrom || !previewTo || previewFrom === previewTo) return null;
+    const from = farePoints.find(p => p.pointNumber === previewFrom);
+    const to = farePoints.find(p => p.pointNumber === previewTo);
     if (!from || !to) return null;
-
-    const regularDiff = Math.abs(from.regular_fare - to.regular_fare);
-    const discountedDiff = Math.abs(from.discounted_fare - to.discounted_fare);
+    const regularDiff = Math.abs(from.regularFare - to.regularFare);
+    const discountedDiff = Math.abs(from.discountedFare - to.discountedFare);
+    const barangaysTraveled = Math.abs(from.pointNumber - to.pointNumber);
     return {
-      regular: regularDiff,
-      discounted: discountedDiff,
-      from: from.name,
-      to: to.name,
+      fareResult: {
+        fromPoint: from,
+        toPoint: to,
+        barangaysTraveled,
+        regularFare: regularDiff,
+        discountedFare: discountedDiff,
+        baseFare: Math.min(from.regularFare, to.regularFare),
+        succeedingFare: 2,
+        succeedingCount: Math.max(0, barangaysTraveled - 4),
+      }
     };
   }, [previewFrom, previewTo, farePoints]);
 
-  // ── Handlers ──
+  const showSuccess = (msg: string) => {
+    setSuccessMsg(msg);
+    setTimeout(() => setSuccessMsg(null), 4000);
+  };
 
-  const handleAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedRouteId) { setError('Please select a route first.'); return; }
-    if (!newName || !newCode || !newPointNumber) { setError('Name, code, and point number are required.'); return; }
-
+  const handleAddPoint = async () => {
+    if (!newName.trim()) return;
+    setIsSaving(true);
+    setError(null);
     try {
+      // Get the first route_id (single corridor for now)
+      const routesRes = await fetch('/api/admin/routes', { headers: { Accept: 'application/json' } });
+      const routesJson = await routesRes.json();
+      const routeId = routesJson.data?.[0]?.id;
+      if (!routeId) throw new Error('No route found. Create a route first.');
+
       await farePointService.create({
-        route_id: selectedRouteId,
-        point_number: parseInt(newPointNumber),
-        code: newCode.toUpperCase(),
-        name: newName,
-        landmarks: newLandmarks || undefined,
-        sub_stops: newSubStops || undefined,
-        regular_fare: parseFloat(newRegular) || 0,
-        discounted_fare: parseFloat(newDiscounted) || 0,
+        route_id: routeId,
+        point_number: farePoints.length + 1,
+        code: `P${String(farePoints.length + 1).padStart(2, '0')}`,
+        name: newName.trim(),
+        regular_fare: parseFloat(newRegular) || 18,
+        discounted_fare: parseFloat(newDiscounted) || 14.4,
+        sub_stops: newSubStops.trim() || undefined,
       });
-      setSuccessMessage(`Fare point "${newName}" created successfully.`);
-      setTimeout(() => setSuccessMessage(null), 4000);
-      // Reset form
-      setNewName(''); setNewCode(''); setNewPointNumber(''); setNewRegular('18'); setNewDiscounted('14.4'); setNewLandmarks(''); setNewSubStops('');
+      showSuccess(`Point "${newName}" added successfully.`);
+      setNewName(''); setNewRegular('18'); setNewDiscounted('14.4'); setNewSubStops('');
       setShowAddForm(false);
       await fetchFarePoints();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create fare point');
+      setError(err instanceof Error ? err.message : 'Failed to add fare point');
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const startEdit = (point: FarePoint) => {
-    setEditingId(point.id);
+  const handleStartEdit = (pointNumber: number) => {
+    const point = farePoints.find(p => p.pointNumber === pointNumber);
+    if (!point) return;
     setEditName(point.name);
-    setEditCode(point.code);
-    setEditPointNumber(String(point.point_number));
-    setEditRegular(String(point.regular_fare));
-    setEditDiscounted(String(point.discounted_fare));
-    setEditLandmarks(point.landmarks ?? '');
-    setEditSubStops(point.sub_stops ?? '');
-    setExpandedPoint(point.id);
+    setEditRegular(point.regularFare.toString());
+    setEditDiscounted(point.discountedFare.toString());
+    setEditSubStops(point.subStops ? point.subStops.join(', ') : '');
+    setEditingPoint(pointNumber);
   };
 
   const handleSaveEdit = async () => {
-    if (!editingId) return;
+    if (!editingPoint || !editName.trim()) return;
+    const point = farePoints.find(p => p.pointNumber === editingPoint);
+    if (!point) return;
+    setIsSaving(true);
+    setError(null);
     try {
-      await farePointService.update(editingId, {
-        name: editName,
-        code: editCode.toUpperCase(),
-        point_number: parseInt(editPointNumber),
-        regular_fare: parseFloat(editRegular) || 0,
-        discounted_fare: parseFloat(editDiscounted) || 0,
-        landmarks: editLandmarks || null,
-        sub_stops: editSubStops || null,
+      await farePointService.update(point.id, {
+        name: editName.trim(),
+        regular_fare: parseFloat(editRegular) || 18,
+        discounted_fare: parseFloat(editDiscounted) || 14.4,
+        sub_stops: editSubStops.trim() || null,
       });
-      setSuccessMessage(`Fare point "${editName}" updated successfully.`);
-      setTimeout(() => setSuccessMessage(null), 4000);
-      setEditingId(null);
+      showSuccess(`Point "${editName}" updated successfully.`);
+      setEditingPoint(null);
       await fetchFarePoints();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update fare point');
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete fare point "${name}"? This cannot be undone.`)) return;
+  const handleDelete = async (pointNumber: number) => {
+    if (!confirm(`Delete point #${pointNumber}? This action cannot be undone.`)) return;
+    const point = farePoints.find(p => p.pointNumber === pointNumber);
+    if (!point) return;
+    setIsSaving(true);
+    setError(null);
     try {
-      await farePointService.remove(id);
-      setSuccessMessage(`Fare point "${name}" deleted.`);
-      setTimeout(() => setSuccessMessage(null), 4000);
+      await farePointService.remove(point.id);
+      showSuccess(`Point #${pointNumber} deleted.`);
+      if (expandedPoint === pointNumber) setExpandedPoint(null);
+      if (previewFrom === pointNumber) setPreviewFrom(null);
+      if (previewTo === pointNumber) setPreviewTo(null);
       await fetchFarePoints();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete fare point');
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  // ── Loading ──
+  const inputClasses = "block w-full px-3 py-2.5 bg-[#050F1A] border border-white/10 rounded-xl text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#62A0EA] focus:ring-1 focus:ring-[#62A0EA]/30 transition-colors";
+
+  // ── Loading State ──
   if (isLoading) {
     return (
       <div className="min-h-screen pb-12 px-4 sm:px-6">
-        <div className="mx-auto w-full max-w-4xl space-y-6">
-          <div className="text-center"><div className="h-8 w-48 rounded bg-gray-700 animate-pulse mx-auto" /></div>
-          <div className="space-y-3">{[...Array(5)].map((_, i) => <div key={i} className="h-16 bg-[#131C2E] border border-[#1E2D45] rounded-lg animate-pulse" />)}</div>
+        <div className="mx-auto w-full max-w-5xl space-y-6">
+          <div className="h-8 w-64 rounded bg-gray-700 animate-pulse" />
+          <div className="space-y-3">{[...Array(6)].map((_, i) => <div key={i} className="h-16 bg-[#071A2E] border border-white/[0.06] rounded-2xl animate-pulse" />)}</div>
         </div>
       </div>
     );
@@ -194,265 +217,298 @@ export default function FareMatrixPage() {
 
   return (
     <div className="min-h-screen pb-12 px-4 sm:px-6">
-      <div className="mx-auto w-full max-w-4xl space-y-6">
+      <div className="mx-auto w-full max-w-5xl space-y-6">
 
-        {/* Title */}
-        <div className="text-center">
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">Fare Matrix Management</h1>
-          <p className="text-sm text-slate-400 mt-1">Manage fare points, regular & discounted fares for each route.</p>
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">Fare Matrix Management</h1>
+            <p className="text-sm text-white/40 mt-1">{farePoints.length} point areas along the Calumpit–Meycauayan route</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={fetchFarePoints} title="Refresh" className="p-2.5 text-white/40 hover:text-white bg-[#071A2E] border border-white/[0.06] rounded-xl transition-colors">
+              <RefreshCw size={18} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAddForm(!showAddForm)}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-[#1A5FB4] text-white font-bold rounded-xl hover:bg-[#165a9f] transition-colors active:scale-95 shadow-lg shadow-[#1A5FB4]/30"
+            >
+              {showAddForm ? <X size={18} /> : <Plus size={18} />}
+              <span>{showAddForm ? 'Cancel' : 'Add Point Area'}</span>
+            </button>
+          </div>
         </div>
 
         {/* Error Banner */}
         {error && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-center justify-between">
-            <div className="flex items-center gap-2"><AlertCircle size={16} className="text-red-400" /><p className="text-sm text-red-400">{error}</p></div>
+          <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-center justify-between">
+            <p className="text-sm text-red-400">{error}</p>
             <button onClick={() => setError(null)} className="text-red-400 hover:text-red-300"><X size={16} /></button>
           </div>
         )}
 
         {/* Success Banner */}
-        {successMessage && (
-          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3 flex items-center justify-between">
-            <p className="text-sm text-emerald-400">{successMessage}</p>
-            <button onClick={() => setSuccessMessage(null)} className="text-emerald-400 hover:text-emerald-300"><X size={16} /></button>
+        {successMsg && (
+          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 flex items-center justify-between">
+            <p className="text-sm text-emerald-400">{successMsg}</p>
+            <button onClick={() => setSuccessMsg(null)} className="text-emerald-400 hover:text-emerald-300"><X size={16} /></button>
           </div>
         )}
 
-        {/* Route Selector + Actions */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3 flex-1">
-            <select
-              value={selectedRouteId}
-              onChange={(e) => { setSelectedRouteId(e.target.value); setExpandedPoint(null); }}
-              className="flex-1 px-4 py-2.5 bg-[#131C2E] border border-[#1E2D45] rounded-lg text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] [color-scheme:dark]"
-            >
-              {routes.map(r => <option key={r.id} value={r.id} className="bg-gray-800">{r.name}</option>)}
-            </select>
-            <button onClick={fetchFarePoints} title="Refresh" className="p-2.5 text-slate-400 hover:text-white hover:bg-[#1A2540] rounded-lg transition-colors">
-              <RefreshCw size={18} />
-            </button>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1 sm:flex-none">
-              <Search size={16} className="absolute left-3 top-2.5 text-slate-500" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search stops..."
-                className="w-full sm:w-48 pl-9 pr-3 py-2.5 bg-[#131C2E] border border-[#1E2D45] rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#62A0EA]"
-              />
+        {/* Fare Info Banner */}
+        <div className="bg-[#071A2E] border border-white/[0.06] rounded-2xl p-5">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-[#1A5FB4]/15 flex items-center justify-center flex-shrink-0">
+              <Route size={20} className="text-[#62A0EA]" />
             </div>
-            <button onClick={() => setShowAddForm(!showAddForm)} className="flex items-center gap-2 px-4 py-2.5 bg-[#62A0EA] text-white font-medium rounded-lg hover:bg-[#4A8BD4] transition-colors flex-shrink-0">
-              <Plus size={18} /><span className="hidden sm:inline">Add Stop</span>
-            </button>
+            <div>
+              <h2 className="text-white font-bold text-sm">Barangay-Based Fare System</h2>
+              <p className="text-white/40 text-xs mt-0.5">Base fare covers first 4 barangays traveled, ₱2 per succeeding barangay</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-[#050F1A]/60 rounded-xl px-4 py-3 text-center border border-white/5">
+              <p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold">Base Fare</p>
+              <p className="text-xl font-extrabold text-[#62A0EA] mt-1">₱18.00</p>
+              <p className="text-[10px] text-white/25 mt-0.5">First 4 barangays</p>
+            </div>
+            <div className="bg-[#050F1A]/60 rounded-xl px-4 py-3 text-center border border-white/5">
+              <p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold">Succeeding</p>
+              <p className="text-xl font-extrabold text-emerald-400 mt-1">₱2.00</p>
+              <p className="text-[10px] text-white/25 mt-0.5">Per barangay</p>
+            </div>
+            <div className="bg-[#050F1A]/60 rounded-xl px-4 py-3 text-center border border-white/5">
+              <p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold">Discount</p>
+              <p className="text-xl font-extrabold text-amber-400 mt-1">20%</p>
+              <p className="text-[10px] text-white/25 mt-0.5">Student/Senior/PWD</p>
+            </div>
           </div>
         </div>
 
-        {/* Add Form */}
-        {showAddForm && (
-          <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4 sm:p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">New Fare Point</h3>
-              <button onClick={() => setShowAddForm(false)} className="text-slate-400 hover:text-white"><X size={20} /></button>
+        {/* Fare Preview Tool */}
+        <div className="bg-[#071A2E] border border-white/[0.06] rounded-2xl p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Search size={16} className="text-white/30" />
+            <h3 className="text-[10px] font-bold text-white/30 uppercase tracking-wider">Fare Calculator Preview</h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            <div>
+              <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1.5">From (Point #)</label>
+              <select
+                value={previewFrom ?? ''}
+                onChange={(e) => setPreviewFrom(e.target.value ? Number(e.target.value) : null)}
+                className="w-full px-3 py-2.5 bg-[#050F1A] border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-[#62A0EA] transition-colors"
+              >
+                <option value="">Select pickup point</option>
+                {farePoints.map(p => (
+                  <option key={p.pointNumber} value={p.pointNumber}>{p.pointNumber}. {p.name}</option>
+                ))}
+              </select>
             </div>
-            <form onSubmit={handleAdd} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">Stop Name *</label>
-                <input type="text" value={newName} onChange={e => setNewName(e.target.value)} required placeholder="e.g., Calumpit Terminal" className="w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#62A0EA]" />
+            <div>
+              <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1.5">To (Point #)</label>
+              <select
+                value={previewTo ?? ''}
+                onChange={(e) => setPreviewTo(e.target.value ? Number(e.target.value) : null)}
+                className="w-full px-3 py-2.5 bg-[#050F1A] border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-[#62A0EA] transition-colors"
+              >
+                <option value="">Select drop-off point</option>
+                {farePoints.map(p => (
+                  <option key={p.pointNumber} value={p.pointNumber}>{p.pointNumber}. {p.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {farePreview ? (
+            <div className="bg-[#050F1A]/60 rounded-xl p-4 border border-white/5 space-y-2">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[9px] font-bold">A</span>
+                <span className="text-sm text-white font-medium">{farePreview.fareResult.fromPoint.name}</span>
+                <svg className="w-4 h-4 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+                <span className="w-5 h-5 rounded-full bg-[#FF6D3A] text-white flex items-center justify-center text-[9px] font-bold">B</span>
+                <span className="text-sm text-white font-medium">{farePreview.fareResult.toPoint.name}</span>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">Code * (max 10 chars)</label>
-                <input type="text" value={newCode} onChange={e => setNewCode(e.target.value)} required maxLength={10} placeholder="e.g., C01" className="w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] uppercase" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">Point Number *</label>
-                <input type="number" value={newPointNumber} onChange={e => setNewPointNumber(e.target.value)} required min="1" placeholder="e.g., 1" className="w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#62A0EA]" />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="flex justify-between text-sm"><span className="text-white/60">Barangays Traveled</span><span className="font-semibold text-white">{farePreview.fareResult.barangaysTraveled} pts</span></div>
+              <div className="flex justify-between text-sm"><span className="text-white/60">Base Fare</span><span className="font-semibold text-white">₱{farePreview.fareResult.baseFare.toFixed(2)}</span></div>
+              {farePreview.fareResult.succeedingCount > 0 && (
+                <div className="flex justify-between text-sm"><span className="text-white/60">Succeeding ({farePreview.fareResult.succeedingCount} x ₱{farePreview.fareResult.succeedingFare.toFixed(2)})</span><span className="font-semibold text-white">₱{(farePreview.fareResult.succeedingFare * farePreview.fareResult.succeedingCount).toFixed(2)}</span></div>
+              )}
+              <div className="border-t border-dashed border-white/10 my-2" />
+              <div className="flex justify-between text-sm"><span className="text-white/60">Regular</span><span className="font-semibold text-[#62A0EA]">₱{farePreview.fareResult.regularFare.toFixed(2)}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-white/60">Discounted</span><span className="font-semibold text-emerald-400">₱{farePreview.fareResult.discountedFare.toFixed(2)}</span></div>
+            </div>
+          ) : (
+            <div className="text-white/20 text-xs text-center py-3">
+              Select both points to preview fare
+            </div>
+          )}
+        </div>
+
+        <form onSubmit={(e) => { e.preventDefault(); }} className="space-y-6">
+
+          {/* Add Point Form */}
+          {showAddForm && (
+            <div className="bg-[#1A5FB4]/5 border border-[#1A5FB4]/30 p-5 rounded-2xl space-y-4">
+              <h3 className="text-sm font-bold text-white">New Point Area</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1.5">Regular Fare (₱)</label>
-                  <input type="number" step="0.01" value={newRegular} onChange={e => setNewRegular(e.target.value)} className="w-full px-3 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA]" />
+                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Point Name</label>
+                  <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Jollibee Crossing" className={inputClasses} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1.5">Discounted (₱)</label>
-                  <input type="number" step="0.01" value={newDiscounted} onChange={e => setNewDiscounted(e.target.value)} className="w-full px-3 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA]" />
+                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Sub-Stops (comma-separated)</label>
+                  <input type="text" value={newSubStops} onChange={(e) => setNewSubStops(e.target.value)} placeholder="Stop A, Stop B, Stop C" className={inputClasses} />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Regular Fare (₱)</label>
+                  <input type="number" step="0.25" value={newRegular} onChange={(e) => setNewRegular(e.target.value)} className={inputClasses} />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Discounted Fare (₱)</label>
+                  <input type="number" step="0.25" value={newDiscounted} onChange={(e) => setNewDiscounted(e.target.value)} className={inputClasses} />
                 </div>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">Landmarks (optional)</label>
-                <input type="text" value={newLandmarks} onChange={e => setNewLandmarks(e.target.value)} placeholder="e.g., Near Calumpit Bridge" className="w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#62A0EA]" />
+              <button type="button" onClick={handleAddPoint} disabled={isSaving} className="px-6 py-2.5 bg-[#1A5FB4] text-white text-sm font-bold rounded-xl hover:bg-[#165a9f] transition-colors active:scale-95 disabled:opacity-50">
+                {isSaving ? 'Adding...' : 'Add Point'}
+              </button>
+            </div>
+          )}
+
+          {/* Edit Point Form */}
+          {editingPoint !== null && (
+            <div className="bg-[#1A5FB4]/5 border border-[#1A5FB4]/30 p-5 rounded-2xl space-y-4">
+              <h3 className="text-sm font-bold text-white">Edit Point #{editingPoint}</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Point Name</label>
+                  <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} className={inputClasses} />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Sub-Stops (comma-separated)</label>
+                  <input type="text" value={editSubStops} onChange={(e) => setEditSubStops(e.target.value)} placeholder="Stop A, Stop B" className={inputClasses} />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Regular Fare (₱)</label>
+                  <input type="number" step="0.25" value={editRegular} onChange={(e) => setEditRegular(e.target.value)} className={inputClasses} />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Discounted Fare (₱)</label>
+                  <input type="number" step="0.25" value={editDiscounted} onChange={(e) => setEditDiscounted(e.target.value)} className={inputClasses} />
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">Sub-stops (optional, comma-separated)</label>
-                <input type="text" value={newSubStops} onChange={e => setNewSubStops(e.target.value)} placeholder="e.g., Gatbuca, San Miguel" className="w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#62A0EA]" />
-              </div>
-              <div className="sm:col-span-2 flex justify-end">
-                <button type="submit" className="flex items-center gap-2 px-6 py-2.5 bg-[#62A0EA] text-white font-medium rounded-md hover:bg-[#4A8BD4] transition-colors">
-                  <Plus size={16} /> Add Fare Point
+              <div className="flex gap-3">
+                <button type="button" onClick={handleSaveEdit} disabled={isSaving} className="px-6 py-2.5 bg-[#1A5FB4] text-white text-sm font-bold rounded-xl hover:bg-[#165a9f] transition-colors active:scale-95 disabled:opacity-50">
+                  {isSaving ? 'Saving...' : 'Save Changes'}
                 </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {/* Fare Points List */}
-        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg overflow-hidden">
-          {/* Table Header */}
-          <div className="hidden sm:grid grid-cols-12 gap-2 px-4 py-3 text-[10px] uppercase tracking-wider text-slate-500 font-semibold border-b border-[#1E2D45]">
-            <div className="col-span-1">#</div>
-            <div className="col-span-3">Code</div>
-            <div className="col-span-3">Stop Name</div>
-            <div className="col-span-2 text-center">Regular</div>
-            <div className="col-span-2 text-center">Discounted</div>
-            <div className="col-span-1 text-right">Actions</div>
-          </div>
-
-          {/* Rows */}
-          <div className="divide-y divide-[#1E2D45]">
-            {filteredPoints.length === 0 ? (
-              <div className="py-12 text-center text-slate-600 text-sm">
-                {farePoints.length === 0 ? 'No fare points for this route yet. Click "Add Stop" to create one.' : 'No stops match your search.'}
-              </div>
-            ) : (
-              filteredPoints.map((point) => (
-                <div key={point.id}>
-                  {/* Main Row */}
-                  <div
-                    className={`flex sm:grid sm:grid-cols-12 gap-2 px-4 py-3 items-center transition-colors ${editingId === point.id ? 'bg-[#62A0EA]/5' : 'hover:bg-[#0E1628]'}`}
-                  >
-                    <div className="sm:col-span-1 flex items-center gap-2">
-                      <button onClick={() => setExpandedPoint(expandedPoint === point.id ? null : point.id)} className="text-slate-500 hover:text-white">
-                        {expandedPoint === point.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                      </button>
-                      <span className="text-sm font-bold text-slate-400">{point.point_number}</span>
-                    </div>
-                    <div className="sm:col-span-3">
-                      {editingId === point.id ? (
-                        <input type="text" value={editCode} onChange={e => setEditCode(e.target.value)} maxLength={10} className="w-full px-2 py-1 bg-[#0E1628] border border-[#1E2D45] rounded text-white text-sm uppercase" />
-                      ) : (
-                        <span className="text-sm font-mono text-[#62A0EA] font-semibold">{point.code}</span>
-                      )}
-                    </div>
-                    <div className="sm:col-span-3 flex-1">
-                      {editingId === point.id ? (
-                        <input type="text" value={editName} onChange={e => setEditName(e.target.value)} className="w-full px-2 py-1 bg-[#0E1628] border border-[#1E2D45] rounded text-white text-sm" />
-                      ) : (
-                        <span className="text-sm text-white font-medium">{point.name}</span>
-                      )}
-                    </div>
-                    <div className="sm:col-span-2 text-center">
-                      {editingId === point.id ? (
-                        <input type="number" step="0.01" value={editRegular} onChange={e => setEditRegular(e.target.value)} className="w-20 px-2 py-1 bg-[#0E1628] border border-[#1E2D45] rounded text-white text-sm text-center" />
-                      ) : (
-                        <span className="text-sm text-slate-300 font-mono">₱{Number(point.regular_fare).toFixed(2)}</span>
-                      )}
-                    </div>
-                    <div className="sm:col-span-2 text-center">
-                      {editingId === point.id ? (
-                        <input type="number" step="0.01" value={editDiscounted} onChange={e => setEditDiscounted(e.target.value)} className="w-20 px-2 py-1 bg-[#0E1628] border border-[#1E2D45] rounded text-white text-sm text-center" />
-                      ) : (
-                        <span className="text-sm text-emerald-400 font-mono">₱{Number(point.discounted_fare).toFixed(2)}</span>
-                      )}
-                    </div>
-                    <div className="sm:col-span-1 flex items-center justify-end gap-1">
-                      {editingId === point.id ? (
-                        <>
-                          <button onClick={handleSaveEdit} title="Save" className="p-1.5 text-emerald-400 hover:bg-emerald-400/10 rounded-md transition-colors"><Save size={14} /></button>
-                          <button onClick={() => setEditingId(null)} title="Cancel" className="p-1.5 text-slate-400 hover:bg-[#1A2540] rounded-md transition-colors"><X size={14} /></button>
-                        </>
-                      ) : (
-                        <>
-                          <button onClick={() => startEdit(point)} title="Edit" className="p-1.5 text-slate-400 hover:text-[#62A0EA] hover:bg-[#62A0EA]/10 rounded-md transition-colors"><Pencil size={14} /></button>
-                          <button onClick={() => handleDelete(point.id, point.name)} title="Delete" className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"><Trash2 size={14} /></button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Expanded Details (edit mode or view mode) */}
-                  {expandedPoint === point.id && editingId !== point.id && (
-                    <div className="bg-[#0E1628] px-4 py-3 border-t border-[#1E2D45]">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Landmarks</p>
-                          <p className="text-sm text-slate-300">{point.landmarks || '—'}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Sub-stops</p>
-                          <p className="text-sm text-slate-300">{point.sub_stops || '—'}</p>
-                        </div>
-                      </div>
-                      {editingId === point.id && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
-                          <div>
-                            <label className="text-[10px] uppercase tracking-wider text-slate-500 mb-1 block">Landmarks</label>
-                            <input type="text" value={editLandmarks} onChange={e => setEditLandmarks(e.target.value)} className="w-full px-2 py-1 bg-[#131C2E] border border-[#1E2D45] rounded text-white text-sm" />
-                          </div>
-                          <div>
-                            <label className="text-[10px] uppercase tracking-wider text-slate-500 mb-1 block">Sub-stops</label>
-                            <input type="text" value={editSubStops} onChange={e => setEditSubStops(e.target.value)} className="w-full px-2 py-1 bg-[#131C2E] border border-[#1E2D45] rounded text-white text-sm" />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Expanded edit details */}
-                  {expandedPoint === point.id && editingId === point.id && (
-                    <div className="bg-[#0E1628] px-4 py-3 border-t border-[#1E2D45]">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-[10px] uppercase tracking-wider text-slate-500 mb-1 block">Landmarks</label>
-                          <input type="text" value={editLandmarks} onChange={e => setEditLandmarks(e.target.value)} className="w-full px-2 py-1 bg-[#131C2E] border border-[#1E2D45] rounded text-white text-sm" />
-                        </div>
-                        <div>
-                          <label className="text-[10px] uppercase tracking-wider text-slate-500 mb-1 block">Sub-stops</label>
-                          <input type="text" value={editSubStops} onChange={e => setEditSubStops(e.target.value)} className="w-full px-2 py-1 bg-[#131C2E] border border-[#1E2D45] rounded text-white text-sm" />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Fare Preview Calculator */}
-        {farePoints.length >= 2 && (
-          <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4 sm:p-6">
-            <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2"><MapPin size={16} className="text-[#62A0EA]" /> Fare Preview Calculator</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">From (point number)</label>
-                <select value={previewFrom ?? ''} onChange={e => setPreviewFrom(e.target.value ? parseInt(e.target.value) : null)} className="w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm [color-scheme:dark]">
-                  <option value="">Select origin...</option>
-                  {farePoints.map(p => <option key={p.id} value={p.point_number} className="bg-gray-800">{p.point_number} — {p.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">To (point number)</label>
-                <select value={previewTo ?? ''} onChange={e => setPreviewTo(e.target.value ? parseInt(e.target.value) : null)} className="w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm [color-scheme:dark]">
-                  <option value="">Select destination...</option>
-                  {farePoints.map(p => <option key={p.id} value={p.point_number} className="bg-gray-800">{p.point_number} — {p.name}</option>)}
-                </select>
+                <button type="button" onClick={() => setEditingPoint(null)} className="px-6 py-2.5 bg-white/10 text-white text-sm font-bold rounded-xl hover:bg-white/20 transition-colors active:scale-95">Cancel</button>
               </div>
             </div>
-            {previewResult && (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-[#0E1628] border border-[#1E2D45] rounded-md p-3 text-center">
-                  <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Regular Fare</p>
-                  <p className="text-xl font-bold text-white font-mono">₱{previewResult.regular.toFixed(2)}</p>
-                </div>
-                <div className="bg-[#0E1628] border border-[#1E2D45] rounded-md p-3 text-center">
-                  <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Discounted Fare</p>
-                  <p className="text-xl font-bold text-emerald-400 font-mono">₱{previewResult.discounted.toFixed(2)}</p>
-                </div>
-              </div>
+          )}
+
+          {/* Search Bar */}
+          <div className="relative">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+            <input
+              type="text"
+              placeholder="Search point areas or landmarks..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-[#071A2E] border border-white/[0.06] rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-[#62A0EA] focus:ring-1 focus:ring-[#62A0EA]/30 transition-colors"
+            />
+            {searchQuery.trim() && (
+              <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+                <X size={12} className="text-white/60" />
+              </button>
             )}
           </div>
-        )}
+
+          {/* Results count */}
+          <div className="flex items-center justify-between px-1">
+            <p className="text-[10px] text-white/25">
+              {searchQuery.trim() ? `${filteredPoints.length} of ${farePoints.length} point areas` : `${farePoints.length} point areas total`}
+            </p>
+            <p className="text-[10px] text-white/25">Meycauayan → Calumpit</p>
+          </div>
+
+          {/* Point Areas List */}
+          <div className="bg-[#071A2E] border border-white/[0.06] rounded-2xl overflow-hidden">
+            <div className="divide-y divide-white/5 max-h-[60vh] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {filteredPoints.length === 0 ? (
+                <div className="py-12 text-center text-white/20 text-sm">
+                  No fare points found. Click "Add Point Area" to create one.
+                </div>
+              ) : filteredPoints.map((point) => {
+                const isExpanded = expandedPoint === point.pointNumber;
+                const isBaseZone = point.regularFare <= 18;
+
+                return (
+                  <div key={point.pointNumber}>
+                    <div className="flex items-center gap-3 px-4 py-3.5 hover:bg-white/[0.03] transition-colors">
+                      {/* Point Number Badge */}
+                      <span className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-bold ${isBaseZone ? 'bg-emerald-500/15 text-emerald-400' : 'bg-[#62A0EA]/15 text-[#62A0EA]'}`}>
+                        {point.pointNumber}
+                      </span>
+
+                      {/* Name + Landmark indicator */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <MapPin size={12} className={isBaseZone ? 'text-emerald-400/60 flex-shrink-0' : 'text-[#62A0EA]/60 flex-shrink-0'} />
+                          <span className="text-sm text-white font-medium truncate">{point.name}</span>
+                          {point.subStops && point.subStops.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setExpandedPoint(isExpanded ? null : point.pointNumber)}
+                              className="p-0.5 text-white/30 hover:text-white transition-colors flex-shrink-0"
+                            >
+                              {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                            </button>
+                          )}
+                        </div>
+                        {isBaseZone && (
+                          <p className="text-[9px] text-emerald-400/50 ml-4 mt-0.5">Base fare zone</p>
+                        )}
+                      </div>
+
+                      {/* Fares */}
+                      <div className="flex items-center gap-4 flex-shrink-0">
+                        <div className="text-right">
+                          <p className="text-xs font-bold text-[#62A0EA]">₱{point.regularFare.toFixed(2)}</p>
+                          <p className="text-[10px] text-emerald-400/70">₱{point.discountedFare.toFixed(2)}</p>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-0.5">
+                          <button type="button" onClick={() => handleStartEdit(point.pointNumber)} className="p-1.5 text-white/20 hover:text-[#62A0EA] transition-colors" title="Edit">
+                            <Pencil size={14} />
+                          </button>
+                          <button type="button" onClick={() => handleDelete(point.pointNumber)} className="p-1.5 text-white/20 hover:text-red-400 transition-colors" title="Delete">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Expanded Sub-Stops */}
+                    {isExpanded && point.subStops && point.subStops.length > 0 && (
+                      <div className="bg-[#050F1A]/60 px-4 py-3 mx-4 mb-3 rounded-xl border border-white/5">
+                        <p className="text-[10px] uppercase tracking-wider text-white/30 font-bold mb-2">Landmarks in this area</p>
+                        <div className="flex flex-wrap gap-2">
+                          {point.subStops.map((stop, idx) => (
+                            <div key={idx} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#62A0EA]" />
+                              <span className="text-xs text-white/60">{stop}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </form>
       </div>
     </div>
   );
