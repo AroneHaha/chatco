@@ -93,6 +93,18 @@ interface RawClaim {
   reviewed_at: string | null;
   rejection_reason: string | null;
   created_at: string;
+  // Eager-loaded on GET /commuter/claims (myClaims)
+  item?: RawLostItem | null;
+}
+
+/** A lost_item_watchlists row as returned by Laravel (snake_case). */
+interface RawWatchlistEntry {
+  id: string;
+  item_id: string;
+  commuter_id: string;
+  created_at: string;
+  // Eager-loaded on GET /commuter/watchlist
+  item?: RawLostItem | null;
 }
 
 /** Laravel ApiResponse envelope. */
@@ -171,6 +183,9 @@ export interface LostFoundPage {
   lastPage: number;
   total: number;
 }
+
+/** One of the commuter's own claims, with the claimed item attached. */
+export type MyClaim = LostFoundClaim & { item: LostFoundItem | null };
 
 // ─── Typed errors ───────────────────────────────────────────────────
 
@@ -430,6 +445,110 @@ export async function show(id: string): Promise<LostFoundItem> {
   }
 }
 
+// ─── Service: commuter watchlist + own claims (DB-backed) ───────────
+
+/**
+ * Add an item to the commuter's watchlist (idempotent on the backend).
+ * @throws {LostFoundOperationError} 404/401/403/5xx
+ */
+export async function watch(itemId: string): Promise<void> {
+  try {
+    await api.post<ApiResponseEnvelope<unknown>>(`/api/lost-found/${itemId}/watchlist`);
+  } catch (err) {
+    if (err instanceof ApiError) throw classifyError(err, "Unable to add to watchlist.");
+    throw new LostFoundOperationError(
+      "network",
+      err instanceof Error ? err.message : "Unable to reach the backend service."
+    );
+  }
+}
+
+/**
+ * Remove an item from the commuter's watchlist (idempotent on the backend).
+ * @throws {LostFoundOperationError} 401/403/5xx
+ */
+export async function unwatch(itemId: string): Promise<void> {
+  try {
+    await api.delete<ApiResponseEnvelope<unknown>>(`/api/lost-found/${itemId}/watchlist`);
+  } catch (err) {
+    if (err instanceof ApiError) throw classifyError(err, "Unable to remove from watchlist.");
+    throw new LostFoundOperationError(
+      "network",
+      err instanceof Error ? err.message : "Unable to reach the backend service."
+    );
+  }
+}
+
+/**
+ * The commuter's watchlisted items (paginated, newest first). Entries whose
+ * item was deleted are dropped.
+ * @throws {LostFoundOperationError} 401/403/5xx
+ */
+export async function myWatchlist(params: {
+  page?: number;
+  perPage?: number;
+} = {}): Promise<LostFoundPage> {
+  const qs = buildQuery({ page: params.page, per_page: params.perPage });
+  try {
+    const response = await api.get<ApiResponseEnvelope<PaginatedEnvelope<RawWatchlistEntry>>>(
+      `/api/commuter/watchlist${qs}`
+    );
+    const p = response.data;
+    return {
+      items: (p?.data ?? [])
+        .map((entry) => (entry.item ? mapItem(entry.item) : null))
+        .filter((item): item is LostFoundItem => item !== null),
+      page: p?.current_page ?? params.page ?? 1,
+      lastPage: p?.last_page ?? 1,
+      total: p?.total ?? 0,
+    };
+  } catch (err) {
+    if (err instanceof ApiError) throw classifyError(err, "Unable to load your watchlist.");
+    throw new LostFoundOperationError(
+      "network",
+      err instanceof Error ? err.message : "Unable to reach the backend service."
+    );
+  }
+}
+
+/**
+ * The commuter's own claims (item eager-loaded), newest first. Powers the
+ * "My Claims" tab + per-card badges — claim state lives in the DB, not React.
+ * @throws {LostFoundOperationError} 401/403/5xx
+ */
+export async function myClaims(): Promise<MyClaim[]> {
+  try {
+    const response = await api.get<ApiResponseEnvelope<RawClaim[]>>(`/api/commuter/claims`);
+    return (response.data ?? []).map((raw) => ({
+      ...mapClaim(raw),
+      item: raw.item ? mapItem(raw.item) : null,
+    }));
+  } catch (err) {
+    if (err instanceof ApiError) throw classifyError(err, "Unable to load your claims.");
+    throw new LostFoundOperationError(
+      "network",
+      err instanceof Error ? err.message : "Unable to reach the backend service."
+    );
+  }
+}
+
+/**
+ * Withdraw the commuter's own PENDING claim (deletes the claim row; the item
+ * reverts to AVAILABLE when it was the last pending claim).
+ * @throws {LostFoundOperationError} 404 (not found/not owned)/422 (not PENDING)/401/403/5xx
+ */
+export async function cancelClaim(claimId: string): Promise<void> {
+  try {
+    await api.delete<ApiResponseEnvelope<unknown>>(`/api/lost-found/claims/${claimId}`);
+  } catch (err) {
+    if (err instanceof ApiError) throw classifyError(err, "Unable to cancel this claim.");
+    throw new LostFoundOperationError(
+      "network",
+      err instanceof Error ? err.message : "Unable to reach the backend service."
+    );
+  }
+}
+
 // ─── Service: admin report (POST /admin/lost-items) ─────────────────
 
 /**
@@ -465,6 +584,43 @@ export async function report(params: {
     if (err instanceof ApiError) {
       throw classifyError(err, "Unable to report this item.");
     }
+    throw new LostFoundOperationError(
+      "network",
+      err instanceof Error ? err.message : "Unable to reach the backend service."
+    );
+  }
+}
+
+/**
+ * Admin uploads/replaces the photo of a lost item (multipart).
+ *
+ * Uses raw fetch instead of the shared api client — the client always sends
+ * `Content-Type: application/json`, which breaks multipart (the browser must
+ * set the boundary itself). Field name + limits per the backend
+ * UploadLostItemImageRequest: `image`, jpg/jpeg/png/webp, max 5MB.
+ *
+ * @throws {LostFoundOperationError} 404/422 (bad type or >5MB)/401/403/5xx
+ */
+export async function uploadImage(itemId: string, file: File): Promise<LostFoundItem> {
+  const formData = new FormData();
+  formData.append("image", file);
+  try {
+    const res = await fetch(`/api/admin/lost-items/${itemId}/image`, {
+      method: "POST",
+      body: formData,
+      credentials: "include",
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw classifyError(
+        new ApiError(res.status, res.statusText, body),
+        "Unable to upload the item photo."
+      );
+    }
+    const envelope = body as ApiResponseEnvelope<RawLostItem>;
+    return mapItem(envelope.data);
+  } catch (err) {
+    if (err instanceof LostFoundOperationError) throw err;
     throw new LostFoundOperationError(
       "network",
       err instanceof Error ? err.message : "Unable to reach the backend service."

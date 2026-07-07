@@ -40,7 +40,14 @@ export function ViewItemModal({ isOpen, onClose, item }: ViewItemModalProps) {
         {/* Left — Image */}
         <div className="w-full lg:w-[400px] flex-shrink-0">
           <div className="relative rounded-lg overflow-hidden h-56 sm:h-72 lg:h-[420px] bg-[#0E1628]">
-            <img src={item.imageUrl} alt={item.itemName} className="w-full h-full object-cover" />
+            {item.imageUrl ? (
+              <img src={item.imageUrl} alt={item.itemName} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-slate-600">
+                <svg className="w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A1.5 1.5 0 0021.75 19.5V4.5A1.5 1.5 0 0020.25 3H3.75A1.5 1.5 0 002.25 4.5v15A1.5 1.5 0 003.75 21z" /></svg>
+                <span className="text-xs font-semibold uppercase tracking-wider">No photo uploaded yet</span>
+              </div>
+            )}
             <div className="absolute top-3 right-3">
               <Badge variant={getBadgeVariant(item.status)}>{item.status}</Badge>
             </div>

@@ -87,6 +87,11 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
     // The browse + claim + watchlist toggle endpoints live in the shared
     // /lost-found group (any auth role for browse, COMMUTER for claim/watch).
     Route::get('/watchlist', [LostItemController::class, 'myWatchlist'])->middleware('throttle:conductor-read');
+
+    // Lost & Found claims — the commuter's OWN claims (item eager-loaded).
+    // Powers the "My Claims" tab + per-card claim badges so claim state
+    // persists in the DB instead of living in React state.
+    Route::get('/claims', [LostItemController::class, 'myClaims'])->middleware('throttle:conductor-read');
 });
 
 /*
@@ -273,6 +278,8 @@ Route::prefix('payments')->group(function () {
 */
 Route::prefix('lost-found')->middleware(['auth:sanctum'])->group(function () {
     Route::get('/', [LostItemController::class, 'index'])->middleware('throttle:commuter-read');
+    // Registered before /{itemId} so 'claims' is never captured as an item id.
+    Route::delete('/claims/{claimId}', [LostItemController::class, 'cancelClaim'])->middleware(['role:COMMUTER', 'throttle:commuter-write']);
     Route::get('/{itemId}', [LostItemController::class, 'show'])->middleware('throttle:commuter-read');
     Route::post('/{itemId}/claim', [LostItemController::class, 'claim'])->middleware(['role:COMMUTER', 'throttle:commuter-write']);
     Route::post('/{itemId}/watchlist', [LostItemController::class, 'watchlist'])->middleware(['role:COMMUTER', 'throttle:commuter-write']);

@@ -4,30 +4,41 @@ import { ITEMS_PER_PAGE, MAX_PENDING_CLAIMS } from "./data";
 import {
   list as listItems,
   claim as claimItem,
+  myClaims as fetchMyClaims,
+  cancelClaim as apiCancelClaim,
+  myWatchlist as fetchMyWatchlist,
+  watch as apiWatch,
+  unwatch as apiUnwatch,
   LostFoundOperationError,
   type LostFoundItem,
 } from "@/lib/shared/services/lost-found.service";
 
 /**
- * Sprint 6 (S6-T8) — Commuter Lost & Found hook, wired to the real backend.
+ * Sprint 6 (S6-T8) — Commuter Lost & Found hook, fully DB-backed.
  *
- *   list()    → GET /api/v1/lost-found (paginated, filterable by category/search)
- *   claim()   → POST /api/v1/lost-found/{id}/claim (proof of ownership)
+ *   list()        → GET    /api/v1/lost-found (paginated, category/search)
+ *   claim()       → POST   /api/v1/lost-found/{id}/claim (proof of ownership)
+ *   myClaims()    → GET    /api/v1/commuter/claims (item eager-loaded)
+ *   cancelClaim() → DELETE /api/v1/lost-found/claims/{claimId}
+ *   myWatchlist() → GET    /api/v1/commuter/watchlist (paginated)
+ *   watch()       → POST   /api/v1/lost-found/{id}/watchlist
+ *   unwatch()     → DELETE /api/v1/lost-found/{id}/watchlist
  *
- * State machine:
- *   browse (list) → open claim modal → submit claim → 201 → row shows "PENDING"
- *                                            ↓ 409/422
- *                                       inline error in modal
+ * ALL state that matters lives in the database:
+ *   - Claims (badges, the 3-pending cap, "My Claims" tab, cancel) come from
+ *     GET /commuter/claims — they survive reloads and follow the commuter
+ *     across devices. Cancel actually deletes the claim row server-side.
+ *   - The watchlist is persisted per commuter; the heart toggle is optimistic
+ *     (flips immediately, reverts if the API call fails).
  *
- * The hook owns: list filters (tab/category/search/page), the claim modal
- * state (item + proof text + error), the commuter's own claims map (so the
- * UI can mark rows the commuter has already claimed), and the loading/error
- * state for the list. The watchlist is kept as local-only state for now
- * (the backend watchlist endpoints exist but wiring them is out of T8 scope;
- * T8 covers report/claim/confirm/resolve).
+ * Tabs:
+ *   ALL       → server-paginated browse list
+ *   WATCHLIST → server-paginated GET /commuter/watchlist
+ *   MY_CLAIMS → items attached to the commuter's own claims (no extra fetch)
  *
- * The view-model shape is kept compatible with the existing page + card
- * components (LostItem camelCase interface) so the UI didn't need rewriting.
+ * Claim status mapping (backend → UI): PENDING→PENDING, APPROVED→VALIDATED,
+ * REJECTED→REJECTED. When a commuter has several claims on one item (e.g.
+ * re-claimed after a rejection), the NEWEST claim wins.
  */
 export function useLostAndFound() {
   const [activeTab, setActiveTab] = useState<ViewTab>("ALL");
@@ -41,11 +52,9 @@ export function useLostAndFound() {
   const [claimError, setClaimError] = useState<string | null>(null);
   const [isSubmittingClaim, setIsSubmittingClaim] = useState(false);
 
-  // Watchlist is local-only for now (backend watchlist endpoints exist but
-  // are out of T8 scope). Starts empty; toggled by the commuter.
+  // DB-backed: watchlisted item ids (for the card hearts) + the commuter's
+  // own claims keyed by item id. Both loaded on mount, refreshed after writes.
   const [watchlist, setWatchlist] = useState<Set<string>>(new Set());
-  // The commuter's own claims, keyed by item id. Used to mark rows + cap
-  // concurrent pending claims at MAX_PENDING_CLAIMS.
   const [claims, setClaims] = useState<Map<string, ClaimData>>(new Map());
 
   const [apiData, setApiData] = useState<PaginatedAPIResponse>({ items: [], totalPages: 1, totalItems: 0, currentPage: 1 });
@@ -53,6 +62,46 @@ export function useLostAndFound() {
   const [listError, setListError] = useState<string | null>(null);
 
   const pendingClaimsCount = Array.from(claims.values()).filter(c => c.status === "PENDING").length;
+
+  /** Backend claim status → the UI's ClaimStatus union. */
+  const toUiClaimStatus = (backend: string): ClaimStatus => {
+    if (backend === "APPROVED") return "VALIDATED";
+    if (backend === "REJECTED") return "REJECTED";
+    return "PENDING";
+  };
+
+  /** Reload the commuter's own claims from the DB (newest claim per item wins). */
+  const loadClaims = useCallback(async () => {
+    try {
+      const rows = await fetchMyClaims();
+      const next = new Map<string, ClaimData>();
+      // rows are newest-first — keep only the first (newest) claim per item.
+      for (const row of rows) {
+        if (next.has(row.itemId)) continue;
+        next.set(row.itemId, {
+          claimId: row.id,
+          status: toUiClaimStatus(row.status),
+          proof: row.proof,
+          item: row.item ? mapServiceItemToViewModel(row.item) : null,
+        });
+      }
+      setClaims(next);
+    } catch {
+      // Non-fatal: cards just show no claim badges until the next reload.
+    }
+  }, []);
+
+  /** Reload the watchlisted item ids from the DB (for the card hearts). */
+  const loadWatchlistIds = useCallback(async () => {
+    try {
+      const result = await fetchMyWatchlist({ perPage: 100 });
+      setWatchlist(new Set(result.items.map((item) => item.id)));
+    } catch {
+      // Non-fatal: hearts render unfilled until the next reload.
+    }
+  }, []);
+
+  useEffect(() => { void loadClaims(); void loadWatchlistIds(); }, [loadClaims, loadWatchlistIds]);
 
   const fetchLostItems = useCallback(async (page: number, limit: number, category: ItemCategory, search: string) => {
     setIsLoading(true);
@@ -78,19 +127,88 @@ export function useLostAndFound() {
     }
   }, []);
 
-  useEffect(() => { fetchLostItems(currentPage, ITEMS_PER_PAGE, activeCategory, searchQuery); }, [fetchLostItems, currentPage, activeCategory, searchQuery]);
+  const fetchWatchlistItems = useCallback(async (page: number, limit: number) => {
+    setIsLoading(true);
+    setListError(null);
+    try {
+      const result = await fetchMyWatchlist({ page, perPage: limit });
+      setApiData({
+        items: result.items.map(mapServiceItemToViewModel),
+        totalPages: result.lastPage,
+        totalItems: result.total,
+        currentPage: result.page,
+      });
+      // Keep the heart id-set in sync with what the server returned.
+      setWatchlist(prev => {
+        const next = new Set(prev);
+        for (const item of result.items) next.add(item.id);
+        return next;
+      });
+    } catch (err) {
+      setListError(err instanceof LostFoundOperationError ? err.message : "Unable to load your watchlist.");
+      setApiData({ items: [], totalPages: 1, totalItems: 0, currentPage: page });
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "MY_CLAIMS") {
+      // Claim items come from the claims map (already loaded from the DB).
+      setIsLoading(false);
+      setListError(null);
+      return;
+    }
+    if (activeTab === "WATCHLIST") {
+      void fetchWatchlistItems(currentPage, ITEMS_PER_PAGE);
+      return;
+    }
+    void fetchLostItems(currentPage, ITEMS_PER_PAGE, activeCategory, searchQuery);
+  }, [activeTab, fetchLostItems, fetchWatchlistItems, currentPage, activeCategory, searchQuery]);
 
   const handleTabChange = (tab: ViewTab) => { setActiveTab(tab); setActiveCategory("ALL"); setSearchQuery(""); setCurrentPage(1); };
   const handleCategoryChange = (cat: ItemCategory) => { setActiveCategory(cat); setCurrentPage(1); };
   const handleSearch = (val: string) => { setSearchQuery(val); setCurrentPage(1); };
 
-  const displayItems = apiData.items.filter(item => {
-    if (activeTab === "WATCHLIST") return watchlist.has(item.id);
-    if (activeTab === "MY_CLAIMS") return claims.has(item.id);
+  /** Local category/search filter for tabs whose data isn't server-filtered. */
+  const matchesLocalFilters = (item: LostItem): boolean => {
+    if (activeCategory !== "ALL" && item.category !== activeCategory) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      if (!item.itemName.toLowerCase().includes(q) && !item.description.toLowerCase().includes(q)) return false;
+    }
     return true;
-  });
+  };
 
-  const toggleWatchlist = (id: string) => { setWatchlist(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; }); };
+  const displayItems: LostItem[] =
+    activeTab === "MY_CLAIMS"
+      ? Array.from(claims.values())
+          .map(c => c.item)
+          .filter((item): item is LostItem => item !== null)
+          .filter(matchesLocalFilters)
+      : activeTab === "WATCHLIST"
+        ? apiData.items.filter(matchesLocalFilters)
+        : apiData.items;
+
+  /**
+   * Optimistic watchlist toggle, persisted to the DB. The heart flips
+   * immediately; if the API call fails the flip is reverted. On the
+   * WATCHLIST tab, removing an item also refetches the tab's list.
+   */
+  const toggleWatchlist = (id: string) => {
+    const wasWatched = watchlist.has(id);
+    setWatchlist(prev => { const next = new Set(prev); if (wasWatched) next.delete(id); else next.add(id); return next; });
+    void (async () => {
+      try {
+        if (wasWatched) await apiUnwatch(id);
+        else await apiWatch(id);
+        if (activeTab === "WATCHLIST") void fetchWatchlistItems(currentPage, ITEMS_PER_PAGE);
+      } catch {
+        // Revert the optimistic flip.
+        setWatchlist(prev => { const next = new Set(prev); if (wasWatched) next.add(id); else next.delete(id); return next; });
+      }
+    })();
+  };
 
   const openClaimModal = (item: LostItem) => {
     if (pendingClaimsCount >= MAX_PENDING_CLAIMS) return;
@@ -101,10 +219,9 @@ export function useLostAndFound() {
   };
 
   /**
-   * Submit the claim to POST /api/v1/lost-found/{id}/claim.
-   * On 201 → add to the claims map (PENDING) + close the modal.
-   * On 409 (already claimed) → inline "Item already claimed".
-   * On 422 → inline validation message. On network → inline retry prompt.
+   * Submit the claim to POST /api/v1/lost-found/{id}/claim, then reload the
+   * claims map from the DB (server truth — carries the claimId needed for
+   * cancel). On 409 → inline "Item already claimed"; 422 → inline validation.
    */
   const submitClaim = async () => {
     if (!itemToClaim || !proofText.trim()) return;
@@ -112,16 +229,12 @@ export function useLostAndFound() {
     setClaimError(null);
     try {
       await claimItem(itemToClaim.id, { proof: proofText.trim() });
-      setClaims(prev => {
-        const next = new Map(prev);
-        next.set(itemToClaim.id, { status: "PENDING", proof: proofText.trim() });
-        return next;
-      });
+      await loadClaims();
       setShowClaimModal(false);
     } catch (err) {
       if (err instanceof LostFoundOperationError) {
         // 409 → "Item already claimed" (the backend rejects claims on
-        // CLAIMED/APPROVED/RELEASED/CLOSED items). 422 → proof validation.
+        // APPROVED/RELEASED/CLOSED items). 422 → proof validation.
         setClaimError(err.code === "conflict" ? "Item already claimed" : err.message);
       } else {
         setClaimError(err instanceof Error ? err.message : "Unable to submit claim.");
@@ -131,7 +244,24 @@ export function useLostAndFound() {
     }
   };
 
-  const cancelClaim = (id: string) => { setClaims(prev => { const next = new Map(prev); next.delete(id); return next; }); };
+  /**
+   * Withdraw a PENDING claim — DELETE /lost-found/claims/{claimId} deletes
+   * the row server-side, then the claims map is reloaded from the DB. If the
+   * cancel fails (e.g. the admin approved it moments ago), reload anyway so
+   * the card shows the real state.
+   */
+  const cancelClaim = (itemId: string) => {
+    const existing = claims.get(itemId);
+    if (!existing) return;
+    void (async () => {
+      try {
+        await apiCancelClaim(existing.claimId);
+      } catch {
+        // Fall through — the reload below resyncs to the DB's truth.
+      }
+      await loadClaims();
+    })();
+  };
 
   const formatDate = (dateStr: string) => {
     try { return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }

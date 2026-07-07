@@ -83,6 +83,37 @@ class LostItemController extends Controller
     }
 
     /**
+     * GET /commuter/claims
+     * The authed commuter's own claims (item eager-loaded), newest first.
+     */
+    public function myClaims(Request $request): JsonResponse
+    {
+        try {
+            $claims = $this->lostItemService->myClaims($request->user());
+        } catch (LostFoundException $e) {
+            return $this->errorResponse($e->getMessage(), 422);
+        }
+
+        return $this->successResponse($claims, 'Claims retrieved');
+    }
+
+    /**
+     * DELETE /lost-found/claims/{claimId}
+     * Commuter withdraws their own PENDING claim.
+     */
+    public function cancelClaim(Request $request, string $claimId): JsonResponse
+    {
+        try {
+            $this->lostItemService->cancelClaim($request->user(), $claimId);
+        } catch (LostFoundException $e) {
+            $status = str_contains($e->getMessage(), 'not found') ? 404 : 422;
+            return $this->errorResponse($e->getMessage(), $status);
+        }
+
+        return $this->successResponse(null, 'Claim cancelled');
+    }
+
+    /**
      * POST /lost-found/{itemId}/watchlist
      * Idempotent — returns 201 if newly added, 200 if already watching.
      */
