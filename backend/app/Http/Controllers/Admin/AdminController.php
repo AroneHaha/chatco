@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\StoreRouteRequest;
+use App\Http\Requests\Admin\UpdateRouteRequest;
 use App\Enums\UserRole;
 use App\Models\ConductorProfile;
 use App\Models\Driver;
@@ -366,6 +368,46 @@ class AdminController extends Controller
         $routes = RouteModel::orderBy('name', 'asc')->get();
 
         return $this->successResponse($routes, 'Routes retrieved');
+    }
+
+    /**
+     * POST /api/v1/admin/routes
+     */
+    public function storeRoute(StoreRouteRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+
+        $route = RouteModel::create([
+            'name' => $validated['name'],
+            'status' => $validated['status'] ?? 'ACTIVE',
+            'waypoints' => $validated['waypoints'] ?? null,
+        ]);
+
+        return $this->successResponse($route, 'Route created successfully', 201);
+    }
+
+    /**
+     * PUT/PATCH /api/v1/admin/routes/{id}
+     */
+    public function updateRoute(UpdateRouteRequest $request, string $id): JsonResponse
+    {
+        $route = RouteModel::findOrFail($id);
+
+        $validated = $request->validated();
+        $route->update(array_filter($validated, fn ($v) => $v !== null));
+
+        return $this->successResponse($route, 'Route updated successfully');
+    }
+
+    /**
+     * DELETE /api/v1/admin/routes/{id}
+     */
+    public function destroyRoute(string $id): JsonResponse
+    {
+        $route = RouteModel::findOrFail($id);
+        $route->delete();
+
+        return $this->successResponse(null, 'Route deleted successfully');
     }
 
     public function transactions(Request $request): JsonResponse

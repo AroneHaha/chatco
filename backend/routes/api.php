@@ -14,6 +14,7 @@ use App\Http\Controllers\Admin\AdminFarePointController;
 use App\Http\Controllers\Admin\AdminRegistrationController;
 use App\Http\Controllers\Admin\AdminSettingController;
 use App\Http\Controllers\Admin\AdminUserController;
+use App\Http\Controllers\Admin\AdminVoucherController;
 use App\Http\Controllers\Admin\AdminVehicleController;
 use App\Http\Controllers\Admin\AdminLostItemController;
 use App\Http\Controllers\Admin\AdminAnnouncementController;
@@ -198,6 +199,10 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::patch('/vehicles/{id}', [AdminVehicleController::class, 'update'])->middleware('throttle:conductor-write');
     Route::delete('/vehicles/{id}', [AdminVehicleController::class, 'destroy'])->middleware('throttle:conductor-write');
     Route::get('/routes', [AdminController::class, 'routes'])->middleware('throttle:conductor-read');
+    Route::post('/routes', [AdminController::class, 'storeRoute'])->middleware('throttle:conductor-write');
+    Route::put('/routes/{id}', [AdminController::class, 'updateRoute'])->middleware('throttle:conductor-write');
+    Route::patch('/routes/{id}', [AdminController::class, 'updateRoute'])->middleware('throttle:conductor-write');
+    Route::delete('/routes/{id}', [AdminController::class, 'destroyRoute'])->middleware('throttle:conductor-write');
     Route::get('/fare-points', [AdminFarePointController::class, 'index'])->middleware('throttle:conductor-read');
     Route::post('/fare-points', [AdminFarePointController::class, 'store'])->middleware('throttle:conductor-write');
     Route::put('/fare-points/{id}', [AdminFarePointController::class, 'update'])->middleware('throttle:conductor-write');
@@ -205,6 +210,9 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::delete('/fare-points/{id}', [AdminFarePointController::class, 'destroy'])->middleware('throttle:conductor-write');
     Route::get('/settings', [AdminSettingController::class, 'index'])->middleware('throttle:conductor-read');
     Route::put('/settings/{key}', [AdminSettingController::class, 'update'])->middleware('throttle:conductor-write');
+    Route::get('/vouchers', [AdminVoucherController::class, 'index'])->middleware('throttle:conductor-read');
+    Route::post('/vouchers', [AdminVoucherController::class, 'store'])->middleware('throttle:conductor-write');
+    Route::delete('/vouchers/{id}', [AdminVoucherController::class, 'destroy'])->middleware('throttle:conductor-write');
     Route::get('/transactions', [AdminController::class, 'transactions'])->middleware('throttle:conductor-read');
     Route::get('/remittances', [AdminController::class, 'remittances'])->middleware('throttle:conductor-read');
     Route::get('/announcements', [AdminAnnouncementController::class, 'index'])->middleware('throttle:conductor-read');
