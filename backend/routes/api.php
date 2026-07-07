@@ -12,6 +12,7 @@ use App\Http\Controllers\Conductor\ConductorHailController;
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AdminFarePointController;
 use App\Http\Controllers\Admin\AdminRegistrationController;
+use App\Http\Controllers\Admin\AdminSettingController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminVehicleController;
 use App\Http\Controllers\Admin\AdminLostItemController;
@@ -202,6 +203,8 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::put('/fare-points/{id}', [AdminFarePointController::class, 'update'])->middleware('throttle:conductor-write');
     Route::patch('/fare-points/{id}', [AdminFarePointController::class, 'update'])->middleware('throttle:conductor-write');
     Route::delete('/fare-points/{id}', [AdminFarePointController::class, 'destroy'])->middleware('throttle:conductor-write');
+    Route::get('/settings', [AdminSettingController::class, 'index'])->middleware('throttle:conductor-read');
+    Route::put('/settings/{key}', [AdminSettingController::class, 'update'])->middleware('throttle:conductor-write');
     Route::get('/transactions', [AdminController::class, 'transactions'])->middleware('throttle:conductor-read');
     Route::get('/remittances', [AdminController::class, 'remittances'])->middleware('throttle:conductor-read');
     Route::get('/announcements', [AdminAnnouncementController::class, 'index'])->middleware('throttle:conductor-read');
