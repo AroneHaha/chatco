@@ -49,7 +49,7 @@ export function DashboardAnalyticsPreview({ paymentTendencies, topPickupPoints }
                   <span className="text-xs text-slate-500">{p.val}</span>
                 </div>
                 <div className="h-1.5 bg-[#0E1628] rounded-full overflow-hidden">
-                  <div className="h-full bg-[#62A0EA] rounded-full" style={{ width: `${(p.val / 1420) * 100}%` }} />
+                  <div className="h-full bg-[#62A0EA] rounded-full" style={{ width: `${topPickupPoints.length > 0 ? (p.val / Math.max(...topPickupPoints.map(pt => pt.val))) * 100 : 0}%` }} />
                 </div>
               </div>
             </div>
