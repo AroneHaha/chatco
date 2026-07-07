@@ -1,56 +1,87 @@
 // app/(admin)/settings/operations-rules/page.tsx
 'use client';
 
-import { useState } from 'react';
-import { Save } from 'lucide-react';
-import {
-  defaultOperationsRules,
-  initialExpenseCategories,
-  type OperationsRulesConfig,
-} from '@/app/(admin)/settings/data/settings-data';
+import { useState, useEffect, useCallback } from 'react';
+import { Save, AlertCircle } from 'lucide-react';
+import { defaultOperationsRules, type OperationsRulesConfig } from '@/app/(admin)/settings/data/settings-data';
+import { getSettings, updateSetting } from '@/lib/admin/services/setting.service';
 
 export default function OperationsRulesPage() {
   const [rules, setRules] = useState<OperationsRulesConfig>({ ...defaultOperationsRules });
-  const [expenseCategories, setExpenseCategories] = useState<string[]>([...initialExpenseCategories]);
-  const [newCategory, setNewCategory] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchSettings = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await getSettings('operations');
+      setRules({
+        speedLimitKmh: data.speed_limit_kmh ?? defaultOperationsRules.speedLimitKmh,
+        maxShiftHours: data.max_shift_hours ?? defaultOperationsRules.maxShiftHours,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load operations rules');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchSettings(); }, [fetchSettings]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setRules(prev => ({ ...prev, [e.target.name]: e.target.value }));
     setIsSaved(false);
   };
 
-  const handleAddCategory = () => {
-    if (newCategory.trim() && !expenseCategories.includes(newCategory.trim())) {
-      setExpenseCategories(prev => [...prev, newCategory.trim()]);
-      setNewCategory('');
-      setIsSaved(false);
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    setError(null);
+    try {
+      await Promise.all([
+        updateSetting('speed_limit_kmh', rules.speedLimitKmh, 'operations'),
+        updateSetting('max_shift_hours', rules.maxShiftHours, 'operations'),
+      ]);
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save operations rules');
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const handleRemoveCategory = (categoryToRemove: string) => {
-    setExpenseCategories(prev => prev.filter((cat: string) => cat !== categoryToRemove));
-    setIsSaved(false);
-  };
-
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2000);
-  };
+  if (isLoading) {
+    return (
+      <div className="min-h-screen pb-12 px-4 sm:px-6">
+        <div className="mx-auto w-full max-w-3xl space-y-6">
+          <div className="h-8 w-56 rounded bg-gray-700 animate-pulse mx-auto" />
+          <div className="h-40 bg-[#131C2E] border border-[#1E2D45] rounded-lg animate-pulse" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pb-12 px-4 sm:px-6">
       <div className="mx-auto w-full max-w-3xl space-y-6">
 
-        {/* Title */}
         <div className="text-center">
           <h1 className="text-2xl sm:text-3xl font-bold text-white">Operations & Fleet Rules</h1>
         </div>
 
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-center gap-2">
+            <AlertCircle size={16} className="text-red-400 flex-shrink-0" />
+            <p className="text-sm text-red-400">{error}</p>
+          </div>
+        )}
+
         <form onSubmit={handleSave} className="space-y-6">
 
-          {/* Fleet Safety */}
           <div className="bg-[#131C2E] border border-[#1E2D45] p-4 sm:p-6 rounded-lg">
             <h2 className="text-lg sm:text-xl font-semibold text-white mb-4">Safety Thresholds</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
@@ -81,14 +112,14 @@ export default function OperationsRulesPage() {
             </div>
           </div>
 
-          {/* Mobile-Friendly Save Button */}
           <div className="flex justify-center pt-2 pb-8">
             <button
               type="submit"
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 bg-[#62A0EA] text-white font-medium rounded-lg hover:bg-[#4A8BD4] transition-colors active:scale-95"
+              disabled={isSaving}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 bg-[#62A0EA] text-white font-medium rounded-lg hover:bg-[#4A8BD4] transition-colors active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save size={18} />
-              <span>{isSaved ? 'Changes Saved!' : 'Save Rules'}</span>
+              <span>{isSaving ? 'Saving...' : isSaved ? 'Changes Saved!' : 'Save Rules'}</span>
             </button>
           </div>
         </form>
