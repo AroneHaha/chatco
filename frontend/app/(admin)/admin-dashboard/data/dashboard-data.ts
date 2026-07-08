@@ -106,12 +106,15 @@ export function useDashboardData() {
     setIsLoading(true);
     setError(null);
     try {
-      // Fetch analytics + vehicles + registrations + lost-items in parallel
+      // Fetch analytics + vehicles + registrations + lost-items in parallel.
+      // The lost-items and vehicles endpoints return paginated responses
+      // ({ data: { data: [...] } }), while analytics returns a flat object
+      // ({ data: { totals: {...}, ... } }) and registrations returns paginated.
       const [analyticsRes, vehiclesRes, registrationsRes, lostItemsRes] = await Promise.all([
         fetch("/api/admin/analytics", { headers: { Accept: "application/json" } }),
-        fetch("/api/admin/vehicles?per_page=3", { headers: { Accept: "application/json" } }),
+        fetch("/api/admin/vehicles?per_page=5", { headers: { Accept: "application/json" } }),
         fetch("/api/admin/registrations", { headers: { Accept: "application/json" } }),
-        fetch("/api/admin/lost-items", { headers: { Accept: "application/json" } }).catch(() => null),
+        fetch("/api/admin/lost-items?per_page=5", { headers: { Accept: "application/json" } }).catch(() => null),
       ]);
 
       if (!analyticsRes.ok) throw new Error("Failed to load analytics");
@@ -120,11 +123,14 @@ export function useDashboardData() {
       const analyticsJson = await analyticsRes.json();
       const vehiclesJson = await vehiclesRes.json();
       const registrationsJson = registrationsRes.ok ? await registrationsRes.json() : { data: { data: [] } };
-      const lostItemsJson = lostItemsRes?.ok ? await lostItemsRes.json() : { data: [] };
+      const lostItemsJson = lostItemsRes?.ok ? await lostItemsRes.json() : { data: { data: [] } };
 
       const analytics = analyticsJson.data;
+      // Vehicles: paginated → { data: { data: [...] } }
       const vehiclesData = vehiclesJson.data?.data ?? vehiclesJson.data ?? [];
-      const pendingRegistrations = registrationsJson.data?.data ?? [];
+      // Registrations: paginated → { data: { data: [...] } }
+      const pendingRegistrations = registrationsJson.data?.data ?? registrationsJson.data ?? [];
+      // Lost items: paginated → { data: { data: [...] } }
       const lostItems = lostItemsJson.data?.data ?? lostItemsJson.data ?? [];
 
       // ── Quick Stats from real analytics ──
@@ -171,7 +177,8 @@ export function useDashboardData() {
       // ── Recent Lost & Found ──
       const recentLostFound: LostFoundItem[] = (lostItems as Record<string, unknown>[]).slice(0, 3).map(item => ({
         item: String(item.item_name ?? item.description ?? 'Unknown item'),
-        status: item.status === 'RETURNED' ? 'Returned' : item.status === 'CLAIMED' ? 'Returned' : 'Under Review',
+        status: item.status === 'RETURNED' || item.status === 'CLAIMED' ? 'Returned' :
+                item.status === 'AVAILABLE' || item.status === 'REPORTED' ? 'Under Review' : 'Reported',
       }));
 
       // ── Top Pickup Points (no backend endpoint — empty until one exists) ──
