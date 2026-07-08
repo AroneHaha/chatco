@@ -125,7 +125,7 @@ export function useDashboardData() {
       const analytics = analyticsJson.data;
       const vehiclesData = vehiclesJson.data?.data ?? vehiclesJson.data ?? [];
       const pendingRegistrations = registrationsJson.data?.data ?? [];
-      const lostItems = lostItemsJson.data ?? [];
+      const lostItems = lostItemsJson.data?.data ?? lostItemsJson.data ?? [];
 
       // ── Quick Stats from real analytics ──
       const totalFares = analytics?.totals?.total_fares ?? 0;
