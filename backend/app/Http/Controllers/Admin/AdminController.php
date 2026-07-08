@@ -11,6 +11,7 @@ use App\Models\Driver;
 use App\Models\Remittance;
 use App\Models\Route as RouteModel;
 use App\Models\ShiftLog;
+use App\Models\TerminatedPersonnel;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Vehicle;
@@ -225,16 +226,28 @@ class AdminController extends Controller
 
     /**
      * DELETE /api/v1/admin/drivers/{id}
-     * Soft-deletes a driver (the Driver model uses SoftDeletes, so this sets
-     * deleted_at and excludes the row from future Driver::all()/get() queries).
+     * Soft-deletes a driver AND records the termination in terminated_personnel.
+     *
+     * Request body (JSON):
+     *   - reason (required, string) — why the driver is being removed
+     *   - termination_type (required, 'TERMINATED' | 'RESIGNED')
      *
      * If the driver currently has an active_shift_id, we reject with 409 so
      * the conductor's active shift is never orphaned — same pattern as
      * vehicle deletion.
+     *
+     * We capture the driver's name, contact, and last assigned vehicle
+     * BEFORE soft-deleting, so the terminated_personnel record is immutable
+     * even if the underlying driver row is later purged.
      */
-    public function destroyDriver(string $id): JsonResponse
+    public function destroyDriver(Request $request, string $id): JsonResponse
     {
-        $driver = Driver::findOrFail($id);
+        $validated = $request->validate([
+            'reason' => 'required|string|max:1000',
+            'termination_type' => ['required', Rule::in(['TERMINATED', 'RESIGNED'])],
+        ]);
+
+        $driver = Driver::with('vehicle')->findOrFail($id);
 
         if ($driver->active_shift_id) {
             return response()->json([
@@ -251,9 +264,126 @@ class AdminController extends Controller
             ], 409);
         }
 
-        $driver->delete();
+        $fullName = trim(($driver->first_name ?? '') . ' ' . ($driver->last_name ?? ''));
+        $lastVehicle = $driver->vehicle
+            ? ($driver->vehicle->unit_number ?: $driver->vehicle->plate_number)
+            : null;
+
+        // Record the termination BEFORE the soft-delete so we capture the
+        // driver's current state (name/contact/last vehicle). Wrap in a
+        // transaction so we never end up with a terminated_personnel row
+        // pointing at a driver that wasn't actually deleted (or vice versa).
+        DB::transaction(function () use ($driver, $fullName, $lastVehicle, $validated) {
+            TerminatedPersonnel::create([
+                'personnel_id'      => $driver->id,
+                'personnel_type'    => 'DRIVER',
+                'name'              => $fullName ?: 'Unknown Driver',
+                'role'              => 'Driver',
+                'contact'           => $driver->contact,
+                'reason'            => $validated['reason'],
+                'termination_type'  => $validated['termination_type'],
+                'terminated_date'   => now()->toDateString(),
+                'last_vehicle'      => $lastVehicle,
+            ]);
+            $driver->delete();
+        });
 
         return $this->successResponse(null, 'Driver removed successfully');
+    }
+
+    /**
+     * DELETE /api/v1/admin/conductors/{id}
+     * Soft-deletes a conductor's user account AND records the termination.
+     *
+     * This is SEPARATE from the generic DELETE /admin/users/{id} because the
+     * Fleet Management "Remove Personnel" flow captures a reason +
+     * termination_type that needs to be persisted. The generic user delete
+     * (AdminUserController::destroy → AdminService::deleteUser) is for
+     * admin/commuter account management and doesn't track termination context.
+     *
+     * conductor_profile.id is the shared PK with users.id, so soft-deleting
+     * the user cascades to the conductor profile (same PK).
+     */
+    public function destroyConductor(Request $request, string $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'reason' => 'required|string|max:1000',
+            'termination_type' => ['required', Rule::in(['TERMINATED', 'RESIGNED'])],
+        ]);
+
+        $conductor = ConductorProfile::with('vehicle')->findOrFail($id);
+        $user = User::find($id);
+
+        if (! $user) {
+            return $this->errorResponse('Conductor user account not found.', 404);
+        }
+
+        // Prevent self-deletion (same guard as AdminService::deleteUser).
+        if ($request->user() && $request->user()->id === $user->id) {
+            return response()->json([
+                'success' => false,
+                'data'    => null,
+                'message' => 'Validation failed',
+                'errors'  => ['user' => ['You cannot remove your own account.']],
+                'meta'    => null,
+            ], 422);
+        }
+
+        // If the conductor is currently on an active shift, reject — the
+        // active_shift_id lives on the vehicle, so we check the conductor's
+        // assigned vehicle.
+        if ($conductor->vehicle && $conductor->vehicle->active_shift_id) {
+            return response()->json([
+                'success' => false,
+                'data'    => null,
+                'message' => 'Conflict',
+                'errors'  => [
+                    'conductor' => [
+                        'Cannot remove a conductor who is currently on an active shift. ' .
+                        'End the shift (via conductor remittance) before removing this conductor.',
+                    ],
+                ],
+                'meta'    => null,
+            ], 409);
+        }
+
+        $fullName = trim(($conductor->first_name ?? '') . ' ' . ($conductor->last_name ?? ''));
+        $lastVehicle = $conductor->vehicle
+            ? ($conductor->vehicle->unit_number ?: $conductor->vehicle->plate_number)
+            : null;
+
+        DB::transaction(function () use ($user, $conductor, $fullName, $lastVehicle, $validated) {
+            TerminatedPersonnel::create([
+                'personnel_id'      => $conductor->id,
+                'personnel_type'    => 'CONDUCTOR',
+                'name'              => $fullName ?: 'Unknown Conductor',
+                'role'              => 'Conductor',
+                'contact'           => null,
+                'reason'            => $validated['reason'],
+                'termination_type'  => $validated['termination_type'],
+                'terminated_date'   => now()->toDateString(),
+                'last_vehicle'      => $lastVehicle,
+            ]);
+            // Soft-deletes the user — cascades to conductor_profile via shared PK.
+            $user->delete();
+        });
+
+        return $this->successResponse(null, 'Conductor removed successfully');
+    }
+
+    /**
+     * GET /api/v1/admin/terminated-personnel
+     * Lists all terminated personnel records, newest first. Powers the
+     * "Separated Personnel" section of the Fleet Management Records & History tab.
+     */
+    public function terminatedPersonnel(): JsonResponse
+    {
+        $records = TerminatedPersonnel::query()
+            ->orderBy('terminated_date', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return $this->successResponse($records, 'Terminated personnel retrieved');
     }
 
     /**

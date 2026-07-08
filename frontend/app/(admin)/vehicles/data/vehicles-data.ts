@@ -73,14 +73,15 @@ export interface VehiclesData {
 // ─── API fetch helper ──────────────────────────────────────────────────
 
 async function fetchVehiclesData(): Promise<VehiclesData> {
-  const [vehiclesRes, driversRes, conductorsRes, shiftLogsRes] = await Promise.all([
+  const [vehiclesRes, driversRes, conductorsRes, shiftLogsRes, terminatedRes] = await Promise.all([
     fetch("/api/admin/vehicles", { headers: { Accept: "application/json" } }),
     fetch("/api/admin/drivers", { headers: { Accept: "application/json" } }),
     fetch("/api/admin/conductors", { headers: { Accept: "application/json" } }),
-    // Shift logs are best-effort — if the endpoint is unavailable (e.g. older
-    // backend), the History tab just shows "no records" instead of failing
-    // the entire fleet page.
+    // Shift logs + terminated personnel are best-effort — if either endpoint
+    // is unavailable (e.g. older backend), the History tab just shows "no
+    // records" instead of failing the entire fleet page.
     fetch("/api/admin/shift-logs", { headers: { Accept: "application/json" } }).catch(() => null),
+    fetch("/api/admin/terminated-personnel", { headers: { Accept: "application/json" } }).catch(() => null),
   ]);
 
   if (!vehiclesRes.ok) throw new Error("Failed to fetch vehicles");
@@ -92,17 +93,19 @@ async function fetchVehiclesData(): Promise<VehiclesData> {
   // extracting conductors from vehicle relationships.
   const conductorsJson = conductorsRes.ok ? await conductorsRes.json() : { data: [] };
   const shiftLogsJson = shiftLogsRes?.ok ? await shiftLogsRes.json() : { data: [] };
+  const terminatedJson = terminatedRes?.ok ? await terminatedRes.json() : { data: [] };
 
   // The admin /vehicles endpoint returns a paginated response:
   //   { data: { data: [...vehicles], current_page, total, ... } }
   // The inner .data is the actual vehicle array. The outer .data is the
   // Laravel paginator object. We extract the inner array here.
-  // Drivers + conductors + shift-logs endpoints return flat arrays
-  // (non-paginated Collection → { data: [...] }).
+  // Drivers + conductors + shift-logs + terminated-personnel endpoints
+  // return flat arrays (non-paginated Collection → { data: [...] }).
   const apiVehicles = vehiclesJson.data?.data ?? vehiclesJson.data ?? [];
   const apiDrivers = driversJson.data ?? [];
   const apiConductors = conductorsJson.data ?? [];
   const apiShiftLogs = Array.isArray(shiftLogsJson.data) ? shiftLogsJson.data : [];
+  const apiTerminated = Array.isArray(terminatedJson.data) ? terminatedJson.data : [];
 
   // Map Laravel Vehicles to frontend Vehicle type
   const vehicles: Vehicle[] = apiVehicles.map((v: Record<string, unknown>) => {
@@ -222,12 +225,25 @@ async function fetchVehiclesData(): Promise<VehiclesData> {
   return {
     personnel: [...driverPersonnel, ...conductorPersonnel],
     vehicles,
-    // terminatedPersonnel: no backend endpoint yet for listing soft-deleted
-    // drivers/conductors with their termination metadata. The History tab
-    // shows an empty "Separated Personnel" section until a /admin/terminated
-    // endpoint is built. The shiftHistoryLog IS wired now, so once
-    // terminated personnel exist, their past shifts will appear.
-    terminatedPersonnel: [],
+    // ── Terminated Personnel ──
+    // Mapped from the terminated_personnel table (populated by the
+    // destroyDriver/destroyConductor backend methods when an admin removes
+    // someone via the "Remove Personnel" flow). Each record is immutable —
+    // name/contact/last_vehicle are captured at termination time so the
+    // history is preserved even if the underlying driver/user row is purged.
+    terminatedPersonnel: (apiTerminated as Record<string, unknown>[]).map(t => ({
+      id: String(t.id ?? ''),
+      name: String(t.name ?? 'Unknown'),
+      role: String(t.role ?? '—'),
+      contact: String(t.contact ?? '—'),
+      // Backend stores TERMINATED/RESIGNED; the UI label matches the modal's
+      // termination_type values directly (the modal already uses these
+      // exact strings as option values).
+      status: (t.termination_type === 'RESIGNED' ? 'Resigned' : 'Terminated') as TerminatedPersonnel['status'],
+      reason: String(t.reason ?? '—'),
+      terminatedDate: String(t.terminated_date ?? ''),
+      lastVehicle: String(t.last_vehicle ?? '—'),
+    })),
     shiftHistoryLog,
     // driverProfiles + driverRatings: the PersonnelTable no longer uses
     // these — the DriverDetailModal fetches its own data from

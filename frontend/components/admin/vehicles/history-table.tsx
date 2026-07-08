@@ -79,12 +79,14 @@ export function HistoryTable({ terminatedPersonnel, shiftHistoryLog, searchQuery
         <div className="divide-y divide-[#162033]">
           {filteredPersonnel.length === 0 ? (
             <div className="p-8 text-center text-slate-500 text-sm space-y-2">
-              <p>No terminated personnel records found.</p>
-              <p className="text-xs text-slate-600 flex items-center justify-center gap-1.5">
-                <Info size={12} className="flex-shrink-0" />
-                Personnel removed via the trash icon will appear here once their
-                termination metadata is tracked by the backend.
-              </p>
+              <p>No terminated personnel records found{searchQuery ? ' for this search' : ''}.</p>
+              {!searchQuery && (
+                <p className="text-xs text-slate-600 flex items-center justify-center gap-1.5">
+                  <Info size={12} className="flex-shrink-0" />
+                  Use the trash icon on the Personnel tab to remove a driver or
+                  conductor — they&apos;ll appear here with their termination reason.
+                </p>
+              )}
             </div>
           ) : (
             filteredPersonnel.map((person) => {

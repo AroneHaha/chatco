@@ -159,18 +159,30 @@ export default function VehiclesPage() {
       throw new Error('Personnel not found. They may have already been removed.');
     }
 
-    // Drivers: call DELETE /api/admin/drivers/{id} (soft-delete on the
-    // drivers table). Conductors: their conductor_profile.id is the shared
-    // PK with users.id, so DELETE /api/admin/users/{id} soft-deletes the
-    // user account and effectively removes the conductor.
+    // Drivers → DELETE /api/admin/drivers/{id}
+    // Conductors → DELETE /api/admin/conductors/{id} (separate from the
+    // generic /admin/users/{id} because this flow persists the termination
+    // reason + type to the terminated_personnel table).
+    //
+    // The modal's terminationType is 'Terminated' | 'Resigned' (UI labels).
+    // The backend expects 'TERMINATED' | 'RESIGNED' (enum values). Convert.
     const endpoint = person.role === 'Driver'
       ? `/api/admin/drivers/${deleteData.id}`
-      : `/api/admin/users/${deleteData.id}`;
+      : `/api/admin/conductors/${deleteData.id}`;
+
+    const terminationType = deleteData.terminationType === 'Resigned' ? 'RESIGNED' : 'TERMINATED';
 
     const res = await fetch(endpoint, {
       method: 'DELETE',
-      headers: { Accept: 'application/json' },
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
       credentials: 'include',
+      body: JSON.stringify({
+        reason: deleteData.reason,
+        termination_type: terminationType,
+      }),
     });
 
     if (!res.ok) {
@@ -178,9 +190,14 @@ export default function VehiclesPage() {
       try {
         const body = await res.json();
         // 409 conflict (active shift) → use the backend's specific message.
+        // 422 validation error → surface the first field error.
         // Other errors → use the backend's message field if available.
         if (res.status === 409) {
-          message = body?.message ?? 'Cannot remove this personnel — they may be on an active shift. End the shift first.';
+          message = body?.message ?? `Cannot remove this ${person.role.toLowerCase()} — they may be on an active shift. End the shift first.`;
+        } else if (res.status === 422 && body?.errors) {
+          const firstField = Object.keys(body.errors)[0];
+          const firstError = firstField ? body.errors[firstField]?.[0] : null;
+          message = firstError ?? body?.message ?? message;
         } else if (body?.message) {
           message = body.message;
         }
@@ -191,9 +208,8 @@ export default function VehiclesPage() {
     }
 
     // Success — refetch the canonical list from the API so the personnel
-    // array reflects the soft-deletion. We no longer mutate local state
-    // (the old stub fabricated a TerminatedPersonnel entry client-side
-    // that was lost on refresh).
+    // array reflects the soft-deletion AND the terminated_personnel table
+    // gains the new row (both are fetched in fetchVehiclesData).
     await refetch();
   };
 
