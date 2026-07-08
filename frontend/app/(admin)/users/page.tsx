@@ -229,6 +229,15 @@ export default function UsersPage() {
   const canPrev = (pagination?.currentPage ?? 1) > 1;
   const canNext = (pagination?.currentPage ?? 1) < (pagination?.lastPage ?? 1);
 
+  // Active tab label reflects the current role filter so the badge reads
+  // "Active Conductors" / "Active Drivers" / "Active Admins" / "Active Commuters"
+  // instead of always saying "Active Commuters" regardless of the filter.
+  const activeRoleLabel =
+    filters.role === 'CONDUCTOR' ? 'Conductors' :
+    filters.role === 'DRIVER' ? 'Drivers' :
+    filters.role === 'ADMIN' ? 'Admins' :
+    'Commuters';
+
   return (
     <>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
@@ -282,7 +291,7 @@ export default function UsersPage() {
       {/* 3 Tabs */}
       <div className="flex space-x-1 mb-6 border-b border-[#1E2D45]">
         <button onClick={() => { setActiveTab('active'); setSelectedUser(null); }} className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-md transition-colors ${activeTab === 'active' ? 'text-white border-b-2 border-sky-400 bg-sky-400/10' : 'text-slate-400 hover:text-white hover:bg-[#1A2540]'}`}>
-          <UserCheck size={20} /><span>Active Commuters ({pagination?.total ?? activeUsers.length})</span>
+          <UserCheck size={20} /><span>Active {activeRoleLabel} ({pagination?.total ?? activeUsers.length})</span>
         </button>
         <button onClick={() => setActiveTab('pending')} className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-md transition-colors ${activeTab === 'pending' ? 'text-white border-b-2 border-amber-400 bg-amber-400/10' : 'text-slate-400 hover:text-white hover:bg-[#1A2540]'}`}>
           <Users size={20} /><span>Pending Verification ({pendingRequests.length})</span>

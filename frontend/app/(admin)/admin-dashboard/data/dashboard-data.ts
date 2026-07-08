@@ -106,15 +106,25 @@ export function useDashboardData() {
     setIsLoading(true);
     setError(null);
     try {
-      // Fetch analytics + vehicles + registrations + lost-items in parallel.
-      // All admin list endpoints return paginated responses wrapped by the
-      // Next.js proxy as { data: { data: [...], current_page, ... } }.
-      // Analytics returns { data: { totals: {...}, ... } } (flat object).
-      const [analyticsRes, vehiclesRes, registrationsRes, lostItemsRes] = await Promise.all([
+      // Fetch analytics + vehicles + users + lost-items in parallel.
+      // The "Recent Users" card needs the actual /admin/users list (all
+      // roles, sorted by created_at DESC) — NOT /admin/registrations,
+      // which only returns PENDING commuters. We request per_page=3 so
+      // the backend does the slicing (less data over the wire).
+      //
+      // Response shapes:
+      //  - analytics:    { data: { totals, payment_split, ... } } (flat obj)
+      //  - vehicles:     { data: { data: [...], current_page, ... } } (paginator)
+      //  - users:        { data: { data: [...], current_page, ... } } (paginator)
+      //  - lost-items:   { data: { data: [...], current_page, ... } } (paginator)
+      const [analyticsRes, vehiclesRes, usersRes, lostItemsRes] = await Promise.all([
         fetch("/api/admin/analytics", { headers: { Accept: "application/json" } }),
-        fetch("/api/admin/vehicles", { headers: { Accept: "application/json" } }),
-        fetch("/api/admin/registrations", { headers: { Accept: "application/json" } }),
-        fetch("/api/admin/lost-items", { headers: { Accept: "application/json" } }).catch(() => null),
+        fetch("/api/admin/vehicles?per_page=3", { headers: { Accept: "application/json" } }),
+        // users + lost-items are best-effort: if either fails (e.g. permission
+        // edge case), we still render the rest of the dashboard instead of
+        // throwing the whole thing into the error state.
+        fetch("/api/admin/users?per_page=3", { headers: { Accept: "application/json" } }).catch(() => null),
+        fetch("/api/admin/lost-items?per_page=3", { headers: { Accept: "application/json" } }).catch(() => null),
       ]);
 
       if (!analyticsRes.ok) throw new Error("Failed to load analytics");
@@ -122,7 +132,7 @@ export function useDashboardData() {
 
       const analyticsJson = await analyticsRes.json();
       const vehiclesJson = await vehiclesRes.json();
-      const registrationsJson = registrationsRes.ok ? await registrationsRes.json() : { data: { data: [] } };
+      const usersJson = usersRes?.ok ? await usersRes.json() : { data: { data: [] } };
       const lostItemsJson = lostItemsRes?.ok ? await lostItemsRes.json() : { data: { data: [] } };
 
       const analytics = analyticsJson.data;
@@ -130,23 +140,19 @@ export function useDashboardData() {
       // The proxy returns { data: <laravel_response> }.
       // Laravel paginator: { data: [...items], current_page, total, ... }
       // So the full shape is: { data: { data: [...items], current_page, ... } }
-      // We need to extract the inner array.
+      // We need to extract the inner array. Use Array.isArray guards so the
+      // hook also tolerates a bare-array response if the backend ever changes.
       const vehiclesRaw = vehiclesJson.data;
       const vehiclesData = Array.isArray(vehiclesRaw) ? vehiclesRaw :
                            Array.isArray(vehiclesRaw?.data) ? vehiclesRaw.data : [];
 
-      const registrationsRaw = registrationsJson.data;
-      const pendingRegistrations = Array.isArray(registrationsRaw) ? registrationsRaw :
-                                   Array.isArray(registrationsRaw?.data) ? registrationsRaw.data : [];
+      const usersRaw = usersJson.data;
+      const usersData = Array.isArray(usersRaw) ? usersRaw :
+                        Array.isArray(usersRaw?.data) ? usersRaw.data : [];
 
       const lostItemsRaw = lostItemsJson.data;
       const lostItems = Array.isArray(lostItemsRaw) ? lostItemsRaw :
                         Array.isArray(lostItemsRaw?.data) ? lostItemsRaw.data : [];
-
-      // Debug logging (remove after verifying)
-      console.log('[Dashboard] vehiclesData:', vehiclesData.length, 'items');
-      console.log('[Dashboard] pendingRegistrations:', pendingRegistrations.length, 'items');
-      console.log('[Dashboard] lostItems:', lostItems.length, 'items');
 
       // ── Quick Stats from real analytics ──
       const totalFares = analytics?.totals?.total_fares ?? 0;
@@ -182,11 +188,24 @@ export function useDashboardData() {
         };
       });
 
-      // ── Recent Users (from pending registrations) ──
-      const recentUsers: UserItem[] = (pendingRegistrations as Record<string, unknown>[]).slice(0, 3).map(r => ({
-        name: `${r.first_name ?? ''} ${r.surname ?? ''}`.trim() || 'Unknown',
-        role: 'Commuter',
-        status: 'Inactive' as const,
+      // ── Recent Users (from /admin/users — all roles, newest first) ──
+      // The backend AdminService::present() returns: id, email, role, name,
+      // account_status, commuter_type, contact_number, verified_at, created_at.
+      // We surface the role as-is and map account_status to Active/Inactive.
+      // For non-commuters (admin/conductor) account_status is null — treat
+      // those as Active since they wouldn't be in the system otherwise.
+      const roleLabel = (role: unknown): string => {
+        switch (role) {
+          case 'ADMIN': return 'Admin';
+          case 'CONDUCTOR': return 'Conductor';
+          case 'COMMUTER': return 'Commuter';
+          default: return 'User';
+        }
+      };
+      const recentUsers: UserItem[] = (usersData as Record<string, unknown>[]).slice(0, 3).map(u => ({
+        name: String(u.name ?? u.email ?? 'Unknown'),
+        role: roleLabel(u.role),
+        status: u.account_status === 'SUSPENDED' ? 'Inactive' : 'Active',
       }));
 
       // ── Recent Lost & Found ──

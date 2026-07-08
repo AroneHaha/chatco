@@ -37,6 +37,15 @@ async function fetchRemittances(): Promise<RemittanceRecord[]> {
 /**
  * Map a Laravel Remittance model (snake_case) to the frontend's
  * RemittanceRecord type (camelCase).
+ *
+ * The backend AdminController::remittances() row shape is:
+ *   shift_id, date, conductor_name, driver_name, unit_number,
+ *   total_passengers, cash_total, gcash_total, total_collected,
+ *   remitted_amount, shortage, remittance_status, time_in, time_out
+ *
+ * NOTE: There is no `cash_declared` field on the backend — the conductor's
+ * declared cash for the shift is `cash_total`. We map cashDeclared → cashTotal
+ * so the table column reflects real data instead of always 0.
  */
 function mapLaravelRemittance(r: Record<string, unknown>): RemittanceRecord {
   const cashTotal = Number(r.cash_total ?? r.total_collected ?? 0);
@@ -55,7 +64,10 @@ function mapLaravelRemittance(r: Record<string, unknown>): RemittanceRecord {
       voucher: 0,
     },
     totalCashless: gcashTotal,
-    cashDeclared: Number(r.cash_declared ?? 0),
+    // The backend doesn't track a separate "declared" amount — the conductor's
+    // recorded cash total IS the declared amount. Map it through so the
+    // RemittanceTable's "Cash Declared" column shows real data.
+    cashDeclared: cashTotal,
     remittanceStatus: (r.remittance_status === "COMPLETE" || r.remittance_status === "Remitted")
       ? "Remitted"
       : "Pending",
