@@ -107,14 +107,14 @@ export function useDashboardData() {
     setError(null);
     try {
       // Fetch analytics + vehicles + registrations + lost-items in parallel.
-      // The lost-items and vehicles endpoints return paginated responses
-      // ({ data: { data: [...] } }), while analytics returns a flat object
-      // ({ data: { totals: {...}, ... } }) and registrations returns paginated.
+      // All admin list endpoints return paginated responses wrapped by the
+      // Next.js proxy as { data: { data: [...], current_page, ... } }.
+      // Analytics returns { data: { totals: {...}, ... } } (flat object).
       const [analyticsRes, vehiclesRes, registrationsRes, lostItemsRes] = await Promise.all([
         fetch("/api/admin/analytics", { headers: { Accept: "application/json" } }),
-        fetch("/api/admin/vehicles?per_page=5", { headers: { Accept: "application/json" } }),
+        fetch("/api/admin/vehicles", { headers: { Accept: "application/json" } }),
         fetch("/api/admin/registrations", { headers: { Accept: "application/json" } }),
-        fetch("/api/admin/lost-items?per_page=5", { headers: { Accept: "application/json" } }).catch(() => null),
+        fetch("/api/admin/lost-items", { headers: { Accept: "application/json" } }).catch(() => null),
       ]);
 
       if (!analyticsRes.ok) throw new Error("Failed to load analytics");
@@ -126,12 +126,27 @@ export function useDashboardData() {
       const lostItemsJson = lostItemsRes?.ok ? await lostItemsRes.json() : { data: { data: [] } };
 
       const analytics = analyticsJson.data;
-      // Vehicles: paginated → { data: { data: [...] } }
-      const vehiclesData = vehiclesJson.data?.data ?? vehiclesJson.data ?? [];
-      // Registrations: paginated → { data: { data: [...] } }
-      const pendingRegistrations = registrationsJson.data?.data ?? registrationsJson.data ?? [];
-      // Lost items: paginated → { data: { data: [...] } }
-      const lostItems = lostItemsJson.data?.data ?? lostItemsJson.data ?? [];
+
+      // The proxy returns { data: <laravel_response> }.
+      // Laravel paginator: { data: [...items], current_page, total, ... }
+      // So the full shape is: { data: { data: [...items], current_page, ... } }
+      // We need to extract the inner array.
+      const vehiclesRaw = vehiclesJson.data;
+      const vehiclesData = Array.isArray(vehiclesRaw) ? vehiclesRaw :
+                           Array.isArray(vehiclesRaw?.data) ? vehiclesRaw.data : [];
+
+      const registrationsRaw = registrationsJson.data;
+      const pendingRegistrations = Array.isArray(registrationsRaw) ? registrationsRaw :
+                                   Array.isArray(registrationsRaw?.data) ? registrationsRaw.data : [];
+
+      const lostItemsRaw = lostItemsJson.data;
+      const lostItems = Array.isArray(lostItemsRaw) ? lostItemsRaw :
+                        Array.isArray(lostItemsRaw?.data) ? lostItemsRaw.data : [];
+
+      // Debug logging (remove after verifying)
+      console.log('[Dashboard] vehiclesData:', vehiclesData.length, 'items');
+      console.log('[Dashboard] pendingRegistrations:', pendingRegistrations.length, 'items');
+      console.log('[Dashboard] lostItems:', lostItems.length, 'items');
 
       // ── Quick Stats from real analytics ──
       const totalFares = analytics?.totals?.total_fares ?? 0;
