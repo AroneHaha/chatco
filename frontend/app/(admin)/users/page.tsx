@@ -191,9 +191,76 @@ export default function UsersPage() {
   };
 
   // ─── Registration handlers (real API) ───
-  const handleSaveRegistration = () => {
+  // handleSaveRegistration is async — the modal stays open with a spinner
+  // until the POST resolves. On success: close + refetch + success banner.
+  // On error: throw so the modal shows the message inline (modal stays open).
+  const handleSaveRegistration = async (data: {
+    firstName: string;
+    middleInitial: string;
+    lastName: string;
+    birthday: string;
+    username: string;
+    password: string;
+    email: string;
+    phoneNumber: string;
+    commuterType: string;
+    idImageFile: File | null;
+    idImagePreview: string | null;
+  }): Promise<void> => {
+    if (!data.idImageFile) {
+      throw new Error('Please upload a valid ID image.');
+    }
+
+    // Map the modal's UI labels to the backend enum values.
+    // Modal: "Regular" / "Student" / "Senior Citizen" / "PWD"
+    // Backend: REGULAR / STUDENT / SENIOR / PWD
+    const appliedTypeMap: Record<string, string> = {
+      'Regular': 'REGULAR',
+      'Student': 'STUDENT',
+      'Senior Citizen': 'SENIOR',
+      'PWD': 'PWD',
+    };
+    const appliedType = appliedTypeMap[data.commuterType] ?? 'REGULAR';
+
+    // Build multipart form data — the proxy forwards it as multipart to
+    // Laravel so $request->file('id_image') works.
+    const formData = new FormData();
+    formData.append('first_name', data.firstName);
+    if (data.middleInitial) formData.append('middle_name', data.middleInitial);
+    formData.append('surname', data.lastName);
+    formData.append('birthdate', data.birthday);
+    formData.append('email', data.email);
+    formData.append('contact_number', data.phoneNumber);
+    formData.append('username', data.username);
+    formData.append('password', data.password);
+    formData.append('applied_type', appliedType);
+    formData.append('id_image', data.idImageFile);
+
+    const res = await fetch('/api/admin/registrations', {
+      method: 'POST',
+      body: formData, // fetch() sets the multipart Content-Type + boundary automatically
+      credentials: 'include',
+    });
+
+    const body = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      // 422 validation error → surface the first field error.
+      // 409 (email taken) → use the backend's message.
+      // Other → use the backend's message or a generic HTTP-status fallback.
+      if (res.status === 422 && body?.errors) {
+        const firstField = Object.keys(body.errors)[0];
+        const firstError = firstField ? body.errors[firstField]?.[0] : null;
+        throw new Error(firstError ?? body?.message ?? 'Validation failed.');
+      }
+      throw new Error(body?.message ?? `Failed to create registration (HTTP ${res.status}).`);
+    }
+
+    // Success — close the modal, refetch the pending list, show a banner.
     handleCloseRegisterModal();
     refetch();
+    setSuccessMessage(body?.message ?? 'Onsite registration created — awaiting verification.');
+    setTimeout(() => setSuccessMessage(null), 5000);
   };
 
   const handleApproveRequest = async () => {

@@ -186,6 +186,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::patch('/users/{id}', [AdminUserController::class, 'update'])->middleware('throttle:conductor-write');
     Route::delete('/users/{id}', [AdminUserController::class, 'destroy'])->middleware('throttle:conductor-write');
     Route::get('/registrations', [AdminRegistrationController::class, 'pending'])->middleware('throttle:conductor-read');
+    Route::post('/registrations', [AdminRegistrationController::class, 'store'])->middleware('throttle:conductor-write');
     Route::post('/registrations/{id}/approve', [AdminRegistrationController::class, 'approve'])->middleware('throttle:conductor-write');
     Route::post('/registrations/{id}/reject', [AdminRegistrationController::class, 'reject'])->middleware('throttle:conductor-write');
     Route::get('/drivers', [AdminController::class, 'drivers'])->middleware('throttle:conductor-read');
