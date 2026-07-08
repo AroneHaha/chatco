@@ -387,6 +387,41 @@ class AdminController extends Controller
     }
 
     /**
+     * PUT/PATCH /api/v1/admin/conductors/{id}
+     * Updates a conductor's editable profile fields.
+     *
+     * Editable: first_name, middle_name, last_name, birthday, profile_picture_url.
+     * NOT editable here: generated_username, generated_password (regenerate-
+     * credentials is a separate flow — see G7 in the admin audit).
+     *
+     * Mirrors the updateDriver validation rules + transactional pattern.
+     */
+    public function updateConductor(Request $request, string $id): JsonResponse
+    {
+        $conductor = ConductorProfile::findOrFail($id);
+
+        $validated = $request->validate([
+            'first_name' => 'required|string|max:100',
+            'middle_name' => 'nullable|string|max:100',
+            'last_name' => 'required|string|max:100',
+            'birthday' => 'required|date|before:today',
+            'profile_picture_url' => 'nullable|string|max:500',
+        ]);
+
+        $conductor->update([
+            'first_name' => $validated['first_name'],
+            'middle_name' => $validated['middle_name'] ?? null,
+            'last_name' => $validated['last_name'],
+            'birthday' => $validated['birthday'],
+            'profile_picture_url' => $validated['profile_picture_url'] ?? $conductor->profile_picture_url,
+        ]);
+
+        $conductor->load(['vehicle.route', 'vehicle.driver']);
+
+        return $this->successResponse($conductor, 'Conductor updated successfully');
+    }
+
+    /**
      * GET /api/v1/admin/conductors/{id}
      * Returns a single conductor with full details for the profile modal.
      * Includes: vehicle assignment, recent shift logs (assignment history).

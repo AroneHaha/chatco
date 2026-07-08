@@ -14,6 +14,24 @@ interface EditPersonnelModalProps {
   editingData: Personnel | null;
 }
 
+/**
+ * Role-aware edit modal for the Fleet → Personnel tab.
+ *
+ * Drivers (from /admin/drivers):
+ *   - Fetches the raw driver record from GET /api/admin/drivers and finds by ID
+ *   - Fields: first_name, middle_name, last_name, birthday, contact, license_number, profile_picture_url
+ *   - PUTs to /api/admin/drivers/{id}
+ *
+ * Conductors (from /admin/conductors):
+ *   - Fetches the raw conductor record from GET /api/admin/conductors/{id} (show endpoint)
+ *   - Fields: first_name, middle_name, last_name, birthday, profile_picture_url
+ *   - NO contact field (conductors don't have one in the schema)
+ *   - NO license_number field (conductors don't drive)
+ *   - PUTs to /api/admin/conductors/{id}
+ *
+ * The generated_username + generated_password are NOT editable here
+ * (regenerate-credentials is a separate flow).
+ */
 export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: EditPersonnelModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -35,26 +53,54 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
-  // When modal opens, fetch the raw driver record from the API to get all
-  // fields (including license_number, birthday, middle_name, profile_picture_url)
-  // that aren't in the table row's Personnel object.
+  const isConductor = editingData?.role === 'Conductor';
+  const roleLabel = isConductor ? 'Conductor' : 'Driver';
+
+  // When modal opens, fetch the raw record from the API to get all fields
+  // (birthday, middle_name, profile_picture_url, and for drivers: license_number,
+  // contact) that aren't in the table row's Personnel object.
+  //
+  // Drivers: GET /api/admin/drivers returns a flat array — find by ID.
+  // Conductors: GET /api/admin/conductors/{id} returns a single record.
   useEffect(() => {
     if (!isOpen || !editingData) return;
 
     setIsLoadingMeta(true);
     setError(null);
 
-    fetch('/api/admin/drivers')
-      .then(r => r.json())
-      .then(res => {
-        const allDrivers = res.data ?? [];
-        // Find by ID (primary), or by name as fallback.
-        let raw = allDrivers.find((d: Record<string, unknown>) => String(d.id) === editingData.id) ?? null;
-        if (!raw) {
-          raw = allDrivers.find((d: Record<string, unknown>) => {
-            const fullName = `${d.first_name ?? ''} ${d.last_name ?? ''}`.trim();
-            return fullName === editingData.name;
-          }) ?? null;
+    const fetchData = async () => {
+      try {
+        let raw: Record<string, unknown> | null = null;
+
+        if (isConductor) {
+          // Conductor: use the show endpoint (returns a single record).
+          const res = await fetch(`/api/admin/conductors/${editingData.id}`, {
+            headers: { Accept: 'application/json' },
+          });
+          if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body?.message ?? `Failed to load conductor (HTTP ${res.status}).`);
+          }
+          const json = await res.json();
+          raw = json.data ?? null;
+        } else {
+          // Driver: list endpoint returns a flat array — find by ID.
+          const res = await fetch('/api/admin/drivers', {
+            headers: { Accept: 'application/json' },
+          });
+          if (!res.ok) {
+            throw new Error(`Failed to load drivers (HTTP ${res.status}).`);
+          }
+          const json = await res.json();
+          const allDrivers: Record<string, unknown>[] = Array.isArray(json.data) ? json.data : [];
+          raw = allDrivers.find(d => String(d.id) === editingData.id) ?? null;
+          // Fallback: find by name if ID match fails (defensive).
+          if (!raw) {
+            raw = allDrivers.find(d => {
+              const fullName = `${d.first_name ?? ''} ${d.last_name ?? ''}`.trim();
+              return fullName === editingData.name;
+            }) ?? null;
+          }
         }
 
         if (raw) {
@@ -64,22 +110,24 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
             last_name: String(raw.last_name ?? ''),
             birthday: raw.birthday ? String(raw.birthday).split('T')[0] : '',
             contact: String(raw.contact ?? ''),
+            // Conductors don't have a license_number — leave blank for them.
             license_number: String(raw.license_number ?? ''),
           });
-          setExistingPictureUrl(raw.profile_picture_url ?? null);
+          setExistingPictureUrl((raw.profile_picture_url as string | null) ?? null);
           setUseDefaultPicture(!raw.profile_picture_url);
           setProfilePicture(null);
         } else {
-          setError(`Could not find this driver in the database. Please refresh the page and try again.`);
+          setError(`Could not find this ${roleLabel.toLowerCase()} in the database. Please refresh the page and try again.`);
         }
-      })
-      .catch(() => {
-        setError('Failed to load driver data. Please try again.');
-      })
-      .finally(() => {
+      } catch (err) {
+        setError(err instanceof Error ? err.message : `Failed to load ${roleLabel.toLowerCase()} data. Please try again.`);
+      } finally {
         setIsLoadingMeta(false);
-      });
-  }, [isOpen, editingData]);
+      }
+    };
+
+    void fetchData();
+  }, [isOpen, editingData, isConductor, roleLabel]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -113,7 +161,7 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
     if (!editingData) return;
 
     if (!editingData.id || editingData.id === 'undefined') {
-      setError('Driver ID is missing. Close this modal and try again.');
+      setError(`${roleLabel} ID is missing. Close this modal and try again.`);
       return;
     }
 
@@ -126,12 +174,16 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
         first_name: formData.first_name,
         last_name: formData.last_name,
         birthday: formData.birthday,
-        contact: formData.contact,
-        license_number: formData.license_number,
       };
 
       if (formData.middle_name.trim()) {
         requestBody.middle_name = formData.middle_name.trim();
+      }
+
+      // Drivers have contact + license_number; conductors do NOT.
+      if (!isConductor) {
+        requestBody.contact = formData.contact;
+        requestBody.license_number = formData.license_number;
       }
 
       // Send profile picture only if a new one was uploaded.
@@ -142,7 +194,11 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
         requestBody.profile_picture_url = null;
       }
 
-      const res = await fetch(`/api/admin/drivers/${editingData.id}`, {
+      const endpoint = isConductor
+        ? `/api/admin/conductors/${editingData.id}`
+        : `/api/admin/drivers/${editingData.id}`;
+
+      const res = await fetch(endpoint, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
@@ -154,27 +210,24 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
         if (res.status === 422 && data.errors) {
           // Map backend snake_case to frontend field names for display.
           const mapped: Record<string, string[]> = {};
-          if (data.errors.first_name) mapped.first_name = data.errors.first_name;
-          if (data.errors.middle_name) mapped.middle_name = data.errors.middle_name;
-          if (data.errors.last_name) mapped.last_name = data.errors.last_name;
-          if (data.errors.birthday) mapped.birthday = data.errors.birthday;
-          if (data.errors.contact) mapped.contact = data.errors.contact;
-          if (data.errors.license_number) mapped.license_number = data.errors.license_number;
+          for (const field of ['first_name', 'middle_name', 'last_name', 'birthday', 'contact', 'license_number']) {
+            if (data.errors[field]) mapped[field] = data.errors[field];
+          }
           setFieldErrors(mapped);
           const firstError = (Object.values(data.errors)[0] as string[] | undefined)?.[0] ?? 'Validation failed.';
           throw new Error(firstError);
         }
-        throw new Error(data.message ?? 'Failed to update driver');
+        throw new Error(data.message ?? `Failed to update ${roleLabel.toLowerCase()}`);
       }
 
       onSaved();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update driver');
+      setError(err instanceof Error ? err.message : `Failed to update ${roleLabel.toLowerCase()}`);
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }
 
   if (!editingData) return null;
 
@@ -190,8 +243,8 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
           <Save className="text-[#62A0EA]" size={24} />
         </div>
         <div>
-          <h2 className="text-lg sm:text-xl font-bold text-white">Edit Driver</h2>
-          <p className="text-xs sm:text-sm text-slate-400">Update driver details. ID: <span className="font-mono">{editingData.id.slice(0, 8)}…</span></p>
+          <h2 className="text-lg sm:text-xl font-bold text-white">Edit {roleLabel}</h2>
+          <p className="text-xs sm:text-sm text-slate-400">Update {roleLabel.toLowerCase()} details. ID: <span className="font-mono">{editingData.id.slice(0, 8)}…</span></p>
         </div>
       </div>
 
@@ -298,24 +351,26 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
           {fieldErrors.middle_name && <p className="text-xs text-red-400 mt-1">{fieldErrors.middle_name[0]}</p>}
         </div>
 
-        {/* License Number — NEW FIELD (drivers only, per spec) */}
-        <div>
-          <label htmlFor="edit-license_number" className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-2">
-            <IdCard size={14} /> Driver's License Number <span className="text-red-400">*</span>
-          </label>
-          <input
-            type="text"
-            id="edit-license_number"
-            name="license_number"
-            value={formData.license_number}
-            onChange={handleChange}
-            required
-            disabled={isSubmitting || isLoadingMeta}
-            placeholder="e.g. N01-23-045678"
-            className={`${inputClasses} ${fieldErrors.license_number ? 'border-red-500/50' : ''}`}
-          />
-          {fieldErrors.license_number && <p className="text-xs text-red-400 mt-1">{fieldErrors.license_number[0]}</p>}
-        </div>
+        {/* License Number — drivers only (conductors don't drive) */}
+        {!isConductor && (
+          <div>
+            <label htmlFor="edit-license_number" className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-2">
+              <IdCard size={14} /> Driver&apos;s License Number <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              id="edit-license_number"
+              name="license_number"
+              value={formData.license_number}
+              onChange={handleChange}
+              required
+              disabled={isSubmitting || isLoadingMeta}
+              placeholder="e.g. N01-23-045678"
+              className={`${inputClasses} ${fieldErrors.license_number ? 'border-red-500/50' : ''}`}
+            />
+            {fieldErrors.license_number && <p className="text-xs text-red-400 mt-1">{fieldErrors.license_number[0]}</p>}
+          </div>
+        )}
 
         {/* Birthday */}
         <div>
@@ -335,24 +390,26 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
           {fieldErrors.birthday && <p className="text-xs text-red-400 mt-1">{fieldErrors.birthday[0]}</p>}
         </div>
 
-        {/* Contact Number */}
-        <div>
-          <label htmlFor="edit-contact" className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-2">
-            <Phone size={14} /> Contact Number <span className="text-red-400">*</span>
-          </label>
-          <input
-            type="tel"
-            id="edit-contact"
-            name="contact"
-            value={formData.contact}
-            onChange={handleChange}
-            required
-            disabled={isSubmitting || isLoadingMeta}
-            placeholder="e.g. 0917 123 4567"
-            className={`${inputClasses} ${fieldErrors.contact ? 'border-red-500/50' : ''}`}
-          />
-          {fieldErrors.contact && <p className="text-xs text-red-400 mt-1">{fieldErrors.contact[0]}</p>}
-        </div>
+        {/* Contact Number — drivers only (conductors have no contact field in the schema) */}
+        {!isConductor && (
+          <div>
+            <label htmlFor="edit-contact" className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-2">
+              <Phone size={14} /> Contact Number <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="tel"
+              id="edit-contact"
+              name="contact"
+              value={formData.contact}
+              onChange={handleChange}
+              required
+              disabled={isSubmitting || isLoadingMeta}
+              placeholder="e.g. 0917 123 4567"
+              className={`${inputClasses} ${fieldErrors.contact ? 'border-red-500/50' : ''}`}
+            />
+            {fieldErrors.contact && <p className="text-xs text-red-400 mt-1">{fieldErrors.contact[0]}</p>}
+          </div>
+        )}
 
         {/* Fixed Data — Role and Route are read-only (per spec: route is fixed to single corridor) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -361,7 +418,7 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
               <User size={14} /> Role
             </label>
             <select disabled className="block w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-slate-500 cursor-not-allowed text-sm [color-scheme:dark]">
-              <option className="bg-gray-800">Driver</option>
+              <option className="bg-gray-800">{roleLabel}</option>
             </select>
           </div>
           <div>
