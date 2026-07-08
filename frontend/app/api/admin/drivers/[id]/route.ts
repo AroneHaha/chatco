@@ -103,3 +103,36 @@ export async function PATCH(
   }
   return jsonData(result.data);
 }
+
+/**
+ * DELETE /api/admin/drivers/{id}
+ * Soft-deletes a driver. The backend rejects (409) if the driver is
+ * currently on an active shift — the admin must end the shift first.
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
+  if (!id || id === "undefined") {
+    return jsonError("Driver ID is missing.", 400);
+  }
+
+  const result = await proxyToLaravel(request, `/admin/drivers/${id}`, {
+    method: "DELETE",
+  });
+
+  if (!result.ok) {
+    // 409 = driver is on an active shift; surface the conflict message.
+    if (result.status === 409) {
+      const conflictMsg =
+        result.errors?.driver?.[0] ??
+        result.message ??
+        "Cannot remove this driver — they may be on an active shift.";
+      return jsonError(conflictMsg, 409);
+    }
+    return jsonError(result.message ?? "Failed to remove driver.", result.status);
+  }
+  return jsonData(result.data);
+}

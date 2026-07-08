@@ -17,11 +17,11 @@ import { HistoryTable } from '@/components/admin/vehicles/history-table';
 import { SearchBar } from '@/components/admin/ui/search-bar';
 import { Plus, Users, Car, UserPlus, Archive, AlertCircle, RefreshCw } from 'lucide-react';
 import { useVehiclesData } from './data/vehicles-data';
-import type { Vehicle, Personnel, TerminatedPersonnel } from './data/vehicles-data';
+import type { Vehicle, Personnel } from './data/vehicles-data';
 import { SkeletonTable } from '@/components/admin/ui/skeleton';
 
 export default function VehiclesPage() {
-  const { data, isLoading, error, refetch, setData } = useVehiclesData();
+  const { data, isLoading, error, refetch } = useVehiclesData();
 
   const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
   const [isEditVehicleModalOpen, setIsEditVehicleModalOpen] = useState(false);
@@ -153,24 +153,48 @@ export default function VehiclesPage() {
     setDeletingPersonnelData(null);
     setIsDeletePersonnelOpen(false);
   };
-  const handleConfirmDeletePersonnel = (deleteData: { id: string; reason: string; terminationType: string }) => {
-    // TODO: Replace with API call when backend is ready
+  const handleConfirmDeletePersonnel = async (deleteData: { id: string; reason: string; terminationType: string }): Promise<void> => {
     const person = data.personnel.find(p => p.id === deleteData.id);
-    if (person) {
-      const terminatedEntry: TerminatedPersonnel = {
-        ...person,
-        status: deleteData.terminationType === 'Resigned' ? 'Resigned' : 'Terminated',
-        reason: deleteData.reason,
-        terminatedDate: new Date().toISOString().split('T')[0],
-        lastVehicle: '-',
-      };
-      setData(prev => ({
-        ...prev,
-        personnel: prev.personnel.filter(p => p.id !== deleteData.id),
-        terminatedPersonnel: [...prev.terminatedPersonnel, terminatedEntry],
-      }));
+    if (!person) {
+      throw new Error('Personnel not found. They may have already been removed.');
     }
-    handleCloseDeletePersonnel();
+
+    // Drivers: call DELETE /api/admin/drivers/{id} (soft-delete on the
+    // drivers table). Conductors: their conductor_profile.id is the shared
+    // PK with users.id, so DELETE /api/admin/users/{id} soft-deletes the
+    // user account and effectively removes the conductor.
+    const endpoint = person.role === 'Driver'
+      ? `/api/admin/drivers/${deleteData.id}`
+      : `/api/admin/users/${deleteData.id}`;
+
+    const res = await fetch(endpoint, {
+      method: 'DELETE',
+      headers: { Accept: 'application/json' },
+      credentials: 'include',
+    });
+
+    if (!res.ok) {
+      let message = `Failed to remove ${person.role.toLowerCase()} (HTTP ${res.status}).`;
+      try {
+        const body = await res.json();
+        // 409 conflict (active shift) → use the backend's specific message.
+        // Other errors → use the backend's message field if available.
+        if (res.status === 409) {
+          message = body?.message ?? 'Cannot remove this personnel — they may be on an active shift. End the shift first.';
+        } else if (body?.message) {
+          message = body.message;
+        }
+      } catch {
+        // Response wasn't JSON — keep the default HTTP-status message.
+      }
+      throw new Error(message);
+    }
+
+    // Success — refetch the canonical list from the API so the personnel
+    // array reflects the soft-deletion. We no longer mutate local state
+    // (the old stub fabricated a TerminatedPersonnel entry client-side
+    // that was lost on refresh).
+    await refetch();
   };
 
   // Add Personnel Handler — modal calls real POST /api/admin/drivers and

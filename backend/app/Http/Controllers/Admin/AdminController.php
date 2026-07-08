@@ -224,6 +224,39 @@ class AdminController extends Controller
     }
 
     /**
+     * DELETE /api/v1/admin/drivers/{id}
+     * Soft-deletes a driver (the Driver model uses SoftDeletes, so this sets
+     * deleted_at and excludes the row from future Driver::all()/get() queries).
+     *
+     * If the driver currently has an active_shift_id, we reject with 409 so
+     * the conductor's active shift is never orphaned — same pattern as
+     * vehicle deletion.
+     */
+    public function destroyDriver(string $id): JsonResponse
+    {
+        $driver = Driver::findOrFail($id);
+
+        if ($driver->active_shift_id) {
+            return response()->json([
+                'success' => false,
+                'data'    => null,
+                'message' => 'Conflict',
+                'errors'  => [
+                    'driver' => [
+                        'Cannot remove a driver who is currently on an active shift. ' .
+                        'End the shift (via conductor remittance) before removing this driver.',
+                    ],
+                ],
+                'meta'    => null,
+            ], 409);
+        }
+
+        $driver->delete();
+
+        return $this->successResponse(null, 'Driver removed successfully');
+    }
+
+    /**
      * GET /api/v1/admin/conductors/{id}
      * Returns a single conductor with full details for the profile modal.
      * Includes: vehicle assignment, recent shift logs (assignment history).
