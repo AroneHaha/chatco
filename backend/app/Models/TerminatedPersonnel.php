@@ -13,6 +13,18 @@ class TerminatedPersonnel extends Model
     public $incrementing = false;
     protected $keyType = 'string';
 
+    /**
+     * Override Laravel's default table name.
+     *
+     * Laravel's convention auto-pluralizes the model name →
+     * `TerminatedPersonnel` would default to `terminated_personnels`
+     * (with an 's'). The migration creates the table as `terminated_personnel`
+     * (singular) because "personnel" is already a collective noun —
+     * pluralizing it reads awkwardly. Pin the table name explicitly so
+     * the model queries the table that actually exists.
+     */
+    protected $table = 'terminated_personnel';
+
     protected $fillable = [
         'id',
         'personnel_id',
