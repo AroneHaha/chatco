@@ -19,6 +19,7 @@ import {
   initiateGcash,
   fetchStatus,
   simulate as simulatePayment,
+  cancelPayment,
   type GcashInitiation,
   type PaymentStatus as GcashPaymentStatus,
 } from "@/lib/conductor/services/payment.service";
@@ -311,6 +312,26 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     } catch (err) {
       setGcashError(err instanceof Error ? err.message : "Simulation failed.");
     }
+  };
+
+  // ─── Cancel the GCash payment ───
+  // Called when the conductor clicks "Cancel Payment" on the QR step.
+  // Transitions the PENDING transaction to CANCELLED through the backend
+  // state machine, stops polling, and returns to the method selection step.
+  const handleCancelGcash = async () => {
+    if (!gcashInitiation) return;
+    stopPolling();
+    try {
+      await cancelPayment(gcashInitiation.transactionId);
+    } catch {
+      // Even if the cancel API fails (e.g. already expired), we still
+      // reset the UI — the 5-minute TTL will eventually clean it up.
+    }
+    setGcashInitiation(null);
+    setGcashStatus(null);
+    setGcashError(null);
+    setStep("method");
+    setSelectedMethod(null);
   };
 
   const handlePayWithCash = async () => {
@@ -1125,13 +1146,21 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
             </button>
           )}
 
-          {/* Back button to return to location selection */}
-          <button
-            onClick={() => { stopPolling(); setStep("select"); }}
-            className="w-full py-2.5 rounded-xl border border-white/10 text-white/50 text-sm font-semibold hover:bg-white/5 transition-colors"
-          >
-            Back to Locations
-          </button>
+          {/* Action buttons */}
+          <div className="flex gap-2">
+            <button
+              onClick={handleCancelGcash}
+              className="flex-1 py-2.5 rounded-xl border border-red-500/20 text-red-400 text-sm font-semibold hover:bg-red-500/10 transition-colors"
+            >
+              Cancel Payment
+            </button>
+            <button
+              onClick={() => { stopPolling(); setStep("select"); }}
+              className="flex-1 py-2.5 rounded-xl border border-white/10 text-white/50 text-sm font-semibold hover:bg-white/5 transition-colors"
+            >
+              Back
+            </button>
+          </div>
         </div>
       </div>
     );

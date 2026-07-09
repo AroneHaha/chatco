@@ -96,3 +96,21 @@ export async function simulate(
   );
   return (response.data.status?.toLowerCase() as PaymentStatus) ?? "pending";
 }
+
+/**
+ * Cancel a PENDING GCash payment. Only the conductor of the shift that
+ * owns the transaction can cancel it. The backend transitions PENDING →
+ * CANCELLED through the state machine.
+ *
+ * Use case: the commuter didn't scan the QR in time, or the conductor
+ * wants to abort instead of waiting for the 5-minute TTL.
+ *
+ * @throws {ApiError} 404 (not found) / 403 (not your transaction) / 422 (not PENDING)
+ */
+export async function cancelPayment(transactionId: string): Promise<PaymentStatus> {
+  const response = await api.post<StatusResponse>(
+    `/api/payments/${encodeURIComponent(transactionId)}/cancel`,
+    {}
+  );
+  return (response.data.status?.toLowerCase() as PaymentStatus) ?? "cancelled";
+}
