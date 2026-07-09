@@ -50,6 +50,11 @@ export async function GET(request: NextRequest) {
  * resolves the shift from the authenticated conductor's active shift).
  *
  * Returns 201 with the created transaction in the frontend's Transaction shape.
+ *
+ * NOTE: This endpoint is CASH-ONLY. GCash fares must go through
+ * /api/conductor/payments/gcash/initiate (which creates a PENDING transaction
+ * with a qr_token + PayMongo intent). Forwarding payment_method=GCASH here
+ * would be rejected by RecordCashRequest (which only accepts CASH).
  */
 export async function POST(request: NextRequest) {
   try {
@@ -61,6 +66,8 @@ export async function POST(request: NextRequest) {
     const { shiftId: _ignored, ...txnBody } = body;
 
     // Laravel expects snake_case field names + payment_method=CASH
+    // (RecordCashRequest validates `in:CASH` — GCash is rejected here).
+    // GCash fares must go through the /payments/gcash/initiate endpoint.
     const payload = {
       payment_method: "CASH",
       final_amount: txnBody.finalAmount ?? txnBody.final_amount,

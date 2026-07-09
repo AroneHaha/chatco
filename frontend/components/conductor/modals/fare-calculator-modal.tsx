@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import {
   FARE_MATRIX,
@@ -14,20 +14,15 @@ import {
   getCommuterTypeLabel,
   type CommuterType,
 } from "@/lib/shared/fare/fare-calculator";
-import {
-  createPaymentIntent,
-  verifyPayment,
-  chargeFare,
-  type PaymentStatus,
-  type GCashPaymentIntent,
-  type ChargeFareResult,
-} from "@/lib/shared/payment/gcash-payment";
 import { createTransaction } from "@/lib/conductor/services/transactions.service";
-import type { PaymentMethodType } from "@/types";
 import {
-  encodeQRTransaction,
-  type QRTransactionPayload,
-} from "@/lib/shared/payment/qr-transaction";
+  initiateGcash,
+  fetchStatus,
+  simulate as simulatePayment,
+  type GcashInitiation,
+  type PaymentStatus as GcashPaymentStatus,
+} from "@/lib/conductor/services/payment.service";
+import type { PaymentMethodType } from "@/types";
 
 interface FareCalcModalProps {
   isOpen: boolean;
@@ -59,16 +54,27 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   const [expandedBarangay, setExpandedBarangay] = useState<number | null>(null);
   const [pickupLandmark, setPickupLandmark] = useState<string | null>(null);
   const [dropoffLandmark, setDropoffLandmark] = useState<string | null>(null);
-  const [paymentIntent, setPaymentIntent] =
-    useState<GCashPaymentIntent | null>(null);
-  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(
-    null
-  );
-  // GCash scan result state
-  const [chargeResult, setChargeResult] = useState<ChargeFareResult | null>(null);
+
+  // ── GCash real-API state ──
+  // When the conductor initiates a GCash payment, we call the backend's
+  // /conductor/payments/gcash/initiate endpoint which creates a PENDING
+  // transaction + a qr_token + a PayMongo checkout URL. The qr_token is
+  // rendered as a QR for the commuter to scan. We then poll the payment
+  // status until it reaches a terminal state (PAID/FAILED/CANCELLED/EXPIRED)
+  // or the 5-minute TTL expires.
+  const [gcashInitiation, setGcashInitiation] = useState<GcashInitiation | null>(null);
+  const [gcashStatus, setGcashStatus] = useState<GcashPaymentStatus | null>(null);
+  const [gcashError, setGcashError] = useState<string | null>(null);
+  const [isInitiatingGcash, setIsInitiatingGcash] = useState(false);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // GCash scan result state — kept for backwards compat with the existing
+  // scan_result step UI. The commuter type is now detected by the backend
+  // when the commuter claims the QR (passenger_name is bound server-side),
+  // so the conductor UI no longer needs to simulate a scan.
   const [scannedCommuterType, setScannedCommuterType] = useState<CommuterType>("REGULAR");
   const [scannedCommuterName, setScannedCommuterName] = useState("Commuter");
-  const [scannedCommuterId, setScannedCommuterId] = useState("c_001");
 
   // ─── Fare Calculation using FARE_MATRIX (correct data source) ───
   const fareInfo = useMemo(() => {
@@ -157,21 +163,28 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
       )
     : FARE_MATRIX;
 
-  // ─── Save transaction to shift tracking (backend-proof) ───
+  // ─── Save CASH transaction to backend ───
+  // Only used for Cash payments. GCash payments are created server-side by
+  // initiateGcash() (which writes the PENDING transaction + qr_token) and
+  // finalized by the PayMongo webhook (which flips status to PAID). The
+  // conductor never calls createTransaction() for GCash.
   const recordTransaction = async (method: SelectedPaymentMethod, overrideFare?: { finalFare: number; regularFare: number; discountAmount: number; barangaysTraveled: number; succeedingCount: number }, overrideCommuterType?: CommuterType) => {
     if (!pickupPoint || !dropoffPoint || !shiftId) return;
 
     const fareData = overrideFare || fareInfo;
     if (!fareData) return;
 
-    const paymentMethodType: PaymentMethodType = method === "GCash" ? "GCash_Scanned" : "Cash";
+    // Cash only — GCash is handled by initiateGcash + the webhook flow.
+    if (method !== "Cash") return;
+
+    const paymentMethodType: PaymentMethodType = "Cash";
     const effectiveCommuterType = overrideCommuterType || commuterType;
 
     await createTransaction(shiftId, {
       paymentMethod: paymentMethodType,
       finalAmount: fareData.finalFare,
-      passengerName: method === "GCash" ? scannedCommuterName : "Commuter",
-      passengerId: method === "GCash" ? scannedCommuterId : "c_001",
+      passengerName: "Commuter",
+      passengerId: "", // Cash is anonymous — the backend drops this field anyway
       passengerRole: effectiveCommuterType,
       from: pickupPoint.name,
       to: dropoffPoint.name,
@@ -185,36 +198,118 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     });
   };
 
-  const handlePayWithGCash = async () => {
-    if (!gcashFareInfo || !pickupPoint || !dropoffPoint) return;
+  // ─── Stop polling helper ───
+  const stopPolling = useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    if (pollTimeoutRef.current) {
+      clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = null;
+    }
+  }, []);
 
-    setStep("processing");
+  // ─── Poll GCash payment status until terminal ───
+  // Polls GET /api/payments/{id}/status every 3s. Stops when the status
+  // reaches a terminal state (paid/failed/cancelled/expired/refunded) or
+  // after 5 minutes (the backend's GCash claim TTL). The backend also
+  // broadcasts a PaymentStatusUpdated event on the payments.{transactionId}
+  // channel — a Pusher listener could replace this polling, but polling
+  // is the reliable fallback that works without Pusher configured.
+  const pollGcashStatus = useCallback((transactionId: string) => {
+    stopPolling();
+
+    const TERMINAL_STATUSES: GcashPaymentStatus[] = ["paid", "failed", "cancelled", "expired", "refunded"];
+
+    pollIntervalRef.current = setInterval(async () => {
+      try {
+        const status = await fetchStatus(transactionId);
+        setGcashStatus(status);
+
+        if (TERMINAL_STATUSES.includes(status)) {
+          stopPolling();
+
+          if (status === "paid") {
+            setStep("success");
+          } else {
+            setGcashError(`Payment ${status}.`);
+            setStep("failed");
+          }
+        }
+      } catch {
+        // Network error — keep polling, the next tick may recover.
+        // The 5-minute timeout below will eventually bail out.
+      }
+    }, 3000);
+
+    // Hard timeout: 5 minutes (matches the backend's gcash_claim_ttl_minutes).
+    pollTimeoutRef.current = setTimeout(() => {
+      stopPolling();
+      setGcashError("Payment timed out — the commuter did not complete the GCash authorization in time.");
+      setGcashStatus("expired");
+      setStep("failed");
+    }, 5 * 60 * 1000);
+  }, [stopPolling]);
+
+  // ─── Initiate GCash payment (real API) ───
+  // Called when the conductor confirms the GCash fare. Calls the backend's
+  // /conductor/payments/gcash/initiate endpoint, which creates a PENDING
+  // transaction + qr_token + PayMongo checkout URL. We then move to the
+  // qr_code step to display the qr_token for the commuter to scan.
+  const handleInitiateGcash = async () => {
+    if (!pickupPoint || !dropoffPoint) return;
+
+    setIsInitiatingGcash(true);
+    setGcashError(null);
+    setGcashStatus(null);
+    setGcashInitiation(null);
 
     try {
-      // Use gcashService.chargeFare() which internally calls /api/gcash/charge
-      // with dev fallback for when the backend is unavailable
-      const result = await chargeFare({
-        amount: gcashFareInfo.finalFare,
-        commuterId: scannedCommuterId,
-        commuterName: scannedCommuterName,
-        commuterType: scannedCommuterType,
-        pickupPoint: pickupPoint.pointNumber,
-        dropoffPoint: dropoffPoint.pointNumber,
-        conductorId: conductorName,
-        shiftId,
-        unitNumber: unitNumber,
+      // Compute the regular fare (no discount yet — the commuter's type is
+      // detected server-side when they claim the QR). The backend stores
+      // this as the initial final_amount; if the commuter is discounted,
+      // the webhook path could adjust it (currently it doesn't — the fare
+      // is fixed at initiation time).
+      const regularFare = getFareBetween(pickupPoint.pointNumber, dropoffPoint.pointNumber, false);
+      const barangaysTraveled = getBarangaysTraversed(pickupPoint.pointNumber, dropoffPoint.pointNumber);
+
+      const initiation = await initiateGcash({
+        finalAmount: regularFare,
+        from: pickupPoint.name,
+        to: dropoffPoint.name,
+        baseFare: regularFare,
+        distance: barangaysTraveled,
+        discountAmount: 0,
       });
 
-      setChargeResult(result);
+      setGcashInitiation(initiation);
+      setStep("qr_code");
 
-      if (result.success) {
-        await recordTransaction("GCash", gcashFareInfo, scannedCommuterType);
-        setStep("success");
-      } else {
-        setStep("failed");
-      }
-    } catch {
+      // Start polling for the payment status. The commuter will scan the QR,
+      // claim the transaction, redirect to PayMongo, authorize, and the
+      // webhook will flip the status to PAID — which we detect via polling.
+      pollGcashStatus(initiation.transactionId);
+    } catch (err) {
+      setGcashError(err instanceof Error ? err.message : "Failed to start GCash payment. Please try again.");
       setStep("failed");
+    } finally {
+      setIsInitiatingGcash(false);
+    }
+  };
+
+  // ─── DEV ONLY: Simulate the commuter paying (for testing without PayMongo) ───
+  // Calls POST /api/payments/{id}/simulate { status: "PAID" } which feeds
+  // through the same webhook/state-machine path as a real PayMongo webhook.
+  // Disabled server-side when payments.allow_simulation is false.
+  const handleSimulatePayment = async () => {
+    if (!gcashInitiation) return;
+    try {
+      await simulatePayment(gcashInitiation.transactionId, "PAID");
+      // The poll loop will pick up the PAID status on the next tick (≤3s).
+      // No need to manually flip the step here.
+    } catch (err) {
+      setGcashError(err instanceof Error ? err.message : "Simulation failed.");
     }
   };
 
@@ -232,40 +327,20 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
 
   const handleConfirmPayment = () => {
     if (selectedMethod === "GCash") {
-      handlePayWithGCash();
+      // GCash: initiate the real backend flow (creates PENDING txn + qr_token).
+      handleInitiateGcash();
     } else {
       handlePayWithCash();
     }
   };
 
   // ─── Handle locations selected in GCash mode ────────────────────
-  // After selecting pickup & dropoff for GCash, go directly to QR code
-  // (no fare display at this step)
+  // After selecting pickup & dropoff for GCash, go to the confirm step.
+  // The conductor confirms the fare, then handleInitiateGcash() calls the
+  // backend to create the PENDING transaction + qr_token, and we move to
+  // the qr_code step to display the QR for the commuter to scan.
   const handleGCashLocationsSelected = () => {
-    setStep("qr_code");
-  };
-
-  // ─── Simulate commuter QR scan ──────────────────────────────────
-  // In production, the commuter scans the conductor's QR code and the
-  // system detects the commuter type from their e-chatco account.
-  // For now, simulate this with a brief delay.
-  const handleSimulateScan = async () => {
-    setStep("processing");
-
-    // Simulate the commuter scanning and the system detecting their type
-    await new Promise((r) => setTimeout(r, 1500));
-
-    // Simulated detected commuter type from e-chatco account
-    // In production, this comes from the commuter's account after scanning
-    const detectedType: CommuterType = "STUDENT";
-    const detectedName = "Arone Dela Cruz";
-    const detectedId = "c_001";
-
-    setScannedCommuterType(detectedType);
-    setScannedCommuterName(detectedName);
-    setScannedCommuterId(detectedId);
-
-    setStep("scan_result");
+    setStep("confirm");
   };
 
   // ─── Color state logic ──────────────────────────────────────────
@@ -311,6 +386,9 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
 
   // ─── RESET STATE & CLOSE ──────────────────────────────────────
   const handleClose = () => {
+    // Stop any in-flight GCash status polling before closing.
+    stopPolling();
+
     setStep("method");
     setSelectedMethod(null);
     setPickupPoint(null);
@@ -321,23 +399,21 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     setSearchQuery("");
     setSelectingField("pickup");
     setExpandedBarangay(null);
-    setPaymentIntent(null);
-    setPaymentStatus(null);
-    setChargeResult(null);
+    setGcashInitiation(null);
+    setGcashStatus(null);
+    setGcashError(null);
+    setIsInitiatingGcash(false);
     setScannedCommuterType("REGULAR");
     setScannedCommuterName("Commuter");
-    setScannedCommuterId("c_001");
     onClose();
   };
 
-  // ─── Auto-advance from QR code to simulate scan after 1s ──────
-  // In production, this would wait for a real-time event from the
-  // commuter's app confirming the scan. For development, we auto-simulate.
+  // ─── Stop polling when the modal unmounts (e.g. user navigates away) ───
   useEffect(() => {
-    if (step !== "qr_code") return;
-    const timer = setTimeout(() => handleSimulateScan(), 1000);
-    return () => clearTimeout(timer);
-  }, [step]);
+    return () => {
+      stopPolling();
+    };
+  }, [stopPolling]);
 
   // ─── Auto-expand landmark when switching selectingField ────────
   // When the user clicks the pickup/dropoff card to re-select,
@@ -983,29 +1059,18 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   }
 
   // ─── STEP: QR Code (GCash only — commuter scans this) ────────────
-  // This step now appears BEFORE fare calculation. The QR only contains
-  // location info — fare is determined after the commuter scans and
-  // their commuter type is detected.
-
-  if (step === "qr_code" && pickupPoint && dropoffPoint) {
-    // Build the QR payload with location data only — no fare yet
-    const qrPayload: QRTransactionPayload = {
-      version: 1,
-      transactionId: `TXN-${Date.now()}`,
-      amount: 0, // Fare not yet determined — will be calculated after scan
-      from: pickupPoint.name || "",
-      to: dropoffPoint.name || "",
-      barangaysTraveled: getBarangaysTraversed(pickupPoint.pointNumber, dropoffPoint.pointNumber),
-      commuterType: "PENDING", // Will be filled after scan
-      paymentMethod: "GCash",
-      conductorId: conductorName || "—",
-      shiftId: shiftId || "",
-      unitNumber: unitNumber || "—",
-      createdAt: new Date().toISOString(),
-      regularFare: 0,
-      discountAmount: 0,
-    };
-    const qrData = encodeQRTransaction(qrPayload);
+  // Displays the server-issued qr_token as a QR code. The commuter scans
+  // this QR with their app, which calls POST /api/commuter/payments/claim
+  // { qr_token } — the backend binds the commuter's passenger_id to the
+  // transaction and returns the PayMongo checkout_url. The commuter then
+  // redirects to PayMongo to authorize. The webhook flips status to PAID,
+  // which we detect via the polling loop started in handleInitiateGcash.
+  if (step === "qr_code" && gcashInitiation && pickupPoint && dropoffPoint) {
+    // The QR encodes JUST the qr_token (a 32-char opaque string). The
+    // commuter's app extracts it and POSTs it to /commuter/payments/claim.
+    // We do NOT encode JSON or transaction details in the QR — the backend
+    // is the source of truth and the qr_token is the lookup key.
+    const qrData = gcashInitiation.qrToken;
 
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
@@ -1035,14 +1100,34 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
             <p className="text-xs text-white/40">
               {pickupPoint.name} → {dropoffPoint.name}
             </p>
+            <p className="text-xs text-white/50">
+              Amount: <span className="text-white font-semibold">{formatCurrency(gcashInitiation.amount)}</span>
+            </p>
             <div className="flex items-center justify-center gap-2">
               <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-              <p className="text-xs text-blue-400/70 font-medium">Waiting for commuter scan…</p>
+              <p className="text-xs text-blue-400/70 font-medium">
+                {gcashStatus === "processing" ? "Payment processing…" :
+                 gcashStatus === "paid" ? "Payment successful!" :
+                 gcashStatus ? `Status: ${gcashStatus}` :
+                 "Waiting for commuter scan…"}
+              </p>
             </div>
           </div>
+
+          {/* DEV ONLY: Simulate payment button — only shows when the backend
+              has payments.allow_simulation=true (FakeGateway or sandbox). */}
+          {process.env.NODE_ENV === "development" && (
+            <button
+              onClick={handleSimulatePayment}
+              className="w-full py-2 rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-colors"
+            >
+              [DEV] Simulate Payment Paid
+            </button>
+          )}
+
           {/* Back button to return to location selection */}
           <button
-            onClick={() => setStep("select")}
+            onClick={() => { stopPolling(); setStep("select"); }}
             className="w-full py-2.5 rounded-xl border border-white/10 text-white/50 text-sm font-semibold hover:bg-white/5 transition-colors"
           >
             Back to Locations
@@ -1168,9 +1253,15 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   // ─── STEP: Confirm Payment ──────────────────────────────────────
 
   if (step === "confirm") {
-    // GCash confirmation: uses gcashFareInfo + scanned commuter type
+    // For GCash: the commuter type is NOT known yet (it's detected server-side
+    // when the commuter claims the QR). So we show the REGULAR fare here —
+    // if the commuter turns out to be discounted, the backend applies the
+    // discount at claim time (the final_amount may be adjusted by the webhook
+    // path in a future iteration; currently the fare is fixed at initiation).
+    // For Cash: the conductor selects the commuter type, so the discount is
+    // applied immediately.
     const activeFareInfo = selectedMethod === "GCash" ? gcashFareInfo : fareInfo;
-    const activeCommuterType = selectedMethod === "GCash" ? scannedCommuterType : commuterType;
+    const activeCommuterType = selectedMethod === "GCash" ? "REGULAR" : commuterType;
 
     if (!activeFareInfo) return null;
 
@@ -1279,26 +1370,26 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
 
             <div className="flex gap-3">
               <button
-                onClick={() => {
-                  if (selectedMethod === "GCash") {
-                    setStep("scan_result");
-                  } else {
-                    setStep("select");
-                  }
-                }}
-                className="flex-1 py-3 rounded-xl border border-white/10 text-white/60 text-sm font-semibold hover:bg-white/5 transition-colors"
+                onClick={() => setStep("select")}
+                disabled={isInitiatingGcash}
+                className="flex-1 py-3 rounded-xl border border-white/10 text-white/60 text-sm font-semibold hover:bg-white/5 transition-colors disabled:opacity-50"
               >
                 Back
               </button>
               <button
                 onClick={handleConfirmPayment}
-                className={`flex-1 py-3 rounded-xl text-white text-sm font-bold transition-colors shadow-lg ${
+                disabled={isInitiatingGcash}
+                className={`flex-1 py-3 rounded-xl text-white text-sm font-bold transition-colors shadow-lg disabled:opacity-60 disabled:cursor-not-allowed ${
                   selectedMethod === "GCash"
                     ? "bg-[#1A5FB4] hover:bg-[#164A8F] shadow-[#1A5FB4]/30"
                     : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/30"
                 }`}
               >
-                Pay {formatCurrency(activeFareInfo.finalFare)}
+                {isInitiatingGcash
+                  ? "Starting…"
+                  : selectedMethod === "GCash"
+                    ? `Generate QR · ${formatCurrency(activeFareInfo.finalFare)}`
+                    : `Pay ${formatCurrency(activeFareInfo.finalFare)}`}
               </button>
             </div>
           </div>
@@ -1397,15 +1488,15 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                   {selectedMethod}
                 </span>
               </div>
-              {chargeResult && selectedMethod === "GCash" && (
+              {gcashInitiation && selectedMethod === "GCash" && (
                 <div className="flex justify-between text-sm">
                   <span className="text-white/40">Ref ID</span>
                   <span className="text-white/50 text-xs font-mono">
-                    {chargeResult.transactionId}
+                    {gcashInitiation.transactionId}
                   </span>
                 </div>
               )}
-              {chargeResult && selectedMethod === "GCash" && chargeResult.isSimulated && (
+              {gcashInitiation && selectedMethod === "GCash" && !gcashInitiation.checkoutUrl && (
                 <div className="flex justify-between text-sm">
                   <span className="text-white/40">Mode</span>
                   <span className="text-amber-400/60 text-xs font-medium">
@@ -1447,9 +1538,11 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
               Payment Failed
             </h2>
             <p className="text-sm text-white/40 mb-6">
-              {selectedMethod === "GCash"
-                ? "Could not process the GCash payment. Please try again or pay cash to the conductor."
-                : "Could not record the payment. Please try again."}
+              {gcashError
+                ? gcashError
+                : selectedMethod === "GCash"
+                  ? "Could not process the GCash payment. Please try again or pay cash to the conductor."
+                  : "Could not record the payment. Please try again."}
             </p>
             <div className="flex gap-3">
               <button

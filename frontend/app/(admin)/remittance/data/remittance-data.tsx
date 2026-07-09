@@ -68,7 +68,14 @@ function mapLaravelRemittance(r: Record<string, unknown>): RemittanceRecord {
     // recorded cash total IS the declared amount. Map it through so the
     // RemittanceTable's "Cash Declared" column shows real data.
     cashDeclared: cashTotal,
-    remittanceStatus: (r.remittance_status === "COMPLETE" || r.remittance_status === "Remitted")
+    // The backend writes remittance_status as 'COMPLETE' (no shortage) or
+    // 'SHORTAGE' (cash declared < expected). The admin UI shows both as
+    // "Remitted" (the shift WAS ended + the remittance WAS submitted) —
+    // the shortage is surfaced separately via the shortage field if present.
+    // Pending shifts (active, no remittance yet) show as "Pending".
+    remittanceStatus: (r.remittance_status === "COMPLETE" ||
+                       r.remittance_status === "SHORTAGE" ||
+                       r.remittance_status === "Remitted")
       ? "Remitted"
       : "Pending",
     timeIn: String(r.time_in ?? ""),
