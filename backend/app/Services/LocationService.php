@@ -255,4 +255,48 @@ class LocationService
             broadcast(new VehicleLocationUpdated((array) $locationData))->toOthers();
         }
     }
+
+    /**
+     * Get vehicles currently exceeding the speed threshold.
+     * Returns vehicles with speed > threshold from vehicle_locations
+     * where the vehicle has an active shift.
+     *
+     * @param int $threshold Speed limit in km/h (default 60)
+     */
+    public function getOverspeedingVehicles(int $threshold = 60): Collection
+    {
+        return DB::table('vehicle_locations')
+            ->join('vehicles', 'vehicle_locations.vehicle_id', '=', 'vehicles.id')
+            ->whereNotNull('vehicles.active_shift_id')
+            ->where('vehicle_locations.speed', '>', $threshold)
+            ->leftJoin('shift_logs', function ($join) {
+                $join->on('vehicles.active_shift_id', '=', 'shift_logs.shift_id');
+            })
+            ->leftJoin('drivers', 'shift_logs.driver_id', '=', 'drivers.id')
+            ->select([
+                'vehicle_locations.vehicle_id as id',
+                'vehicles.unit_number',
+                'vehicles.plate_number',
+                'vehicle_locations.speed',
+                'vehicle_locations.lat',
+                'vehicle_locations.lng',
+                'vehicle_locations.updated_at as last_update',
+                'drivers.first_name as driver_first_name',
+                'drivers.last_name as driver_last_name',
+            ])
+            ->orderBy('vehicle_locations.speed', 'desc')
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'id'         => $row->id,
+                    'unit'       => $row->unit_number,
+                    'plate'      => $row->plate_number,
+                    'speed'      => (int) $row->speed,
+                    'lat'        => $row->lat ? (float) $row->lat : null,
+                    'lng'        => $row->lng ? (float) $row->lng : null,
+                    'driver'     => trim(($row->driver_first_name ?? '') . ' ' . ($row->driver_last_name ?? '')) ?: null,
+                    'last_update'=> $row->last_update,
+                ];
+            });
+    }
 }

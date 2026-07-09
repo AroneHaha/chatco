@@ -203,6 +203,9 @@ class TransactionFlowTest extends TestCase
     public function test_gcash_initiate_falls_back_to_fake_gateway_when_unconfigured(): void
     {
         // No PayMongo keys → PaymentServiceProvider binds the FakeGateway.
+        // Save the original secret, clear it, re-bind, then restore after.
+        $originalSecret = config('payments.gateways.paymongo.secret');
+        config(['payments.gateways.paymongo.secret' => null]);
         $this->forgetGateway();
 
         $result = app(TransactionService::class)->initiateGcashFare($this->conductor, [
@@ -213,6 +216,10 @@ class TransactionFlowTest extends TestCase
         $this->assertSame('fake', $result['transaction']->payment_provider);
         $this->assertNull($result['checkout_url']); // no real authorize page without keys
         $this->assertNotEmpty($result['qr_token']);  // QR + claim flow still works
+
+        // Restore the original config so subsequent tests use the real gateway.
+        config(['payments.gateways.paymongo.secret' => $originalSecret]);
+        $this->forgetGateway();
     }
 
     // ─── 3. GCash Claim ─────────────────────────────────────────────

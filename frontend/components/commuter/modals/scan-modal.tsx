@@ -1,16 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import {
-  decodeQRTransaction,
-  simulateScan,
-  simulateVerification,
-  simulateConfirmation,
-  saveCommuterPayment,
-  type PaymentState,
-  type QRTransactionPayload,
-  type CommuterPaymentRecord,
-} from "@/lib/shared/payment/qr-transaction";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Html5Qrcode } from "html5-qrcode";
+import { claimGcash, type ClaimResult } from "@/lib/commuter/services/payment.service";
 import { formatCurrency } from "@/lib/shared/fare/fare-calculator";
 
 interface ScanModalProps {
@@ -19,111 +11,131 @@ interface ScanModalProps {
   commuterName: string;
 }
 
-type Step = "scanning" | "verifying" | "confirm" | "processing" | "success" | "failed";
+type Step = "scanning" | "verifying" | "confirm" | "redirecting" | "success" | "failed";
 
 /**
- * Commuter Scan Modal — Scan-Only Payment Flow
+ * Commuter Scan Modal — Real GCash Payment Flow
  *
  * Flow:
- *  1. scanning   — Camera/scanner UI (simulated)
- *  2. verifying  — Loading verification (~1 second)
- *  3. confirm    — Show transaction details + "Confirm Payment" button
- *  4. processing — Processing payment (future: PayMongo API)
- *  5. success    — Payment completed
- *  6. failed     — Payment failed
+ *  1. scanning   — Camera scans the conductor's QR (which contains the qr_token)
+ *  2. verifying  — Calls POST /api/commuter/payments/claim { qr_token }
+ *                  Backend binds the commuter's passenger_id to the transaction
+ *                  + returns the PayMongo checkout_url + amount + route
+ *  3. confirm    — Shows the fare details + "Pay with GCash" button
+ *  4. redirecting — Redirects to the PayMongo hosted authorize page
+ *  5. success    — (only reached if checkout_url is null = FakeGateway dev mode)
+ *  6. failed     — Bad token / expired / already claimed / network error
  *
- * Architecture:
- *  - Uses QRTransactionPayload for typed QR data
- *  - PaymentState machine enforced via canTransition()
- *  - All states are backend-ready: replace simulate*() with real API calls
- *  - CommuterPaymentRecord stored for history
+ * After the commuter authorizes on PayMongo's hosted page, PayMongo redirects
+ * to {APP_URL}/gcash/return?transaction_id=... — handled by the
+ * app/(commuter)/gcash/return/page.tsx route, which polls the status and
+ * shows the final result.
+ *
+ * In DEV mode (FakeGateway, no PayMongo keys), checkout_url is null. The
+ * claim still binds the commuter to the transaction, and the conductor's
+ * [DEV] Simulate Payment button drives it to PAID through the webhook path.
  */
-export default function ScanModal({ onClose, commuterId, commuterName }: ScanModalProps) {
+export default function ScanModal({ onClose }: ScanModalProps) {
   const [step, setStep] = useState<Step>("scanning");
-  const [payload, setPayload] = useState<QRTransactionPayload | null>(null);
-  const [scanAnimFrame, setScanAnimFrame] = useState(0);
+  const [claimResult, setClaimResult] = useState<ClaimResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [manualToken, setManualToken] = useState("");
+  const [showManualEntry, setShowManualEntry] = useState(false);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const scannerContainerId = "qr-reader-container";
 
-  // ─── Scanning animation ──────────────────────────────────────
+  // ─── Camera scanner setup ───
+  // Uses html5-qrcode (already installed) to scan the conductor's QR.
+  // The QR contains JUST the qr_token (a 32-char opaque string). We pass
+  // it to claimGcash() which POSTs to /commuter/payments/claim.
   useEffect(() => {
     if (step !== "scanning") return;
-    const interval = setInterval(() => {
-      setScanAnimFrame((f) => (f + 1) % 3);
-    }, 600);
-    return () => clearInterval(interval);
+
+    let mounted = true;
+
+    const startScanner = async () => {
+      try {
+        const html5QrCode = new Html5Qrcode(scannerContainerId);
+        scannerRef.current = html5QrCode;
+
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 220, height: 220 } },
+          (decodedText) => {
+            if (!mounted) return;
+            // Stop the scanner immediately — we have a result.
+            html5QrCode.stop().catch(() => {});
+            handleScanSuccess(decodedText);
+          },
+          () => {
+            // Per-frame failure — ignore, the scanner keeps trying.
+          }
+        );
+      } catch {
+        // Camera not available / permission denied — fall back to manual entry.
+        if (mounted) setShowManualEntry(true);
+      }
+    };
+
+    void startScanner();
+
+    return () => {
+      mounted = false;
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(() => {});
+        scannerRef.current.clear();
+        scannerRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
-  // ─── Handle simulated scan ───────────────────────────────────
-  const handleSimulateScan = useCallback(async () => {
+  // ─── Handle successful QR scan ───
+  // The decoded text IS the qr_token. Call claimGcash() to bind this
+  // commuter to the transaction + get the PayMongo checkout_url.
+  const handleScanSuccess = useCallback(async (qrToken: string) => {
     setStep("verifying");
+    setError(null);
 
     try {
-      // Simulate QR scan → decode the payload
-      const qrString = await simulateScan();
-      const decoded = decodeQRTransaction(qrString);
-
-      if (!decoded) {
-        setStep("failed");
-        return;
-      }
-
-      setPayload(decoded);
-
-      // Simulate verification delay (~1 second)
-      const verified = await simulateVerification();
-
-      if (verified) {
-        setStep("confirm");
-      } else {
-        setStep("failed");
-      }
-    } catch {
+      const result = await claimGcash(qrToken.trim());
+      setClaimResult(result);
+      setStep("confirm");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to claim this payment. The QR may be invalid or expired.";
+      setError(msg);
       setStep("failed");
     }
   }, []);
 
-  // ─── Handle payment confirmation ─────────────────────────────
-  const handleConfirmPayment = useCallback(async () => {
-    if (!payload) return;
+  // ─── Handle manual token entry (fallback when camera unavailable) ───
+  const handleManualSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualToken.trim()) return;
+    await handleScanSuccess(manualToken.trim());
+  }, [manualToken, handleScanSuccess]);
 
-    setStep("processing");
+  // ─── Redirect to PayMongo hosted authorize page ───
+  // In real mode, checkout_url is the PayMongo hosted page. The commuter
+  // authorizes there, PayMongo redirects to /gcash/return, and the webhook
+  // flips the transaction to PAID.
+  // In dev mode (FakeGateway), checkout_url is null — we show a waiting
+  // state and the conductor's [DEV] Simulate button drives it to PAID.
+  const handleConfirmPayment = useCallback(() => {
+    if (!claimResult) return;
 
-    try {
-      const success = await simulateConfirmation();
-
-      if (success) {
-        // Save the payment record for commuter history
-        const record: CommuterPaymentRecord = {
-          transactionId: payload.transactionId,
-          amount: payload.amount,
-          from: payload.from,
-          to: payload.to,
-          paymentMethod: payload.paymentMethod,
-          conductorId: payload.conductorId,
-          unitNumber: payload.unitNumber,
-          status: "completed",
-          scannedAt: payload.createdAt,
-          confirmedAt: new Date().toISOString(),
-          createdAt: new Date().toISOString(),
-        };
-        saveCommuterPayment(record);
-
-        // Dispatch event for real-time sync (future: WebSocket)
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(
-            new CustomEvent("commuter:payment-confirmed", {
-              detail: { transactionId: payload.transactionId },
-            })
-          );
-        }
-
-        setStep("success");
-      } else {
-        setStep("failed");
-      }
-    } catch {
-      setStep("failed");
+    if (claimResult.checkoutUrl) {
+      // Real PayMongo flow — redirect to the hosted authorize page.
+      setStep("redirecting");
+      window.location.href = claimResult.checkoutUrl;
+    } else {
+      // Dev mode (FakeGateway) — no redirect. Show a waiting state.
+      // The conductor's [DEV] Simulate Payment button will drive the
+      // status to PAID via the webhook path. The commuter can close
+      // this modal and check their payment history for the final status.
+      setStep("success");
     }
-  }, [payload]);
+  }, [claimResult]);
 
   // ─── STEP: Scanning ──────────────────────────────────────────
 
@@ -154,62 +166,53 @@ export default function ScanModal({ onClose, commuterId, commuterName }: ScanMod
             </button>
           </div>
 
-          {/* Simulated Camera Viewfinder */}
-          <div className="relative bg-[#050F1A] h-72 sm:h-80 flex items-center justify-center overflow-hidden">
-            {/* Scan frame corners */}
-            <div className="relative w-52 h-52">
-              {/* Top-left corner */}
-              <div className="absolute top-0 left-0 w-8 h-8 border-t-3 border-l-3 border-[#62A0EA] rounded-tl-lg" />
-              {/* Top-right corner */}
-              <div className="absolute top-0 right-0 w-8 h-8 border-t-3 border-r-3 border-[#62A0EA] rounded-tr-lg" />
-              {/* Bottom-left corner */}
-              <div className="absolute bottom-0 left-0 w-8 h-8 border-b-3 border-l-3 border-[#62A0EA] rounded-bl-lg" />
-              {/* Bottom-right corner */}
-              <div className="absolute bottom-0 right-0 w-8 h-8 border-b-3 border-r-3 border-[#62A0EA] rounded-br-lg" />
-
-              {/* Animated scan line */}
-              <div
-                className="absolute left-2 right-2 h-0.5 bg-gradient-to-r from-transparent via-[#62A0EA] to-transparent transition-all duration-500 ease-in-out"
-                style={{
-                  top: scanAnimFrame === 0 ? "20%" : scanAnimFrame === 1 ? "50%" : "80%",
-                  opacity: 0.8,
-                }}
-              />
-
-              {/* Center QR icon hint */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <svg className="w-16 h-16 text-white/10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={0.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" />
-                </svg>
+          {/* Camera viewfinder — html5-qrcode mounts here */}
+          <div className="relative bg-[#050F1A] h-72 sm:h-80 overflow-hidden">
+            <div id={scannerContainerId} className="w-full h-full" />
+            {/* Scan frame overlay */}
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+              <div className="relative w-52 h-52">
+                <div className="absolute top-0 left-0 w-8 h-8 border-t-3 border-l-3 border-[#62A0EA] rounded-tl-lg" />
+                <div className="absolute top-0 right-0 w-8 h-8 border-t-3 border-r-3 border-[#62A0EA] rounded-tr-lg" />
+                <div className="absolute bottom-0 left-0 w-8 h-8 border-b-3 border-l-3 border-[#62A0EA] rounded-bl-lg" />
+                <div className="absolute bottom-0 right-0 w-8 h-8 border-b-3 border-r-3 border-[#62A0EA] rounded-br-lg" />
               </div>
-            </div>
-
-            {/* Dimming overlay outside scan frame */}
-            <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute top-0 inset-x-0 h-[calc(50%-104px)] bg-black/30" />
-              <div className="absolute bottom-0 inset-x-0 h-[calc(50%-104px)] bg-black/30" />
-              <div className="absolute top-[calc(50%-104px)] bottom-[calc(50%-104px)] left-0 w-[calc(50%-104px)] bg-black/30" />
-              <div className="absolute top-[calc(50%-104px)] bottom-[calc(50%-104px)] right-0 w-[calc(50%-104px)] bg-black/30" />
             </div>
           </div>
 
           {/* Action area */}
           <div className="p-4 sm:p-5 space-y-3">
-            <p className="text-center text-xs text-white/30">
-              Align the QR code shown by the conductor within the frame
-            </p>
+            {showManualEntry ? (
+              <form onSubmit={handleManualSubmit} className="space-y-3">
+                <p className="text-center text-xs text-amber-400/70">
+                  Camera unavailable — enter the token manually
+                </p>
+                <input
+                  type="text"
+                  value={manualToken}
+                  onChange={(e) => setManualToken(e.target.value)}
+                  placeholder="Paste qr_token here"
+                  className="w-full px-3 py-2.5 bg-[#0E1628] border border-white/10 rounded-xl text-white text-sm font-mono placeholder-white/20 focus:outline-none focus:border-[#62A0EA]/50"
+                />
+                <button
+                  type="submit"
+                  disabled={!manualToken.trim()}
+                  className="w-full py-3.5 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] disabled:opacity-50 text-white text-sm font-bold transition-all shadow-lg shadow-[#1A5FB4]/30"
+                >
+                  Claim Payment
+                </button>
+              </form>
+            ) : (
+              <p className="text-center text-xs text-white/30">
+                Align the QR code shown by the conductor within the frame
+              </p>
+            )}
             <button
-              onClick={handleSimulateScan}
-              className="w-full py-3.5 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] text-white text-sm font-bold transition-all shadow-lg shadow-[#1A5FB4]/30 flex items-center justify-center gap-2"
+              onClick={() => setShowManualEntry(!showManualEntry)}
+              className="w-full text-center text-[11px] text-white/30 hover:text-white/50 transition-colors"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5Z" />
-              </svg>
-              Simulate Scan
+              {showManualEntry ? "Use camera instead" : "Enter token manually"}
             </button>
-            <p className="text-center text-[10px] text-white/15">
-              Frontend prototype — simulates scanning a conductor QR code
-            </p>
           </div>
         </div>
       </div>
@@ -227,7 +230,7 @@ export default function ScanModal({ onClose, commuterId, commuterName }: ScanMod
             Verifying Transaction
           </h2>
           <p className="text-sm text-white/40">
-            Confirming payment details with the conductor…
+            Claiming this payment + binding it to your account…
           </p>
         </div>
       </div>
@@ -236,7 +239,7 @@ export default function ScanModal({ onClose, commuterId, commuterName }: ScanMod
 
   // ─── STEP: Confirm Payment ───────────────────────────────────
 
-  if (step === "confirm" && payload) {
+  if (step === "confirm" && claimResult) {
     return (
       <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
         <div className="w-full sm:max-w-sm bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-white/10 shadow-2xl max-h-[95vh] sm:max-h-none overflow-y-auto">
@@ -266,80 +269,44 @@ export default function ScanModal({ onClose, commuterId, commuterName }: ScanMod
               {/* Amount - prominent */}
               <div className="text-center pb-3 border-b border-white/10">
                 <p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold mb-1">Amount Due</p>
-                <p className="text-3xl font-extrabold text-white">{formatCurrency(payload.amount)}</p>
-                {payload.discountAmount > 0 && (
-                  <div className="flex items-center justify-center gap-2 mt-1">
-                    <span className="text-xs text-white/30 line-through">{formatCurrency(payload.regularFare)}</span>
-                    <span className="text-[10px] text-green-400 font-medium">You save {formatCurrency(payload.discountAmount)}</span>
-                  </div>
-                )}
+                <p className="text-3xl font-extrabold text-white">{formatCurrency(claimResult.amount)}</p>
               </div>
 
               {/* Route */}
               <div className="flex justify-between text-sm">
                 <span className="text-white/40">Route</span>
                 <span className="text-white text-right max-w-[60%] truncate">
-                  {payload.from} → {payload.to}
-                </span>
-              </div>
-
-              {/* Barangays */}
-              <div className="flex justify-between text-sm">
-                <span className="text-white/40">Barangays</span>
-                <span className="text-white">{payload.barangaysTraveled} traveled</span>
-              </div>
-
-              {/* Commuter Type */}
-              <div className="flex justify-between text-sm">
-                <span className="text-white/40">Type</span>
-                <span className="text-white">
-                  {payload.commuterType === "SENIOR_CITIZEN" ? "Senior" : payload.commuterType === "PWD" ? "PWD" : payload.commuterType === "STUDENT" ? "Student" : "Regular"}
+                  {claimResult.pickupName ?? "—"} → {claimResult.dropoffName ?? "—"}
                 </span>
               </div>
 
               {/* Payment Method */}
               <div className="flex justify-between text-sm">
                 <span className="text-white/40">Method</span>
-                <span className="text-[#62A0EA] font-medium">{payload.paymentMethod}</span>
+                <span className="text-[#62A0EA] font-medium">GCash</span>
               </div>
 
               {/* Transaction ID */}
               <div className="flex justify-between text-sm">
                 <span className="text-white/40">Ref ID</span>
-                <span className="text-white/50 text-xs font-mono">{payload.transactionId}</span>
-              </div>
-
-              {/* Unit */}
-              <div className="flex justify-between text-sm">
-                <span className="text-white/40">Unit</span>
-                <span className="text-white/70">{payload.unitNumber}</span>
+                <span className="text-white/50 text-xs font-mono">{claimResult.transactionId}</span>
               </div>
             </div>
 
             {/* GCash Notice */}
-            {payload.paymentMethod === "GCash" && (
-              <div className="bg-[#1A5FB4]/10 border border-[#1A5FB4]/20 rounded-xl p-3 mb-5">
-                <div className="flex items-center gap-2 mb-1">
-                  <svg className="w-4 h-4 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
-                  </svg>
-                  <span className="text-xs font-semibold text-[#62A0EA]">GCash Secure Payment</span>
-                </div>
-                <p className="text-[10px] text-white/40">Confirming will process your GCash payment. No wallet balance needed — pay directly.</p>
+            <div className="bg-[#1A5FB4]/10 border border-[#1A5FB4]/20 rounded-xl p-3 mb-5">
+              <div className="flex items-center gap-2 mb-1">
+                <svg className="w-4 h-4 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
+                </svg>
+                <span className="text-xs font-semibold text-[#62A0EA]">GCash Secure Payment</span>
               </div>
-            )}
-
-            {payload.paymentMethod === "Cash" && (
-              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 mb-5">
-                <div className="flex items-center gap-2 mb-1">
-                  <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
-                  </svg>
-                  <span className="text-xs font-semibold text-emerald-400">Cash Payment</span>
-                </div>
-                <p className="text-[10px] text-white/40">Please prepare the exact amount to hand to the conductor.</p>
-              </div>
-            )}
+              <p className="text-[10px] text-white/40">
+                {claimResult.checkoutUrl
+                  ? "You'll be redirected to GCash's secure page to authorize this payment."
+                  : "Dev mode — the conductor will simulate the payment. Check your payment history for the final status."}
+              </p>
+            </div>
 
             {/* Action Buttons */}
             <div className="flex gap-3">
@@ -351,13 +318,9 @@ export default function ScanModal({ onClose, commuterId, commuterName }: ScanMod
               </button>
               <button
                 onClick={handleConfirmPayment}
-                className={`flex-1 py-3 rounded-xl text-white text-sm font-bold transition-colors shadow-lg ${
-                  payload.paymentMethod === "GCash"
-                    ? "bg-[#1A5FB4] hover:bg-[#164A8F] shadow-[#1A5FB4]/30"
-                    : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/30"
-                }`}
+                className="flex-1 py-3 rounded-xl text-white text-sm font-bold transition-colors shadow-lg bg-[#1A5FB4] hover:bg-[#164A8F] shadow-[#1A5FB4]/30"
               >
-                Confirm Payment
+                {claimResult.checkoutUrl ? "Pay with GCash" : "Confirm"}
               </button>
             </div>
           </div>
@@ -366,29 +329,27 @@ export default function ScanModal({ onClose, commuterId, commuterName }: ScanMod
     );
   }
 
-  // ─── STEP: Processing ────────────────────────────────────────
+  // ─── STEP: Redirecting (real PayMongo flow) ─────────────────
 
-  if (step === "processing") {
+  if (step === "redirecting") {
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
         <div className="w-full max-w-xs bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl p-8 text-center">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-[#1A5FB4] border-t-transparent animate-spin" />
           <h2 className="text-lg font-bold text-white mb-2">
-            Processing Payment
+            Redirecting to GCash
           </h2>
           <p className="text-sm text-white/40">
-            {payload?.paymentMethod === "GCash"
-              ? "Confirming your GCash payment…"
-              : "Recording cash payment…"}
+            You&apos;re being redirected to GCash&apos;s secure page to authorize this payment…
           </p>
         </div>
       </div>
     );
   }
 
-  // ─── STEP: Success ───────────────────────────────────────────
+  // ─── STEP: Success (dev mode only — real flow redirects to PayMongo) ───
 
-  if (step === "success" && payload) {
+  if (step === "success" && claimResult) {
     return (
       <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
         <div className="w-full sm:max-w-sm bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-white/10 shadow-2xl max-h-[95vh] sm:max-h-none overflow-y-auto">
@@ -399,42 +360,26 @@ export default function ScanModal({ onClose, commuterId, commuterName }: ScanMod
               </svg>
             </div>
             <h2 className="text-lg font-bold text-white mb-1">
-              Payment Successful!
+              Payment Claimed
             </h2>
             <p className="text-sm text-white/40 mb-4">
-              {payload.paymentMethod === "GCash"
-                ? "Your fare has been paid via GCash"
-                : "Cash payment has been confirmed"}
+              Your payment is being processed. Check your payment history for the final status.
             </p>
 
             <div className="bg-white/5 rounded-xl p-4 text-left space-y-2 mb-5">
               <div className="flex justify-between text-sm">
-                <span className="text-white/40">Amount Paid</span>
-                <span className="text-white font-bold">{formatCurrency(payload.amount)}</span>
+                <span className="text-white/40">Amount</span>
+                <span className="text-white font-bold">{formatCurrency(claimResult.amount)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-white/40">Route</span>
                 <span className="text-white/70">
-                  {payload.from} → {payload.to}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-white/40">Barangays</span>
-                <span className="text-white/70">{payload.barangaysTraveled} traveled</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-white/40">Method</span>
-                <span className={payload.paymentMethod === "GCash" ? "text-[#62A0EA]" : "text-emerald-400"}>
-                  {payload.paymentMethod}
+                  {claimResult.pickupName ?? "—"} → {claimResult.dropoffName ?? "—"}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-white/40">Ref ID</span>
-                <span className="text-white/50 text-xs font-mono">{payload.transactionId}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-white/40">Unit</span>
-                <span className="text-white/70">{payload.unitNumber}</span>
+                <span className="text-white/50 text-xs font-mono">{claimResult.transactionId}</span>
               </div>
             </div>
 
@@ -466,7 +411,7 @@ export default function ScanModal({ onClose, commuterId, commuterName }: ScanMod
               Payment Failed
             </h2>
             <p className="text-sm text-white/40 mb-6">
-              Could not process the payment. The QR code may be invalid or expired. Please try scanning again.
+              {error ?? "Could not process the payment. The QR code may be invalid, expired, or already claimed by another commuter."}
             </p>
             <div className="flex gap-3">
               <button
@@ -476,7 +421,7 @@ export default function ScanModal({ onClose, commuterId, commuterName }: ScanMod
                 Close
               </button>
               <button
-                onClick={() => { setStep("scanning"); setPayload(null); }}
+                onClick={() => { setStep("scanning"); setClaimResult(null); setError(null); }}
                 className="flex-1 py-3 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] text-white text-sm font-bold transition-colors"
               >
                 Try Again

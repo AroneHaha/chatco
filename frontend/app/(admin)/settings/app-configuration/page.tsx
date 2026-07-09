@@ -1,28 +1,82 @@
 // app/(admin)/settings/app-configuration/page.tsx
 'use client';
 
-import { useState } from 'react';
-import { Save, AlertTriangle } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Save, AlertTriangle, AlertCircle } from 'lucide-react';
 import { defaultAppConfiguration, type AppConfiguration } from '@/app/(admin)/settings/data/settings-data';
+import { getSettings, updateSetting } from '@/lib/admin/services/setting.service';
 
 export default function AppConfigurationPage() {
   const [config, setConfig] = useState<AppConfiguration>({ ...defaultAppConfiguration });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSave = (e: React.FormEvent) => {
+  const fetchSettings = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await getSettings('app');
+      setConfig({
+        maintenanceMode: data.maintenance_mode === 'true',
+        requireIdUpload: data.require_id_upload !== undefined ? data.require_id_upload === 'true' : defaultAppConfiguration.requireIdUpload,
+        requirePhoneVerification: data.require_phone_verification === 'true',
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load app configuration');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchSettings(); }, [fetchSettings]);
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2000);
+    setIsSaving(true);
+    setError(null);
+    try {
+      await Promise.all([
+        updateSetting('maintenance_mode', String(config.maintenanceMode), 'app'),
+        updateSetting('require_id_upload', String(config.requireIdUpload), 'app'),
+        updateSetting('require_phone_verification', String(config.requirePhoneVerification), 'app'),
+      ]);
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save configuration');
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen pb-12 px-4 sm:px-6">
+        <div className="mx-auto w-full max-w-3xl space-y-6">
+          <div className="h-8 w-56 rounded bg-gray-700 animate-pulse mx-auto" />
+          <div className="h-32 bg-[#131C2E] border border-[#1E2D45] rounded-lg animate-pulse" />
+          <div className="h-48 bg-[#131C2E] border border-[#1E2D45] rounded-lg animate-pulse" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pb-12 px-4 sm:px-6">
       <div className="mx-auto w-full max-w-3xl space-y-6">
 
-        {/* Title */}
         <div className="text-center">
           <h1 className="text-2xl sm:text-3xl font-bold text-white">App Configuration</h1>
         </div>
+
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-center gap-2">
+            <AlertCircle size={16} className="text-red-400 flex-shrink-0" />
+            <p className="text-sm text-red-400">{error}</p>
+          </div>
+        )}
 
         <form onSubmit={handleSave} className="space-y-6">
 
@@ -103,14 +157,15 @@ export default function AppConfigurationPage() {
             </div>
           </div>
 
-          {/* Mobile-Friendly Save Button */}
+          {/* Save Button */}
           <div className="flex justify-center pt-2 pb-8">
             <button
               type="submit"
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 bg-[#62A0EA] text-white font-medium rounded-lg hover:bg-[#4A8BD4] transition-colors active:scale-95"
+              disabled={isSaving}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 bg-[#62A0EA] text-white font-medium rounded-lg hover:bg-[#4A8BD4] transition-colors active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save size={18} />
-              <span>{isSaved ? 'Configuration Saved!' : 'Save Configuration'}</span>
+              <span>{isSaving ? 'Saving...' : isSaved ? 'Configuration Saved!' : 'Save Configuration'}</span>
             </button>
           </div>
         </form>

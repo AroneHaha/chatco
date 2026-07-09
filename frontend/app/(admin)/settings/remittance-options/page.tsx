@@ -8,6 +8,7 @@ import { Plus } from 'lucide-react';
 
 export default function RemittanceOptionsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   return (
     <div className="min-h-screen pb-12 px-4 sm:px-6">
@@ -24,8 +25,12 @@ export default function RemittanceOptionsPage() {
           </button>
         </div>
 
-        <RemittanceOptionsTable />
-        <AddRemittanceOptionModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+        <RemittanceOptionsTable key={refreshKey} />
+        <AddRemittanceOptionModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSaved={() => setRefreshKey(k => k + 1)}
+        />
       </div>
     </div>
   );

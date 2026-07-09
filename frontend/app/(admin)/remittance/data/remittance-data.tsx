@@ -37,6 +37,15 @@ async function fetchRemittances(): Promise<RemittanceRecord[]> {
 /**
  * Map a Laravel Remittance model (snake_case) to the frontend's
  * RemittanceRecord type (camelCase).
+ *
+ * The backend AdminController::remittances() row shape is:
+ *   shift_id, date, conductor_name, driver_name, unit_number,
+ *   total_passengers, cash_total, gcash_total, total_collected,
+ *   remitted_amount, shortage, remittance_status, time_in, time_out
+ *
+ * NOTE: There is no `cash_declared` field on the backend — the conductor's
+ * declared cash for the shift is `cash_total`. We map cashDeclared → cashTotal
+ * so the table column reflects real data instead of always 0.
  */
 function mapLaravelRemittance(r: Record<string, unknown>): RemittanceRecord {
   const cashTotal = Number(r.cash_total ?? r.total_collected ?? 0);
@@ -55,8 +64,18 @@ function mapLaravelRemittance(r: Record<string, unknown>): RemittanceRecord {
       voucher: 0,
     },
     totalCashless: gcashTotal,
-    cashDeclared: Number(r.cash_declared ?? 0),
-    remittanceStatus: (r.remittance_status === "COMPLETE" || r.remittance_status === "Remitted")
+    // The backend doesn't track a separate "declared" amount — the conductor's
+    // recorded cash total IS the declared amount. Map it through so the
+    // RemittanceTable's "Cash Declared" column shows real data.
+    cashDeclared: cashTotal,
+    // The backend writes remittance_status as 'COMPLETE' (no shortage) or
+    // 'SHORTAGE' (cash declared < expected). The admin UI shows both as
+    // "Remitted" (the shift WAS ended + the remittance WAS submitted) —
+    // the shortage is surfaced separately via the shortage field if present.
+    // Pending shifts (active, no remittance yet) show as "Pending".
+    remittanceStatus: (r.remittance_status === "COMPLETE" ||
+                       r.remittance_status === "SHORTAGE" ||
+                       r.remittance_status === "Remitted")
       ? "Remitted"
       : "Pending",
     timeIn: String(r.time_in ?? ""),

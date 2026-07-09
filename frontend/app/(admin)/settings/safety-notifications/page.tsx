@@ -1,8 +1,8 @@
 // app/(admin)/settings/safety-notifications/page.tsx
 'use client';
 
-import { useState } from 'react';
-import { Save, PhoneCall, MessageSquare, Mail } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Save, PhoneCall, MessageSquare, Mail, AlertCircle } from 'lucide-react';
 import {
   defaultSafetyConfig,
   initialNotificationTemplates,
@@ -13,13 +13,44 @@ import {
   type NotificationTemplate,
   type SafetyConfig,
 } from '@/app/(admin)/settings/data/settings-data';
+import { getSettings, updateSetting } from '@/lib/admin/services/setting.service';
 
 export default function SafetyNotificationsPage() {
   const [safetyConfig, setSafetyConfig] = useState<SafetyConfig>({ ...defaultSafetyConfig });
   const [templates, setTemplates] = useState<NotificationTemplate[]>([...initialNotificationTemplates]);
   const [accountApprovedTemplate, setAccountApprovedTemplate] = useState(initialAccountApprovedTemplate);
   const [accountRejectedTemplate, setAccountRejectedTemplate] = useState(initialAccountRejectedTemplate);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchSettings = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await getSettings('safety');
+      setSafetyConfig({
+        emergencyHotline: data.emergency_hotline ?? defaultSafetyConfig.emergencyHotline,
+        adminSOSEmail: data.admin_sos_email ?? defaultSafetyConfig.adminSOSEmail,
+        senderGmail: data.sender_gmail ?? defaultSafetyConfig.senderGmail,
+      });
+      if (data.sos_admin_template) {
+        setTemplates(prev => prev.map(t => t.id === 'sos-admin' ? { ...t, content: data.sos_admin_template } : t));
+      }
+      if (data.ride_receipt_template) {
+        setTemplates(prev => prev.map(t => t.id === 'ride-receipt' ? { ...t, content: data.ride_receipt_template } : t));
+      }
+      if (data.account_approved_template) setAccountApprovedTemplate(data.account_approved_template);
+      if (data.account_rejected_template) setAccountRejectedTemplate(data.account_rejected_template);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load safety settings');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchSettings(); }, [fetchSettings]);
 
   const handleTemplateChange = (id: string, newContent: string) => {
     setTemplates(prev => prev.map((t: NotificationTemplate) => t.id === id ? { ...t, content: newContent } : t));
@@ -31,15 +62,45 @@ export default function SafetyNotificationsPage() {
     setIsSaved(false);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2000);
+    setIsSaving(true);
+    setError(null);
+    try {
+      const sosTemplate = templates.find(t => t.id === 'sos-admin');
+      const receiptTemplate = templates.find(t => t.id === 'ride-receipt');
+      await Promise.all([
+        updateSetting('emergency_hotline', safetyConfig.emergencyHotline, 'safety'),
+        updateSetting('admin_sos_email', safetyConfig.adminSOSEmail, 'safety'),
+        updateSetting('sender_gmail', safetyConfig.senderGmail, 'safety'),
+        updateSetting('sos_admin_template', sosTemplate?.content ?? '', 'safety'),
+        updateSetting('ride_receipt_template', receiptTemplate?.content ?? '', 'safety'),
+        updateSetting('account_approved_template', accountApprovedTemplate, 'safety'),
+        updateSetting('account_rejected_template', accountRejectedTemplate, 'safety'),
+      ]);
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save safety settings');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const inputClasses = "block w-full px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors";
   const textareaClasses = "w-full bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-xs sm:text-sm p-3 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] resize-none font-mono leading-relaxed";
   const labelClasses = "block text-xs font-medium text-slate-300 mb-1.5";
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen pb-12 px-4 sm:px-6">
+        <div className="mx-auto w-full max-w-4xl space-y-6">
+          <div className="h-8 w-56 rounded bg-gray-700 animate-pulse mx-auto" />
+          <div className="h-96 bg-[#131C2E] border border-[#1E2D45] rounded-lg animate-pulse" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pb-12 px-4 sm:px-6">
@@ -47,6 +108,13 @@ export default function SafetyNotificationsPage() {
         <div className="text-center">
           <h1 className="text-2xl sm:text-3xl font-bold text-white">Safety & Notifications</h1>
         </div>
+
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-center gap-2">
+            <AlertCircle size={16} className="text-red-400 flex-shrink-0" />
+            <p className="text-sm text-red-400">{error}</p>
+          </div>
+        )}
 
         <form onSubmit={handleSave}>
           <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5 sm:p-6 space-y-6">
@@ -138,8 +206,8 @@ export default function SafetyNotificationsPage() {
 
           </div>
           <div className="flex justify-center pt-6 pb-8">
-            <button type="submit" className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 bg-[#62A0EA] text-white font-medium rounded-lg hover:bg-[#4A8BD4] transition-colors active:scale-95">
-              <Save size={18} /><span>{isSaved ? 'Changes Saved!' : 'Save Settings'}</span>
+            <button type="submit" disabled={isSaving} className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 bg-[#62A0EA] text-white font-medium rounded-lg hover:bg-[#4A8BD4] transition-colors active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+              <Save size={18} /><span>{isSaving ? 'Saving...' : isSaved ? 'Changes Saved!' : 'Save Settings'}</span>
             </button>
           </div>
         </form>

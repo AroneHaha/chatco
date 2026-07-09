@@ -73,10 +73,15 @@ export interface VehiclesData {
 // ─── API fetch helper ──────────────────────────────────────────────────
 
 async function fetchVehiclesData(): Promise<VehiclesData> {
-  const [vehiclesRes, driversRes, conductorsRes] = await Promise.all([
+  const [vehiclesRes, driversRes, conductorsRes, shiftLogsRes, terminatedRes] = await Promise.all([
     fetch("/api/admin/vehicles", { headers: { Accept: "application/json" } }),
     fetch("/api/admin/drivers", { headers: { Accept: "application/json" } }),
     fetch("/api/admin/conductors", { headers: { Accept: "application/json" } }),
+    // Shift logs + terminated personnel are best-effort — if either endpoint
+    // is unavailable (e.g. older backend), the History tab just shows "no
+    // records" instead of failing the entire fleet page.
+    fetch("/api/admin/shift-logs", { headers: { Accept: "application/json" } }).catch(() => null),
+    fetch("/api/admin/terminated-personnel", { headers: { Accept: "application/json" } }).catch(() => null),
   ]);
 
   if (!vehiclesRes.ok) throw new Error("Failed to fetch vehicles");
@@ -87,15 +92,20 @@ async function fetchVehiclesData(): Promise<VehiclesData> {
   // Conductors endpoint may fail if the server is older — fall back to
   // extracting conductors from vehicle relationships.
   const conductorsJson = conductorsRes.ok ? await conductorsRes.json() : { data: [] };
+  const shiftLogsJson = shiftLogsRes?.ok ? await shiftLogsRes.json() : { data: [] };
+  const terminatedJson = terminatedRes?.ok ? await terminatedRes.json() : { data: [] };
 
-  // The admin /vehicles endpoint now returns a paginated response (Week 5
-  // refactor): { data: { data: [...vehicles], current_page, total, ... } }
+  // The admin /vehicles endpoint returns a paginated response:
+  //   { data: { data: [...vehicles], current_page, total, ... } }
   // The inner .data is the actual vehicle array. The outer .data is the
   // Laravel paginator object. We extract the inner array here.
-  // Drivers + conductors endpoints still return flat arrays.
+  // Drivers + conductors + shift-logs + terminated-personnel endpoints
+  // return flat arrays (non-paginated Collection → { data: [...] }).
   const apiVehicles = vehiclesJson.data?.data ?? vehiclesJson.data ?? [];
   const apiDrivers = driversJson.data ?? [];
   const apiConductors = conductorsJson.data ?? [];
+  const apiShiftLogs = Array.isArray(shiftLogsJson.data) ? shiftLogsJson.data : [];
+  const apiTerminated = Array.isArray(terminatedJson.data) ? terminatedJson.data : [];
 
   // Map Laravel Vehicles to frontend Vehicle type
   const vehicles: Vehicle[] = apiVehicles.map((v: Record<string, unknown>) => {
@@ -144,13 +154,103 @@ async function fetchVehiclesData(): Promise<VehiclesData> {
       : `https://placehold.co/150x150/0A1E33/F59E0B?text=${String(c.first_name ?? 'C')[0]}`,
   }));
 
+  // ── Map Laravel ShiftLogs to frontend ShiftLog entries ──
+  // Each backend shift log has BOTH a driver_name and conductor_name (a
+  // shift involves two people). We split each backend row into TWO frontend
+  // entries — one for the driver, one for the conductor — so the HistoryTable
+  // can filter by `log.personnelName === person.name` and find the right
+  // person's shifts.
+  //
+  // Backend ShiftLog fields: shift_id, conductor_id, driver_id, vehicle_id,
+  // route_id, conductor_name, driver_name, unit_number, plate_number,
+  // time_in, time_out, is_active, notes, status + relations (vehicle, driver,
+  // route). We use the denormalized *_name / unit_number / plate_number
+  // columns (they're stored on the row at shift-start time so the log is
+  // immutable even if the person is later renamed).
+  const formatShiftDate = (iso: string | null): string => {
+    if (!iso) return '—';
+    try {
+      return new Date(iso).toLocaleDateString('en-US', {
+        year: 'numeric', month: 'short', day: 'numeric',
+      });
+    } catch {
+      return '—';
+    }
+  };
+
+  const buildDetails = (log: Record<string, unknown>): string => {
+    const timeIn = log.time_in ? String(log.time_in).slice(11, 19) : '—';
+    const timeOut = log.time_out ? String(log.time_out).slice(11, 19) : '—';
+    const status = String(log.status ?? '—');
+    const notes = log.notes ? String(log.notes) : '';
+    let details = `Time in: ${timeIn} · Time out: ${timeOut} · Status: ${status}`;
+    if (notes) details += ` · Notes: ${notes}`;
+    return details;
+  };
+
+  const shiftHistoryLog: ShiftLog[] = [];
+  for (const log of apiShiftLogs as Record<string, unknown>[]) {
+    const shiftId = String(log.shift_id ?? '');
+    const vehicleLabel = String(log.unit_number ?? log.plate_number ?? '—');
+    const shiftDate = formatShiftDate((log.time_in as string | null) ?? null);
+    const details = buildDetails(log);
+
+    // Driver entry (skip if the shift has no driver_name)
+    const driverName = String(log.driver_name ?? '').trim();
+    if (driverName) {
+      shiftHistoryLog.push({
+        id: `${shiftId}:driver`,
+        personnelName: driverName,
+        role: 'Driver',
+        vehicle: vehicleLabel,
+        shiftDate,
+        details,
+      });
+    }
+
+    // Conductor entry (skip if the shift has no conductor_name)
+    const conductorName = String(log.conductor_name ?? '').trim();
+    if (conductorName) {
+      shiftHistoryLog.push({
+        id: `${shiftId}:conductor`,
+        personnelName: conductorName,
+        role: 'Conductor',
+        vehicle: vehicleLabel,
+        shiftDate,
+        details,
+      });
+    }
+  }
+
   return {
     personnel: [...driverPersonnel, ...conductorPersonnel],
     vehicles,
-    terminatedPersonnel: [], // No backend endpoint yet (Batch 7)
-    shiftHistoryLog: [],     // No backend endpoint yet
-    driverProfiles: {},      // No backend endpoint yet
-    driverRatings: {},       // No backend endpoint yet
+    // ── Terminated Personnel ──
+    // Mapped from the terminated_personnel table (populated by the
+    // destroyDriver/destroyConductor backend methods when an admin removes
+    // someone via the "Remove Personnel" flow). Each record is immutable —
+    // name/contact/last_vehicle are captured at termination time so the
+    // history is preserved even if the underlying driver/user row is purged.
+    terminatedPersonnel: (apiTerminated as Record<string, unknown>[]).map(t => ({
+      id: String(t.id ?? ''),
+      name: String(t.name ?? 'Unknown'),
+      role: String(t.role ?? '—'),
+      contact: String(t.contact ?? '—'),
+      // Backend stores TERMINATED/RESIGNED; the UI label matches the modal's
+      // termination_type values directly (the modal already uses these
+      // exact strings as option values).
+      status: (t.termination_type === 'RESIGNED' ? 'Resigned' : 'Terminated') as TerminatedPersonnel['status'],
+      reason: String(t.reason ?? '—'),
+      terminatedDate: String(t.terminated_date ?? ''),
+      lastVehicle: String(t.last_vehicle ?? '—'),
+    })),
+    shiftHistoryLog,
+    // driverProfiles + driverRatings: the PersonnelTable no longer uses
+    // these — the DriverDetailModal fetches its own data from
+    // /api/admin/drivers/{id} (which includes shift_logs). Kept in the
+    // interface for backwards compatibility; always empty.
+    driverProfiles: {},
+    driverRatings: {},
   };
 }
 

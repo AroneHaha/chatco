@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\StoreRouteRequest;
+use App\Http\Requests\Admin\UpdateRouteRequest;
 use App\Enums\UserRole;
 use App\Models\ConductorProfile;
 use App\Models\Driver;
 use App\Models\Remittance;
 use App\Models\Route as RouteModel;
 use App\Models\ShiftLog;
+use App\Models\TerminatedPersonnel;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Vehicle;
@@ -31,7 +34,13 @@ class AdminController extends Controller
 
     public function dashboard(): JsonResponse
     {
-        return $this->notImplementedResponse();
+        // Returns the same analytics summary as /admin/analytics (default
+        // 30-day window) — the frontend dashboard page fetches /analytics
+        // directly, but this endpoint exists for completeness and any future
+        // dashboard-specific aggregations.
+        $data = $this->adminService->analytics([]);
+
+        return $this->successResponse($data, 'Dashboard data retrieved');
     }
 
     /**
@@ -66,6 +75,18 @@ class AdminController extends Controller
         $fleet = $this->locationService->getMonitoringFleet();
 
         return $this->successResponse($fleet, 'Live fleet retrieved');
+    }
+
+    /**
+     * GET /api/v1/admin/monitoring/overspeed?threshold=60
+     * Returns vehicles currently exceeding the speed threshold.
+     */
+    public function overspeed(Request $request): JsonResponse
+    {
+        $threshold = (int) $request->integer('threshold', 60);
+        $vehicles = $this->locationService->getOverspeedingVehicles($threshold);
+
+        return $this->successResponse($vehicles, 'Overspeeding vehicles retrieved');
     }
 
     public function drivers(): JsonResponse
@@ -201,6 +222,203 @@ class AdminController extends Controller
         ];
 
         return $this->successResponse($data, 'Driver details retrieved');
+    }
+
+    /**
+     * DELETE /api/v1/admin/drivers/{id}
+     * Soft-deletes a driver AND records the termination in terminated_personnel.
+     *
+     * Request body (JSON):
+     *   - reason (required, string) — why the driver is being removed
+     *   - termination_type (required, 'TERMINATED' | 'RESIGNED')
+     *
+     * If the driver currently has an active_shift_id, we reject with 409 so
+     * the conductor's active shift is never orphaned — same pattern as
+     * vehicle deletion.
+     *
+     * We capture the driver's name, contact, and last assigned vehicle
+     * BEFORE soft-deleting, so the terminated_personnel record is immutable
+     * even if the underlying driver row is later purged.
+     */
+    public function destroyDriver(Request $request, string $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'reason' => 'required|string|max:1000',
+            'termination_type' => ['required', Rule::in(['TERMINATED', 'RESIGNED'])],
+        ]);
+
+        $driver = Driver::with('vehicle')->findOrFail($id);
+
+        if ($driver->active_shift_id) {
+            return response()->json([
+                'success' => false,
+                'data'    => null,
+                'message' => 'Conflict',
+                'errors'  => [
+                    'driver' => [
+                        'Cannot remove a driver who is currently on an active shift. ' .
+                        'End the shift (via conductor remittance) before removing this driver.',
+                    ],
+                ],
+                'meta'    => null,
+            ], 409);
+        }
+
+        $fullName = trim(($driver->first_name ?? '') . ' ' . ($driver->last_name ?? ''));
+        $lastVehicle = $driver->vehicle
+            ? ($driver->vehicle->unit_number ?: $driver->vehicle->plate_number)
+            : null;
+
+        // Record the termination BEFORE the soft-delete so we capture the
+        // driver's current state (name/contact/last vehicle). Wrap in a
+        // transaction so we never end up with a terminated_personnel row
+        // pointing at a driver that wasn't actually deleted (or vice versa).
+        DB::transaction(function () use ($driver, $fullName, $lastVehicle, $validated) {
+            TerminatedPersonnel::create([
+                'personnel_id'      => $driver->id,
+                'personnel_type'    => 'DRIVER',
+                'name'              => $fullName ?: 'Unknown Driver',
+                'role'              => 'Driver',
+                'contact'           => $driver->contact,
+                'reason'            => $validated['reason'],
+                'termination_type'  => $validated['termination_type'],
+                'terminated_date'   => now()->toDateString(),
+                'last_vehicle'      => $lastVehicle,
+            ]);
+            $driver->delete();
+        });
+
+        return $this->successResponse(null, 'Driver removed successfully');
+    }
+
+    /**
+     * DELETE /api/v1/admin/conductors/{id}
+     * Soft-deletes a conductor's user account AND records the termination.
+     *
+     * This is SEPARATE from the generic DELETE /admin/users/{id} because the
+     * Fleet Management "Remove Personnel" flow captures a reason +
+     * termination_type that needs to be persisted. The generic user delete
+     * (AdminUserController::destroy → AdminService::deleteUser) is for
+     * admin/commuter account management and doesn't track termination context.
+     *
+     * conductor_profile.id is the shared PK with users.id, so soft-deleting
+     * the user cascades to the conductor profile (same PK).
+     */
+    public function destroyConductor(Request $request, string $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'reason' => 'required|string|max:1000',
+            'termination_type' => ['required', Rule::in(['TERMINATED', 'RESIGNED'])],
+        ]);
+
+        $conductor = ConductorProfile::with('vehicle')->findOrFail($id);
+        $user = User::find($id);
+
+        if (! $user) {
+            return $this->errorResponse('Conductor user account not found.', 404);
+        }
+
+        // Prevent self-deletion (same guard as AdminService::deleteUser).
+        if ($request->user() && $request->user()->id === $user->id) {
+            return response()->json([
+                'success' => false,
+                'data'    => null,
+                'message' => 'Validation failed',
+                'errors'  => ['user' => ['You cannot remove your own account.']],
+                'meta'    => null,
+            ], 422);
+        }
+
+        // If the conductor is currently on an active shift, reject — the
+        // active_shift_id lives on the vehicle, so we check the conductor's
+        // assigned vehicle.
+        if ($conductor->vehicle && $conductor->vehicle->active_shift_id) {
+            return response()->json([
+                'success' => false,
+                'data'    => null,
+                'message' => 'Conflict',
+                'errors'  => [
+                    'conductor' => [
+                        'Cannot remove a conductor who is currently on an active shift. ' .
+                        'End the shift (via conductor remittance) before removing this conductor.',
+                    ],
+                ],
+                'meta'    => null,
+            ], 409);
+        }
+
+        $fullName = trim(($conductor->first_name ?? '') . ' ' . ($conductor->last_name ?? ''));
+        $lastVehicle = $conductor->vehicle
+            ? ($conductor->vehicle->unit_number ?: $conductor->vehicle->plate_number)
+            : null;
+
+        DB::transaction(function () use ($user, $conductor, $fullName, $lastVehicle, $validated) {
+            TerminatedPersonnel::create([
+                'personnel_id'      => $conductor->id,
+                'personnel_type'    => 'CONDUCTOR',
+                'name'              => $fullName ?: 'Unknown Conductor',
+                'role'              => 'Conductor',
+                'contact'           => null,
+                'reason'            => $validated['reason'],
+                'termination_type'  => $validated['termination_type'],
+                'terminated_date'   => now()->toDateString(),
+                'last_vehicle'      => $lastVehicle,
+            ]);
+            // Soft-deletes the user — cascades to conductor_profile via shared PK.
+            $user->delete();
+        });
+
+        return $this->successResponse(null, 'Conductor removed successfully');
+    }
+
+    /**
+     * GET /api/v1/admin/terminated-personnel
+     * Lists all terminated personnel records, newest first. Powers the
+     * "Separated Personnel" section of the Fleet Management Records & History tab.
+     */
+    public function terminatedPersonnel(): JsonResponse
+    {
+        $records = TerminatedPersonnel::query()
+            ->orderBy('terminated_date', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return $this->successResponse($records, 'Terminated personnel retrieved');
+    }
+
+    /**
+     * PUT/PATCH /api/v1/admin/conductors/{id}
+     * Updates a conductor's editable profile fields.
+     *
+     * Editable: first_name, middle_name, last_name, birthday, profile_picture_url.
+     * NOT editable here: generated_username, generated_password (regenerate-
+     * credentials is a separate flow — see G7 in the admin audit).
+     *
+     * Mirrors the updateDriver validation rules + transactional pattern.
+     */
+    public function updateConductor(Request $request, string $id): JsonResponse
+    {
+        $conductor = ConductorProfile::findOrFail($id);
+
+        $validated = $request->validate([
+            'first_name' => 'required|string|max:100',
+            'middle_name' => 'nullable|string|max:100',
+            'last_name' => 'required|string|max:100',
+            'birthday' => 'required|date|before:today',
+            'profile_picture_url' => 'nullable|string|max:500',
+        ]);
+
+        $conductor->update([
+            'first_name' => $validated['first_name'],
+            'middle_name' => $validated['middle_name'] ?? null,
+            'last_name' => $validated['last_name'],
+            'birthday' => $validated['birthday'],
+            'profile_picture_url' => $validated['profile_picture_url'] ?? $conductor->profile_picture_url,
+        ]);
+
+        $conductor->load(['vehicle.route', 'vehicle.driver']);
+
+        return $this->successResponse($conductor, 'Conductor updated successfully');
     }
 
     /**
@@ -352,20 +570,53 @@ class AdminController extends Controller
         ], 'Conductor account created successfully', 201);
     }
 
-    public function vehicles(): JsonResponse
-    {
-        // Vehicle CRUD moved to AdminVehicleController + AdminService (Week 5).
-        // This stub kept for backwards compat with any callers still hitting
-        // the old AdminController route — but the route now points to
-        // AdminVehicleController::index, so this method is effectively dead.
-        return $this->notImplementedResponse();
-    }
+    // Vehicle CRUD moved to AdminVehicleController — this method removed.
 
     public function routes(): JsonResponse
     {
         $routes = RouteModel::orderBy('name', 'asc')->get();
 
         return $this->successResponse($routes, 'Routes retrieved');
+    }
+
+    /**
+     * POST /api/v1/admin/routes
+     */
+    public function storeRoute(StoreRouteRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+
+        $route = RouteModel::create([
+            'name' => $validated['name'],
+            'status' => $validated['status'] ?? 'ACTIVE',
+            'waypoints' => $validated['waypoints'] ?? null,
+        ]);
+
+        return $this->successResponse($route, 'Route created successfully', 201);
+    }
+
+    /**
+     * PUT/PATCH /api/v1/admin/routes/{id}
+     */
+    public function updateRoute(UpdateRouteRequest $request, string $id): JsonResponse
+    {
+        $route = RouteModel::findOrFail($id);
+
+        $validated = $request->validated();
+        $route->update(array_filter($validated, fn ($v) => $v !== null));
+
+        return $this->successResponse($route, 'Route updated successfully');
+    }
+
+    /**
+     * DELETE /api/v1/admin/routes/{id}
+     */
+    public function destroyRoute(string $id): JsonResponse
+    {
+        $route = RouteModel::findOrFail($id);
+        $route->delete();
+
+        return $this->successResponse(null, 'Route deleted successfully');
     }
 
     public function transactions(Request $request): JsonResponse

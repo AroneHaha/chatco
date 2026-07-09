@@ -1,8 +1,8 @@
 // components/admin/vehicles/history-table.tsx
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, UserX, FileText } from "lucide-react";
+import { useState, useMemo } from "react";
+import { ChevronDown, UserX, FileText, Clock, ChevronLeft, ChevronRight, Info } from "lucide-react";
 import type { TerminatedPersonnel, ShiftLog } from "@/app/(admin)/vehicles/data/vehicles-data";
 
 interface HistoryTableProps {
@@ -11,15 +11,48 @@ interface HistoryTableProps {
   searchQuery: string;
 }
 
+const LOGS_PER_PAGE = 10;
+
 export function HistoryTable({ terminatedPersonnel, shiftHistoryLog, searchQuery }: HistoryTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [logPage, setLogPage] = useState(1);
 
-  // Filter personnel based on search
+  // Reset to page 1 whenever the search filter changes — uses the
+  // "adjust state during render" pattern (conditional setState during
+  // render) instead of useEffect. This is the React-recommended way to
+  // reset state on prop change (avoids the react-hooks/set-state-in-effect
+  // lint error and an extra render cycle).
+  // See: https://react.dev/reference/react/useState#storing-information-from-previous-renders
+  const [prevSearch, setPrevSearch] = useState(searchQuery);
+  if (searchQuery !== prevSearch) {
+    setPrevSearch(searchQuery);
+    setLogPage(1);
+  }
+
+  // ── Filter terminated personnel based on search ──
   const filteredPersonnel = terminatedPersonnel.filter((p) =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.lastVehicle.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // ── Filter shift logs based on search ──
+  // Matches on personnelName, role, vehicle — same fields the user sees.
+  const filteredLogs = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return shiftHistoryLog;
+    return shiftHistoryLog.filter((log) =>
+      log.personnelName.toLowerCase().includes(q) ||
+      log.role.toLowerCase().includes(q) ||
+      log.vehicle.toLowerCase().includes(q)
+    );
+  }, [shiftHistoryLog, searchQuery]);
+
+  const totalLogPages = Math.max(1, Math.ceil(filteredLogs.length / LOGS_PER_PAGE));
+  // Clamp the current page in case the filtered list shrank (e.g. user
+  // was on page 3, then searched and now there's only 1 page).
+  const safePage = Math.min(logPage, totalLogPages);
+  const currentLogs = filteredLogs.slice((safePage - 1) * LOGS_PER_PAGE, safePage * LOGS_PER_PAGE);
 
   const toggleExpand = (id: string) => {
     setExpandedId(expandedId === id ? null : id);
@@ -27,7 +60,11 @@ export function HistoryTable({ terminatedPersonnel, shiftHistoryLog, searchQuery
 
   return (
     <div className="space-y-6">
-      {/* Terminated Personnel List */}
+      {/* ───────────────────────────────────────────────────────────────
+          SECTION 1: Separated Personnel
+          (Empty until a /admin/terminated backend endpoint exists that
+          lists soft-deleted drivers/conductors with termination metadata.)
+          ─────────────────────────────────────────────────────────────── */}
       <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg overflow-hidden">
         <div className="p-4 border-b border-[#162033] flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -41,8 +78,15 @@ export function HistoryTable({ terminatedPersonnel, shiftHistoryLog, searchQuery
 
         <div className="divide-y divide-[#162033]">
           {filteredPersonnel.length === 0 ? (
-            <div className="p-8 text-center text-slate-500 text-sm">
-              No terminated personnel records found.
+            <div className="p-8 text-center text-slate-500 text-sm space-y-2">
+              <p>No terminated personnel records found{searchQuery ? ' for this search' : ''}.</p>
+              {!searchQuery && (
+                <p className="text-xs text-slate-600 flex items-center justify-center gap-1.5">
+                  <Info size={12} className="flex-shrink-0" />
+                  Use the trash icon on the Personnel tab to remove a driver or
+                  conductor — they&apos;ll appear here with their termination reason.
+                </p>
+              )}
             </div>
           ) : (
             filteredPersonnel.map((person) => {
@@ -103,7 +147,7 @@ export function HistoryTable({ terminatedPersonnel, shiftHistoryLog, searchQuery
                           <FileText size={14} className="text-slate-500" />
                           <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold">Past Shift History Logs</p>
                         </div>
-                        
+
                         {personnelLogs.length === 0 ? (
                           <p className="text-xs text-slate-600 italic pl-6">No detailed shift logs available for this user.</p>
                         ) : (
@@ -128,6 +172,97 @@ export function HistoryTable({ terminatedPersonnel, shiftHistoryLog, searchQuery
             })
           )}
         </div>
+      </div>
+
+      {/* ───────────────────────────────────────────────────────────────
+          SECTION 2: Recent Shift History
+          Pulled from /api/admin/shift-logs (every shift_log row in the DB,
+          newest first). Each backend row is split into two frontend entries
+          (one for the driver, one for the conductor) by vehicles-data.ts,
+          so this list shows ALL personnel shift activity in one timeline.
+          ─────────────────────────────────────────────────────────────── */}
+      <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg overflow-hidden">
+        <div className="p-4 border-b border-[#162033] flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Clock size={18} className="text-[#62A0EA]" />
+            <h3 className="text-sm font-semibold text-white">Recent Shift History</h3>
+          </div>
+          <span className="text-xs bg-[#62A0EA]/10 text-[#62A0EA] px-2 py-0.5 rounded-md font-bold">
+            {filteredLogs.length} {filteredLogs.length === 1 ? 'Entry' : 'Entries'}
+          </span>
+        </div>
+
+        {currentLogs.length === 0 ? (
+          <div className="p-8 text-center text-slate-500 text-sm space-y-2">
+            <p>No shift history records found{searchQuery ? ' for this search' : ''}.</p>
+            {!searchQuery && (
+              <p className="text-xs text-slate-600">
+                Shift logs appear here once conductors start their shifts via
+                the Unit Verification page.
+              </p>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="p-4 space-y-2">
+              {currentLogs.map((log) => (
+                <div
+                  key={log.id}
+                  className="bg-[#0E1628] border border-[#1E2D45] rounded-md p-3 hover:border-[#62A0EA]/40 transition-colors"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm font-medium text-white truncate">
+                        {log.personnelName}
+                      </span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wide flex-shrink-0 ${
+                        log.role === 'Driver'
+                          ? 'bg-[#62A0EA]/15 text-[#62A0EA]'
+                          : 'bg-amber-400/15 text-amber-400'
+                      }`}>
+                        {log.role}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-slate-500 flex-shrink-0">
+                      <span className="font-medium text-[#62A0EA]">{log.shiftDate}</span>
+                      <span className="bg-[#131C2E] px-2 py-0.5 rounded-md">Unit: {log.vehicle}</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">{log.details}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Pagination */}
+            {totalLogPages > 1 && (
+              <div className="flex items-center justify-between p-4 border-t border-[#162033]">
+                <p className="text-xs text-slate-500">
+                  Showing {(safePage - 1) * LOGS_PER_PAGE + 1}–
+                  {Math.min(safePage * LOGS_PER_PAGE, filteredLogs.length)} of {filteredLogs.length}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setLogPage((p) => Math.max(p - 1, 1))}
+                    disabled={safePage === 1}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-400 bg-[#0E1628] border border-[#1E2D45] rounded-md hover:bg-[#1A2540] hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft size={14} /> Prev
+                  </button>
+                  <span className="text-xs text-slate-500 px-2">
+                    Page {safePage} of {totalLogPages}
+                  </span>
+                  <button
+                    onClick={() => setLogPage((p) => Math.min(p + 1, totalLogPages))}
+                    disabled={safePage === totalLogPages}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-400 bg-[#0E1628] border border-[#1E2D45] rounded-md hover:bg-[#1A2540] hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    Next <ChevronRight size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

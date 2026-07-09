@@ -3,11 +3,14 @@
 
 import { useState } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
-import { Upload, X } from 'lucide-react';
+import { Upload, X, Loader2, AlertCircle } from 'lucide-react';
 
 interface AddRegistrationModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Called when the admin submits the form. Can be async — the modal stays
+   *  open (with a spinner on the submit button) until the Promise resolves.
+   *  If it rejects, the error message is shown inline inside the modal. */
   onSave: (data: {
     firstName: string;
     middleInitial: string;
@@ -20,7 +23,7 @@ interface AddRegistrationModalProps {
     commuterType: string;
     idImageFile: File | null;
     idImagePreview: string | null;
-  }) => void;
+  }) => Promise<void> | void;
 }
 
 export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistrationModalProps) {
@@ -28,7 +31,7 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
     firstName: '',
     middleInitial: '',
     lastName: '',
-    birthday: '', 
+    birthday: '',
     username: '',
     password: '',
     email: '',
@@ -37,16 +40,18 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
     idImageFile: null as File | null,
     idImagePreview: null as string | null,
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    
+
     if (name === 'middleInitial') {
       setFormData(prev => ({ ...prev, [name]: value.toUpperCase().slice(0, 1) }));
-    } 
+    }
     else if (name === 'username') {
       setFormData(prev => ({ ...prev, [name]: value.replace(/\s/g, '') }));
-    } 
+    }
     else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -64,48 +69,65 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
 
   const handleRemoveImage = () => setFormData(prev => ({ ...prev, idImageFile: null, idImagePreview: null }));
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
-    
-    setFormData({ 
-      firstName: '', 
-      middleInitial: '', 
-      lastName: '', 
-      birthday: '', 
-      username: '', 
-      password: '', 
-      email: '', 
-      phoneNumber: '', 
-      commuterType: 'Regular', 
-      idImageFile: null, 
-      idImagePreview: null 
-    });
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+    try {
+      await onSave(formData);
+      // onSave resolved — reset the form + close. The parent will refetch.
+      setFormData({
+        firstName: '',
+        middleInitial: '',
+        lastName: '',
+        birthday: '',
+        username: '',
+        password: '',
+        email: '',
+        phoneNumber: '',
+        commuterType: 'Regular',
+        idImageFile: null,
+        idImagePreview: null,
+      });
+    } catch (err) {
+      // Keep the modal open so the admin can read the error + retry/abort.
+      setSubmitError(err instanceof Error ? err.message : 'Failed to create registration.');
+      setIsSubmitting(false);
+    }
   };
 
-  const inputClasses = "mt-1 block w-full px-3 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors";
+  const inputClasses = "mt-1 block w-full px-3 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors disabled:opacity-60";
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
+    <Modal isOpen={isOpen} onClose={isSubmitting ? () => {} : onClose}>
       <div className="px-1 sm:px-0">
         <h2 className="text-lg sm:text-xl font-bold text-white mb-1">Onsite Commuter Registration</h2>
         <p className="text-xs text-slate-400 mb-5">This will create a pending verification request.</p>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
-          
+          {/* Inline error banner — shown when the POST /api/admin/registrations fails */}
+          {submitError && (
+            <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-md flex items-start gap-2">
+              <AlertCircle size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-red-400">{submitError}</p>
+            </div>
+          )}
+
           {/* Name Fields Row */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">First Name</label>
-              <input type="text" name="firstName" value={formData.firstName} onChange={handleChange} required className={inputClasses} />
+              <input type="text" name="firstName" value={formData.firstName} onChange={handleChange} required disabled={isSubmitting} className={inputClasses} />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">Middle Initial</label>
-              <input type="text" name="middleInitial" value={formData.middleInitial} onChange={handleChange} maxLength={1} className={`${inputClasses} uppercase`} />
+              <input type="text" name="middleInitial" value={formData.middleInitial} onChange={handleChange} maxLength={1} disabled={isSubmitting} className={`${inputClasses} uppercase`} />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">Last Name</label>
-              <input type="text" name="lastName" value={formData.lastName} onChange={handleChange} required className={inputClasses} />
+              <input type="text" name="lastName" value={formData.lastName} onChange={handleChange} required disabled={isSubmitting} className={inputClasses} />
             </div>
           </div>
 
@@ -113,11 +135,11 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">Birthday</label>
-              <input type="date" name="birthday" value={formData.birthday} onChange={handleChange} required className={`${inputClasses} [color-scheme:dark]`} />
+              <input type="date" name="birthday" value={formData.birthday} onChange={handleChange} required disabled={isSubmitting} className={`${inputClasses} [color-scheme:dark]`} />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">Commuter Type</label>
-              <select name="commuterType" value={formData.commuterType} onChange={handleChange} className={`${inputClasses} [color-scheme:dark]`}>
+              <select name="commuterType" value={formData.commuterType} onChange={handleChange} disabled={isSubmitting} className={`${inputClasses} [color-scheme:dark]`}>
                 <option value="Regular" className="bg-gray-800">Regular</option>
                 <option value="Student" className="bg-gray-800">Student</option>
                 <option value="Senior Citizen" className="bg-gray-800">Senior Citizen</option>
@@ -130,11 +152,11 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">Username</label>
-              <input type="text" name="username" value={formData.username} onChange={handleChange} required placeholder="e.g. juan.delacruz123" className={inputClasses} />
+              <input type="text" name="username" value={formData.username} onChange={handleChange} required disabled={isSubmitting} placeholder="e.g. juan.delacruz123" className={inputClasses} />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">Password</label>
-              <input type="password" name="password" value={formData.password} onChange={handleChange} required className={inputClasses} />
+              <input type="password" name="password" value={formData.password} onChange={handleChange} required disabled={isSubmitting} className={inputClasses} />
             </div>
           </div>
 
@@ -142,11 +164,11 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">Email</label>
-              <input type="email" name="email" value={formData.email} onChange={handleChange} required className={inputClasses} />
+              <input type="email" name="email" value={formData.email} onChange={handleChange} required disabled={isSubmitting} className={inputClasses} />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">Phone Number</label>
-              <input type="text" name="phoneNumber" value={formData.phoneNumber} onChange={handleChange} required placeholder="0917-123-4567" className={inputClasses} />
+              <input type="text" name="phoneNumber" value={formData.phoneNumber} onChange={handleChange} required disabled={isSubmitting} placeholder="0917-123-4567" className={inputClasses} />
             </div>
           </div>
 
@@ -156,8 +178,9 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
             <div className="mt-1 flex justify-center px-4 pt-4 pb-4 border-2 border-[#1E2D45] border-dashed rounded-md transition-colors hover:border-[#2A3A55]">
               {formData.idImagePreview ? (
                 <div className="relative w-full max-w-xs">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={formData.idImagePreview} alt="ID Preview" className="h-28 w-full object-cover rounded-md" />
-                  <button type="button" onClick={handleRemoveImage} className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full shadow-lg active:bg-red-600">
+                  <button type="button" onClick={handleRemoveImage} disabled={isSubmitting} className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full shadow-lg active:bg-red-600 disabled:opacity-50">
                     <X size={14} />
                   </button>
                 </div>
@@ -167,7 +190,7 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
                   <div className="flex text-sm text-slate-300">
                     <label htmlFor="reg-id-upload" className="relative cursor-pointer rounded-md font-medium text-sky-400 hover:text-sky-300">
                       <span>Upload file</span>
-                      <input id="reg-id-upload" type="file" className="sr-only" accept="image/*" onChange={handleImageChange} />
+                      <input id="reg-id-upload" type="file" className="sr-only" accept="image/*" onChange={handleImageChange} disabled={isSubmitting} />
                     </label>
                   </div>
                   <p className="text-xs text-slate-500">JPG, PNG up to 5MB</p>
@@ -178,11 +201,18 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
 
           {/* Buttons */}
           <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2 pb-1">
-            <button type="button" onClick={onClose} className="w-full sm:w-auto px-4 py-2.5 border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#1A2540] text-sm transition-colors">
+            <button type="button" onClick={onClose} disabled={isSubmitting} className="w-full sm:w-auto px-4 py-2.5 border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#1A2540] text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
               Cancel
             </button>
-            <button type="submit" className="w-full sm:w-auto px-4 py-2.5 bg-[#62A0EA] text-white rounded-md hover:bg-[#4A8BD4] text-sm font-medium transition-colors">
-              Submit Request
+            <button type="submit" disabled={isSubmitting} className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-[#62A0EA] text-white rounded-md hover:bg-[#4A8BD4] text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+              {isSubmitting ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Submitting…
+                </>
+              ) : (
+                'Submit Request'
+              )}
             </button>
           </div>
         </form>

@@ -27,8 +27,10 @@ const AdminCommuterMap = dynamic<{
 export default function MonitoringPage() {
   // Live fleet data (real API, 5s poll)
   const { fleet, isLoading, isRefreshing, error, lastFetchedAt, refetch } = useFleetPoll(5000);
-  // Real SOS alerts (polls /api/admin/sos every 5s) + mock overspeed/demand
-  const { data, acknowledgeSos, resolveSos } = useMonitoringData();
+  // Real SOS alerts (polls /api/admin/sos every 5s) + real overspeed feed.
+  // The hook exposes its own error/loading state — we surface it as a banner
+  // so SOS feed failures don't silently render as an empty active-alerts list.
+  const { data, error: sosError, refetch: refetchSos, acknowledgeSos, resolveSos } = useMonitoringData();
 
   const sosAlerts = data.sosAlerts;
   const sosHistory = data.sosHistory;
@@ -115,6 +117,27 @@ export default function MonitoringPage() {
 
   return (
     <>
+      {/* SOS feed error banner — shown when the SOS polling loop fails.
+          Fleet errors are already handled by the error state above; this
+          banner is specifically for the SOS hook, which previously failed
+          silently and rendered zero alerts with no indication. */}
+      {sosError && (
+        <div className="mb-4 bg-red-500/10 border border-red-500/30 rounded-md p-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <AlertTriangle size={16} className="text-red-400 flex-shrink-0" />
+            <p className="text-sm text-red-400 truncate">
+              SOS feed unavailable: {sosError}
+            </p>
+          </div>
+          <button
+            onClick={() => refetchSos()}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-md text-xs font-medium transition-colors flex-shrink-0"
+          >
+            <RefreshCw size={12} /> Retry SOS
+          </button>
+        </div>
+      )}
+
       {/* Header with live indicator */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-white">Live Monitoring</h1>

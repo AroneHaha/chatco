@@ -66,21 +66,9 @@ export interface MonitoringData {
   demandZones: DemandZone[];
 }
 
-/* ─── MOCK DATA (non-SOS — still mock until those endpoints land) ─── */
-
-export const MOCK_OVERSPEED_HISTORY: OverspeedLog[] = [
-  { id: "ov-001", unit: "VMY 9183", driver: "Mark Arone Dela Cruz", speed: 72, zone: "Malolos–Meycauayan", loggedAt: "Nov 15, 2023 - 09:12 AM", loggedDate: "2023-11-15" },
-  { id: "ov-002", unit: "TNB 8462", driver: "Nardong Putik", speed: 68, zone: "Meycauayan–Calumpit", loggedAt: "Nov 14, 2023 - 04:30 PM", loggedDate: "2023-11-14" },
-  { id: "ov-003", unit: "VMY 9183", driver: "Mark Arone Dela Cruz", speed: 65, zone: "Calumpit", loggedAt: "Nov 10, 2023 - 08:45 AM", loggedDate: "2023-11-10" },
-];
-
-export const MOCK_DEMAND_ZONES: DemandZone[] = [
-  { id: "zone-1", coords: [14.88645, 120.78596], radiusMeters: 400, commuterCount: 120, intensity: "HIGH" },
-  { id: "zone-2", coords: [14.84941, 120.82352], radiusMeters: 300, commuterCount: 85, intensity: "MEDIUM" },
-  { id: "zone-3", coords: [14.81816, 120.906], radiusMeters: 500, commuterCount: 150, intensity: "HIGH" },
-  { id: "zone-4", coords: [14.77813, 120.93709], radiusMeters: 250, commuterCount: 40, intensity: "LOW" },
-  { id: "zone-5", coords: [14.743, 120.95912], radiusMeters: 350, commuterCount: 95, intensity: "MEDIUM" },
-];
+/* ─── MOCK DATA removed — overspeed now fetched from real API ─── */
+/* Demand zones require commuter location tracking which doesn't exist yet —
+   returns empty array until that feature is built. */
 
 /* ─── HELPERS ─── */
 
@@ -202,6 +190,7 @@ const POLL_INTERVAL_MS = 5000;
 export function useMonitoringData() {
   const [sosAlerts, setSosAlerts] = useState<SosAlert[]>([]);
   const [sosHistory, setSosHistory] = useState<SosHistoryLog[]>([]);
+  const [overspeedHistory, setOverspeedHistory] = useState<OverspeedLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -243,14 +232,41 @@ export function useMonitoringData() {
     }
   }, []);
 
+  const fetchOverspeed = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/monitoring/overspeed?threshold=60", {
+        credentials: "include",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const raw = (data.data ?? []) as Array<{
+        id: string; unit: string; plate: string; speed: number;
+        driver: string | null; last_update: string | null;
+      }>;
+      const mapped: OverspeedLog[] = raw.map(v => ({
+        id: v.id,
+        unit: v.unit ?? v.plate ?? '—',
+        driver: v.driver ?? '—',
+        speed: v.speed,
+        zone: 'Live',
+        loggedAt: v.last_update ? formatRelativeTime(v.last_update) : '—',
+        loggedDate: v.last_update ? new Date(v.last_update).toISOString().split('T')[0] : '',
+      }));
+      setOverspeedHistory(mapped);
+    } catch {
+      // Overspeed is best-effort
+    }
+  }, []);
+
   // Initial fetch + polling.
   useEffect(() => {
-    void Promise.all([fetchActive(), fetchHistory()]);
+    void Promise.all([fetchActive(), fetchHistory(), fetchOverspeed()]);
     const id = setInterval(() => {
       void fetchActive();
+      void fetchOverspeed();
     }, POLL_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [fetchActive, fetchHistory]);
+  }, [fetchActive, fetchHistory, fetchOverspeed]);
 
   // ── Actions ──
 
@@ -319,8 +335,8 @@ export function useMonitoringData() {
   const data: MonitoringData = {
     sosAlerts,
     sosHistory,
-    overspeedHistory: MOCK_OVERSPEED_HISTORY,
-    demandZones: MOCK_DEMAND_ZONES,
+    overspeedHistory,
+    demandZones: [], // No commuter location tracking — empty until that feature exists
   };
 
   return {
@@ -330,6 +346,7 @@ export function useMonitoringData() {
     refetch: () => {
       void fetchActive();
       void fetchHistory();
+      void fetchOverspeed();
     },
     acknowledgeSos,
     resolveSos,

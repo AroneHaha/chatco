@@ -191,9 +191,76 @@ export default function UsersPage() {
   };
 
   // ─── Registration handlers (real API) ───
-  const handleSaveRegistration = () => {
+  // handleSaveRegistration is async — the modal stays open with a spinner
+  // until the POST resolves. On success: close + refetch + success banner.
+  // On error: throw so the modal shows the message inline (modal stays open).
+  const handleSaveRegistration = async (data: {
+    firstName: string;
+    middleInitial: string;
+    lastName: string;
+    birthday: string;
+    username: string;
+    password: string;
+    email: string;
+    phoneNumber: string;
+    commuterType: string;
+    idImageFile: File | null;
+    idImagePreview: string | null;
+  }): Promise<void> => {
+    if (!data.idImageFile) {
+      throw new Error('Please upload a valid ID image.');
+    }
+
+    // Map the modal's UI labels to the backend enum values.
+    // Modal: "Regular" / "Student" / "Senior Citizen" / "PWD"
+    // Backend: REGULAR / STUDENT / SENIOR / PWD
+    const appliedTypeMap: Record<string, string> = {
+      'Regular': 'REGULAR',
+      'Student': 'STUDENT',
+      'Senior Citizen': 'SENIOR',
+      'PWD': 'PWD',
+    };
+    const appliedType = appliedTypeMap[data.commuterType] ?? 'REGULAR';
+
+    // Build multipart form data — the proxy forwards it as multipart to
+    // Laravel so $request->file('id_image') works.
+    const formData = new FormData();
+    formData.append('first_name', data.firstName);
+    if (data.middleInitial) formData.append('middle_name', data.middleInitial);
+    formData.append('surname', data.lastName);
+    formData.append('birthdate', data.birthday);
+    formData.append('email', data.email);
+    formData.append('contact_number', data.phoneNumber);
+    formData.append('username', data.username);
+    formData.append('password', data.password);
+    formData.append('applied_type', appliedType);
+    formData.append('id_image', data.idImageFile);
+
+    const res = await fetch('/api/admin/registrations', {
+      method: 'POST',
+      body: formData, // fetch() sets the multipart Content-Type + boundary automatically
+      credentials: 'include',
+    });
+
+    const body = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      // 422 validation error → surface the first field error.
+      // 409 (email taken) → use the backend's message.
+      // Other → use the backend's message or a generic HTTP-status fallback.
+      if (res.status === 422 && body?.errors) {
+        const firstField = Object.keys(body.errors)[0];
+        const firstError = firstField ? body.errors[firstField]?.[0] : null;
+        throw new Error(firstError ?? body?.message ?? 'Validation failed.');
+      }
+      throw new Error(body?.message ?? `Failed to create registration (HTTP ${res.status}).`);
+    }
+
+    // Success — close the modal, refetch the pending list, show a banner.
     handleCloseRegisterModal();
     refetch();
+    setSuccessMessage(body?.message ?? 'Onsite registration created — awaiting verification.');
+    setTimeout(() => setSuccessMessage(null), 5000);
   };
 
   const handleApproveRequest = async () => {
@@ -228,6 +295,15 @@ export default function UsersPage() {
   // ─── Pagination controls ───
   const canPrev = (pagination?.currentPage ?? 1) > 1;
   const canNext = (pagination?.currentPage ?? 1) < (pagination?.lastPage ?? 1);
+
+  // Active tab label reflects the current role filter so the badge reads
+  // "Active Conductors" / "Active Drivers" / "Active Admins" / "Active Commuters"
+  // instead of always saying "Active Commuters" regardless of the filter.
+  const activeRoleLabel =
+    filters.role === 'CONDUCTOR' ? 'Conductors' :
+    filters.role === 'DRIVER' ? 'Drivers' :
+    filters.role === 'ADMIN' ? 'Admins' :
+    'Commuters';
 
   return (
     <>
@@ -282,7 +358,7 @@ export default function UsersPage() {
       {/* 3 Tabs */}
       <div className="flex space-x-1 mb-6 border-b border-[#1E2D45]">
         <button onClick={() => { setActiveTab('active'); setSelectedUser(null); }} className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-md transition-colors ${activeTab === 'active' ? 'text-white border-b-2 border-sky-400 bg-sky-400/10' : 'text-slate-400 hover:text-white hover:bg-[#1A2540]'}`}>
-          <UserCheck size={20} /><span>Active Commuters ({pagination?.total ?? activeUsers.length})</span>
+          <UserCheck size={20} /><span>Active {activeRoleLabel} ({pagination?.total ?? activeUsers.length})</span>
         </button>
         <button onClick={() => setActiveTab('pending')} className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-md transition-colors ${activeTab === 'pending' ? 'text-white border-b-2 border-amber-400 bg-amber-400/10' : 'text-slate-400 hover:text-white hover:bg-[#1A2540]'}`}>
           <Users size={20} /><span>Pending Verification ({pendingRequests.length})</span>

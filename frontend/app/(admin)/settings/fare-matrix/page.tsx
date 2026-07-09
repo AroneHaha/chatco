@@ -1,13 +1,41 @@
 // app/(admin)/settings/fare-matrix/page.tsx
 'use client';
 
-import { useState, useMemo } from 'react';
-import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Save, X, MapPin, Search, Route } from 'lucide-react';
-import { initialFarePoints, type FarePoint } from '@/lib/shared/fare/fare-matrix-data';
-import { calculateFare } from '@/lib/shared/fare/fare-calculator';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Save, X, MapPin, Search, Route, RefreshCw } from 'lucide-react';
+import * as farePointService from '@/lib/admin/services/fare-point.service';
+import type { FarePoint as ApiFarePoint } from '@/lib/admin/services/fare-point.service';
+
+// Adapter: convert API fare point to the format the original UI expects
+interface FarePoint {
+  id: string;
+  pointNumber: number;
+  name: string;
+  regularFare: number;
+  discountedFare: number;
+  subStops?: string[];
+  landmarks?: string;
+}
+
+function mapApiToLocal(api: ApiFarePoint): FarePoint {
+  return {
+    id: api.id,
+    pointNumber: api.point_number,
+    name: api.name,
+    regularFare: Number(api.regular_fare),
+    discountedFare: Number(api.discounted_fare),
+    subStops: api.sub_stops ? api.sub_stops.split(',').map(s => s.trim()).filter(Boolean) : undefined,
+    landmarks: api.landmarks ?? undefined,
+  };
+}
 
 export default function FareMatrixPage() {
-  const [farePoints, setFarePoints] = useState<FarePoint[]>(initialFarePoints.map(p => ({ ...p, subStops: p.subStops ? [...p.subStops] : undefined })));
+  const [farePoints, setFarePoints] = useState<FarePoint[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
   const [expandedPoint, setExpandedPoint] = useState<number | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingPoint, setEditingPoint] = useState<number | null>(null);
@@ -31,6 +59,24 @@ export default function FareMatrixPage() {
 
   const [isSaved, setIsSaved] = useState(false);
 
+  // Fetch fare points from API
+  const fetchFarePoints = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await farePointService.list();
+      setFarePoints(data.map(mapApiToLocal));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load fare points');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFarePoints();
+  }, [fetchFarePoints]);
+
   // Filtered points by search
   const filteredPoints = useMemo(() => {
     if (!searchQuery.trim()) return farePoints;
@@ -42,34 +88,64 @@ export default function FareMatrixPage() {
     );
   }, [farePoints, searchQuery]);
 
-  // Fare preview calculation
+  // Fare preview calculation (simple diff — original used calculateFare which
+  // depended on the hardcoded initialFarePoints; we compute inline now)
   const farePreview = useMemo(() => {
     if (!previewFrom || !previewTo || previewFrom === previewTo) return null;
-    return calculateFare(previewFrom, previewTo, 'REGULAR');
-  }, [previewFrom, previewTo]);
+    const from = farePoints.find(p => p.pointNumber === previewFrom);
+    const to = farePoints.find(p => p.pointNumber === previewTo);
+    if (!from || !to) return null;
+    const regularDiff = Math.abs(from.regularFare - to.regularFare);
+    const discountedDiff = Math.abs(from.discountedFare - to.discountedFare);
+    const barangaysTraveled = Math.abs(from.pointNumber - to.pointNumber);
+    return {
+      fareResult: {
+        fromPoint: from,
+        toPoint: to,
+        barangaysTraveled,
+        regularFare: regularDiff,
+        discountedFare: discountedDiff,
+        baseFare: Math.min(from.regularFare, to.regularFare),
+        succeedingFare: 2,
+        succeedingCount: Math.max(0, barangaysTraveled - 4),
+      }
+    };
+  }, [previewFrom, previewTo, farePoints]);
 
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2000);
+  const showSuccess = (msg: string) => {
+    setSuccessMsg(msg);
+    setTimeout(() => setSuccessMsg(null), 4000);
   };
 
-  const handleAddPoint = () => {
+  const handleAddPoint = async () => {
     if (!newName.trim()) return;
-    const newPoint: FarePoint = {
-      pointNumber: farePoints.length + 1,
-      name: newName.trim(),
-      regularFare: parseFloat(newRegular) || 18,
-      discountedFare: parseFloat(newDiscounted) || 14.4,
-      subStops: newSubStops.trim() ? newSubStops.split(',').map(s => s.trim()).filter(Boolean) : undefined,
-    };
-    setFarePoints(prev => [...prev, newPoint]);
-    setNewName('');
-    setNewRegular('18');
-    setNewDiscounted('14.4');
-    setNewSubStops('');
-    setShowAddForm(false);
-    setIsSaved(false);
+    setIsSaving(true);
+    setError(null);
+    try {
+      // Get the first route_id (single corridor for now)
+      const routesRes = await fetch('/api/admin/routes', { headers: { Accept: 'application/json' } });
+      const routesJson = await routesRes.json();
+      const routeId = routesJson.data?.[0]?.id;
+      if (!routeId) throw new Error('No route found. Create a route first.');
+
+      await farePointService.create({
+        route_id: routeId,
+        point_number: farePoints.length + 1,
+        code: `P${String(farePoints.length + 1).padStart(2, '0')}`,
+        name: newName.trim(),
+        regular_fare: parseFloat(newRegular) || 18,
+        discounted_fare: parseFloat(newDiscounted) || 14.4,
+        sub_stops: newSubStops.trim() || undefined,
+      });
+      showSuccess(`Point "${newName}" added successfully.`);
+      setNewName(''); setNewRegular('18'); setNewDiscounted('14.4'); setNewSubStops('');
+      setShowAddForm(false);
+      await fetchFarePoints();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add fare point');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleStartEdit = (pointNumber: number) => {
@@ -82,36 +158,62 @@ export default function FareMatrixPage() {
     setEditingPoint(pointNumber);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editingPoint || !editName.trim()) return;
-    setFarePoints(prev => prev.map(p =>
-      p.pointNumber === editingPoint
-        ? {
-            ...p,
-            name: editName.trim(),
-            regularFare: parseFloat(editRegular) || 18,
-            discountedFare: parseFloat(editDiscounted) || 14.4,
-            subStops: editSubStops.trim() ? editSubStops.split(',').map(s => s.trim()).filter(Boolean) : undefined,
-          }
-        : p
-    ));
-    setEditingPoint(null);
-    setIsSaved(false);
+    const point = farePoints.find(p => p.pointNumber === editingPoint);
+    if (!point) return;
+    setIsSaving(true);
+    setError(null);
+    try {
+      await farePointService.update(point.id, {
+        name: editName.trim(),
+        regular_fare: parseFloat(editRegular) || 18,
+        discounted_fare: parseFloat(editDiscounted) || 14.4,
+        sub_stops: editSubStops.trim() || null,
+      });
+      showSuccess(`Point "${editName}" updated successfully.`);
+      setEditingPoint(null);
+      await fetchFarePoints();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update fare point');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleDelete = (pointNumber: number) => {
+  const handleDelete = async (pointNumber: number) => {
     if (!confirm(`Delete point #${pointNumber}? This action cannot be undone.`)) return;
-    setFarePoints(prev => {
-      const filtered = prev.filter(p => p.pointNumber !== pointNumber);
-      return filtered.map((p, i) => ({ ...p, pointNumber: i + 1 }));
-    });
-    if (expandedPoint === pointNumber) setExpandedPoint(null);
-    if (previewFrom === pointNumber) setPreviewFrom(null);
-    if (previewTo === pointNumber) setPreviewTo(null);
-    setIsSaved(false);
+    const point = farePoints.find(p => p.pointNumber === pointNumber);
+    if (!point) return;
+    setIsSaving(true);
+    setError(null);
+    try {
+      await farePointService.remove(point.id);
+      showSuccess(`Point #${pointNumber} deleted.`);
+      if (expandedPoint === pointNumber) setExpandedPoint(null);
+      if (previewFrom === pointNumber) setPreviewFrom(null);
+      if (previewTo === pointNumber) setPreviewTo(null);
+      await fetchFarePoints();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete fare point');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const inputClasses = "block w-full px-3 py-2.5 bg-[#050F1A] border border-white/10 rounded-xl text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#62A0EA] focus:ring-1 focus:ring-[#62A0EA]/30 transition-colors";
+
+  // ── Loading State ──
+  if (isLoading) {
+    return (
+      <div className="min-h-screen pb-12 px-4 sm:px-6">
+        <div className="mx-auto w-full max-w-5xl space-y-6">
+          <div className="h-8 w-64 rounded bg-gray-700 animate-pulse" />
+          <div className="space-y-3">{[...Array(6)].map((_, i) => <div key={i} className="h-16 bg-[#071A2E] border border-white/[0.06] rounded-2xl animate-pulse" />)}</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pb-12 px-4 sm:px-6">
@@ -123,15 +225,36 @@ export default function FareMatrixPage() {
             <h1 className="text-2xl sm:text-3xl font-bold text-white">Fare Matrix Management</h1>
             <p className="text-sm text-white/40 mt-1">{farePoints.length} point areas along the Calumpit–Meycauayan route</p>
           </div>
-          <button
-            type="button"
-            onClick={() => setShowAddForm(!showAddForm)}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-[#1A5FB4] text-white font-bold rounded-xl hover:bg-[#165a9f] transition-colors active:scale-95 shadow-lg shadow-[#1A5FB4]/30"
-          >
-            {showAddForm ? <X size={18} /> : <Plus size={18} />}
-            <span>{showAddForm ? 'Cancel' : 'Add Point Area'}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={fetchFarePoints} title="Refresh" className="p-2.5 text-white/40 hover:text-white bg-[#071A2E] border border-white/[0.06] rounded-xl transition-colors">
+              <RefreshCw size={18} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAddForm(!showAddForm)}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-[#1A5FB4] text-white font-bold rounded-xl hover:bg-[#165a9f] transition-colors active:scale-95 shadow-lg shadow-[#1A5FB4]/30"
+            >
+              {showAddForm ? <X size={18} /> : <Plus size={18} />}
+              <span>{showAddForm ? 'Cancel' : 'Add Point Area'}</span>
+            </button>
+          </div>
         </div>
+
+        {/* Error Banner */}
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-center justify-between">
+            <p className="text-sm text-red-400">{error}</p>
+            <button onClick={() => setError(null)} className="text-red-400 hover:text-red-300"><X size={16} /></button>
+          </div>
+        )}
+
+        {/* Success Banner */}
+        {successMsg && (
+          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 flex items-center justify-between">
+            <p className="text-sm text-emerald-400">{successMsg}</p>
+            <button onClick={() => setSuccessMsg(null)} className="text-emerald-400 hover:text-emerald-300"><X size={16} /></button>
+          </div>
+        )}
 
         {/* Fare Info Banner */}
         <div className="bg-[#071A2E] border border-white/[0.06] rounded-2xl p-5">
@@ -222,7 +345,7 @@ export default function FareMatrixPage() {
           )}
         </div>
 
-        <form onSubmit={handleSave} className="space-y-6">
+        <form onSubmit={(e) => { e.preventDefault(); }} className="space-y-6">
 
           {/* Add Point Form */}
           {showAddForm && (
@@ -246,7 +369,9 @@ export default function FareMatrixPage() {
                   <input type="number" step="0.25" value={newDiscounted} onChange={(e) => setNewDiscounted(e.target.value)} className={inputClasses} />
                 </div>
               </div>
-              <button type="button" onClick={handleAddPoint} className="px-6 py-2.5 bg-[#1A5FB4] text-white text-sm font-bold rounded-xl hover:bg-[#165a9f] transition-colors active:scale-95">Add Point</button>
+              <button type="button" onClick={handleAddPoint} disabled={isSaving} className="px-6 py-2.5 bg-[#1A5FB4] text-white text-sm font-bold rounded-xl hover:bg-[#165a9f] transition-colors active:scale-95 disabled:opacity-50">
+                {isSaving ? 'Adding...' : 'Add Point'}
+              </button>
             </div>
           )}
 
@@ -273,7 +398,9 @@ export default function FareMatrixPage() {
                 </div>
               </div>
               <div className="flex gap-3">
-                <button type="button" onClick={handleSaveEdit} className="px-6 py-2.5 bg-[#1A5FB4] text-white text-sm font-bold rounded-xl hover:bg-[#165a9f] transition-colors active:scale-95">Save Changes</button>
+                <button type="button" onClick={handleSaveEdit} disabled={isSaving} className="px-6 py-2.5 bg-[#1A5FB4] text-white text-sm font-bold rounded-xl hover:bg-[#165a9f] transition-colors active:scale-95 disabled:opacity-50">
+                  {isSaving ? 'Saving...' : 'Save Changes'}
+                </button>
                 <button type="button" onClick={() => setEditingPoint(null)} className="px-6 py-2.5 bg-white/10 text-white text-sm font-bold rounded-xl hover:bg-white/20 transition-colors active:scale-95">Cancel</button>
               </div>
             </div>
@@ -307,7 +434,11 @@ export default function FareMatrixPage() {
           {/* Point Areas List */}
           <div className="bg-[#071A2E] border border-white/[0.06] rounded-2xl overflow-hidden">
             <div className="divide-y divide-white/5 max-h-[60vh] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {filteredPoints.map((point) => {
+              {filteredPoints.length === 0 ? (
+                <div className="py-12 text-center text-white/20 text-sm">
+                  No fare points found. Click "Add Point Area" to create one.
+                </div>
+              ) : filteredPoints.map((point) => {
                 const isExpanded = expandedPoint === point.pointNumber;
                 const isBaseZone = point.regularFare <= 18;
 
@@ -376,17 +507,6 @@ export default function FareMatrixPage() {
                 );
               })}
             </div>
-          </div>
-
-          {/* Save Button */}
-          <div className="flex justify-center pt-2 pb-8">
-            <button
-              type="submit"
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 bg-[#1A5FB4] text-white font-bold rounded-xl hover:bg-[#165a9f] transition-colors active:scale-95 shadow-lg shadow-[#1A5FB4]/30"
-            >
-              <Save size={18} />
-              <span>{isSaved ? 'Changes Saved!' : 'Save Fare Matrix'}</span>
-            </button>
           </div>
         </form>
       </div>
