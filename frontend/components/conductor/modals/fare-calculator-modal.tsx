@@ -17,6 +17,7 @@ import {
 import { createTransaction } from "@/lib/conductor/services/transactions.service";
 import {
   initiateGcash,
+  fetchPendingGcash,
   fetchStatus,
   simulate as simulatePayment,
   cancelPayment,
@@ -62,13 +63,17 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   // transaction + a qr_token + a PayMongo checkout URL. The qr_token is
   // rendered as a QR for the commuter to scan. We then poll the payment
   // status until it reaches a terminal state (PAID/FAILED/CANCELLED/EXPIRED)
-  // or the 5-minute TTL expires.
+  // or the QR's expires_at (3-minute claim TTL) passes.
   const [gcashInitiation, setGcashInitiation] = useState<GcashInitiation | null>(null);
   const [gcashStatus, setGcashStatus] = useState<GcashPaymentStatus | null>(null);
   const [gcashError, setGcashError] = useState<string | null>(null);
   const [isInitiatingGcash, setIsInitiatingGcash] = useState(false);
+  /** Seconds until the displayed QR expires (drives the countdown badge). */
+  const [qrSecondsLeft, setQrSecondsLeft] = useState<number | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** One pending-resume check per modal open. */
+  const checkedPendingRef = useRef(false);
 
   // GCash scan result state — kept for backwards compat with the existing
   // scan_result step UI. The commuter type is now detected by the backend
@@ -214,11 +219,13 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   // ─── Poll GCash payment status until terminal ───
   // Polls GET /api/payments/{id}/status every 3s. Stops when the status
   // reaches a terminal state (paid/failed/cancelled/expired/refunded) or
-  // after 5 minutes (the backend's GCash claim TTL). The backend also
-  // broadcasts a PaymentStatusUpdated event on the payments.{transactionId}
-  // channel — a Pusher listener could replace this polling, but polling
-  // is the reliable fallback that works without Pusher configured.
-  const pollGcashStatus = useCallback((transactionId: string) => {
+  // the QR's expires_at passes (3-minute claim TTL — the status endpoint
+  // lazily flips stale PENDING rows to EXPIRED, so polling normally reports
+  // the expiry itself; the local timeout is the offline fallback). The
+  // backend also broadcasts a PaymentStatusUpdated event on the
+  // payments.{transactionId} channel — a Pusher listener could replace this
+  // polling, but polling is the reliable fallback without Pusher configured.
+  const pollGcashStatus = useCallback((transactionId: string, expiresAt?: string) => {
     stopPolling();
 
     const TERMINAL_STATUSES: GcashPaymentStatus[] = ["paid", "failed", "cancelled", "expired", "refunded"];
@@ -233,6 +240,9 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
 
           if (status === "paid") {
             setStep("success");
+          } else if (status === "expired") {
+            setGcashError("This QR code has expired — start a new GCash payment.");
+            setStep("failed");
           } else {
             setGcashError(`Payment ${status}.`);
             setStep("failed");
@@ -240,17 +250,22 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
         }
       } catch {
         // Network error — keep polling, the next tick may recover.
-        // The 5-minute timeout below will eventually bail out.
+        // The expiry timeout below will eventually bail out.
       }
     }, 3000);
 
-    // Hard timeout: 5 minutes (matches the backend's gcash_claim_ttl_minutes).
+    // Local fallback timeout derived from the QR's expires_at (+10s grace so
+    // the server-side lazy expiry via polling normally wins). If expires_at
+    // is unavailable, fall back to the 3-minute TTL.
+    const msUntilExpiry = expiresAt
+      ? new Date(expiresAt).getTime() - Date.now()
+      : 3 * 60 * 1000;
     pollTimeoutRef.current = setTimeout(() => {
       stopPolling();
-      setGcashError("Payment timed out — the commuter did not complete the GCash authorization in time.");
+      setGcashError("This QR code has expired — start a new GCash payment.");
       setGcashStatus("expired");
       setStep("failed");
-    }, 5 * 60 * 1000);
+    }, Math.max(5_000, msUntilExpiry + 10_000));
   }, [stopPolling]);
 
   // ─── Initiate GCash payment (real API) ───
@@ -290,7 +305,9 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
       // Start polling for the payment status. The commuter will scan the QR,
       // claim the transaction, redirect to PayMongo, authorize, and the
       // webhook will flip the status to PAID — which we detect via polling.
-      pollGcashStatus(initiation.transactionId);
+      // Note: if a fresh PENDING payment already exists for this shift, the
+      // backend returns THAT one (same QR) instead of minting a duplicate.
+      pollGcashStatus(initiation.transactionId, initiation.expiresAt);
     } catch (err) {
       setGcashError(err instanceof Error ? err.message : "Failed to start GCash payment. Please try again.");
       setStep("failed");
@@ -435,6 +452,52 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
       stopPolling();
     };
   }, [stopPolling]);
+
+  // ─── Resume an interrupted GCash payment when the modal opens ───
+  // If the conductor left the payment screen (navigation, refresh) while a
+  // GCash transaction was still PENDING, re-display the SAME QR + details
+  // instead of letting them mint a duplicate. The backend lazily expires
+  // stale rows, so a resumable result is always still claimable.
+  useEffect(() => {
+    if (!isOpen) {
+      checkedPendingRef.current = false;
+      return;
+    }
+    if (checkedPendingRef.current) return;
+    checkedPendingRef.current = true;
+
+    void (async () => {
+      try {
+        const pending = await fetchPendingGcash();
+        if (!pending) return;
+
+        setSelectedMethod("GCash");
+        setGcashInitiation(pending);
+        setGcashStatus(null);
+        setGcashError(null);
+        setStep("qr_code");
+        pollGcashStatus(pending.transactionId, pending.expiresAt);
+      } catch {
+        // Couldn't check (offline, etc.) — proceed with the normal flow;
+        // initiate() still reuses the pending transaction server-side.
+      }
+    })();
+  }, [isOpen, pollGcashStatus]);
+
+  // ─── Countdown until the displayed QR expires ───
+  useEffect(() => {
+    if (step !== "qr_code" || !gcashInitiation) {
+      setQrSecondsLeft(null);
+      return;
+    }
+    const expiryMs = new Date(gcashInitiation.expiresAt).getTime();
+    const tick = () => {
+      setQrSecondsLeft(Math.max(0, Math.floor((expiryMs - Date.now()) / 1000)));
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [step, gcashInitiation]);
 
   // ─── Auto-expand landmark when switching selectingField ────────
   // When the user clicks the pickup/dropoff card to re-select,
@@ -1086,12 +1149,21 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   // transaction and returns the PayMongo checkout_url. The commuter then
   // redirects to PayMongo to authorize. The webhook flips status to PAID,
   // which we detect via the polling loop started in handleInitiateGcash.
-  if (step === "qr_code" && gcashInitiation && pickupPoint && dropoffPoint) {
+  // NOTE: pickupPoint/dropoffPoint are NOT required here — a resumed payment
+  // (after navigation/refresh) has no location-picker state, so the route is
+  // read from the transaction row (gcashInitiation.from/to) as a fallback.
+  if (step === "qr_code" && gcashInitiation) {
     // The QR encodes JUST the qr_token (a 32-char opaque string). The
     // commuter's app extracts it and POSTs it to /commuter/payments/claim.
     // We do NOT encode JSON or transaction details in the QR — the backend
     // is the source of truth and the qr_token is the lookup key.
     const qrData = gcashInitiation.qrToken;
+    const routeFrom = pickupPoint?.name ?? gcashInitiation.from ?? null;
+    const routeTo = dropoffPoint?.name ?? gcashInitiation.to ?? null;
+    const countdownLabel =
+      qrSecondsLeft !== null
+        ? `${Math.floor(qrSecondsLeft / 60)}:${String(qrSecondsLeft % 60).padStart(2, "0")}`
+        : null;
 
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
@@ -1118,9 +1190,11 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
             />
           </div>
           <div className="space-y-2">
-            <p className="text-xs text-white/40">
-              {pickupPoint.name} → {dropoffPoint.name}
-            </p>
+            {routeFrom && routeTo && (
+              <p className="text-xs text-white/40">
+                {routeFrom} → {routeTo}
+              </p>
+            )}
             <p className="text-xs text-white/50">
               Amount: <span className="text-white font-semibold">{formatCurrency(gcashInitiation.amount)}</span>
             </p>
@@ -1133,6 +1207,11 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                  "Waiting for commuter scan…"}
               </p>
             </div>
+            {countdownLabel && (
+              <p className={`text-[11px] font-semibold ${qrSecondsLeft !== null && qrSecondsLeft <= 30 ? "text-red-400" : "text-white/40"}`}>
+                QR expires in <span className="tabular-nums">{countdownLabel}</span>
+              </p>
+            )}
           </div>
 
           {/* DEV ONLY: Simulate payment button — only shows when the backend

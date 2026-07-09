@@ -161,6 +161,15 @@ class TransactionService
     {
         $shift = $this->resolveConductorActiveShift($conductor);
 
+        // One pending GCash payment per shift: if a still-fresh PENDING
+        // transaction exists (e.g. the conductor navigated away mid-payment
+        // and came back), return it instead of minting a duplicate QR. Stale
+        // rows are lazily expired first, which frees the slot for a new one.
+        $existing = $this->findFreshPendingGcashForShift($shift->shift_id);
+        if ($existing) {
+            return $this->gcashInitiationPayload($existing);
+        }
+
         $finalAmount = (float) ($data['final_amount'] ?? 0);
         $amountCentavos = (int) round($finalAmount * 100);
 
@@ -218,6 +227,71 @@ class TransactionService
     }
 
     /**
+     * The conductor's currently-resumable PENDING GCash transaction, or null.
+     *
+     * Powers GET /conductor/payments/gcash/pending: when the conductor left
+     * the payment screen (navigation, refresh) the frontend calls this on
+     * reopen and shows the SAME QR + details instead of a new one. Returns
+     * null when there is no active shift, no pending GCash row, or the row
+     * just lazily expired.
+     */
+    public function findPendingGcashForConductor(User $conductor): ?array
+    {
+        $conductorProfileId = $conductor->conductorProfile?->id;
+        if (! $conductorProfileId) {
+            return null;
+        }
+
+        $shift = ShiftLog::where('conductor_id', $conductorProfileId)->active()->first();
+        if (! $shift) {
+            return null;
+        }
+
+        $transaction = $this->findFreshPendingGcashForShift($shift->shift_id);
+
+        return $transaction ? $this->gcashInitiationPayload($transaction) : null;
+    }
+
+    /**
+     * Latest PENDING GCash transaction for a shift that is still within the
+     * claim TTL. Stale rows are lazily flipped to EXPIRED (through the
+     * payment state machine) as a side effect, so callers never see — or
+     * resume — a QR that can no longer be claimed.
+     */
+    private function findFreshPendingGcashForShift(string $shiftId): ?Transaction
+    {
+        $transaction = Transaction::where('shift_id', $shiftId)
+            ->where('payment_method', PaymentMethod::GCASH->value)
+            ->where('status', PaymentStatus::PENDING->value)
+            ->latest('created_at')
+            ->first();
+
+        if (! $transaction) {
+            return null;
+        }
+
+        $transaction = $this->paymentService->expireIfStale($transaction);
+
+        return $transaction->status === PaymentStatus::PENDING ? $transaction : null;
+    }
+
+    /**
+     * Shape a PENDING GCash transaction into the initiate-response payload
+     * (same keys whether freshly created or resumed). expires_at is always
+     * derived from created_at + TTL — the same clock claimGcash checks.
+     */
+    private function gcashInitiationPayload(Transaction $transaction): array
+    {
+        return [
+            'transaction'  => $transaction,
+            'qr_token'     => $transaction->qr_token,
+            'checkout_url' => $transaction->payment_checkout_url,
+            'amount'       => (float) $transaction->final_amount,
+            'expires_at'   => $transaction->created_at->copy()->addMinutes($this->claimTtlMinutes())->toIso8601String(),
+        ];
+    }
+
+    /**
      * Claim a GCash transaction by scanning the binding QR.
      *
      * Idempotent: if the same commuter already claimed it, returns the
@@ -256,6 +330,9 @@ class TransactionService
 
         $createdAt = $transaction->created_at;
         if ($createdAt && $createdAt->diffInMinutes(now()) > $this->claimTtlMinutes()) {
+            // Flip the row to EXPIRED so the DB matches the 410 we return —
+            // the conductor's status poll then sees EXPIRED and can restart.
+            $this->paymentService->expireIfStale($transaction);
             abort(410, 'Transaction has expired');
         }
 

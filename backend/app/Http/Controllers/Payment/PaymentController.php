@@ -91,6 +91,10 @@ class PaymentController extends Controller
             return $this->errorResponse('Forbidden', 403);
         }
 
+        // Lazily expire a stale PENDING GCash row so pollers see EXPIRED
+        // instead of a PENDING that can never complete (no cron needed).
+        $transaction = $this->paymentService->expireIfStale($transaction);
+
         return $this->successResponse([
             'status' => $transaction->status->value,
             'paid_at' => $transaction->paid_at?->toIso8601String(),

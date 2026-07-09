@@ -153,6 +153,9 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->grou
     Route::get('/transactions', [ConductorController::class, 'transactions'])->middleware('throttle:conductor-read');
     Route::post('/transactions', [ConductorController::class, 'storeTransaction'])->middleware('throttle:conductor-write');
     Route::post('/payments/gcash/initiate', [ConductorController::class, 'initiateGcash'])->middleware('throttle:conductor-write');
+    // Resumable PENDING GCash payment for the active shift (or null) — lets
+    // the QR screen survive navigation/refresh instead of minting duplicates.
+    Route::get('/payments/gcash/pending', [ConductorController::class, 'pendingGcash'])->middleware('throttle:conductor-read');
     Route::get('/earnings', [ConductorController::class, 'earnings'])->middleware('throttle:conductor-read');
 
     // Hail lifecycle (conductor-side) — reads 60/min, mutations via write limiter
