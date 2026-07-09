@@ -42,7 +42,31 @@ export default function ScanModal({ onClose }: ScanModalProps) {
   const [manualToken, setManualToken] = useState("");
   const [showManualEntry, setShowManualEntry] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const scannerRunningRef = useRef(false);
   const scannerContainerId = "qr-reader-container";
+
+  // ─── Safely stop the scanner ───
+  // html5-qrcode throws "Cannot stop, scanner is not running or paused" if
+  // stop() is called on a scanner that already stopped or never started.
+  // We track the running state in a ref + guard every stop() call.
+  const stopScanner = useCallback(async () => {
+    if (!scannerRef.current) return;
+    if (!scannerRunningRef.current) return;
+
+    try {
+      await scannerRef.current.stop();
+    } catch {
+      // Already stopped or never started — ignore.
+    } finally {
+      scannerRunningRef.current = false;
+      try {
+        scannerRef.current?.clear();
+      } catch {
+        // clear() can also throw if the element is gone — ignore.
+      }
+      scannerRef.current = null;
+    }
+  }, []);
 
   // ─── Camera scanner setup ───
   // Uses html5-qrcode (already installed) to scan the conductor's QR.
@@ -63,17 +87,28 @@ export default function ScanModal({ onClose }: ScanModalProps) {
           { fps: 10, qrbox: { width: 220, height: 220 } },
           (decodedText) => {
             if (!mounted) return;
-            // Stop the scanner immediately — we have a result.
-            html5QrCode.stop().catch(() => {});
+            // Stop the scanner immediately — we have a result. The
+            // useEffect cleanup will also run when the step changes, but
+            // stopScanner() guards against double-stop.
+            void stopScanner();
             handleScanSuccess(decodedText);
           },
           () => {
             // Per-frame failure — ignore, the scanner keeps trying.
           }
         );
+        // Only mark as running AFTER start() succeeds — otherwise the
+        // cleanup function would try to stop a scanner that never started.
+        if (mounted) {
+          scannerRunningRef.current = true;
+        } else {
+          // Component unmounted during start() — stop immediately.
+          void stopScanner();
+        }
       } catch {
         // Camera not available / permission denied — fall back to manual entry.
         if (mounted) setShowManualEntry(true);
+        scannerRef.current = null;
       }
     };
 
@@ -81,14 +116,20 @@ export default function ScanModal({ onClose }: ScanModalProps) {
 
     return () => {
       mounted = false;
-      if (scannerRef.current) {
-        scannerRef.current.stop().catch(() => {});
-        scannerRef.current.clear();
-        scannerRef.current = null;
-      }
+      void stopScanner();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step]);
+  }, [step, stopScanner]);
+
+  // ─── Release the camera when the modal closes entirely ───
+  // This is separate from the step-change cleanup so it fires when the
+  // whole modal unmounts (user clicks Close), not just when the step
+  // changes within the modal.
+  useEffect(() => {
+    return () => {
+      void stopScanner();
+    };
+  }, [stopScanner]);
 
   // ─── Handle successful QR scan ───
   // The decoded text IS the qr_token. Call claimGcash() to bind this
