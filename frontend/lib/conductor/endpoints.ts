@@ -30,6 +30,7 @@ export const CONDUCTOR_API = {
   },
   payments: {
     gcashInitiate: "/api/conductor/payments/gcash/initiate",
+    gcashPending: "/api/conductor/payments/gcash/pending",
     status: (id: string) => `/api/payments/${encodeURIComponent(id)}/status`,
     simulate: (id: string) => `/api/payments/${encodeURIComponent(id)}/simulate`,
   },

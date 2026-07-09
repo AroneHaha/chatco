@@ -32,9 +32,12 @@ return [
     | GCash Claim TTL (minutes)
     |--------------------------------------------------------------------------
     | How long a conductor-generated binding QR / PENDING GCash transaction
-    | stays claimable before it is considered expired.
+    | stays claimable before it is considered expired. Past this age the row
+    | is lazily transitioned to EXPIRED (PaymentService::expireIfStale) by
+    | status polling / pending-resume / initiate, freeing the conductor to
+    | start a new payment.
     */
-    'gcash_claim_ttl_minutes' => (int) env('PAYMENT_GCASH_CLAIM_TTL', 5),
+    'gcash_claim_ttl_minutes' => (int) env('PAYMENT_GCASH_CLAIM_TTL', 3),
 
     /*
     |--------------------------------------------------------------------------

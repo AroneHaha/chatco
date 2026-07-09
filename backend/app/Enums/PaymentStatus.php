@@ -12,14 +12,20 @@ namespace App\Enums;
  * State machine (see canTransitionTo / TRANSITIONS):
  *
  *   PENDING ──▶ PROCESSING ──▶ PAID ──▶ REFUNDED
- *      │            │            │
+ *      │            │            ▲
  *      │            ├──▶ FAILED  │
  *      ├──▶ FAILED  ├──▶ CANCELLED
  *      ├──▶ CANCELLED
- *      └──▶ EXPIRED
+ *      └──▶ EXPIRED ─────────────┘
  *
  * Terminal states (no further transitions except PAID→REFUNDED) prevent an
  * out-of-order or replayed webhook from regressing a settled payment.
+ *
+ * EXPIRED → PAID is deliberately allowed: the app expires a QR lazily after
+ * its claim TTL, but a commuter who claimed just before the cutoff may still
+ * complete the provider checkout moments later. If the provider webhook says
+ * money moved, the fare MUST be recorded — the provider is the source of
+ * truth for settlement.
  */
 enum PaymentStatus: string
 {
@@ -43,7 +49,9 @@ enum PaymentStatus: string
         'PAID'       => [self::REFUNDED],
         'FAILED'     => [],
         'CANCELLED'  => [],
-        'EXPIRED'    => [],
+        // A late provider webhook can still settle an app-expired payment —
+        // the commuter may have completed checkout right after the local TTL.
+        'EXPIRED'    => [self::PAID],
         'REFUNDED'   => [],
     ];
 

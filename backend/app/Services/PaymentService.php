@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Contracts\Payments\PaymentGateway;
+use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Events\PaymentStatusUpdated;
 use App\Models\PaymentEvent;
@@ -175,6 +176,36 @@ class PaymentService
         $transaction->refresh();
 
         broadcast(new PaymentStatusUpdated($transaction, $target->value));
+
+        return $transaction;
+    }
+
+    /**
+     * Lazily expire a stale PENDING GCash transaction.
+     *
+     * Nothing proactively flips PENDING → EXPIRED (no cron on shared
+     * hosting), so every read path that cares about freshness calls this:
+     * status polling, the pending-resume lookup, and initiate's reuse check.
+     * Past the claim TTL the row is transitioned through the state machine
+     * (broadcasts PaymentStatusUpdated like any other change); otherwise the
+     * transaction is returned untouched.
+     */
+    public function expireIfStale(Transaction $transaction): Transaction
+    {
+        if ($transaction->status !== PaymentStatus::PENDING) {
+            return $transaction;
+        }
+
+        if ($transaction->payment_method !== PaymentMethod::GCASH) {
+            return $transaction;
+        }
+
+        $ttlMinutes = (int) config('payments.gcash_claim_ttl_minutes', 3);
+        $createdAt = $transaction->created_at;
+
+        if ($createdAt && $createdAt->copy()->addMinutes($ttlMinutes)->isPast()) {
+            return $this->transitionTo($transaction, PaymentStatus::EXPIRED);
+        }
 
         return $transaction;
     }

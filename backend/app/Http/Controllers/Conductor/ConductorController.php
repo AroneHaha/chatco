@@ -265,6 +265,37 @@ class ConductorController extends Controller
     }
 
     /**
+     * GET /api/conductor/payments/gcash/pending
+     *
+     * The conductor's resumable PENDING GCash transaction for their active
+     * shift, or null. Lets the frontend re-display the SAME QR + details
+     * after the conductor navigated away or refreshed mid-payment, instead
+     * of minting a duplicate. Stale rows are lazily expired by the lookup,
+     * so a QR past its TTL is never offered for resume.
+     */
+    public function pendingGcash(Request $request): JsonResponse
+    {
+        $result = $this->transactionService->findPendingGcashForConductor($request->user());
+
+        if (! $result) {
+            return $this->successResponse(null, 'No pending GCash payment');
+        }
+
+        $transaction = $result['transaction'];
+
+        return $this->successResponse([
+            'transaction_id' => $transaction->transaction_id,
+            'qr_token'       => $result['qr_token'],
+            'checkout_url'   => $result['checkout_url'],
+            'amount'         => $result['amount'],
+            'expires_at'     => $result['expires_at'],
+            // Route names so the resumed QR screen can show the trip.
+            'pickup_name'    => $transaction->pickup_name,
+            'dropoff_name'   => $transaction->dropoff_name,
+        ], 'Pending GCash payment found');
+    }
+
+    /**
      * GET /api/conductor/earnings?shift_id={id}
      *
      * Returns the cash vs GCash earnings breakdown for the given shift.

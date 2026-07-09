@@ -22,6 +22,11 @@ export interface GcashInitiation {
   checkoutUrl: string | null;
   amount: number;
   expiresAt: string;
+  /** Route names — populated when resuming a pending payment (the location
+   *  picker state is gone after navigation/refresh, so these come from the
+   *  transaction row instead). */
+  from?: string | null;
+  to?: string | null;
 }
 
 interface InitiateResponse {
@@ -69,6 +74,40 @@ export async function initiateGcash(input: {
     checkoutUrl: d.checkout_url,
     amount: Number(d.amount) || 0,
     expiresAt: d.expires_at,
+  };
+}
+
+interface PendingResponse {
+  data: {
+    transaction_id: string;
+    qr_token: string;
+    checkout_url: string | null;
+    amount: number | string;
+    expires_at: string;
+    pickup_name: string | null;
+    dropoff_name: string | null;
+  } | null;
+}
+
+/**
+ * The conductor's resumable PENDING GCash payment for their active shift,
+ * or null. Called when the fare modal opens so an interrupted payment
+ * (navigation, refresh) re-displays the SAME QR instead of a new one.
+ * The backend lazily expires stale rows, so a resumable result is always
+ * still claimable.
+ */
+export async function fetchPendingGcash(): Promise<GcashInitiation | null> {
+  const response = await api.get<PendingResponse>(CONDUCTOR_API.payments.gcashPending);
+  const d = response.data;
+  if (!d) return null;
+  return {
+    transactionId: d.transaction_id,
+    qrToken: d.qr_token,
+    checkoutUrl: d.checkout_url,
+    amount: Number(d.amount) || 0,
+    expiresAt: d.expires_at,
+    from: d.pickup_name,
+    to: d.dropoff_name,
   };
 }
 
