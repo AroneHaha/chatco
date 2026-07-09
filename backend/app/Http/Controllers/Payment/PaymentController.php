@@ -144,6 +144,51 @@ class PaymentController extends Controller
     }
 
     /**
+     * POST /payments/{id}/cancel
+     *
+     * Cancels a PENDING GCash payment. Only the conductor of the shift that
+     * owns the transaction can cancel it. The state machine guards the
+     * transition (PENDING → CANCELLED is allowed; PAID/FAILED/etc. are
+     * terminal and will be rejected).
+     *
+     * Use case: the commuter didn't scan the QR in time, or changed their
+     * mind. The conductor cancels instead of waiting for the 5-minute TTL.
+     */
+    public function cancel(Request $request, string $id): JsonResponse
+    {
+        $transaction = Transaction::with('shiftLog:shift_id,conductor_id')
+            ->where('transaction_id', $id)
+            ->first();
+
+        if (! $transaction) {
+            return $this->errorResponse('Transaction not found', 404);
+        }
+
+        if (! $this->userOwnsTransaction($request->user(), $transaction)) {
+            return $this->errorResponse('Forbidden', 403);
+        }
+
+        if ($transaction->payment_method !== PaymentMethod::GCASH) {
+            return $this->errorResponse('Only GCash transactions can be cancelled.', 422);
+        }
+
+        if ($transaction->status !== PaymentStatus::PENDING) {
+            return $this->errorResponse(
+                "Cannot cancel a {$transaction->status->value} payment. Only PENDING payments can be cancelled.",
+                422
+            );
+        }
+
+        // Transition through the state machine (PENDING → CANCELLED).
+        // This respects the canTransitionTo guard + broadcasts PaymentStatusUpdated.
+        $updated = $this->paymentService->transitionTo($transaction, PaymentStatus::CANCELLED);
+
+        return $this->successResponse([
+            'status' => $updated->status->value,
+        ], 'Payment cancelled');
+    }
+
+    /**
      * POST /payments/webhook — public, server-to-server.
      *
      * Provider-agnostic: the bound gateway supplies its signature header,

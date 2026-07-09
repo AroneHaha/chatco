@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { claimGcash, type ClaimResult } from "@/lib/commuter/services/payment.service";
+import { ApiError } from "@/lib/api/client";
 import { formatCurrency } from "@/lib/shared/fare/fare-calculator";
 
 interface ScanModalProps {
@@ -42,7 +43,31 @@ export default function ScanModal({ onClose }: ScanModalProps) {
   const [manualToken, setManualToken] = useState("");
   const [showManualEntry, setShowManualEntry] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const scannerRunningRef = useRef(false);
   const scannerContainerId = "qr-reader-container";
+
+  // ─── Safely stop the scanner ───
+  // html5-qrcode throws "Cannot stop, scanner is not running or paused" if
+  // stop() is called on a scanner that already stopped or never started.
+  // We track the running state in a ref + guard every stop() call.
+  const stopScanner = useCallback(async () => {
+    if (!scannerRef.current) return;
+    if (!scannerRunningRef.current) return;
+
+    try {
+      await scannerRef.current.stop();
+    } catch {
+      // Already stopped or never started — ignore.
+    } finally {
+      scannerRunningRef.current = false;
+      try {
+        scannerRef.current?.clear();
+      } catch {
+        // clear() can also throw if the element is gone — ignore.
+      }
+      scannerRef.current = null;
+    }
+  }, []);
 
   // ─── Camera scanner setup ───
   // Uses html5-qrcode (already installed) to scan the conductor's QR.
@@ -63,17 +88,28 @@ export default function ScanModal({ onClose }: ScanModalProps) {
           { fps: 10, qrbox: { width: 220, height: 220 } },
           (decodedText) => {
             if (!mounted) return;
-            // Stop the scanner immediately — we have a result.
-            html5QrCode.stop().catch(() => {});
+            // Stop the scanner immediately — we have a result. The
+            // useEffect cleanup will also run when the step changes, but
+            // stopScanner() guards against double-stop.
+            void stopScanner();
             handleScanSuccess(decodedText);
           },
           () => {
             // Per-frame failure — ignore, the scanner keeps trying.
           }
         );
+        // Only mark as running AFTER start() succeeds — otherwise the
+        // cleanup function would try to stop a scanner that never started.
+        if (mounted) {
+          scannerRunningRef.current = true;
+        } else {
+          // Component unmounted during start() — stop immediately.
+          void stopScanner();
+        }
       } catch {
         // Camera not available / permission denied — fall back to manual entry.
         if (mounted) setShowManualEntry(true);
+        scannerRef.current = null;
       }
     };
 
@@ -81,14 +117,20 @@ export default function ScanModal({ onClose }: ScanModalProps) {
 
     return () => {
       mounted = false;
-      if (scannerRef.current) {
-        scannerRef.current.stop().catch(() => {});
-        scannerRef.current.clear();
-        scannerRef.current = null;
-      }
+      void stopScanner();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step]);
+  }, [step, stopScanner]);
+
+  // ─── Release the camera when the modal closes entirely ───
+  // This is separate from the step-change cleanup so it fires when the
+  // whole modal unmounts (user clicks Close), not just when the step
+  // changes within the modal.
+  useEffect(() => {
+    return () => {
+      void stopScanner();
+    };
+  }, [stopScanner]);
 
   // ─── Handle successful QR scan ───
   // The decoded text IS the qr_token. Call claimGcash() to bind this
@@ -102,7 +144,32 @@ export default function ScanModal({ onClose }: ScanModalProps) {
       setClaimResult(result);
       setStep("confirm");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to claim this payment. The QR may be invalid or expired.";
+      // Extract the backend's specific error message. The ApiError.body
+      // contains the Laravel envelope { success, data, message, errors }.
+      let msg = "Failed to claim this payment. The QR may be invalid or expired.";
+
+      if (err instanceof ApiError) {
+        const body = err.body as { message?: string; errors?: Record<string, string[]> } | null;
+        if (body?.errors) {
+          // 422 validation error — surface the first field error.
+          const firstField = Object.keys(body.errors)[0];
+          const firstError = firstField ? body.errors[firstField]?.[0] : null;
+          msg = firstError ?? body.message ?? msg;
+        } else if (body?.message) {
+          // 404 / 410 / 409 / other — use the backend's message verbatim.
+          msg = body.message;
+        }
+
+        // Status-specific friendly messages.
+        if (err.status === 404) msg = "This payment QR is invalid or was not found. Please ask the conductor to generate a new one.";
+        else if (err.status === 410) msg = "This payment QR has expired or already been paid. Please ask the conductor to generate a new one.";
+        else if (err.status === 409) msg = "This payment has already been claimed by another commuter. Please ask the conductor to generate a new one.";
+        else if (err.status === 401) msg = "You must be logged in as a commuter to claim a payment.";
+        else if (err.status === 422 && !body?.errors) msg = body?.message ?? "Your commuter account is missing required information to claim this payment.";
+      } else if (err instanceof Error) {
+        msg = err.message;
+      }
+
       setError(msg);
       setStep("failed");
     }

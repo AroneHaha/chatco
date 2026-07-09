@@ -286,6 +286,11 @@ Route::prefix('payments')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{id}/status', [PaymentController::class, 'status'])->middleware('throttle:conductor-read');
 
+        // Cancel a PENDING GCash payment — conductor can abort if the commuter
+        // didn't scan in time, or the commuter changed their mind. Transitions
+        // the transaction PENDING → CANCELLED through the state machine.
+        Route::post('/{id}/cancel', [PaymentController::class, 'cancel'])->middleware('throttle:conductor-write');
+
         // DEV ONLY (config payments.allow_simulation): drive a PENDING GCash
         // payment to a terminal status without a real provider. Hard-disabled
         // in production by the controller.
