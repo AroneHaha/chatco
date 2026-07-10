@@ -25,6 +25,7 @@ import * as registrationService from "@/lib/admin/services/registration.service"
 
 export type { AdminUser, PaginationMeta, UserListFilters, UpdateUserInput };
 export type PendingRequest = registrationService.PendingRegistration;
+export type RejectedRequest = registrationService.RejectedRegistration;
 
 /**
  * Frontend-only role union. Adds "DRIVER" on top of the backend UserRole
@@ -90,6 +91,8 @@ export interface UseUsersDataReturn {
   pendingRequests: PendingRequest[];
   rejectedUsers: RejectedUser[];
   historyLogs: Record<string, HistoryLog[]>;
+  /** Fetches a user's activity timeline. Cached in historyLogs. */
+  fetchUserActivity: (userId: string) => Promise<HistoryLog[]>;
   pagination: PaginationMeta | null;
   isLoading: boolean;
   error: string | null;
@@ -156,6 +159,7 @@ export function useUsersData(): UseUsersDataReturn {
   const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [rejectedUsers, setRejectedUsers] = useState<RejectedUser[]>([]);
+  const [historyLogs, setHistoryLogs] = useState<Record<string, HistoryLog[]>>({});
   const [pagination, setPagination] = useState<PaginationMeta | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -252,15 +256,73 @@ export function useUsersData(): UseUsersDataReturn {
     }
   }, []);
 
+  // ── Fetch rejected registrations (soft-deleted REJECTED commuters) ──
+  // Rejected accounts are soft-deleted with their email rewritten to
+  // 'rejected+{timestamp}@chatco.local'. The backend's listRejectedRegistrations
+  // uses withTrashed() to include them. Powers the Rejected tab.
+  const fetchRejected = useCallback(async () => {
+    try {
+      const rejected = await registrationService.listRejected();
+      setRejectedUsers(rejected.map(r => ({
+        id: r.id,
+        name: r.name,
+        email: r.email,
+        phoneNumber: r.phoneNumber,
+        commuterType: r.commuterType as RejectedUser["commuterType"],
+        languagePreference: r.languagePreference as RejectedUser["languagePreference"],
+        idImageUrl: r.idImageUrl,
+        status: "Rejected" as const,
+        rejectionReason: r.rejectionReason,
+      })));
+    } catch {
+      setRejectedUsers([]);
+    }
+  }, []);
+
+  // ── Fetch a user's activity timeline ──
+  // Calls GET /api/admin/users/{id}/activity which reuses existing data
+  // (transactions, shift_logs, verification dates) to build a chronological
+  // timeline. Cached in historyLogs so repeat opens don't re-fetch.
+  const fetchUserActivity = useCallback(async (userId: string): Promise<HistoryLog[]> => {
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/activity`, {
+        headers: { Accept: "application/json" },
+      });
+      if (!res.ok) return [];
+      const json = await res.json();
+      const events = (json.data ?? []) as Array<{
+        id: string;
+        timestamp: string;
+        action: string;
+        details: string;
+      }>;
+      const logs: HistoryLog[] = events.map(e => ({
+        id: e.id,
+        date: e.timestamp ? new Date(e.timestamp).toLocaleString('en-US', {
+          year: 'numeric', month: 'short', day: 'numeric',
+          hour: '2-digit', minute: '2-digit', hour12: true,
+        }) : '—',
+        action: e.action,
+        details: e.details,
+      }));
+      setHistoryLogs(prev => ({ ...prev, [userId]: logs }));
+      return logs;
+    } catch {
+      return [];
+    }
+  }, []);
+
   const refetch = useCallback(() => {
     fetchUsers(filters);
     fetchPending();
-  }, [fetchUsers, fetchPending, filters]);
+    fetchRejected();
+  }, [fetchUsers, fetchPending, fetchRejected, filters]);
 
   useEffect(() => {
     fetchUsers(filters);
     fetchPending();
-  }, [fetchUsers, fetchPending, filters]);
+    fetchRejected();
+  }, [fetchUsers, fetchPending, fetchRejected, filters]);
 
   const setFilters = useCallback(
     (f: Partial<{ role: TableRowRole | ""; search: string; perPage: number; page: number }>) => {
@@ -322,7 +384,8 @@ export function useUsersData(): UseUsersDataReturn {
     activeUsers,
     pendingRequests,
     rejectedUsers,
-    historyLogs: {},
+    historyLogs,
+    fetchUserActivity,
     pagination,
     isLoading,
     error,

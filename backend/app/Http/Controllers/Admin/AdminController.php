@@ -387,6 +387,19 @@ class AdminController extends Controller
     }
 
     /**
+     * GET /api/v1/admin/users/{id}/activity
+     * Returns a chronological activity timeline for a user. Reuses existing
+     * data sources (transactions, shift_logs, verification dates) instead of
+     * a separate audit_logs table. Powers the User History modal.
+     */
+    public function userActivity(string $id): JsonResponse
+    {
+        $events = $this->adminService->getUserActivity($id);
+
+        return $this->successResponse($events, 'User activity retrieved');
+    }
+
+    /**
      * PUT/PATCH /api/v1/admin/conductors/{id}
      * Updates a conductor's editable profile fields.
      *

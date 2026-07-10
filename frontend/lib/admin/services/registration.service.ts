@@ -129,6 +129,39 @@ export async function listPending(): Promise<PendingRegistration[]> {
   return (rows as RawRegistration[]).map(mapToViewModel);
 }
 
+/** Frontend view-model for rejected registrations (includes rejection reason). */
+export interface RejectedRegistration extends PendingRegistration {
+  rejectionReason: string;
+  rejectedAt: string;
+}
+
+/**
+ * GET /api/admin/registrations/rejected
+ * Lists all REJECTED commuter accounts (soft-deleted, email rewritten).
+ */
+export async function listRejected(): Promise<RejectedRegistration[]> {
+  const res = await fetch("/api/admin/registrations/rejected", {
+    headers: { Accept: "application/json" },
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new RegistrationError(
+      body?.message ?? `Failed to fetch rejected registrations (HTTP ${res.status})`,
+      {},
+      res.status
+    );
+  }
+
+  const json = await res.json();
+  const rows = json.data?.data ?? json.data ?? [];
+  return (rows as (RawRegistration & { rejection_reason: string; rejected_at: string })[]).map(r => ({
+    ...mapToViewModel(r),
+    rejectionReason: r.rejection_reason ?? "—",
+    rejectedAt: r.rejected_at ?? r.created_at,
+  }));
+}
+
 /**
  * POST /api/admin/registrations/{id}/approve
  * Approves a pending registration — copies applied_type to commuter_type,

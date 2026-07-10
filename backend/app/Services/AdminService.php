@@ -512,6 +512,145 @@ class AdminService
     }
 
     /**
+     * GET /admin/registrations/rejected — list REJECTED commuter accounts.
+     *
+     * Rejected accounts are soft-deleted (their email is rewritten to
+     * 'rejected+{timestamp}@chatco.local' so the canonical email frees up
+     * for re-registration). We use withTrashed() to include them.
+     *
+     * Returns the same shape as listPendingRegistrations so the frontend
+     * can reuse the RejectedUser table component.
+     */
+    public function listRejectedRegistrations(int $perPage = 15): LengthAwarePaginator
+    {
+        return User::withTrashed()
+            ->where('role', UserRole::COMMUTER)
+            ->whereHas('commuterProfile', function ($q) {
+                $q->where('account_status', 'REJECTED');
+            })
+            ->with(['commuterProfile:id,first_name,middle_name,surname,birthdate,gender,email,contact_number,commuter_type,applied_type,account_status,id_image_url,verified_at,rejection_reason,username,language_preference'])
+            ->orderBy('updated_at', 'desc') // most recently rejected first
+            ->paginate($perPage)
+            ->through(function (User $user) {
+                $c = $user->commuterProfile;
+                return [
+                    'id'              => $user->id,
+                    'email'           => $user->email,
+                    'first_name'      => $c?->first_name,
+                    'middle_name'     => $c?->middle_name,
+                    'surname'         => $c?->surname,
+                    'birthdate'       => $c?->birthdate?->toDateString(),
+                    'gender'          => $c?->gender,
+                    'contact_number'  => $c?->contact_number,
+                    'username'        => $c?->username,
+                    'applied_type'    => $c?->applied_type,
+                    'id_image_url'    => $c?->id_image_url,
+                    'account_status'  => $c?->account_status,
+                    'language_preference' => $c?->language_preference,
+                    'verified_at'     => $c?->verified_at?->toIso8601String(),
+                    'rejection_reason'=> $c?->rejection_reason,
+                    'created_at'      => optional($user->created_at)->toIso8601String(),
+                    'rejected_at'     => optional($user->deleted_at)->toIso8601String(),
+                ];
+            });
+    }
+
+    /**
+     * GET /admin/users/{id}/activity — build a user activity timeline.
+     *
+     * Instead of a separate audit_logs table, this reuses existing data
+     * sources to build a chronological timeline of the user's activity:
+     *   - Account creation + verification (for commuters)
+     *   - Recent transactions (for commuters with passenger_id bound)
+     *   - Recent shift logs (for conductors)
+     *   - Recent feedback received (for conductors/drivers)
+     *
+     * Each entry has: id, timestamp, action, details.
+     */
+    public function getUserActivity(string $id): array
+    {
+        $user = User::with(['commuterProfile', 'conductorProfile', 'adminProfile'])->find($id);
+
+        if (! $user) {
+            abort(404, 'User not found');
+        }
+
+        $events = [];
+
+        // Account creation
+        $events[] = [
+            'id'        => 'created',
+            'timestamp' => optional($user->created_at)->toIso8601String(),
+            'action'    => 'Account Created',
+            'details'   => "Role: {$user->role->value}",
+        ];
+
+        // Commuter-specific events
+        if ($user->commuterProfile) {
+            $c = $user->commuterProfile;
+
+            if ($c->verified_at) {
+                $events[] = [
+                    'id'        => 'verified',
+                    'timestamp' => $c->verified_at->toIso8601String(),
+                    'action'    => 'Account Verified',
+                    'details'   => "Commuter type: {$c->commuter_type}",
+                ];
+            }
+
+            if ($c->account_status === 'REJECTED' && $c->rejection_reason) {
+                $events[] = [
+                    'id'        => 'rejected',
+                    'timestamp' => optional($user->deleted_at)->toIso8601String(),
+                    'action'    => 'Registration Rejected',
+                    'details'   => "Reason: {$c->rejection_reason}",
+                ];
+            }
+
+            // Recent transactions (payment history)
+            $transactions = Transaction::where('passenger_id', $c->id)
+                ->orderBy('created_at', 'desc')
+                ->limit(10)
+                ->get();
+
+            foreach ($transactions as $txn) {
+                $events[] = [
+                    'id'        => "txn-{$txn->transaction_id}",
+                    'timestamp' => optional($txn->created_at)->toIso8601String(),
+                    'action'    => 'Payment',
+                    'details'   => "{$txn->payment_method} ₱{$txn->final_amount} — {$txn->pickup_name} → {$txn->dropoff_name} ({$txn->status})",
+                ];
+            }
+        }
+
+        // Conductor-specific events
+        if ($user->conductorProfile) {
+            $shiftLogs = ShiftLog::where('conductor_id', $user->conductorProfile->id)
+                ->orderBy('time_in', 'desc')
+                ->limit(10)
+                ->get();
+
+            foreach ($shiftLogs as $log) {
+                $events[] = [
+                    'id'        => "shift-{$log->shift_id}",
+                    'timestamp' => optional($log->time_in)->toIso8601String(),
+                    'action'    => $log->status === 'ACTIVE' ? 'Shift Started' : 'Shift Ended',
+                    'details'   => "Unit: {$log->unit_number} — {$log->driver_name}",
+                ];
+            }
+        }
+
+        // Sort all events by timestamp, newest first
+        usort($events, function ($a, $b) {
+            $ta = $a['timestamp'] ? strtotime($a['timestamp']) : 0;
+            $tb = $b['timestamp'] ? strtotime($b['timestamp']) : 0;
+            return $tb - $ta;
+        });
+
+        return $events;
+    }
+
+    /**
      * POST /admin/registrations/{id}/approve — approve a pending registration.
      *
      * - Copies applied_type → commuter_type (the validated discount tier)
