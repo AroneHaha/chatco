@@ -26,6 +26,7 @@ use App\Http\Controllers\LostItemController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\Payment\PaymentController;
 use App\Http\Controllers\Payment\QrController;
+use App\Http\Controllers\FareMatrixController;
 
 /*
 |--------------------------------------------------------------------------
@@ -37,6 +38,17 @@ Route::prefix('auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:commuter-hail'); // PUBLIC — commuter self-sign-up (S5-T15)
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
 });
+
+/*
+|--------------------------------------------------------------------------
+| Fare Matrix (Public — fare info is public like a bus schedule)
+|--------------------------------------------------------------------------
+| Single source of truth for fare calculation. The conductor's FareCalcModal
+| and the commuter's fare-calculator both consume this endpoint. The admin's
+| /settings/fare-matrix page edits the fare_points table; changes are
+| immediately visible to all consumers on their next fetch.
+*/
+Route::get('/fare-matrix', [FareMatrixController::class, 'index'])->middleware('throttle:commuter-hail');
 
 /*
 |--------------------------------------------------------------------------

@@ -3,12 +3,13 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import {
-  FARE_MATRIX,
-  getFareBetween,
-  getBarangaysTraversed,
-  FARE_CONFIG,
+  loadFareMatrix,
+  getPointAreas,
+  getFareBetween as apiGetFareBetween,
+  getBarangaysTraversed as apiGetBarangaysTraversed,
+  getFareConfig,
   type PointArea,
-} from "@/lib/shared/fare/fare-matrix-data";
+} from "@/lib/shared/fare/fare-matrix.service";
 import {
   formatCurrency,
   getCommuterTypeLabel,
@@ -82,30 +83,31 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   const [scannedCommuterType, setScannedCommuterType] = useState<CommuterType>("REGULAR");
   const [scannedCommuterName, setScannedCommuterName] = useState("Commuter");
 
-  // ─── Fare Calculation using FARE_MATRIX (correct data source) ───
+  // ─── Fare Calculation (from the backend fare_points table via API) ───
   const fareInfo = useMemo(() => {
     if (!pickupPoint || !dropoffPoint) return null;
 
     const isDiscounted = commuterType !== "REGULAR";
-    const barangaysTraveled = getBarangaysTraversed(
+    const barangaysTraveled = apiGetBarangaysTraversed(
       pickupPoint.pointNumber,
       dropoffPoint.pointNumber
     );
-    const regularFare = getFareBetween(
+    const regularFare = apiGetFareBetween(
       pickupPoint.pointNumber,
       dropoffPoint.pointNumber,
       false
     );
-    const discountedFare = getFareBetween(
+    const discountedFare = apiGetFareBetween(
       pickupPoint.pointNumber,
       dropoffPoint.pointNumber,
       true
     );
     const finalFare = isDiscounted ? discountedFare : regularFare;
     const discountAmount = regularFare - discountedFare;
+    const config = getFareConfig();
     const succeedingCount = Math.max(
       0,
-      barangaysTraveled - FARE_CONFIG.BASE_BARANGAY_COUNT
+      barangaysTraveled - config.baseBarangayCount
     );
 
     return {
@@ -116,7 +118,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
       hasDiscount: isDiscounted,
       discountAmount,
       succeedingCount,
-      baseBarangayCount: FARE_CONFIG.BASE_BARANGAY_COUNT,
+      baseBarangayCount: config.baseBarangayCount,
     };
   }, [pickupPoint, dropoffPoint, commuterType]);
 
@@ -125,25 +127,26 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     if (!pickupPoint || !dropoffPoint) return null;
 
     const isDiscounted = scannedCommuterType !== "REGULAR";
-    const barangaysTraveled = getBarangaysTraversed(
+    const barangaysTraveled = apiGetBarangaysTraversed(
       pickupPoint.pointNumber,
       dropoffPoint.pointNumber
     );
-    const regularFare = getFareBetween(
+    const regularFare = apiGetFareBetween(
       pickupPoint.pointNumber,
       dropoffPoint.pointNumber,
       false
     );
-    const discountedFare = getFareBetween(
+    const discountedFare = apiGetFareBetween(
       pickupPoint.pointNumber,
       dropoffPoint.pointNumber,
       true
     );
     const finalFare = isDiscounted ? discountedFare : regularFare;
     const discountAmount = regularFare - discountedFare;
+    const config = getFareConfig();
     const succeedingCount = Math.max(
       0,
-      barangaysTraveled - FARE_CONFIG.BASE_BARANGAY_COUNT
+      barangaysTraveled - config.baseBarangayCount
     );
 
     return {
@@ -154,12 +157,12 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
       hasDiscount: isDiscounted,
       discountAmount,
       succeedingCount,
-      baseBarangayCount: FARE_CONFIG.BASE_BARANGAY_COUNT,
+      baseBarangayCount: config.baseBarangayCount,
     };
   }, [pickupPoint, dropoffPoint, scannedCommuterType]);
 
   const filteredPoints = searchQuery
-    ? FARE_MATRIX.filter(
+    ? getPointAreas().filter(
         (p) =>
           p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           p.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -167,7 +170,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
             l.toLowerCase().includes(searchQuery.toLowerCase())
           )
       )
-    : FARE_MATRIX;
+    : getPointAreas();
 
   // ─── Save CASH transaction to backend ───
   // Only used for Cash payments. GCash payments are created server-side by
@@ -287,8 +290,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
       // this as the initial final_amount; if the commuter is discounted,
       // the webhook path could adjust it (currently it doesn't — the fare
       // is fixed at initiation time).
-      const regularFare = getFareBetween(pickupPoint.pointNumber, dropoffPoint.pointNumber, false);
-      const barangaysTraveled = getBarangaysTraversed(pickupPoint.pointNumber, dropoffPoint.pointNumber);
+      const regularFare = apiGetFareBetween(pickupPoint.pointNumber, dropoffPoint.pointNumber, false);
+      const barangaysTraveled = apiGetBarangaysTraversed(pickupPoint.pointNumber, dropoffPoint.pointNumber);
 
       const initiation = await initiateGcash({
         finalAmount: regularFare,
@@ -511,6 +514,16 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
       setExpandedBarangay(dropoffPoint.pointNumber);
     }
   }, [selectingField, step, pickupPoint, dropoffPoint]);
+
+  // ─── Load the fare matrix from the backend on first open ───
+  // The fare points + config come from GET /api/fare-matrix (the backend's
+  // fare_points table — the single source of truth). Falls back to the
+  // hardcoded data if the API is unreachable. Cached for the session.
+  useEffect(() => {
+    if (isOpen) {
+      void loadFareMatrix();
+    }
+  }, [isOpen]);
 
   // ─── HIDDEN UNTIL CLICKED ──────────────────────────────────────
   if (!isOpen) return null;
