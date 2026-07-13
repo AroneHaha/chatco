@@ -29,12 +29,11 @@ import { RemittanceTable } from '@/components/admin/analytics/remittance-table';
 import { PaymentUsageTable } from '@/components/admin/analytics/payment-usage-table';
 import { PickupPointsList } from '@/components/admin/analytics/pickup-points-list';
 import { DemandHeatmapData } from '@/components/admin/analytics/demand-heatmap-data';
+import type { PickupPoint, HeatmapZone, HeatmapIntensity } from '@/app/(admin)/analytics/data/analytics-data';
 import { SkeletonCard } from '@/components/admin/ui/skeleton';
 import type {
   AnalyticsRemittance,
   PaymentMethodUsage,
-  PickupPoint,
-  HeatmapZone,
 } from './data/analytics-data';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -294,10 +293,27 @@ function ReportsTab({ analyticsData }: { analyticsData: AnalyticsData | null }) 
     ];
   }, [analyticsData]);
 
-  // Pickup points + heatmap — no backend endpoint yet, show empty arrays
-  // (the components already render "No data available" empty states)
-  const pickupPoints: PickupPoint[] = [];
-  const heatmapZones: HeatmapZone[] = [];
+  // Pickup points + heatmap — from the real backend analytics response.
+  // The backend aggregates PAID transactions by pickup_name (for pickup
+  // points) and joins with fare_points for GPS coordinates (for heatmap zones).
+  // Both are scoped to the selected date range.
+  const pickupPoints: PickupPoint[] = useMemo(() => {
+    if (!analyticsData?.pickup_points) return [];
+    return analyticsData.pickup_points.map(p => ({
+      name: p.name,
+      count: p.count,
+    }));
+  }, [analyticsData]);
+
+  const heatmapZones: HeatmapZone[] = useMemo(() => {
+    if (!analyticsData?.heatmap_zones) return [];
+    return analyticsData.heatmap_zones.map(z => ({
+      zone: z.zone,
+      commuters: z.commuters,
+      intensity: z.intensity as HeatmapIntensity,
+      color: z.color,
+    }));
+  }, [analyticsData]);
 
   if (isLoading) {
     return (

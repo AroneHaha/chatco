@@ -50,6 +50,20 @@ export interface AnalyticsFleet {
   total_conductors: number;
 }
 
+export interface AnalyticsPickupPoint {
+  name: string;
+  count: number;
+}
+
+export interface AnalyticsHeatmapZone {
+  zone: string;
+  commuters: number;
+  intensity: "Critical" | "High" | "Moderate" | "Low";
+  color: string;
+  lat: number;
+  lng: number;
+}
+
 export interface AnalyticsData {
   date_range: AnalyticsDateRange;
   totals: AnalyticsTotals;
@@ -57,6 +71,8 @@ export interface AnalyticsData {
   daily_series: AnalyticsDailyPoint[];
   remittances: AnalyticsRemittances;
   fleet: AnalyticsFleet;
+  pickup_points: AnalyticsPickupPoint[];
+  heatmap_zones: AnalyticsHeatmapZone[];
 }
 
 export interface AnalyticsRange {

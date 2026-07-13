@@ -241,6 +241,65 @@ class AdminService
         $totalConductors = (int) DB::table('conductor_profiles')->count();
         $activeConductors = (int) ShiftLog::where('status', 'ACTIVE')->distinct('conductor_id')->count('conductor_id');
 
+        // ── Top Pickup Points (aggregate PAID transactions by pickup_name) ──
+        // Each PAID transaction has a `pickup_name` (the fare point name the
+        // conductor selected). We count how many passengers boarded at each
+        // pickup point in the date window, sorted descending. Limited to top 10.
+        $pickupPoints = DB::table('transactions')
+            ->select('pickup_name', DB::raw('COUNT(*) as pickup_count'))
+            ->where('status', 'PAID')
+            ->whereNotNull('pickup_name')
+            ->where('pickup_name', '!=', '')
+            ->whereBetween('created_at', [$dateFrom, $dateTo])
+            ->groupBy('pickup_name')
+            ->orderByDesc('pickup_count')
+            ->limit(10)
+            ->get()
+            ->map(fn ($row) => [
+                'name'  => $row->pickup_name,
+                'count' => (int) $row->pickup_count,
+            ])
+            ->toArray();
+
+        // ── Demand Heatmap Zones (aggregate PAID transactions with coordinates) ──
+        // Join transactions with fare_points to get the GPS coordinates of each
+        // pickup location. Group by fare_point to cluster demand by location.
+        // The intensity is computed from the pickup_count:
+        //   - >= 50 pickups  → Critical (red)
+        //   - >= 20 pickups  → High (orange)
+        //   - >= 5 pickups   → Moderate (yellow)
+        //   - < 5 pickups    → Low (green)
+        $heatmapZones = DB::table('transactions')
+            ->join('fare_points', 'transactions.pickup_stop_id', '=', 'fare_points.id')
+            ->select(
+                'fare_points.name as zone_name',
+                'fare_points.latitude',
+                'fare_points.longitude',
+                DB::raw('COUNT(*) as commuter_count')
+            )
+            ->where('transactions.status', 'PAID')
+            ->whereNotNull('fare_points.latitude')
+            ->whereNotNull('fare_points.longitude')
+            ->whereBetween('transactions.created_at', [$dateFrom, $dateTo])
+            ->groupBy('fare_points.id', 'fare_points.name', 'fare_points.latitude', 'fare_points.longitude')
+            ->orderByDesc('commuter_count')
+            ->limit(15)
+            ->get()
+            ->map(function ($row) {
+                $count = (int) $row->commuter_count;
+                $intensity = $count >= 50 ? 'Critical' : ($count >= 20 ? 'High' : ($count >= 5 ? 'Moderate' : 'Low'));
+                $color = $count >= 50 ? 'bg-red-500' : ($count >= 20 ? 'bg-orange-500' : ($count >= 5 ? 'bg-yellow-500' : 'bg-green-500'));
+                return [
+                    'zone'      => $row->zone_name,
+                    'commuters' => $count,
+                    'intensity' => $intensity,
+                    'color'     => $color,
+                    'lat'       => (float) $row->latitude,
+                    'lng'       => (float) $row->longitude,
+                ];
+            })
+            ->toArray();
+
         return [
             'date_range' => [
                 'from' => $dateFrom->toDateString(),
@@ -269,6 +328,8 @@ class AdminService
                 'active_conductors' => $activeConductors,
                 'total_conductors'  => $totalConductors,
             ],
+            'pickup_points' => $pickupPoints,
+            'heatmap_zones' => $heatmapZones,
         ];
     }
 
