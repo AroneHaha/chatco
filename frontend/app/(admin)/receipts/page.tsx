@@ -5,7 +5,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
 import { SearchBar } from '@/components/admin/ui/search-bar';
-import { CalendarDays, Download, Filter, Wallet, Ticket, Banknote, ChevronLeft, ChevronRight, AlertCircle, RefreshCw } from 'lucide-react';
+import { CalendarDays, Download, Filter, Wallet, Banknote, ChevronLeft, ChevronRight, AlertCircle, RefreshCw } from 'lucide-react';
 import { useReceiptsData, type Receipt, type PaymentMethod } from '@/app/(admin)/receipts/data/receipts-data';
 
 const ROWS_PER_PAGE = 20;
@@ -18,7 +18,7 @@ export default function ReceiptsPage() {
   const [paymentFilter, setPaymentFilter] = useState<PaymentMethod | 'All'>('All');
   const [currentPage, setCurrentPage] = useState(1);
 
-  const paymentOptions: (PaymentMethod | 'All')[] = ['All', 'Cash', 'Gcash', 'Voucher'];
+  const paymentOptions: (PaymentMethod | 'All')[] = ['All', 'Cash', 'Gcash'];
 
   // Reset to page 1 when filters change — uses the "adjust state during
   // render" pattern instead of useEffect to avoid cascading renders.
@@ -106,11 +106,9 @@ export default function ReceiptsPage() {
       render: (value: PaymentMethod) => (
         <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${
           value === 'Gcash' ? 'bg-[#62A0EA]/15 text-[#62A0EA]'
-          : value === 'Voucher' ? 'bg-pink-500/15 text-pink-400'
           : 'bg-emerald-500/15 text-emerald-400'
         }`}>
           {value === 'Gcash' && <Wallet size={12} />}
-          {value === 'Voucher' && <Ticket size={12} />}
           {value === 'Cash' && <Banknote size={12} />}
           {value}
         </span>
@@ -120,9 +118,15 @@ export default function ReceiptsPage() {
       key: 'status',
       label: 'Status',
       render: (value: string) => {
-        if (value === 'Pending') return <Badge variant="warning">Pending</Badge>;
-        if (value === 'Failed') return <Badge variant="danger">Failed</Badge>;
-        return <Badge variant="success">Completed</Badge>;
+        switch (value) {
+          case 'Completed': return <Badge variant="success">Completed</Badge>;
+          case 'Pending':   return <Badge variant="warning">Pending</Badge>;
+          case 'Failed':    return <Badge variant="danger">Failed</Badge>;
+          case 'Cancelled': return <Badge variant="danger">Cancelled</Badge>;
+          case 'Expired':   return <Badge variant="warning">Expired</Badge>;
+          case 'Refunded':  return <Badge variant="info">Refunded</Badge>;
+          default:          return <Badge variant="success">Completed</Badge>;
+        }
       },
     },
     { key: 'date', label: 'Date' },

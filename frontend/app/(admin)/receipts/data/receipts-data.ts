@@ -13,8 +13,8 @@ export interface Receipt {
   plateNumber: string;
   route: string;
   fare: number;
-  paymentMethod: "Cash" | "Gcash" | "Voucher";
-  status: "Completed" | "Pending" | "Failed";
+  paymentMethod: "Cash" | "Gcash";
+  status: "Completed" | "Pending" | "Failed" | "Cancelled" | "Expired" | "Refunded";
   date: string;
   time: string;
 }
@@ -45,15 +45,24 @@ function mapLaravelTransaction(r: Record<string, unknown>): Receipt {
   const rawMethod = String(r.payment_method ?? "CASH");
   const rawStatus = String(r.status ?? "PAID");
 
-  // Map backend payment_method to frontend paymentMethod
+  // Map backend payment_method to frontend paymentMethod.
+  // The backend PaymentMethod enum only has CASH + GCASH (no VOUCHER yet).
   let paymentMethod: Receipt["paymentMethod"] = "Cash";
   if (rawMethod === "GCASH") paymentMethod = "Gcash";
-  else if (rawMethod === "VOUCHER") paymentMethod = "Voucher";
 
-  // Map backend status to frontend status
-  let status: Receipt["status"] = "Completed";
-  if (rawStatus === "PENDING") status = "Pending";
-  else if (rawStatus === "FAILED") status = "Failed";
+  // Map backend status to frontend status — all 7 PaymentStatus values
+  // are handled so nothing falls through to "Completed" incorrectly.
+  let status: Receipt["status"];
+  switch (rawStatus) {
+    case "PAID":      status = "Completed"; break;
+    case "PENDING":
+    case "PROCESSING": status = "Pending"; break;
+    case "FAILED":    status = "Failed"; break;
+    case "CANCELLED": status = "Cancelled"; break;
+    case "EXPIRED":   status = "Expired"; break;
+    case "REFUNDED":  status = "Refunded"; break;
+    default:          status = "Completed"; break;
+  }
 
   // Format date and time from created_at
   const createdAt = String(r.created_at ?? "");
