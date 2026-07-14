@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X } from "lucide-react";
-import { fetchShiftTransactions, type Transaction } from "@/lib/conductor/services/transactions.service";
+import { getShiftTransactions, type Transaction } from "@/lib/conductor/services/transactions.service";
 import type { PaymentMethodType } from "@/types";
 
 interface HistoryLogModalProps {
@@ -21,41 +21,22 @@ const PAYMENT_METHOD_DISPLAY: Record<string, { label: string; color: string }> =
 
 export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLogModalProps) {
   const [history, setHistory] = useState<Transaction[]>([]);
-  const [, setIsLoading] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filterMethod, setFilterMethod] = useState<PaymentMethod | "ALL">("ALL");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [showDateFilter, setShowDateFilter] = useState(false);
 
-  // Track the previous open+shiftId key so we only fetch when the modal
-  // actually opens or the shift changes — avoids cascading renders from
-  // setState in useEffect.
-  const [prevOpenKey, setPrevOpenKey] = useState<string | null>(null);
-  const openKey = isOpen ? `${shiftId}` : null;
-
-  if (openKey !== prevOpenKey) {
-    setPrevOpenKey(openKey);
+  useEffect(() => {
     if (isOpen && shiftId) {
-      setIsLoading(true);
+      setHistory(getShiftTransactions(shiftId));
       setExpandedId(null);
       setDateFrom("");
       setDateTo("");
       setShowDateFilter(false);
       setFilterMethod("ALL");
-      // Fire the async fetch — setState inside the .then() is OK because
-      // it's a callback, not synchronous in the effect body.
-      void fetchShiftTransactions(shiftId)
-        .then((txns) => {
-          setHistory(txns);
-          setIsLoading(false);
-        })
-        .catch(() => {
-          setHistory([]);
-          setIsLoading(false);
-        });
     }
-  }
+  }, [isOpen, shiftId]);
 
   const toggleExpand = (id: string) => {
     setExpandedId(expandedId === id ? null : id);

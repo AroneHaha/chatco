@@ -343,55 +343,7 @@ class ConductorController extends Controller
             'name' => $name,
             'email' => $user->email,
             'role' => $user->role,
-            'username' => $profile?->generated_username,
         ], 'Conductor profile retrieved');
-    }
-
-    /**
-     * POST /api/conductor/change-password
-     *
-     * Allows the conductor to change their own password. Mirrors the commuter
-     * change-password flow: validates current password, ensures the new
-     * password is different, re-hashes (User model has 'hashed' cast),
-     * revokes other tokens (keeps the current session alive).
-     */
-    public function changePassword(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'current_password' => 'required|string',
-            'password' => 'required|string|min:8|max:128|confirmed',
-        ]);
-
-        $user = $request->user();
-
-        if (! \Illuminate\Support\Facades\Hash::check($validated['current_password'], $user->password)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'The provided current password is incorrect.',
-                'data' => null,
-                'errors' => ['current_password' => ['The provided current password is incorrect.']],
-                'meta' => null,
-            ], 422);
-        }
-
-        if (\Illuminate\Support\Facades\Hash::check($validated['password'], $user->password)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'The new password must be different from your current password.',
-                'data' => null,
-                'errors' => ['password' => ['The new password must be different from your current password.']],
-                'meta' => null,
-            ], 422);
-        }
-
-        $user->password = $validated['password'];
-        $user->save();
-
-        // Revoke all tokens EXCEPT the current one (keeps the conductor logged in).
-        $currentToken = $user->currentAccessToken();
-        $user->tokens()->where('id', '!=', $currentToken->id)->delete();
-
-        return $this->successResponse(null, 'Password updated successfully');
     }
 
     /**

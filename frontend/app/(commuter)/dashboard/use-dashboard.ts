@@ -28,6 +28,7 @@ export function useDashboard() {
   // Modal visibility
   const [showScan, setShowScan] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showShareRide, setShowShareRide] = useState(false);
   const [showSOS, setShowSOS] = useState(false);
 
   // Hail state
@@ -44,14 +45,15 @@ export function useDashboard() {
   // Bottom sheet
   const [showSheet, setShowSheet] = useState(true);
 
-  // Auto-open modals when navigating via nav tabs — uses "adjust state
-  // during render" pattern instead of useEffect to avoid cascading renders.
-  const scanParam = searchParams.get("scan");
-  const [prevScanParam, setPrevScanParam] = useState<string | null>(null);
-  if (scanParam !== prevScanParam) {
-    setPrevScanParam(scanParam);
-    if (scanParam === "true") setShowScan(true);
-  }
+  // Auto-open modals when navigating via nav tabs
+  useEffect(() => {
+    if (searchParams.get("scan") === "true") {
+      setShowScan(true);
+    }
+    if (searchParams.get("share-ride") === "true") {
+      setShowShareRide(true);
+    }
+  }, [searchParams]);
 
   // Callback for CommuterMap to push tracking results upward
   const handleNearbyVehiclesChange = useCallback(
@@ -95,6 +97,7 @@ export function useDashboard() {
     // Modals
     showScan, setShowScan,
     showHistory, setShowHistory,
+    showShareRide, setShowShareRide,
     showSOS, setShowSOS,
 
     // Conductor-radius tracking (from map)
