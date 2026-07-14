@@ -84,18 +84,13 @@ class TransactionService
     {
         $shift = $this->resolveConductorActiveShift($conductor);
 
+        $paymentMethod  = $data['payment_method'] ?? 'CASH';
         $finalAmount    = (float) ($data['final_amount'] ?? 0);
         $pickupName     = $data['pickup_name'] ?? null;
         $dropoffName    = $data['dropoff_name'] ?? null;
         $idempotencyKey = $data['idempotency_key'] ?? null;
 
         // ─── Idempotency check ──────────────────────────────────────
-        // Dedupe ONLY on the client-supplied idempotency_key, never on a
-        // natural key. Two different passengers paying the same fare for the
-        // same segment within seconds is normal on a jeepney — a natural-key
-        // window would silently DROP the second fare and undercount earnings.
-        // The key (a fresh UUID per "record fare" action) collapses true
-        // retries while keeping every distinct fare.
         if ($idempotencyKey) {
             $existing = Transaction::where('idempotency_key', $idempotencyKey)->first();
             if ($existing) {
@@ -103,11 +98,56 @@ class TransactionService
             }
         }
 
+        // ─── Voucher validation (if payment_method is VOUCHER) ──────
+        // The conductor enters the voucher code shown by the commuter.
+        // We validate it exists, is AVAILABLE, and hasn't expired. On
+        // success: mark it USED + bind the commuter's passenger_id +
+        // set final_amount=0 (free ride).
+        $voucherId = null;
+        $passengerId = $data['passenger_id'] ?? null;
+        $passengerName = $data['passenger_name'] ?? null;
+
+        if ($paymentMethod === PaymentMethod::VOUCHER->value) {
+            $voucherCode = $data['voucher_code'] ?? null;
+            if (! $voucherCode) {
+                abort(422, 'Voucher code is required for voucher payments.');
+            }
+
+            $voucher = \App\Models\Voucher::where('code', $voucherCode)->first();
+            if (! $voucher) {
+                abort(422, 'Voucher code not found.');
+            }
+
+            if ($voucher->status !== 'AVAILABLE') {
+                abort(422, "This voucher is {$voucher->status} and cannot be used.");
+            }
+
+            if ($voucher->expires_at && $voucher->expires_at->isPast()) {
+                abort(422, 'This voucher has expired.');
+            }
+
+            // Mark the voucher as USED + bind the commuter.
+            $voucher->update(['status' => 'USED']);
+            $voucherId = $voucher->id;
+            $passengerId = $voucher->commuter_id;
+
+            // Look up the commuter's name for the denormalized field.
+            if ($passengerId) {
+                $commuterProfile = \App\Models\CommuterProfile::find($passengerId);
+                if ($commuterProfile) {
+                    $passengerName = trim($commuterProfile->first_name . ' ' . $commuterProfile->surname);
+                }
+            }
+
+            // Free ride — override the amount to 0.
+            $finalAmount = 0;
+        }
+
         // ─── Persist with denormalized conductor/vehicle/driver info ──
         return Transaction::create([
             'transaction_id'   => $this->generateTransactionId(),
             'shift_id'         => $shift->shift_id,
-            'payment_method'   => PaymentMethod::CASH->value,
+            'payment_method'   => $paymentMethod,
             'status'           => PaymentStatus::PAID->value,
             'idempotency_key'  => $idempotencyKey,
             'final_amount'     => $finalAmount,
@@ -116,13 +156,15 @@ class TransactionService
             'discount_amount'  => isset($data['discount_amount']) ? (float) $data['discount_amount'] : null,
             'pickup_name'      => $pickupName,
             'dropoff_name'     => $dropoffName,
-            'passenger_name'   => $data['passenger_name'] ?? null,
+            'passenger_name'   => $passengerName,
             'passenger_role'   => $data['passenger_role'] ?? null,
+            'passenger_id'     => $passengerId,
             // Denormalized from shift_log for fast reporting without JOINs
             'conductor_name'   => $shift->conductor_name,
             'unit_number'      => $shift->unit_number,
             'driver_name'      => $shift->driver_name,
-            // Cash has no fare_point UUIDs (S4-T1 made these nullable)
+            'voucher_id'       => $voucherId,
+            // Cash/voucher has no fare_point UUIDs (S4-T1 made these nullable)
             'pickup_stop_id'   => null,
             'dropoff_stop_id'  => null,
             'paid_at'          => now(),

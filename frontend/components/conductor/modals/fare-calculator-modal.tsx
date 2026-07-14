@@ -42,7 +42,7 @@ interface FareCalcModalProps {
  * - GCash: method → select (locations only, NO fare) → qr_code → scan_result (fare breakdown after scan) → confirm → processing → success/failed
  */
 type Step = "method" | "select" | "confirm" | "processing" | "qr_code" | "scan_result" | "success" | "failed";
-type SelectedPaymentMethod = "GCash" | "Cash";
+type SelectedPaymentMethod = "GCash" | "Cash" | "Voucher";
 
 export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName, unitNumber, driverName }: FareCalcModalProps) {
   const [step, setStep] = useState<Step>("method");
@@ -75,6 +75,12 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** One pending-resume check per modal open. */
   const checkedPendingRef = useRef(false);
+
+  // ── Voucher state ──
+  // When the conductor selects Voucher, they enter the voucher code shown
+  // by the commuter. The backend validates it + creates a PAID/VOUCHER
+  // transaction with final_amount=0 (free ride).
+  const [voucherCode, setVoucherCode] = useState("");
 
   // GCash scan result state — kept for backwards compat with the existing
   // scan_result step UI. The commuter type is now detected by the backend
@@ -172,28 +178,26 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
       )
     : getPointAreas();
 
-  // ─── Save CASH transaction to backend ───
-  // Only used for Cash payments. GCash payments are created server-side by
-  // initiateGcash() (which writes the PENDING transaction + qr_token) and
-  // finalized by the PayMongo webhook (which flips status to PAID). The
-  // conductor never calls createTransaction() for GCash.
+  // ─── Save CASH/VOUCHER transaction to backend ───
+  // Used for Cash + Voucher payments. GCash payments are created server-side
+  // by initiateGcash() and finalized by the webhook.
   const recordTransaction = async (method: SelectedPaymentMethod, overrideFare?: { finalFare: number; regularFare: number; discountAmount: number; barangaysTraveled: number; succeedingCount: number }, overrideCommuterType?: CommuterType) => {
     if (!pickupPoint || !dropoffPoint || !shiftId) return;
 
     const fareData = overrideFare || fareInfo;
     if (!fareData) return;
 
-    // Cash only — GCash is handled by initiateGcash + the webhook flow.
-    if (method !== "Cash") return;
+    // GCash is handled by initiateGcash + the webhook flow — bail here.
+    if (method === "GCash") return;
 
-    const paymentMethodType: PaymentMethodType = "Cash";
+    const paymentMethodType: PaymentMethodType = method === "Voucher" ? "Voucher" : "Cash";
     const effectiveCommuterType = overrideCommuterType || commuterType;
 
     await createTransaction(shiftId, {
       paymentMethod: paymentMethodType,
-      finalAmount: fareData.finalFare,
+      finalAmount: method === "Voucher" ? 0 : fareData.finalFare,
       passengerName: "Commuter",
-      passengerId: "", // Cash is anonymous — the backend drops this field anyway
+      passengerId: "",
       passengerRole: effectiveCommuterType,
       from: pickupPoint.name,
       to: dropoffPoint.name,
@@ -204,6 +208,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
       conductorName: conductorName || "—",
       unitNumber: unitNumber || "—",
       driverName: driverName || "—",
+      voucherCode: method === "Voucher" ? voucherCode.trim() : undefined,
     });
   };
 
@@ -366,10 +371,34 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     setStep("success");
   };
 
+  // ─── Voucher payment ───
+  // The conductor enters the voucher code shown by the commuter. The backend
+  // validates it + creates a PAID/VOUCHER transaction with final_amount=0.
+  const handlePayWithVoucher = async () => {
+    if (!fareInfo || !pickupPoint || !dropoffPoint) return;
+    if (!voucherCode.trim()) {
+      setGcashError("Please enter the voucher code.");
+      setStep("failed");
+      return;
+    }
+
+    setStep("processing");
+
+    try {
+      await recordTransaction("Voucher");
+      setStep("success");
+    } catch (err) {
+      setGcashError(err instanceof Error ? err.message : "Voucher validation failed.");
+      setStep("failed");
+    }
+  };
+
   const handleConfirmPayment = () => {
     if (selectedMethod === "GCash") {
       // GCash: initiate the real backend flow (creates PENDING txn + qr_token).
       handleInitiateGcash();
+    } else if (selectedMethod === "Voucher") {
+      handlePayWithVoucher();
     } else {
       handlePayWithCash();
     }
@@ -446,6 +475,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     setIsInitiatingGcash(false);
     setScannedCommuterType("REGULAR");
     setScannedCommuterName("Commuter");
+    setVoucherCode("");
     onClose();
   };
 
@@ -595,6 +625,30 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                   <p className="text-[11px] text-white/40 mt-0.5 leading-relaxed">Digital payment via GCash — commuter scans QR to pay from their account</p>
                 </div>
                 <svg className="w-5 h-5 text-white/20 group-hover:text-blue-400 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                </svg>
+              </div>
+            </button>
+
+            {/* Voucher Option */}
+            <button
+              onClick={() => {
+                setSelectedMethod("Voucher");
+                setStep("select");
+              }}
+              className="w-full text-left p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-violet-500/10 hover:border-violet-500/30 transition-all duration-200 group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-violet-500/15 border border-violet-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-violet-500/25 transition-colors">
+                  <svg className="w-6 h-6 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 11.25v8.25a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 1 0 9.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1 1 14.625 7.5H12m0 0V21m-8.625-9.75h18c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125h-18c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-white font-bold text-sm group-hover:text-violet-300 transition-colors">Voucher / Free Ride</h3>
+                  <p className="text-[11px] text-white/40 mt-0.5 leading-relaxed">Commuter shows their reward voucher code — enter it to apply a free ride</p>
+                </div>
+                <svg className="w-5 h-5 text-white/20 group-hover:text-violet-400 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
                 </svg>
               </div>
@@ -1377,10 +1431,10 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     // For GCash: the commuter type is NOT known yet (it's detected server-side
     // when the commuter claims the QR). So we show the REGULAR fare here —
     // if the commuter turns out to be discounted, the backend applies the
-    // discount at claim time (the final_amount may be adjusted by the webhook
-    // path in a future iteration; currently the fare is fixed at initiation).
+    // discount at claim time.
     // For Cash: the conductor selects the commuter type, so the discount is
     // applied immediately.
+    // For Voucher: free ride (₱0) — the conductor enters the voucher code.
     const activeFareInfo = selectedMethod === "GCash" ? gcashFareInfo : fareInfo;
     const activeCommuterType = selectedMethod === "GCash" ? "REGULAR" : commuterType;
 
@@ -1489,6 +1543,25 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
               </div>
             )}
 
+            {/* Voucher Code Input — only for Voucher payment */}
+            {selectedMethod === "Voucher" && (
+              <div className="mb-6">
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                  Voucher Code <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={voucherCode}
+                  onChange={(e) => setVoucherCode(e.target.value.toUpperCase().trim())}
+                  placeholder="e.g. REWARD-AB12CD34"
+                  className="block w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm font-mono placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-violet-400 transition-colors"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Enter the code shown by the commuter&apos;s app. The ride will be recorded as a free ride (₱0).
+                </p>
+              </div>
+            )}
+
             <div className="flex gap-3">
               <button
                 onClick={() => setStep("select")}
@@ -1499,18 +1572,22 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
               </button>
               <button
                 onClick={handleConfirmPayment}
-                disabled={isInitiatingGcash}
+                disabled={isInitiatingGcash || (selectedMethod === "Voucher" && !voucherCode.trim())}
                 className={`flex-1 py-3 rounded-xl text-white text-sm font-bold transition-colors shadow-lg disabled:opacity-60 disabled:cursor-not-allowed ${
                   selectedMethod === "GCash"
                     ? "bg-[#1A5FB4] hover:bg-[#164A8F] shadow-[#1A5FB4]/30"
-                    : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/30"
+                    : selectedMethod === "Voucher"
+                      ? "bg-violet-600 hover:bg-violet-700 shadow-violet-600/30"
+                      : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/30"
                 }`}
               >
                 {isInitiatingGcash
                   ? "Starting…"
                   : selectedMethod === "GCash"
                     ? `Generate QR · ${formatCurrency(activeFareInfo.finalFare)}`
-                    : `Pay ${formatCurrency(activeFareInfo.finalFare)}`}
+                    : selectedMethod === "Voucher"
+                      ? "Apply Voucher (Free Ride)"
+                      : `Pay ${formatCurrency(activeFareInfo.finalFare)}`}
               </button>
             </div>
           </div>

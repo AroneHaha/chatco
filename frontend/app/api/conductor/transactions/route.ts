@@ -65,11 +65,11 @@ export async function POST(request: NextRequest) {
     // from recording fares on another conductor's shift.
     const { shiftId: _ignored, ...txnBody } = body;
 
-    // Laravel expects snake_case field names + payment_method=CASH
-    // (RecordCashRequest validates `in:CASH` — GCash is rejected here).
-    // GCash fares must go through the /payments/gcash/initiate endpoint.
+    // Laravel expects snake_case field names. payment_method can be CASH or
+    // VOUCHER (RecordCashRequest validates `in:CASH,VOUCHER`). GCash goes
+    // through /payments/gcash/initiate. For VOUCHER, voucher_code is required.
     const payload = {
-      payment_method: "CASH",
+      payment_method: txnBody.paymentMethod === "Voucher" ? "VOUCHER" : "CASH",
       final_amount: txnBody.finalAmount ?? txnBody.final_amount,
       pickup_name: txnBody.from ?? txnBody.pickup_name,
       dropoff_name: txnBody.to ?? txnBody.dropoff_name,
@@ -79,6 +79,7 @@ export async function POST(request: NextRequest) {
       passenger_name: txnBody.passengerName ?? txnBody.passenger_name,
       passenger_role: txnBody.passengerRole ?? txnBody.passenger_role,
       idempotency_key: txnBody.idempotencyKey ?? txnBody.idempotency_key,
+      voucher_code: txnBody.voucherCode ?? txnBody.voucher_code ?? undefined,
     };
 
     const result = await proxyToLaravel(request, "/conductor/transactions", {
