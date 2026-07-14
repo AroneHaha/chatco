@@ -22,6 +22,7 @@ export function middleware(request: NextRequest) {
       "/feedback",
       "/profile",
       "/announcements",
+      "/gcash/return",
     ],
     conductor: [
       "/unit-verification",
@@ -96,5 +97,6 @@ export const config = {
     "/announcements/:path*",
     "/unit-verification/:path*",
     "/conductor-dashboard/:path*",
+    "/gcash/return/:path*",
   ],
 };

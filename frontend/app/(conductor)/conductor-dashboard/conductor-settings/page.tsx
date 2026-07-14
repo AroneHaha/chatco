@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { clearShift } from "@/lib/conductor/services/shift.service";
 import { useConductorShift } from "@/app/(conductor)/hooks/use-conductor-shift";
@@ -14,6 +14,67 @@ export default function SettingsPage() {
   const { shift, status: shiftStatus, error: shiftError } = useConductorShift();
   const { history, transactions, status: remitStatus, error: remitError } = useRemittanceData();
   const [scanSound, setScanSound] = useState(true);
+
+  // ── Fetch the conductor's real profile (username + name) from the API ──
+  const [profile, setProfile] = useState<{ name: string; username: string } | null>(null);
+  useEffect(() => {
+    fetch("/api/conductor/profile", { headers: { Accept: "application/json" } })
+      .then(r => r.ok ? r.json() : null)
+      .then(json => {
+        if (json?.data) {
+          setProfile({
+            name: json.data.name ?? "—",
+            username: json.data.username ?? "—",
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // ── Change Password state ──
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  const handleChangePassword = async () => {
+    setPasswordError(null);
+    setPasswordSuccess(null);
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError("New password and confirmation do not match.");
+      return;
+    }
+    if (passwordForm.newPassword.length < 8) {
+      setPasswordError("New password must be at least 8 characters.");
+      return;
+    }
+    setIsChangingPassword(true);
+    try {
+      const res = await fetch("/api/conductor/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          current_password: passwordForm.currentPassword,
+          password: passwordForm.newPassword,
+          password_confirmation: passwordForm.confirmPassword,
+        }),
+      });
+      const body = await res.json() as { message?: string; errors?: Record<string, string[]> };
+      if (!res.ok) {
+        const firstError = body?.errors ? Object.values(body.errors)[0]?.[0] : null;
+        setPasswordError(firstError ?? body?.message ?? "Failed to change password.");
+      } else {
+        setPasswordSuccess("Password updated successfully.");
+        setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+        setTimeout(() => { setPasswordSuccess(null); setShowChangePassword(false); }, 2000);
+      }
+    } catch {
+      setPasswordError("Network error. Please try again.");
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
 
   const [showClearCache, setShowClearCache] = useState(false);
   const [showSOS, setShowSOS] = useState(false);
@@ -92,9 +153,8 @@ export default function SettingsPage() {
           <div className="space-y-3">
             {(
               [
-                { label: "Name", value: shift?.conductorName || "—" },
-                { label: "Username", value: "mark_conductor" },
-                { label: "Phone Number", value: "+63 917 123 4567" },
+                { label: "Name", value: profile?.name ?? shift?.conductorName ?? "—" },
+                { label: "Username", value: profile?.username ?? "—" },
               ] as const
             ).map((item) => (
               <div
@@ -202,38 +262,71 @@ export default function SettingsPage() {
           <div className="space-y-3">
             {/* Change Password */}
             <button
-              disabled
-              className="w-full flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3.5 opacity-40 cursor-not-allowed"
+              onClick={() => setShowChangePassword(!showChangePassword)}
+              className="w-full flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3.5 hover:bg-white/[0.05] transition-colors"
             >
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-lg bg-white/[0.04] flex items-center justify-center">
-                  <svg
-                    className="w-4 h-4 text-white/25"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={1.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"
-                    />
+                  <svg className="w-4 h-4 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
                   </svg>
                 </div>
                 <div className="text-left">
-                  <p className="text-sm text-white font-semibold">
-                    Change Password
-                  </p>
-                  <p className="text-xs text-white/25 mt-0.5">
-                    Update your account password
-                  </p>
+                  <p className="text-sm text-white font-semibold">Change Password</p>
+                  <p className="text-xs text-white/30 mt-0.5">Update your account password</p>
                 </div>
               </div>
-              <span className="text-[9px] font-bold uppercase tracking-wider text-white/15 bg-white/[0.04] px-2.5 py-1 rounded-md border border-white/[0.04]">
-                Soon
-              </span>
+              <svg className={`w-4 h-4 text-white/20 transition-transform ${showChangePassword ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+              </svg>
             </button>
+
+            {/* Change Password Form (expandable) */}
+            {showChangePassword && (
+              <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4 space-y-3">
+                {passwordSuccess && (
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2.5 text-xs text-emerald-400">{passwordSuccess}</div>
+                )}
+                {passwordError && (
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2.5 text-xs text-red-400">{passwordError}</div>
+                )}
+                <div>
+                  <label className="block text-[10px] text-white/40 uppercase font-semibold mb-1">Current Password</label>
+                  <input
+                    type="password"
+                    value={passwordForm.currentPassword}
+                    onChange={e => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#050F1A] border border-white/[0.06] rounded-lg text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-white/40 uppercase font-semibold mb-1">New Password</label>
+                  <input
+                    type="password"
+                    value={passwordForm.newPassword}
+                    onChange={e => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                    placeholder="Min 8 characters"
+                    className="w-full px-3 py-2 bg-[#050F1A] border border-white/[0.06] rounded-lg text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-white/40 uppercase font-semibold mb-1">Confirm New Password</label>
+                  <input
+                    type="password"
+                    value={passwordForm.confirmPassword}
+                    onChange={e => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#050F1A] border border-white/[0.06] rounded-lg text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA]"
+                  />
+                </div>
+                <button
+                  onClick={handleChangePassword}
+                  disabled={isChangingPassword || !passwordForm.currentPassword || !passwordForm.newPassword}
+                  className="w-full py-2.5 bg-[#62A0EA] hover:bg-[#4A8BD4] disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors"
+                >
+                  {isChangingPassword ? "Updating…" : "Update Password"}
+                </button>
+              </div>
+            )}
 
             {/* Push Notifications */}
             <button
