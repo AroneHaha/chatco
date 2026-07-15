@@ -8,13 +8,15 @@ interface SuccessOverlayProps {
   cashTotal: number;
   grandTotal: number;
   unitNumber: string;
+  shortage?: number;
 }
 
-export default function SuccessOverlay({ show, onClose, gcashTotal, cashTotal, grandTotal, unitNumber }: SuccessOverlayProps) {
+export default function SuccessOverlay({ show, onClose, gcashTotal, cashTotal, grandTotal, unitNumber, shortage }: SuccessOverlayProps) {
   // Guard: ensure numeric values even if undefined slips through
   const safeGcash = gcashTotal ?? 0;
   const safeCash = cashTotal ?? 0;
   const safeGrand = grandTotal ?? 0;
+  const safeShortage = shortage ?? 0;
 
   if (!show) return null;
   return (
@@ -31,6 +33,12 @@ export default function SuccessOverlay({ show, onClose, gcashTotal, cashTotal, g
                 <p className="text-xs text-emerald-400/60 font-medium">Cash (Hand over to admin)</p>
                 <p className="text-lg font-extrabold text-emerald-400 tabular-nums">{fmt(safeCash)}</p>
               </div>
+              {safeShortage > 0 && (
+                <div className="bg-red-500/8 border border-red-500/15 rounded-xl p-3 space-y-1">
+                  <p className="text-xs text-red-400/60 font-medium">Shortage Recorded</p>
+                  <p className="text-lg font-extrabold text-red-400 tabular-nums">−{fmt(safeShortage)}</p>
+                </div>
+              )}
               <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3 flex items-center justify-between">
                 <p className="text-xs text-white/40 font-bold uppercase tracking-wider">Total</p>
                 <p className="text-xl font-extrabold text-white tabular-nums">{fmt(safeGrand)}</p>
