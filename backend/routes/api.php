@@ -50,6 +50,10 @@ Route::prefix('auth')->group(function () {
 */
 Route::get('/fare-matrix', [FareMatrixController::class, 'index'])->middleware('throttle:commuter-hail');
 
+// Public tracking endpoint — no auth required. Anyone with the token
+// can view the commuter's live position (for the share-ride feature).
+Route::get('/share/{token}', [\App\Http\Controllers\Commuter\ShareRideController::class, 'show'])->middleware('throttle:commuter-hail');
+
 /*
 |--------------------------------------------------------------------------
 | Authenticated User Route
@@ -68,6 +72,10 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
     Route::post('/change-password', [CommuterController::class, 'changePassword'])->middleware('throttle:conductor-write');
     Route::get('/trips', [CommuterController::class, 'trips'])->middleware('throttle:conductor-read');
     Route::get('/rewards', [CommuterController::class, 'rewards'])->middleware('throttle:conductor-read');
+
+    // Share Live Location — commuter generates a tracking link
+    Route::post('/share-ride', [\App\Http\Controllers\Commuter\ShareRideController::class, 'store'])->middleware('throttle:commuter-hail');
+    Route::delete('/share-ride', [\App\Http\Controllers\Commuter\ShareRideController::class, 'destroy'])->middleware('throttle:commuter-hail');
 
     // Hail lifecycle (commuter-side) — 10 req/min per user
     Route::post('/hail', [HailController::class, 'store'])->middleware('throttle:commuter-hail');
