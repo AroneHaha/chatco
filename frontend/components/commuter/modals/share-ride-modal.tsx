@@ -39,7 +39,9 @@ export default function ShareRideModal({ commuterName, lat, lng, onClose }: Shar
 
         const json = await res.json();
         const data = json.data;
-        setShareUrl(data.share_url ?? `${window.location.origin}/share/${data.token}`);
+        // Always construct the share URL using the frontend's origin (port 3000),
+        // NOT the backend's share_url (which points to port 8000 / Laravel).
+        setShareUrl(`${window.location.origin}/share/${data.token}`);
         setExpiresAt(data.expires_at);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to create share link.");
