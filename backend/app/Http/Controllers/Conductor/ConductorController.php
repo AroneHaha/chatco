@@ -343,7 +343,6 @@ class ConductorController extends Controller
             'name' => $name,
             'email' => $user->email,
             'role' => $user->role,
-            'username' => $profile?->generated_username,
         ], 'Conductor profile retrieved');
     }
 

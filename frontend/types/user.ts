@@ -24,11 +24,7 @@ export interface AuthUser {
 export type CommuterType = "REGULAR" | "STUDENT" | "SENIOR_CITIZEN" | "PWD";
 export type AccountStatus =
   | "PENDING_VERIFICATION"
-  | "PENDING"
   | "ACTIVE"
-  | "APPROVED"
-  | "REJECTED"
-  | "SUSPENDED"
   | "DISCOUNT_REJECTED";
 
 // ─── Commuter Profile (from Supabase commuter_profiles table) ────────

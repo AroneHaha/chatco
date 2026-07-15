@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { clearShift } from "@/lib/conductor/services/shift.service";
 import { useConductorShift } from "@/app/(conductor)/hooks/use-conductor-shift";
@@ -14,24 +14,6 @@ export default function SettingsPage() {
   const { shift, status: shiftStatus, error: shiftError } = useConductorShift();
   const { history, transactions, status: remitStatus, error: remitError } = useRemittanceData();
   const [scanSound, setScanSound] = useState(true);
-
-  // ── Fetch the conductor's real profile (username) from the API ──
-  // The backend GET /api/conductor/profile returns name + generated_username.
-  // ConductorProfile has no contact field in the schema, so no phone number.
-  const [conductorProfile, setConductorProfile] = useState<{ name: string; username: string } | null>(null);
-  useEffect(() => {
-    fetch("/api/conductor/profile", { headers: { Accept: "application/json" } })
-      .then(r => r.ok ? r.json() : null)
-      .then(json => {
-        if (json?.data) {
-          setConductorProfile({
-            name: json.data.name ?? "—",
-            username: json.data.username ?? "—",
-          });
-        }
-      })
-      .catch(() => {});
-  }, []);
 
   const [showClearCache, setShowClearCache] = useState(false);
   const [showSOS, setShowSOS] = useState(false);
@@ -110,8 +92,9 @@ export default function SettingsPage() {
           <div className="space-y-3">
             {(
               [
-                { label: "Name", value: conductorProfile?.name ?? shift?.conductorName ?? "—" },
-                { label: "Username", value: conductorProfile?.username ?? "—" },
+                { label: "Name", value: shift?.conductorName || "—" },
+                { label: "Username", value: "mark_conductor" },
+                { label: "Phone Number", value: "+63 917 123 4567" },
               ] as const
             ).map((item) => (
               <div
