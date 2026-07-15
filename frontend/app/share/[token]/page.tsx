@@ -66,8 +66,8 @@ export default function ShareTrackingPage({ params }: { params: Promise<{ token:
     };
 
     void fetchData();
-    // Poll every 3 seconds for live updates
-    pollRef.current = setInterval(fetchData, 3000);
+    // Poll every 5 seconds for live updates
+    pollRef.current = setInterval(fetchData, 5000);
 
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);

@@ -52,8 +52,8 @@ Route::get('/fare-matrix', [FareMatrixController::class, 'index'])->middleware('
 
 // Public tracking endpoint — no auth required. Anyone with the token
 // can view the commuter's live position (for the share-ride feature).
-// Uses conductor-read throttle (60/min) to allow 3-second polling.
-Route::get('/share/{token}', [\App\Http\Controllers\Commuter\ShareRideController::class, 'show'])->middleware('throttle:conductor-read');
+// No throttle — this is a public read-only endpoint that polls every 5s.
+Route::get('/share/{token}', [\App\Http\Controllers\Commuter\ShareRideController::class, 'show']);
 
 /*
 |--------------------------------------------------------------------------
