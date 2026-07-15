@@ -488,12 +488,14 @@ class AdminController extends Controller
      * Lists all terminated personnel records, newest first. Powers the
      * "Separated Personnel" section of the Fleet Management Records & History tab.
      */
-    public function terminatedPersonnel(): JsonResponse
+    public function terminatedPersonnel(Request $request): JsonResponse
     {
+        $perPage = (int) $request->integer('per_page', 50);
+
         $records = TerminatedPersonnel::query()
             ->orderBy('terminated_date', 'desc')
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->paginate($perPage);
 
         return $this->successResponse($records, 'Terminated personnel retrieved');
     }
@@ -746,6 +748,8 @@ class AdminController extends Controller
 
     public function transactions(Request $request): JsonResponse
     {
+        $perPage = (int) $request->integer('per_page', 100);
+
         $query = Transaction::with(['shiftLog', 'passenger'])
             ->orderBy('created_at', 'desc');
 
@@ -753,7 +757,7 @@ class AdminController extends Controller
             $query->where('shift_id', $request->input('shift_id'));
         }
 
-        $transactions = $query->get();
+        $transactions = $query->paginate($perPage);
 
         return $this->successResponse($transactions, 'Transactions retrieved');
     }
@@ -769,8 +773,11 @@ class AdminController extends Controller
      * the conductor records their first cash fare, before they click
      * "Remit to Admin".
      */
-    public function remittances(): JsonResponse
+    public function remittances(Request $request): JsonResponse
     {
+        $perPage = (int) $request->integer('per_page', 100);
+        $page = (int) $request->integer('page', 1);
+
         // 1. Completed remittances
         $completedRemittances = Remittance::query()
             ->orderBy('date', 'desc')
@@ -833,7 +840,23 @@ class AdminController extends Controller
         // Merge: Pending first, then Remitted
         $unified = $pendingShifts->concat($completedRemittances);
 
-        return $this->successResponse($unified, 'Remittances retrieved');
+        // Manual pagination on the merged collection (can't use ->paginate()
+        // because we're merging two separate queries).
+        $total = $unified->count();
+        $offset = ($page - 1) * $perPage;
+        $items = $unified->slice($offset, $perPage)->values();
+
+        // Return in the same shape as Laravel's paginator so the frontend
+        // can use the same extraction logic.
+        $paginated = new \Illuminate\Pagination\LengthAwarePaginator(
+            $items,
+            $total,
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        return $this->successResponse($paginated, 'Remittances retrieved');
     }
 
     public function shiftLogs(Request $request): JsonResponse
@@ -853,7 +876,9 @@ class AdminController extends Controller
             $query->where('driver_id', $request->input('driver_id'));
         }
 
-        $shiftLogs = $query->get();
+        $perPage = (int) $request->integer('per_page', 100);
+
+        $shiftLogs = $query->paginate($perPage);
 
         return $this->successResponse($shiftLogs, 'Shift logs retrieved');
     }

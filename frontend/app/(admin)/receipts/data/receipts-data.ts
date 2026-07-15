@@ -25,14 +25,16 @@ export type PaymentMethod = Receipt["paymentMethod"];
 // ─── API fetch helper ──────────────────────────────────────────────────
 
 async function fetchTransactions(): Promise<Receipt[]> {
-  const res = await fetch("/api/admin/transactions", {
+  const res = await fetch("/api/admin/transactions?per_page=500", {
     headers: { Accept: "application/json" },
   });
   if (!res.ok) {
     throw new Error("Failed to fetch transactions from server.");
   }
   const json = await res.json();
-  const apiRecords = json.data ?? json;
+  // The backend now returns a paginator: { data: { data: [...], current_page, total, ... } }
+  // Extract the inner data array. Fall back to flat array for backwards compat.
+  const apiRecords = json.data?.data ?? json.data ?? json;
   if (!Array.isArray(apiRecords)) return [];
   return apiRecords.map(mapLaravelTransaction);
 }

@@ -22,14 +22,15 @@ export type RemittanceRow = RemittanceRecord;
 // No mock data, no localStorage fallback — admin sees only real DB data.
 
 async function fetchRemittances(): Promise<RemittanceRecord[]> {
-  const res = await fetch("/api/admin/remittances", {
+  const res = await fetch("/api/admin/remittances?per_page=500", {
     headers: { Accept: "application/json" },
   });
   if (!res.ok) {
     throw new Error("Failed to fetch remittances from server.");
   }
   const json = await res.json();
-  const apiRecords = json.data ?? json;
+  // The backend now returns a paginator: { data: { data: [...], ... } }
+  const apiRecords = json.data?.data ?? json.data ?? json;
   if (!Array.isArray(apiRecords)) return [];
   return apiRecords.map(mapLaravelRemittance);
 }
