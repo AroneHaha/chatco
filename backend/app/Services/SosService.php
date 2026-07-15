@@ -4,8 +4,11 @@ namespace App\Services;
 
 use App\Models\SosAlert;
 use App\Models\User;
+use App\Models\Setting;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 /**
  * Sprint 6 (T5) — SOS alert business logic.
@@ -43,7 +46,7 @@ class SosService
             throw new \RuntimeException('Commuter profile not found');
         }
 
-        return SosAlert::create([
+        $alert = SosAlert::create([
             'sender_role' => 'COMMUTER',
             'commuter_id' => $profile->id,
             'lat'         => $data['lat'],
@@ -51,6 +54,10 @@ class SosService
             'note'        => $data['note'] ?? null,
             'status'      => self::STATUS_ACTIVE,
         ])->load('commuter');
+
+        $this->sendSosEmailToAdmin($alert, $commuter);
+
+        return $alert;
     }
 
     /**
@@ -64,7 +71,7 @@ class SosService
             throw new \RuntimeException('Conductor profile not found');
         }
 
-        return SosAlert::create([
+        $alert = SosAlert::create([
             'sender_role'  => 'CONDUCTOR',
             'conductor_id' => $profile->id,
             'lat'          => $data['lat'],
@@ -72,6 +79,10 @@ class SosService
             'note'         => $data['note'] ?? null,
             'status'       => self::STATUS_ACTIVE,
         ])->load('conductor');
+
+        $this->sendSosEmailToAdmin($alert, $conductor);
+
+        return $alert;
     }
 
     /**
@@ -196,6 +207,51 @@ class SosService
             return SosAlert::findOrFail($id);
         } catch (ModelNotFoundException) {
             throw new \RuntimeException('SOS alert not found');
+        }
+    }
+
+    /**
+     * Send an SOS notification email to the admin.
+     *
+     * Reads the `admin_sos_email` + `sos_admin_template` from the settings
+     * table. If either is missing, the email is silently skipped (the SOS
+     * alert still lands in the DB — the email is a best-effort notification).
+     *
+     * Errors are logged but never thrown — the SOS trigger must not fail
+     * because of an email issue.
+     */
+    private function sendSosEmailToAdmin(SosAlert $alert, User $sender): void
+    {
+        try {
+            $adminEmail = Setting::where('key', 'admin_sos_email')->value('value');
+            if (! $adminEmail) {
+                return; // No admin email configured — skip silently
+            }
+
+            $template = Setting::where('key', 'sos_admin_template')->value('value')
+                ?? "SOS ALERT\n\nA {sender_name} has triggered an emergency SOS alert.\n\nCoordinates: {lat}, {lng}\nNote: {note}\nTime: {time}\n\nPlease respond immediately.";
+
+            $senderName = $alert->sender_role === 'CONDUCTOR'
+                ? ($alert->conductor?->first_name . ' ' . $alert->conductor?->last_name)
+                : ($alert->commuter?->first_name . ' ' . $alert->commuter?->surname);
+
+            $body = strtr($template, [
+                '{sender_name}' => trim($senderName),
+                '{lat}'         => $alert->lat,
+                '{lng}'         => $alert->lng,
+                '{note}'        => $alert->note ?? 'No note provided',
+                '{time}'        => $alert->created_at?->toDateTimeString() ?? now()->toDateTimeString(),
+            ]);
+
+            Mail::raw($body, function ($message) use ($adminEmail) {
+                $message->to($adminEmail)
+                    ->subject('CHATCO — Emergency SOS Alert');
+            });
+        } catch (\Exception $e) {
+            Log::error('Failed to send SOS email to admin', [
+                'error' => $e->getMessage(),
+                'alert_id' => $alert->id,
+            ]);
         }
     }
 }

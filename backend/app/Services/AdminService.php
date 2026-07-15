@@ -5,12 +5,15 @@ namespace App\Services;
 use App\Enums\UserRole;
 use App\Models\Remittance;
 use App\Models\ShiftLog;
+use App\Models\Setting;
 use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
 class AdminService
@@ -748,6 +751,10 @@ class AdminService
 
         $fresh = $profile->fresh();
 
+        // Send approval email to the commuter (best-effort — don't fail
+        // the approval if the email can't be sent).
+        $this->sendApprovalEmail($user, $fresh);
+
         return [
             'id'              => $user->id,
             'email'           => $user->email,
@@ -785,6 +792,10 @@ class AdminService
             ]);
         }
 
+        // Send rejection email to the commuter BEFORE rewriting the email
+        // (best-effort — don't fail the rejection if the email can't be sent).
+        $this->sendRejectionEmail($user, $profile, $reason);
+
         // Rewrite the email to a unique placeholder BEFORE soft-deleting.
         // This frees the canonical email for re-registration (the users.email
         // column has a DB-level unique index that includes soft-deleted rows).
@@ -805,5 +816,63 @@ class AdminService
             'account_status'   => 'REJECTED',
             'rejection_reason' => $reason,
         ];
+    }
+
+    // ── Email helpers ──────────────────────────────────────────────
+
+    /**
+     * Send an approval notification email to the commuter.
+     * Reads the `account_approved_template` from the settings table.
+     * Best-effort: errors are logged but never thrown.
+     */
+    private function sendApprovalEmail(User $user, $profile): void
+    {
+        try {
+            $template = Setting::where('key', 'account_approved_template')->value('value')
+                ?? "Congratulations {name}!\n\nYour CHATCO commuter account has been approved.\n\nCommuter Type: {commuter_type}\n\nYou can now log in to the CHATCO app and start riding.";
+
+            $body = strtr($template, [
+                '{name}'          => trim($profile->first_name . ' ' . $profile->surname),
+                '{commuter_type}' => $profile->commuter_type ?? 'REGULAR',
+            ]);
+
+            Mail::raw($body, function ($message) use ($user) {
+                $message->to($user->email)
+                    ->subject('CHATCO — Account Approved');
+            });
+        } catch (\Exception $e) {
+            Log::error('Failed to send approval email', [
+                'error' => $e->getMessage(),
+                'user_id' => $user->id,
+            ]);
+        }
+    }
+
+    /**
+     * Send a rejection notification email to the commuter.
+     * Reads the `account_rejected_template` from the settings table.
+     * Best-effort: errors are logged but never thrown.
+     */
+    private function sendRejectionEmail(User $user, $profile, string $reason): void
+    {
+        try {
+            $template = Setting::where('key', 'account_rejected_template')->value('value')
+                ?? "Hello {name},\n\nWe regret to inform you that your CHATCO commuter registration has been rejected.\n\nReason: {reason}\n\nIf you believe this is an error, please contact support.";
+
+            $body = strtr($template, [
+                '{name}'   => trim($profile->first_name . ' ' . $profile->surname),
+                '{reason}' => $reason,
+            ]);
+
+            Mail::raw($body, function ($message) use ($user) {
+                $message->to($user->email)
+                    ->subject('CHATCO — Registration Update');
+            });
+        } catch (\Exception $e) {
+            Log::error('Failed to send rejection email', [
+                'error' => $e->getMessage(),
+                'user_id' => $user->id,
+            ]);
+        }
     }
 }
