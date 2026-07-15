@@ -1,7 +1,17 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { MapPin, Clock, AlertCircle, Loader2, Navigation } from "lucide-react";
+import { MapPin, Clock, AlertCircle, Loader2 } from "lucide-react";
+import dynamic from "next/dynamic";
+
+// Dynamically import the admin map (it supports liveVehicles markers + is SSR-disabled)
+const TrackingMap = dynamic<{
+  liveVehicles?: import("@/components/admin/admin-commuter-map").LiveVehicleMarker[];
+  sosLocations?: [number, number][];
+}>(() => import("@/components/admin/admin-commuter-map"), {
+  ssr: false,
+  loading: () => <div className="w-full h-full bg-[#050F1A] flex items-center justify-center"><Loader2 className="w-8 h-8 text-[#62A0EA] animate-spin" /></div>,
+});
 
 interface TrackingData {
   active: boolean;
@@ -56,8 +66,8 @@ export default function ShareTrackingPage({ params }: { params: Promise<{ token:
     };
 
     void fetchData();
-    // Poll every 5 seconds for live updates
-    pollRef.current = setInterval(fetchData, 5000);
+    // Poll every 3 seconds for live updates
+    pollRef.current = setInterval(fetchData, 3000);
 
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
@@ -80,7 +90,7 @@ export default function ShareTrackingPage({ params }: { params: Promise<{ token:
       <div className="min-h-screen bg-[#050F1A] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-10 h-10 text-[#62A0EA] animate-spin" />
-          <p className="text-sm text-white/40">Loading live location…</p>
+          <p className="text-sm text-white/40">Loading live tracking…</p>
         </div>
       </div>
     );
@@ -112,13 +122,33 @@ export default function ShareTrackingPage({ params }: { params: Promise<{ token:
     );
   }
 
-  // Live tracking view
+  // Live tracking view with real map
   const hasPosition = data?.lat != null && data?.lng != null;
+
+  // Build the LiveVehicleMarker for the admin map component.
+  // The commuter shows as a "vehicle" on the map so we can reuse the
+  // existing map infrastructure (Leaflet + react-leaflet).
+  const liveMarkers = hasPosition
+    ? [{
+        id: "shared-ride",
+        unit_number: data?.commuter_name ?? "Commuter",
+        plate_number: "",
+        lat: data!.lat!,
+        lng: data!.lng!,
+        speed: 0,
+        capacity: "AVAILABLE" as const,
+        route_name: "Live Location",
+        driver_name: data?.commuter_name ?? "",
+        conductor_name: "",
+        is_stale: false,
+        minutes_since_update: 0,
+      }]
+    : [];
 
   return (
     <div className="min-h-screen bg-[#050F1A] flex flex-col">
       {/* Header */}
-      <div className="bg-[#071A2E] border-b border-white/[0.06] p-4 flex items-center justify-between">
+      <div className="bg-[#071A2E] border-b border-white/[0.06] p-4 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold text-sm">
             {data?.commuter_name?.charAt(0) ?? "C"}
@@ -137,42 +167,23 @@ export default function ShareTrackingPage({ params }: { params: Promise<{ token:
         </div>
       </div>
 
-      {/* Map placeholder — shows coordinates + Google Maps link */}
-      <div className="flex-1 relative">
+      {/* Live Map */}
+      <div className="flex-1 relative min-h-[400px]">
         {hasPosition ? (
-          <div className="flex-1 flex flex-col items-center justify-center gap-4 py-12 px-4">
-            <div className="w-20 h-20 rounded-full bg-[#1A5FB4]/15 border-2 border-[#62A0EA]/30 flex items-center justify-center">
-              <MapPin className="w-10 h-10 text-[#62A0EA]" />
-            </div>
-            <div className="text-center">
-              <p className="text-white font-bold text-lg">{data?.commuter_name ?? "Commuter"}</p>
-              <p className="text-white/40 text-xs mt-1">
-                {data!.lat!.toFixed(5)}, {data!.lng!.toFixed(5)}
-              </p>
-              <p className="text-white/30 text-[10px] mt-0.5">Updated {formatTime(data?.last_updated ?? null)}</p>
-            </div>
-            <a
-              href={`https://www.google.com/maps?q=${data!.lat},${data!.lng}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-5 py-2.5 bg-[#1A5FB4] hover:bg-[#164A8F] text-white text-sm font-bold rounded-xl shadow-lg shadow-[#1A5FB4]/25 transition-colors"
-            >
-              <Navigation size={16} />
-              Open in Google Maps
-            </a>
-          </div>
+          <TrackingMap liveVehicles={liveMarkers} sosLocations={[]} />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 py-20">
             <MapPin className="w-12 h-12 text-white/10" />
             <p className="text-white/40 text-sm">Waiting for GPS data…</p>
+            <p className="text-white/20 text-xs">The commuter needs to allow location access.</p>
           </div>
         )}
       </div>
 
       {/* Footer */}
-      <div className="bg-[#071A2E] border-t border-white/[0.06] p-4 text-center">
+      <div className="bg-[#071A2E] border-t border-white/[0.06] p-3 text-center flex-shrink-0">
         <p className="text-[10px] text-white/20">
-          Powered by CHATCO · This link expires automatically · Do not share without permission
+          Powered by CHATCO · Updates every 3 seconds · This link expires automatically
         </p>
       </div>
     </div>
