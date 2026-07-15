@@ -364,11 +364,123 @@ class AdminController extends Controller
                 'terminated_date'   => now()->toDateString(),
                 'last_vehicle'      => $lastVehicle,
             ]);
+            // Revoke ALL tokens BEFORE soft-deleting — so the conductor is
+            // instantly logged out everywhere and can't use the account.
+            $user->tokens()->delete();
             // Soft-deletes the user — cascades to conductor_profile via shared PK.
             $user->delete();
         });
 
         return $this->successResponse(null, 'Conductor removed successfully');
+    }
+
+    /**
+     * POST /api/v1/admin/conductors/{id}/disable
+     *
+     * Manually disables a conductor's account WITHOUT terminating them.
+     * Revokes all Sanctum tokens (instant logout — can't log in again until
+     * re-enabled). Does NOT soft-delete the user or create a terminated_personnel
+     * record. Useful for temporary suspensions (e.g. investigation).
+     *
+     * To re-enable, the admin uses PUT /admin/users/{id} to set account_status
+     * back to ACTIVE (or simply generates new credentials via reset-credentials).
+     */
+    public function disableConductor(string $id): JsonResponse
+    {
+        $conductor = ConductorProfile::with('user')->findOrFail($id);
+        $user = $conductor->user;
+
+        if (! $user) {
+            return $this->errorResponse('Conductor user account not found.', 404);
+        }
+
+        // Reject if the conductor is currently on an active shift.
+        if ($conductor->vehicle && $conductor->vehicle->active_shift_id) {
+            return response()->json([
+                'success' => false,
+                'data'    => null,
+                'message' => 'Conflict',
+                'errors'  => [
+                    'conductor' => [
+                        'Cannot disable a conductor who is currently on an active shift. ' .
+                        'End the shift first.',
+                    ],
+                ],
+                'meta'    => null,
+            ], 409);
+        }
+
+        // Revoke ALL tokens — the conductor is instantly logged out everywhere.
+        $user->tokens()->delete();
+
+        return $this->successResponse(null, 'Conductor account disabled. All sessions revoked.');
+    }
+
+    /**
+     * POST /api/v1/admin/conductors/{id}/reset-credentials
+     *
+     * Regenerates the conductor's username + password. The new credentials
+     * are returned ONCE in the response (same as storeConductor) so the admin
+     * can hand them to the conductor. All existing Sanctum tokens for the
+     * user are revoked (the conductor must log in with the new credentials).
+     */
+    public function resetConductorCredentials(string $id): JsonResponse
+    {
+        $conductor = ConductorProfile::with('user')->findOrFail($id);
+        $user = $conductor->user;
+
+        if (! $user) {
+            return $this->errorResponse('Conductor user account not found.', 404);
+        }
+
+        // Regenerate credentials using the same deterministic algorithm as storeConductor.
+        $firstName = $conductor->first_name ?? '';
+        $lastName = $conductor->last_name ?? '';
+        $birthday = $conductor->birthday?->toDateString() ?? '2000-01-01';
+
+        $firstNameTrimmed = trim($firstName);
+        $generatedUsername = strtolower(
+            substr($firstNameTrimmed, 0, 1) . '.' . preg_replace('/\s+/', '', $lastName)
+        );
+
+        $birthdayFormatted = \Carbon\Carbon::parse($birthday)->format('mdY');
+        $firstNameParts = preg_split('/\s+/', $firstNameTrimmed);
+        $firstPart = strtolower($firstNameParts[0]);
+        $restParts = implode('', array_map('strtolower', array_slice($firstNameParts, 1)));
+        $generatedPassword = $firstPart . '.' . $restParts . $birthdayFormatted;
+
+        // Ensure username uniqueness — append a number if taken.
+        $originalUsername = $generatedUsername;
+        $counter = 1;
+        while (User::where('email', $generatedUsername . '@chatco.local')
+            ->where('id', '!=', $user->id)
+            ->exists()) {
+            $generatedUsername = $originalUsername . $counter;
+            $counter++;
+        }
+
+        // Update the user's password + email (derived from username).
+        $user->update([
+            'email' => $generatedUsername . '@chatco.local',
+            'password' => $generatedPassword,
+        ]);
+
+        // Update the conductor profile with the new credentials.
+        $conductor->update([
+            'generated_username' => $generatedUsername,
+            'generated_password' => $generatedPassword,
+        ]);
+
+        // Revoke ALL tokens — the conductor must re-login with the new credentials.
+        $user->tokens()->delete();
+
+        return $this->successResponse([
+            'id' => $conductor->id,
+            'first_name' => $conductor->first_name,
+            'last_name' => $conductor->last_name,
+            'generated_username' => $generatedUsername,
+            'generated_password' => $generatedPassword,
+        ], 'Credentials reset successfully. The conductor must log in with the new credentials.');
     }
 
     /**

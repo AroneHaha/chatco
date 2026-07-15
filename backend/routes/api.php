@@ -218,6 +218,8 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::get('/conductors', [AdminController::class, 'conductors'])->middleware('throttle:conductor-read');
     Route::post('/conductors', [AdminController::class, 'storeConductor'])->middleware('throttle:conductor-write');
     Route::delete('/conductors/{id}', [AdminController::class, 'destroyConductor'])->middleware('throttle:conductor-write');
+    Route::post('/conductors/{id}/disable', [AdminController::class, 'disableConductor'])->middleware('throttle:conductor-write');
+    Route::post('/conductors/{id}/reset-credentials', [AdminController::class, 'resetConductorCredentials'])->middleware('throttle:conductor-write');
     Route::get('/terminated-personnel', [AdminController::class, 'terminatedPersonnel'])->middleware('throttle:conductor-read');
     Route::get('/vehicles', [AdminVehicleController::class, 'index'])->middleware('throttle:conductor-read');
     Route::post('/vehicles', [AdminVehicleController::class, 'store'])->middleware('throttle:conductor-write');
