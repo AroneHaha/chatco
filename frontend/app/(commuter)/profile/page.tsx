@@ -70,14 +70,26 @@ export default function ProfilePage() {
           text: "Verified",
         };
       case "PENDING_VERIFICATION":
+      case "PENDING":
         return {
           color: "text-amber-400 bg-amber-500/10 border-amber-500/30",
           text: "Pending Verification",
         };
       case "DISCOUNT_REJECTED":
+      case "REJECTED":
         return {
           color: "text-red-400 bg-red-500/10 border-red-500/30",
-          text: "Discount Rejected",
+          text: "Rejected",
+        };
+      case "APPROVED":
+        return {
+          color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/30",
+          text: "Approved",
+        };
+      default:
+        return {
+          color: "text-slate-400 bg-slate-500/10 border-slate-500/30",
+          text: status ?? "Unknown",
         };
     }
   };
