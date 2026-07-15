@@ -83,7 +83,9 @@ class AdminController extends Controller
      */
     public function overspeed(Request $request): JsonResponse
     {
-        $threshold = (int) $request->integer('threshold', 60);
+        // If the admin passes ?threshold=X, use that. Otherwise pass null
+        // so the LocationService reads from the settings table (speed_limit_kmh).
+        $threshold = $request->has('threshold') ? (int) $request->integer('threshold') : null;
         $vehicles = $this->locationService->getOverspeedingVehicles($threshold);
 
         return $this->successResponse($vehicles, 'Overspeeding vehicles retrieved');

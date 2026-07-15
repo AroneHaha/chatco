@@ -30,3 +30,9 @@ Schedule::command('hails:expire')->everyMinute();
 // Assignment is re-established automatically when a conductor logs in and
 // starts a new shift.
 Schedule::command('vehicles:reset-daily-assignments')->dailyAt('00:00');
+
+// ─── Auto-end stale shifts (hourly) ──────────────────────────────────
+// Checks every hour for active shifts that exceed the `max_shift_hours`
+// limit from the settings table (default 12h). Auto-ends them with a
+// remittance record so the conductor's earnings are preserved.
+Schedule::command('shifts:auto-end-stale')->hourly();
