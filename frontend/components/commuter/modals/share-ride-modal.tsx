@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Loader2 } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Loader2, MapPin } from "lucide-react";
 
 interface ShareRideModalProps {
   commuterName: string;
@@ -11,7 +11,7 @@ interface ShareRideModalProps {
   onClose: () => void;
 }
 
-export default function ShareRideModal({ commuterName, lat, lng, onClose }: ShareRideModalProps) {
+export default function ShareRideModal({ commuterName, lat: propLat, lng: propLng, onClose }: ShareRideModalProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [shareUrl, setShareUrl] = useState<string>("");
@@ -19,17 +19,76 @@ export default function ShareRideModal({ commuterName, lat, lng, onClose }: Shar
   const [timeLeft, setTimeLeft] = useState(0);
   const [isCopied, setIsCopied] = useState(false);
   const [isExpired, setIsExpired] = useState(false);
+  const [gpsStatus, setGpsStatus] = useState<"idle" | "requesting" | "success" | "error">("idle");
 
-  // Create the share link on mount
+  // Track the share token + current position so we can push updates.
+  const tokenRef = useRef<string | null>(null);
+  const watchIdRef = useRef<number | null>(null);
+
+  // ── Get current GPS position ──
+  const getCurrentPosition = (): Promise<{ lat: number; lng: number }> => {
+    return new Promise((resolve, reject) => {
+      if (typeof navigator === "undefined" || !navigator.geolocation) {
+        reject(new Error("Geolocation is not supported by your browser."));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (err) => reject(new Error(err.message || "Failed to get GPS position.")),
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    });
+  };
+
+  // ── Push position update to the backend ──
+  const updatePosition = useCallback(async (latVal: number, lngVal: number) => {
+    if (!tokenRef.current) return;
+    try {
+      await fetch("/api/commuter/share-ride", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ lat: latVal, lng: lngVal }),
+      });
+    } catch {
+      // Best-effort — position update failure is non-critical.
+    }
+  }, []);
+
+  // ── Create the share link on mount ──
   useEffect(() => {
     const createLink = async () => {
       setIsLoading(true);
       setError(null);
+      setGpsStatus("requesting");
+
       try {
+        // Get the commuter's current GPS position first.
+        let initLat = propLat;
+        let initLng = propLng;
+
+        if (initLat == null || initLng == null) {
+          try {
+            const pos = await getCurrentPosition();
+            initLat = pos.lat;
+            initLng = pos.lng;
+            setGpsStatus("success");
+          } catch (gpsErr) {
+            setGpsStatus("error");
+            // Create the link anyway without GPS — the commuter can still
+            // share the link and the position will be updated when GPS
+            // becomes available (via the watchPosition below).
+          }
+        } else {
+          setGpsStatus("success");
+        }
+
         const res = await fetch("/api/commuter/share-ride", {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify({ lat, lng }),
+          body: JSON.stringify({
+            lat: initLat ?? undefined,
+            lng: initLng ?? undefined,
+          }),
         });
 
         if (!res.ok) {
@@ -39,10 +98,24 @@ export default function ShareRideModal({ commuterName, lat, lng, onClose }: Shar
 
         const json = await res.json();
         const data = json.data;
-        // Always construct the share URL using the frontend's origin (port 3000),
-        // NOT the backend's share_url (which points to port 8000 / Laravel).
+        tokenRef.current = data.token;
+        // Always construct the share URL using the frontend's origin (port 3000).
         setShareUrl(`${window.location.origin}/share/${data.token}`);
         setExpiresAt(data.expires_at);
+
+        // Start watching position for live updates.
+        if (typeof navigator !== "undefined" && navigator.geolocation) {
+          watchIdRef.current = navigator.geolocation.watchPosition(
+            (pos) => {
+              setGpsStatus("success");
+              void updatePosition(pos.coords.latitude, pos.coords.longitude);
+            },
+            () => {
+              setGpsStatus("error");
+            },
+            { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+          );
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to create share link.");
       } finally {
@@ -51,9 +124,18 @@ export default function ShareRideModal({ commuterName, lat, lng, onClose }: Shar
     };
 
     void createLink();
-  }, [lat, lng]);
 
-  // Countdown timer
+    // Cleanup: stop watching + deactivate the link when modal closes.
+    return () => {
+      if (watchIdRef.current != null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Countdown timer ──
   useEffect(() => {
     if (!expiresAt) return;
 
@@ -68,7 +150,6 @@ export default function ShareRideModal({ commuterName, lat, lng, onClose }: Shar
       return true;
     };
 
-    // Initial update
     if (!updateTimer()) return;
 
     const timer = setInterval(() => {
@@ -97,6 +178,10 @@ export default function ShareRideModal({ commuterName, lat, lng, onClose }: Shar
   }, [shareUrl]);
 
   const handleStopSharing = useCallback(async () => {
+    if (watchIdRef.current != null && navigator.geolocation) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
     try {
       await fetch("/api/commuter/share-ride", { method: "DELETE" });
     } catch {
@@ -129,7 +214,7 @@ export default function ShareRideModal({ commuterName, lat, lng, onClose }: Shar
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
               <Loader2 className="w-8 h-8 text-[#1A5FB4] animate-spin" />
-              <p className="text-sm text-gray-500">Creating share link…</p>
+              <p className="text-sm text-gray-500">Getting your GPS position…</p>
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center py-8 gap-3">
@@ -138,6 +223,20 @@ export default function ShareRideModal({ commuterName, lat, lng, onClose }: Shar
             </div>
           ) : (
             <>
+              {/* GPS Status indicator */}
+              <div className={`flex items-center gap-2 p-3 rounded-lg text-xs font-medium ${
+                gpsStatus === "success" ? "bg-green-50 text-green-600 border border-green-200" :
+                gpsStatus === "error" ? "bg-red-50 text-red-600 border border-red-200" :
+                gpsStatus === "requesting" ? "bg-blue-50 text-blue-600 border border-blue-200" :
+                "bg-gray-50 text-gray-500 border border-gray-200"
+              }`}>
+                <MapPin size={14} />
+                {gpsStatus === "success" && "GPS connected — sharing live position"}
+                {gpsStatus === "error" && "GPS unavailable — sharing link without position. Move to an open area for better signal."}
+                {gpsStatus === "requesting" && "Connecting to GPS…"}
+                {gpsStatus === "idle" && "Waiting for GPS…"}
+              </div>
+
               {/* Info Text */}
               <p className="text-sm text-gray-600 leading-relaxed">
                 Anyone with this link can track your live location on the map for 30 minutes.
@@ -191,7 +290,7 @@ export default function ShareRideModal({ commuterName, lat, lng, onClose }: Shar
                   <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
                 </svg>
                 <p className="text-[11px] text-gray-500 leading-relaxed">
-                  Link automatically stops sharing after 30 minutes. Tracking relies on your device&apos;s GPS.
+                  Link automatically stops sharing after 30 minutes. Keep this app open for live updates.
                 </p>
               </div>
 
