@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 
 // Dynamically import the admin map (it supports liveVehicles markers + is SSR-disabled)
 const TrackingMap = dynamic<{
+  commuters?: import("@/components/admin/admin-commuter-map").CommuterData[];
   liveVehicles?: import("@/components/admin/admin-commuter-map").LiveVehicleMarker[];
   sosLocations?: [number, number][];
 }>(() => import("@/components/admin/admin-commuter-map"), {
@@ -41,6 +42,7 @@ export default function ShareTrackingPage({ params }: { params: Promise<{ token:
       try {
         const res = await fetch(`/api/share/${encodeURIComponent(token)}`, {
           headers: { Accept: "application/json" },
+          cache: "no-store",
         });
         if (!res.ok) {
           if (res.status === 404) {
@@ -125,23 +127,16 @@ export default function ShareTrackingPage({ params }: { params: Promise<{ token:
   // Live tracking view with real map
   const hasPosition = data?.lat != null && data?.lng != null;
 
-  // Build the LiveVehicleMarker for the admin map component.
-  // The commuter shows as a "vehicle" on the map so we can reuse the
-  // existing map infrastructure (Leaflet + react-leaflet).
-  const liveMarkers = hasPosition
+  // Render the commuter as a single person marker (NOT a vehicle) — the
+  // share link is meant to show only the commuter's own live location, never
+  // any jeepney units. Using the map's `commuters` prop gives a person pin;
+  // `liveVehicles` is left empty so no unit markers appear.
+  const commuterMarkers = hasPosition
     ? [{
-        id: "shared-ride",
-        unit_number: data?.commuter_name ?? "Commuter",
-        plate_number: "",
-        lat: data!.lat!,
-        lng: data!.lng!,
-        speed: 0,
-        capacity: "AVAILABLE" as const,
-        route_name: "Live Location",
-        driver_name: data?.commuter_name ?? "",
-        conductor_name: "",
-        is_stale: false,
-        minutes_since_update: 0,
+        id: 1,
+        name: data?.commuter_name ?? "Commuter",
+        latlng: [data!.lat!, data!.lng!] as [number, number],
+        locationDetail: "Live shared location",
       }]
     : [];
 
@@ -170,9 +165,15 @@ export default function ShareTrackingPage({ params }: { params: Promise<{ token:
       {/* Live Map */}
       <div className="flex-1 relative min-h-[400px]">
         {hasPosition ? (
-          <TrackingMap liveVehicles={liveMarkers} sosLocations={[]} />
+          // Absolutely fill the flex area so the Leaflet container gets a
+          // definite height. A plain `h-full` collapses to 0 here because the
+          // flex parent has no explicit height (only min-h) — the map would
+          // render blank between the header and footer.
+          <div className="absolute inset-0">
+            <TrackingMap commuters={commuterMarkers} liveVehicles={[]} sosLocations={[]} />
+          </div>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center gap-3 py-20">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
             <MapPin className="w-12 h-12 text-white/10" />
             <p className="text-white/40 text-sm">Waiting for GPS data…</p>
             <p className="text-white/20 text-xs">The commuter needs to allow location access.</p>

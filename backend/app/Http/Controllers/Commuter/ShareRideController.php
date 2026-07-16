@@ -44,31 +44,41 @@ class ShareRideController extends Controller
         $validated = $request->validate([
             'lat' => 'nullable|numeric',
             'lng' => 'nullable|numeric',
+            'rotate' => 'nullable|boolean',
         ]);
 
-        // Check for an existing active link — reuse it instead of creating
-        // a duplicate.
-        $existing = SharedRideLink::where('commuter_id', $profile->id)
-            ->where('is_active', true)
-            ->where('expires_at', '>', now())
-            ->latest()
-            ->first();
+        // A "start sharing" action (rotate=true) mints a brand-new token every
+        // time: deactivate any existing active link so the new URL is unique
+        // and every previously shared link immediately reads as expired.
+        // Live position pushes (rotate=false) instead REUSE the current link so
+        // the token stays stable while the map updates.
+        if ($request->boolean('rotate')) {
+            SharedRideLink::where('commuter_id', $profile->id)
+                ->where('is_active', true)
+                ->update(['is_active' => false]);
+        } else {
+            $existing = SharedRideLink::where('commuter_id', $profile->id)
+                ->where('is_active', true)
+                ->where('expires_at', '>', now())
+                ->latest()
+                ->first();
 
-        if ($existing) {
-            // Update position if provided.
-            if (isset($validated['lat']) && isset($validated['lng'])) {
-                $existing->update([
-                    'lat' => $validated['lat'],
-                    'lng' => $validated['lng'],
-                    'last_updated_at' => now(),
-                ]);
+            if ($existing) {
+                // Update position if provided.
+                if (isset($validated['lat']) && isset($validated['lng'])) {
+                    $existing->update([
+                        'lat' => $validated['lat'],
+                        'lng' => $validated['lng'],
+                        'last_updated_at' => now(),
+                    ]);
+                }
+
+                return $this->successResponse([
+                    'token' => $existing->token,
+                    'expires_at' => $existing->expires_at->toIso8601String(),
+                    'share_url' => url("/share/{$existing->token}"),
+                ], 'Share link retrieved');
             }
-
-            return $this->successResponse([
-                'token' => $existing->token,
-                'expires_at' => $existing->expires_at->toIso8601String(),
-                'share_url' => url("/share/{$existing->token}"),
-            ], 'Share link retrieved');
         }
 
         // Create a new link.

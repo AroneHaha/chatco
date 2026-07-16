@@ -675,8 +675,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     const bothLocationsSelected = !!(pickupPoint && dropoffPoint);
 
     return (
-      <div className="fixed inset-0 z-[100] flex flex-col bg-[#050F1A] safe-area-inset">
-        <div className="flex flex-col h-full w-full max-w-lg mx-auto">
+      <div className="fixed inset-0 z-[100] flex flex-col bg-[#050F1A] safe-area-inset sm:items-center sm:justify-center sm:bg-black/60 sm:backdrop-blur-sm sm:p-4">
+        <div className="flex flex-col h-full w-full max-w-lg mx-auto sm:h-auto sm:max-h-[85vh] sm:rounded-2xl sm:border sm:border-white/10 sm:bg-[#050F1A] sm:shadow-2xl sm:overflow-hidden">
           {/* ── Fullscreen Header ── */}
           <div className="flex-shrink-0 bg-[#071A2E] border-b border-white/10 pt-safe">
             {/* Top bar: back + title + method badge + close */}
@@ -898,7 +898,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
           </div>
 
           {/* ── Barangay List (fills remaining space) ── */}
-          <div className="flex-1 overflow-y-auto px-4 pb-3 overscroll-contain">
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-3 overscroll-contain">
             {filteredPoints.map((point) => {
               const isPickup = pickupPoint?.pointNumber === point.pointNumber;
               const isDropoff = dropoffPoint?.pointNumber === point.pointNumber;

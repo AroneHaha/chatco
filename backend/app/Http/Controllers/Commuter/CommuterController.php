@@ -119,11 +119,6 @@ class CommuterController extends Controller
 
         // Current cycle progress (rides since last voucher earned).
         $currentCycleRides = $totalRides % $ridesForFreeReward;
-        $ridesNeeded = $ridesForFreeReward - $currentCycleRides;
-        if ($currentCycleRides === 0 && $totalRides > 0) {
-            // Just hit a multiple — a voucher should have been generated.
-            // The auto-generate below will create it.
-        }
 
         // Auto-generate missing reward vouchers.
         // earned = how many vouchers the commuter should have based on ride count.
@@ -165,7 +160,9 @@ class CommuterController extends Controller
 
         return $this->successResponse([
             'totalRides'       => $totalRides,
-            'ridesNeeded'      => $ridesNeeded,
+            // The cycle threshold (e.g. 10) — the frontend derives progress and
+            // "rides remaining" from currentCycleRides against this total.
+            'ridesNeeded'      => $ridesForFreeReward,
             'currentCycleRides'=> $currentCycleRides,
             'vouchers'         => $vouchers,
         ], 'Rewards retrieved');

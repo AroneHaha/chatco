@@ -49,13 +49,20 @@ class PaymentService
      */
     public function createIntentFor(Transaction $transaction, int $amountCentavos): PaymentIntentResult
     {
+        // PayMongo redirects the commuter back to return_url after they authorize.
+        // The browser redirect carries no metadata, so append the transaction_id
+        // to the query string — /gcash/return reads it to poll this transaction.
+        $returnUrl = (string) config('payments.return_url');
+        $returnUrl .= (str_contains($returnUrl, '?') ? '&' : '?')
+            . 'transaction_id=' . urlencode($transaction->transaction_id);
+
         return $this->gateway->createIntent(
             $amountCentavos,
             [
                 'transaction_id' => $transaction->transaction_id,
                 'shift_id' => $transaction->shift_id,
             ],
-            (string) config('payments.return_url'),
+            $returnUrl,
         );
     }
 

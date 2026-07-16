@@ -13,7 +13,7 @@ export interface Receipt {
   plateNumber: string;
   route: string;
   fare: number;
-  paymentMethod: "Cash" | "Gcash";
+  paymentMethod: "Cash" | "Gcash" | "Voucher";
   status: "Completed" | "Pending" | "Failed" | "Cancelled" | "Expired" | "Refunded";
   date: string;
   time: string;
@@ -48,9 +48,10 @@ function mapLaravelTransaction(r: Record<string, unknown>): Receipt {
   const rawStatus = String(r.status ?? "PAID");
 
   // Map backend payment_method to frontend paymentMethod.
-  // The backend PaymentMethod enum only has CASH + GCASH (no VOUCHER yet).
+  // Backend PaymentMethod enum: CASH, GCASH, VOUCHER (free reward rides).
   let paymentMethod: Receipt["paymentMethod"] = "Cash";
   if (rawMethod === "GCASH") paymentMethod = "Gcash";
+  else if (rawMethod === "VOUCHER") paymentMethod = "Voucher";
 
   // Map backend status to frontend status — all 7 PaymentStatus values
   // are handled so nothing falls through to "Completed" incorrectly.

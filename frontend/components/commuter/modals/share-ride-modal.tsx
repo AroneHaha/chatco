@@ -24,6 +24,10 @@ export default function ShareRideModal({ commuterName, lat: propLat, lng: propLn
   // Track the share token + current position so we can push updates.
   const tokenRef = useRef<string | null>(null);
   const watchIdRef = useRef<number | null>(null);
+  // Rotate the token only on the FIRST create of this modal instance. Guards
+  // against React StrictMode's double-invoke (dev) minting two links — the
+  // second call falls through to the safe reuse path instead of rotating.
+  const hasRotatedRef = useRef(false);
 
   // ── Get current GPS position ──
   const getCurrentPosition = (): Promise<{ lat: number; lng: number }> => {
@@ -82,12 +86,18 @@ export default function ShareRideModal({ commuterName, lat: propLat, lng: propLn
           setGpsStatus("success");
         }
 
+        // Rotate on the first create of this modal open (mints a fresh, unique
+        // token and kills any earlier link); a StrictMode-repeated call reuses.
+        const shouldRotate = !hasRotatedRef.current;
+        hasRotatedRef.current = true;
+
         const res = await fetch("/api/commuter/share-ride", {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
           body: JSON.stringify({
             lat: initLat ?? undefined,
             lng: initLng ?? undefined,
+            rotate: shouldRotate,
           }),
         });
 
