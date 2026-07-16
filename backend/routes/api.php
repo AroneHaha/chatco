@@ -26,6 +26,7 @@ use App\Http\Controllers\LostItemController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\Payment\PaymentController;
 use App\Http\Controllers\Payment\QrController;
+use App\Http\Controllers\FareMatrixController;
 
 /*
 |--------------------------------------------------------------------------
@@ -37,6 +38,22 @@ Route::prefix('auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:commuter-hail'); // PUBLIC — commuter self-sign-up (S5-T15)
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
 });
+
+/*
+|--------------------------------------------------------------------------
+| Fare Matrix (Public — fare info is public like a bus schedule)
+|--------------------------------------------------------------------------
+| Single source of truth for fare calculation. The conductor's FareCalcModal
+| and the commuter's fare-calculator both consume this endpoint. The admin's
+| /settings/fare-matrix page edits the fare_points table; changes are
+| immediately visible to all consumers on their next fetch.
+*/
+Route::get('/fare-matrix', [FareMatrixController::class, 'index'])->middleware('throttle:commuter-hail');
+
+// Public tracking endpoint — no auth required. Anyone with the token
+// can view the commuter's live position (for the share-ride feature).
+// No throttle — this is a public read-only endpoint that polls every 5s.
+Route::get('/share/{token}', [\App\Http\Controllers\Commuter\ShareRideController::class, 'show']);
 
 /*
 |--------------------------------------------------------------------------
@@ -56,6 +73,10 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
     Route::post('/change-password', [CommuterController::class, 'changePassword'])->middleware('throttle:conductor-write');
     Route::get('/trips', [CommuterController::class, 'trips'])->middleware('throttle:conductor-read');
     Route::get('/rewards', [CommuterController::class, 'rewards'])->middleware('throttle:conductor-read');
+
+    // Share Live Location — commuter generates a tracking link
+    Route::post('/share-ride', [\App\Http\Controllers\Commuter\ShareRideController::class, 'store'])->middleware('throttle:commuter-hail');
+    Route::delete('/share-ride', [\App\Http\Controllers\Commuter\ShareRideController::class, 'destroy'])->middleware('throttle:commuter-hail');
 
     // Hail lifecycle (commuter-side) — 10 req/min per user
     Route::post('/hail', [HailController::class, 'store'])->middleware('throttle:commuter-hail');
@@ -189,9 +210,11 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::patch('/users/{id}', [AdminUserController::class, 'update'])->middleware('throttle:conductor-write');
     Route::delete('/users/{id}', [AdminUserController::class, 'destroy'])->middleware('throttle:conductor-write');
     Route::get('/registrations', [AdminRegistrationController::class, 'pending'])->middleware('throttle:conductor-read');
+    Route::get('/registrations/rejected', [AdminRegistrationController::class, 'rejected'])->middleware('throttle:conductor-read');
     Route::post('/registrations', [AdminRegistrationController::class, 'store'])->middleware('throttle:conductor-write');
     Route::post('/registrations/{id}/approve', [AdminRegistrationController::class, 'approve'])->middleware('throttle:conductor-write');
     Route::post('/registrations/{id}/reject', [AdminRegistrationController::class, 'reject'])->middleware('throttle:conductor-write');
+    Route::get('/users/{id}/activity', [AdminController::class, 'userActivity'])->middleware('throttle:conductor-read');
     Route::get('/drivers', [AdminController::class, 'drivers'])->middleware('throttle:conductor-read');
     Route::post('/drivers', [AdminController::class, 'storeDriver'])->middleware('throttle:conductor-write');
     Route::get('/drivers/{id}', [AdminController::class, 'showDriver'])->middleware('throttle:conductor-read');
@@ -204,6 +227,8 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::get('/conductors', [AdminController::class, 'conductors'])->middleware('throttle:conductor-read');
     Route::post('/conductors', [AdminController::class, 'storeConductor'])->middleware('throttle:conductor-write');
     Route::delete('/conductors/{id}', [AdminController::class, 'destroyConductor'])->middleware('throttle:conductor-write');
+    Route::post('/conductors/{id}/disable', [AdminController::class, 'disableConductor'])->middleware('throttle:conductor-write');
+    Route::post('/conductors/{id}/reset-credentials', [AdminController::class, 'resetConductorCredentials'])->middleware('throttle:conductor-write');
     Route::get('/terminated-personnel', [AdminController::class, 'terminatedPersonnel'])->middleware('throttle:conductor-read');
     Route::get('/vehicles', [AdminVehicleController::class, 'index'])->middleware('throttle:conductor-read');
     Route::post('/vehicles', [AdminVehicleController::class, 'store'])->middleware('throttle:conductor-write');

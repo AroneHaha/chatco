@@ -37,6 +37,7 @@ export default function EndOfDayPage() {
     gcashTotal: number;
     cashTotal: number;
     grandTotal: number;
+    shortage?: number;
   } | null>(null);
 
   const shiftInfo = {
@@ -100,7 +101,7 @@ export default function EndOfDayPage() {
     timeOut: shiftInfo.timeOut,
   };
 
-  const handleRemit = async () => {
+  const handleRemit = async (cashDeclared: number) => {
     setIsRemitting(true);
     setSubmitError(null);
 
@@ -145,6 +146,10 @@ export default function EndOfDayPage() {
       const finalGrandTotal = realGrandTotal;
       const finalTotalPassengers = summary.totalPassengers;
       const finalBreakdown = summary.breakdown;
+      // The conductor's physically-counted cash. May differ from the
+      // system-tracked total — the backend computes shortage from this.
+      const finalCashDeclared = cashDeclared || finalCashTotal;
+      const finalShortage = Math.max(0, finalCashTotal - finalCashDeclared);
 
       await new Promise((resolve) => setTimeout(resolve, 1800));
       const record: RemittanceRecord = {
@@ -163,10 +168,10 @@ export default function EndOfDayPage() {
           (finalBreakdown["GCash_Scanned"]?.amount ?? 0) +
           (finalBreakdown["GCash_Direct"]?.amount ?? 0) +
           (finalBreakdown["Voucher"]?.amount ?? 0),
-        cashDeclared: 0,
+        cashDeclared: finalCashDeclared,
         gcashTotal: finalGcashTotal,
         cashTotal: finalCashTotal,
-        remittanceStatus: "Remitted",
+        remittanceStatus: finalShortage > 0 ? "Pending" as const : "Remitted" as const,
         timeIn: shiftInfo.timeIn,
         timeOut: new Date().toISOString(),
       };
@@ -184,6 +189,7 @@ export default function EndOfDayPage() {
         gcashTotal: finalGcashTotal,
         cashTotal: finalCashTotal,
         grandTotal: finalGrandTotal,
+        shortage: finalShortage,
       });
 
       // Show the success overlay. Do NOT call refresh() here — it would
@@ -369,6 +375,7 @@ export default function EndOfDayPage() {
         gcashTotal={capturedTotals?.gcashTotal ?? summary.gcashTotal}
         cashTotal={capturedTotals?.cashTotal ?? summary.cashTotal}
         grandTotal={capturedTotals?.grandTotal ?? summary.grandTotal}
+        shortage={capturedTotals?.shortage}
         unitNumber={shiftInfo.unitNumber}
       />
       <OfficialReportModal show={showOfficialReport} onClose={() => setShowOfficialReport(false)} activeReport={activeReport} route={shiftInfo.route} />

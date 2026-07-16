@@ -234,7 +234,7 @@ export function useMonitoringData() {
 
   const fetchOverspeed = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/monitoring/overspeed?threshold=60", {
+      const res = await fetch("/api/admin/monitoring/overspeed", {
         credentials: "include",
       });
       if (!res.ok) return;

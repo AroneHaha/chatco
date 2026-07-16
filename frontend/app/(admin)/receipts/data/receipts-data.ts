@@ -14,7 +14,7 @@ export interface Receipt {
   route: string;
   fare: number;
   paymentMethod: "Cash" | "Gcash" | "Voucher";
-  status: "Completed" | "Pending" | "Failed";
+  status: "Completed" | "Pending" | "Failed" | "Cancelled" | "Expired" | "Refunded";
   date: string;
   time: string;
 }
@@ -25,14 +25,16 @@ export type PaymentMethod = Receipt["paymentMethod"];
 // ─── API fetch helper ──────────────────────────────────────────────────
 
 async function fetchTransactions(): Promise<Receipt[]> {
-  const res = await fetch("/api/admin/transactions", {
+  const res = await fetch("/api/admin/transactions?per_page=500", {
     headers: { Accept: "application/json" },
   });
   if (!res.ok) {
     throw new Error("Failed to fetch transactions from server.");
   }
   const json = await res.json();
-  const apiRecords = json.data ?? json;
+  // The backend now returns a paginator: { data: { data: [...], current_page, total, ... } }
+  // Extract the inner data array. Fall back to flat array for backwards compat.
+  const apiRecords = json.data?.data ?? json.data ?? json;
   if (!Array.isArray(apiRecords)) return [];
   return apiRecords.map(mapLaravelTransaction);
 }
@@ -45,15 +47,25 @@ function mapLaravelTransaction(r: Record<string, unknown>): Receipt {
   const rawMethod = String(r.payment_method ?? "CASH");
   const rawStatus = String(r.status ?? "PAID");
 
-  // Map backend payment_method to frontend paymentMethod
+  // Map backend payment_method to frontend paymentMethod.
+  // Backend PaymentMethod enum: CASH, GCASH, VOUCHER (free reward rides).
   let paymentMethod: Receipt["paymentMethod"] = "Cash";
   if (rawMethod === "GCASH") paymentMethod = "Gcash";
   else if (rawMethod === "VOUCHER") paymentMethod = "Voucher";
 
-  // Map backend status to frontend status
-  let status: Receipt["status"] = "Completed";
-  if (rawStatus === "PENDING") status = "Pending";
-  else if (rawStatus === "FAILED") status = "Failed";
+  // Map backend status to frontend status — all 7 PaymentStatus values
+  // are handled so nothing falls through to "Completed" incorrectly.
+  let status: Receipt["status"];
+  switch (rawStatus) {
+    case "PAID":      status = "Completed"; break;
+    case "PENDING":
+    case "PROCESSING": status = "Pending"; break;
+    case "FAILED":    status = "Failed"; break;
+    case "CANCELLED": status = "Cancelled"; break;
+    case "EXPIRED":   status = "Expired"; break;
+    case "REFUNDED":  status = "Refunded"; break;
+    default:          status = "Completed"; break;
+  }
 
   // Format date and time from created_at
   const createdAt = String(r.created_at ?? "");

@@ -60,6 +60,20 @@ class AdminRegistrationController extends Controller
     }
 
     /**
+     * GET /api/v1/admin/registrations/rejected
+     * List REJECTED commuter accounts (soft-deleted, email rewritten to
+     * 'rejected+{timestamp}@chatco.local'). Powers the Rejected tab.
+     */
+    public function rejected(Request $request): JsonResponse
+    {
+        $perPage = (int) $request->integer('per_page', 15);
+
+        $registrations = $this->adminService->listRejectedRegistrations($perPage);
+
+        return $this->successResponse($registrations, 'Rejected registrations retrieved');
+    }
+
+    /**
      * POST /api/v1/admin/registrations
      * Create a PENDING commuter account on behalf of a commuter who registered
      * onsite (e.g. at a terminal kiosk). The admin fills the form, uploads the

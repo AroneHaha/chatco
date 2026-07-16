@@ -33,7 +33,7 @@ class RecordCashRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'payment_method'   => 'required|string|in:CASH',
+            'payment_method'   => 'required|string|in:CASH,VOUCHER',
             'final_amount'     => 'required|numeric|min:0',
             'pickup_name'      => 'required|string|max:100',
             'dropoff_name'     => 'required|string|max:100',
@@ -45,6 +45,7 @@ class RecordCashRequest extends FormRequest
             'pickup_stop_id'   => 'nullable|uuid|exists:fare_points,id',
             'dropoff_stop_id'  => 'nullable|uuid|exists:fare_points,id',
             'idempotency_key'  => 'nullable|string|max:100',
+            'voucher_code'     => 'nullable|string|required_if:payment_method,VOUCHER|max:50',
         ];
     }
 

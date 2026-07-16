@@ -14,6 +14,10 @@ import {
   FileText,
   RefreshCw,
   AtSign,
+  KeyRound,
+  Ban,
+  AlertTriangle,
+  Loader2,
 } from 'lucide-react';
 import type { Personnel } from '@/app/(admin)/vehicles/data/vehicles-data';
 
@@ -97,6 +101,54 @@ export function ConductorDetailModal({ conductor, onClose }: ConductorDetailModa
   const [details, setDetails] = useState<ConductorDetail | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<'reset' | 'disable' | null>(null);
+  const [actionResult, setActionResult] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const handleResetCredentials = async () => {
+    if (!conductor) return;
+    setActionLoading('reset');
+    setActionError(null);
+    setActionResult(null);
+    try {
+      const res = await fetch(`/api/admin/conductors/${conductor.id}/reset-credentials`, {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message ?? 'Failed to reset credentials.');
+      }
+      const d = data.data;
+      setActionResult(`New credentials — Username: ${d.generated_username} | Password: ${d.generated_password}`);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to reset credentials.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDisableAccount = async () => {
+    if (!conductor) return;
+    setActionLoading('disable');
+    setActionError(null);
+    setActionResult(null);
+    try {
+      const res = await fetch(`/api/admin/conductors/${conductor.id}/disable`, {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message ?? 'Failed to disable account.');
+      }
+      setActionResult('Account disabled. All sessions revoked — the conductor cannot log in until credentials are reset.');
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to disable account.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const fetchDetails = async () => {
     if (!conductor) return;
@@ -165,6 +217,40 @@ export function ConductorDetailModal({ conductor, onClose }: ConductorDetailModa
           <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
         </button>
       </div>
+
+      {/* Action Result / Error Banner */}
+      {actionResult && (
+        <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-md">
+          <p className="text-xs text-emerald-400 break-all font-mono">{actionResult}</p>
+        </div>
+      )}
+      {actionError && (
+        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-md">
+          <p className="text-xs text-red-400">{actionError}</p>
+        </div>
+      )}
+
+      {/* Admin Actions — Reset Credentials + Disable Account */}
+      {details && (
+        <div className="mb-5 flex gap-2">
+          <button
+            onClick={handleResetCredentials}
+            disabled={actionLoading !== null}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {actionLoading === 'reset' ? <Loader2 size={14} className="animate-spin" /> : <KeyRound size={14} />}
+            Reset Credentials
+          </button>
+          <button
+            onClick={handleDisableAccount}
+            disabled={actionLoading !== null}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold hover:bg-red-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {actionLoading === 'disable' ? <Loader2 size={14} className="animate-spin" /> : <Ban size={14} />}
+            Disable Account
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md mb-4">

@@ -215,8 +215,13 @@ export function useDashboardData() {
                 item.status === 'AVAILABLE' || item.status === 'REPORTED' ? 'Under Review' : 'Reported',
       }));
 
-      // ── Top Pickup Points (no backend endpoint — empty until one exists) ──
-      const topPickupPoints: PickupPoint[] = [];
+      // ── Top Pickup Points (from the analytics response) ──
+      // The backend aggregates PAID transactions by pickup_name — this gives
+      // us the top 10 most-used boarding points in the last 30 days.
+      const topPickupPoints: PickupPoint[] = (analytics?.pickup_points ?? []).map(p => ({
+        name: p.name,
+        val: p.count,
+      }));
 
       setData({
         recentVehicles,

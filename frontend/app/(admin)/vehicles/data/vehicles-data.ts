@@ -80,8 +80,8 @@ async function fetchVehiclesData(): Promise<VehiclesData> {
     // Shift logs + terminated personnel are best-effort — if either endpoint
     // is unavailable (e.g. older backend), the History tab just shows "no
     // records" instead of failing the entire fleet page.
-    fetch("/api/admin/shift-logs", { headers: { Accept: "application/json" } }).catch(() => null),
-    fetch("/api/admin/terminated-personnel", { headers: { Accept: "application/json" } }).catch(() => null),
+    fetch("/api/admin/shift-logs?per_page=500", { headers: { Accept: "application/json" } }).catch(() => null),
+    fetch("/api/admin/terminated-personnel?per_page=500", { headers: { Accept: "application/json" } }).catch(() => null),
   ]);
 
   if (!vehiclesRes.ok) throw new Error("Failed to fetch vehicles");
@@ -95,17 +95,15 @@ async function fetchVehiclesData(): Promise<VehiclesData> {
   const shiftLogsJson = shiftLogsRes?.ok ? await shiftLogsRes.json() : { data: [] };
   const terminatedJson = terminatedRes?.ok ? await terminatedRes.json() : { data: [] };
 
-  // The admin /vehicles endpoint returns a paginated response:
-  //   { data: { data: [...vehicles], current_page, total, ... } }
-  // The inner .data is the actual vehicle array. The outer .data is the
-  // Laravel paginator object. We extract the inner array here.
-  // Drivers + conductors + shift-logs + terminated-personnel endpoints
-  // return flat arrays (non-paginated Collection → { data: [...] }).
+  // Drivers + conductors return flat arrays (non-paginated — used in
+  // assignment dropdowns). Shift-logs + terminated-personnel now return
+  // paginators: { data: { data: [...], current_page, total, ... } }.
+  // We extract the inner data array for all, with fallbacks for both shapes.
   const apiVehicles = vehiclesJson.data?.data ?? vehiclesJson.data ?? [];
   const apiDrivers = driversJson.data ?? [];
   const apiConductors = conductorsJson.data ?? [];
-  const apiShiftLogs = Array.isArray(shiftLogsJson.data) ? shiftLogsJson.data : [];
-  const apiTerminated = Array.isArray(terminatedJson.data) ? terminatedJson.data : [];
+  const apiShiftLogs = shiftLogsJson.data?.data ?? (Array.isArray(shiftLogsJson.data) ? shiftLogsJson.data : []);
+  const apiTerminated = terminatedJson.data?.data ?? (Array.isArray(terminatedJson.data) ? terminatedJson.data : []);
 
   // Map Laravel Vehicles to frontend Vehicle type
   const vehicles: Vehicle[] = apiVehicles.map((v: Record<string, unknown>) => {

@@ -182,6 +182,19 @@ export default function CommuterHome() {
     };
   }, [isHailing, vibrate, playBeep, stopHail]);
 
+  // Auto-stop the hail if the commuter leaves EVERY conductor's radius.
+  // `nearbyVehicles` is the within-radius set, so an empty list (while GPS is
+  // available) means no unit can reach us anymore — cancel the hail so we don't
+  // keep buzzing a conductor who's driven off. We only act on a confirmed
+  // "available but empty" reading; a transient GPS drop won't trigger it (the
+  // 3-minute TTL still covers that case).
+  useEffect(() => {
+    if (isHailing && gpsStatus === "available" && nearbyVehicles.length === 0) {
+      setHailError("Hail stopped — you moved out of range of all nearby units.");
+      void stopHail();
+    }
+  }, [isHailing, gpsStatus, nearbyVehicles.length, stopHail]);
+
   // ─── Derive display values from auth context ────────────────────────
   const displayName = commuterProfile?.firstName ?? user?.email?.split("@")[0] ?? "Commuter";
   const commuterType = commuterProfile?.commuterType ?? "REGULAR";

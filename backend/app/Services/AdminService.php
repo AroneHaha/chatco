@@ -5,12 +5,15 @@ namespace App\Services;
 use App\Enums\UserRole;
 use App\Models\Remittance;
 use App\Models\ShiftLog;
+use App\Models\Setting;
 use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
 class AdminService
@@ -241,6 +244,65 @@ class AdminService
         $totalConductors = (int) DB::table('conductor_profiles')->count();
         $activeConductors = (int) ShiftLog::where('status', 'ACTIVE')->distinct('conductor_id')->count('conductor_id');
 
+        // ── Top Pickup Points (aggregate PAID transactions by pickup_name) ──
+        // Each PAID transaction has a `pickup_name` (the fare point name the
+        // conductor selected). We count how many passengers boarded at each
+        // pickup point in the date window, sorted descending. Limited to top 10.
+        $pickupPoints = DB::table('transactions')
+            ->select('pickup_name', DB::raw('COUNT(*) as pickup_count'))
+            ->where('status', 'PAID')
+            ->whereNotNull('pickup_name')
+            ->where('pickup_name', '!=', '')
+            ->whereBetween('created_at', [$dateFrom, $dateTo])
+            ->groupBy('pickup_name')
+            ->orderByDesc('pickup_count')
+            ->limit(10)
+            ->get()
+            ->map(fn ($row) => [
+                'name'  => $row->pickup_name,
+                'count' => (int) $row->pickup_count,
+            ])
+            ->toArray();
+
+        // ── Demand Heatmap Zones (aggregate PAID transactions with coordinates) ──
+        // Join transactions with fare_points to get the GPS coordinates of each
+        // pickup location. Group by fare_point to cluster demand by location.
+        // The intensity is computed from the pickup_count:
+        //   - >= 50 pickups  → Critical (red)
+        //   - >= 20 pickups  → High (orange)
+        //   - >= 5 pickups   → Moderate (yellow)
+        //   - < 5 pickups    → Low (green)
+        $heatmapZones = DB::table('transactions')
+            ->join('fare_points', 'transactions.pickup_stop_id', '=', 'fare_points.id')
+            ->select(
+                'fare_points.name as zone_name',
+                'fare_points.latitude',
+                'fare_points.longitude',
+                DB::raw('COUNT(*) as commuter_count')
+            )
+            ->where('transactions.status', 'PAID')
+            ->whereNotNull('fare_points.latitude')
+            ->whereNotNull('fare_points.longitude')
+            ->whereBetween('transactions.created_at', [$dateFrom, $dateTo])
+            ->groupBy('fare_points.id', 'fare_points.name', 'fare_points.latitude', 'fare_points.longitude')
+            ->orderByDesc('commuter_count')
+            ->limit(15)
+            ->get()
+            ->map(function ($row) {
+                $count = (int) $row->commuter_count;
+                $intensity = $count >= 50 ? 'Critical' : ($count >= 20 ? 'High' : ($count >= 5 ? 'Moderate' : 'Low'));
+                $color = $count >= 50 ? 'bg-red-500' : ($count >= 20 ? 'bg-orange-500' : ($count >= 5 ? 'bg-yellow-500' : 'bg-green-500'));
+                return [
+                    'zone'      => $row->zone_name,
+                    'commuters' => $count,
+                    'intensity' => $intensity,
+                    'color'     => $color,
+                    'lat'       => (float) $row->latitude,
+                    'lng'       => (float) $row->longitude,
+                ];
+            })
+            ->toArray();
+
         return [
             'date_range' => [
                 'from' => $dateFrom->toDateString(),
@@ -269,6 +331,8 @@ class AdminService
                 'active_conductors' => $activeConductors,
                 'total_conductors'  => $totalConductors,
             ],
+            'pickup_points' => $pickupPoints,
+            'heatmap_zones' => $heatmapZones,
         ];
     }
 
@@ -512,6 +576,145 @@ class AdminService
     }
 
     /**
+     * GET /admin/registrations/rejected — list REJECTED commuter accounts.
+     *
+     * Rejected accounts are soft-deleted (their email is rewritten to
+     * 'rejected+{timestamp}@chatco.local' so the canonical email frees up
+     * for re-registration). We use withTrashed() to include them.
+     *
+     * Returns the same shape as listPendingRegistrations so the frontend
+     * can reuse the RejectedUser table component.
+     */
+    public function listRejectedRegistrations(int $perPage = 15): LengthAwarePaginator
+    {
+        return User::withTrashed()
+            ->where('role', UserRole::COMMUTER)
+            ->whereHas('commuterProfile', function ($q) {
+                $q->where('account_status', 'REJECTED');
+            })
+            ->with(['commuterProfile:id,first_name,middle_name,surname,birthdate,gender,email,contact_number,commuter_type,applied_type,account_status,id_image_url,verified_at,rejection_reason,username,language_preference'])
+            ->orderBy('updated_at', 'desc') // most recently rejected first
+            ->paginate($perPage)
+            ->through(function (User $user) {
+                $c = $user->commuterProfile;
+                return [
+                    'id'              => $user->id,
+                    'email'           => $user->email,
+                    'first_name'      => $c?->first_name,
+                    'middle_name'     => $c?->middle_name,
+                    'surname'         => $c?->surname,
+                    'birthdate'       => $c?->birthdate?->toDateString(),
+                    'gender'          => $c?->gender,
+                    'contact_number'  => $c?->contact_number,
+                    'username'        => $c?->username,
+                    'applied_type'    => $c?->applied_type,
+                    'id_image_url'    => $c?->id_image_url,
+                    'account_status'  => $c?->account_status,
+                    'language_preference' => $c?->language_preference,
+                    'verified_at'     => $c?->verified_at?->toIso8601String(),
+                    'rejection_reason'=> $c?->rejection_reason,
+                    'created_at'      => optional($user->created_at)->toIso8601String(),
+                    'rejected_at'     => optional($user->deleted_at)->toIso8601String(),
+                ];
+            });
+    }
+
+    /**
+     * GET /admin/users/{id}/activity — build a user activity timeline.
+     *
+     * Instead of a separate audit_logs table, this reuses existing data
+     * sources to build a chronological timeline of the user's activity:
+     *   - Account creation + verification (for commuters)
+     *   - Recent transactions (for commuters with passenger_id bound)
+     *   - Recent shift logs (for conductors)
+     *   - Recent feedback received (for conductors/drivers)
+     *
+     * Each entry has: id, timestamp, action, details.
+     */
+    public function getUserActivity(string $id): array
+    {
+        $user = User::with(['commuterProfile', 'conductorProfile', 'adminProfile'])->find($id);
+
+        if (! $user) {
+            abort(404, 'User not found');
+        }
+
+        $events = [];
+
+        // Account creation
+        $events[] = [
+            'id'        => 'created',
+            'timestamp' => optional($user->created_at)->toIso8601String(),
+            'action'    => 'Account Created',
+            'details'   => "Role: {$user->role->value}",
+        ];
+
+        // Commuter-specific events
+        if ($user->commuterProfile) {
+            $c = $user->commuterProfile;
+
+            if ($c->verified_at) {
+                $events[] = [
+                    'id'        => 'verified',
+                    'timestamp' => $c->verified_at->toIso8601String(),
+                    'action'    => 'Account Verified',
+                    'details'   => "Commuter type: {$c->commuter_type}",
+                ];
+            }
+
+            if ($c->account_status === 'REJECTED' && $c->rejection_reason) {
+                $events[] = [
+                    'id'        => 'rejected',
+                    'timestamp' => optional($user->deleted_at)->toIso8601String(),
+                    'action'    => 'Registration Rejected',
+                    'details'   => "Reason: {$c->rejection_reason}",
+                ];
+            }
+
+            // Recent transactions (payment history)
+            $transactions = Transaction::where('passenger_id', $c->id)
+                ->orderBy('created_at', 'desc')
+                ->limit(10)
+                ->get();
+
+            foreach ($transactions as $txn) {
+                $events[] = [
+                    'id'        => "txn-{$txn->transaction_id}",
+                    'timestamp' => optional($txn->created_at)->toIso8601String(),
+                    'action'    => 'Payment',
+                    'details'   => "{$txn->payment_method} ₱{$txn->final_amount} — {$txn->pickup_name} → {$txn->dropoff_name} ({$txn->status})",
+                ];
+            }
+        }
+
+        // Conductor-specific events
+        if ($user->conductorProfile) {
+            $shiftLogs = ShiftLog::where('conductor_id', $user->conductorProfile->id)
+                ->orderBy('time_in', 'desc')
+                ->limit(10)
+                ->get();
+
+            foreach ($shiftLogs as $log) {
+                $events[] = [
+                    'id'        => "shift-{$log->shift_id}",
+                    'timestamp' => optional($log->time_in)->toIso8601String(),
+                    'action'    => $log->status === 'ACTIVE' ? 'Shift Started' : 'Shift Ended',
+                    'details'   => "Unit: {$log->unit_number} — {$log->driver_name}",
+                ];
+            }
+        }
+
+        // Sort all events by timestamp, newest first
+        usort($events, function ($a, $b) {
+            $ta = $a['timestamp'] ? strtotime($a['timestamp']) : 0;
+            $tb = $b['timestamp'] ? strtotime($b['timestamp']) : 0;
+            return $tb - $ta;
+        });
+
+        return $events;
+    }
+
+    /**
      * POST /admin/registrations/{id}/approve — approve a pending registration.
      *
      * - Copies applied_type → commuter_type (the validated discount tier)
@@ -547,6 +750,10 @@ class AdminService
         ]);
 
         $fresh = $profile->fresh();
+
+        // Send approval email to the commuter (best-effort — don't fail
+        // the approval if the email can't be sent).
+        $this->sendApprovalEmail($user, $fresh);
 
         return [
             'id'              => $user->id,
@@ -585,6 +792,10 @@ class AdminService
             ]);
         }
 
+        // Send rejection email to the commuter BEFORE rewriting the email
+        // (best-effort — don't fail the rejection if the email can't be sent).
+        $this->sendRejectionEmail($user, $profile, $reason);
+
         // Rewrite the email to a unique placeholder BEFORE soft-deleting.
         // This frees the canonical email for re-registration (the users.email
         // column has a DB-level unique index that includes soft-deleted rows).
@@ -605,5 +816,63 @@ class AdminService
             'account_status'   => 'REJECTED',
             'rejection_reason' => $reason,
         ];
+    }
+
+    // ── Email helpers ──────────────────────────────────────────────
+
+    /**
+     * Send an approval notification email to the commuter.
+     * Reads the `account_approved_template` from the settings table.
+     * Best-effort: errors are logged but never thrown.
+     */
+    private function sendApprovalEmail(User $user, $profile): void
+    {
+        try {
+            $template = Setting::where('key', 'account_approved_template')->value('value')
+                ?? "Congratulations {name}!\n\nYour CHATCO commuter account has been approved.\n\nCommuter Type: {commuter_type}\n\nYou can now log in to the CHATCO app and start riding.";
+
+            $body = strtr($template, [
+                '{name}'          => trim($profile->first_name . ' ' . $profile->surname),
+                '{commuter_type}' => $profile->commuter_type ?? 'REGULAR',
+            ]);
+
+            Mail::raw($body, function ($message) use ($user) {
+                $message->to($user->email)
+                    ->subject('CHATCO — Account Approved');
+            });
+        } catch (\Exception $e) {
+            Log::error('Failed to send approval email', [
+                'error' => $e->getMessage(),
+                'user_id' => $user->id,
+            ]);
+        }
+    }
+
+    /**
+     * Send a rejection notification email to the commuter.
+     * Reads the `account_rejected_template` from the settings table.
+     * Best-effort: errors are logged but never thrown.
+     */
+    private function sendRejectionEmail(User $user, $profile, string $reason): void
+    {
+        try {
+            $template = Setting::where('key', 'account_rejected_template')->value('value')
+                ?? "Hello {name},\n\nWe regret to inform you that your CHATCO commuter registration has been rejected.\n\nReason: {reason}\n\nIf you believe this is an error, please contact support.";
+
+            $body = strtr($template, [
+                '{name}'   => trim($profile->first_name . ' ' . $profile->surname),
+                '{reason}' => $reason,
+            ]);
+
+            Mail::raw($body, function ($message) use ($user) {
+                $message->to($user->email)
+                    ->subject('CHATCO — Registration Update');
+            });
+        } catch (\Exception $e) {
+            Log::error('Failed to send rejection email', [
+                'error' => $e->getMessage(),
+                'user_id' => $user->id,
+            ]);
+        }
     }
 }

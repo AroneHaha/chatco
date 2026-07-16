@@ -224,11 +224,10 @@ export function useProfile() {
 
   // ─── Misc ─────────────────────────────────────────────────────────
   const handleReuploadId = async () => {
-    // ID re-upload flow is implemented in S5-T16 (Frontend Signup
-    // Registration & ID Upload Wiring). Surface a clear notice in the
-    // meantime so the button isn't a no-op.
+    // ID re-upload is not yet available as a self-service flow.
+    // Direct the commuter to contact admin support for now.
     setSuccessMessage(
-      "ID re-upload will be available once S5-T16 ships. Please contact support to reapply."
+      "To re-upload your valid ID, please visit the nearest CHATCO terminal or contact admin support. Self-service re-upload will be available in a future update."
     );
     window.setTimeout(() => setSuccessMessage(null), 6000);
   };

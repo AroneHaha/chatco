@@ -8,6 +8,7 @@ use App\Models\ShiftLog;
 use App\Models\Vehicle;
 use App\Models\VehicleLocation;
 use App\Models\User;
+use App\Models\Setting;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -261,10 +262,15 @@ class LocationService
      * Returns vehicles with speed > threshold from vehicle_locations
      * where the vehicle has an active shift.
      *
-     * @param int $threshold Speed limit in km/h (default 60)
+     * @param int|null $threshold Speed limit in km/h. If null, reads from
+     *                            the `speed_limit_kmh` setting (default 60).
      */
-    public function getOverspeedingVehicles(int $threshold = 60): Collection
+    public function getOverspeedingVehicles(?int $threshold = null): Collection
     {
+        // If no explicit threshold passed, read from the settings table.
+        if ($threshold === null) {
+            $threshold = (int) (Setting::where('key', 'speed_limit_kmh')->value('value') ?? 60);
+        }
         return DB::table('vehicle_locations')
             ->join('vehicles', 'vehicle_locations.vehicle_id', '=', 'vehicles.id')
             ->whereNotNull('vehicles.active_shift_id')

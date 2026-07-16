@@ -23,6 +23,7 @@ export default function UsersPage() {
     pendingRequests,
     rejectedUsers,
     historyLogs,
+    fetchUserActivity,
     pagination,
     isLoading,
     error,
@@ -117,6 +118,9 @@ export default function UsersPage() {
   const handleOpenHistoryModal = (userId: string) => {
     setSelectedUserId(userId);
     setIsHistoryModalOpen(true);
+    // Fetch the user's activity timeline from the backend. The result is
+    // cached in historyLogs so repeat opens don't re-fetch.
+    void fetchUserActivity(userId);
   };
   const handleCloseHistoryModal = () => {
     setSelectedUserId(null);

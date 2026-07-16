@@ -16,6 +16,7 @@ export interface Transaction {
   conductorName?: string;
   unitNumber?: string;
   driverName?: string;
+  voucherCode?: string;
   timestamp: number;
 }
 

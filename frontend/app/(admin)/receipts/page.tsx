@@ -1,7 +1,7 @@
 // app/(admin)/receipts/page.tsx
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
 import { SearchBar } from '@/components/admin/ui/search-bar';
@@ -20,8 +20,14 @@ export default function ReceiptsPage() {
 
   const paymentOptions: (PaymentMethod | 'All')[] = ['All', 'Cash', 'Gcash', 'Voucher'];
 
-  // Reset to page 1 when filters change
-  useEffect(() => { setCurrentPage(1); }, [searchQuery, startDate, endDate, paymentFilter]);
+  // Reset to page 1 when filters change — uses the "adjust state during
+  // render" pattern instead of useEffect to avoid cascading renders.
+  const [prevFilterKey, setPrevFilterKey] = useState('');
+  const filterKey = `${searchQuery}|${startDate}|${endDate}|${paymentFilter}`;
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
+    setCurrentPage(1);
+  }
 
   // Filtered data
   const filteredData = useMemo(() => {
@@ -42,6 +48,44 @@ export default function ReceiptsPage() {
     const startIndex = (safeCurrentPage - 1) * ROWS_PER_PAGE;
     return filteredData.slice(startIndex, startIndex + ROWS_PER_PAGE);
   }, [filteredData, safeCurrentPage]);
+
+  // ── CSV Export ──
+  // Generates a CSV from the currently-filtered data (not just the current
+  // page) and triggers a download. All fields are quoted + escaped to handle
+  // commas/newlines in values.
+  const handleExportCSV = useCallback(() => {
+    const headers = ['Transaction ID', 'Commuter Name', 'Commuter ID', 'Plate Number', 'Route', 'Fare', 'Payment Method', 'Status', 'Date', 'Time'];
+    const rows = filteredData.map(r => [
+      r.id,
+      r.commuterName,
+      r.commuterId,
+      r.plateNumber,
+      r.route,
+      r.fare.toFixed(2),
+      r.paymentMethod,
+      r.status,
+      r.date,
+      r.time,
+    ]);
+
+    // Escape each value: wrap in quotes, double any existing quotes.
+    const escapeCsv = (val: string | number) => `"${String(val).replace(/"/g, '""')}"`;
+    const csvContent = [
+      headers.map(escapeCsv).join(','),
+      ...rows.map(row => row.map(escapeCsv).join(',')),
+    ].join('\n');
+
+    // Add BOM so Excel opens UTF-8 correctly.
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `chatco-receipts-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [filteredData]);
 
   // Summary stats
   const totalFare = filteredData.reduce((sum: number, item: Receipt) => sum + item.fare, 0);
@@ -76,9 +120,15 @@ export default function ReceiptsPage() {
       key: 'status',
       label: 'Status',
       render: (value: string) => {
-        if (value === 'Pending') return <Badge variant="warning">Pending</Badge>;
-        if (value === 'Failed') return <Badge variant="danger">Failed</Badge>;
-        return <Badge variant="success">Completed</Badge>;
+        switch (value) {
+          case 'Completed': return <Badge variant="success">Completed</Badge>;
+          case 'Pending':   return <Badge variant="warning">Pending</Badge>;
+          case 'Failed':    return <Badge variant="danger">Failed</Badge>;
+          case 'Cancelled': return <Badge variant="danger">Cancelled</Badge>;
+          case 'Expired':   return <Badge variant="warning">Expired</Badge>;
+          case 'Refunded':  return <Badge variant="info">Refunded</Badge>;
+          default:          return <Badge variant="success">Completed</Badge>;
+        }
       },
     },
     { key: 'date', label: 'Date' },
@@ -170,7 +220,12 @@ export default function ReceiptsPage() {
             >
               <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 bg-[#62A0EA] text-white text-sm font-medium rounded-md hover:bg-[#4A8BD4] transition-colors shadow-lg shadow-[#62A0EA]/25 active:scale-95">
+            <button
+              onClick={handleExportCSV}
+              disabled={filteredData.length === 0}
+              className="flex items-center gap-2 px-4 py-2 bg-[#62A0EA] text-white text-sm font-medium rounded-md hover:bg-[#4A8BD4] transition-colors shadow-lg shadow-[#62A0EA]/25 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              title={filteredData.length === 0 ? 'No data to export' : `Export ${filteredData.length} receipts to CSV`}
+            >
               <Download size={16} />
               <span className="hidden sm:inline">Export</span>
             </button>

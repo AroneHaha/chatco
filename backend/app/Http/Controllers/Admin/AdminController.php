@@ -83,7 +83,9 @@ class AdminController extends Controller
      */
     public function overspeed(Request $request): JsonResponse
     {
-        $threshold = (int) $request->integer('threshold', 60);
+        // If the admin passes ?threshold=X, use that. Otherwise pass null
+        // so the LocationService reads from the settings table (speed_limit_kmh).
+        $threshold = $request->has('threshold') ? (int) $request->integer('threshold') : null;
         $vehicles = $this->locationService->getOverspeedingVehicles($threshold);
 
         return $this->successResponse($vehicles, 'Overspeeding vehicles retrieved');
@@ -364,6 +366,9 @@ class AdminController extends Controller
                 'terminated_date'   => now()->toDateString(),
                 'last_vehicle'      => $lastVehicle,
             ]);
+            // Revoke ALL tokens BEFORE soft-deleting — so the conductor is
+            // instantly logged out everywhere and can't use the account.
+            $user->tokens()->delete();
             // Soft-deletes the user — cascades to conductor_profile via shared PK.
             $user->delete();
         });
@@ -372,18 +377,142 @@ class AdminController extends Controller
     }
 
     /**
+     * POST /api/v1/admin/conductors/{id}/disable
+     *
+     * Manually disables a conductor's account WITHOUT terminating them.
+     * Revokes all Sanctum tokens (instant logout — can't log in again until
+     * re-enabled). Does NOT soft-delete the user or create a terminated_personnel
+     * record. Useful for temporary suspensions (e.g. investigation).
+     *
+     * To re-enable, the admin uses PUT /admin/users/{id} to set account_status
+     * back to ACTIVE (or simply generates new credentials via reset-credentials).
+     */
+    public function disableConductor(string $id): JsonResponse
+    {
+        $conductor = ConductorProfile::with('user')->findOrFail($id);
+        $user = $conductor->user;
+
+        if (! $user) {
+            return $this->errorResponse('Conductor user account not found.', 404);
+        }
+
+        // Reject if the conductor is currently on an active shift.
+        if ($conductor->vehicle && $conductor->vehicle->active_shift_id) {
+            return response()->json([
+                'success' => false,
+                'data'    => null,
+                'message' => 'Conflict',
+                'errors'  => [
+                    'conductor' => [
+                        'Cannot disable a conductor who is currently on an active shift. ' .
+                        'End the shift first.',
+                    ],
+                ],
+                'meta'    => null,
+            ], 409);
+        }
+
+        // Revoke ALL tokens — the conductor is instantly logged out everywhere.
+        $user->tokens()->delete();
+
+        return $this->successResponse(null, 'Conductor account disabled. All sessions revoked.');
+    }
+
+    /**
+     * POST /api/v1/admin/conductors/{id}/reset-credentials
+     *
+     * Regenerates the conductor's username + password. The new credentials
+     * are returned ONCE in the response (same as storeConductor) so the admin
+     * can hand them to the conductor. All existing Sanctum tokens for the
+     * user are revoked (the conductor must log in with the new credentials).
+     */
+    public function resetConductorCredentials(string $id): JsonResponse
+    {
+        $conductor = ConductorProfile::with('user')->findOrFail($id);
+        $user = $conductor->user;
+
+        if (! $user) {
+            return $this->errorResponse('Conductor user account not found.', 404);
+        }
+
+        // Regenerate credentials using the same deterministic algorithm as storeConductor.
+        $firstName = $conductor->first_name ?? '';
+        $lastName = $conductor->last_name ?? '';
+        $birthday = $conductor->birthday?->toDateString() ?? '2000-01-01';
+
+        $firstNameTrimmed = trim($firstName);
+        $generatedUsername = strtolower(
+            substr($firstNameTrimmed, 0, 1) . '.' . preg_replace('/\s+/', '', $lastName)
+        );
+
+        $birthdayFormatted = \Carbon\Carbon::parse($birthday)->format('mdY');
+        $firstNameParts = preg_split('/\s+/', $firstNameTrimmed);
+        $firstPart = strtolower($firstNameParts[0]);
+        $restParts = implode('', array_map('strtolower', array_slice($firstNameParts, 1)));
+        $generatedPassword = $firstPart . '.' . $restParts . $birthdayFormatted;
+
+        // Ensure username uniqueness — append a number if taken.
+        $originalUsername = $generatedUsername;
+        $counter = 1;
+        while (User::where('email', $generatedUsername . '@chatco.local')
+            ->where('id', '!=', $user->id)
+            ->exists()) {
+            $generatedUsername = $originalUsername . $counter;
+            $counter++;
+        }
+
+        // Update the user's password + email (derived from username).
+        $user->update([
+            'email' => $generatedUsername . '@chatco.local',
+            'password' => $generatedPassword,
+        ]);
+
+        // Update the conductor profile with the new credentials.
+        $conductor->update([
+            'generated_username' => $generatedUsername,
+            'generated_password' => $generatedPassword,
+        ]);
+
+        // Revoke ALL tokens — the conductor must re-login with the new credentials.
+        $user->tokens()->delete();
+
+        return $this->successResponse([
+            'id' => $conductor->id,
+            'first_name' => $conductor->first_name,
+            'last_name' => $conductor->last_name,
+            'generated_username' => $generatedUsername,
+            'generated_password' => $generatedPassword,
+        ], 'Credentials reset successfully. The conductor must log in with the new credentials.');
+    }
+
+    /**
      * GET /api/v1/admin/terminated-personnel
      * Lists all terminated personnel records, newest first. Powers the
      * "Separated Personnel" section of the Fleet Management Records & History tab.
      */
-    public function terminatedPersonnel(): JsonResponse
+    public function terminatedPersonnel(Request $request): JsonResponse
     {
+        $perPage = (int) $request->integer('per_page', 50);
+
         $records = TerminatedPersonnel::query()
             ->orderBy('terminated_date', 'desc')
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->paginate($perPage);
 
         return $this->successResponse($records, 'Terminated personnel retrieved');
+    }
+
+    /**
+     * GET /api/v1/admin/users/{id}/activity
+     * Returns a chronological activity timeline for a user. Reuses existing
+     * data sources (transactions, shift_logs, verification dates) instead of
+     * a separate audit_logs table. Powers the User History modal.
+     */
+    public function userActivity(string $id): JsonResponse
+    {
+        $events = $this->adminService->getUserActivity($id);
+
+        return $this->successResponse($events, 'User activity retrieved');
     }
 
     /**
@@ -621,6 +750,8 @@ class AdminController extends Controller
 
     public function transactions(Request $request): JsonResponse
     {
+        $perPage = (int) $request->integer('per_page', 100);
+
         $query = Transaction::with(['shiftLog', 'passenger'])
             ->orderBy('created_at', 'desc');
 
@@ -628,7 +759,7 @@ class AdminController extends Controller
             $query->where('shift_id', $request->input('shift_id'));
         }
 
-        $transactions = $query->get();
+        $transactions = $query->paginate($perPage);
 
         return $this->successResponse($transactions, 'Transactions retrieved');
     }
@@ -644,8 +775,11 @@ class AdminController extends Controller
      * the conductor records their first cash fare, before they click
      * "Remit to Admin".
      */
-    public function remittances(): JsonResponse
+    public function remittances(Request $request): JsonResponse
     {
+        $perPage = (int) $request->integer('per_page', 100);
+        $page = (int) $request->integer('page', 1);
+
         // 1. Completed remittances
         $completedRemittances = Remittance::query()
             ->orderBy('date', 'desc')
@@ -708,7 +842,23 @@ class AdminController extends Controller
         // Merge: Pending first, then Remitted
         $unified = $pendingShifts->concat($completedRemittances);
 
-        return $this->successResponse($unified, 'Remittances retrieved');
+        // Manual pagination on the merged collection (can't use ->paginate()
+        // because we're merging two separate queries).
+        $total = $unified->count();
+        $offset = ($page - 1) * $perPage;
+        $items = $unified->slice($offset, $perPage)->values();
+
+        // Return in the same shape as Laravel's paginator so the frontend
+        // can use the same extraction logic.
+        $paginated = new \Illuminate\Pagination\LengthAwarePaginator(
+            $items,
+            $total,
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        return $this->successResponse($paginated, 'Remittances retrieved');
     }
 
     public function shiftLogs(Request $request): JsonResponse
@@ -728,7 +878,9 @@ class AdminController extends Controller
             $query->where('driver_id', $request->input('driver_id'));
         }
 
-        $shiftLogs = $query->get();
+        $perPage = (int) $request->integer('per_page', 100);
+
+        $shiftLogs = $query->paginate($perPage);
 
         return $this->successResponse($shiftLogs, 'Shift logs retrieved');
     }
