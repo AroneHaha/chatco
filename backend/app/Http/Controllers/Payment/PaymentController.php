@@ -14,6 +14,7 @@ use App\Support\Payments\PaymentGatewayException;
 use App\Support\Payments\WebhookEvent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -76,6 +77,13 @@ class PaymentController extends Controller
      * GET /payments/{id}/status — fast DB read of current status (the webhook
      * keeps it fresh). Authorized to the conductor who owns the shift or the
      * bound commuter.
+     *
+     * PROVIDER RECONCILIATION (fallback when the webhook is delayed/missing):
+     * If the row is still resolvable (PENDING GCash, or EXPIRED inside the
+     * late-settlement grace window) AND has a real payment_reference, we
+     * periodically poll PayMongo directly and apply any state transition the
+     * webhook would have applied. This is rate-limited per-transaction via a
+     * cache key so a 3s-poll client doesn't hammer the provider API.
      */
     public function status(Request $request, string $id): JsonResponse
     {
@@ -95,10 +103,110 @@ class PaymentController extends Controller
         // instead of a PENDING that can never complete (no cron needed).
         $transaction = $this->paymentService->expireIfStale($transaction);
 
+        // Reconcile with the provider when the row could still resolve.
+        // Skipped when:
+        //   - the gateway isn't configured (FakeGateway never has new info),
+        //   - the row has no payment_reference (FakeGateway or pre-init),
+        //   - the row is already hard-terminal (PAID/FAILED/CANCELLED/REFUNDED),
+        //   - the cache throttle window hasn't elapsed since the last sync.
+        $transaction = $this->maybeReconcileWithProvider($transaction);
+
         return $this->successResponse([
             'status' => $transaction->status->value,
             'paid_at' => $transaction->paid_at?->toIso8601String(),
         ], 'Transaction status retrieved');
+    }
+
+    /**
+     * Reconcile the local status with the provider, rate-limited per
+     * transaction via a cache key. Catches the case where PayMongo's webhook
+     * is delayed or never arrives (e.g. local dev without ngrok, network
+     * blip) — the commuter authorized on PayMongo but the DB still says
+     * PENDING. Without this, polling would echo PENDING forever.
+     *
+     * Triggers for:
+     *   - PENDING GCash rows (the common case — commuter is mid-checkout),
+     *   - EXPIRED GCash rows inside the late-settlement grace window (the
+     *     commuter may have authorized just before the local TTL lapsed).
+     *
+     * Safe no-op for: hard-terminal rows, non-GCASH rows, FakeGateway rows,
+     * rows without a payment_reference, or when the throttle window is active.
+     */
+    private function maybeReconcileWithProvider(Transaction $transaction): Transaction
+    {
+        $throttleSeconds = (int) config('payments.reconcile_throttle_seconds', 30);
+        if ($throttleSeconds <= 0) {
+            return $transaction; // reconciliation disabled by config
+        }
+
+        // Only GCash rows can have a provider to reconcile with.
+        if ($transaction->payment_method !== PaymentMethod::GCASH) {
+            return $transaction;
+        }
+
+        // Only resolvable rows are worth reconciling.
+        $isPending = $transaction->status === PaymentStatus::PENDING;
+        $isLateSettleable = $transaction->status === PaymentStatus::EXPIRED
+            && $this->withinLateSettlementWindow($transaction);
+        if (! $isPending && ! $isLateSettleable) {
+            return $transaction;
+        }
+
+        // Need a real provider reference (FakeGateway rows have fake_ refs but
+        // we don't want to call PayMongo for those either — skip if the
+        // gateway itself isn't configured).
+        if (! $transaction->payment_reference) {
+            return $transaction;
+        }
+        if (! $this->paymentService->isGatewayConfigured()) {
+            return $transaction;
+        }
+
+        // Rate-limit: one provider round-trip per transaction per window.
+        // Concurrent polls share the same cache key, so only one wins the
+        // race — the rest read the freshly-updated row.
+        $cacheKey = "payment.sync.{$transaction->transaction_id}";
+        if (! Cache::add($cacheKey, now()->timestamp, $throttleSeconds)) {
+            return $transaction; // another poller is already syncing (or recently did)
+        }
+
+        try {
+            $transaction = $this->paymentService->syncStatus($transaction);
+        } catch (PaymentGatewayException $e) {
+            // Provider call failed (network, 5xx, etc.). Log + move on — the
+            // cached row is still authoritative for the response, and the
+            // next throttle window will retry.
+            Log::warning('Payment provider reconciliation failed', [
+                'transaction_id' => $transaction->transaction_id,
+                'reference' => $transaction->payment_reference,
+                'error' => $e->getMessage(),
+            ]);
+
+            // Release the throttle so the next poll can retry sooner.
+            Cache::forget($cacheKey);
+        }
+
+        return $transaction;
+    }
+
+    /**
+     * Whether an EXPIRED GCash transaction is still inside the late-settlement
+     * grace window — the window during which a delayed PayMongo webhook could
+     * still flip it to PAID. Past this window, reconciliation is futile.
+     */
+    private function withinLateSettlementWindow(Transaction $transaction): bool
+    {
+        $graceSeconds = (int) config('payments.late_settlement_grace_seconds', 60);
+        if ($graceSeconds <= 0) {
+            return false;
+        }
+
+        $updated = $transaction->updated_at;
+        if (! $updated) {
+            return true; // unknown — give the benefit of the doubt
+        }
+
+        return $updated->gt(now()->subSeconds($graceSeconds));
     }
 
     /**
