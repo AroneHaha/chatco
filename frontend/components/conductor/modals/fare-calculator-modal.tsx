@@ -64,7 +64,17 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   // transaction + a qr_token + a PayMongo checkout URL. The qr_token is
   // rendered as a QR for the commuter to scan. We then poll the payment
   // status until it reaches a terminal state (PAID/FAILED/CANCELLED/EXPIRED)
-  // or the QR's expires_at (3-minute claim TTL) passes.
+  // or the QR's expires_at (claim TTL) passes.
+  //
+  // LATE-SETTLEMENT HANDLING:
+  // EXPIRED is NOT immediately treated as terminal. After the row flips to
+  // EXPIRED (lazy TTL expiry server-side), we keep polling for a grace
+  // window (default 60s) because the commuter may have completed PayMongo
+  // checkout seconds before the local expiry — PayMongo's webhook then
+  // arrives late and the state machine's EXPIRED→PAID transition fires.
+  // Only HARD-TERMINAL statuses (failed/cancelled/refunded) end polling
+  // immediately. PAID always ends polling immediately. EXPIRED ends polling
+  // only after the grace window elapses without a resolution.
   const [gcashInitiation, setGcashInitiation] = useState<GcashInitiation | null>(null);
   const [gcashStatus, setGcashStatus] = useState<GcashPaymentStatus | null>(null);
   const [gcashError, setGcashError] = useState<string | null>(null);
@@ -73,6 +83,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   const [qrSecondsLeft, setQrSecondsLeft] = useState<number | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Timestamp (ms) when EXPIRED was first observed, or null if not yet seen. */
+  const expiredAtRef = useRef<number | null>(null);
   /** One pending-resume check per modal open. */
   const checkedPendingRef = useRef(false);
 
@@ -222,58 +234,94 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
       clearTimeout(pollTimeoutRef.current);
       pollTimeoutRef.current = null;
     }
+    expiredAtRef.current = null;
   }, []);
 
   // ─── Poll GCash payment status until terminal ───
   // Polls GET /api/payments/{id}/status every 3s. Stops when the status
-  // reaches a terminal state (paid/failed/cancelled/expired/refunded) or
-  // the QR's expires_at passes (3-minute claim TTL — the status endpoint
-  // lazily flips stale PENDING rows to EXPIRED, so polling normally reports
-  // the expiry itself; the local timeout is the offline fallback). The
-  // backend also broadcasts a PaymentStatusUpdated event on the
+  // reaches a hard-terminal state (paid/failed/cancelled/refunded) or when
+  // the QR's expires_at passes AND the late-settlement grace window elapses
+  // without resolution. The status endpoint lazily flips stale PENDING rows
+  // to EXPIRED; EXPIRED itself is NOT treated as terminal because the
+  // commuter may have completed PayMongo checkout seconds before the local
+  // expiry, and the late webhook can still flip EXPIRED→PAID. We keep
+  // polling for a 60s grace window after EXPIRED first appears.
+  //
+  // The backend also broadcasts a PaymentStatusUpdated event on the
   // payments.{transactionId} channel — a Pusher listener could replace this
   // polling, but polling is the reliable fallback without Pusher configured.
   const pollGcashStatus = useCallback((transactionId: string, expiresAt?: string) => {
     stopPolling();
 
-    const TERMINAL_STATUSES: GcashPaymentStatus[] = ["paid", "failed", "cancelled", "expired", "refunded"];
+    // HARD-TERMINAL statuses end polling immediately. EXPIRED is deliberately
+    // excluded — it goes through the grace-window logic below.
+    const HARD_TERMINAL: GcashPaymentStatus[] = ["paid", "failed", "cancelled", "refunded"];
+
+    // Grace window after EXPIRED is first observed (server-side default: 60s).
+    // The commuter may have authorized on PayMongo just before the local TTL
+    // lapsed — the webhook arrives late and flips EXPIRED→PAID. We keep
+    // polling through this window to surface that resolution.
+    const LATE_SETTLEMENT_GRACE_MS = 60 * 1000;
 
     pollIntervalRef.current = setInterval(async () => {
       try {
         const status = await fetchStatus(transactionId);
         setGcashStatus(status);
 
-        if (TERMINAL_STATUSES.includes(status)) {
+        // PAID is always terminal — success regardless of prior EXPIRED state.
+        if (status === "paid") {
           stopPolling();
+          setStep("success");
+          return;
+        }
 
-          if (status === "paid") {
-            setStep("success");
-          } else if (status === "expired") {
-            setGcashError("This QR code has expired — start a new GCash payment.");
-            setStep("failed");
-          } else {
-            setGcashError(`Payment ${status}.`);
+        // Hard-terminal failure statuses end immediately.
+        if (HARD_TERMINAL.includes(status)) {
+          stopPolling();
+          setGcashError(`Payment ${status}.`);
+          setStep("failed");
+          return;
+        }
+
+        // EXPIRED — record when we first saw it, and keep polling through
+        // the grace window. If we've already been in EXPIRED for longer
+        // than the grace, give up.
+        if (status === "expired") {
+          if (expiredAtRef.current === null) {
+            expiredAtRef.current = Date.now();
+          }
+          const elapsed = Date.now() - expiredAtRef.current;
+          if (elapsed >= LATE_SETTLEMENT_GRACE_MS) {
+            stopPolling();
+            setGcashError(
+              "This QR code has expired. If the commuter already paid on PayMongo, the late webhook may still settle the transaction — check your transaction history in a minute."
+            );
             setStep("failed");
           }
+          // else: keep polling — the late webhook may still fire.
         }
       } catch {
         // Network error — keep polling, the next tick may recover.
-        // The expiry timeout below will eventually bail out.
+        // The hard fallback timeout below will eventually bail out.
       }
     }, 3000);
 
-    // Local fallback timeout derived from the QR's expires_at (+10s grace so
-    // the server-side lazy expiry via polling normally wins). If expires_at
-    // is unavailable, fall back to the 3-minute TTL.
+    // Hard fallback timeout derived from the QR's expires_at (+ grace window
+    // + 30s buffer so the server-side lazy expiry via polling normally wins,
+    // AND the late-settlement grace runs to completion, AND a delayed
+    // PayMongo webhook has time to land). If expires_at is unavailable,
+    // fall back to the 10-minute TTL.
     const msUntilExpiry = expiresAt
       ? new Date(expiresAt).getTime() - Date.now()
-      : 3 * 60 * 1000;
+      : 10 * 60 * 1000;
     pollTimeoutRef.current = setTimeout(() => {
       stopPolling();
-      setGcashError("This QR code has expired — start a new GCash payment.");
+      setGcashError(
+        "This QR code has expired. If the commuter already paid on PayMongo, the late webhook may still settle the transaction — check your transaction history in a minute."
+      );
       setGcashStatus("expired");
       setStep("failed");
-    }, Math.max(5_000, msUntilExpiry + 10_000));
+    }, Math.max(10_000, msUntilExpiry + LATE_SETTLEMENT_GRACE_MS + 30_000));
   }, [stopPolling]);
 
   // ─── Initiate GCash payment (real API) ───
@@ -1266,10 +1314,11 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
               Amount: <span className="text-white font-semibold">{formatCurrency(gcashInitiation.amount)}</span>
             </p>
             <div className="flex items-center justify-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-              <p className="text-xs text-blue-400/70 font-medium">
+              <div className={`w-2 h-2 rounded-full animate-pulse ${gcashStatus === "expired" ? "bg-amber-400" : "bg-blue-400"}`} />
+              <p className={`text-xs font-medium ${gcashStatus === "expired" ? "text-amber-400/90" : "text-blue-400/70"}`}>
                 {gcashStatus === "processing" ? "Payment processing…" :
                  gcashStatus === "paid" ? "Payment successful!" :
+                 gcashStatus === "expired" ? "QR expired — still waiting for PayMongo confirmation…" :
                  gcashStatus ? `Status: ${gcashStatus}` :
                  "Waiting for commuter scan…"}
               </p>

@@ -51,7 +51,7 @@ class TransactionService
      */
     private function claimTtlMinutes(): int
     {
-        return (int) config('payments.gcash_claim_ttl_minutes', 5);
+        return (int) config('payments.gcash_claim_ttl_minutes', 10);
     }
 
     // ─── Cash Flow ──────────────────────────────────────────────────

@@ -12,9 +12,17 @@ import { fetchPaymentStatus, type PaymentStatus } from "@/lib/commuter/services/
  * configured in config/payments.php return_url).
  *
  * This page polls GET /api/payments/{id}/status every 3s until the status
- * reaches a terminal state (paid/failed/cancelled/expired). The backend's
- * PayMongo webhook usually flips the status to PAID within seconds of the
- * commuter authorizing — this polling picks that up.
+ * reaches a hard-terminal state (paid/failed/cancelled/refunded) or the
+ * late-settlement grace window elapses after EXPIRED. The backend's PayMongo
+ * webhook usually flips the status to PAID within seconds of the commuter
+ * authorizing — this polling picks that up.
+ *
+ * LATE-SETTLEMENT HANDLING:
+ * EXPIRED is NOT treated as immediately terminal. After the row flips to
+ * EXPIRED, the page keeps polling for a grace window (default 60s) because
+ * the commuter may have completed PayMongo checkout seconds before the
+ * local TTL lapsed — PayMongo's webhook then arrives late and the state
+ * machine's EXPIRED→PAID transition fires.
  *
  * In DEV mode (FakeGateway), the conductor's [DEV] Simulate Payment button
  * drives the status to PAID through the same webhook path.
@@ -27,18 +35,25 @@ export default function GcashReturnPage() {
   const [status, setStatus] = useState<PaymentStatus | null>(null);
   const [pollCount, setPollCount] = useState(0);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /** Timestamp (ms) when EXPIRED was first observed, or null if not yet seen. */
+  const expiredAtRef = useRef<number | null>(null);
 
   const stopPolling = useCallback(() => {
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
       pollIntervalRef.current = null;
     }
+    expiredAtRef.current = null;
   }, []);
 
   useEffect(() => {
     if (!transactionId) return;
 
-    const TERMINAL_STATUSES: PaymentStatus[] = ["paid", "failed", "cancelled", "expired", "refunded"];
+    // Hard-terminal statuses end polling immediately. EXPIRED is handled
+    // through the grace-window logic to allow for late PayMongo webhooks.
+    const HARD_TERMINAL: PaymentStatus[] = ["paid", "failed", "cancelled", "refunded"];
+    // Grace window after EXPIRED is first observed (matches server-side default).
+    const LATE_SETTLEMENT_GRACE_MS = 60 * 1000;
 
     let mounted = true;
 
@@ -50,8 +65,30 @@ export default function GcashReturnPage() {
         setStatus(result.status);
         setPollCount((c) => c + 1);
 
-        if (TERMINAL_STATUSES.includes(result.status)) {
+        // PAID is always terminal — success regardless of prior EXPIRED state.
+        if (result.status === "paid") {
           stopPolling();
+          return;
+        }
+
+        // Hard-terminal failure statuses end immediately.
+        if (HARD_TERMINAL.includes(result.status)) {
+          stopPolling();
+          return;
+        }
+
+        // EXPIRED — record when we first saw it, and keep polling through
+        // the grace window. If we've already been in EXPIRED for longer
+        // than the grace, give up.
+        if (result.status === "expired") {
+          if (expiredAtRef.current === null) {
+            expiredAtRef.current = Date.now();
+          }
+          const elapsed = Date.now() - expiredAtRef.current;
+          if (elapsed >= LATE_SETTLEMENT_GRACE_MS) {
+            stopPolling();
+          }
+          // else: keep polling — the late webhook may still fire.
         }
       } catch {
         // Network error — keep polling, the next tick may recover.
@@ -62,11 +99,14 @@ export default function GcashReturnPage() {
     void poll();
     pollIntervalRef.current = setInterval(poll, 3000);
 
-    // Hard timeout: 2 minutes. If the webhook hasn't fired by then,
-    // stop polling + the UI will show the "still processing" state.
+    // Hard fallback timeout: 10 minutes (matches the QR claim TTL). If the
+    // webhook hasn't fired by then, stop polling + the UI shows the
+    // "still processing" state with a "check your history later" hint.
+    // This is the offline upper bound — under normal conditions, polling
+    // resolves within seconds of the commuter authorizing on PayMongo.
     const hardTimeout = setTimeout(() => {
       if (mounted) stopPolling();
-    }, 2 * 60 * 1000);
+    }, 10 * 60 * 1000);
 
     return () => {
       mounted = false;
@@ -112,7 +152,7 @@ export default function GcashReturnPage() {
             Processing your GCash payment
           </h1>
           <p className="text-sm text-white/40 mb-4">
-            We&apos;re confirming your payment with GCash. This usually takes a few seconds.
+            We&apos;re confirming your payment with PayMongo. This usually takes a few seconds.
           </p>
           {transactionId && (
             <p className="text-[10px] text-white/20 font-mono mb-4">
@@ -122,6 +162,43 @@ export default function GcashReturnPage() {
           {pollCount > 5 && (
             <p className="text-xs text-amber-400/60">
               Still waiting… ({pollCount} attempts). If this takes too long, check your payment history later.
+            </p>
+          )}
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="w-full mt-4 py-2.5 rounded-xl border border-white/10 text-white/60 text-sm font-semibold hover:bg-white/5 transition-colors"
+          >
+            Back to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Expired but still waiting for late settlement ───
+  // The QR's claim TTL lapsed, but the commuter may have completed PayMongo
+  // checkout seconds before — PayMongo's webhook can still arrive and flip
+  // the row EXPIRED→PAID. We keep polling for the grace window and show a
+  // distinct amber state so the commuter understands what's happening.
+  if (status === "expired") {
+    return (
+      <div className="min-h-screen bg-[#071A2E] flex items-center justify-center p-4">
+        <div className="w-full max-w-sm bg-[#0E1628] border border-amber-500/20 rounded-2xl p-8 text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-amber-400 border-t-transparent animate-spin" />
+          <h1 className="text-lg font-bold text-white mb-2">
+            Waiting for PayMongo confirmation
+          </h1>
+          <p className="text-sm text-white/40 mb-4">
+            The payment session timed out, but if you already authorized on PayMongo, your payment may still be confirmed shortly.
+          </p>
+          {transactionId && (
+            <p className="text-[10px] text-white/20 font-mono mb-4">
+              Ref: {transactionId}
+            </p>
+          )}
+          {pollCount > 5 && (
+            <p className="text-xs text-amber-400/60">
+              Still listening for the late webhook… ({pollCount} attempts). Check your payment history if this continues.
             </p>
           )}
           <button
