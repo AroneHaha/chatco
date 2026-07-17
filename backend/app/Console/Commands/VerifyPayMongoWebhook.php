@@ -204,10 +204,20 @@ class VerifyPayMongoWebhook extends Command
         if ($gcashByStatus->isEmpty()) {
             $this->line('  <fg=yellow>⚠ No GCash transactions in the DB yet.</>');
         } else {
+            // Helper: Transaction.status is cast to PaymentStatus enum, so we
+            // need ->value to get the underlying string. Handled via a helper
+            // because the same code path also runs against un-casted columns.
+            $statusStr = function ($s): string {
+                if (is_string($s)) return $s;
+                if ($s instanceof \BackedEnum) return $s->value;
+                if ($s instanceof \UnitEnum) return $s->name;
+                return (string) $s;
+            };
+
             $this->table(
                 ['Status', 'Count', 'Last seen'],
                 $gcashByStatus->map(fn ($r) => [
-                    is_string($r->status) ? $r->status : (string) $r->status,
+                    $statusStr($r->status),
                     $r->cnt,
                     $r->last_seen ?? '—',
                 ])->all()
@@ -216,7 +226,7 @@ class VerifyPayMongoWebhook extends Command
             $expired = 0;
             $paid = 0;
             foreach ($gcashByStatus as $r) {
-                $statusVal = is_string($r->status) ? $r->status : (string) $r->status;
+                $statusVal = $statusStr($r->status);
                 if ($statusVal === 'EXPIRED') $expired = (int) $r->cnt;
                 if ($statusVal === 'PAID') $paid = (int) $r->cnt;
             }
