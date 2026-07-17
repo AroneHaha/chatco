@@ -212,7 +212,7 @@ class PaymentService
             return $transaction;
         }
 
-        $ttlMinutes = (int) config('payments.gcash_claim_ttl_minutes', 3);
+        $ttlMinutes = (int) config('payments.gcash_claim_ttl_minutes', 10);
         $createdAt = $transaction->created_at;
 
         if ($createdAt && $createdAt->copy()->addMinutes($ttlMinutes)->isPast()) {

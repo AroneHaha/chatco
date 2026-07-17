@@ -36,8 +36,16 @@ return [
     | is lazily transitioned to EXPIRED (PaymentService::expireIfStale) by
     | status polling / pending-resume / initiate, freeing the conductor to
     | start a new payment.
+    |
+    | IMPORTANT: This TTL covers the ENTIRE flow — QR generation → commuter
+    | scan → PayMongo redirect → GCash login + OTP → authorize → webhook.
+    | The real-world flow can take 3-5 minutes. Setting this too low causes
+    | the transaction to expire WHILE the commuter is on PayMongo's page →
+    | the webhook arrives after EXPIRED → the conductor UI already showed
+    | "expired" and stopped polling. The EXPIRED→PAID transition IS allowed
+    | (late-settlement), but the conductor's UI won't see it.
     */
-    'gcash_claim_ttl_minutes' => (int) env('PAYMENT_GCASH_CLAIM_TTL', 3),
+    'gcash_claim_ttl_minutes' => (int) env('PAYMENT_GCASH_CLAIM_TTL', 10),
 
     /*
     |--------------------------------------------------------------------------

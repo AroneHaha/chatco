@@ -262,18 +262,19 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
       }
     }, 3000);
 
-    // Local fallback timeout derived from the QR's expires_at (+10s grace so
-    // the server-side lazy expiry via polling normally wins). If expires_at
-    // is unavailable, fall back to the 3-minute TTL.
+    // Local fallback timeout derived from the QR's expires_at (+30s grace so
+    // the server-side lazy expiry via polling normally wins, and a late
+    // PayMongo webhook can still arrive). If expires_at is unavailable,
+    // fall back to the 10-minute TTL.
     const msUntilExpiry = expiresAt
       ? new Date(expiresAt).getTime() - Date.now()
-      : 3 * 60 * 1000;
+      : 10 * 60 * 1000;
     pollTimeoutRef.current = setTimeout(() => {
       stopPolling();
       setGcashError("This QR code has expired — start a new GCash payment.");
       setGcashStatus("expired");
       setStep("failed");
-    }, Math.max(5_000, msUntilExpiry + 10_000));
+    }, Math.max(10_000, msUntilExpiry + 30_000));
   }, [stopPolling]);
 
   // ─── Initiate GCash payment (real API) ───
