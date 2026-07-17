@@ -140,8 +140,56 @@ class VerifyPayMongoWebhook extends Command
             $this->line('Event counts by provider/status:');
             $this->table(
                 ['Provider', 'Status', 'Count'],
-                $byProviderStatus->map(fn ($r) => [$r->provider, $r->status, $r->cnt])->all()
+                $byProviderStatus->map(fn ($r) => [
+                    $r->provider,
+                    is_string($r->status) ? $r->status : (string) $r->status,
+                    $r->cnt,
+                ])->all()
             );
+            $this->newLine();
+        }
+
+        // ─── 5b. Webhook delivery health check ──────────────────────────
+        // Distinguish REAL webhook events (type from PayMongo, e.g.
+        // 'payment.paid') from SIMULATED events (type starts with 'simulated.').
+        // If the gateway is real but only simulated events exist, PayMongo
+        // webhooks are NOT reaching the backend — the most common cause in
+        // local dev is that http://localhost:8000 is unreachable from
+        // PayMongo's servers.
+        if ($gatewayName !== 'fake' && $configured) {
+            $realEventCount = PaymentEvent::query()
+                ->where('provider', $gatewayName)
+                ->where('type', 'not like', 'simulated.%')
+                ->count();
+            $simulatedEventCount = PaymentEvent::query()
+                ->where('provider', $gatewayName)
+                ->where('type', 'like', 'simulated.%')
+                ->count();
+
+            $this->line('Webhook delivery health:');
+            $this->line("  Real webhook events received:    <fg=cyan>{$realEventCount}</>");
+            $this->line("  Simulated events (dev button):   <fg=cyan>{$simulatedEventCount}</>");
+
+            if ($realEventCount === 0) {
+                $failures++;
+                $this->line('  <fg=red>✗ Zero real PayMongo webhook events recorded.</>');
+                $this->line('  <fg=yellow>  PayMongo cannot reach http://localhost:8000 — localhost URLs are not</>');
+                $this->line('  <fg=yellow>  publicly routable. To test the real flow locally:</>');
+                $this->line('  <fg=yellow>    1. Expose the backend with ngrok:    ngrok http 8000</>');
+                $this->line('  <fg=yellow>    2. Copy the ngrok HTTPS URL (e.g. https://abcd-203-0-113-1.ngrok-free.app)</>');
+                $this->line('  <fg=yellow>    3. Register it in PayMongo dashboard → Developers → Webhooks:</>');
+                $this->line('  <fg=yellow>       URL: https://<ngrok-url>/api/v1/payments/webhook</>');
+                $this->line('  <fg=yellow>    4. Copy the webhook signing secret PayMongo shows + put it in .env:</>');
+                $this->line('  <fg=yellow>       PAYMONGO_WEBHOOK_SECRET=whsk_<the-secret-paymongo-generated></>');
+                $this->line('  <fg=yellow>    5. Run: php artisan config:clear && php artisan optimize:clear</>');
+                $this->line('  <fg=yellow>  Note: even WITHOUT a webhook, my new provider-reconciliation logic</>');
+                $this->line('  <fg=yellow>  in PaymentController::status() will retrieve the PaymentIntent from</>');
+                $this->line('  <fg=yellow>  PayMongo directly every 30s when a poller hits the status endpoint.</>');
+                $this->line('  <fg=yellow>  So GCash payments should now settle within ~30s of the commuter</>');
+                $this->line('  <fg=yellow>  authorizing, even if the webhook is missing.</>');
+            } else {
+                $this->line('  <fg=green>✓ Real PayMongo webhooks are being received.</>');
+            }
             $this->newLine();
         }
 
@@ -158,11 +206,20 @@ class VerifyPayMongoWebhook extends Command
         } else {
             $this->table(
                 ['Status', 'Count', 'Last seen'],
-                $gcashByStatus->map(fn ($r) => [$r->status, $r->cnt, $r->last_seen ?? '—'])->all()
+                $gcashByStatus->map(fn ($r) => [
+                    is_string($r->status) ? $r->status : (string) $r->status,
+                    $r->cnt,
+                    $r->last_seen ?? '—',
+                ])->all()
             );
             // Diagnostic flag: lots of EXPIRED + few PAID suggests webhook issues.
-            $expired = (int) ($gcashByStatus->firstWhere('status', 'EXPIRED')?->cnt ?? 0);
-            $paid = (int) ($gcashByStatus->firstWhere('status', 'PAID')?->cnt ?? 0);
+            $expired = 0;
+            $paid = 0;
+            foreach ($gcashByStatus as $r) {
+                $statusVal = is_string($r->status) ? $r->status : (string) $r->status;
+                if ($statusVal === 'EXPIRED') $expired = (int) $r->cnt;
+                if ($statusVal === 'PAID') $paid = (int) $r->cnt;
+            }
             if ($expired >= 3 && $paid === 0 && $gatewayName !== 'fake') {
                 $failures++;
                 $this->line('  <fg=red>✗ Multiple EXPIRED GCash rows but zero PAID — webhook likely not reaching the backend.</>');
