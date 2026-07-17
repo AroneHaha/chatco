@@ -52,7 +52,12 @@ class PaymentService
         // PayMongo redirects the commuter back to return_url after they authorize.
         // The browser redirect carries no metadata, so append the transaction_id
         // to the query string — /gcash/return reads it to poll this transaction.
-        $returnUrl = (string) config('payments.return_url');
+        $returnUrl = (string) config('payments.return_url', '');
+        if ($returnUrl === '') {
+            // Fallback: derive from APP_URL or APP_FRONTEND_URL.
+            $baseUrl = rtrim(env('APP_FRONTEND_URL', env('APP_URL', 'http://localhost:3000')), '/');
+            $returnUrl = $baseUrl . '/gcash/return';
+        }
         $returnUrl .= (str_contains($returnUrl, '?') ? '&' : '?')
             . 'transaction_id=' . urlencode($transaction->transaction_id);
 
