@@ -134,7 +134,7 @@ class CommuterController extends Controller
                 $cycleNumber = $existingVoucherCount + $i + 1;
                 Voucher::create([
                     'commuter_id'  => $profile->id,
-                    'code'         => 'REWARD-' . strtoupper(\Str::random(8)),
+                    'code'         => 'REWARD-' . strtoupper(Str::random(8)),
                     'type'         => 'REWARD',
                     'status'       => 'AVAILABLE',
                     'amount'       => 0, // Free ride — no monetary value

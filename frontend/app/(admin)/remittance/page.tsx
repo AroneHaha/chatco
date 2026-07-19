@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import { RemittanceTable } from '@/components/admin/remittance/remittance-table';
+import { RemittanceSummary } from '@/components/admin/remittance/remittance-summary';
 import { SearchBar } from '@/components/admin/ui/search-bar';
 import { CalendarDays } from 'lucide-react';
 import type { RemittanceStatus } from '@/app/(admin)/remittance/data/remittance-data';
@@ -20,6 +21,9 @@ export default function RemittancePage() {
     <div style={{ touchAction: 'manipulation' }}>
       <div className="flex flex-col gap-6 mb-6">
         <h1 className="text-2xl font-bold text-white">Remittance Tracker</h1>
+
+        {/* Today's at-a-glance summary */}
+        <RemittanceSummary />
 
         {/* Quick Status Filters */}
         <div className="flex flex-wrap gap-2">
@@ -92,12 +96,15 @@ export default function RemittancePage() {
         </div>
       </div>
 
-      <RemittanceTable
-        searchQuery={searchQuery}
-        startDate={startDate}
-        endDate={endDate}
-        statusFilter={statusFilter}
-      />
+      {/* Table card */}
+      <div className="bg-[#0B1220] border border-[#1E2D45] rounded-xl p-4 sm:p-5">
+        <RemittanceTable
+          searchQuery={searchQuery}
+          startDate={startDate}
+          endDate={endDate}
+          statusFilter={statusFilter}
+        />
+      </div>
     </div>
   );
 }

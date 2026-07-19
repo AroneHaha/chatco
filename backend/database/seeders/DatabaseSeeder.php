@@ -70,77 +70,9 @@ class DatabaseSeeder extends Seeder
         ]);
 
         // ── Commuters ──
-        $commuter1 = User::create([
-            'email'    => 'commuter1@gmail.com',
-            'password' => Hash::make('password123'),
-            'role'     => UserRole::COMMUTER,
-        ]);
-        CommuterProfile::create([
-            'id'                  => $commuter1->id,
-            'first_name'          => 'Jose',
-            'middle_name'         => 'Rizal',
-            'surname'             => 'Mendoza',
-            'birthdate'           => '1998-05-12',
-            'gender'              => 'Male',
-            'email'               => 'commuter1@gmail.com',
-            'contact_number'      => '+639171234567',
-            'commuter_type'       => 'Regular',
-            'applied_type'        => null,
-            'username'            => 'commuter001',
-            'language_preference' => 'en',
-            'account_status'      => 'ACTIVE',
-            'id_image_url'        => null,
-            'verified_at'         => now(),
-            'rejection_reason'    => null,
-        ]);
-
-        $commuter2 = User::create([
-            'email'    => 'commuter2@gmail.com',
-            'password' => Hash::make('password123'),
-            'role'     => UserRole::COMMUTER,
-        ]);
-        CommuterProfile::create([
-            'id'                  => $commuter2->id,
-            'first_name'          => 'Ana',
-            'middle_name'         => 'Cristina',
-            'surname'             => 'Villanueva',
-            'birthdate'           => '2001-09-25',
-            'gender'              => 'Female',
-            'email'               => 'commuter2@gmail.com',
-            'contact_number'      => '+639172345678',
-            'commuter_type'       => 'Regular',
-            'applied_type'        => null,
-            'username'            => 'commuter002',
-            'language_preference' => 'en',
-            'account_status'      => 'ACTIVE',
-            'id_image_url'        => null,
-            'verified_at'         => now(),
-            'rejection_reason'    => null,
-        ]);
-
-        $commuter3 = User::create([
-            'email'    => 'commuter3@gmail.com',
-            'password' => Hash::make('password123'),
-            'role'     => UserRole::COMMUTER,
-        ]);
-        CommuterProfile::create([
-            'id'                  => $commuter3->id,
-            'first_name'          => 'Marco',
-            'middle_name'         => 'Antonio',
-            'surname'             => 'Reyes',
-            'birthdate'           => '1995-11-08',
-            'gender'              => 'Male',
-            'email'               => 'commuter3@gmail.com',
-            'contact_number'      => '+639173456789',
-            'commuter_type'       => 'Regular',
-            'applied_type'        => null,
-            'username'            => 'commuter003',
-            'language_preference' => 'en',
-            'account_status'      => 'ACTIVE',
-            'id_image_url'        => null,
-            'verified_at'         => now(),
-            'rejection_reason'    => null,
-        ]);
+        // Seeded separately in CommuterSeeder (20 PH-celebrity accounts across
+        // every discount tier + account status). See the $this->call() at the
+        // end of this method.
 
         // ════════════════════════════════════════════════════
         // 2. ROUTE — McArthur Highway
@@ -301,5 +233,19 @@ class DatabaseSeeder extends Seeder
                 'last_location_update' => null,
             ]);
         }
+
+        // ════════════════════════════════════════════════════
+        // 6. TRANSACTIONAL / OPERATIONAL DATA (separate seeders)
+        // ════════════════════════════════════════════════════
+        // Split into focused seeders so each dataset is easy to inspect and can
+        // be re-run in isolation (php artisan db:seed --class=XxxSeeder).
+        // Order matters: commuters + shifts → transactions → remittances.
+        $this->call([
+            CommuterSeeder::class,      // 20 PH-celebrity commuters
+            ShiftLogSeeder::class,      // conductor shifts (ended + active today)
+            TransactionSeeder::class,   // fares (Receipts + remittance source)
+            RemittanceSeeder::class,    // completed remittances (from ended shifts)
+            AnnouncementSeeder::class,  // system announcements feed
+        ]);
     }
 }

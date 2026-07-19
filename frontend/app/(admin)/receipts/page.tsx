@@ -5,7 +5,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
 import { SearchBar } from '@/components/admin/ui/search-bar';
-import { CalendarDays, Download, Filter, Wallet, Ticket, Banknote, ChevronLeft, ChevronRight, AlertCircle, RefreshCw } from 'lucide-react';
+import { CalendarDays, Download, Filter, Wallet, Ticket, Banknote, ChevronLeft, ChevronRight, AlertCircle, RefreshCw, ReceiptText, Smartphone, Coins } from 'lucide-react';
 import { useReceiptsData, type Receipt, type PaymentMethod } from '@/app/(admin)/receipts/data/receipts-data';
 
 const ROWS_PER_PAGE = 20;
@@ -187,50 +187,84 @@ export default function ReceiptsPage() {
 
   return (
     <div style={{ touchAction: 'manipulation' }}>
+      {/* ── Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
+        <div className="flex items-start gap-3">
+          <div className="w-11 h-11 rounded-lg bg-[#62A0EA]/15 flex items-center justify-center shrink-0">
+            <ReceiptText size={22} className="text-[#62A0EA]" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-white leading-tight">Fare Receipts</h1>
+            <p className="text-sm text-slate-400 mt-1 max-w-xl">
+              A complete log of every fare recorded across all trips and conductors — each row is one
+              passenger&apos;s payment, with its method and status. Use it to search, audit, and export the
+              raw payment history.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Manual Refresh Button */}
+          <button
+            onClick={() => refresh(false)}
+            disabled={isRefreshing}
+            className="flex items-center gap-2 px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#1A2540] hover:text-white transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Refresh data"
+          >
+            <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
+          </button>
+          <button
+            onClick={handleExportCSV}
+            disabled={filteredData.length === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-[#62A0EA] text-white text-sm font-medium rounded-md hover:bg-[#4A8BD4] transition-colors shadow-lg shadow-[#62A0EA]/25 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={filteredData.length === 0 ? 'No data to export' : `Export ${filteredData.length} receipts to CSV`}
+          >
+            <Download size={16} />
+            <span className="hidden sm:inline">Export CSV</span>
+          </button>
+        </div>
+      </div>
+
       {/* ── Summary Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-6">
-        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4">
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Total Receipts</p>
-          <p className="text-xl lg:text-2xl font-bold text-white">{filteredData.length}</p>
+        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-slate-500/15 flex items-center justify-center shrink-0">
+            <ReceiptText size={18} className="text-slate-300" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider">Receipts Shown</p>
+            <p className="text-xl font-bold text-white truncate">{filteredData.length}</p>
+          </div>
         </div>
-        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4">
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Total Revenue</p>
-          <p className="text-xl lg:text-2xl font-bold text-[#62A0EA]">₱{totalFare.toFixed(2)}</p>
+        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-[#62A0EA]/15 flex items-center justify-center shrink-0">
+            <Wallet size={18} className="text-[#62A0EA]" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider">Total Fares</p>
+            <p className="text-xl font-bold text-[#62A0EA] truncate">₱{totalFare.toFixed(2)}</p>
+          </div>
         </div>
-        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4">
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Cash</p>
-          <p className="text-xl lg:text-2xl font-bold text-emerald-400">{cashCount}</p>
+        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
+            <Coins size={18} className="text-emerald-400" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider">Cash Payments</p>
+            <p className="text-xl font-bold text-emerald-400 truncate">{cashCount}</p>
+          </div>
         </div>
-        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4">
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">GCash</p>
-          <p className="text-xl lg:text-2xl font-bold text-[#62A0EA]">{gcashCount}</p>
+        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-[#62A0EA]/15 flex items-center justify-center shrink-0">
+            <Smartphone size={18} className="text-[#62A0EA]" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider">GCash Payments</p>
+            <p className="text-xl font-bold text-[#62A0EA] truncate">{gcashCount}</p>
+          </div>
         </div>
       </div>
 
       <div className="flex flex-col gap-6 mb-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-white">Receipts</h1>
-          <div className="flex items-center gap-2">
-            {/* Manual Refresh Button */}
-            <button
-              onClick={() => refresh(false)}
-              disabled={isRefreshing}
-              className="flex items-center gap-2 px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#1A2540] hover:text-white transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Refresh data"
-            >
-              <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
-            </button>
-            <button
-              onClick={handleExportCSV}
-              disabled={filteredData.length === 0}
-              className="flex items-center gap-2 px-4 py-2 bg-[#62A0EA] text-white text-sm font-medium rounded-md hover:bg-[#4A8BD4] transition-colors shadow-lg shadow-[#62A0EA]/25 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-              title={filteredData.length === 0 ? 'No data to export' : `Export ${filteredData.length} receipts to CSV`}
-            >
-              <Download size={16} />
-              <span className="hidden sm:inline">Export</span>
-            </button>
-          </div>
-        </div>
 
         {/* Payment Method Filter */}
         <div className="flex flex-col gap-3">
@@ -273,7 +307,7 @@ export default function ReceiptsPage() {
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="block w-full lg:w-48 pl-10 pr-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] focus:border-[#62A0EA] [color-scheme:dark]"
+                className="block w-full lg:w-48 pl-10 pr-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] focus:border-[#62A0EA] scheme-dark"
               />
             </div>
 
@@ -285,7 +319,7 @@ export default function ReceiptsPage() {
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="block w-full lg:w-48 pl-10 pr-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] focus:border-[#62A0EA] [color-scheme:dark]"
+                className="block w-full lg:w-48 pl-10 pr-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] focus:border-[#62A0EA] scheme-dark"
               />
             </div>
 
@@ -306,15 +340,17 @@ export default function ReceiptsPage() {
         </div>
       </div>
 
-      {/* Table */}
-      <DataTable
-        data={paginatedData}
-        columns={columns}
-        searchQuery=""
-      />
+      {/* Table card */}
+      <div className="bg-[#0B1220] border border-[#1E2D45] rounded-xl p-4 sm:p-5">
+        <DataTable
+          data={paginatedData}
+          columns={columns}
+          searchQuery=""
+          emptyMessage="No receipts match your filters."
+        />
 
       {/* Pagination Controls */}
-      <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-4 text-xs text-slate-400">
+      <div className="flex flex-col sm:flex-row justify-between items-center mt-4 pt-4 border-t border-[#1E2D45] gap-4 text-xs text-slate-400">
         <div>
           Showing {paginatedData.length > 0 ? (safeCurrentPage - 1) * ROWS_PER_PAGE + 1 : 0} to{' '}
           {(safeCurrentPage - 1) * ROWS_PER_PAGE + paginatedData.length} of{' '}
@@ -342,6 +378,7 @@ export default function ReceiptsPage() {
             <ChevronRight size={16} />
           </button>
         </div>
+      </div>
       </div>
     </div>
   );

@@ -10,7 +10,12 @@ import type {
 import {
   User, Truck, Calendar, Clock, Banknote,
   ChevronDown, ChevronUp, MapPin, Hash,
+  ChevronLeft, ChevronRight, Search, X,
 } from 'lucide-react';
+
+// ─── Remittance History pagination ─────────────────────────────────────
+const REMIT_PAGE_SIZE = 5;
+type RemitFilter = 'All' | 'Remitted' | 'Pending';
 
 // ─── Helper ────────────────────────────────────────────────────────────
 const fmt = (n: number) =>
@@ -27,6 +32,7 @@ const formatLogTime = (iso: string) => {
 interface ApiTransaction {
   transaction_id: string;
   payment_method: string;
+  status: string;
   final_amount: string | number;
   passenger_name: string | null;
   pickup_name: string | null;
@@ -48,6 +54,10 @@ export function ConductorDetailModal({ isOpen, onClose, record, allRecords }: Co
   const [expandedShift, setExpandedShift] = useState<string | null>(null);
   const [shiftTransactions, setShiftTransactions] = useState<Record<string, ApiTransaction[]>>({});
   const [isLoadingTxns, setIsLoadingTxns] = useState(false);
+  const [remitFilter, setRemitFilter] = useState<RemitFilter>('All');
+  const [remitSearch, setRemitSearch] = useState('');
+  const [remitDate, setRemitDate] = useState('');
+  const [remitPage, setRemitPage] = useState(1);
 
   const conductorRecords = allRecords?.filter(r => r.conductorName === record?.conductorName) ?? (record ? [record] : []);
 
@@ -56,6 +66,10 @@ export function ConductorDetailModal({ isOpen, onClose, record, allRecords }: Co
       setShiftTransactions({});
       setActiveTab('remittance');
       setExpandedShift(null);
+      setRemitFilter('All');
+      setRemitSearch('');
+      setRemitDate('');
+      setRemitPage(1);
       return;
     }
 
@@ -68,7 +82,18 @@ export function ConductorDetailModal({ isOpen, onClose, record, allRecords }: Co
           headers: { Accept: 'application/json' },
         })
           .then(res => res.json())
-          .then(json => ({ shiftId, txns: (json.data ?? []) as ApiTransaction[] }))
+          .then(json => {
+            // The proxy returns Laravel's paginator, so the transaction array
+            // is nested at json.data.data (json.data is the paginator object).
+            const rows = (json.data?.data ?? json.data ?? []) as ApiTransaction[];
+            // Only PAID transactions actually count toward the shift's
+            // cash/GCash totals. The admin transactions endpoint returns every
+            // transaction (including PENDING/EXPIRED/FAILED GCash attempts that
+            // were never collected), so filter to PAID here — otherwise the
+            // list shows fares that legitimately don't appear in the totals.
+            const txns = Array.isArray(rows) ? rows.filter(t => t.status === 'PAID') : [];
+            return { shiftId, txns };
+          })
           .catch(() => ({ shiftId, txns: [] as ApiTransaction[] }))
       )
     )
@@ -84,16 +109,26 @@ export function ConductorDetailModal({ isOpen, onClose, record, allRecords }: Co
 
   if (!record) return null;
 
-  const totalRemitted = conductorRecords
-    .filter(r => r.remittanceStatus === 'Remitted')
-    .reduce((s, r) => s + r.gcashTotal + r.cashTotal, 0);
   const totalPending = conductorRecords
     .filter(r => r.remittanceStatus === 'Pending')
     .reduce((s, r) => s + r.gcashTotal + r.cashTotal, 0);
-  const totalGCash = conductorRecords.reduce((s, r) => s + r.gcashTotal, 0);
-  const totalCash = conductorRecords.reduce((s, r) => s + r.cashTotal, 0);
-  const totalPassengers = conductorRecords.reduce((s, r) => s + r.totalPassengers, 0);
   const allTxns = Object.values(shiftTransactions).flat();
+
+  // ─── Remittance History: filter + paginate ───────────────────────────
+  const search = remitSearch.trim().toLowerCase();
+  const filteredRecords = conductorRecords.filter(r => {
+    const matchesStatus = remitFilter === 'All' || r.remittanceStatus === remitFilter;
+    const matchesSearch = !search || r.shiftId.toLowerCase().includes(search);
+    const matchesDate = !remitDate || r.date === remitDate;
+    return matchesStatus && matchesSearch && matchesDate;
+  });
+  const remitTotalPages = Math.max(1, Math.ceil(filteredRecords.length / REMIT_PAGE_SIZE));
+  const safeRemitPage = Math.min(remitPage, remitTotalPages);
+  const pagedRecords = filteredRecords.slice(
+    (safeRemitPage - 1) * REMIT_PAGE_SIZE,
+    safeRemitPage * REMIT_PAGE_SIZE
+  );
+  const applyRemitFilter = (f: RemitFilter) => { setRemitFilter(f); setRemitPage(1); };
 
   const getBadge = (m: string) => {
     if (m === 'GCASH' || m === 'GCash_Scanned' || m === 'GCash_Direct')
@@ -110,11 +145,10 @@ export function ConductorDetailModal({ isOpen, onClose, record, allRecords }: Co
           <div className="w-14 h-14 rounded-full bg-[#62A0EA]/15 flex items-center justify-center"><User size={24} className="text-[#62A0EA]" /></div>
           <div><h2 className="text-xl font-bold text-white">{record.conductorName}</h2><p className="text-sm text-slate-400">Conductor Profile</p></div>
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
           <div className="flex items-center gap-2.5 p-3 bg-[#0E1628] rounded-lg border border-[#1E2D45]"><Truck size={16} className="text-[#62A0EA]" /><div><p className="text-[10px] text-slate-500 uppercase">Vehicle</p><p className="text-sm text-white font-medium">{record.unitNumber}</p></div></div>
           <div className="flex items-center gap-2.5 p-3 bg-[#0E1628] rounded-lg border border-[#1E2D45]"><Calendar size={16} className="text-sky-400" /><div><p className="text-[10px] text-slate-500 uppercase">Shifts</p><p className="text-sm text-white font-medium">{conductorRecords.length}</p></div></div>
-          <div className="flex items-center gap-2.5 p-3 bg-[#0E1628] rounded-lg border border-[#1E2D45]"><Banknote size={16} className="text-[#62A0EA]" /><div><p className="text-[10px] text-slate-500 uppercase">Remitted</p><p className="text-sm text-[#62A0EA] font-medium">{fmt(totalRemitted)}</p></div></div>
-          <div className="flex items-center gap-2.5 p-3 bg-[#0E1628] rounded-lg border border-[#1E2D45]"><Clock size={16} className="text-amber-400" /><div><p className="text-[10px] text-slate-500 uppercase">Pending</p><p className="text-sm text-orange-400 font-medium">{fmt(totalPending)}</p></div></div>
+          <div className="flex items-center gap-2.5 p-3 bg-[#0E1628] rounded-lg border border-[#1E2D45]"><Clock size={16} className="text-amber-400" /><div><p className="text-[10px] text-slate-500 uppercase">Pending (Today)</p><p className="text-sm text-orange-400 font-medium">{fmt(totalPending)}</p></div></div>
         </div>
       </div>
 
@@ -124,15 +158,67 @@ export function ConductorDetailModal({ isOpen, onClose, record, allRecords }: Co
       </div>
 
       {activeTab === 'remittance' && (
-        <div className="space-y-3 max-h-[50vh] overflow-y-auto">
-          <div className="grid grid-cols-3 gap-2 mb-2">
-            <div className="text-center p-2 bg-[#0E1628] rounded-md border border-[#1E2D45]"><p className="text-[10px] text-slate-500 uppercase">GCash</p><p className="text-sm font-bold text-blue-400">{fmt(totalGCash)}</p></div>
-            <div className="text-center p-2 bg-[#0E1628] rounded-md border border-[#1E2D45]"><p className="text-[10px] text-slate-500 uppercase">Cash</p><p className="text-sm font-bold text-emerald-400">{fmt(totalCash)}</p></div>
-            <div className="text-center p-2 bg-[#0E1628] rounded-md border border-[#1E2D45]"><p className="text-[10px] text-slate-500 uppercase">Passengers</p><p className="text-sm font-bold text-pink-400">{totalPassengers}</p></div>
+        <div>
+          {/* Search + date */}
+          <div className="flex flex-col sm:flex-row gap-2 mb-3">
+            <div className="relative flex-1">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input
+                type="text"
+                value={remitSearch}
+                onChange={(e) => { setRemitSearch(e.target.value); setRemitPage(1); }}
+                placeholder="Search Shift ID…"
+                className="w-full bg-[#0E1628] border border-[#1E2D45] rounded-md pl-9 pr-8 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-[#62A0EA]"
+              />
+              {remitSearch && (
+                <button
+                  onClick={() => { setRemitSearch(''); setRemitPage(1); }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            <div className="relative">
+              <input
+                type="date"
+                value={remitDate}
+                onChange={(e) => { setRemitDate(e.target.value); setRemitPage(1); }}
+                className="bg-[#0E1628] border border-[#1E2D45] rounded-md px-3 py-2 text-xs text-white focus:outline-none focus:border-[#62A0EA] scheme-dark"
+              />
+              {remitDate && (
+                <button
+                  onClick={() => { setRemitDate(''); setRemitPage(1); }}
+                  className="ml-1 text-xs text-slate-500 hover:text-slate-300"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
           </div>
-          {conductorRecords.length === 0 ? (
+
+          {/* Status filter */}
+          <div className="flex items-center gap-1.5 mb-3">
+            {(['All', 'Remitted', 'Pending'] as RemitFilter[]).map((f) => (
+              <button
+                key={f}
+                onClick={() => applyRemitFilter(f)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  remitFilter === f
+                    ? 'bg-[#62A0EA] text-white'
+                    : 'bg-[#0E1628] text-slate-400 border border-[#1E2D45] hover:text-slate-200'
+                }`}
+              >
+                {f}
+              </button>
+            ))}
+            <span className="ml-auto text-xs text-slate-500">{filteredRecords.length} shift(s)</span>
+          </div>
+
+          <div className="space-y-3 max-h-[42vh] overflow-y-auto">
+          {filteredRecords.length === 0 ? (
             <div className="text-center py-12"><Banknote size={32} className="mx-auto text-slate-600 mb-3" /><p className="text-sm text-slate-500">No records found.</p></div>
-          ) : conductorRecords.map((rec) => (
+          ) : pagedRecords.map((rec) => (
             <div key={rec.shiftId} className="bg-[#0E1628] border border-[#1E2D45] rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
@@ -152,6 +238,30 @@ export function ConductorDetailModal({ isOpen, onClose, record, allRecords }: Co
               </div>
             </div>
           ))}
+          </div>
+
+          {/* Pagination */}
+          {remitTotalPages > 1 && (
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#1E2D45]">
+              <span className="text-xs text-slate-500">Page {safeRemitPage} of {remitTotalPages}</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setRemitPage(p => Math.max(1, p - 1))}
+                  disabled={safeRemitPage === 1}
+                  className="p-1.5 rounded-md bg-[#0E1628] border border-[#1E2D45] hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronLeft size={16} className="text-slate-400" />
+                </button>
+                <button
+                  onClick={() => setRemitPage(p => Math.min(remitTotalPages, p + 1))}
+                  disabled={safeRemitPage === remitTotalPages}
+                  className="p-1.5 rounded-md bg-[#0E1628] border border-[#1E2D45] hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronRight size={16} className="text-slate-400" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
