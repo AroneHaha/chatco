@@ -196,20 +196,43 @@ function LocationFinder({
 }
 
 // --- 4. MAIN COMPONENT ---
-export default function AdminCommuterMap({ 
-  isDesktop = false, 
+/**
+ * Pans/zooms the map to `target` whenever it changes. Purely a camera move —
+ * every marker stays mounted, so focusing one unit never hides the others.
+ * `nonce` lets the caller re-trigger a fly-to for a target already focused
+ * (clicking the same row twice).
+ */
+function MapFocuser({ target, nonce }: { target?: [number, number] | null; nonce?: number }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!target) return;
+    map.flyTo(target, 16, { duration: 1.2 });
+  }, [map, target, nonce]);
+
+  return null;
+}
+
+export default function AdminCommuterMap({
+  isDesktop = false,
   vehicles = [],
   liveVehicles = [],
   commuters = [],
   demandZones = [],
-  sosLocations 
-}: { 
+  sosLocations,
+  focusPosition,
+  focusNonce,
+}: {
   isDesktop?: boolean;
   vehicles?: ActiveVehicle[];
   liveVehicles?: LiveVehicleMarker[];
   commuters?: CommuterData[];
   demandZones?: DemandZone[];
   sosLocations?: [number, number][];
+  /** Camera target — pans here without filtering any markers out. */
+  focusPosition?: [number, number] | null;
+  /** Bump to re-focus the same coordinates again. */
+  focusNonce?: number;
 }) {
   const [isDomReady, setIsDomReady] = useState(false);
   const [userActualLocation, setUserActualLocation] = useState<[number, number] | null>(null);
@@ -280,6 +303,7 @@ export default function AdminCommuterMap({
         zoomSnap={1}
       >
         <LocationFinder userLocationRef={userLocationRef} setUserActualLocation={setUserActualLocation} setShowMapPin={setShowMapPin} setArrowPos={setArrowPos} />
+        <MapFocuser target={focusPosition} nonce={focusNonce} />
         <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
 
         <Polyline positions={ROUTE_COORDS} pathOptions={{ color: '#62A0EA', weight: 8, opacity: 0.2, lineCap: 'round', lineJoin: 'round' }} />
