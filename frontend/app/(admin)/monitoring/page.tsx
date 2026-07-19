@@ -19,6 +19,8 @@ const AdminCommuterMap = dynamic<{
   liveVehicles?: import('@/components/admin/admin-commuter-map').LiveVehicleMarker[];
   demandZones?: DemandZone[];
   sosLocations?: [number, number][];
+  focusPosition?: [number, number] | null;
+  focusNonce?: number;
 }>(() => import('@/components/admin/admin-commuter-map'), {
   ssr: false,
   loading: () => <SkeletonMap height="100%" label="Live Map Loading…" />,
@@ -38,12 +40,27 @@ export default function MonitoringPage() {
   // Pagination States
   const [sosPage, setSosPage] = useState(1);
   const [overspeedPage, setOverspeedPage] = useState(1);
-  const ROWS_PER_PAGE = 5;
+  const ROWS_PER_PAGE = 10;
 
   // Filter States
   const [filterSosDate, setFilterSosDate] = useState('');
   const [filterOverspeedDate, setFilterOverspeedDate] = useState('');
   const [filterStaleOnly, setFilterStaleOnly] = useState(false);
+
+  // Map focus — clicking a row flies the camera to that unit. This only moves
+  // the viewport; the full marker set stays rendered so the rest of the fleet
+  // remains visible around the focused unit.
+  const [focusedVehicleId, setFocusedVehicleId] = useState<string | null>(null);
+  const [focusPosition, setFocusPosition] = useState<[number, number] | null>(null);
+  const [focusNonce, setFocusNonce] = useState(0);
+
+  const handleFocusVehicle = (v: { id: string; lat: number | null; lng: number | null }) => {
+    if (v.lat === null || v.lng === null) return; // Nothing to fly to yet.
+    setFocusedVehicleId(v.id);
+    setFocusPosition([v.lat, v.lng]);
+    setFocusNonce(n => n + 1); // Re-fly even if the same row is clicked again.
+    document.getElementById('monitoring-map')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
 
   // Metrics from live fleet
   const staleCount = fleet.filter(v => v.is_stale).length;
@@ -86,10 +103,20 @@ export default function MonitoringPage() {
   const filteredSosHistory = useMemo(() => filterSosDate ? sosHistory.filter(l => l.triggeredDate === filterSosDate) : sosHistory, [filterSosDate, sosHistory]);
   const filteredOverspeedHistory = useMemo(() => filterOverspeedDate ? data.overspeedHistory.filter(l => l.loggedDate === filterOverspeedDate) : data.overspeedHistory, [filterOverspeedDate, data.overspeedHistory]);
 
+  // Both history feeds re-poll every 5s and can shrink under the viewer (an SOS
+  // gets resolved, a date filter narrows). The page number is therefore clamped
+  // to the valid range on every render rather than trusted as-is — otherwise
+  // the "Next" guard (page === totalPages) never matches an out-of-range page
+  // and you can walk forward through empty tables indefinitely.
   const totalSosPages = Math.max(1, Math.ceil(filteredSosHistory.length / ROWS_PER_PAGE));
-  const currentSosData = filteredSosHistory.slice((sosPage - 1) * ROWS_PER_PAGE, sosPage * ROWS_PER_PAGE);
+  const safeSosPage = Math.min(Math.max(sosPage, 1), totalSosPages);
+  const goToSosPage = (page: number) => setSosPage(Math.min(Math.max(page, 1), totalSosPages));
+  const currentSosData = filteredSosHistory.slice((safeSosPage - 1) * ROWS_PER_PAGE, safeSosPage * ROWS_PER_PAGE);
+
   const totalOverspeedPages = Math.max(1, Math.ceil(filteredOverspeedHistory.length / ROWS_PER_PAGE));
-  const currentOverspeedData = filteredOverspeedHistory.slice((overspeedPage - 1) * ROWS_PER_PAGE, overspeedPage * ROWS_PER_PAGE);
+  const safeOverspeedPage = Math.min(Math.max(overspeedPage, 1), totalOverspeedPages);
+  const goToOverspeedPage = (page: number) => setOverspeedPage(Math.min(Math.max(page, 1), totalOverspeedPages));
+  const currentOverspeedData = filteredOverspeedHistory.slice((safeOverspeedPage - 1) * ROWS_PER_PAGE, safeOverspeedPage * ROWS_PER_PAGE);
 
   // ── Loading State ──
   if (isLoading) {
@@ -220,8 +247,14 @@ export default function MonitoringPage() {
       )}
 
       {/* Map Container */}
-      <div className="h-[calc(100vh-280px)] min-h-[400px]">
-        <AdminCommuterMap liveVehicles={liveMapVehicles} demandZones={data.demandZones} sosLocations={sosAlerts.map(a => a.coordinates)} />
+      <div id="monitoring-map" className="h-[calc(100vh-280px)] min-h-[400px]">
+        <AdminCommuterMap
+          liveVehicles={liveMapVehicles}
+          demandZones={data.demandZones}
+          sosLocations={sosAlerts.map(a => a.coordinates)}
+          focusPosition={focusPosition}
+          focusNonce={focusNonce}
+        />
       </div>
 
       {/* ─── LIVE VEHICLE TRACKING TABLE ─── */}
@@ -234,16 +267,18 @@ export default function MonitoringPage() {
               <button onClick={() => setFilterStaleOnly(true)} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${filterStaleOnly ? 'bg-amber-400/20 text-amber-400' : 'text-slate-500 hover:text-slate-300'}`}><WifiOff size={12} />Stale Only ({staleCount})</button>
             </div>
           </div>
-          <div className="overflow-x-auto">
+          {/* Scrolled rather than paginated: this table re-polls every 5s, so
+              paging it would shuffle rows out from under the cursor. */}
+          <div className="overflow-x-auto scrollbar-themed max-h-105 overflow-y-auto">
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-[#1E2D45]">
-                  <th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Unit</th>
-                  <th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Driver</th>
-                  <th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Route</th>
-                  <th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Speed</th>
-                  <th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Capacity</th>
-                  <th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Status</th>
+                  <th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Unit</th>
+                  <th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Driver</th>
+                  <th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Route</th>
+                  <th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Speed</th>
+                  <th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Capacity</th>
+                  <th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#1E2D45]">
@@ -251,14 +286,27 @@ export default function MonitoringPage() {
                   <tr><td colSpan={6} className="py-8 text-center text-slate-600 text-sm">{fleet.length === 0 ? 'No active vehicles on shift right now.' : 'No vehicles match the filter.'}</td></tr>
                 ) : (
                   filteredFleet.map((v) => (
-                    <tr key={v.id} className={`transition-colors ${v.is_stale ? 'bg-amber-400/5 border-l-2 border-l-amber-400' : 'hover:bg-[#0E1628]'}`}>
+                    <tr
+                      key={v.id}
+                      onClick={() => handleFocusVehicle(v)}
+                      title={v.has_gps ? 'Show this unit on the map' : 'No GPS position reported yet'}
+                      className={`transition-colors ${v.has_gps ? 'cursor-pointer' : 'cursor-default'} ${
+                        focusedVehicleId === v.id
+                          ? 'bg-[#62A0EA]/10 border-l-2 border-l-[#62A0EA]'
+                          : v.is_stale
+                            ? 'bg-amber-400/5 border-l-2 border-l-amber-400'
+                            : 'hover:bg-[#0E1628]'
+                      }`}
+                    >
                       <td className="py-3.5 pr-4"><div className="flex flex-col"><span className="text-sm font-semibold text-white">{v.unit_number}</span><span className="text-xs text-slate-500 font-mono">{v.plate_number}</span></div></td>
                       <td className="py-3.5 pr-4"><span className="text-sm text-slate-400">{v.driver_name ?? '—'}</span></td>
                       <td className="py-3.5 pr-4"><span className="text-sm text-slate-400">{v.route_name ?? '—'}</span></td>
                       <td className="py-3.5 pr-4 text-center"><span className={`text-sm font-semibold ${v.speed !== null && v.speed > 60 ? 'text-red-400' : 'text-slate-300'}`}>{v.speed !== null ? `${v.speed} km/h` : '—'}</span></td>
                       <td className="py-3.5 pr-4 text-center"><span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-medium ${v.capacity_status === 'AVAILABLE' ? 'bg-green-400/15 text-green-400' : v.capacity_status === 'STANDING' ? 'bg-yellow-400/15 text-yellow-400' : 'bg-red-400/15 text-red-400 font-bold'}`}>{v.capacity_status}</span></td>
                       <td className="py-3.5 text-center">
-                        {v.is_stale ? (
+                        {!v.has_gps ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-400/15 text-slate-400" title="On shift, but the unit has not reported a GPS position yet"><WifiOff size={10} />Awaiting GPS</span>
+                        ) : v.is_stale ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-400/15 text-amber-400"><WifiOff size={10} />Stale · {v.minutes_since_update}m ago</span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-400/15 text-emerald-400"><span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span></span>Live</span>
@@ -289,9 +337,9 @@ export default function MonitoringPage() {
             <div className="py-8 text-center text-slate-600 text-sm">No SOS history for this date.</div>
           ) : (
             <>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto scrollbar-themed max-h-105 overflow-y-auto">
                 <table className="w-full text-left">
-                  <thead><tr className="border-b border-[#1E2D45]"><th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Sender</th><th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">Triggered</th><th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Resolved</th></tr></thead>
+                  <thead><tr className="border-b border-[#1E2D45]"><th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Sender</th><th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">Triggered</th><th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Resolved</th></tr></thead>
                   <tbody className="divide-y divide-[#1E2D45]">
                     {currentSosData.map((log) => (
                       <tr key={log.id} className="hover:bg-[#0E1628] transition-colors opacity-70 hover:opacity-100">
@@ -308,10 +356,12 @@ export default function MonitoringPage() {
                 </table>
               </div>
               <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#1E2D45]">
-                <p className="text-xs text-slate-500">Page {sosPage} of {totalSosPages}</p>
+                <p className="text-xs text-slate-500">
+                  Page {safeSosPage} of {totalSosPages} · {filteredSosHistory.length} total
+                </p>
                 <div className="flex items-center gap-2">
-                  <button disabled={sosPage === 1} onClick={() => setSosPage(p => p - 1)} className="px-3 py-1.5 rounded-md text-xs font-medium bg-[#0E1628] border border-[#1E2D45] text-slate-400 hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-all">Previous</button>
-                  <button disabled={sosPage === totalSosPages} onClick={() => setSosPage(p => p + 1)} className="px-3 py-1.5 rounded-md text-xs font-medium bg-[#131C2E] border border-[#1E2D45] text-slate-300 hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-all">Next</button>
+                  <button disabled={safeSosPage === 1} onClick={() => goToSosPage(safeSosPage - 1)} className="px-3 py-1.5 rounded-md text-xs font-medium bg-[#0E1628] border border-[#1E2D45] text-slate-400 hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-all">Previous</button>
+                  <button disabled={safeSosPage === totalSosPages} onClick={() => goToSosPage(safeSosPage + 1)} className="px-3 py-1.5 rounded-md text-xs font-medium bg-[#131C2E] border border-[#1E2D45] text-slate-300 hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-all">Next</button>
                 </div>
               </div>
             </>
@@ -332,9 +382,9 @@ export default function MonitoringPage() {
             <div className="py-8 text-center text-slate-600 text-sm">No overspeeding logs for this date.</div>
           ) : (
             <>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto scrollbar-themed max-h-105 overflow-y-auto">
                 <table className="w-full text-left">
-                  <thead><tr className="border-b border-[#1E2D45]"><th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Unit</th><th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Driver</th><th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Conductor</th><th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Top Speed</th><th className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Logged</th></tr></thead>
+                  <thead><tr className="border-b border-[#1E2D45]"><th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Unit</th><th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Driver</th><th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Conductor</th><th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Top Speed</th><th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Logged</th></tr></thead>
                   <tbody className="divide-y divide-[#1E2D45]">
                     {currentOverspeedData.map((log) => (
                       <tr key={log.id} className="hover:bg-[#0E1628] transition-colors opacity-70 hover:opacity-100">
@@ -349,10 +399,12 @@ export default function MonitoringPage() {
                 </table>
               </div>
               <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#1E2D45]">
-                <p className="text-xs text-slate-500">Page {overspeedPage} of {totalOverspeedPages}</p>
+                <p className="text-xs text-slate-500">
+                  Page {safeOverspeedPage} of {totalOverspeedPages} · {filteredOverspeedHistory.length} total
+                </p>
                 <div className="flex items-center gap-2">
-                  <button disabled={overspeedPage === 1} onClick={() => setOverspeedPage(p => p - 1)} className="px-3 py-1.5 rounded-md text-xs font-medium bg-[#0E1628] border border-[#1E2D45] text-slate-400 hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-all">Previous</button>
-                  <button disabled={overspeedPage === totalOverspeedPages} onClick={() => setOverspeedPage(p => p + 1)} className="px-3 py-1.5 rounded-md text-xs font-medium bg-[#131C2E] border border-[#1E2D45] text-slate-300 hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-all">Next</button>
+                  <button disabled={safeOverspeedPage === 1} onClick={() => goToOverspeedPage(safeOverspeedPage - 1)} className="px-3 py-1.5 rounded-md text-xs font-medium bg-[#0E1628] border border-[#1E2D45] text-slate-400 hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-all">Previous</button>
+                  <button disabled={safeOverspeedPage === totalOverspeedPages} onClick={() => goToOverspeedPage(safeOverspeedPage + 1)} className="px-3 py-1.5 rounded-md text-xs font-medium bg-[#131C2E] border border-[#1E2D45] text-slate-300 hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-all">Next</button>
                 </div>
               </div>
             </>

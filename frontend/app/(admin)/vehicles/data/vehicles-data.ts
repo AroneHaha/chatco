@@ -254,6 +254,9 @@ async function fetchVehiclesData(): Promise<VehiclesData> {
 
 // ─── Hook ──────────────────────────────────────────────────────────────
 
+/** How often the fleet page re-pulls assignments in the background. */
+const VEHICLES_POLL_INTERVAL_MS = 30_000;
+
 export function useVehiclesData() {
   const [data, setData] = useState<VehiclesData>({
     personnel: [],
@@ -266,8 +269,10 @@ export function useVehiclesData() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const refetch = useCallback(async () => {
-    setIsLoading(true);
+  // `silent` skips the loading flag so background polls don't flash skeletons
+  // over a populated table.
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true);
     setError(null);
     try {
       const apiData = await fetchVehiclesData();
@@ -275,13 +280,33 @@ export function useVehiclesData() {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load vehicles data");
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   }, []);
 
+  const refetch = useCallback(() => load(false), [load]);
+
   useEffect(() => {
-    refetch();
-  }, [refetch]);
+    load(false);
+
+    // Assignments change without any action from this browser — a conductor
+    // starting a shift, or the midnight reset clearing every unit. Poll so an
+    // admin leaving the fleet page open doesn't sit on stale assignments.
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") load(true);
+    }, VEHICLES_POLL_INTERVAL_MS);
+
+    // Catch up immediately when the tab is refocused after being hidden.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") load(true);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [load]);
 
   return { data, isLoading, error, refetch, setData };
 }

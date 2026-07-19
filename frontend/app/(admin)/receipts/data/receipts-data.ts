@@ -67,10 +67,15 @@ function mapLaravelTransaction(r: Record<string, unknown>): Receipt {
     default:          status = "Completed"; break;
   }
 
-  // Format date and time from created_at
+  // Format date and time from created_at.
+  // Built from local date parts, not toISOString() — the latter converts to UTC,
+  // which put early-morning Manila transactions on the previous day and made
+  // them unreachable via the date filter.
   const createdAt = String(r.created_at ?? "");
   const dateObj = new Date(createdAt);
-  const date = createdAt ? dateObj.toISOString().split("T")[0] : "";
+  const date = createdAt
+    ? `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${String(dateObj.getDate()).padStart(2, "0")}`
+    : "";
   const time = createdAt
     ? dateObj.toLocaleTimeString("en-US", {
         hour: "numeric",

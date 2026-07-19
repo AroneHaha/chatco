@@ -19,8 +19,8 @@ use Illuminate\Support\Facades\Log;
  * treated as an end-of-day close-out:
  *
  *   1. A Remittance record is created (the conductor's collected cash + gcash
- *      is auto-remitted, no shortage → status COMPLETE). NO passenger count is
- *      recorded for the midnight auto-remit (total_passengers = 0).
+ *      is auto-remitted, no shortage → status COMPLETE). Totals and the
+ *      passenger count are derived from the shift's PAID transactions.
  *   3. The vehicle's current driver/conductor/active-shift assignment is cleared.
  *   4. The driver's active_shift_id is cleared.
  *
@@ -95,12 +95,12 @@ class ResetDailyVehicleAssignments extends Command
 
     /**
      * End a single ACTIVE shift as a midnight close-out: create its remittance
-     * (cash + gcash auto-remitted, no shortage, NO passenger count), flip the
-     * shift to ENDED, and clear the driver's active_shift_id. The vehicle
-     * columns are cleared by the bulk reset in handle().
+     * (cash + gcash auto-remitted, no shortage), flip the shift to ENDED, and
+     * clear the driver's active_shift_id. The vehicle columns are cleared by
+     * the bulk reset in handle().
      *
      * Mirrors ShiftService::endShiftViaRemittance, but the totals come purely
-     * from the DB (no conductor-declared cash) and total_passengers is 0.
+     * from the DB (no conductor-declared cash), so there is never a shortage.
      */
     private function closeOutShift(ShiftLog $shift): void
     {
@@ -116,9 +116,17 @@ class ResetDailyVehicleAssignments extends Command
             [$shiftIdValue]
         )->total;
 
+        // Passenger count comes from the PAID transactions on the shift, same as
+        // AutoEndStaleShifts. Recording 0 here would show a non-zero collected
+        // amount against zero passengers in the admin reports.
+        $totalPassengers = (int) DB::table('transactions')
+            ->where('shift_id', $shiftIdValue)
+            ->where('status', 'PAID')
+            ->count();
+
         $timeOut = now();
 
-        DB::transaction(function () use ($shift, $cashTotal, $gcashTotal, $timeOut) {
+        DB::transaction(function () use ($shift, $cashTotal, $gcashTotal, $totalPassengers, $timeOut) {
             Remittance::create([
                 'shift_id'          => $shift->shift_id,
                 'conductor_id'      => $shift->conductor_id,
@@ -128,7 +136,7 @@ class ResetDailyVehicleAssignments extends Command
                 'conductor_name'    => $shift->conductor_name,
                 'driver_name'       => $shift->driver_name,
                 'unit_number'       => $shift->unit_number,
-                'total_passengers'  => 0, // Midnight auto-remit records no passenger count.
+                'total_passengers'  => $totalPassengers,
                 'time_in'           => $shift->time_in,
                 'time_out'          => $timeOut,
                 'total_collected'   => $cashTotal,

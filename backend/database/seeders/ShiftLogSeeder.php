@@ -57,6 +57,7 @@ class ShiftLogSeeder extends Seeder
         ];
 
         $created = 0;
+        $activeSeeded = 0;
 
         foreach ($plan as $i => [$dayOffset, $startHour, $duration, $status]) {
             $conductor = $conductors[$i % $conductors->count()];
@@ -70,8 +71,10 @@ class ShiftLogSeeder extends Seeder
             $conductorName = trim("{$conductor->first_name} {$conductor->last_name}");
             $driverName    = trim("{$driver->first_name} {$driver->last_name}");
 
+            $shiftId = 'SHF-' . strtoupper(Str::random(14));
+
             ShiftLog::create([
-                'shift_id'       => 'SHF-' . strtoupper(Str::random(14)),
+                'shift_id'       => $shiftId,
                 'conductor_id'   => $conductor->id,
                 'conductor_name' => $conductorName,
                 'driver_id'      => $driver->id,
@@ -86,9 +89,32 @@ class ShiftLogSeeder extends Seeder
                 'status'         => $status->value,
             ]);
 
+            // An ACTIVE shift must also claim its vehicle + driver, exactly as
+            // ShiftService::startShift() does at runtime. Without this the
+            // shift row exists but vehicles.active_shift_id stays null, and the
+            // admin monitoring query (which keys off that column) shows nothing
+            // — the seeded "on shift" conductors were invisible on the live map
+            // and in Active Vehicle Tracking.
+            if ($isActive) {
+                $vehicle->update([
+                    'active_shift_id' => $shiftId,
+                    'driver_id'       => $driver->id,
+                    'conductor_id'    => $conductor->id,
+                ]);
+                $driver->update(['active_shift_id' => $shiftId]);
+                $activeSeeded++;
+            }
+
+            // NOTE: no vehicle_locations row is seeded on purpose. Positions are
+            // real device GPS, written only by LocationService::updateLocation()
+            // when the conductor app broadcasts. Faking them here would put
+            // phantom units on the admin + commuter maps that never move and
+            // can't be told apart from live ones. A seeded active shift shows as
+            // "Awaiting GPS" until its conductor actually logs in.
+
             $created++;
         }
 
-        $this->command?->info("Seeded {$created} shift logs (9 ended + 2 active today).");
+        $this->command?->info("Seeded {$created} shift logs ({$activeSeeded} active today, awaiting live GPS).");
     }
 }

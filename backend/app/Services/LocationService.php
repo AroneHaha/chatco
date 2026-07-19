@@ -152,6 +152,11 @@ class LocationService
             // active_shift_id is set to null — the vehicle should disappear
             // from the commuter map immediately.
             ->whereNotNull('vehicles.active_shift_id')
+            // lat/lng are nullable — a capacity-status-only update creates a row
+            // before the first GPS fix arrives. Those rows must not reach the
+            // commuter map, which would plot them at (null, null).
+            ->whereNotNull('vehicle_locations.lat')
+            ->whereNotNull('vehicle_locations.lng')
             ->leftJoin('shift_logs', function ($join) {
                 $join->on('vehicles.active_shift_id', '=', 'shift_logs.shift_id');
             })
@@ -191,8 +196,14 @@ class LocationService
         $now = now();
         $staleThresholdMinutes = 10;
 
-        return DB::table('vehicle_locations')
-            ->join('vehicles', 'vehicle_locations.vehicle_id', '=', 'vehicles.id')
+        // Driven from `vehicles`, NOT from `vehicle_locations`. A unit that has
+        // started a shift but not yet posted a GPS ping has no vehicle_locations
+        // row at all; joining from that table made it invisible to the admin —
+        // absent from both the tracking list and the map, with nothing to
+        // indicate a shift was running. It now appears with a null position and
+        // has_gps = false so the UI can label it "Awaiting GPS".
+        return DB::table('vehicles')
+            ->leftJoin('vehicle_locations', 'vehicles.id', '=', 'vehicle_locations.vehicle_id')
             ->whereNotNull('vehicles.active_shift_id')
             ->leftJoin('shift_logs', function ($join) {
                 $join->on('vehicles.active_shift_id', '=', 'shift_logs.shift_id');
@@ -201,7 +212,7 @@ class LocationService
             ->leftJoin('drivers', 'shift_logs.driver_id', '=', 'drivers.id')
             ->leftJoin('conductor_profiles', 'shift_logs.conductor_id', '=', 'conductor_profiles.id')
             ->select([
-                'vehicle_locations.vehicle_id as id',
+                'vehicles.id as id',
                 'vehicles.unit_number',
                 'vehicles.plate_number',
                 'vehicles.vehicle_type',
@@ -217,11 +228,16 @@ class LocationService
                 'conductor_profiles.first_name as conductor_first_name',
                 'conductor_profiles.last_name as conductor_last_name',
             ])
-            ->orderBy('vehicle_locations.updated_at', 'desc')
+            ->orderByRaw('vehicle_locations.updated_at IS NULL, vehicle_locations.updated_at DESC')
             ->get()
             ->map(function ($row) use ($now, $staleThresholdMinutes) {
                 $lastUpdate = $row->last_update ? \Illuminate\Support\Carbon::parse($row->last_update) : null;
-                $minutesSinceUpdate = $lastUpdate ? $now->diffInMinutes($lastUpdate) : null;
+                // abs(): Carbon 3 returns a SIGNED diff, so $now->diffInMinutes($past)
+                // is negative. Without this, minutes_since_update rendered as
+                // "-42m ago" and is_stale (> 10) could never be true — the
+                // "Stale Units" metric was permanently stuck at 0.
+                $minutesSinceUpdate = $lastUpdate ? (int) abs($now->diffInMinutes($lastUpdate)) : null;
+                $hasGps = $row->lat !== null && $row->lng !== null;
 
                 return [
                     'id'                  => $row->id,
@@ -238,6 +254,7 @@ class LocationService
                     'conductor_name'      => trim(($row->conductor_first_name ?? '') . ' ' . ($row->conductor_last_name ?? '')) ?: null,
                     'last_update'         => $lastUpdate?->toDateTimeString(),
                     'minutes_since_update'=> $minutesSinceUpdate,
+                    'has_gps'             => $hasGps,
                     'is_stale'            => $minutesSinceUpdate !== null && $minutesSinceUpdate > $staleThresholdMinutes,
                 ];
             });

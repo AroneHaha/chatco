@@ -29,7 +29,13 @@ Schedule::command('hails:expire')->everyMinute();
 // mutable current-assignment columns on the vehicles table are reset.
 // Assignment is re-established automatically when a conductor logs in and
 // starts a new shift.
-Schedule::command('vehicles:reset-daily-assignments')->dailyAt('00:00');
+// Timezone is pinned explicitly: this must fire at midnight *Manila* time
+// regardless of what app.timezone or the server clock is set to. Getting this
+// wrong force-remits conductors mid-shift.
+Schedule::command('vehicles:reset-daily-assignments')
+    ->dailyAt('00:00')
+    ->timezone('Asia/Manila')
+    ->withoutOverlapping();
 
 // ─── Auto-end stale shifts (hourly) ──────────────────────────────────
 // Checks every hour for active shifts that exceed the `max_shift_hours`

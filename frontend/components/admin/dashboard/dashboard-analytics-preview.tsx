@@ -7,9 +7,12 @@ interface DashboardAnalyticsPreviewProps {
 }
 
 export function DashboardAnalyticsPreview({ paymentTendencies, topPickupPoints }: DashboardAnalyticsPreviewProps) {
+  const maxPickupVal = Math.max(...topPickupPoints.map((p) => p.val), 0);
+
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex-1 bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5">
+    // Height matches DashboardMapPreview so both grid columns line up.
+    <div className="flex flex-col gap-6 h-[380px]">
+      <div className="shrink-0 bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-white">Payment Tendencies (Today)</h3>
           <Link href="/analytics" className="text-xs text-[#62A0EA] hover:underline">More Analytics</Link>
@@ -37,9 +40,9 @@ export function DashboardAnalyticsPreview({ paymentTendencies, topPickupPoints }
       </div>
 
       {/* Top Pickup Points */}
-      <div className="flex-1 bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5">
-        <h3 className="text-sm font-semibold text-white mb-4">Top Pickup Points</h3>
-        <div className="space-y-3">
+      <div className="flex-1 min-h-0 flex flex-col bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5">
+        <h3 className="shrink-0 text-sm font-semibold text-white mb-4">Top Pickup Points</h3>
+        <div className="flex-1 min-h-0 overflow-y-auto scrollbar-themed pr-1 space-y-3">
           {topPickupPoints.map((p, i) => (
             <div key={p.name} className="flex items-center gap-3">
               <span className="text-xs font-bold text-slate-500 w-3">{i + 1}</span>
@@ -49,7 +52,7 @@ export function DashboardAnalyticsPreview({ paymentTendencies, topPickupPoints }
                   <span className="text-xs text-slate-500">{p.val}</span>
                 </div>
                 <div className="h-1.5 bg-[#0E1628] rounded-full overflow-hidden">
-                  <div className="h-full bg-[#62A0EA] rounded-full" style={{ width: `${topPickupPoints.length > 0 ? (p.val / Math.max(...topPickupPoints.map(pt => pt.val))) * 100 : 0}%` }} />
+                  <div className="h-full bg-[#62A0EA] rounded-full" style={{ width: `${maxPickupVal > 0 ? (p.val / maxPickupVal) * 100 : 0}%` }} />
                 </div>
               </div>
             </div>

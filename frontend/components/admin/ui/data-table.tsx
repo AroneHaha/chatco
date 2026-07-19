@@ -14,6 +14,13 @@ interface DataTableProps<T> {
   searchQuery: string;
   emptyMessage?: string;
   onRowDoubleClick?: (item: T) => void;
+  /**
+   * Caps the table's height and scrolls the body instead of growing the page.
+   * Any CSS length, e.g. "60vh". Omit for the default auto-height behaviour.
+   */
+  maxHeight?: string;
+  /** Keeps the header row visible while the body scrolls. Needs `maxHeight`. */
+  stickyHeader?: boolean;
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -22,6 +29,8 @@ export function DataTable<T extends Record<string, any>>({
   searchQuery,
   emptyMessage = 'No data found.',
   onRowDoubleClick,
+  maxHeight,
+  stickyHeader = false,
 }: DataTableProps<T>) {
   const filteredData = useMemo(() => {
     if (!searchQuery) {
@@ -37,7 +46,7 @@ export function DataTable<T extends Record<string, any>>({
   }, [data, searchQuery]);
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto scrollbar-themed" style={maxHeight ? { maxHeight, overflowY: 'auto' } : undefined}>
       {filteredData.length === 0 ? (
         <div className="py-12 text-center">
           <p className="text-sm text-slate-500">{emptyMessage}</p>
@@ -52,6 +61,10 @@ export function DataTable<T extends Record<string, any>>({
                   scope="col"
                   className={`px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider ${
                     col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'
+                  } ${
+                    // The <tr> border doesn't travel with sticky cells, so the
+                    // divider is redrawn as an inset shadow on each header cell.
+                    stickyHeader ? 'sticky top-0 z-10 bg-[#0B1220] shadow-[inset_0_-1px_0_#1E2D45]' : ''
                   }`}
                 >
                   {col.label}

@@ -83,6 +83,23 @@ body {
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 
+/* ─── Themed scrollbar for admin scroll panes (tables, lists) ───
+   The default OS scrollbar reads as a bright grey slab against the dark admin
+   surfaces. This matches it to the panel border colour and lifts it toward the
+   accent on hover. */
+.scrollbar-themed {
+  scrollbar-width: thin;
+  scrollbar-color: #24354F transparent; /* thumb, track — Firefox */
+}
+.scrollbar-themed::-webkit-scrollbar { width: 8px; height: 8px; }
+.scrollbar-themed::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-themed::-webkit-scrollbar-thumb {
+  background-color: #24354F;
+  border-radius: 9999px;
+}
+.scrollbar-themed::-webkit-scrollbar-thumb:hover { background-color: #3A5480; }
+.scrollbar-themed::-webkit-scrollbar-corner { background: transparent; }
+
 /* ─── Hide ALL scrollbars inside modals ─── */
 [role="dialog"] * {
   scrollbar-width: none !important;
