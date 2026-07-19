@@ -120,9 +120,10 @@ class PaymentController extends Controller
     /**
      * Reconcile the local status with the provider, rate-limited per
      * transaction via a cache key. Catches the case where PayMongo's webhook
-     * is delayed or never arrives (e.g. local dev without ngrok, network
-     * blip) — the commuter authorized on PayMongo but the DB still says
-     * PENDING. Without this, polling would echo PENDING forever.
+     * is delayed or never arrives (e.g. webhook not yet registered, network
+     * blip, misconfigured signing secret) — the commuter authorized on
+     * PayMongo but the DB still says PENDING. Without this, polling would
+     * echo PENDING forever.
      *
      * Triggers for:
      *   - PENDING GCash rows (the common case — commuter is mid-checkout),

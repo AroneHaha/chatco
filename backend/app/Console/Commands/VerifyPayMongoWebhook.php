@@ -93,12 +93,22 @@ class VerifyPayMongoWebhook extends Command
         $this->newLine();
 
         // ─── 4. Webhook URL hint ────────────────────────────────────────
+        // Detect whether the backend is exposed via a public domain (production)
+        // or via localhost (local dev). The hint text adapts accordingly.
         $appUrl = rtrim((string) config('app.url'), '/');
         $webhookUrl = $appUrl.'/api/v1/payments/webhook';
+        $isLocalUrl = $this->isLocalUrl($appUrl);
+
         $this->line('Webhook URL to register in PayMongo dashboard:');
         $this->line("  <fg=cyan>{$webhookUrl}</>");
         $this->line('  <fg=yellow>→ PayMongo dashboard → Developers → Webhooks → Create webhook.</>');
-        $this->line('  <fg=yellow>→ Local dev requires ngrok (or similar) exposing the backend port.</>');
+        if ($isLocalUrl) {
+            $this->line('  <fg=yellow>→ Local dev: PayMongo cannot reach localhost. Use ngrok (or a similar</>');
+            $this->line('  <fg=yellow>  tunnel) to expose port 8000, then register the tunnel URL in PayMongo.</>');
+        } else {
+            $this->line('  <fg=yellow>→ Production: APP_URL points at your public domain — PayMongo can reach</>');
+            $this->line('  <fg=yellow>  this URL directly. No tunnel needed.</>');
+        }
         $this->newLine();
 
         // ─── 5. Recent payment_events (webhook audit) ───────────────────
@@ -153,9 +163,9 @@ class VerifyPayMongoWebhook extends Command
         // Distinguish REAL webhook events (type from PayMongo, e.g.
         // 'payment.paid') from SIMULATED events (type starts with 'simulated.').
         // If the gateway is real but only simulated events exist, PayMongo
-        // webhooks are NOT reaching the backend — the most common cause in
-        // local dev is that http://localhost:8000 is unreachable from
-        // PayMongo's servers.
+        // webhooks are NOT reaching the backend. The fix depends on whether
+        // the backend is exposed via a public domain (production) or via
+        // localhost (local dev — needs a tunnel like ngrok).
         if ($gatewayName !== 'fake' && $configured) {
             $realEventCount = PaymentEvent::query()
                 ->where('provider', $gatewayName)
@@ -173,17 +183,33 @@ class VerifyPayMongoWebhook extends Command
             if ($realEventCount === 0) {
                 $failures++;
                 $this->line('  <fg=red>✗ Zero real PayMongo webhook events recorded.</>');
-                $this->line('  <fg=yellow>  PayMongo cannot reach http://localhost:8000 — localhost URLs are not</>');
-                $this->line('  <fg=yellow>  publicly routable. To test the real flow locally:</>');
-                $this->line('  <fg=yellow>    1. Expose the backend with ngrok:    ngrok http 8000</>');
-                $this->line('  <fg=yellow>    2. Copy the ngrok HTTPS URL (e.g. https://abcd-203-0-113-1.ngrok-free.app)</>');
-                $this->line('  <fg=yellow>    3. Register it in PayMongo dashboard → Developers → Webhooks:</>');
-                $this->line('  <fg=yellow>       URL: https://<ngrok-url>/api/v1/payments/webhook</>');
-                $this->line('  <fg=yellow>    4. Copy the webhook signing secret PayMongo shows + put it in .env:</>');
-                $this->line('  <fg=yellow>       PAYMONGO_WEBHOOK_SECRET=whsk_<the-secret-paymongo-generated></>');
-                $this->line('  <fg=yellow>    5. Run: php artisan config:clear && php artisan optimize:clear</>');
-                $this->line('  <fg=yellow>  Note: even WITHOUT a webhook, my new provider-reconciliation logic</>');
-                $this->line('  <fg=yellow>  in PaymentController::status() will retrieve the PaymentIntent from</>');
+
+                if ($isLocalUrl) {
+                    // Local dev guidance — ngrok required
+                    $this->line('  <fg=yellow>  PayMongo cannot reach http://localhost:8000 — localhost URLs are not</>');
+                    $this->line('  <fg=yellow>  publicly routable. To test the real flow locally:</>');
+                    $this->line('  <fg=yellow>    1. Expose the backend with ngrok:    ngrok http 8000</>');
+                    $this->line('  <fg=yellow>    2. Copy the ngrok HTTPS URL (e.g. https://abcd-203-0-113-1.ngrok-free.app)</>');
+                    $this->line('  <fg=yellow>    3. Register it in PayMongo dashboard → Developers → Webhooks:</>');
+                    $this->line('  <fg=yellow>       URL: https://<ngrok-url>/api/v1/payments/webhook</>');
+                    $this->line('  <fg=yellow>    4. Copy the webhook signing secret PayMongo shows + put it in .env:</>');
+                    $this->line('  <fg=yellow>       PAYMONGO_WEBHOOK_SECRET=whsk_<the-secret-paymongo-generated></>');
+                    $this->line('  <fg=yellow>    5. Run: php artisan config:clear && php artisan optimize:clear</>');
+                } else {
+                    // Production guidance — domain should be reachable directly
+                    $this->line("  <fg=yellow>  Your backend is on a public domain ({$appUrl}) — PayMongo should be</>");
+                    $this->line('  <fg=yellow>  able to reach it. Check the following:</>');
+                    $this->line('  <fg=yellow>    1. Confirm the webhook URL is registered in PayMongo dashboard:</>');
+                    $this->line("  <fg=yellow>       {$webhookUrl}</>");
+                    $this->line('  <fg=yellow>    2. Confirm PAYMONGO_WEBHOOK_SECRET in .env matches the secret PayMongo</>');
+                    $this->line('  <fg=yellow>       shows for that webhook (signature verification fails otherwise).</>');
+                    $this->line('  <fg=yellow>    3. Check backend/storage/logs/laravel.log for "invalid signature" or</>');
+                    $this->line('  <fg=yellow>       "no matching transaction" warnings — they pinpoint the failure.</>');
+                    $this->line('  <fg=yellow>    4. Try sending a test event from the PayMongo dashboard "Send Test" button.</>');
+                }
+
+                $this->line('  <fg=yellow>  Note: even WITHOUT a webhook, the provider-reconciliation logic in</>');
+                $this->line('  <fg=yellow>  PaymentController::status() will retrieve the PaymentIntent from</>');
                 $this->line('  <fg=yellow>  PayMongo directly every 30s when a poller hits the status endpoint.</>');
                 $this->line('  <fg=yellow>  So GCash payments should now settle within ~30s of the commuter</>');
                 $this->line('  <fg=yellow>  authorizing, even if the webhook is missing.</>');
@@ -313,5 +339,34 @@ class VerifyPayMongoWebhook extends Command
     private function isSandboxKey(string $key): bool
     {
         return str_starts_with($key, 'sk_test_');
+    }
+
+    /**
+     * Whether the given APP_URL is a local-only URL (not publicly routable).
+     * Used to tailor the diagnostic guidance: local URLs need ngrok (or a
+     * similar tunnel) for PayMongo to reach them; public URLs (e.g.
+     * https://api.chatco.online) work directly.
+     */
+    private function isLocalUrl(string $url): bool
+    {
+        $host = parse_url($url, PHP_URL_HOST) ?: '';
+        if ($host === '') return true;
+
+        // Common local dev hosts. .test is Laravel Valet, .local is Homestead
+        // / custom, .nip.io / .sslip.io are wildcard DNS used for local testing.
+        $localPatterns = [
+            'localhost',
+            '127.0.0.1',
+            '0.0.0.0',
+            '::1',
+        ];
+        if (in_array($host, $localPatterns, true)) return true;
+
+        $localSuffixes = ['.test', '.local', '.nip.io', '.sslip.io'];
+        foreach ($localSuffixes as $suffix) {
+            if (str_ends_with($host, $suffix)) return true;
+        }
+
+        return false;
     }
 }
