@@ -77,7 +77,10 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
       if (!res.ok) {
         throw new Error(data.message ?? 'Failed to load shift logs');
       }
-      setLogs((data.data ?? []) as ShiftLogEntry[]);
+      // Laravel paginates this endpoint: { data: { data: [...], current_page, ... } }.
+      // Fall back to a plain array in case the shape is ever un-paginated.
+      const entries = data.data?.data ?? data.data;
+      setLogs(Array.isArray(entries) ? (entries as ShiftLogEntry[]) : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load shift logs');
     } finally {
