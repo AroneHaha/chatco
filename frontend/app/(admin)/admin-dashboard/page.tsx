@@ -28,8 +28,8 @@ export default function DashboardHome() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <SkeletonCard count={1} height="380px" />
           <div className="space-y-6">
-            <SkeletonCard count={1} height="160px" />
-            <SkeletonCard count={1} height="160px" />
+            <SkeletonCard count={1} height="140px" />
+            <SkeletonCard count={1} height="216px" />
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
