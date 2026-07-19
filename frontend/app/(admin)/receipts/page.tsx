@@ -10,20 +10,60 @@ import { useReceiptsData, type Receipt, type PaymentMethod } from '@/app/(admin)
 
 const ROWS_PER_PAGE = 20;
 
+/** Quick range presets, offered alongside the exact-date picker. */
+type RangePreset = 'all' | 'today' | '7days' | 'month';
+
+const RANGE_OPTIONS: { value: RangePreset; label: string }[] = [
+  { value: 'all', label: 'All Time' },
+  { value: 'today', label: 'Today' },
+  { value: '7days', label: 'Past 7 Days' },
+  { value: 'month', label: 'This Month' },
+];
+
+/** Local YYYY-MM-DD, matching how Receipt.date is built in receipts-data.ts. */
+function toLocalISODate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export default function ReceiptsPage() {
   const { records, isLoading, isRefreshing, error, refresh } = useReceiptsData();
   const [searchQuery, setSearchQuery] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  // The exact-date picker and the range presets are mutually exclusive —
+  // choosing one clears the other, so the active date filter is never ambiguous.
+  const [specificDate, setSpecificDate] = useState('');
+  const [rangePreset, setRangePreset] = useState<RangePreset>('all');
   const [paymentFilter, setPaymentFilter] = useState<PaymentMethod | 'All'>('All');
   const [currentPage, setCurrentPage] = useState(1);
 
   const paymentOptions: (PaymentMethod | 'All')[] = ['All', 'Cash', 'Gcash', 'Voucher'];
 
+  const handlePickDate = (value: string) => {
+    setSpecificDate(value);
+    if (value) setRangePreset('all');
+  };
+
+  const handlePickRange = (value: RangePreset) => {
+    setRangePreset(value);
+    setSpecificDate('');
+  };
+
+  // Inclusive lower bound for the active preset, as a YYYY-MM-DD string.
+  // Comparing the strings directly avoids re-parsing dates (and any timezone
+  // drift) for every row.
+  const rangeStart = useMemo(() => {
+    if (rangePreset === 'all') return '';
+    const now = new Date();
+    if (rangePreset === 'today') return toLocalISODate(now);
+    if (rangePreset === 'month') return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // 6 back + today = 7 days
+    return toLocalISODate(sevenDaysAgo);
+  }, [rangePreset]);
+
   // Reset to page 1 when filters change — uses the "adjust state during
   // render" pattern instead of useEffect to avoid cascading renders.
   const [prevFilterKey, setPrevFilterKey] = useState('');
-  const filterKey = `${searchQuery}|${startDate}|${endDate}|${paymentFilter}`;
+  const filterKey = `${searchQuery}|${specificDate}|${rangePreset}|${paymentFilter}`;
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
     setCurrentPage(1);
@@ -31,19 +71,28 @@ export default function ReceiptsPage() {
 
   // Filtered data
   const filteredData = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
     return records.filter((item: Receipt) => {
       const matchesPayment = paymentFilter === 'All' || item.paymentMethod === paymentFilter;
-      const matchesSearch = item.commuterName.toLowerCase().includes(searchQuery.toLowerCase()) || item.id.toLowerCase().includes(searchQuery.toLowerCase());
-      const itemDate = new Date(item.date);
-      const matchesStart = !startDate || itemDate >= new Date(startDate);
-      const matchesEnd = !endDate || itemDate <= new Date(endDate);
-      return matchesPayment && matchesSearch && matchesStart && matchesEnd;
+      const matchesSearch =
+        !query ||
+        item.commuterName.toLowerCase().includes(query) ||
+        item.id.toLowerCase().includes(query);
+      // Exact date wins when set; otherwise fall back to the preset range.
+      const matchesDate = specificDate
+        ? item.date === specificDate
+        : !rangeStart || item.date >= rangeStart;
+      return matchesPayment && matchesSearch && matchesDate;
     });
-  }, [records, searchQuery, startDate, endDate, paymentFilter]);
+  }, [records, searchQuery, specificDate, rangeStart, paymentFilter]);
 
-  // Pagination
+  // Pagination. currentPage is clamped rather than reset to 1 — if the row
+  // count shrinks under you (a filter change, or the 10s background poll),
+  // you land on the last valid page instead of being thrown to the front.
   const totalPages = Math.max(1, Math.ceil(filteredData.length / ROWS_PER_PAGE));
-  const safeCurrentPage = currentPage > totalPages ? 1 : currentPage;
+  const safeCurrentPage = Math.min(Math.max(currentPage, 1), totalPages);
+  const goToPage = (page: number) => setCurrentPage(Math.min(Math.max(page, 1), totalPages));
+
   const paginatedData = useMemo(() => {
     const startIndex = (safeCurrentPage - 1) * ROWS_PER_PAGE;
     return filteredData.slice(startIndex, startIndex + ROWS_PER_PAGE);
@@ -135,7 +184,7 @@ export default function ReceiptsPage() {
     { key: 'time', label: 'Time' },
   ];
 
-  const hasActiveFilters = searchQuery || startDate || endDate || paymentFilter !== 'All';
+  const hasActiveFilters = searchQuery || specificDate || rangePreset !== 'all' || paymentFilter !== 'All';
 
   // ─── Initial Loading State (Skeleton) ───
   if (isLoading) {
@@ -195,11 +244,6 @@ export default function ReceiptsPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-white leading-tight">Fare Receipts</h1>
-            <p className="text-sm text-slate-400 mt-1 max-w-xl">
-              A complete log of every fare recorded across all trips and conductors — each row is one
-              passenger&apos;s payment, with its method and status. Use it to search, audit, and export the
-              raw payment history.
-            </p>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -264,20 +308,62 @@ export default function ReceiptsPage() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-6 mb-6">
+      {/* ── Filters ──
+          Search, date picker, range presets and payment method share one card
+          and one control height so everything lines up on a single baseline. */}
+      <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl p-4 mb-6 flex flex-col gap-3">
 
-        {/* Payment Method Filter */}
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-2 text-xs text-slate-500 uppercase tracking-wider">
+        {/* Row 1 — search + date */}
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
+          <SearchBar
+            placeholder="Search by Passenger or Receipt ID..."
+            value={searchQuery}
+            onChange={setSearchQuery}
+            className="w-full sm:flex-1 sm:min-w-56"
+          />
+
+          <div className="relative w-full sm:w-48">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <CalendarDays className="h-4 w-4 text-slate-400" />
+            </div>
+            <input
+              type="date"
+              value={specificDate}
+              onChange={(e) => handlePickDate(e.target.value)}
+              aria-label="Show transactions on a specific date"
+              className="block w-full h-9.5 pl-10 pr-3 bg-[#0E1628] border border-[#1E2D45] rounded-lg text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] focus:border-[#62A0EA] scheme-dark"
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {RANGE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => handlePickRange(opt.value)}
+                className={`h-9.5 px-4 rounded-lg text-sm font-medium transition-colors ${
+                  !specificDate && rangePreset === opt.value
+                    ? 'bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/25'
+                    : 'bg-[#0E1628] border border-[#1E2D45] text-slate-300 hover:bg-[#1A2540]'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Row 2 — payment method */}
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
+          <div className="flex items-center gap-2 text-xs text-slate-500 uppercase tracking-wider shrink-0">
             <Filter size={14} />
-            <span>Payment Method</span>
+            <span>Payment</span>
           </div>
           <div className="flex flex-wrap gap-2">
             {paymentOptions.map((filter) => (
               <button
                 key={filter}
                 onClick={() => setPaymentFilter(filter)}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`h-9.5 px-4 rounded-lg text-sm font-medium transition-colors ${
                   paymentFilter === filter
                     ? 'bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/25'
                     : 'bg-[#0E1628] border border-[#1E2D45] text-slate-300 hover:bg-[#1A2540]'
@@ -287,56 +373,20 @@ export default function ReceiptsPage() {
               </button>
             ))}
           </div>
-        </div>
 
-        {/* Search & Date Filters + Refresh */}
-        <div className="flex flex-col lg:flex-row gap-3 w-full">
-          <SearchBar
-            placeholder="Search by Passenger or Receipt ID..."
-            value={searchQuery}
-            onChange={setSearchQuery}
-            className="w-full lg:w-64"
-          />
-
-          <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
-            <div className="relative flex-1 lg:flex-none">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <CalendarDays className="h-4 w-4 text-slate-400" />
-              </div>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="block w-full lg:w-48 pl-10 pr-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] focus:border-[#62A0EA] scheme-dark"
-              />
-            </div>
-
-            <div className="relative flex-1 lg:flex-none">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <CalendarDays className="h-4 w-4 text-slate-400" />
-              </div>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="block w-full lg:w-48 pl-10 pr-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] focus:border-[#62A0EA] scheme-dark"
-              />
-            </div>
-
-            {hasActiveFilters && (
-              <button
-                onClick={() => {
-                  setStartDate('');
-                  setEndDate('');
-                  setSearchQuery('');
-                  setPaymentFilter('All');
-                }}
-                className="px-4 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#1A2540] transition-colors text-sm w-full sm:w-auto"
-              >
-                Clear Filters
-              </button>
-            )}
-          </div>
+          {hasActiveFilters && (
+            <button
+              onClick={() => {
+                setSpecificDate('');
+                setRangePreset('all');
+                setSearchQuery('');
+                setPaymentFilter('All');
+              }}
+              className="h-9.5 px-4 sm:ml-auto bg-[#0E1628] border border-[#1E2D45] rounded-lg text-slate-300 hover:bg-[#1A2540] transition-colors text-sm"
+            >
+              Clear Filters
+            </button>
+          )}
         </div>
       </div>
 
@@ -347,6 +397,8 @@ export default function ReceiptsPage() {
           columns={columns}
           searchQuery=""
           emptyMessage="No receipts match your filters."
+          maxHeight="60vh"
+          stickyHeader
         />
 
       {/* Pagination Controls */}
@@ -359,8 +411,9 @@ export default function ReceiptsPage() {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setCurrentPage(safeCurrentPage - 1)}
+            onClick={() => goToPage(safeCurrentPage - 1)}
             disabled={safeCurrentPage === 1}
+            aria-label="Previous page"
             className="p-2 rounded-md bg-[#0E1628] border border-[#1E2D45] hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronLeft size={16} />
@@ -371,8 +424,9 @@ export default function ReceiptsPage() {
           </span>
 
           <button
-            onClick={() => setCurrentPage(safeCurrentPage + 1)}
+            onClick={() => goToPage(safeCurrentPage + 1)}
             disabled={safeCurrentPage === totalPages}
+            aria-label="Next page"
             className="p-2 rounded-md bg-[#0E1628] border border-[#1E2D45] hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronRight size={16} />
