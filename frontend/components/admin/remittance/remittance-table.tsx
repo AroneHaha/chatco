@@ -1,7 +1,7 @@
 // components/admin/remittance/remittance-table.tsx
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -33,6 +33,12 @@ export function RemittanceTable({ searchQuery, startDate, endDate, statusFilter 
   const handleRowClick = useCallback((item: RemittanceRow) => {
     setSelectedRecord(item);
   }, []);
+
+  // Reset to the first page whenever the filters change, so pagination never
+  // lands on an out-of-range (blank) page after the result set shrinks.
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, startDate, endDate, statusFilter]);
 
   // Column definitions now reference canonical RemittanceRecord field names
   const columns = [
