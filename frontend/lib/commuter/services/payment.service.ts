@@ -8,6 +8,7 @@
  *
  *   GET  /api/commuter/payments              -> fetchPaymentHistory()  (paginated)
  *   POST /api/commuter/payments/claim        -> claimGcash()
+ *   POST /api/commuter/receipts/claim        -> claimCashReceipt()
  *   GET  /api/payments/{id}/status           -> fetchPaymentStatus()
  *   POST /api/payments/{id}/simulate         -> simulatePayment()  (dev only)
  */
@@ -53,6 +54,19 @@ export interface ClaimResult {
   amount: number;
   pickupName: string | null;
   dropoffName: string | null;
+}
+
+/** Result of binding a scanned paper cash receipt to the commuter. */
+export interface ReceiptClaimResult {
+  transactionId: string;
+  amount: number;
+  pickupName: string | null;
+  dropoffName: string | null;
+  conductorName: string | null;
+  unitNumber: string | null;
+  paidAt: string | null;
+  /** True when this commuter had already claimed it — no extra ride counted. */
+  alreadyClaimed: boolean;
 }
 
 // ─── Raw backend shapes ──────────────────────────────────────────────
@@ -145,6 +159,41 @@ export async function claimGcash(qrToken: string): Promise<ClaimResult> {
     amount: Number(d.amount) || 0,
     pickupName: d.pickup_name,
     dropoffName: d.dropoff_name,
+  };
+}
+
+/**
+ * Claim a paper cash receipt by scanning the QR printed on it.
+ *
+ * Binds the cash ride to this commuter, which is what makes it count toward
+ * the free-ride reward cycle (rewards are derived from PAID non-voucher rides
+ * bound to the account — there is no separate points balance).
+ *
+ * @throws {ApiError} 404 (unrecognised token) / 410 (receipt past its TTL)
+ *                    / 409 (claimed by someone else) / 422 (not a cash ride)
+ */
+export async function claimCashReceipt(qrToken: string): Promise<ReceiptClaimResult> {
+  const response = await api.post<Envelope<{
+    transaction_id: string;
+    amount: number;
+    pickup_name: string | null;
+    dropoff_name: string | null;
+    conductor_name: string | null;
+    unit_number: string | null;
+    paid_at: string | null;
+    already_claimed: boolean;
+  }>>(COMMUTER_API.receipts.claim, { qr_token: qrToken });
+
+  const d = response.data;
+  return {
+    transactionId: d.transaction_id,
+    amount: Number(d.amount) || 0,
+    pickupName: d.pickup_name,
+    dropoffName: d.dropoff_name,
+    conductorName: d.conductor_name,
+    unitNumber: d.unit_number,
+    paidAt: d.paid_at,
+    alreadyClaimed: Boolean(d.already_claimed),
   };
 }
 

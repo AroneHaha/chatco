@@ -74,8 +74,10 @@ export function AnnouncementDetailModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-lg">
       <div className="space-y-4">
-        {/* Type badge + timestamp */}
-        <div className="flex items-center justify-between gap-3">
+        {/* Type badge + timestamp. pr-8 keeps the timestamp clear of Modal's
+            absolutely-positioned close button, which sits at top-3 right-3 and
+            was printing straight over it. */}
+        <div className="flex items-center justify-between gap-3 pr-8">
           <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${bg} ${color}`}>
             <Icon size={12} />
             {announcement.type || label}
@@ -113,8 +115,13 @@ export function AnnouncementDetailModal({
         {/* Divider */}
         <div className="border-t border-white/5" />
 
-        {/* Body — preserve whitespace + wrap long content */}
-        <div className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap break-words max-h-[55vh] overflow-y-auto pr-1">
+        {/* Body — preserve whitespace + wrap long content.
+            No inner max-height/scroller: capping this at 55vh made a second,
+            nested scroll region inside the Modal's own one, so a long notice
+            was squeezed into just over half the panel while the rest of it sat
+            empty. Letting it grow lets the Modal's single scroll region use the
+            full 90vh. */}
+        <div className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap break-words">
           {announcement.message}
         </div>
       </div>

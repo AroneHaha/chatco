@@ -54,6 +54,14 @@ class TransactionService
         return (int) config('payments.gcash_claim_ttl_minutes', 10);
     }
 
+    /**
+     * How long a printed cash receipt's QR stays claimable, in hours.
+     */
+    private function receiptTtlHours(): int
+    {
+        return (int) config('payments.cash_receipt_ttl_hours', 6);
+    }
+
     // ─── Cash Flow ──────────────────────────────────────────────────
 
     /**
@@ -143,12 +151,26 @@ class TransactionService
             $finalAmount = 0;
         }
 
+        // ─── Receipt binding token (CASH only) ──────────────────────
+        // Cash involves no account, so the ride would never reach a commuter's
+        // reward cycle. Mint the same kind of opaque token the GCash QR uses;
+        // the printed receipt carries it, and the commuter can scan it later
+        // (POST /commuter/receipts/claim) to bind the ride to their account.
+        //
+        // Skipped when a passenger is already bound (VOUCHER rides, or a
+        // conductor-attributed fare) — there is nothing left to claim.
+        $receiptToken = null;
+        if ($paymentMethod === PaymentMethod::CASH->value && $passengerId === null) {
+            $receiptToken = Str::random(32);
+        }
+
         // ─── Persist with denormalized conductor/vehicle/driver info ──
         return Transaction::create([
             'transaction_id'   => $this->generateTransactionId(),
             'shift_id'         => $shift->shift_id,
             'payment_method'   => $paymentMethod,
             'status'           => PaymentStatus::PAID->value,
+            'qr_token'         => $receiptToken,
             'idempotency_key'  => $idempotencyKey,
             'final_amount'     => $finalAmount,
             'base_fare'        => isset($data['base_fare']) ? (float) $data['base_fare'] : null,
@@ -402,6 +424,110 @@ class TransactionService
         $transaction->refresh();
 
         return $this->formatClaimResponse($transaction);
+    }
+
+    /**
+     * Claim a CASH ride by scanning the QR printed on the paper receipt.
+     *
+     * Cash rides are recorded as PAID with no passenger_id, so they never
+     * reach anyone's reward cycle. Scanning the receipt binds the ride to the
+     * commuter — and because GET /commuter/rewards counts PAID non-voucher
+     * transactions by passenger_id, that binding IS the "+1": the progress
+     * ring and the auto-generated free-ride voucher at the cycle threshold
+     * both follow from it. No separate points ledger is involved.
+     *
+     * Deliberately mirrors claimGcash's guards, with two differences: a cash
+     * row is already PAID (so PAID is the valid state here, not PENDING), and
+     * the window is hours rather than minutes.
+     *
+     * Idempotent: the same commuter re-scanning their own receipt is a no-op
+     * that reports already_claimed, so a double-scan never double-counts.
+     *
+     * @param  User    $commuter  The commuter scanning the receipt QR
+     * @param  string  $qrToken   The opaque token printed on the receipt
+     *
+     * @return array {
+     *     transaction_id:  string
+     *     amount:          float
+     *     pickup_name:     string|null
+     *     dropoff_name:    string|null
+     *     conductor_name:  string|null
+     *     unit_number:     string|null
+     *     paid_at:         string|null
+     *     already_claimed: bool
+     * }
+     *
+     * @throws \Symfony\Component\HttpKernel\Exception\HttpException
+     *         404 if no transaction carries this token
+     *         410 if the receipt is older than the TTL
+     *         409 if another commuter already claimed it
+     *         422 if the row is not a claimable cash ride, or no profile
+     */
+    public function claimCashReceipt(User $commuter, string $qrToken): array
+    {
+        $transaction = Transaction::where('qr_token', $qrToken)->first();
+
+        if (! $transaction) {
+            abort(404, 'Receipt not recognised');
+        }
+
+        // Only cash receipts are claimable this way. A GCash token belongs to
+        // the live checkout flow (claimGcash) and must not be redeemable here
+        // — that would bind an unpaid PENDING ride and hand out a free point.
+        // NOTE: payment_method is enum-cast on the model, so this compares
+        // enum-to-enum. Comparing against ->value here would always be true.
+        if ($transaction->payment_method !== PaymentMethod::CASH) {
+            abort(422, 'This QR is not a cash receipt');
+        }
+
+        if ($transaction->status !== PaymentStatus::PAID) {
+            abort(422, 'This ride is not a completed cash payment');
+        }
+
+        // 410 once the receipt is past its window. Measured from created_at,
+        // which is when the fare was recorded and the receipt printed.
+        $createdAt = $transaction->created_at;
+        if ($createdAt && $createdAt->copy()->addHours($this->receiptTtlHours())->isPast()) {
+            abort(410, 'This receipt has expired');
+        }
+
+        // passenger_id references commuter_profiles.id, not users.id.
+        $commuterProfile = $commuter->commuterProfile;
+        if (! $commuterProfile) {
+            abort(422, 'Commuter profile required to claim a receipt');
+        }
+
+        if ($transaction->passenger_id !== null) {
+            if ($transaction->passenger_id === $commuterProfile->id) {
+                return $this->formatReceiptClaimResponse($transaction, alreadyClaimed: true);
+            }
+            abort(409, 'This receipt has already been claimed');
+        }
+
+        $transaction->update([
+            'passenger_id'   => $commuterProfile->id,
+            'passenger_name' => trim($commuterProfile->first_name . ' ' . $commuterProfile->surname),
+        ]);
+        $transaction->refresh();
+
+        return $this->formatReceiptClaimResponse($transaction, alreadyClaimed: false);
+    }
+
+    /**
+     * Shape a claimed cash receipt for the commuter's success modal.
+     */
+    private function formatReceiptClaimResponse(Transaction $transaction, bool $alreadyClaimed): array
+    {
+        return [
+            'transaction_id'  => $transaction->transaction_id,
+            'amount'          => (float) $transaction->final_amount,
+            'pickup_name'     => $transaction->pickup_name,
+            'dropoff_name'    => $transaction->dropoff_name,
+            'conductor_name'  => $transaction->conductor_name,
+            'unit_number'     => $transaction->unit_number,
+            'paid_at'         => $transaction->paid_at?->toIso8601String(),
+            'already_claimed' => $alreadyClaimed,
+        ];
     }
 
     // ─── Listing + Earnings ─────────────────────────────────────────

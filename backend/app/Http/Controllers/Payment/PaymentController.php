@@ -7,6 +7,7 @@ use App\Enums\PaymentStatus;
 use App\Http\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Commuter\ClaimGcashRequest;
+use App\Http\Requests\Commuter\ClaimReceiptRequest;
 use App\Models\Transaction;
 use App\Services\PaymentService;
 use App\Services\TransactionService;
@@ -25,7 +26,8 @@ use Illuminate\Support\Str;
  * All business/payment logic lives in TransactionService / PaymentService.
  *
  * Routes (api/v1):
- *   POST /commuter/payments/claim        -> claim()    (role:COMMUTER)
+ *   POST /commuter/payments/claim        -> claim()        (role:COMMUTER)
+ *   POST /commuter/receipts/claim        -> claimReceipt() (role:COMMUTER)
  *   GET  /commuter/payments              -> history()  (role:COMMUTER, paginated)
  *   GET  /payments/{id}/status           -> status()   (auth, owner only)
  *   POST /payments/{id}/simulate         -> simulate() (auth, DEV only)
@@ -48,6 +50,23 @@ class PaymentController extends Controller
         );
 
         return $this->successResponse($result, 'GCash transaction claimed');
+    }
+
+    /**
+     * POST /commuter/receipts/claim — bind a paper cash receipt to the
+     * authed commuter so the ride counts toward their reward cycle.
+     */
+    public function claimReceipt(ClaimReceiptRequest $request): JsonResponse
+    {
+        $result = $this->transactionService->claimCashReceipt(
+            $request->user(),
+            $request->validated()['qr_token'],
+        );
+
+        return $this->successResponse(
+            $result,
+            $result['already_claimed'] ? 'Receipt already claimed' : 'Receipt claimed',
+        );
     }
 
     /**

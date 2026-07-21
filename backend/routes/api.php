@@ -86,6 +86,12 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
     Route::post('/payments/claim', [PaymentController::class, 'claim'])->middleware('throttle:commuter-hail');
     Route::get('/payments', [PaymentController::class, 'history'])->middleware('throttle:conductor-read');
 
+    // Paper cash receipt — scan the printed QR to bind the ride to this
+    // commuter so it counts toward the reward cycle. Throttled like the other
+    // scan-driven claim: the token is unguessable, and the low ceiling keeps
+    // it from being brute-forced.
+    Route::post('/receipts/claim', [PaymentController::class, 'claimReceipt'])->middleware('throttle:commuter-hail');
+
     // Feedback submission (S6) — commuter submits a rating for a shift_id
     // resolved via /qr/scan. Throttled at commuter-hail (10/min) to deter
     // spam; the (commuter_id, shift_id) unique constraint also enforces

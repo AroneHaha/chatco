@@ -7,6 +7,7 @@ import { RemittanceSummary } from '@/components/admin/remittance/remittance-summ
 import { SearchBar } from '@/components/admin/ui/search-bar';
 import { CalendarDays } from 'lucide-react';
 import type { RemittanceStatus } from '@/app/(admin)/remittance/data/remittance-data';
+import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 
 export default function RemittancePage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -19,9 +20,19 @@ export default function RemittancePage() {
   return (
     // touch-action: manipulation prevents mobile double-tap ghost clicks
     <div style={{ touchAction: 'manipulation' }}>
-      <div className="flex flex-col gap-6 mb-6">
-        <h1 className="text-2xl font-bold text-white">Remittance Tracker</h1>
+      {/* Title pins on phones; the summary and status filters below stay in the
+          scroll flow so the bar doesn't dominate a small screen.
 
+          Deliberately a direct child of the page root, NOT of the filter block
+          below: a sticky element only stays pinned while its containing block
+          is on screen, so nesting it in that short wrapper would have released
+          the title as soon as the filters scrolled past — long before the
+          remittance table, which is exactly where the title matters most. */}
+      <StickyPageHeader className="mb-6">
+        <h1 className="text-2xl font-bold text-white">Remittance Tracker</h1>
+      </StickyPageHeader>
+
+      <div className="flex flex-col gap-6 mb-6">
         {/* Today's at-a-glance summary */}
         <RemittanceSummary />
 

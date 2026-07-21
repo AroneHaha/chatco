@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { fetchPaymentStatus, type PaymentStatus } from "@/lib/commuter/services/payment.service";
 
@@ -27,7 +27,7 @@ import { fetchPaymentStatus, type PaymentStatus } from "@/lib/commuter/services/
  * In DEV mode (FakeGateway), the conductor's [DEV] Simulate Payment button
  * drives the status to PAID through the same webhook path.
  */
-export default function GcashReturnPage() {
+function GcashReturnContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const transactionId = searchParams.get("transaction_id");
@@ -279,5 +279,26 @@ export default function GcashReturnPage() {
         </button>
       </div>
     </div>
+  );
+}
+
+/**
+ * useSearchParams() opts a route into client-side rendering, which Next
+ * requires to sit behind a Suspense boundary — without one the production
+ * build fails to prerender this page. The fallback mirrors the page's own
+ * loading state so the redirect back from GCash never flashes a blank screen.
+ */
+export default function GcashReturnPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#050F1A] flex flex-col items-center justify-center p-6">
+          <div className="w-12 h-12 rounded-full border-2 border-white/15 border-t-[#62A0EA] animate-spin" />
+          <p className="mt-4 text-sm text-white/50">Confirming your payment…</p>
+        </div>
+      }
+    >
+      <GcashReturnContent />
+    </Suspense>
   );
 }

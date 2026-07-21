@@ -13,10 +13,22 @@ export async function fetchActiveShift(): Promise<ConductorShift | null> {
         CONDUCTOR_API.shifts.active
       );
       const shift = response.data ?? null;
-      if (shift) shiftStore.cacheShift(shift);
+      if (shift) {
+        shiftStore.cacheShift(shift);
+      } else {
+        // The server is authoritative: no active shift means the cached one is
+        // over (remitted, or ended elsewhere). Dropping it here stops a later
+        // offline fallback from resurrecting an ended shift — and with it that
+        // shift's cash/GCash totals — on the next load.
+        shiftStore.clearShift();
+      }
       return shift;
     } catch (error) {
-      if (!(error instanceof NetworkError) && !(error instanceof ApiError)) throw error;
+      // Only a genuine connectivity failure justifies serving the cached
+      // shift. An ApiError (401/403/5xx) is a server answer we can't
+      // interpret, and treating it as "offline" would show a shift that may
+      // already be ended, so let the caller surface it instead.
+      if (!(error instanceof NetworkError)) throw error;
     }
   }
 

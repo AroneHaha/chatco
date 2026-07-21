@@ -3,37 +3,49 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { AuthProvider, useAuth } from "@/contexts/auth-context";
+import { AnnouncementsProvider, useAnnouncements } from "@/contexts/announcements-context";
+import { RewardsProvider, useRewardsData } from "@/contexts/rewards-context";
 import { getCommuterTypeLabel } from "@/types";
 
-// --- BADGE FETCH (Backend Proof) ---
-// TODO: Replace with GET /api/commuter/badges
-const fetchBadgeCounts = () => {
-  return {
-    rewards: 2, // e.g., 2 available vouchers + unread announcements
-  };
-};
+/**
+ * Spell out what the Rewards badge is counting for screen readers — the number
+ * alone is ambiguous when it merges two different things.
+ */
+function rewardsBadgeLabel(unread: number, vouchers: number): string {
+  const parts: string[] = [];
+  if (unread > 0) parts.push(`${unread} unread update${unread === 1 ? "" : "s"}`);
+  if (vouchers > 0) parts.push(`${vouchers} voucher${vouchers === 1 ? "" : "s"} ready to redeem`);
+  return parts.join(", ");
+}
 
 function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { commuterProfile, isLoading: authLoading } = useAuth();
+  // The Rewards tab covers both announcements and vouchers, so its badge is
+  // the sum of the two things worth opening it for: updates you haven't read,
+  // and free-ride vouchers you can redeem right now (one per 10 cashless
+  // rides, and the cycle repeats — several can be waiting at once).
+  // Both come from providers shared with the rewards page, so acting on either
+  // there decrements this badge immediately. 0 renders no badge at all.
+  const { unreadCount } = useAnnouncements();
+  const { availableVoucherCount } = useRewardsData();
+  const rewardsBadge = unreadCount + availableVoucherCount;
+
   const [activeDotIndex, setActiveDotIndex] = useState(
     navItems.findIndex((item) => item.href === pathname)
   );
-  const [badges, setBadges] = useState({ rewards: 0 });
-
-  useEffect(() => {
-    setBadges(fetchBadgeCounts());
-  }, []);
 
   const handleNav = (href: string, index: number) => {
     setActiveDotIndex(index);
   };
 
   const navItemsWithBadges = navItems.map(item => {
-    if (item.href === "/rewards") return { ...item, badge: badges.rewards };
-    return { ...item, badge: 0 };
+    if (item.href === "/rewards") {
+      return { ...item, badge: rewardsBadge, badgeLabel: rewardsBadgeLabel(unreadCount, availableVoucherCount) };
+    }
+    return { ...item, badge: 0, badgeLabel: "" };
   });
 
   // Derive user info from auth context
@@ -63,6 +75,7 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
                 key={item.href}
                 href={item.href}
                 onClick={() => handleNav(item.href, index)}
+                aria-label={item.badge > 0 ? `${item.label} — ${item.badgeLabel}` : undefined}
                 className={`relative flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 min-w-0 ${
                   isActive ? "bg-[#1A5FB4] text-white shadow-lg shadow-[#1A5FB4]/30" : "text-white/50 hover:text-white hover:bg-white/5"
                 }`}
@@ -70,8 +83,11 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
                 <div className="relative flex-shrink-0">
                   <item.icon className="w-5 h-5" />
                   {item.badge > 0 && (
-                     <span className="absolute -top-2 -right-2 w-4 h-4 bg-[#FF6D3A] rounded-full text-[9px] font-bold text-white flex items-center justify-center ring-2 ring-[#071A2E]">
-                       {item.badge}
+                     <span
+                       aria-hidden="true"
+                       className="absolute -top-2 -right-2 min-w-4 h-4 px-1 bg-[#FF6D3A] rounded-full text-[9px] font-bold text-white flex items-center justify-center ring-2 ring-[#071A2E] tabular-nums"
+                     >
+                       {item.badge > 99 ? "99+" : item.badge}
                      </span>
                   )}
                 </div>
@@ -97,42 +113,55 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
         {children}
 
         {/* --- MOBILE BOTTOM NAV --- */}
-        <nav className="absolute bottom-0 inset-x-0 z-50 bg-[#071A2E]/95 backdrop-blur-xl border-t border-white/10 lg:hidden">
-          <div className="relative grid grid-cols-5 h-20 max-w-lg mx-auto">
-            <div
-              className="absolute top-1.5 w-1.5 h-1.5 rounded-full bg-[#62A0EA] transition-all duration-300 ease-in-out"
-              style={{ left: `calc(${activeDotIndex * (100/5) + (100/10)}% - 3px)` }}
-            />
+        {/* Chrome matches components/conductor/conductor-bottom-nav.tsx so both
+            roles read as the same app: same surface, blur, lift shadow and
+            rounded-2xl icon chips. */}
+        <nav className="absolute bottom-0 inset-x-0 z-50 lg:hidden pb-safe">
+          <div className="bg-[#0B1E33]/90 backdrop-blur-2xl shadow-[0_-4px_30px_rgba(0,0,0,0.3)] border-t border-white/[0.06]">
+            <div className="relative grid grid-cols-5 max-w-lg mx-auto pt-1 pb-1 md:pt-1.5 md:pb-1.5">
+              <div
+                className="absolute top-1.5 w-1.5 h-1.5 rounded-full bg-[#62A0EA] transition-all duration-300 ease-in-out"
+                style={{ left: `calc(${activeDotIndex * (100/5) + (100/10)}% - 3px)` }}
+              />
 
-            {navItemsWithBadges.map((item, index) => {
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => handleNav(item.href, index)}
-                  className="flex flex-col items-center justify-center pt-2 pb-1 relative group"
-                >
-                  <div
-                    className={`relative w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 ease-out ${
-                      isActive ? "bg-[#1A5FB4] scale-100 shadow-lg shadow-[#1A5FB4]/40" : "bg-transparent scale-75 group-hover:scale-90"
-                    }`}
+              {navItemsWithBadges.map((item, index) => {
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => handleNav(item.href, index)}
+                    aria-label={item.badge > 0 ? `${item.label} — ${item.badgeLabel}` : undefined}
+                    className="flex flex-col items-center justify-center py-1 relative group"
                   >
-                    <item.icon className={`w-5 h-5 transition-colors duration-300 ${isActive ? "text-white" : "text-white/50 group-hover:text-white/80"}`} />
+                    <div
+                      className={`relative flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-2xl transition-all duration-300 ease-out ${
+                        isActive
+                          ? "bg-[#1A5FB4] shadow-lg shadow-[#1A5FB4]/25"
+                          : "hover:bg-white/[0.06]"
+                      }`}
+                    >
+                      <item.icon className={`w-[17px] h-[17px] md:w-[18px] md:h-[18px] transition-colors duration-300 ${isActive ? "text-white" : "text-white/40 group-hover:text-white/70"}`} />
 
-                    {item.badge > 0 && (
-                      <span className="absolute top-0.5 right-0.5 w-4 h-4 bg-[#FF6D3A] rounded-full text-[9px] font-bold text-white flex items-center justify-center ring-2 ring-[#071A2E]/95">
-                        {item.badge}
-                      </span>
-                    )}
-                  </div>
+                      {item.badge > 0 && (
+                        <span
+                          aria-hidden="true"
+                          className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-[#FF6D3A] rounded-full text-[9px] font-bold text-white flex items-center justify-center ring-2 ring-[#0B1E33] tabular-nums"
+                        >
+                          {item.badge > 99 ? "99+" : item.badge}
+                        </span>
+                      )}
+                    </div>
 
-                  <span className={`mt-1 text-[9px] font-medium transition-colors duration-300 truncate max-w-[56px] text-center ${isActive ? "text-[#62A0EA]" : "text-white/40"}`}>
-                    {item.shortLabel || item.label}
-                  </span>
-                </Link>
-              );
-            })}
+                    <span className={`text-[10px] font-medium mt-0.5 md:mt-1 transition-colors duration-300 leading-none truncate max-w-[64px] text-center ${
+                      isActive ? "text-white" : "text-white/30 group-hover:text-white/50"
+                    }`}>
+                      {item.shortLabel || item.label}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
           </div>
         </nav>
       </main>
@@ -140,11 +169,18 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Wrap with AuthProvider so all commuter pages have access to auth context
+// Wrap with AuthProvider so all commuter pages have access to auth context.
+// The announcement and rewards providers sit inside it (both read auth to
+// decide whether to fetch) and outside the layout body, so the tab badge and
+// the rewards page share one copy of the feed and one copy of the vouchers.
 export default function CommuterLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
-      <CommuterLayoutInner>{children}</CommuterLayoutInner>
+      <AnnouncementsProvider>
+        <RewardsProvider>
+          <CommuterLayoutInner>{children}</CommuterLayoutInner>
+        </RewardsProvider>
+      </AnnouncementsProvider>
     </AuthProvider>
   );
 }

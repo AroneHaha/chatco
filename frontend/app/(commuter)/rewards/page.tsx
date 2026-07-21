@@ -1,10 +1,17 @@
 // app/(commuter)/rewards/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { useRewards } from "./use-rewards";
-import { useAnnouncements } from "../announcements/use-announcements";
+import { useAnnouncements } from "@/contexts/announcements-context";
 import { Voucher, AnnouncementType, Announcement } from "./types";
+
+// Camera-dependent, so it stays out of the initial bundle and off the server.
+const ReceiptScanModal = dynamic(
+  () => import("@/components/commuter/modals/receipt-scan-modal"),
+  { ssr: false }
+);
 
 // Each category gets a catchy emoji + colour so announcements pop in the feed.
 const announcementConfig: Record<AnnouncementType, { color: string; bg: string; label: string; emoji: string }> = {
@@ -28,10 +35,22 @@ function formatRelativeTime(iso: string): string {
 }
 
 export default function RewardsPage() {
-  const { 
-    data, isLoading: rewardsLoading, progressPercent, ridesRemaining, 
-    showVoucherModal, setShowVoucherModal, activeVoucher, redeemVoucher
+  const {
+    data, isLoading: rewardsLoading, progressPercent, ridesRemaining,
+    showVoucherModal, setShowVoucherModal, activeVoucher, redeemVoucher, refetch
   } = useRewards();
+
+  // Paper cash receipt scanner (binds a cash ride to this account).
+  const [showReceiptScan, setShowReceiptScan] = useState(false);
+
+  // "How rewards work" explainer, opened from the ? on the progress card.
+  const [showRewardsHelp, setShowRewardsHelp] = useState(false);
+
+  // Stable identity: an inline arrow here would be a new function on every
+  // render, which the scan modal would otherwise see as a changed prop.
+  const handleReceiptClaimed = useCallback(() => {
+    void refetch();
+  }, [refetch]);
 
   const {
     announcements, isLoading: announcementsLoading, markAsRead, markAllAsRead, unreadCount
@@ -65,14 +84,38 @@ export default function RewardsPage() {
   };
 
   return (
-    <div className="h-full w-full bg-[#050F1A] overflow-y-auto pb-28 lg:pb-8">
-      <div className="max-w-4xl mx-auto p-6 lg:p-8 space-y-8">
-        
-        {/* --- HEADER --- */}
-        <div>
-          <h1 className="text-white font-bold text-2xl">Rewards & Updates</h1>
-          <p className="text-white/40 text-sm mt-1">Your perks, progress, and latest alerts.</p>
+    // Pinned header + independently scrolling body, matching the shell used by
+    // lost-and-found: the page owns the viewport height and only the section
+    // list below scrolls, so the title and the receipt-scan action stay
+    // reachable no matter how far down the voucher list the user is.
+    <div className="h-full w-full flex flex-col overflow-hidden bg-[#050F1A]">
+
+      {/* --- HEADER (fixed) --- */}
+      <div className="flex-shrink-0 border-b border-white/10 bg-[#071A2E] z-10">
+        <div className="max-w-4xl mx-auto flex items-start justify-between gap-4 p-4 lg:px-8 lg:py-6">
+          <div className="min-w-0">
+            <h1 className="text-white font-bold text-xl lg:text-2xl">Rewards & Updates</h1>
+            <p className="text-white/40 text-xs mt-1">Your perks, progress, and latest alerts.</p>
+          </div>
+          {/* Paid in cash? Scan the QR on the paper receipt to count that ride.
+              Sits on the header surface now, so it takes the darker page fill
+              to stay visible against it. */}
+          <button
+            onClick={() => setShowReceiptScan(true)}
+            title="Scan receipt QR"
+            className="w-11 h-11 rounded-xl bg-[#050F1A] hover:bg-[#0B1E33] border border-white/10 flex items-center justify-center flex-shrink-0 transition-colors group"
+          >
+            <svg className="w-5 h-5 text-white/60 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 13.5h.75v.75h-.75v-.75ZM13.5 19.5h.75v.75h-.75v-.75ZM19.5 13.5h.75v.75h-.75v-.75ZM19.5 19.5h.75v.75h-.75v-.75ZM16.5 16.5h.75v.75h-.75v-.75Z" />
+            </svg>
+          </button>
         </div>
+      </div>
+
+      {/* --- SCROLLING BODY --- */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-4xl mx-auto p-4 pb-28 lg:p-8 lg:pb-8 space-y-8">
 
         {/* --- 1. ANNOUNCEMENTS SECTION --- */}
         <div className="space-y-4">
@@ -114,7 +157,22 @@ export default function RewardsPage() {
         </div>
 
         {/* --- 2. PROGRESS RING SECTION --- */}
-        <div className="bg-[#071A2E] border border-white/10 rounded-2xl p-8 flex flex-col md:flex-row items-center gap-8 shadow-xl shadow-black/20">
+        {/* `relative` anchors the help button; `pt-12 md:pt-8` keeps the ring
+            clear of it on mobile, where the card stacks vertically. */}
+        <div className="relative bg-[#071A2E] border border-white/10 rounded-2xl p-8 pt-12 md:pt-8 flex flex-col md:flex-row items-center gap-8 shadow-xl shadow-black/20">
+          {/* How the reward cycle works — the rules (which payments count, how
+              cash rides get credited, when vouchers expire) aren't guessable
+              from the ring alone, and the receipt-scan button that credits a
+              cash ride is easy to miss entirely. */}
+          <button
+            type="button"
+            onClick={() => setShowRewardsHelp(true)}
+            aria-label="How rewards work"
+            className="absolute top-4 left-4 w-7 h-7 rounded-full bg-[#050F1A] border border-white/10 text-white/40 hover:text-white hover:border-white/25 text-xs font-bold flex items-center justify-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
+          >
+            ?
+          </button>
+
           <div className="relative w-48 h-48 flex-shrink-0">
             <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
@@ -139,7 +197,7 @@ export default function RewardsPage() {
               {ridesRemaining === 0 ? "Free Ride Unlocked! 🎉" : `${ridesRemaining} Rides to Free Ride`}
             </h2>
             <p className="text-white/40 text-sm mb-6">
-              Complete {data.ridesNeeded} cashless rides to earn a free ride voucher. Your total completed rides: <span className="text-[#62A0EA] font-bold">{data.totalRides}</span>.
+              Complete {data.ridesNeeded} paid rides to earn a free ride voucher — GCash counts automatically, cash counts once you scan the receipt QR. Your total completed rides: <span className="text-[#62A0EA] font-bold">{data.totalRides}</span>.
             </p>
             <div className="flex gap-3 justify-center md:justify-start">
               <div className="bg-[#050F1A] border border-white/10 rounded-xl px-4 py-3 text-center">
@@ -197,7 +255,91 @@ export default function RewardsPage() {
           </div>
         </div>
 
+        </div>
       </div>
+
+      {/* --- RECEIPT SCAN MODAL --- */}
+      {showReceiptScan && (
+        <ReceiptScanModal
+          onClose={() => setShowReceiptScan(false)}
+          // A newly claimed ride changes the progress ring, and may have just
+          // completed the cycle — the backend generates the voucher on read,
+          // so refetching is what surfaces it.
+          onClaimed={handleReceiptClaimed}
+        />
+      )}
+
+      {/* --- "HOW REWARDS WORK" MODAL --- */}
+      {showRewardsHelp && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => setShowRewardsHelp(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="rewards-help-title"
+        >
+          <div
+            className="bg-[#071A2E] w-full max-w-md rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-hidden max-h-[85vh]"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="p-6 border-b border-white/10">
+              <h2 id="rewards-help-title" className="text-white font-bold text-lg leading-tight">
+                How free rides work
+              </h2>
+              <p className="text-white/40 text-xs mt-1">
+                Every {data.ridesNeeded} paid rides earns you one free ride.
+              </p>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-5">
+              <HelpStep n={1} title="Ride and pay">
+                Every ride you pay for counts as <span className="text-white font-semibold">+1</span> toward
+                your next free ride. Pay with <span className="text-white font-semibold">GCash</span> and
+                it&apos;s counted automatically the moment the fare is recorded.
+              </HelpStep>
+
+              <HelpStep n={2} title="Paid in cash? Scan the receipt">
+                Cash fares aren&apos;t linked to your account on their own. The conductor&apos;s
+                paper receipt has a QR on it — tap the scan button at the top right of
+                this page and scan it to claim that ride. Each receipt can only be
+                claimed once, and only for a limited time after the ride, so scan it
+                before you throw it away.
+              </HelpStep>
+
+              <HelpStep n={3} title={`Hit ${data.ridesNeeded} and a voucher appears`}>
+                At {data.ridesNeeded} rides a free ride voucher is added to
+                &ldquo;My Vouchers&rdquo; below, and the counter resets to zero. The cycle
+                repeats forever — every {data.ridesNeeded} rides earns another one, and
+                you can hold several at once.
+              </HelpStep>
+
+              <HelpStep n={4} title="Redeem it on your next ride">
+                Tap <span className="text-white font-semibold">Use Voucher</span>, then show
+                the code to the conductor. They enter it and the ride is free. Vouchers
+                expire <span className="text-white font-semibold">30 days</span> after you
+                earn them, so use them before then.
+              </HelpStep>
+
+              <div className="bg-[#050F1A] border border-white/10 rounded-xl p-4">
+                <p className="text-[11px] text-white/50 leading-relaxed">
+                  <span className="text-white/70 font-semibold">One catch:</span> a ride you
+                  pay for with a voucher is free, so it doesn&apos;t count toward the next
+                  one. Only rides you actually pay for move the counter.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-white/10">
+              <button
+                onClick={() => setShowRewardsHelp(false)}
+                className="w-full bg-white/5 hover:bg-white/10 text-white/70 text-sm font-semibold py-3 rounded-xl border border-white/10 transition-colors"
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* --- ACTIVE VOUCHER MODAL --- */}
       {showVoucherModal && activeVoucher && (
@@ -228,8 +370,11 @@ export default function RewardsPage() {
       {selectedAnnouncement && (() => {
         const config = announcementConfig[selectedAnnouncement.type];
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedAnnouncement(null)}>
-            <div className="bg-[#071A2E] w-full max-w-md rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-hidden max-h-[85vh]" onClick={e => e.stopPropagation()}>
+          // pb-24 clears the commuter tab bar, which the layout renders as an
+          // absolute overlay at the same z-50 — it was covering the bottom of
+          // this panel, including part of the Close button.
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-24 lg:pb-4 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedAnnouncement(null)}>
+            <div className="bg-[#071A2E] w-full max-w-md rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-hidden max-h-full" onClick={e => e.stopPropagation()}>
               <div className="p-6 border-b border-white/10">
                 <div className="flex items-center justify-between gap-3 mb-3">
                   <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${config.bg} ${config.color}`}>
@@ -240,7 +385,9 @@ export default function RewardsPage() {
                 </div>
                 <h2 className="text-white font-bold text-lg leading-tight">{selectedAnnouncement.title}</h2>
               </div>
-              <div className="p-6 overflow-y-auto">
+              {/* modal-scroll gives this a visible scrollbar so a long notice
+                  reads as scrollable rather than truncated. */}
+              <div className="p-6 overflow-y-auto modal-scroll">
                 <p className="text-sm text-white/70 leading-relaxed whitespace-pre-wrap wrap-break-word">
                   {selectedAnnouncement.message}
                 </p>
@@ -252,6 +399,29 @@ export default function RewardsPage() {
           </div>
         );
       })()}
+    </div>
+  );
+}
+
+/** One numbered step in the "How free rides work" explainer. */
+function HelpStep({
+  n,
+  title,
+  children,
+}: {
+  n: number;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex gap-3">
+      <div className="w-6 h-6 rounded-full bg-[#1A5FB4] text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+        {n}
+      </div>
+      <div className="min-w-0">
+        <h3 className="text-white text-sm font-bold">{title}</h3>
+        <p className="text-white/50 text-xs leading-relaxed mt-1">{children}</p>
+      </div>
     </div>
   );
 }

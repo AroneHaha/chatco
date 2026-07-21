@@ -134,7 +134,9 @@ export const defaultFinancialRules: FinancialRulesConfig = {
 };
 
 export const defaultOperationsRules: OperationsRulesConfig = {
-  speedLimitKmh: '60',
+  // Keep in sync with LocationService::speedLimitKmh()'s fallback — this is
+  // what Operations Rules shows before an admin has saved an explicit limit.
+  speedLimitKmh: '50',
   maxShiftHours: '12',
 };
 

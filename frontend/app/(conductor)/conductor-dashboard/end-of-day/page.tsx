@@ -5,7 +5,11 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { clearShift, formatTime } from "@/lib/conductor/services/shift.service";
 import { submitRemittance, type RemittanceRecord } from "@/lib/conductor/services/remittance.service";
-import { fetchShiftEarnings, type Transaction } from "@/lib/conductor/services/transactions.service";
+import {
+  fetchShiftEarnings,
+  clearShiftTransactions,
+  type Transaction,
+} from "@/lib/conductor/services/transactions.service";
 import { useRemittanceData } from "@/app/(conductor)/hooks/use-remittance-data";
 import { EndOfDaySkeleton } from "@/components/conductor/ui/skeleton";
 import { fmt, methodConfig } from "./helpers";
@@ -178,9 +182,18 @@ export default function EndOfDayPage() {
       // submitRemittance posts to Laravel /conductor/remittances, which is
       // the ONE authoritative way a shift ends (endShiftViaRemittance:
       // creates the remittance row + flips shift_logs to ENDED).
+      // Only reached if the server actually ended the shift — submitRemittance
+      // now propagates failures instead of silently writing to localStorage,
+      // so a failed remit falls into the catch below and leaves the shift
+      // alone rather than showing a success overlay for a shift that is still
+      // ACTIVE on the server.
       await submitRemittance(record);
       // Forget the locally-cached active shift so the UI reflects ended state.
       clearShift();
+      // Drop this shift's cached transactions too. They're now persisted in
+      // the remittance record, and leaving them behind means the offline
+      // fallback can still read a remitted shift's fares back out.
+      clearShiftTransactions(shiftInfo.shiftId);
 
       // Capture the totals into state BEFORE showing the overlay.
       // endShift() clears the shift data, so the live summary will be 0.

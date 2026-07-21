@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/auth-context";
 import { clearShift } from "@/lib/conductor/services/shift.service";
 import { useConductorShift } from "@/app/(conductor)/hooks/use-conductor-shift";
 import { useRemittanceData } from "@/app/(conductor)/hooks/use-remittance-data";
@@ -10,7 +10,7 @@ import ClearCacheModal from "@/components/conductor/modals/clear-cache-modal";
 import SosConfirmModal from "@/components/conductor/modals/sos-confirm-modal";
 
 export default function SettingsPage() {
-  const router = useRouter();
+  const { logout } = useAuth();
   const { shift, status: shiftStatus, error: shiftError } = useConductorShift();
   const { history, transactions, status: remitStatus, error: remitError } = useRemittanceData();
   const [scanSound, setScanSound] = useState(true);
@@ -35,7 +35,16 @@ export default function SettingsPage() {
   const [showSOS, setShowSOS] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
+  // ── DEBUG ONLY ──────────────────────────────────────────────────
+  // Conductors normally cannot self-logout: remittance is what closes out an
+  // account, so the button stays locked until cash is settled. This override
+  // unlocks it for testing (e.g. switching accounts to exercise single-device
+  // session enforcement). Gated on NODE_ENV, so a production build always
+  // keeps the remittance rule — it cannot be flipped on by accident.
+  const debugLogoutUnlocked = process.env.NODE_ENV !== "production";
+
   const logoutLocked = useMemo(() => {
+    if (debugLogoutUnlocked) return false;
     if (!shift) return false;
 
     const hasPendingRemit = history.some(
@@ -50,7 +59,7 @@ export default function SettingsPage() {
     if (totalCollections > 0 && !hasRemitted) return true;
 
     return false;
-  }, [shift, history, transactions]);
+  }, [debugLogoutUnlocked, shift, history, transactions]);
 
   const handleClearCache = () => {
     localStorage.removeItem("conductor_app_cache");
@@ -65,7 +74,11 @@ export default function SettingsPage() {
   const confirmLogout = () => {
     setShowLogoutConfirm(false);
     clearShift();
-    router.push("/login");
+    // Must revoke the session, not just navigate: router.push alone left the
+    // Sanctum token and the httpOnly cookie intact, so the "logged out"
+    // conductor could reach the dashboard again just by navigating back.
+    // logout() clears both server-side and hard-redirects to /login.
+    void logout();
   };
 
   if (shiftStatus === "loading" || remitStatus === "loading") {
@@ -360,6 +373,13 @@ export default function SettingsPage() {
 
         {/* ===== Logout (Bottom of scroll for both Mobile & Desktop) ===== */}
         <div className="pt-6 border-t border-white/[0.06]">
+          {debugLogoutUnlocked && (
+            <div className="flex items-center justify-center gap-1.5 mb-3">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-orange-400/80 bg-orange-500/10 border border-orange-500/20 rounded px-2 py-1">
+                Debug build — remittance lock bypassed
+              </span>
+            </div>
+          )}
           {logoutLocked && (
             <div className="flex items-center justify-center gap-1.5 mb-3">
               <svg
