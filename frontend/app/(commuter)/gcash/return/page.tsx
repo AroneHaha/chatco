@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { fetchPaymentStatus, type PaymentStatus } from "@/lib/commuter/services/payment.service";
 
@@ -28,6 +28,24 @@ import { fetchPaymentStatus, type PaymentStatus } from "@/lib/commuter/services/
  * drives the status to PAID through the same webhook path.
  */
 export default function GcashReturnPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#071A2E] flex items-center justify-center p-4">
+          <div className="w-full max-w-sm bg-[#0E1628] border border-white/10 rounded-2xl p-8 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-[#1A5FB4] border-t-transparent animate-spin" />
+            <h1 className="text-lg font-bold text-white mb-2">Loading...</h1>
+            <p className="text-sm text-white/40">Preparing your payment confirmation.</p>
+          </div>
+        </div>
+      }
+    >
+      <GcashReturnContent />
+    </Suspense>
+  );
+}
+
+function GcashReturnContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const transactionId = searchParams.get("transaction_id");
