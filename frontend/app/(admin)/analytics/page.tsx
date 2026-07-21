@@ -31,6 +31,7 @@ import { PickupPointsList } from '@/components/admin/analytics/pickup-points-lis
 import { DemandHeatmapData } from '@/components/admin/analytics/demand-heatmap-data';
 import type { PickupPoint, HeatmapZone, HeatmapIntensity } from '@/app/(admin)/analytics/data/analytics-data';
 import { SkeletonCard } from '@/components/admin/ui/skeleton';
+import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 import type {
   AnalyticsRemittance,
   PaymentMethodUsage,
@@ -476,11 +477,15 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Header. Only the title pins on phones — the data-range caption and the
+          preset/custom-date controls are tall when stacked, and a sticky bar
+          carrying all of them would cover most of a small screen. */}
+      <StickyPageHeader>
+        <h1 className="text-2xl font-bold text-white">Financial &amp; Operations Analytics</h1>
+      </StickyPageHeader>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 -mt-4 md:mt-0">
         <div>
-          <h1 className="text-2xl font-bold text-white">Financial & Operations Analytics</h1>
-          <p className="text-sm text-white/40 mt-1">
+          <p className="text-sm text-white/40">
             {activeTab === 'overview' && data
               ? `Aggregated from real DB data · ${data.date_range.from} to ${data.date_range.to} (${data.date_range.days} days)`
               : 'Conductor remittances, payment method breakdowns, and commuter demand data.'}

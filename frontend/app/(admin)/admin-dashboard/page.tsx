@@ -10,6 +10,7 @@ import { DashboardMapPreview } from "@/components/admin/dashboard/dashboard-map-
 import { DashboardAnalyticsPreview } from "@/components/admin/dashboard/dashboard-analytics-preview";
 import { DashboardPreviewCards } from "@/components/admin/dashboard/dashboard-preview-cards";
 import { DashboardSettingsCarousel } from "@/components/admin/dashboard/dashboard-settings-carousel";
+import { StickyPageHeader } from "@/components/admin/layout/sticky-page-header";
 
 export default function DashboardHome() {
   const { data, isLoading, error, refetch } = useDashboardData();
@@ -56,6 +57,10 @@ export default function DashboardHome() {
     );
   }
 
+  // isLoading and error are handled above, but neither narrows `data` for the
+  // compiler — it stays `DashboardData | null`. Guard before destructuring.
+  if (!data) return null;
+
   const {
     recentVehicles,
     recentLostFound,
@@ -68,12 +73,14 @@ export default function DashboardHome() {
 
   return (
     <div className="space-y-6 pb-8">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-          <p className="text-sm text-slate-400 mt-1">Welcome back. Here&apos;s what&apos;s happening across your network today.</p>
-        </div>
+      {/* Header. Only the title pins on phones — the greeting and the settings
+          link stay in the scroll flow so the sticky bar stays one line tall
+          instead of eating a third of a small screen. */}
+      <StickyPageHeader>
+        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+      </StickyPageHeader>
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 -mt-4 md:mt-0">
+        <p className="text-sm text-slate-400">Welcome back. Here&apos;s what&apos;s happening across your network today.</p>
         <Link href="/settings" className="group flex items-center gap-2 text-sm font-medium text-[#62A0EA] hover:text-[#99C1F1] transition-colors w-fit">
           Open Full Settings
           <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />

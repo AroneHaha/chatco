@@ -31,12 +31,15 @@ export interface CreateFarePointInput {
   point_number: number;
   code: string;
   name: string;
-  landmarks?: string;
-  sub_stops?: string;
+  // Nullable, not just optional: the edit form sends null to CLEAR an existing
+  // value ("" -> null), which omitting the key would not do. Mirrors FarePoint,
+  // where both fields are `string | null`.
+  landmarks?: string | null;
+  sub_stops?: string | null;
   regular_fare: number;
   discounted_fare: number;
-  latitude?: number;
-  longitude?: number;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export type UpdateFarePointInput = Partial<CreateFarePointInput>;
