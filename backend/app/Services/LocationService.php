@@ -84,13 +84,19 @@ class LocationService
     }
 
     /**
-     * The current speed limit in km/h (settings `speed_limit_kmh`, default 60),
+     * The current speed limit in km/h (settings `speed_limit_kmh`, default 50),
      * cached briefly so high-frequency GPS pings don't hammer the settings table.
+     *
+     * The default is the fallback only — an admin-set `speed_limit_kmh` row in
+     * settings still wins, so the Operations Rules screen keeps full control.
+     *
+     * NOTE: the Cache::remember TTL means a changed limit takes up to 60s to
+     * take effect on live pings.
      */
     private function speedLimitKmh(): int
     {
         return (int) Cache::remember('overspeed.limit_kmh', 60, function () {
-            return (int) (Setting::where('key', 'speed_limit_kmh')->value('value') ?? 60);
+            return (int) (Setting::where('key', 'speed_limit_kmh')->value('value') ?? 50);
         });
     }
 
