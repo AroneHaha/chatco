@@ -1,9 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import { useProfile } from "./use-profile";
 import { AccountStatus } from "./types";
 
 export default function ProfilePage() {
+  // Logging out is one tap from a scrollable page and is not undoable without
+  // re-entering credentials, so it goes through a confirmation first — same
+  // treatment the admin side already gives it (components/admin/ui/sign-out-modal).
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const {
     profile,
     loadState,
@@ -404,12 +409,57 @@ export default function ProfilePage() {
         </div>
 
         <button
-          onClick={handleLogout}
+          onClick={() => setShowLogoutConfirm(true)}
           className="w-full py-3 rounded-xl text-sm font-semibold border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors mt-8"
         >
           Log Out
         </button>
       </div>
+
+      {/* --- LOG OUT CONFIRMATION --- */}
+      {showLogoutConfirm && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          onClick={() => setShowLogoutConfirm(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="logout-confirm-title"
+        >
+          <div
+            className="bg-[#071A2E] w-full max-w-sm rounded-2xl border border-white/10 shadow-2xl p-6 text-center animate-fade-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto w-14 h-14 rounded-full bg-red-500/10 flex items-center justify-center">
+              <svg className="w-7 h-7 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" />
+              </svg>
+            </div>
+
+            <h2 id="logout-confirm-title" className="text-white font-bold text-lg mt-4">
+              Log out?
+            </h2>
+            <p className="text-white/50 text-sm mt-2">
+              You&apos;ll need to sign in again to book rides, scan receipts and
+              view your rewards.
+            </p>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLogout}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold bg-red-500 text-white hover:bg-red-600 transition-colors"
+              >
+                Log Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* --- CHANGE PASSWORD MODAL --- */}
       {showPasswordModal && (

@@ -54,7 +54,12 @@ export default function LocationFinder({
 
       // Only auto-center the map on the FIRST successful GPS acquisition.
       // After that, respect the user's manual navigation (drag/zoom/pan).
-      if (!hasInitialCenteredRef.current) {
+      //
+      // userInteractedRef matters even for that first fix: a mobile cold start
+      // can take 30s (see the locate timeout below), and if the user panned or
+      // zoomed while waiting, flying them to zoom 16 yanks the view out from
+      // under them. Someone who has already moved the map has chosen their view.
+      if (!hasInitialCenteredRef.current && !userInteractedRef.current) {
         // Fly to user if they are near the route (smooth animation, high zoom)
         if (routeBounds.contains(userLatLng)) {
           setArrowPos(null);
@@ -121,6 +126,11 @@ export default function LocationFinder({
   useEffect(() => {
     // Increased timeout for mobile GPS cold starts (10-30+ seconds).
     map.locate({ setView: false, maxZoom: 16, enableHighAccuracy: true, timeout: 30000, watch: true });
+    // Without stopLocate the geolocation watch outlives the component, so
+    // navigating away and back stacks another watcher on the same map.
+    return () => {
+      map.stopLocate();
+    };
   }, [map]);
 
   useEffect(() => {
