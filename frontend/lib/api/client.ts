@@ -69,9 +69,34 @@ export interface ApiResponse<T> {
 
 class ApiClient {
   private config: ApiConfig;
+  /** Guards against a burst of concurrent 401s each firing a redirect. */
+  private sessionEndedHandled = false;
 
   constructor(config: ApiConfig = defaultConfig) {
     this.config = config;
+  }
+
+  /**
+   * A 401 on an authenticated call means this device's token is gone — either
+   * it expired, or a staff account signed in elsewhere and single-device
+   * enforcement revoked it (AuthService::login). The cookie is httpOnly, so
+   * clearing it requires the server route; then we land on /login rather than
+   * leaving a dead session showing errors.
+   *
+   * Safe against the login screen: /api/auth/login and /api/auth/me use plain
+   * fetch, not this client, so a wrong password (also a 401) never lands here.
+   */
+  private async handleSessionEnded(): Promise<void> {
+    if (typeof window === "undefined") return;
+    if (this.sessionEndedHandled) return;
+    this.sessionEndedHandled = true;
+
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // Best-effort — redirect regardless; middleware re-guards the route.
+    }
+    window.location.href = "/login?reason=session_ended";
   }
 
   private async request<T>(
@@ -100,6 +125,11 @@ class ApiClient {
       const data = await response.json();
 
       if (!response.ok) {
+        // Fire-and-forget: callers still get the ApiError so their own error
+        // handling runs, while the redirect proceeds in the background.
+        if (response.status === 401) {
+          void this.handleSessionEnded();
+        }
         throw new ApiError(response.status, response.statusText, data);
       }
 
