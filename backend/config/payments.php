@@ -53,6 +53,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Cash Receipt Claim TTL (hours)
+    |--------------------------------------------------------------------------
+    | A CASH fare is already PAID at the moment the conductor records it, but
+    | it has no passenger_id — cash involves no account. The printed receipt
+    | carries a QR holding the transaction's opaque qr_token, so the commuter
+    | can bind the ride to their account later (e.g. at home, back on wifi)
+    | and have it count toward the free-ride reward cycle.
+    |
+    | This window is deliberately much longer than the GCash claim TTL (that
+    | one races a live checkout; this one only has to outlast the ride home)
+    | but is NOT unlimited: the QR is a bearer token, so anyone holding the
+    | paper can claim the ride. Capping it at 6 hours keeps a discarded or
+    | lost receipt from being worth a reward point indefinitely.
+    |
+    | Measured from the transaction's created_at (when the receipt printed).
+    */
+    'cash_receipt_ttl_hours' => (int) env('PAYMENT_CASH_RECEIPT_TTL_HOURS', 6),
+
+    /*
+    |--------------------------------------------------------------------------
     | Provider Reconciliation (status-poll fallback)
     |--------------------------------------------------------------------------
     | When the PayMongo webhook is delayed or missing, the status polling
