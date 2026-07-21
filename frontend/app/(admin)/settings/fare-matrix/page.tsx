@@ -169,7 +169,7 @@ export default function FareMatrixPage() {
         name: editName.trim(),
         regular_fare: parseFloat(editRegular) || 18,
         discounted_fare: parseFloat(editDiscounted) || 14.4,
-        sub_stops: editSubStops.trim() || null,
+        sub_stops: editSubStops.trim() || undefined,
       });
       showSuccess(`Point "${editName}" updated successfully.`);
       setEditingPoint(null);

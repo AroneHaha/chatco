@@ -56,6 +56,11 @@ export default function DashboardHome() {
     );
   }
 
+  // Data-not-ready fallback (covers edge case where isLoading is false but data is null)
+  if (!data) {
+    return null;
+  }
+
   const {
     recentVehicles,
     recentLostFound,
