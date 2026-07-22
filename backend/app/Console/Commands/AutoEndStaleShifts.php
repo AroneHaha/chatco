@@ -2,9 +2,12 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\ShiftStatus;
+use App\Models\Driver;
+use App\Models\Remittance;
 use App\Models\Setting;
 use App\Models\ShiftLog;
-use App\Services\ShiftService;
+use App\Models\Vehicle;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -102,30 +105,56 @@ class AutoEndStaleShifts extends Command
 
         $shortage = 0; // No shortage for auto-ended shifts (no cash declared).
 
-        DB::transaction(function () use ($shift, $cashTotal, $gcashTotal, $totalPassengers, $shortage) {
-            // Create a remittance record.
-            \App\Models\Remittance::create([
-                'shift_id'           => $shift->shift_id,
-                'conductor_id'       => $shift->conductor_id,
-                'date'               => now()->toDateString(),
-                'total_collected'    => $cashTotal,
-                'remitted_amount'    => $cashTotal,
-                'shortage'           => $shortage,
-                'cash_total'         => $cashTotal,
-                'gcash_total'        => $gcashTotal,
-                'total_passengers'   => $totalPassengers,
-                'remittance_status'  => $shortage > 0 ? 'SHORTAGE' : 'COMPLETE',
-            ]);
+        // The remittance's business date is the day the shift STARTED (matching
+        // the midnight reset + how ENDED shifts are recorded), not the hour it
+        // happened to be auto-closed — a shift that ran past midnight must not
+        // land on the wrong day's totals. time_in is NOT NULL on shift_logs, so
+        // the now() fallback is just defensive.
+        $date = optional($shift->time_in)->toDateString() ?? now()->toDateString();
+        $timeOut = now();
+
+        DB::transaction(function () use ($shift, $cashTotal, $gcashTotal, $totalPassengers, $shortage, $date, $timeOut) {
+            // Create the remittance record. Every NOT-NULL column on the
+            // remittances table must be supplied — conductor_name, driver_name,
+            // unit_number, vehicle_id, driver_id and time_in have no DB default,
+            // and omitting them was throwing a 1364 error that rolled the whole
+            // close-out back and left the shift stuck ACTIVE. These all come from
+            // the shift row (also NOT NULL there), so they are always present.
+            //
+            // Idempotency: shift_id is the PRIMARY KEY of remittances, so a
+            // second create() for the same shift would throw a duplicate-key
+            // error and roll back the close-out. Only insert when none exists.
+            if (! Remittance::where('shift_id', $shift->shift_id)->exists()) {
+                Remittance::create([
+                    'shift_id'          => $shift->shift_id,
+                    'conductor_id'      => $shift->conductor_id,
+                    'driver_id'         => $shift->driver_id,
+                    'vehicle_id'        => $shift->vehicle_id,
+                    'date'              => $date,
+                    'conductor_name'    => $shift->conductor_name,
+                    'driver_name'       => $shift->driver_name,
+                    'unit_number'       => $shift->unit_number,
+                    'total_passengers'  => $totalPassengers,
+                    'time_in'           => $shift->time_in,
+                    'time_out'          => $timeOut,
+                    'total_collected'   => $cashTotal,
+                    'remitted_amount'   => $cashTotal,
+                    'shortage'          => $shortage,
+                    'cash_total'        => $cashTotal,
+                    'gcash_total'       => $gcashTotal,
+                    'remittance_status' => $shortage > 0 ? 'SHORTAGE' : 'COMPLETE',
+                ]);
+            }
 
             // Flip the shift to ENDED.
             $shift->update([
-                'status'   => 'ENDED',
+                'status'    => ShiftStatus::ENDED->value,
                 'is_active' => false,
-                'time_out'  => now(),
+                'time_out'  => $timeOut,
             ]);
 
             // Clear the vehicle assignment.
-            \App\Models\Vehicle::where('active_shift_id', $shift->shift_id)->update([
+            Vehicle::where('active_shift_id', $shift->shift_id)->update([
                 'active_shift_id' => null,
                 'driver_id'       => null,
                 'conductor_id'    => null,
@@ -133,7 +162,7 @@ class AutoEndStaleShifts extends Command
 
             // Clear the driver's active_shift_id if applicable.
             if ($shift->driver_id) {
-                \App\Models\Driver::where('id', $shift->driver_id)
+                Driver::where('id', $shift->driver_id)
                     ->where('active_shift_id', $shift->shift_id)
                     ->update(['active_shift_id' => null]);
             }
