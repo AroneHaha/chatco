@@ -19,6 +19,7 @@ import { Plus, Users, Car, UserPlus, Archive, AlertCircle, RefreshCw } from 'luc
 import { useVehiclesData } from './data/vehicles-data';
 import type { Vehicle, Personnel } from './data/vehicles-data';
 import { SkeletonTable } from '@/components/admin/ui/skeleton';
+import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 
 export default function VehiclesPage() {
   const { data, isLoading, error, refetch } = useVehiclesData();
@@ -243,9 +244,10 @@ export default function VehiclesPage() {
 
   return (
     <>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+      <StickyPageHeader className="mb-6">
         <h1 className="text-2xl font-bold text-white">Fleet Management</h1>
-        <div className="flex items-center space-x-3 w-full sm:w-auto">
+      </StickyPageHeader>
+      <div className="flex items-center space-x-3 w-full sm:w-auto mb-6 -mt-4 md:mt-0">
           <SearchBar
             placeholder={`Search ${activeTab === 'history' ? 'history...' : activeTab}...`}
             value={searchQuery}
@@ -278,7 +280,6 @@ export default function VehiclesPage() {
             </>
           )}
         </div>
-      </div>
 
       {/* Tab Navigation */}
       <div className="flex space-x-1 mb-6 border-b border-[#1E2D45]">
