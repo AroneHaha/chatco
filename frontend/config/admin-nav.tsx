@@ -70,9 +70,8 @@ export const settingsSubRoutes = [
   "/settings/financial-rules",
   "/settings/voucher-generator",
   "/settings/safety-notifications",
+  "/settings/receipt",
   "/settings/app-configuration",
-  "/settings/remittance-options",
   "/settings/operations-rules",
-  "/settings/routes",
   "/settings/faq-management",
 ];

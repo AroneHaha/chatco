@@ -7,6 +7,7 @@ import { Badge } from '@/components/admin/ui/badge';
 import { SearchBar } from '@/components/admin/ui/search-bar';
 import { CalendarDays, Download, Filter, Wallet, Ticket, Banknote, ChevronLeft, ChevronRight, AlertCircle, RefreshCw, ReceiptText, Smartphone, Coins } from 'lucide-react';
 import { useReceiptsData, type Receipt, type PaymentMethod } from '@/app/(admin)/receipts/data/receipts-data';
+import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 
 const ROWS_PER_PAGE = 20;
 
@@ -236,17 +237,17 @@ export default function ReceiptsPage() {
 
   return (
     <div style={{ touchAction: 'manipulation' }}>
-      {/* ── Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
-        <div className="flex items-start gap-3">
+      {/* ── Header. Title pins on phones (matches remittance/analytics); the
+             refresh + export controls stay in the scroll flow below. ── */}
+      <StickyPageHeader className="mb-6">
+        <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-lg bg-[#62A0EA]/15 flex items-center justify-center shrink-0">
             <ReceiptText size={22} className="text-[#62A0EA]" />
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-white leading-tight">Fare Receipts</h1>
-          </div>
+          <h1 className="text-2xl font-bold text-white leading-tight">Fare Receipts</h1>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+      </StickyPageHeader>
+      <div className="flex items-center justify-end gap-2 mb-6 -mt-4 md:mt-0">
           {/* Manual Refresh Button */}
           <button
             onClick={() => refresh(false)}
@@ -266,7 +267,6 @@ export default function ReceiptsPage() {
             <span className="hidden sm:inline">Export CSV</span>
           </button>
         </div>
-      </div>
 
       {/* ── Summary Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-6">
