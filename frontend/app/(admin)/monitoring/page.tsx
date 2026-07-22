@@ -13,6 +13,7 @@ import {
   type DemandZone,
 } from './data/data-monitoring';
 import { SkeletonMetric, SkeletonTable, SkeletonMap } from '@/components/admin/ui/skeleton';
+import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 
 // Dynamically import the map and disable SSR (Leaflet requires the window object)
 const AdminCommuterMap = dynamic<{
@@ -25,6 +26,12 @@ const AdminCommuterMap = dynamic<{
   ssr: false,
   loading: () => <SkeletonMap height="100%" label="Live Map Loading…" />,
 });
+
+// Highlight threshold for the live fleet table's speed column. Mirrors the
+// backend's default `speed_limit_kmh` (LocationService::speedLimitKmh) — the
+// recorded overspeed rows carry their own `threshold`, so this only tints the
+// live readout.
+const SPEED_LIMIT_KMH = 50;
 
 export default function MonitoringPage() {
   // Live fleet data (real API, 5s poll)
@@ -144,6 +151,27 @@ export default function MonitoringPage() {
 
   return (
     <>
+      {/* Header with live indicator. Pinned on phones so the "Live · Updated"
+          stamp stays visible while scrolling the unit tables — it's the main
+          signal that the feed is still refreshing.
+
+          Must stay the FIRST child: StickyPageHeader carries a negative top
+          margin to reclaim <main>'s padding, so anything above it would lose
+          16px underneath. The SOS banner therefore sits below it now. */}
+      <StickyPageHeader className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-white">Live Monitoring</h1>
+        <div className="flex items-center gap-3 text-xs text-slate-500">
+          {isRefreshing ? (
+            <span className="flex items-center gap-1.5 text-[#62A0EA]"><RefreshCw size={12} className="animate-spin" />Refreshing…</span>
+          ) : lastFetchedAt ? (
+            <span className="flex items-center gap-1.5">
+              <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span>
+              Live · Updated {lastFetchedAt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </span>
+          ) : null}
+        </div>
+      </StickyPageHeader>
+
       {/* SOS feed error banner — shown when the SOS polling loop fails.
           Fleet errors are already handled by the error state above; this
           banner is specifically for the SOS hook, which previously failed
@@ -164,21 +192,6 @@ export default function MonitoringPage() {
           </button>
         </div>
       )}
-
-      {/* Header with live indicator */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-white">Live Monitoring</h1>
-        <div className="flex items-center gap-3 text-xs text-slate-500">
-          {isRefreshing ? (
-            <span className="flex items-center gap-1.5 text-[#62A0EA]"><RefreshCw size={12} className="animate-spin" />Refreshing…</span>
-          ) : lastFetchedAt ? (
-            <span className="flex items-center gap-1.5">
-              <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span>
-              Live · Updated {lastFetchedAt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-            </span>
-          ) : null}
-        </div>
-      </div>
 
       {/* Top Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -301,7 +314,7 @@ export default function MonitoringPage() {
                       <td className="py-3.5 pr-4"><div className="flex flex-col"><span className="text-sm font-semibold text-white">{v.unit_number}</span><span className="text-xs text-slate-500 font-mono">{v.plate_number}</span></div></td>
                       <td className="py-3.5 pr-4"><span className="text-sm text-slate-400">{v.driver_name ?? '—'}</span></td>
                       <td className="py-3.5 pr-4"><span className="text-sm text-slate-400">{v.route_name ?? '—'}</span></td>
-                      <td className="py-3.5 pr-4 text-center"><span className={`text-sm font-semibold ${v.speed !== null && v.speed > 60 ? 'text-red-400' : 'text-slate-300'}`}>{v.speed !== null ? `${v.speed} km/h` : '—'}</span></td>
+                      <td className="py-3.5 pr-4 text-center"><span className={`text-sm font-semibold ${v.speed !== null && v.speed > SPEED_LIMIT_KMH ? 'text-red-400' : 'text-slate-300'}`}>{v.speed !== null ? `${v.speed} km/h` : '—'}</span></td>
                       <td className="py-3.5 pr-4 text-center"><span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-medium ${v.capacity_status === 'AVAILABLE' ? 'bg-green-400/15 text-green-400' : v.capacity_status === 'STANDING' ? 'bg-yellow-400/15 text-yellow-400' : 'bg-red-400/15 text-red-400 font-bold'}`}>{v.capacity_status}</span></td>
                       <td className="py-3.5 text-center">
                         {!v.has_gps ? (

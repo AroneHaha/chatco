@@ -108,6 +108,30 @@ body {
   display: none !important;
 }
 
+/* ─── Opt back in: the ONE scroll region a modal actually owns ──────────
+ * The blanket hide above is fine for the small inner scrollers (pickers,
+ * chip rows) but wrong for a modal's main body: a long announcement was
+ * clipped mid-sentence with no scrollbar and no other cue, so it read as
+ * "the modal isn't showing everything" rather than "scroll down". This
+ * class restores a themed scrollbar and has to out-specify the !important
+ * rule above, hence the doubled selector and its own !important.
+ */
+.modal-scroll.modal-scroll {
+  scrollbar-width: thin !important;
+  scrollbar-color: #3A5480 transparent;
+}
+.modal-scroll.modal-scroll::-webkit-scrollbar {
+  display: block !important;
+  width: 6px;
+}
+.modal-scroll.modal-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.modal-scroll.modal-scroll::-webkit-scrollbar-thumb {
+  background-color: #3A5480;
+  border-radius: 9999px;
+}
+
 /* ─── Android Safe Area Utilities for Fullscreen Pickers ─── */
 .safe-area-inset {
   padding-top: env(safe-area-inset-top, 0px);
@@ -122,4 +146,46 @@ body {
 
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ─── Shared enter animation ───────────────────────────────────────────
+ * Was previously redeclared in a per-page `<style jsx global>` block. That
+ * scopes the keyframes to whichever component is mounted, so a screen that
+ * used `.animate-fade-in` from a DIFFERENT branch of the same page silently
+ * got no animation once the declaring branch unmounted — the feedback
+ * success card hit exactly that. components/conductor/remittance/
+ * SuccessOverlay.tsx also used the class without declaring it anywhere.
+ * Defining it once here makes it work regardless of what is on screen.
+ */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in { animation: none; }
+}
+
+/* ─── Feedback success countdown ring ──────────────────────────────────
+ * Moved out of the feedback page's `<style jsx global>` for the same reason
+ * as `fade-in` above: the keyframes only existed while that one branch was
+ * mounted. Duration matches the 3s countdown in app/(commuter)/feedback.
+ * 251.3 is the circumference of the r=40 circle it animates.
+ */
+@keyframes circle-deplete {
+  from { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: 251.3; }
+}
+
+.countdown-ring {
+  animation: circle-deplete 3s linear forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Hold the ring full — the digit still counts down. */
+  .countdown-ring { animation: none; }
 }

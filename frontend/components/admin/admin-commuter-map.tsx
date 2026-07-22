@@ -132,6 +132,15 @@ function LocationFinder({
 }) {
   const map = useMap();
 
+  // locate({ watch: true }) fires locationfound on EVERY GPS tick. Without
+  // these guards each tick re-ran flyTo/setView with a hard-coded zoom, so the
+  // admin's own zoom level was yanked back (out to 13, or down to 16) every few
+  // seconds while watching live units. Auto-center is a one-time courtesy on
+  // the first fix, and it defers to any manual navigation — matching the
+  // commuter map's LocationFinder, which already worked this way.
+  const hasInitialCenteredRef = useRef(false);
+  const userInteractedRef = useRef(false);
+
   useMapEvents({
     locationfound(e) {
       const { lat, lng } = e.latlng;
@@ -142,6 +151,9 @@ function LocationFinder({
       const userLatLng = L.latLng(lat, lng);
       setShowMapPin(true);
 
+      // Marker position always updates above; only the camera is guarded.
+      if (hasInitialCenteredRef.current || userInteractedRef.current) return;
+
       if (routeBounds.contains(userLatLng)) {
         setArrowPos(null);
         map.flyTo([lat, lng], 16, { duration: 1.5 });
@@ -149,6 +161,7 @@ function LocationFinder({
         setArrowPos(null);
         map.setView([lat, lng], 13, { animate: true });
       }
+      hasInitialCenteredRef.current = true;
     },
     locationerror(e) {
       console.error("Location access denied:", e.message);
@@ -185,11 +198,23 @@ function LocationFinder({
 
       setArrowPos({ x: 50 + (t * dx), y: 50 + (t * dy), angle: angle });
     },
-    dragstart() { map.closePopup(); }
+    dragstart() {
+      map.closePopup();
+      userInteractedRef.current = true;
+    },
+    zoomstart() {
+      userInteractedRef.current = true;
+    },
   });
 
   useEffect(() => {
     map.locate({ setView: false, maxZoom: 16, enableHighAccuracy: true, timeout: 10000, watch: true });
+    // Without stopLocate the geolocation watch outlives the component, so a
+    // remount stacks a second watcher on the same map and locationfound fires
+    // multiple times per tick.
+    return () => {
+      map.stopLocate();
+    };
   }, [map]);
 
   return null;

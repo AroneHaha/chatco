@@ -27,10 +27,20 @@ export function useConductorLocationBroadcast(active: boolean): void {
       if (now - lastSentRef.current < MIN_SEND_INTERVAL_MS) return;
       lastSentRef.current = now;
 
+      // coords.speed is METRES PER SECOND (W3C Geolocation spec), but every
+      // consumer treats vehicle_locations.speed as km/h — the monitoring table
+      // renders it as "N km/h" and overspeed detection compares it against the
+      // km/h limit. Sending it raw made 50 km/h arrive as ~13.9, so a unit had
+      // to reach 180 km/h to trip a 50 km/h threshold. Convert at the source.
+      const speedKmh =
+        pos.coords.speed != null && Number.isFinite(pos.coords.speed)
+          ? pos.coords.speed * 3.6
+          : null;
+
       void updateConductorLocation({
         lat: pos.coords.latitude,
         lng: pos.coords.longitude,
-        speed: pos.coords.speed ?? null,
+        speed: speedKmh,
         heading: pos.coords.heading ?? null,
       }).catch(() => {
         // best-effort — ignore (no active shift yet, offline, etc.)

@@ -75,6 +75,19 @@ class AuthService
             }
         }
 
+        // ─── Single-device enforcement (ADMIN + CONDUCTOR) ──────────
+        // Staff accounts are limited to one active session. Logging in on a
+        // new device revokes every previously issued token, so the old device's
+        // next authenticated request 401s and it is effectively logged out.
+        //
+        // Deliberately BEFORE createToken so the new token survives the purge.
+        //
+        // Commuters are exempt — a rider may legitimately be signed in on a
+        // phone and a tablet at once.
+        if ($user->isAdmin() || $user->isConductor()) {
+            $user->tokens()->delete();
+        }
+
         $token = $user->createToken('auth-token')->plainTextToken;
 
         return [

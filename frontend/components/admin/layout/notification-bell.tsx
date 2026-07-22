@@ -197,16 +197,25 @@ export function NotificationBell() {
         aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
       >
         <Bell size={18} />
+        {/* Static, not animate-pulse. A permanently pulsing badge reads as a
+            live alert and never settles — it also fades the digits in and out,
+            which made the count hard to read. The ring separates it from the
+            button edge instead of letting it bleed into the border. */}
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center animate-pulse">
+          <span
+            aria-hidden="true"
+            className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-none flex items-center justify-center tabular-nums ring-2 ring-[#0B1120]"
+          >
             {displayedBadge}
           </span>
         )}
       </button>
 
-      {/* Dropdown Panel */}
+      {/* Dropdown Panel. The bell is mounted fixed near the viewport's right
+          edge, so a hard 320px panel ran off-screen on narrow phones — the
+          width is clamped to what's available and grows back at sm. */}
       {isOpen && (
-        <div className="absolute right-0 top-12 w-80 sm:w-96 bg-[#0D1424] border border-white/10 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden z-50">
+        <div className="absolute right-0 top-12 w-[calc(100vw-1.5rem)] max-w-[20rem] sm:w-96 sm:max-w-none bg-[#0D1424] border border-white/10 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden z-50">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
             <div className="flex items-center gap-2">

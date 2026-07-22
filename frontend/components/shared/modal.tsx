@@ -16,9 +16,18 @@ export function Modal({ isOpen, onClose, children, maxWidth = 'max-w-md', rounde
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50">
+    // Centred at every size. This was `items-end` below sm, which pinned the
+    // panel to the bottom edge as a sheet — it read as "stuck at the bottom"
+    // and put the body text in the least readable part of the screen.
+    //
+    // The overlay owns the insets now (p-4, plus pb-20 to clear the mobile
+    // bottom nav) and the panel is `max-h-full`, so the panel can never be
+    // taller than the space actually available. That combination is what
+    // stops it overflowing off the top — an earlier attempt kept a 95vh cap
+    // while shrinking the container, and the header got cut off.
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 md:pb-4 bg-black/50">
       <div
-        className={`relative bg-[#1A2540] border border-[#2A3A55] ${rounded} shadow-2xl w-full ${maxWidth} mx-0 sm:mx-4 max-h-[95vh] sm:max-h-[90vh] flex flex-col ${rounded === 'rounded-xl' ? 'rounded-b-none sm:rounded-b-xl' : ''}`}
+        className={`relative bg-[#1A2540] border border-[#2A3A55] ${rounded} shadow-2xl w-full ${maxWidth} max-h-full flex flex-col`}
         role="dialog"
         aria-modal="true"
       >
@@ -29,7 +38,12 @@ export function Modal({ isOpen, onClose, children, maxWidth = 'max-w-md', rounde
         >
           <X size={20} />
         </button>
-        <div className="p-4 sm:p-6 overflow-y-auto flex-1">
+        {/* modal-scroll opts this one region out of the global
+            `[role="dialog"] * { scrollbar-width: none }` hide — without a
+            scrollbar, overflowing content just looks truncated. The nav
+            clearance lives on the overlay now, so no extra bottom padding
+            here. */}
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1 modal-scroll">
           {children}
         </div>
       </div>

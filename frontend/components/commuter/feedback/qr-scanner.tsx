@@ -139,8 +139,11 @@ export function QrScanner({ onToken, onCancel }: QrScannerProps) {
 
   // ─── Render ────────────────────────────────────────────────────
   return (
-    <div className="h-full w-full bg-[#050F1A] flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-sm">
+    // Scrolls rather than centre-clips: on short viewports the square
+    // viewfinder plus header and toggle exceed the height. pb-24 clears the
+    // commuter layout's absolutely-positioned mobile tab bar.
+    <div className="h-full w-full bg-[#050F1A] flex flex-col items-center overflow-y-auto p-6 pb-24 lg:pb-6">
+      <div className="w-full max-w-sm my-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>

@@ -46,6 +46,20 @@ export function useConductorTransactions(
   const [status, setStatus] = useState<UseConductorTransactionsResult["status"]>("loading");
   const [error, setError] = useState<string | null>(null);
 
+  // Drop the previous shift's rows the moment the shift changes. Without this
+  // the summary keeps rendering the ended shift's cash/GCash totals until the
+  // new shift's fetch resolves, so a freshly started shift briefly shows the
+  // previous one's money. This is React's documented "adjust state when a prop
+  // changes" pattern (a render-phase reset, not an effect) so the stale rows
+  // never reach the DOM at all.
+  const [renderedShiftId, setRenderedShiftId] = useState(shiftId);
+  if (shiftId !== renderedShiftId) {
+    setRenderedShiftId(shiftId);
+    setTransactions([]);
+    setStatus(shiftId ? "loading" : "empty");
+    setError(null);
+  }
+
   const refresh = useCallback(async () => {
     if (!shiftId) {
       setTransactions([]);

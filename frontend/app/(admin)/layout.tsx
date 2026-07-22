@@ -106,12 +106,22 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
 
   // MOBILE
   return (
-    <div className="min-h-screen bg-[#0B1120] text-white flex flex-col">
+    // h-dvh + overflow-hidden, NOT min-h-screen. With a min-height the column
+    // grew to fit its content, so <main> was never height-constrained and its
+    // overflow-y-auto never actually scrolled — the document scrolled instead.
+    // That still made <main> the scroll container for sticky descendants, so
+    // page headers using `sticky top-0` had nothing to stick to and rode up
+    // with the content. Pinning the height makes <main> the real scroller.
+    // dvh rather than vh so the mobile browser's collapsing toolbar doesn't
+    // leave the bottom nav hanging off-screen.
+    <div className="h-dvh bg-[#0B1120] text-white flex flex-col overflow-hidden">
       {/* Notification Bell — fixed top-right for mobile */}
       <div className="fixed top-3 right-3 z-50">
         <NotificationBell />
       </div>
-      <main className="flex-1 p-4 md:p-6 lg:p-8 pb-24 overflow-y-auto">
+      {/* min-h-0 is required: a flex item defaults to min-height:auto, which
+          refuses to shrink below its content and would re-break the scroll. */}
+      <main className="flex-1 min-h-0 p-4 md:p-6 lg:p-8 pb-24 overflow-y-auto">
         {children}
       </main>
       <AdminBottomNav

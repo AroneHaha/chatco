@@ -150,6 +150,97 @@ class AuthTest extends TestCase
         $this->assertEquals('CONDUCTOR', $response->json('data.role'));
     }
 
+    // ── Single-Device Session Enforcement ────────────────────────
+
+    public function test_admin_login_revokes_the_previous_device_token(): void
+    {
+        $admin = $this->seedAdmin();
+        $firstDeviceToken = $admin->createToken('device-one');
+        $firstDevice = $firstDeviceToken->plainTextToken;
+
+        // The first device holds a live token going in. Asserted against the
+        // token table rather than by making an authenticated request first —
+        // resolving the guard mid-test keeps the user cached for subsequent
+        // requests, which masks the revocation we are checking for.
+        $this->assertDatabaseHas('personal_access_tokens', [
+            'id' => $firstDeviceToken->accessToken->id,
+        ]);
+
+        $response = $this->postJson('/api/v1/auth/login', [
+            'login'    => 'admin@gmail.com',
+            'password' => 'password123',
+        ]);
+        $response->assertStatus(200);
+
+        // The revocation itself: the old device's token row is gone.
+        $this->assertDatabaseMissing('personal_access_tokens', [
+            'id' => $firstDeviceToken->accessToken->id,
+        ]);
+
+        // Old device is now rejected...
+        $this->withHeader('Authorization', "Bearer {$firstDevice}")
+            ->getJson('/api/v1/user')
+            ->assertStatus(401);
+
+        // ...and exactly one token survives: the new device's.
+        $this->assertSame(1, $admin->tokens()->count());
+
+        $this->withHeader('Authorization', "Bearer {$response->json('data.token')}")
+            ->getJson('/api/v1/user')
+            ->assertStatus(200);
+    }
+
+    public function test_conductor_login_revokes_the_previous_device_token(): void
+    {
+        $conductor = $this->seedConductor();
+        $firstDevice = $conductor->createToken('device-one')->plainTextToken;
+
+        $this->postJson('/api/v1/auth/login', [
+            'login'    => 'conductor001',
+            'password' => 'password123',
+        ])->assertStatus(200);
+
+        $this->withHeader('Authorization', "Bearer {$firstDevice}")
+            ->getJson('/api/v1/user')
+            ->assertStatus(401);
+
+        $this->assertSame(1, $conductor->tokens()->count());
+    }
+
+    public function test_commuter_login_keeps_existing_device_sessions(): void
+    {
+        $commuter = $this->seedCommuter();
+        $firstDevice = $commuter->createToken('device-one')->plainTextToken;
+
+        $this->postJson('/api/v1/auth/login', [
+            'login'    => 'commuter1@gmail.com',
+            'password' => 'password123',
+        ])->assertStatus(200);
+
+        // Riders are exempt — phone and tablet can both stay signed in.
+        $this->withHeader('Authorization', "Bearer {$firstDevice}")
+            ->getJson('/api/v1/user')
+            ->assertStatus(200);
+
+        $this->assertSame(2, $commuter->tokens()->count());
+    }
+
+    public function test_failed_login_does_not_revoke_an_existing_session(): void
+    {
+        $admin = $this->seedAdmin();
+        $firstDevice = $admin->createToken('device-one')->plainTextToken;
+
+        $this->postJson('/api/v1/auth/login', [
+            'login'    => 'admin@gmail.com',
+            'password' => 'wrong-password',
+        ])->assertStatus(401);
+
+        // A wrong password must not be usable to kick someone off their device.
+        $this->withHeader('Authorization', "Bearer {$firstDevice}")
+            ->getJson('/api/v1/user')
+            ->assertStatus(200);
+    }
+
     // ── Logout Tests ─────────────────────────────────────────────
 
     public function test_logout_with_valid_token_returns_200(): void

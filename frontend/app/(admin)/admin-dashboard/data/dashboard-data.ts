@@ -219,9 +219,16 @@ export function useDashboardData() {
       // ── Top Pickup Points (from the analytics response) ──
       // The backend aggregates PAID transactions by pickup_name — this gives
       // us the top 10 most-used boarding points in the last 30 days.
-      const topPickupPoints: PickupPoint[] = (analytics?.pickup_points ?? []).map(p => ({
-        name: p.name,
-        val: p.count,
+      // The response is untyped JSON, so narrow the row shape before mapping
+      // and coerce both fields — matching how recentUsers/recentLostFound above
+      // defend against missing keys.
+      const rawPickupPoints = (analytics?.pickup_points ?? []) as Array<{
+        name?: unknown;
+        count?: unknown;
+      }>;
+      const topPickupPoints: PickupPoint[] = rawPickupPoints.map((p) => ({
+        name: String(p.name ?? 'Unknown'),
+        val: Number(p.count) || 0,
       }));
 
       setData({

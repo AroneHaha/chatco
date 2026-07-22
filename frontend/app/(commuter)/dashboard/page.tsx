@@ -250,10 +250,17 @@ export default function CommuterHome() {
         </div>
       </div>
 
+      {/* Collapsed offset is in px, not %: a % is relative to the sheet's own
+          height, which grows with the ETA/GPS cards, so the taller the sheet the
+          more of it peeked out. 64px keeps the drag handle visible and a further
+          64px (+ safe area) parks it clear of the bottom nav. */}
       <div
-        className={`lg:hidden absolute bottom-0 inset-x-0 z-20 bg-[#071A2E] rounded-t-3xl border-t border-white/10 transition-transform duration-300 ease-in-out ${
-          showSheet ? "translate-y-0" : "translate-y-[calc(80%-64px)]"
-        }`}
+        style={{
+          transform: showSheet
+            ? undefined
+            : "translateY(calc(100% - 128px - env(safe-area-inset-bottom, 0px)))",
+        }}
+        className="lg:hidden absolute bottom-0 inset-x-0 z-20 bg-[#071A2E] rounded-t-3xl border-t border-white/10 transition-transform duration-300 ease-in-out"
       >
         <div className="absolute -top-23 right-4 z-30">
           <button

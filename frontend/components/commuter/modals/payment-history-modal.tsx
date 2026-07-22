@@ -20,6 +20,29 @@ type TimeFilter = "all" | "today" | "week" | "month";
 
 const PER_PAGE = 20;
 
+/**
+ * The oldest timestamp a time filter still includes; null for "all".
+ *
+ * Doubles as the completeness test for pagination: the API returns rows
+ * newest-first, so once the oldest loaded row predates this cutoff we know
+ * every matching row has been fetched and the filter can be trusted.
+ */
+function cutoffFor(filter: TimeFilter): Date | null {
+  const now = new Date();
+  if (filter === "today") {
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
+  if (filter === "week") {
+    const weekAgo = new Date(now);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    return weekAgo;
+  }
+  if (filter === "month") {
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+  return null;
+}
+
 // ─── Status badge (covers the full PaymentStatus lifecycle) ──────────
 function getStatusBadge(status: PaymentStatus) {
   const badges: Record<PaymentStatus, { bg: string; text: string; label: string }> = {
@@ -100,28 +123,41 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
     void loadPage(1);
   }, [loadPage]);
 
-  const filteredHistory = history.filter((tx) => {
-    if (timeFilter === "all") return true;
-    const txDate = new Date(tx.createdAt);
-    const now = new Date();
-    if (timeFilter === "today") return txDate.toDateString() === now.toDateString();
-    if (timeFilter === "week") {
-      const weekAgo = new Date(now);
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      return txDate >= weekAgo;
-    }
-    if (timeFilter === "month") {
-      return txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear();
-    }
-    return true;
-  });
+  const cutoff = cutoffFor(timeFilter);
+  const filteredHistory = cutoff
+    ? history.filter((tx) => new Date(tx.createdAt) >= cutoff)
+    : history;
 
-  // Stats over the loaded + filtered set (only PAID counts toward spend).
+  const hasMore = page < lastPage;
+
+  // A date filter is only trustworthy once we've paged back past its cutoff.
+  // Until then matching rides can still be sitting on an unfetched page, and
+  // the list would claim "No transactions found" while they exist.
+  const oldestLoaded = history.length > 0 ? history[history.length - 1] : null;
+  const filterNeedsMorePages =
+    cutoff !== null &&
+    hasMore &&
+    (!oldestLoaded || new Date(oldestLoaded.createdAt) >= cutoff);
+
+  // Stats cover every PAID row the current filter matches. They're complete
+  // whenever the filter is complete; under "All" with more pages left they
+  // describe only what's loaded, which the caption below makes explicit.
   const paid = filteredHistory.filter((tx) => tx.status === "paid");
   const totalSpent = paid.reduce((s, tx) => s + tx.amount, 0);
   const rideCount = paid.length;
   const avgFare = rideCount > 0 ? totalSpent / rideCount : 0;
-  const hasMore = page < lastPage;
+  const statsArePartial = filterNeedsMorePages || (cutoff === null && hasMore);
+
+  // Keep pulling pages while the active date filter still has unfetched rows.
+  // Bounded by the cutoff rather than by "load everything": on a newest-first
+  // feed we can stop as soon as one row predates the range, so "Today" costs a
+  // page or two even on an account with years of history.
+  useEffect(() => {
+    // Bail on error too: a failed fetch leaves `page` unchanged, so without
+    // this the condition stays true and the effect re-fires forever.
+    if (error || isLoading || isLoadingMore || !filterNeedsMorePages) return;
+    void loadPage(page + 1);
+  }, [filterNeedsMorePages, error, isLoading, isLoadingMore, page, loadPage]);
 
   const formatDateTime = (isoString: string) => {
     const date = new Date(isoString);
@@ -135,10 +171,12 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-      <div
-        className="relative bg-white sm:rounded-3xl rounded-t-3xl shadow-2xl w-full sm:max-w-md overflow-hidden flex flex-col pb-safe"
-        style={{ maxHeight: "85vh" }}
-      >
+      {/* Fixed height, not max-height: the panel used to grow and shrink with
+          the row count, so it jumped as you switched time filters or expanded a
+          row. A constant frame keeps the header, stats and tabs anchored and
+          lets the list scroll inside it. Capped at 85vh so short viewports
+          still fit. */}
+      <div className="relative bg-white sm:rounded-3xl rounded-t-3xl shadow-2xl w-full sm:max-w-md overflow-hidden flex flex-col pb-safe h-[85vh] sm:h-[620px] sm:max-h-[85vh]">
         {/* Header */}
         <div className="flex-shrink-0 flex items-center justify-between p-5 border-b border-gray-100">
           <div>
@@ -170,6 +208,16 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
             <p className="text-sm font-bold text-[#071A2E] mt-0.5">₱{avgFare.toFixed(0)}</p>
           </div>
         </div>
+
+        {/* Under "All" the totals only cover the pages fetched so far, so say
+            that rather than presenting a partial sum as the lifetime figure. */}
+        {statsArePartial && !isLoading && (
+          <p className="flex-shrink-0 px-5 text-[10px] text-gray-400 text-center">
+            {filterNeedsMorePages
+              ? "Loading the rest of this range…"
+              : "Covers the rides loaded so far — tap Load more for the full total."}
+          </p>
+        )}
 
         {/* Time Filter Tabs */}
         <div className="flex-shrink-0 flex gap-2 px-5 pt-2 pb-3">
@@ -209,12 +257,22 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
                 Try again
               </button>
             </div>
+          ) : filteredHistory.length === 0 && (filterNeedsMorePages || isLoadingMore) ? (
+            // Still paging back toward the filter's cutoff — claiming there are
+            // none yet would be a lie we'd contradict a moment later.
+            <div className="flex items-center justify-center py-16">
+              <div className="w-8 h-8 border-2 border-[#1A5FB4] border-t-transparent rounded-full animate-spin" />
+            </div>
           ) : filteredHistory.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <svg className="w-16 h-16 text-gray-200 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
               </svg>
-              <p className="text-gray-400 font-medium text-sm">No transactions found</p>
+              <p className="text-gray-400 font-medium text-sm">
+                {timeFilter === "all"
+                  ? "No transactions found"
+                  : "No rides in this period"}
+              </p>
             </div>
           ) : (
             <div className="mt-1 space-y-2">
@@ -339,7 +397,11 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
                 );
               })}
 
-              {hasMore && (
+              {/* Only under "All". A date filter back-fills itself to its
+                  cutoff, and every remaining page is older than that cutoff,
+                  so nothing there could match — a button promising more would
+                  just load rows the filter immediately discards. */}
+              {hasMore && cutoff === null && (
                 <button
                   onClick={() => loadPage(page + 1)}
                   disabled={isLoadingMore}

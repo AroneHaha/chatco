@@ -173,6 +173,154 @@ class TransactionFlowTest extends TestCase
         $this->assertSame(2, Transaction::count());
     }
 
+    // ─── 1b. Cash Receipt Claim (paper QR → reward credit) ──────────
+
+    public function test_cash_fare_mints_a_receipt_token_but_gcash_claim_cannot_use_it(): void
+    {
+        $txn = app(TransactionService::class)->recordCashFare($this->conductor, [
+            'final_amount' => 15.00, 'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+        ]);
+
+        $this->assertNotNull($txn->qr_token, 'cash receipt QR needs a token to print');
+        $this->assertNull($txn->passenger_id, 'cash involves no account until claimed');
+
+        // The cash token must not be redeemable through the GCash path — that
+        // path binds PENDING rows and would hand out a ride that was not paid
+        // through the gateway.
+        $this->expectException(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+        app(TransactionService::class)->claimGcash($this->commuter1, $txn->qr_token);
+    }
+
+    public function test_receipt_claim_binds_passenger_and_counts_toward_rewards(): void
+    {
+        $svc = app(TransactionService::class);
+        $txn = $svc->recordCashFare($this->conductor, [
+            'final_amount' => 15.00, 'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+        ]);
+
+        $profileId = $this->commuter1->commuterProfile->id;
+        $this->assertSame(0, $this->paidRideCountFor($profileId));
+
+        $result = $svc->claimCashReceipt($this->commuter1, $txn->qr_token);
+
+        $this->assertFalse($result['already_claimed']);
+        $this->assertSame($txn->transaction_id, $result['transaction_id']);
+        $this->assertSame($profileId, $txn->fresh()->passenger_id);
+        // The binding IS the "+1" — rewards are derived from this count.
+        $this->assertSame(1, $this->paidRideCountFor($profileId));
+    }
+
+    public function test_receipt_claim_is_idempotent_for_the_same_commuter(): void
+    {
+        $svc = app(TransactionService::class);
+        $txn = $svc->recordCashFare($this->conductor, ['final_amount' => 15.00]);
+
+        $svc->claimCashReceipt($this->commuter1, $txn->qr_token);
+        $second = $svc->claimCashReceipt($this->commuter1, $txn->qr_token);
+
+        $this->assertTrue($second['already_claimed'], 're-scanning must not double-count');
+        $this->assertSame(1, $this->paidRideCountFor($this->commuter1->commuterProfile->id));
+    }
+
+    public function test_receipt_claim_rejects_a_second_commuter_with_409(): void
+    {
+        $svc = app(TransactionService::class);
+        $txn = $svc->recordCashFare($this->conductor, ['final_amount' => 15.00]);
+        $svc->claimCashReceipt($this->commuter1, $txn->qr_token);
+
+        try {
+            $svc->claimCashReceipt($this->commuter2, $txn->qr_token);
+            $this->fail('a claimed receipt must not be claimable again');
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            $this->assertSame(409, $e->getStatusCode());
+        }
+
+        $this->assertSame(0, $this->paidRideCountFor($this->commuter2->commuterProfile->id));
+    }
+
+    public function test_receipt_claim_returns_410_once_past_the_ttl(): void
+    {
+        $svc = app(TransactionService::class);
+        $txn = $svc->recordCashFare($this->conductor, ['final_amount' => 15.00]);
+
+        // Age the receipt one hour beyond the configured window.
+        $ttl = (int) config('payments.cash_receipt_ttl_hours', 6);
+        $txn->forceFill(['created_at' => now()->subHours($ttl + 1)])->save();
+
+        try {
+            $svc->claimCashReceipt($this->commuter1, $txn->qr_token);
+            $this->fail('an expired receipt must not be claimable');
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            $this->assertSame(410, $e->getStatusCode());
+        }
+
+        $this->assertNull($txn->fresh()->passenger_id);
+    }
+
+    public function test_receipt_claim_still_works_just_inside_the_ttl(): void
+    {
+        $svc = app(TransactionService::class);
+        $txn = $svc->recordCashFare($this->conductor, ['final_amount' => 15.00]);
+
+        $ttl = (int) config('payments.cash_receipt_ttl_hours', 6);
+        $txn->forceFill(['created_at' => now()->subHours($ttl)->addMinutes(5)])->save();
+
+        $result = $svc->claimCashReceipt($this->commuter1, $txn->qr_token);
+
+        $this->assertFalse($result['already_claimed']);
+    }
+
+    public function test_receipt_claim_rejects_a_gcash_token_with_422(): void
+    {
+        $gcash = $this->createPendingGcashTransaction();
+
+        try {
+            app(TransactionService::class)->claimCashReceipt($this->commuter1, $gcash->qr_token);
+            $this->fail('a GCash QR must not be claimable as a cash receipt');
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            $this->assertSame(422, $e->getStatusCode());
+        }
+
+        $this->assertNull($gcash->fresh()->passenger_id);
+    }
+
+    public function test_receipt_claim_returns_404_for_an_unknown_token(): void
+    {
+        try {
+            app(TransactionService::class)->claimCashReceipt($this->commuter1, 'not-a-real-token');
+            $this->fail('an unknown token must 404');
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            $this->assertSame(404, $e->getStatusCode());
+        }
+    }
+
+    public function test_voucher_ride_mints_no_receipt_token(): void
+    {
+        $voucher = \App\Models\Voucher::create([
+            'commuter_id' => $this->commuter1->commuterProfile->id,
+            'code' => 'REWARD-TESTCODE', 'type' => 'REWARD', 'status' => 'AVAILABLE',
+            'amount' => 0, 'expires_at' => now()->addDays(30), 'ride_origin' => 'Test',
+        ]);
+
+        $txn = app(TransactionService::class)->recordCashFare($this->conductor, [
+            'final_amount' => 15.00,
+            'payment_method' => PaymentMethod::VOUCHER->value,
+            'voucher_code' => $voucher->code,
+        ]);
+
+        // Already bound to the commuter and free — nothing left to claim.
+        $this->assertNull($txn->qr_token);
+    }
+
+    /** PAID non-voucher rides bound to a commuter — what rewards counts. */
+    private function paidRideCountFor(string $profileId): int
+    {
+        return Transaction::where('passenger_id', $profileId)
+            ->where('status', PaymentStatus::PAID->value)
+            ->where('payment_method', '!=', PaymentMethod::VOUCHER->value)
+            ->count();
+    }
+
     // ─── 2. GCash Initiation ────────────────────────────────────────
 
     public function test_gcash_initiate_creates_pending_row_via_real_gateway(): void
