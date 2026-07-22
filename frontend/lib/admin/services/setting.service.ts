@@ -5,7 +5,7 @@
 //   GET /api/admin/settings?category=financial   → getSettings(category)
 //   PUT /api/admin/settings/{key}                 → updateSetting(key, value, category)
 
-export type SettingCategory = "financial" | "operations" | "safety" | "app" | "general";
+export type SettingCategory = "financial" | "operations" | "safety" | "app" | "receipt" | "general";
 
 /** A key-value map of settings (e.g. { regular_discount: "0", student_discount: "20" }) */
 export type SettingsMap = Record<string, string>;

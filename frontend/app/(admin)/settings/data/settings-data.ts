@@ -21,18 +21,6 @@ export interface NotificationTemplate {
   variables: string[];
 }
 
-export interface Route {
-  id: number;
-  name: string;
-  status: 'Active' | 'Inactive';
-  waypoints: string;
-}
-
-export interface RemittanceOption {
-  id: number;
-  optionName: string;
-}
-
 export interface Voucher {
   id: string;
   code: string;
@@ -63,6 +51,24 @@ export interface SafetyConfig {
   emergencyHotline: string;
   adminSOSEmail: string;
   senderGmail: string;
+}
+
+// Controls the fare receipt auto-printed on the conductor's thermal printer
+// after a successful cash/GCash transaction. Text fields customize the
+// printout's branding; the toggles decide which transaction details appear.
+export interface ReceiptConfig {
+  businessName: string;
+  addressLine: string;
+  footerNote: string;
+  paperWidth: '58' | '80'; // mm — standard thermal roll widths
+  autoPrint: boolean;
+  showDateTime: boolean;
+  showTransactionId: boolean;
+  showRoute: boolean;
+  showUnit: boolean;
+  showConductor: boolean;
+  showPassenger: boolean;
+  showFareBreakdown: boolean;
 }
 
 // --- FAQ Data ---
@@ -100,20 +106,6 @@ export const initialAccountRejectedTemplate: string =
 export const approvedTemplateVariables: string[] = ['{commuterName}'];
 export const rejectedTemplateVariables: string[] = ['{commuterName}', '{rejectionReason}'];
 
-// --- Routes Data ---
-
-export const initialRoutes: Route[] = [
-  { id: 1, name: 'Malolos - Meycauayan - Calumpit', status: 'Active', waypoints: 'Malolos Terminal, Guiguinto, Meycauayan Crossing, Calumpit Town Proper' },
-];
-
-// --- Remittance Options Data ---
-
-export const initialRemittanceOptions: RemittanceOption[] = [
-  { id: 1, optionName: 'Operator Juan' },
-  { id: 2, optionName: 'Bank Deposit BPI' },
-  { id: 3, optionName: 'Driver Pedro' },
-];
-
 // --- Expense Categories ---
 
 export const initialExpenseCategories: string[] = [
@@ -150,4 +142,19 @@ export const defaultSafetyConfig: SafetyConfig = {
   emergencyHotline: '911',
   adminSOSEmail: 'admin@chatco.com',
   senderGmail: 'noreply@chatco.com',
+};
+
+export const defaultReceiptConfig: ReceiptConfig = {
+  businessName: 'CHATCO',
+  addressLine: '',
+  footerNote: 'Thank you for riding with Chatco!',
+  paperWidth: '58',
+  autoPrint: true,
+  showDateTime: true,
+  showTransactionId: true,
+  showRoute: true,
+  showUnit: true,
+  showConductor: true,
+  showPassenger: true,
+  showFareBreakdown: true,
 };
