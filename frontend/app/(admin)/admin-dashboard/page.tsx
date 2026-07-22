@@ -57,16 +57,9 @@ export default function DashboardHome() {
     );
   }
 
-<<<<<<< HEAD
-  // Data-not-ready fallback (covers edge case where isLoading is false but data is null)
-  if (!data) {
-    return null;
-  }
-=======
   // isLoading and error are handled above, but neither narrows `data` for the
   // compiler — it stays `DashboardData | null`. Guard before destructuring.
   if (!data) return null;
->>>>>>> upstream/dev
 
   const {
     recentVehicles,
