@@ -5,6 +5,7 @@ import {
   TrendingUp, MapPin, Banknote, Calculator, Receipt, Ticket, Bell,
   SlidersHorizontal, User2Icon, type LucideIcon,
 } from "lucide-react";
+import type { AnalyticsData } from "@/lib/admin/services/analytics.service";
 
 /* ─── INTERFACES (keep — used by components) ─── */
 
@@ -134,7 +135,7 @@ export function useDashboardData() {
       const usersJson = usersRes?.ok ? await usersRes.json() : { data: { data: [] } };
       const lostItemsJson = lostItemsRes?.ok ? await lostItemsRes.json() : { data: { data: [] } };
 
-      const analytics = analyticsJson.data;
+      const analytics: AnalyticsData | undefined = analyticsJson?.data;
 
       // The proxy returns { data: <laravel_response> }.
       // Laravel paginator: { data: [...items], current_page, total, ... }
