@@ -1,18 +1,49 @@
+"use client";
+
+import { useState, FormEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import logo from "../../../assets/logo-transparent.png";
 import Footer from "@/components/landing/Footer";
 
 export default function ForgotPasswordPage() {
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setStatus("sending");
+    setErrorMsg("");
+
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      // The backend always returns 200 with a generic message (to prevent
+      // email enumeration), so we treat any 2xx as "sent".
+      if (res.ok) {
+        setStatus("sent");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setErrorMsg(data?.message ?? "Something went wrong. Please try again.");
+        setStatus("error");
+      }
+    } catch {
+      setErrorMsg("Unable to reach the server. Please check your connection and try again.");
+      setStatus("error");
+    }
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-white">
-      
       {/* Main Content */}
       <div className="flex-1 flex">
-        
         {/* Left Side (Same Branding) */}
         <div className="hidden lg:flex lg:w-1/2 relative hero-bg overflow-hidden flex-col">
-          
           {/* Background Glows */}
           <div className="absolute top-1/4 -left-32 w-[500px] h-[500px] bg-[#1A5FB4]/20 rounded-full blur-[120px]" />
           <div className="absolute bottom-0 right-0 w-80 h-80 bg-[#3584E4]/15 rounded-full blur-[100px]" />
@@ -52,9 +83,8 @@ export default function ForgotPasswordPage() {
         {/* Right Side Form */}
         <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 pt-16 lg:pt-12">
           <div className="w-full max-w-md">
-
             {/* Mobile Back */}
-            <Link 
+            <Link
               href="/login"
               className="lg:hidden inline-flex items-center gap-2 text-sm text-gray-500 hover:text-[#1A5FB4] mb-10"
             >
@@ -63,33 +93,58 @@ export default function ForgotPasswordPage() {
 
             {/* Form */}
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">
-                Reset your password
-              </h2>
+              <h2 className="text-2xl font-bold text-gray-900">Reset your password</h2>
               <p className="mt-2 text-sm text-gray-500">
                 Enter your email address and we’ll send you a reset link.
               </p>
 
-              <form className="mt-8 space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Email address
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="you@example.com"
-                    className="mt-2 w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#1A5FB4] outline-none"
-                  />
+              {status === "sent" ? (
+                <div className="mt-8 p-4 bg-green-50 border border-green-200 rounded-xl">
+                  <p className="text-sm text-green-800 font-medium">Check your inbox ✅</p>
+                  <p className="mt-1 text-sm text-green-700">
+                    If an account with <span className="font-semibold">{email}</span> exists, we&apos;ve sent a password reset link. The link expires in 60 minutes.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStatus("idle");
+                      setEmail("");
+                    }}
+                    className="mt-4 text-sm text-[#1A5FB4] font-medium hover:underline"
+                  >
+                    Try a different email
+                  </button>
                 </div>
+              ) : (
+                <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Email address</label>
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className="mt-2 w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#1A5FB4] outline-none"
+                      disabled={status === "sending"}
+                    />
+                  </div>
 
-                <button
-                  type="submit"
-                  className="w-full bg-[#1A5FB4] text-white py-3 rounded-xl font-semibold hover:bg-[#174a8c] transition"
-                >
-                  Send Reset Link
-                </button>
-              </form>
+                  {status === "error" && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
+                      <p className="text-sm text-red-700">{errorMsg}</p>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={status === "sending" || !email}
+                    className="w-full bg-[#1A5FB4] text-white py-3 rounded-xl font-semibold hover:bg-[#174a8c] transition disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {status === "sending" ? "Sending…" : "Send Reset Link"}
+                  </button>
+                </form>
+              )}
 
               {/* Back to login */}
               <p className="mt-6 text-sm text-gray-500 text-center">
@@ -99,7 +154,6 @@ export default function ForgotPasswordPage() {
                 </Link>
               </p>
             </div>
-
           </div>
         </div>
       </div>

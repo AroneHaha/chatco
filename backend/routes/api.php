@@ -37,6 +37,9 @@ Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:commuter-hail');
     Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:commuter-hail'); // PUBLIC — commuter self-sign-up (S5-T15)
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
+    // Password reset — public (no auth required, throttled to prevent abuse).
+    Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:commuter-hail');
+    Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:commuter-hail');
 });
 
 /*
