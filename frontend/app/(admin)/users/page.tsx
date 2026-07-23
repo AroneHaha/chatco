@@ -16,6 +16,7 @@ import { useUsersData } from './data/users-data';
 import type { ActiveUser, PendingRequest, RejectedUser } from './data/users-data';
 import type { UpdateUserInput } from '@/lib/admin/services/user.service';
 import { SkeletonTable } from '@/components/admin/ui/skeleton';
+import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 
 export default function UsersPage() {
   const {
@@ -311,9 +312,10 @@ export default function UsersPage() {
 
   return (
     <>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-        <h1 className="text-2xl font-bold text-white flex-shrink-0">Commuter Management</h1>
-        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+      <StickyPageHeader className="mb-6">
+        <h1 className="text-2xl font-bold text-white">Commuter Management</h1>
+      </StickyPageHeader>
+      <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto mb-6 -mt-4 md:mt-0">
           <SearchBar placeholder="Search commuters..." value={searchQuery} onChange={setSearchQuery} className="w-full sm:w-64" />
           {activeTab === 'active' && (
             <select
@@ -334,7 +336,6 @@ export default function UsersPage() {
             </button>
           )}
         </div>
-      </div>
 
       {/* Action error banner */}
       {actionError && (

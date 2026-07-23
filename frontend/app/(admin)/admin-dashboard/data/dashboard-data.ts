@@ -78,7 +78,6 @@ const SETTINGS_MODULES: SettingsModule[] = [
   { title: "Voucher Generator", desc: "Create promo codes and free ride passes.", icon: Ticket, iconColor: "text-violet-400", gradient: "linear-gradient(135deg, rgba(167, 139, 250, 0.2) 0%, rgba(167, 139, 250, 0.05) 100%)", href: "/settings/voucher-generator" },
   { title: "Safety Notifications", desc: "Manage alert triggers and templates.", icon: Bell, iconColor: "text-amber-400", gradient: "linear-gradient(135deg, rgba(251, 191, 36, 0.2) 0%, rgba(251, 191, 36, 0.05) 100%)", href: "/settings/safety-notifications" },
   { title: "App Configuration", desc: "General system preferences and UI.", icon: SlidersHorizontal, iconColor: "text-pink-400", gradient: "linear-gradient(135deg, rgba(244, 114, 182, 0.2) 0%, rgba(244, 114, 182, 0.05) 100%)", href: "/settings/app-configuration" },
-  { title: "Remittance Options", desc: "Add or edit remittance recipients.", icon: Banknote, iconColor: "text-cyan-400", gradient: "linear-gradient(135deg, rgba(34, 211, 238, 0.2) 0%, rgba(34, 211, 238, 0.05) 100%)", href: "/settings/remittance-options" },
 ];
 
 /* ─── Helpers ─── */

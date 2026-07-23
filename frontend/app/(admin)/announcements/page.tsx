@@ -198,9 +198,11 @@ export default function AnnouncementsPage() {
     'w-full bg-[#0E1628] border border-[#1E2D45] rounded-md pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors';
 
   return (
-    <div className="h-full w-full flex flex-col overflow-hidden relative">
-      {/* Header */}
-      <div className="flex-shrink-0 bg-[#131C2E] border border-[#1E2D45] p-4 lg:px-8 lg:py-6 z-10 rounded-lg mb-6">
+    <div className="h-full w-[calc(100%+2rem)] flex flex-col overflow-hidden relative -mx-4 -mt-4 md:w-full md:mx-0 md:mt-0">
+      {/* Header. On phones it breaks out of <main>'s padding to sit flush at the
+          top edge-to-edge (like the shared sticky header); the boxed card
+          returns at md. */}
+      <div className="flex-shrink-0 bg-[#131C2E] border-b border-[#1E2D45] p-4 z-10 mb-4 md:border md:rounded-lg md:mb-6 lg:px-8 lg:py-6">
         <div className="flex flex-col sm:flex-row lg:flex-row lg:items-center lg:justify-between gap-4 mb-5">
           <div className="min-w-0">
             <h1 className="text-white font-bold text-xl lg:text-2xl flex items-center gap-2">
