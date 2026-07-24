@@ -204,9 +204,11 @@ export default function LostFoundPage() {
   return (
     <div className="h-full w-[calc(100%+2rem)] flex flex-col overflow-hidden relative -mx-4 -mt-4 md:w-full md:mx-0 md:mt-0">
       {/* Header. On phones it breaks out of <main>'s padding to sit flush at the
-          top edge-to-edge (like the shared sticky header); the boxed card
-          returns at md. */}
-      <div className="flex-shrink-0 bg-[#131C2E] border-b border-[#1E2D45] p-4 z-10 mb-4 md:border md:rounded-lg md:mb-6 lg:px-8 lg:py-6">
+          top edge-to-edge (like the shared sticky header). On desktop it drops
+          the boxed-card look and becomes a borderless, transparent full-width
+          header — flush to the content edges like every other admin module —
+          with just a full-width bottom divider. */}
+      <div className="flex-shrink-0 bg-[#131C2E] border-b border-[#1E2D45] p-4 z-10 mb-4 md:bg-transparent md:rounded-none md:px-0 md:pt-0 md:pb-5 md:mb-6">
         <div className="flex flex-col sm:flex-row lg:flex-row lg:items-center lg:justify-between gap-4 mb-5">
           <div className="min-w-0">
             <h1 className="text-white font-bold text-xl lg:text-2xl">Lost & Found Management</h1>
@@ -237,7 +239,7 @@ export default function LostFoundPage() {
       </div>
 
       {actionError && (
-        <div className="mx-4 lg:mx-8 mb-4 bg-red-500/10 border border-red-500/30 rounded-md p-3 flex items-center gap-2">
+        <div className="mx-4 md:mx-0 mb-4 bg-red-500/10 border border-red-500/30 rounded-md p-3 flex items-center gap-2">
           <svg className="w-4 h-4 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
           <p className="text-red-400 text-xs font-medium">{actionError}</p>
           <button onClick={() => setActionError(null)} className="ml-auto text-red-400/60 hover:text-red-400 text-xs">Dismiss</button>
