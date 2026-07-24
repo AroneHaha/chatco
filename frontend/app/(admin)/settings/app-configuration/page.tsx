@@ -20,6 +20,9 @@ export default function AppConfigurationPage() {
       const data = await getSettings('app');
       setConfig({
         maintenanceMode: data.maintenance_mode === 'true',
+        maintenanceMessage: data.maintenance_message?.trim()
+          ? data.maintenance_message
+          : defaultAppConfiguration.maintenanceMessage,
         requireIdUpload: data.require_id_upload !== undefined ? data.require_id_upload === 'true' : defaultAppConfiguration.requireIdUpload,
         requirePhoneVerification: data.require_phone_verification === 'true',
       });
@@ -39,6 +42,7 @@ export default function AppConfigurationPage() {
     try {
       await Promise.all([
         updateSetting('maintenance_mode', String(config.maintenanceMode), 'app'),
+        updateSetting('maintenance_message', config.maintenanceMessage.trim(), 'app'),
         updateSetting('require_id_upload', String(config.requireIdUpload), 'app'),
         updateSetting('require_phone_verification', String(config.requirePhoneVerification), 'app'),
       ]);
@@ -89,7 +93,7 @@ export default function AppConfigurationPage() {
                   <span>Maintenance Mode</span>
                 </h2>
                 <p className="text-sm text-slate-400 mt-1">
-                  When enabled, the Commuter app shows a maintenance screen. Admins and Conductors can still log in.
+                  When enabled, the public landing page shows a maintenance screen and the Commuter app is blocked. Admins and Conductors can still log in.
                 </p>
               </div>
 
@@ -104,6 +108,26 @@ export default function AppConfigurationPage() {
                   <div className="w-14 h-7 bg-[#1E2D45] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-yellow-500"></div>
                 </label>
               </div>
+            </div>
+
+            {/* Maintenance message — what visitors see on the landing page. */}
+            <div className="mt-5 pt-5 border-t border-[#1E2D45]">
+              <label htmlFor="maintenance-message" className="block text-sm font-medium text-slate-300 mb-1.5">
+                Maintenance message
+              </label>
+              <textarea
+                id="maintenance-message"
+                value={config.maintenanceMessage}
+                onChange={(e) => { setConfig(prev => ({ ...prev, maintenanceMessage: e.target.value })); setIsSaved(false); }}
+                rows={3}
+                maxLength={500}
+                placeholder="e.g. We're upgrading CHATCO and will be back shortly. Thanks for your patience!"
+                className="block w-full px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] resize-none disabled:opacity-50"
+                disabled={!config.maintenanceMode}
+              />
+              <p className="text-[11px] text-slate-500 mt-1.5">
+                Shown on the landing-page maintenance screen. Leave blank to use the default message.
+              </p>
             </div>
           </div>
 
