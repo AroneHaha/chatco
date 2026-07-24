@@ -10,8 +10,8 @@ export default function Hero() {
     <header className="relative overflow-hidden bg-[#071A2E] pt-28 pb-16 md:pt-32 md:pb-24 min-h-screen flex items-center">
       {/* Background Elements */}
       <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.4) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.4) 1px, transparent 1px)", backgroundSize: "60px 60px" }} />
-      <div className="absolute top-1/4 -left-32 w-[500px] h-[500px] bg-[#1A5FB4]/20 rounded-full blur-[150px]" />
-      <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-[#3584E4]/10 rounded-full blur-[120px]" />
+      <div className="absolute top-1/4 -left-32 w-[500px] h-[500px] bg-[#1A5FB4]/20 rounded-full blur-[150px] pointer-events-none" />
+      <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-[#3584E4]/10 rounded-full blur-[120px] pointer-events-none" />
 
       <div className="relative max-w-7xl mx-auto px-5 md:px-8 w-full flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
         
