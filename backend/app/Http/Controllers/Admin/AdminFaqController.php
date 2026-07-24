@@ -7,6 +7,7 @@ use App\Models\FaqItem;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class AdminFaqController extends Controller
 {
@@ -14,7 +15,12 @@ class AdminFaqController extends Controller
 
     public function index(): JsonResponse
     {
-        $faqs = FaqItem::orderBy('display_order', 'asc')->get();
+        // Group by category, then by manual display order within each — matches
+        // how the landing-page FAQ chat renders them.
+        $faqs = FaqItem::orderBy('category', 'asc')
+            ->orderBy('display_order', 'asc')
+            ->get();
+
         return $this->successResponse($faqs, 'FAQ items retrieved');
     }
 
@@ -23,13 +29,15 @@ class AdminFaqController extends Controller
         $validated = $request->validate([
             'question' => ['required', 'string', 'max:500'],
             'answer' => ['required', 'string'],
+            'category' => ['required', 'string', Rule::in(FaqItem::CATEGORIES)],
             'display_order' => ['nullable', 'integer', 'min:0'],
         ]);
 
         $faq = FaqItem::create([
             'question' => $validated['question'],
             'answer' => $validated['answer'],
-            'display_order' => $validated['display_order'] ?? (FaqItem::max('display_order') + 1 ?? 0),
+            'category' => $validated['category'],
+            'display_order' => $validated['display_order'] ?? ((int) FaqItem::max('display_order') + 1),
         ]);
         return $this->successResponse($faq, 'FAQ item created', 201);
     }
@@ -40,6 +48,7 @@ class AdminFaqController extends Controller
         $validated = $request->validate([
             'question' => ['sometimes', 'string', 'max:500'],
             'answer' => ['sometimes', 'string'],
+            'category' => ['sometimes', 'string', Rule::in(FaqItem::CATEGORIES)],
             'display_order' => ['sometimes', 'integer', 'min:0'],
             'is_active' => ['nullable', 'boolean'],
         ]);

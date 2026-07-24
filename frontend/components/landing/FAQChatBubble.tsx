@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { faqCategories, FAQItem } from "@/lib/shared/data/faq-data";
+import {
+  faqCategories as fallbackCategories,
+  FAQ_CATEGORIES,
+  type FAQItem,
+  type FAQCategory,
+  type ApiFaqItem,
+} from "@/lib/shared/data/faq-data";
 
 interface ChatMessage {
   id: number;
@@ -12,7 +18,12 @@ interface ChatMessage {
 
 export default function FAQChatBubble() {
   const [isOpen, setIsOpen] = useState(false);
-  const [activeCategory, setActiveCategory] = useState<string>("getting-started");
+  // Starts with the bundled fallback content, then swaps to the live DB-driven
+  // FAQs once /api/faqs responds (so admin edits show up here).
+  const [categories, setCategories] = useState<FAQCategory[]>(fallbackCategories);
+  const [activeCategory, setActiveCategory] = useState<string>(
+    fallbackCategories[0]?.id ?? ""
+  );
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [showCategories, setShowCategories] = useState(true);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -56,6 +67,43 @@ export default function FAQChatBubble() {
 
   const handleDragEnd = useCallback(() => {
     isDragging.current = false;
+  }, []);
+
+  // Load the live FAQ content from the DB (admin-managed). Groups the flat
+  // list by category using the canonical FAQ_CATEGORIES metadata, keeping only
+  // categories that actually have items. On any failure we keep the bundled
+  // fallback content so the chat is never empty.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/faqs", { headers: { Accept: "application/json" } });
+        if (!res.ok) return;
+        const json = await res.json();
+        const items: ApiFaqItem[] = json?.data ?? [];
+        if (!items.length) return;
+
+        const grouped: FAQCategory[] = FAQ_CATEGORIES.map((meta) => ({
+          ...meta,
+          items: items
+            .filter((it) => it.category === meta.id)
+            .sort((a, b) => a.display_order - b.display_order)
+            .map((it) => ({ question: it.question, answer: it.answer })),
+        })).filter((cat) => cat.items.length > 0);
+
+        if (cancelled || grouped.length === 0) return;
+
+        setCategories(grouped);
+        setActiveCategory((prev) =>
+          grouped.some((c) => c.id === prev) ? prev : grouped[0].id
+        );
+      } catch {
+        // Keep the fallback content.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Welcome message on open
@@ -109,10 +157,10 @@ export default function FAQChatBubble() {
       },
     ]);
     setShowCategories(true);
-    setActiveCategory("getting-started");
+    setActiveCategory(categories[0]?.id ?? "");
   };
 
-  const currentCategory = faqCategories.find((c) => c.id === activeCategory);
+  const currentCategory = categories.find((c) => c.id === activeCategory);
 
   return (
     <>
@@ -211,7 +259,7 @@ export default function FAQChatBubble() {
               className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide cursor-grab active:cursor-grabbing select-none"
               style={{ touchAction: "pan-x" }}
             >
-              {faqCategories.map((cat) => (
+              {categories.map((cat) => (
                 <button
                   key={cat.id}
                   onClick={() => handleCategoryChange(cat.id)}
