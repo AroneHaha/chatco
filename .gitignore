@@ -1,0 +1,2 @@
+# Stray root-level Composer install (backend has its own vendor/)
+/vendor
