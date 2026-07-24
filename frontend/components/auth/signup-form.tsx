@@ -22,6 +22,9 @@ export default function SignupForm() {
   const [serverError, setServerError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Timestamp of the last step change — used to ignore a phantom submit that
+  // fires in the same instant we advance onto the final step.
+  const lastStepChangeAt = useRef<number>(0);
 
   const [formData, setFormData] = useState({
     surname: "",
@@ -41,11 +44,19 @@ export default function SignupForm() {
   const [fileError, setFileError] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-    // Clear field-specific error when user edits
-    if (fieldErrors[e.target.name]) {
-      setFieldErrors(prev => { const next = { ...prev }; delete next[e.target.name]; return next; });
-    }
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+    // Clear the related field error as the user edits. Some form fields use a
+    // different name than the backend key, so map those too.
+    setFieldErrors(prev => {
+      if (Object.keys(prev).length === 0) return prev;
+      const next = { ...prev };
+      delete next[name];
+      if (name === "password" || name === "confirmPassword") delete next.password_confirmation;
+      if (name === "contactNumber") delete next.contact_number;
+      if (name === "appliedType") delete next.applied_type;
+      return next;
+    });
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -107,16 +118,46 @@ export default function SignupForm() {
 
   const handleNext = () => {
     if (!validateStep(step)) return;
+    // Don't carry a later step's validation errors back into view.
+    setServerError(null);
+    setFieldErrors({});
+    lastStepChangeAt.current = Date.now();
     setStep(step + 1);
   };
 
-  const handlePrev = () => setStep(step - 1);
+  const handlePrev = () => {
+    setServerError(null);
+    setFieldErrors({});
+    lastStepChangeAt.current = Date.now();
+    setStep(step - 1);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (formData.password !== formData.confirmPassword) {
-      setFieldErrors({ password: ["Passwords do not match."] });
+    // Only the final step (Account Credentials) registers. This also stops an
+    // accidental Enter keypress on an earlier step from firing a half-empty
+    // request that comes back with raw "field is required" errors.
+    if (step !== 3) return;
+
+    // Ignore a submit that fires in the same instant we advanced onto step 3.
+    // The "Next Step" and "Create Account" buttons share a slot, so the
+    // keypress/activation that triggered "Next" can carry over onto the newly
+    // rendered submit button. A real user can't fill this step that fast.
+    if (Date.now() - lastStepChangeAt.current < 400) return;
+
+    // Validate credentials on the client so the user sees friendly inline
+    // messages instead of the backend's raw validation text — and so we never
+    // POST empty fields just to have them rejected.
+    const clientErrors: Record<string, string[]> = {};
+    if (!formData.username.trim()) clientErrors.username = ["Please choose a username."];
+    if (!formData.password) clientErrors.password = ["Please enter a password."];
+    if (!formData.confirmPassword) clientErrors.password_confirmation = ["Please confirm your password."];
+    else if (formData.password && formData.password !== formData.confirmPassword) {
+      clientErrors.password_confirmation = ["Passwords do not match."];
+    }
+    if (Object.keys(clientErrors).length > 0) {
+      setFieldErrors(clientErrors);
       return;
     }
     if (!idImage) {
@@ -341,8 +382,8 @@ export default function SignupForm() {
               </div>
               <div>
                 <label htmlFor="confirmPassword" className={labelClasses}>Confirm Password *</label>
-                <input id="confirmPassword" name="confirmPassword" type="password" value={formData.confirmPassword} onChange={handleChange} className={`${inputClasses} ${getFieldError("password") ? "border-red-300" : ""}`} placeholder="••••••••" />
-                {getFieldError("password") && !getFieldError("password_confirmation") && <p className={errorClasses}>{getFieldError("password")}</p>}
+                <input id="confirmPassword" name="confirmPassword" type="password" value={formData.confirmPassword} onChange={handleChange} className={`${inputClasses} ${getFieldError("password_confirmation") ? "border-red-300" : ""}`} placeholder="••••••••" />
+                {getFieldError("password_confirmation") && <p className={errorClasses}>{getFieldError("password_confirmation")}</p>}
               </div>
             </div>
           )}
@@ -357,12 +398,12 @@ export default function SignupForm() {
             </button>
           )}
           {step < 3 ? (
-            <button type="button" onClick={handleNext} className="flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-xl text-base font-semibold bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-colors shadow-md shadow-[#1A5FB4]/20">
+            <button key="nav-next" type="button" onClick={handleNext} className="flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-xl text-base font-semibold bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-colors shadow-md shadow-[#1A5FB4]/20">
               Next Step
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
             </button>
           ) : (
-            <button type="submit" disabled={isLoading} className="flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-xl text-base font-semibold bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-colors shadow-md shadow-[#1A5FB4]/20 disabled:opacity-70 disabled:cursor-not-allowed">
+            <button key="nav-submit" type="submit" disabled={isLoading} className="flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-xl text-base font-semibold bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-colors shadow-md shadow-[#1A5FB4]/20 disabled:opacity-70 disabled:cursor-not-allowed">
               {isLoading ? (
                 <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>

@@ -1,24 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 
 /**
- * POST /api/auth/reset-password
- * PUBLIC — no auth required. Proxies to Laravel POST /api/v1/auth/reset-password.
+ * POST /api/auth/verify-reset-code
+ * PUBLIC — no auth required. Proxies to Laravel POST /api/v1/auth/verify-reset-code.
  *
- * Body: { email: string, code: string, password: string, password_confirmation: string }
+ * Body: { email: string, code: string }
  *
- * On success → 200 with success message.
- * On invalid/expired code → 400 with error message.
+ * On valid code → 200. On wrong/expired/locked code → 400 with a message.
  */
 const API_URL = process.env.API_URL || "http://localhost:8000";
 const API_V1 = "/api/v1";
 
 export async function POST(request: NextRequest) {
-  let body: {
-    email?: string;
-    code?: string;
-    password?: string;
-    password_confirmation?: string;
-  };
+  let body: { email?: string; code?: string };
   try {
     body = await request.json();
   } catch {
@@ -26,18 +20,13 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const res = await fetch(`${API_URL}${API_V1}/auth/reset-password`, {
+    const res = await fetch(`${API_URL}${API_V1}/auth/verify-reset-code`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
       },
-      body: JSON.stringify({
-        email: body.email,
-        code: body.code,
-        password: body.password,
-        password_confirmation: body.password_confirmation,
-      }),
+      body: JSON.stringify({ email: body.email, code: body.code }),
     });
 
     const data = await res.json().catch(() => ({}));
