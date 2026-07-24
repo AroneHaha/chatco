@@ -28,6 +28,9 @@ export interface RawRegistration {
   id_image_url: string;
   account_status: string;
   language_preference: string;
+  // How many times this applicant's identity (email/contact) was previously
+  // rejected. Present on the pending list; absent (→ 0) on the rejected list.
+  rejection_count?: number;
   created_at: string;
 }
 
@@ -45,6 +48,8 @@ export interface PendingRegistration {
   gender: string;
   username: string;
   appliedType: AppliedType;
+  /** Prior rejections of this applicant's identity (0 = first-time applicant). */
+  rejectionCount: number;
   createdAt: string;
 }
 
@@ -99,6 +104,7 @@ function mapToViewModel(r: RawRegistration): PendingRegistration {
     gender: r.gender,
     username: r.username,
     appliedType: r.applied_type,
+    rejectionCount: r.rejection_count ?? 0,
     createdAt: r.created_at,
   };
 }

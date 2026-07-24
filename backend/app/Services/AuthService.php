@@ -14,6 +14,10 @@ use Illuminate\Validation\ValidationException;
 
 class AuthService
 {
+    public function __construct(
+        private RegistrationGuard $registrationGuard
+    ) {}
+
     /**
      * Login with email, conductor generated_username, or commuter username.
      * Single optimized query with eager-loaded profiles.
@@ -150,6 +154,14 @@ class AuthService
      */
     public function register(array $data): array
     {
+        // Safety net: if this email/contact has been rejected too many times,
+        // enforce the re-registration cooldown before doing anything else.
+        // Throws a 422 with a friendly "try again after {date}" message.
+        $this->registrationGuard->assertNotBlocked(
+            $data['email'] ?? null,
+            $data['contact_number'] ?? null,
+        );
+
         // Manual uniqueness check against NON-deleted users. Soft-deleted
         // (rejected) accounts have had their email rewritten to a unique
         // 'rejected+{timestamp}' placeholder by AdminService::rejectRegistration,
