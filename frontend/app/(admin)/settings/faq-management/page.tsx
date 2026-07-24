@@ -2,15 +2,24 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Trash2, ChevronUp, ChevronDown, Save, X, RefreshCw, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, ChevronUp, ChevronDown, X, RefreshCw, AlertCircle } from 'lucide-react';
+import { FAQ_CATEGORIES } from '@/lib/shared/data/faq-data';
 
 interface FaqItem {
   id: string;
   question: string;
   answer: string;
+  category: string;
   display_order: number;
   is_active: boolean;
 }
+
+/** slug → { label, emoji } lookup for rendering category badges. */
+const CATEGORY_META = Object.fromEntries(
+  FAQ_CATEGORIES.map((c) => [c.id, c])
+);
+
+const DEFAULT_CATEGORY = FAQ_CATEGORIES[0].id;
 
 export default function FaqManagementPage() {
   const [faqs, setFaqs] = useState<FaqItem[]>([]);
@@ -19,7 +28,7 @@ export default function FaqManagementPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newFaq, setNewFaq] = useState({ question: '', answer: '' });
+  const [newFaq, setNewFaq] = useState({ question: '', answer: '', category: DEFAULT_CATEGORY });
 
   const fetchFaqs = useCallback(async () => {
     setIsLoading(true);
@@ -48,12 +57,12 @@ export default function FaqManagementPage() {
       const res = await fetch('/api/admin/faqs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: newFaq.question.trim(), answer: newFaq.answer.trim() }),
+        body: JSON.stringify({ question: newFaq.question.trim(), answer: newFaq.answer.trim(), category: newFaq.category }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? 'Failed to create FAQ');
       showSuccess('FAQ added successfully.');
-      setNewFaq({ question: '', answer: '' });
+      setNewFaq({ question: '', answer: '', category: DEFAULT_CATEGORY });
       setShowAddForm(false);
       await fetchFaqs();
     } catch (err) {
@@ -145,6 +154,21 @@ export default function FaqManagementPage() {
           <div className="bg-[#131C2E] border border-[#1E2D45] p-4 sm:p-6 rounded-lg space-y-4">
             <h3 className="text-sm font-bold text-white">New FAQ Item</h3>
             <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">Category *</label>
+              <select
+                value={newFaq.category}
+                onChange={e => setNewFaq(prev => ({ ...prev, category: e.target.value }))}
+                className="block w-full px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] [color-scheme:dark]"
+              >
+                {FAQ_CATEGORIES.map(cat => (
+                  <option key={cat.id} value={cat.id} className="bg-[#0E1628]">
+                    {cat.emoji} {cat.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-slate-500 mt-1.5">Groups this question under a section in the landing-page FAQ chat.</p>
+            </div>
+            <div>
               <label className="block text-xs font-medium text-slate-300 mb-1.5">Question *</label>
               <input type="text" value={newFaq.question} onChange={e => setNewFaq(prev => ({ ...prev, question: e.target.value }))} placeholder="e.g., How do I pay with GCash?" className="block w-full px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA]" />
             </div>
@@ -166,6 +190,11 @@ export default function FaqManagementPage() {
             <div key={faq.id} className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 mb-1.5 rounded-full text-[10px] font-semibold bg-[#62A0EA]/10 border border-[#62A0EA]/20 text-[#62A0EA]">
+                    {CATEGORY_META[faq.category]
+                      ? `${CATEGORY_META[faq.category].emoji} ${CATEGORY_META[faq.category].label}`
+                      : faq.category}
+                  </span>
                   <p className="text-sm font-semibold text-white">{faq.question}</p>
                   <p className="text-sm text-slate-400 mt-1">{faq.answer}</p>
                 </div>

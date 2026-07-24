@@ -246,6 +246,7 @@ class DatabaseSeeder extends Seeder
             TransactionSeeder::class,   // fares (Receipts + remittance source)
             RemittanceSeeder::class,    // completed remittances (from ended shifts)
             AnnouncementSeeder::class,  // system announcements feed
+            FaqSeeder::class,           // landing-page FAQ chat content
         ]);
     }
 }

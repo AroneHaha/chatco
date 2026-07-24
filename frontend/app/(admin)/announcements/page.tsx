@@ -200,9 +200,11 @@ export default function AnnouncementsPage() {
   return (
     <div className="h-full w-[calc(100%+2rem)] flex flex-col overflow-hidden relative -mx-4 -mt-4 md:w-full md:mx-0 md:mt-0">
       {/* Header. On phones it breaks out of <main>'s padding to sit flush at the
-          top edge-to-edge (like the shared sticky header); the boxed card
-          returns at md. */}
-      <div className="flex-shrink-0 bg-[#131C2E] border-b border-[#1E2D45] p-4 z-10 mb-4 md:border md:rounded-lg md:mb-6 lg:px-8 lg:py-6">
+          top edge-to-edge (like the shared sticky header). On desktop it drops
+          the boxed-card look and becomes a borderless, transparent full-width
+          header — flush to the content edges like every other admin module —
+          with just a full-width bottom divider. */}
+      <div className="flex-shrink-0 bg-[#131C2E] border-b border-[#1E2D45] p-4 z-10 mb-4 md:bg-transparent md:rounded-none md:px-0 md:pt-0 md:pb-5 md:mb-6">
         <div className="flex flex-col sm:flex-row lg:flex-row lg:items-center lg:justify-between gap-4 mb-5">
           <div className="min-w-0">
             <h1 className="text-white font-bold text-xl lg:text-2xl flex items-center gap-2">
@@ -258,7 +260,7 @@ export default function AnnouncementsPage() {
 
       {/* Action error */}
       {actionError && (
-        <div className="mx-4 lg:mx-8 mb-4 bg-red-500/10 border border-red-500/30 rounded-md p-3 flex items-center gap-2">
+        <div className="mx-4 md:mx-0 mb-4 bg-red-500/10 border border-red-500/30 rounded-md p-3 flex items-center gap-2">
           <AlertTriangle size={16} className="text-red-400 flex-shrink-0" />
           <p className="text-red-400 text-xs font-medium">{actionError}</p>
           <button
@@ -271,7 +273,7 @@ export default function AnnouncementsPage() {
       )}
 
       {/* Table */}
-      <div className="flex-1 overflow-y-auto pb-28 lg:pb-8 px-4 lg:px-8">
+      <div className="flex-1 overflow-y-auto pb-28 lg:pb-8 px-4 md:px-0">
         {isLoading ? (
           <div className="h-full flex flex-col items-center justify-center">
             <div className="w-8 h-8 border-2 border-[#1E2D45] border-t-[#62A0EA] rounded-full animate-spin" />

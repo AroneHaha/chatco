@@ -7,21 +7,29 @@ use App\Exceptions\AccountSuspendedException;
 use App\Exceptions\RegistrationPendingException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\RegisterRequest;
+use App\Mail\PasswordResetCodeMail;
 use App\Models\User;
 use App\Services\AuthService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
     use ApiResponse;
+
+    /** How long a reset code stays valid, in minutes. */
+    private const CODE_TTL_MINUTES = 15;
+
+    /** Failed verification attempts allowed before a code is burned. */
+    private const MAX_CODE_ATTEMPTS = 5;
 
     public function __construct(
         private AuthService $authService
@@ -135,14 +143,13 @@ class AuthController extends Controller
     /**
      * POST /api/v1/auth/forgot-password — public.
      *
-     * Sends a password reset link to the given email. Always returns 200
-     * with a generic "we sent a link if the email exists" message — this
-     * prevents user-enumeration attacks (attackers can't probe which emails
-     * are registered).
+     * Step 1 of the reset flow. If the email belongs to a real account we
+     * generate a random 6-digit code, store it (hashed) in
+     * password_reset_tokens, and email it to that address.
      *
-     * Uses Laravel's built-in Password::sendResetLink() which dispatches
-     * the ResetPassword notification (customized in AppServiceProvider to
-     * point at {frontend_url}/password-reset/{token}?email=...).
+     * Always returns the same generic 200 response whether or not the email
+     * is registered — this prevents user-enumeration (an attacker can't tell
+     * which emails have accounts by probing this endpoint).
      */
     public function forgotPassword(Request $request): JsonResponse
     {
@@ -150,70 +157,181 @@ class AuthController extends Controller
             'email' => 'required|email',
         ]);
 
-        // We send the reset link regardless of whether the user exists, but
-        // Password::sendResetLink() only actually sends for valid users.
-        // The status code tells us what happened (but we return the same
-        // response either way to avoid email enumeration).
-        $status = Password::sendResetLink(
-            $request->only('email')
-        );
+        $email = $this->normalizeEmail($request->email);
 
-        // Log the actual status for debugging — useful when emails don't arrive.
-        if ($status === Password::RESET_LINK_SENT) {
-            \Illuminate\Support\Facades\Log::info('Password reset link sent', [
-                'email' => $request->email,
-            ]);
+        // Targeted lookup — pull only the columns we need, and let the
+        // SoftDeletes global scope exclude deleted accounts automatically.
+        // (No "SELECT *"; no scanning unrelated columns.)
+        $user = User::query()
+            ->where('email', $email)
+            ->first(['id', 'email']);
+
+        if ($user) {
+            $code = $this->generateResetCode();
+
+            // Upsert by email so requesting a new code overwrites any pending
+            // one and resets the failed-attempt counter.
+            DB::table('password_reset_tokens')->updateOrInsert(
+                ['email' => $email],
+                [
+                    'token'      => Hash::make($code),
+                    'attempts'   => 0,
+                    'created_at' => now(),
+                ]
+            );
+
+            try {
+                Mail::to($user->email)->send(
+                    new PasswordResetCodeMail($code, self::CODE_TTL_MINUTES)
+                );
+            } catch (\Throwable $e) {
+                // Don't leak delivery failures to the client (still generic
+                // 200), but do record them so we can diagnose SMTP issues.
+                Log::error('Password reset code email failed to send', [
+                    'email' => $email,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         } else {
-            \Illuminate\Support\Facades\Log::warning('Password reset link NOT sent', [
-                'email' => $request->email,
-                'status' => $status,
-            ]);
+            Log::info('Password reset requested for unknown email', ['email' => $email]);
         }
 
-        // Always return the same message — prevents email enumeration.
         return $this->successResponse(
             null,
-            'If an account with that email exists, we have sent a password reset link.',
+            'If an account with that email exists, we have sent a 6-digit reset code.',
             200
         );
     }
 
     /**
+     * POST /api/v1/auth/verify-reset-code — public.
+     *
+     * Step 2 of the reset flow. Checks that the submitted code matches the
+     * one we emailed, is unexpired, and hasn't been guessed too many times.
+     * On success the code is left in place so the final step can consume it.
+     */
+    public function verifyResetCode(Request $request): JsonResponse
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'code'  => 'required|string',
+        ]);
+
+        [$status, $message] = $this->checkResetCode(
+            $this->normalizeEmail($request->email),
+            $request->code
+        );
+
+        if ($status !== 'valid') {
+            return $this->errorResponse($message, 400);
+        }
+
+        return $this->successResponse(null, 'Code verified. You can now set a new password.');
+    }
+
+    /**
      * POST /api/v1/auth/reset-password — public.
      *
-     * Resets the user's password using the token from the email link.
-     * The frontend collects token + email + new password from the URL
-     * + form, then POSTs here.
+     * Step 3 of the reset flow. Re-verifies the code (so this endpoint is
+     * safe even if the verify step was skipped), sets the new password, and
+     * burns the code so it can't be reused.
      */
     public function resetPassword(Request $request): JsonResponse
     {
         $request->validate([
-            'token'    => 'required|string',
             'email'    => 'required|email',
+            'code'     => 'required|string',
             'password' => 'required|string|min:6|confirmed',
         ]);
 
-        $status = Password::reset(
-            $request->only('email', 'password', 'password_confirmation', 'token'),
-            function (User $user, string $password) {
-                $user->forceFill([
-                    'password'       => Hash::make($password),
-                    'remember_token' => Str::random(60),
-                ])->save();
-            }
-        );
+        $email = $this->normalizeEmail($request->email);
 
-        if ($status === Password::PASSWORD_RESET) {
-            return $this->successResponse(null, 'Password reset successfully. You can now log in.');
+        [$status, $message] = $this->checkResetCode($email, $request->code);
+
+        if ($status !== 'valid') {
+            return $this->errorResponse($message, 400);
         }
 
-        // Invalid token, expired token, or user not found.
-        $message = match ($status) {
-            Password::INVALID_TOKEN     => 'This reset link has expired or is invalid. Please request a new one.',
-            Password::INVALID_USER      => 'We could not find an account with that email.',
-            default                      => 'Unable to reset password. Please try again.',
-        };
+        $user = User::query()->where('email', $email)->first();
 
-        return $this->errorResponse($message, 400);
+        if (! $user) {
+            // Extremely unlikely (code existed a moment ago) but be defensive.
+            DB::table('password_reset_tokens')->where('email', $email)->delete();
+            return $this->errorResponse('We could not find an account with that email.', 400);
+        }
+
+        $user->forceFill([
+            'password'       => Hash::make($request->password),
+            'remember_token' => Str::random(60),
+        ])->save();
+
+        // Consume the code — one successful reset per code.
+        DB::table('password_reset_tokens')->where('email', $email)->delete();
+
+        return $this->successResponse(null, 'Password reset successfully. You can now log in.');
+    }
+
+    /**
+     * Verify a submitted reset code against the stored record.
+     *
+     * Returns a [status, message] pair where status is one of:
+     *   'valid'   — code matches, unexpired, within attempt budget
+     *   'invalid' — no pending code, or the code is wrong (attempt counted)
+     *   'expired' — the code passed its TTL
+     *   'locked'  — too many wrong guesses; the code has been invalidated
+     *
+     * On a wrong guess the attempt counter is incremented; hitting the cap
+     * deletes the code so an attacker can't keep brute-forcing 6 digits.
+     */
+    private function checkResetCode(string $email, string $code): array
+    {
+        $record = DB::table('password_reset_tokens')->where('email', $email)->first();
+
+        // Generic message throughout so a wrong code and a never-requested
+        // code look identical to the caller.
+        $invalid = 'That code is incorrect or has expired. Please request a new one.';
+
+        if (! $record) {
+            return ['invalid', $invalid];
+        }
+
+        // Expired → clean up and treat as invalid.
+        if (Carbon::parse($record->created_at)->addMinutes(self::CODE_TTL_MINUTES)->isPast()) {
+            DB::table('password_reset_tokens')->where('email', $email)->delete();
+            return ['expired', $invalid];
+        }
+
+        if (! Hash::check($code, $record->token)) {
+            $attempts = (int) $record->attempts + 1;
+
+            if ($attempts >= self::MAX_CODE_ATTEMPTS) {
+                DB::table('password_reset_tokens')->where('email', $email)->delete();
+                return ['locked', 'Too many incorrect attempts. Please request a new code.'];
+            }
+
+            DB::table('password_reset_tokens')->where('email', $email)->update([
+                'attempts' => $attempts,
+            ]);
+
+            return ['invalid', $invalid];
+        }
+
+        return ['valid', 'OK'];
+    }
+
+    /**
+     * A cryptographically-random, zero-padded 6-digit code (000000–999999).
+     */
+    private function generateResetCode(): string
+    {
+        return str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Normalize an email for consistent lookups (trim + lowercase).
+     */
+    private function normalizeEmail(string $email): string
+    {
+        return Str::lower(trim($email));
     }
 }

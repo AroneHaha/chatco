@@ -43,6 +43,7 @@ export interface OperationsRulesConfig {
 
 export interface AppConfiguration {
   maintenanceMode: boolean;
+  maintenanceMessage: string;
   requireIdUpload: boolean;
   requirePhoneVerification: boolean;
 }
@@ -134,6 +135,8 @@ export const defaultOperationsRules: OperationsRulesConfig = {
 
 export const defaultAppConfiguration: AppConfiguration = {
   maintenanceMode: false,
+  maintenanceMessage:
+    "CHATCO is currently undergoing scheduled maintenance. We'll be back online shortly — thank you for your patience!",
   requireIdUpload: true,
   requirePhoneVerification: false,
 };

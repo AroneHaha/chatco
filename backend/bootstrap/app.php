@@ -27,6 +27,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'role' => \App\Http\Middleware\EnsureUserRole::class,
+            'maintenance' => \App\Http\Middleware\BlockDuringMaintenance::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

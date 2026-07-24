@@ -26,7 +26,9 @@ use App\Http\Controllers\LostItemController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\Payment\PaymentController;
 use App\Http\Controllers\Payment\QrController;
+use App\Http\Controllers\FaqController;
 use App\Http\Controllers\FareMatrixController;
+use App\Http\Controllers\SystemStatusController;
 
 /*
 |--------------------------------------------------------------------------
@@ -38,7 +40,9 @@ Route::prefix('auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:commuter-hail'); // PUBLIC — commuter self-sign-up (S5-T15)
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
     // Password reset — public (no auth required, throttled to prevent abuse).
+    // 3-step 6-digit-code flow: request code → verify code → set new password.
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:commuter-hail');
+    Route::post('/verify-reset-code', [AuthController::class, 'verifyResetCode'])->middleware('throttle:commuter-hail');
     Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:commuter-hail');
 });
 
@@ -52,6 +56,20 @@ Route::prefix('auth')->group(function () {
 | immediately visible to all consumers on their next fetch.
 */
 Route::get('/fare-matrix', [FareMatrixController::class, 'index'])->middleware('throttle:commuter-hail');
+
+/*
+|--------------------------------------------------------------------------
+| FAQ (Public — powers the landing-page FAQ chat)
+|--------------------------------------------------------------------------
+| Returns active FAQ items grouped by category. Admins manage the content at
+| /settings/faq-management (see the admin /faqs routes); changes are visible
+| to the landing page on its next fetch.
+*/
+Route::get('/faqs', [FaqController::class, 'index'])->middleware('throttle:commuter-hail');
+
+// Public system status — powers the landing-page maintenance screen. Admins
+// toggle maintenance mode at /settings/app-configuration.
+Route::get('/system-status', [SystemStatusController::class, 'index'])->middleware('throttle:commuter-hail');
 
 // Public tracking endpoint — no auth required. Anyone with the token
 // can view the commuter's live position (for the share-ride feature).
@@ -156,8 +174,10 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->grou
     // conductor can only read feedback for their own shifts.
     Route::get('/ratings', [ConductorController::class, 'ratings'])->middleware('throttle:conductor-read');
 
-    // Mutations — strict limit (one shift per conductor at a time anyway)
-    Route::post('/shifts/start', [ConductorController::class, 'startShift'])->middleware('throttle:conductor-mutation');
+    // Mutations — strict limit (one shift per conductor at a time anyway).
+    // 'maintenance' blocks starting a shift (conductor self-assignment) while
+    // Maintenance Mode is on, so no assignment state is created mid-maintenance.
+    Route::post('/shifts/start', [ConductorController::class, 'startShift'])->middleware(['maintenance', 'throttle:conductor-mutation']);
     Route::post('/remittances', [ConductorController::class, 'remittances'])->middleware('throttle:conductor-mutation');
 
     // Read — conductor's own submitted remittance history (Week 5).

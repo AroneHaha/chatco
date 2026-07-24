@@ -3,18 +3,45 @@
 import { useState, FormEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import logo from "../../../assets/logo-transparent.png";
 import Footer from "@/components/landing/Footer";
 
+/**
+ * Forgot-password flow — 6-digit code, three steps on a single page:
+ *
+ *   1. "email"    — enter the account email; backend emails a 6-digit code.
+ *   2. "code"     — enter the code; backend verifies it (wrong/expired = error).
+ *   3. "password" — set + confirm the new password; backend re-verifies the
+ *                   code and saves the password, then we bounce to /login.
+ *
+ * The email step always shows the same "if an account exists…" confirmation
+ * regardless of whether the email is registered, so this page can't be used
+ * to enumerate accounts.
+ */
+
+type Step = "email" | "code" | "password" | "done";
+type Status = "idle" | "loading";
+
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const router = useRouter();
+
+  const [step, setStep] = useState<Step>("email");
+  const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
+  const [resendNote, setResendNote] = useState("");
+
+  // Step 1 — request a code.
+  async function handleRequestCode(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setStatus("sending");
+    setStatus("loading");
     setErrorMsg("");
+    setResendNote("");
 
     try {
       const res = await fetch("/api/auth/forgot-password", {
@@ -23,33 +50,138 @@ export default function ForgotPasswordPage() {
         body: JSON.stringify({ email }),
       });
 
-      // The backend always returns 200 with a generic message (to prevent
-      // email enumeration), so we treat any 2xx as "sent".
       if (res.ok) {
-        setStatus("sent");
+        setCode("");
+        setStep("code");
       } else {
         const data = await res.json().catch(() => ({}));
         setErrorMsg(data?.message ?? "Something went wrong. Please try again.");
-        setStatus("error");
       }
     } catch {
       setErrorMsg("Unable to reach the server. Please check your connection and try again.");
-      setStatus("error");
+    } finally {
+      setStatus("idle");
     }
   }
 
+  // Resend the code (re-runs step 1 without leaving the code screen).
+  async function handleResend() {
+    setStatus("loading");
+    setErrorMsg("");
+    setResendNote("");
+
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      if (res.ok) {
+        setResendNote("A new code is on its way. Check your inbox.");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setErrorMsg(data?.message ?? "Couldn't resend the code. Please try again.");
+      }
+    } catch {
+      setErrorMsg("Unable to reach the server. Please try again.");
+    } finally {
+      setStatus("idle");
+    }
+  }
+
+  // Step 2 — verify the code.
+  async function handleVerifyCode(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setStatus("loading");
+    setErrorMsg("");
+
+    if (code.length !== 6) {
+      setErrorMsg("Enter the 6-digit code from your email.");
+      setStatus("idle");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/auth/verify-reset-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code }),
+      });
+
+      if (res.ok) {
+        setPassword("");
+        setPasswordConfirmation("");
+        setStep("password");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setErrorMsg(data?.message ?? "That code is incorrect or has expired.");
+      }
+    } catch {
+      setErrorMsg("Unable to reach the server. Please try again.");
+    } finally {
+      setStatus("idle");
+    }
+  }
+
+  // Step 3 — set the new password.
+  async function handleResetPassword(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setErrorMsg("");
+
+    if (password.length < 6) {
+      setErrorMsg("Password must be at least 6 characters.");
+      return;
+    }
+    if (password !== passwordConfirmation) {
+      setErrorMsg("Passwords do not match.");
+      return;
+    }
+
+    setStatus("loading");
+
+    try {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          code,
+          password,
+          password_confirmation: passwordConfirmation,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        setStep("done");
+        setTimeout(() => router.push("/login"), 3000);
+      } else {
+        // If the code went stale between steps, send the user back to re-enter it.
+        setErrorMsg(data?.message ?? "Unable to reset password. Please try again.");
+        if (res.status === 400 && /code/i.test(data?.message ?? "")) {
+          setStep("code");
+          setCode("");
+        }
+      }
+    } catch {
+      setErrorMsg("Unable to reach the server. Please try again.");
+    } finally {
+      setStatus("idle");
+    }
+  }
+
+  const loading = status === "loading";
+
   return (
     <div className="min-h-screen flex flex-col bg-white">
-      {/* Main Content */}
       <div className="flex-1 flex">
-        {/* Left Side (Same Branding) */}
+        {/* Left Side (Branding) */}
         <div className="hidden lg:flex lg:w-1/2 relative hero-bg overflow-hidden flex-col">
-          {/* Background Glows */}
           <div className="absolute top-1/4 -left-32 w-[500px] h-[500px] bg-[#1A5FB4]/20 rounded-full blur-[120px]" />
           <div className="absolute bottom-0 right-0 w-80 h-80 bg-[#3584E4]/15 rounded-full blur-[100px]" />
           <div className="absolute top-0 right-1/4 w-64 h-64 bg-[#62A0EA]/10 rounded-full blur-[80px]" />
-
-          {/* Grid Overlay */}
           <div
             className="absolute inset-0 opacity-[0.04]"
             style={{
@@ -58,16 +190,12 @@ export default function ForgotPasswordPage() {
               backgroundSize: "60px 60px",
             }}
           />
-
-          {/* Logo */}
           <div className="relative z-10 pt-12 px-16">
             <Link href="/" className="inline-flex items-center gap-5 hover:opacity-80">
               <Image src={logo} alt="CHATCO" width={95} height={95} />
               <span className="text-4xl font-extrabold text-white">CHATCO</span>
             </Link>
           </div>
-
-          {/* Hero Text */}
           <div className="relative z-10 flex-1 flex flex-col justify-center px-16">
             <h1 className="text-5xl font-extrabold text-white leading-tight">
               Forgot your
@@ -75,7 +203,7 @@ export default function ForgotPasswordPage() {
               <span className="text-[#62A0EA]">password?</span>
             </h1>
             <p className="mt-6 text-white/50 max-w-md">
-              No worries. Enter your email and we’ll send you a reset link to get back on track.
+              No worries. Enter your email and we&apos;ll send you a 6-digit code to reset it.
             </p>
           </div>
         </div>
@@ -83,7 +211,6 @@ export default function ForgotPasswordPage() {
         {/* Right Side Form */}
         <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 pt-16 lg:pt-12">
           <div className="w-full max-w-md">
-            {/* Mobile Back */}
             <Link
               href="/login"
               className="lg:hidden inline-flex items-center gap-2 text-sm text-gray-500 hover:text-[#1A5FB4] mb-10"
@@ -91,32 +218,33 @@ export default function ForgotPasswordPage() {
               ← Back to login
             </Link>
 
-            {/* Form */}
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">Reset your password</h2>
-              <p className="mt-2 text-sm text-gray-500">
-                Enter your email address and we’ll send you a reset link.
-              </p>
+            {/* Step indicator */}
+            {step !== "done" && (
+              <div className="flex items-center gap-2 mb-6">
+                {(["email", "code", "password"] as const).map((s, i) => {
+                  const order = { email: 0, code: 1, password: 2 } as const;
+                  const active = order[step as "email" | "code" | "password"] >= i;
+                  return (
+                    <div
+                      key={s}
+                      className={`h-1.5 flex-1 rounded-full transition-colors ${
+                        active ? "bg-[#1A5FB4]" : "bg-gray-200"
+                      }`}
+                    />
+                  );
+                })}
+              </div>
+            )}
 
-              {status === "sent" ? (
-                <div className="mt-8 p-4 bg-green-50 border border-green-200 rounded-xl">
-                  <p className="text-sm text-green-800 font-medium">Check your inbox ✅</p>
-                  <p className="mt-1 text-sm text-green-700">
-                    If an account with <span className="font-semibold">{email}</span> exists, we&apos;ve sent a password reset link. The link expires in 60 minutes.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStatus("idle");
-                      setEmail("");
-                    }}
-                    className="mt-4 text-sm text-[#1A5FB4] font-medium hover:underline"
-                  >
-                    Try a different email
-                  </button>
-                </div>
-              ) : (
-                <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+            {/* STEP 1 — EMAIL */}
+            {step === "email" && (
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Reset your password</h2>
+                <p className="mt-2 text-sm text-gray-500">
+                  Enter your email address and we&apos;ll send you a 6-digit code.
+                </p>
+
+                <form className="mt-8 space-y-6" onSubmit={handleRequestCode}>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Email address</label>
                     <input
@@ -125,12 +253,12 @@ export default function ForgotPasswordPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="you@example.com"
-                      className="mt-2 w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#1A5FB4] outline-none"
-                      disabled={status === "sending"}
+                      className="mt-2 w-full px-4 py-3 border border-gray-300 rounded-xl bg-white text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-[#1A5FB4] outline-none"
+                      disabled={loading}
                     />
                   </div>
 
-                  {status === "error" && (
+                  {errorMsg && (
                     <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
                       <p className="text-sm text-red-700">{errorMsg}</p>
                     </div>
@@ -138,22 +266,167 @@ export default function ForgotPasswordPage() {
 
                   <button
                     type="submit"
-                    disabled={status === "sending" || !email}
+                    disabled={loading || !email}
                     className="w-full bg-[#1A5FB4] text-white py-3 rounded-xl font-semibold hover:bg-[#174a8c] transition disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {status === "sending" ? "Sending…" : "Send Reset Link"}
+                    {loading ? "Sending…" : "Send Code"}
                   </button>
                 </form>
-              )}
+              </div>
+            )}
 
-              {/* Back to login */}
+            {/* STEP 2 — CODE */}
+            {step === "code" && (
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Enter the code</h2>
+                <p className="mt-2 text-sm text-gray-500">
+                  If an account exists for{" "}
+                  <span className="font-semibold text-gray-700">{email}</span>, we&apos;ve sent a
+                  6-digit code. It expires in 15 minutes.
+                </p>
+
+                <form className="mt-8 space-y-6" onSubmit={handleVerifyCode}>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">6-digit code</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      required
+                      value={code}
+                      onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      placeholder="123456"
+                      className="mt-2 w-full px-4 py-3 border border-gray-300 rounded-xl bg-white text-center text-2xl font-semibold tracking-[0.5em] text-gray-900 placeholder-gray-300 focus:ring-2 focus:ring-[#1A5FB4] outline-none"
+                      disabled={loading}
+                    />
+                  </div>
+
+                  {errorMsg && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
+                      <p className="text-sm text-red-700">{errorMsg}</p>
+                    </div>
+                  )}
+                  {resendNote && !errorMsg && (
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-xl">
+                      <p className="text-sm text-green-700">{resendNote}</p>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={loading || code.length !== 6}
+                    className="w-full bg-[#1A5FB4] text-white py-3 rounded-xl font-semibold hover:bg-[#174a8c] transition disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {loading ? "Verifying…" : "Verify Code"}
+                  </button>
+                </form>
+
+                <div className="mt-6 flex items-center justify-between text-sm">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStep("email");
+                      setErrorMsg("");
+                      setResendNote("");
+                    }}
+                    className="text-gray-500 hover:text-[#1A5FB4]"
+                  >
+                    ← Change email
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    disabled={loading}
+                    className="text-[#1A5FB4] font-medium hover:underline disabled:opacity-60"
+                  >
+                    Resend code
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3 — NEW PASSWORD */}
+            {step === "password" && (
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Set a new password</h2>
+                <p className="mt-2 text-sm text-gray-500">
+                  Choose a strong password you haven&apos;t used before.
+                </p>
+
+                <form className="mt-8 space-y-6" onSubmit={handleResetPassword}>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">New password</label>
+                    <input
+                      type="password"
+                      required
+                      minLength={6}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="At least 6 characters"
+                      className="mt-2 w-full px-4 py-3 border border-gray-300 rounded-xl bg-white text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-[#1A5FB4] outline-none"
+                      disabled={loading}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Confirm new password
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      minLength={6}
+                      value={passwordConfirmation}
+                      onChange={(e) => setPasswordConfirmation(e.target.value)}
+                      placeholder="Re-enter your new password"
+                      className="mt-2 w-full px-4 py-3 border border-gray-300 rounded-xl bg-white text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-[#1A5FB4] outline-none"
+                      disabled={loading}
+                    />
+                  </div>
+
+                  {errorMsg && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
+                      <p className="text-sm text-red-700">{errorMsg}</p>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={loading || !password || !passwordConfirmation}
+                    className="w-full bg-[#1A5FB4] text-white py-3 rounded-xl font-semibold hover:bg-[#174a8c] transition disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {loading ? "Resetting…" : "Reset Password"}
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* DONE */}
+            {step === "done" && (
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Reset your password</h2>
+                <div className="mt-8 p-4 bg-green-50 border border-green-200 rounded-xl">
+                  <p className="text-sm text-green-800 font-medium">Password reset! ✅</p>
+                  <p className="mt-1 text-sm text-green-700">
+                    You can now sign in with your new password. Redirecting you to login… (or{" "}
+                    <Link href="/login" className="font-semibold underline">
+                      click here
+                    </Link>
+                    )
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Back to login */}
+            {step !== "done" && (
               <p className="mt-6 text-sm text-gray-500 text-center">
                 Remember your password?{" "}
                 <Link href="/login" className="text-[#1A5FB4] font-medium hover:underline">
                   Sign in
                 </Link>
               </p>
-            </div>
+            )}
           </div>
         </div>
       </div>

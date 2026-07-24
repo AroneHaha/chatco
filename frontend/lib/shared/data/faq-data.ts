@@ -10,6 +10,35 @@ export interface FAQCategory {
   items: FAQItem[];
 }
 
+/** Category metadata (label + emoji) keyed by slug. */
+export interface FAQCategoryMeta {
+  id: string;
+  label: string;
+  emoji: string;
+}
+
+/**
+ * Canonical category list — the single source of truth for the slug → label +
+ * emoji mapping used by BOTH the admin FAQ form and the landing FAQ chat.
+ * The `id` values MUST match the backend `FaqItem::CATEGORIES` keys.
+ */
+export const FAQ_CATEGORIES: FAQCategoryMeta[] = [
+  { id: "getting-started", label: "Getting Started", emoji: "🚀" },
+  { id: "payments", label: "Payments & GCash", emoji: "💰" },
+  { id: "riding", label: "Riding & Tracking", emoji: "🚐" },
+  { id: "safety", label: "Safety & Support", emoji: "🛡️" },
+  { id: "rewards", label: "Rewards & Loyalty", emoji: "🎁" },
+];
+
+/** Shape of a FAQ item returned by the public GET /api/faqs endpoint. */
+export interface ApiFaqItem {
+  id: string;
+  question: string;
+  answer: string;
+  category: string;
+  display_order: number;
+}
+
 export const faqCategories: FAQCategory[] = [
   {
     id: "getting-started",
