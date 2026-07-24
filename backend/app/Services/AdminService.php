@@ -20,6 +20,10 @@ class AdminService
 {
     /** Account statuses an admin may toggle a commuter between. */
     private const ADMIN_TOGGLEABLE_STATUSES = ['ACTIVE', 'SUSPENDED'];
+
+    public function __construct(
+        private RegistrationGuard $registrationGuard
+    ) {}
     /**
      * List vehicles with optional filters + pagination.
      *
@@ -570,6 +574,13 @@ class AdminService
                     'language_preference' => $c?->language_preference,
                     'verified_at'     => $c?->verified_at?->toIso8601String(),
                     'rejection_reason'=> $c?->rejection_reason,
+                    // How many times this applicant's identity (email/contact)
+                    // has previously been rejected — surfaced so admins can spot
+                    // repeat submissions approaching the cooldown threshold.
+                    'rejection_count' => $this->registrationGuard->rejectionCountFor(
+                        $user->email,
+                        $c?->contact_number,
+                    ),
                     'created_at'      => optional($user->created_at)->toIso8601String(),
                 ];
             });
@@ -792,14 +803,33 @@ class AdminService
             ]);
         }
 
+        // Record this rejection as a strike against the applicant's identity
+        // (email + contact number) BEFORE the canonical email is rewritten.
+        // Once the configured threshold is reached, this stamps a cooldown
+        // (blocked_until) that AuthService::register / onsite store() enforce,
+        // temporarily pausing re-registration. See App\Services\RegistrationGuard.
+        $strike = $this->registrationGuard->recordRejection(
+            email: $user->email,
+            contact: $profile->contact_number,
+            reason: $reason,
+            rejectedUserId: $user->id,
+            rejectedByAdminId: auth()->id(),
+        );
+
         // Send rejection email to the commuter BEFORE rewriting the email
         // (best-effort — don't fail the rejection if the email can't be sent).
-        $this->sendRejectionEmail($user, $profile, $reason);
+        // The strike carries the attempt number + any cooldown so the email can
+        // tell the commuter whether they may re-register immediately.
+        $this->sendRejectionEmail($user, $profile, $reason, $strike);
 
         // Rewrite the email to a unique placeholder BEFORE soft-deleting.
         // This frees the canonical email for re-registration (the users.email
         // column has a DB-level unique index that includes soft-deleted rows).
-        $placeholderEmail = 'rejected+' . time() . '@chatco.local';
+        // Key the placeholder on the user id (guaranteed unique) rather than a
+        // timestamp — the same applicant can be rejected several times in quick
+        // succession (they re-register between rejections), and a second-
+        // precision timestamp would collide against the unique index.
+        $placeholderEmail = 'rejected+' . $user->id . '@chatco.local';
         $user->update(['email' => $placeholderEmail]);
 
         // Free the username too. commuter_profiles.username has a DB-level
@@ -826,6 +856,8 @@ class AdminService
             'email'            => $user->email, // placeholder
             'account_status'   => 'REJECTED',
             'rejection_reason' => $reason,
+            'attempt_number'   => $strike->attempt_number,
+            'blocked_until'    => $strike->blocked_until?->toIso8601String(),
         ];
     }
 
@@ -864,15 +896,29 @@ class AdminService
      * Reads the `account_rejected_template` from the settings table.
      * Best-effort: errors are logged but never thrown.
      */
-    private function sendRejectionEmail(User $user, $profile, string $reason): void
+    private function sendRejectionEmail(User $user, $profile, string $reason, ?\App\Models\RegistrationRejection $strike = null): void
     {
         try {
             $template = Setting::where('key', 'account_rejected_template')->value('value')
-                ?? "Hello {name},\n\nWe regret to inform you that your CHATCO commuter registration has been rejected.\n\nReason: {reason}\n\nIf you believe this is an error, please contact support.";
+                ?? "Hello {name},\n\nWe regret to inform you that your CHATCO commuter registration has been rejected.\n\nReason: {reason}\n\nYou may register again with a clearer valid ID. {next_steps}\n\nIf you believe this is an error, please contact support.";
+
+            // Tell the commuter what happens next: either re-register freely, or
+            // (once the cooldown threshold is hit) wait out the pause.
+            if ($strike && $strike->blocked_until) {
+                $retryDate = $strike->blocked_until
+                    ->timezone(config('app.timezone'))
+                    ->format('M j, Y \a\t g:i A');
+                $nextSteps = "Because this registration has now been rejected {$strike->attempt_number} times, "
+                    . "new sign-ups with this email or contact number are temporarily paused until {$retryDate} "
+                    . "for security. Please try again after that date.";
+            } else {
+                $nextSteps = 'Please make sure your ID is clear, valid, and matches your details, then sign up again.';
+            }
 
             $body = strtr($template, [
-                '{name}'   => trim($profile->first_name . ' ' . $profile->surname),
-                '{reason}' => $reason,
+                '{name}'       => trim($profile->first_name . ' ' . $profile->surname),
+                '{reason}'     => $reason,
+                '{next_steps}' => $nextSteps,
             ]);
 
             Mail::raw($body, function ($message) use ($user) {

@@ -9,6 +9,7 @@ use App\Enums\UserRole;
 use App\Models\CommuterProfile;
 use App\Models\User;
 use App\Services\AdminService;
+use App\Services\RegistrationGuard;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -42,7 +43,8 @@ class AdminRegistrationController extends Controller
     use ApiResponse;
 
     public function __construct(
-        private AdminService $adminService
+        private AdminService $adminService,
+        private RegistrationGuard $registrationGuard,
     ) {}
 
     /**
@@ -107,6 +109,14 @@ class AdminRegistrationController extends Controller
             'applied_type' => ['required', 'string', Rule::in(['REGULAR', 'STUDENT', 'SENIOR', 'PWD'])],
             'id_image' => ['required', 'file', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
         ]);
+
+        // Safety net: enforce the re-registration cooldown here too, so an
+        // applicant in a rejection cooldown can't be re-created via the onsite
+        // kiosk flow either. Throws a 422 with a friendly retry-after message.
+        $this->registrationGuard->assertNotBlocked(
+            $validated['email'],
+            $validated['contact_number'],
+        );
 
         // Manual email uniqueness check against NON-deleted users — mirrors
         // AuthService::register. Soft-deleted (rejected) accounts have had

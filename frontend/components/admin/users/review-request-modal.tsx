@@ -42,8 +42,24 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <h2 className="text-xl font-bold text-white mb-6">Review Registration Request</h2>
-      
+
       <div className="space-y-6">
+        {/* Repeat-applicant warning — this identity (email/contact) has been
+            rejected before. Helps the admin spot applicants nearing the
+            re-registration cooldown threshold. */}
+        {request.rejectionCount > 0 && (
+          <div className="flex items-start space-x-2 p-3 bg-amber-400/10 border border-amber-400/30 rounded-md">
+            <AlertTriangle size={16} className="text-amber-400 mt-0.5 shrink-0" />
+            <p className="text-sm text-amber-300">
+              This applicant has been rejected{' '}
+              <span className="font-semibold">
+                {request.rejectionCount} {request.rejectionCount === 1 ? 'time' : 'times'}
+              </span>{' '}
+              before. Repeated rejections temporarily pause their ability to re-register.
+            </p>
+          </div>
+        )}
+
         {/* ID Image Display */}
         <div className="flex justify-center">
           <div className="relative">
@@ -59,15 +75,15 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
         <div className="grid grid-cols-2 gap-4 bg-[#0E1628] p-4 rounded-md border border-[#1E2D45]">
           <div>
             <p className="text-xs text-slate-400 uppercase tracking-wider">Full Name</p>
-            <p className="text-white font-medium mt-1">{request.name}</p>
+            <p className="text-white font-medium mt-1 wrap-break-word">{request.name}</p>
           </div>
           <div>
             <p className="text-xs text-slate-400 uppercase tracking-wider">Email</p>
-            <p className="text-white font-medium mt-1">{request.email}</p>
+            <p className="text-white font-medium mt-1 wrap-break-word">{request.email}</p>
           </div>
           <div>
             <p className="text-xs text-slate-400 uppercase tracking-wider">Phone Number</p>
-            <p className="text-white font-medium mt-1">{request.phoneNumber}</p>
+            <p className="text-white font-medium mt-1 wrap-break-word">{request.phoneNumber}</p>
           </div>
           <div>
             <p className="text-xs text-slate-400 uppercase tracking-wider">Commuter Type</p>
@@ -75,7 +91,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
           </div>
           <div className="col-span-2">
             <p className="text-xs text-slate-400 uppercase tracking-wider">Language Preference</p>
-            <p className="text-white font-medium mt-1">{request.languagePreference}</p>
+            <p className="text-white font-medium mt-1 wrap-break-word">{request.languagePreference}</p>
           </div>
         </div>
 
