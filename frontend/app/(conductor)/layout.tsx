@@ -1,11 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import ConductorSidebar from "@/components/conductor/conductor-sidebar";
 import ConductorBottomNav from "@/components/conductor/conductor-bottom-nav";
 import ConductorPaymentModal from "@/components/conductor/conductor-payment-modal";
 import ConductorLocationBroadcaster from "@/components/conductor/conductor-location-broadcaster";
+import MaintenanceGate from "@/components/shared/maintenance-gate";
 
 export default function ConductorLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -14,6 +14,7 @@ export default function ConductorLayout({ children }: { children: React.ReactNod
   const isUnitVerification = pathname === "/unit-verification";
 
   return (
+    <MaintenanceGate>
 <div className={`fixed inset-0 flex flex-col font-sans md:flex-row ${isUnitVerification ? "bg-[#050F1A]" : "bg-gray-50"}`}>
 
       {/* Desktop Sidebar (Hidden on Mobile & Unit Verification) */}
@@ -40,7 +41,8 @@ export default function ConductorLayout({ children }: { children: React.ReactNod
 
       {/* Broadcast conductor GPS while on shift (so commuters see the vehicle) */}
       {!isUnitVerification && <ConductorLocationBroadcaster />}
-      
+
     </div>
+    </MaintenanceGate>
   );
 }

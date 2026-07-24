@@ -7,6 +7,7 @@ import { useState } from "react";
 import { AuthProvider, useAuth } from "@/contexts/auth-context";
 import { AnnouncementsProvider, useAnnouncements } from "@/contexts/announcements-context";
 import { RewardsProvider, useRewardsData } from "@/contexts/rewards-context";
+import MaintenanceGate from "@/components/shared/maintenance-gate";
 import { getCommuterTypeLabel } from "@/types";
 
 /**
@@ -178,7 +179,9 @@ export default function CommuterLayout({ children }: { children: React.ReactNode
     <AuthProvider>
       <AnnouncementsProvider>
         <RewardsProvider>
-          <CommuterLayoutInner>{children}</CommuterLayoutInner>
+          <MaintenanceGate>
+            <CommuterLayoutInner>{children}</CommuterLayoutInner>
+          </MaintenanceGate>
         </RewardsProvider>
       </AnnouncementsProvider>
     </AuthProvider>
