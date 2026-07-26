@@ -19,8 +19,9 @@ export function PaymentUsageTable({ data }: PaymentUsageTableProps) {
         <div className="col-span-2 text-right">Revenue</div>
       </div>
 
-      {/* Table Body */}
-      <div className="divide-y divide-[#1E2D45] flex-1 flex flex-col justify-center">
+      {/* Table Body. Scrolls rather than centring — Voucher is now a third
+          row and a fixed-height centred column would clip it. */}
+      <div className="divide-y divide-[#1E2D45] flex-1 min-h-0 overflow-y-auto scrollbar-themed">
         {data.length === 0 ? (
           <div className="flex items-center justify-center h-full text-slate-600 text-xs">
             No payment data available.
@@ -36,7 +37,9 @@ export function PaymentUsageTable({ data }: PaymentUsageTableProps) {
                 <div className="h-1.5 bg-[#0E1628] rounded-full overflow-hidden w-full">
                   <div className={`h-full rounded-full ${row.color}`} style={{ width: `${row.percentage}%` }} />
                 </div>
-                <span className="text-[10px] text-slate-500 text-center">{row.percentage}%</span>
+                {/* toFixed — percentage is a raw float, so this rendered as
+                    "66.66666666666666%" for any non-terminating share. */}
+                <span className="text-[10px] text-slate-500 text-center">{row.percentage.toFixed(1)}%</span>
               </div>
               <div className="col-span-2 text-right text-xs font-semibold text-white">{row.amount}</div>
             </div>

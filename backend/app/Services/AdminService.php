@@ -146,21 +146,6 @@ class AdminService
      * are exposed separately.
      *
      * @param  array{date_from?: string, date_to?: string}  $filters
-     * @return array{
-     *     date_range: array{from: string, to: string, days: int},
-     *     totals: array{
-     *         total_fares: float,
-     *         cash_total: float,
-     *         gcash_total: float,
-     *         paid_count: int,
-     *         pending_count: int,
-     *         total_passengers: int
-     *     },
-     *     payment_split: array{cash: array{count: int, total: float}, gcash: array{count: int, total: float}},
-     *     daily_series: array<int, array{date: string, cash: float, gcash: float, total: float, count: int}>,
-     *     remittances: array{total_remitted: float, total_collected: float, total_shortage: float, count: int},
-     *     fleet: array{active_vehicles: int, total_vehicles: int, active_conductors: int, total_conductors: int}
-     * }
      */
     public function analytics(array $filters = []): array
     {
@@ -172,15 +157,24 @@ class AdminService
             ? Carbon::parse($filters['date_from'])->startOfDay()
             : Carbon::today()->subDays(29)->startOfDay();
 
-        // ── Totals (PAID transactions only) ────────────────────────────────
-        $paidBase = DB::table('transactions')
-            ->where('status', 'PAID')
-            ->whereBetween('created_at', [$dateFrom, $dateTo]);
+        // Immediately-preceding window of the same length, used for the
+        // period-over-period deltas on the metric cards. A window of N days
+        // is compared against the N days directly before it.
+        $windowDays = (int) $dateFrom->diffInDays($dateTo) + 1;
+        $prevTo = (clone $dateFrom)->subSecond();
+        $prevFrom = (clone $dateFrom)->subDays($windowDays);
 
-        $cashTotal = (float) (clone $paidBase)->where('payment_method', 'CASH')->sum('final_amount');
-        $gcashTotal = (float) (clone $paidBase)->where('payment_method', 'GCASH')->sum('final_amount');
-        $paidCount = (int) (clone $paidBase)->count();
-        $totalPassengers = $paidCount; // 1 transaction = 1 passenger in the current schema
+        $current = $this->aggregateTransactionWindow($dateFrom, $dateTo);
+        $previous = $this->aggregateTransactionWindow($prevFrom, $prevTo);
+
+        $cashTotal = $current['cash_total'];
+        $gcashTotal = $current['gcash_total'];
+        $voucherCount = $current['voucher_count'];
+        // Revenue excludes VOUCHER by construction: reward rides are recorded
+        // with final_amount = 0. They still count as *rides*, which is why
+        // ride counts and revenue are reported separately below.
+        $totalFares = $cashTotal + $gcashTotal;
+        $paidCount = $current['paid_count'];
 
         // ── Pending transactions (PENDING + PROCESSING) ────────────────────
         $pendingCount = (int) DB::table('transactions')
@@ -188,16 +182,48 @@ class AdminService
             ->whereBetween('created_at', [$dateFrom, $dateTo])
             ->count();
 
-        // ── Payment split (counts + sums) ──────────────────────────────────
+        // ── Full status breakdown ──────────────────────────────────────────
+        // Drives the GCash settlement-success metric. Previously only
+        // PENDING was surfaced, so FAILED/EXPIRED/CANCELLED payments — the
+        // ones that actually need chasing — were invisible.
+        $statusRows = DB::table('transactions')
+            ->select('status', DB::raw('COUNT(*) as status_count'))
+            ->whereBetween('created_at', [$dateFrom, $dateTo])
+            ->groupBy('status')
+            ->pluck('status_count', 'status');
+
+        // Statuses the app can actually produce. REFUNDED is deliberately not
+        // here: nothing in the product initiates a refund, so it would be a
+        // permanently-zero tile. It is still reachable in theory via a
+        // provider-side refund webhook, so it (or any other unexpected
+        // status) is appended below when a row genuinely has one — hidden
+        // when zero, never hidden when it exists.
+        $expectedStatuses = ['PAID', 'PENDING', 'PROCESSING', 'FAILED', 'CANCELLED', 'EXPIRED'];
+
+        $statusBreakdown = [];
+        foreach ($expectedStatuses as $s) {
+            $statusBreakdown[$s] = (int) ($statusRows[$s] ?? 0);
+        }
+        foreach ($statusRows as $status => $count) {
+            if (! in_array($status, $expectedStatuses, true) && (int) $count > 0) {
+                $statusBreakdown[$status] = (int) $count;
+            }
+        }
+
+        // Gateway-settled attempts only — cash never goes through this
+        // lifecycle, so including it would flatter the success rate.
+        $gcashAttempts = (int) DB::table('transactions')
+            ->where('payment_method', 'GCASH')
+            ->whereIn('status', ['PAID', 'FAILED', 'CANCELLED', 'EXPIRED'])
+            ->whereBetween('created_at', [$dateFrom, $dateTo])
+            ->count();
+        $gcashSettled = $current['gcash_count'];
+
+        // ── Payment split (counts + sums), now including VOUCHER ───────────
         $paymentSplit = [
-            'cash' => [
-                'count' => (int) (clone $paidBase)->where('payment_method', 'CASH')->count(),
-                'total' => $cashTotal,
-            ],
-            'gcash' => [
-                'count' => (int) (clone $paidBase)->where('payment_method', 'GCASH')->count(),
-                'total' => $gcashTotal,
-            ],
+            'cash' => ['count' => $current['cash_count'], 'total' => $cashTotal],
+            'gcash' => ['count' => $current['gcash_count'], 'total' => $gcashTotal],
+            'voucher' => ['count' => $voucherCount, 'total' => 0.0],
         ];
 
         // ── Per-day series (PAID transactions, grouped by date) ────────────
@@ -214,21 +240,64 @@ class AdminService
             ->whereBetween('created_at', [$dateFrom, $dateTo])
             ->groupBy(DB::raw('DATE(created_at)'))
             ->orderBy('date', 'asc')
-            ->get();
+            ->get()
+            ->keyBy('date');
 
-        $dailySeries = $dailyRows->map(function ($row) {
-            return [
-                'date'  => $row->date,
-                'cash'  => (float) $row->cash,
-                'gcash' => (float) $row->gcash,
-                'total' => (float) $row->total,
-                'count' => (int) $row->count,
+        // Zero-fill every calendar day in the window. The grouped query only
+        // returns days that had transactions, so a chart built straight from
+        // it silently closed the gaps — 12 active days out of 30 rendered as
+        // 12 adjacent bars implying continuous trade. Days with no trade are
+        // the most operationally interesting ones, so they must be present.
+        $dailySeries = [];
+        for ($d = (clone $dateFrom)->startOfDay(); $d->lte($dateTo); $d->addDay()) {
+            $key = $d->toDateString();
+            $row = $dailyRows->get($key);
+            $dailySeries[] = [
+                'date'  => $key,
+                'cash'  => $row ? (float) $row->cash : 0.0,
+                'gcash' => $row ? (float) $row->gcash : 0.0,
+                'total' => $row ? (float) $row->total : 0.0,
+                'count' => $row ? (int) $row->count : 0,
             ];
-        })->values()->toArray();
+        }
+
+        // ── Hour-of-day demand profile ─────────────────────────────────────
+        // Aggregated across the whole window; drives the peak-hours chart.
+        // Every hour 0-23 is present so the chart has a stable x-axis.
+        //
+        // Hour extraction is driver-specific: MySQL has HOUR(), SQLite (used
+        // by the test suite) does not and needs strftime.
+        $driver = DB::connection()->getDriverName();
+        $hourExpr = match ($driver) {
+            'sqlite' => "CAST(strftime('%H', created_at) AS INTEGER)",
+            'pgsql'  => 'EXTRACT(HOUR FROM created_at)',
+            default  => 'HOUR(created_at)',
+        };
+
+        $hourRows = DB::table('transactions')
+            ->select(DB::raw("{$hourExpr} as hour"), DB::raw('COUNT(*) as ride_count'), DB::raw('SUM(final_amount) as revenue'))
+            ->where('status', 'PAID')
+            ->whereBetween('created_at', [$dateFrom, $dateTo])
+            ->groupBy(DB::raw($hourExpr))
+            ->get()
+            ->keyBy(fn ($row) => (int) $row->hour);
+
+        $hourlySeries = [];
+        for ($h = 0; $h < 24; $h++) {
+            $row = $hourRows->get($h);
+            $hourlySeries[] = [
+                'hour'    => $h,
+                'count'   => $row ? (int) $row->ride_count : 0,
+                'revenue' => $row ? (float) $row->revenue : 0.0,
+            ];
+        }
 
         // ── Remittance summary ─────────────────────────────────────────────
         // Remittances use a 'date' column (not created_at) — that's the
-        // business date the shift was remitted on.
+        // business date the shift was remitted on. NOTE: transaction totals
+        // above are windowed on created_at, so a shift running past midnight
+        // can land in a different bucket than its fares. The two are related
+        // but do not reconcile exactly; the UI labels them accordingly.
         $remittanceBase = Remittance::query()
             ->whereBetween('date', [$dateFrom->toDateString(), $dateTo->toDateString()]);
 
@@ -307,27 +376,75 @@ class AdminService
             })
             ->toArray();
 
+        $prevTotalFares = $previous['cash_total'] + $previous['gcash_total'];
+
         return [
             'date_range' => [
                 'from' => $dateFrom->toDateString(),
                 'to'   => $dateTo->toDateString(),
-                'days' => (int) $dateFrom->diffInDays($dateTo) + 1,
+                'days' => $windowDays,
+            ],
+            // The window immediately before this one, so the UI can label
+            // what the deltas are actually being compared against.
+            'previous_range' => [
+                'from' => $prevFrom->toDateString(),
+                'to'   => $prevTo->toDateString(),
             ],
             'totals' => [
-                'total_fares'      => $cashTotal + $gcashTotal,
+                'total_fares'      => $totalFares,
                 'cash_total'       => $cashTotal,
                 'gcash_total'      => $gcashTotal,
-                'paid_count'       => $paidCount,
+                // Rides settled for money (excludes free voucher rides), so
+                // this is directly comparable to cash_count + gcash_count.
+                'paid_count'       => $current['cash_count'] + $current['gcash_count'],
+                // Every PAID row including voucher rides = bodies carried.
+                'total_passengers' => $paidCount,
                 'pending_count'    => $pendingCount,
-                'total_passengers' => $totalPassengers,
+                'voucher_count'    => $voucherCount,
+                // Mean revenue per paying ride. Normalises the headline total
+                // so a busy-but-cheap window is distinguishable from a quiet
+                // one. Guarded against divide-by-zero on an empty window.
+                'avg_fare'         => $current['cash_count'] + $current['gcash_count'] > 0
+                    ? round($totalFares / ($current['cash_count'] + $current['gcash_count']), 2)
+                    : 0.0,
+            ],
+            // Same shape as `totals`, for the preceding window. The frontend
+            // derives percentage deltas from these rather than the backend
+            // pre-computing them, so it can format "no prior data" itself.
+            'previous_totals' => [
+                'total_fares'   => $prevTotalFares,
+                'cash_total'    => $previous['cash_total'],
+                'gcash_total'   => $previous['gcash_total'],
+                'paid_count'    => $previous['cash_count'] + $previous['gcash_count'],
+                'avg_fare'      => $previous['cash_count'] + $previous['gcash_count'] > 0
+                    ? round($prevTotalFares / ($previous['cash_count'] + $previous['gcash_count']), 2)
+                    : 0.0,
             ],
             'payment_split' => $paymentSplit,
             'daily_series'  => $dailySeries,
+            'hourly_series' => $hourlySeries,
+            'status_breakdown' => $statusBreakdown,
+            'gcash_health' => [
+                'attempts'     => $gcashAttempts,
+                'settled'      => $gcashSettled,
+                'failed'       => $statusBreakdown['FAILED'],
+                'expired'      => $statusBreakdown['EXPIRED'],
+                'cancelled'    => $statusBreakdown['CANCELLED'],
+                'success_rate' => $gcashAttempts > 0
+                    ? round(($gcashSettled / $gcashAttempts) * 100, 1)
+                    : null,
+            ],
             'remittances' => [
                 'total_remitted'   => $totalRemitted,
                 'total_collected'  => $totalCollected,
                 'total_shortage'   => $totalShortage,
                 'count'            => $remittanceCount,
+                // Shortage as a share of what was collected. An absolute peso
+                // figure alone can't distinguish ₱500 short on ₱600 from ₱500
+                // short on ₱600,000.
+                'shortage_rate'    => $totalCollected > 0
+                    ? round(($totalShortage / $totalCollected) * 100, 2)
+                    : 0.0,
             ],
             'fleet' => [
                 'active_vehicles'   => $activeVehicles,
@@ -337,6 +454,43 @@ class AdminService
             ],
             'pickup_points' => $pickupPoints,
             'heatmap_zones' => $heatmapZones,
+        ];
+    }
+
+    /**
+     * Revenue + ride counts for PAID transactions inside one window.
+     *
+     * Extracted so the current and immediately-preceding windows can be
+     * aggregated identically for period-over-period deltas.
+     *
+     * @return array{cash_total: float, gcash_total: float, cash_count: int, gcash_count: int, voucher_count: int, paid_count: int}
+     */
+    private function aggregateTransactionWindow(Carbon $from, Carbon $to): array
+    {
+        // One grouped query rather than six independent aggregates — the old
+        // code cloned the base builder and hit the table once per figure.
+        $rows = DB::table('transactions')
+            ->select(
+                'payment_method',
+                DB::raw('COUNT(*) as method_count'),
+                DB::raw('SUM(final_amount) as method_total')
+            )
+            ->where('status', 'PAID')
+            ->whereBetween('created_at', [$from, $to])
+            ->groupBy('payment_method')
+            ->get()
+            ->keyBy('payment_method');
+
+        $countFor = fn (string $m) => (int) ($rows->get($m)->method_count ?? 0);
+        $totalFor = fn (string $m) => (float) ($rows->get($m)->method_total ?? 0);
+
+        return [
+            'cash_total'    => $totalFor('CASH'),
+            'gcash_total'   => $totalFor('GCASH'),
+            'cash_count'    => $countFor('CASH'),
+            'gcash_count'   => $countFor('GCASH'),
+            'voucher_count' => $countFor('VOUCHER'),
+            'paid_count'    => $countFor('CASH') + $countFor('GCASH') + $countFor('VOUCHER'),
         ];
     }
 
