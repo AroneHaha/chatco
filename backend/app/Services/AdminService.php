@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Enums\UserRole;
+use App\Mail\AccountApprovedMail;
+use App\Mail\AccountRejectedMail;
 use App\Models\Remittance;
 use App\Models\ShiftLog;
 use App\Models\Setting;
@@ -146,21 +148,6 @@ class AdminService
      * are exposed separately.
      *
      * @param  array{date_from?: string, date_to?: string}  $filters
-     * @return array{
-     *     date_range: array{from: string, to: string, days: int},
-     *     totals: array{
-     *         total_fares: float,
-     *         cash_total: float,
-     *         gcash_total: float,
-     *         paid_count: int,
-     *         pending_count: int,
-     *         total_passengers: int
-     *     },
-     *     payment_split: array{cash: array{count: int, total: float}, gcash: array{count: int, total: float}},
-     *     daily_series: array<int, array{date: string, cash: float, gcash: float, total: float, count: int}>,
-     *     remittances: array{total_remitted: float, total_collected: float, total_shortage: float, count: int},
-     *     fleet: array{active_vehicles: int, total_vehicles: int, active_conductors: int, total_conductors: int}
-     * }
      */
     public function analytics(array $filters = []): array
     {
@@ -172,15 +159,24 @@ class AdminService
             ? Carbon::parse($filters['date_from'])->startOfDay()
             : Carbon::today()->subDays(29)->startOfDay();
 
-        // ── Totals (PAID transactions only) ────────────────────────────────
-        $paidBase = DB::table('transactions')
-            ->where('status', 'PAID')
-            ->whereBetween('created_at', [$dateFrom, $dateTo]);
+        // Immediately-preceding window of the same length, used for the
+        // period-over-period deltas on the metric cards. A window of N days
+        // is compared against the N days directly before it.
+        $windowDays = (int) $dateFrom->diffInDays($dateTo) + 1;
+        $prevTo = (clone $dateFrom)->subSecond();
+        $prevFrom = (clone $dateFrom)->subDays($windowDays);
 
-        $cashTotal = (float) (clone $paidBase)->where('payment_method', 'CASH')->sum('final_amount');
-        $gcashTotal = (float) (clone $paidBase)->where('payment_method', 'GCASH')->sum('final_amount');
-        $paidCount = (int) (clone $paidBase)->count();
-        $totalPassengers = $paidCount; // 1 transaction = 1 passenger in the current schema
+        $current = $this->aggregateTransactionWindow($dateFrom, $dateTo);
+        $previous = $this->aggregateTransactionWindow($prevFrom, $prevTo);
+
+        $cashTotal = $current['cash_total'];
+        $gcashTotal = $current['gcash_total'];
+        $voucherCount = $current['voucher_count'];
+        // Revenue excludes VOUCHER by construction: reward rides are recorded
+        // with final_amount = 0. They still count as *rides*, which is why
+        // ride counts and revenue are reported separately below.
+        $totalFares = $cashTotal + $gcashTotal;
+        $paidCount = $current['paid_count'];
 
         // ── Pending transactions (PENDING + PROCESSING) ────────────────────
         $pendingCount = (int) DB::table('transactions')
@@ -188,16 +184,48 @@ class AdminService
             ->whereBetween('created_at', [$dateFrom, $dateTo])
             ->count();
 
-        // ── Payment split (counts + sums) ──────────────────────────────────
+        // ── Full status breakdown ──────────────────────────────────────────
+        // Drives the GCash settlement-success metric. Previously only
+        // PENDING was surfaced, so FAILED/EXPIRED/CANCELLED payments — the
+        // ones that actually need chasing — were invisible.
+        $statusRows = DB::table('transactions')
+            ->select('status', DB::raw('COUNT(*) as status_count'))
+            ->whereBetween('created_at', [$dateFrom, $dateTo])
+            ->groupBy('status')
+            ->pluck('status_count', 'status');
+
+        // Statuses the app can actually produce. REFUNDED is deliberately not
+        // here: nothing in the product initiates a refund, so it would be a
+        // permanently-zero tile. It is still reachable in theory via a
+        // provider-side refund webhook, so it (or any other unexpected
+        // status) is appended below when a row genuinely has one — hidden
+        // when zero, never hidden when it exists.
+        $expectedStatuses = ['PAID', 'PENDING', 'PROCESSING', 'FAILED', 'CANCELLED', 'EXPIRED'];
+
+        $statusBreakdown = [];
+        foreach ($expectedStatuses as $s) {
+            $statusBreakdown[$s] = (int) ($statusRows[$s] ?? 0);
+        }
+        foreach ($statusRows as $status => $count) {
+            if (! in_array($status, $expectedStatuses, true) && (int) $count > 0) {
+                $statusBreakdown[$status] = (int) $count;
+            }
+        }
+
+        // Gateway-settled attempts only — cash never goes through this
+        // lifecycle, so including it would flatter the success rate.
+        $gcashAttempts = (int) DB::table('transactions')
+            ->where('payment_method', 'GCASH')
+            ->whereIn('status', ['PAID', 'FAILED', 'CANCELLED', 'EXPIRED'])
+            ->whereBetween('created_at', [$dateFrom, $dateTo])
+            ->count();
+        $gcashSettled = $current['gcash_count'];
+
+        // ── Payment split (counts + sums), now including VOUCHER ───────────
         $paymentSplit = [
-            'cash' => [
-                'count' => (int) (clone $paidBase)->where('payment_method', 'CASH')->count(),
-                'total' => $cashTotal,
-            ],
-            'gcash' => [
-                'count' => (int) (clone $paidBase)->where('payment_method', 'GCASH')->count(),
-                'total' => $gcashTotal,
-            ],
+            'cash' => ['count' => $current['cash_count'], 'total' => $cashTotal],
+            'gcash' => ['count' => $current['gcash_count'], 'total' => $gcashTotal],
+            'voucher' => ['count' => $voucherCount, 'total' => 0.0],
         ];
 
         // ── Per-day series (PAID transactions, grouped by date) ────────────
@@ -214,21 +242,64 @@ class AdminService
             ->whereBetween('created_at', [$dateFrom, $dateTo])
             ->groupBy(DB::raw('DATE(created_at)'))
             ->orderBy('date', 'asc')
-            ->get();
+            ->get()
+            ->keyBy('date');
 
-        $dailySeries = $dailyRows->map(function ($row) {
-            return [
-                'date'  => $row->date,
-                'cash'  => (float) $row->cash,
-                'gcash' => (float) $row->gcash,
-                'total' => (float) $row->total,
-                'count' => (int) $row->count,
+        // Zero-fill every calendar day in the window. The grouped query only
+        // returns days that had transactions, so a chart built straight from
+        // it silently closed the gaps — 12 active days out of 30 rendered as
+        // 12 adjacent bars implying continuous trade. Days with no trade are
+        // the most operationally interesting ones, so they must be present.
+        $dailySeries = [];
+        for ($d = (clone $dateFrom)->startOfDay(); $d->lte($dateTo); $d->addDay()) {
+            $key = $d->toDateString();
+            $row = $dailyRows->get($key);
+            $dailySeries[] = [
+                'date'  => $key,
+                'cash'  => $row ? (float) $row->cash : 0.0,
+                'gcash' => $row ? (float) $row->gcash : 0.0,
+                'total' => $row ? (float) $row->total : 0.0,
+                'count' => $row ? (int) $row->count : 0,
             ];
-        })->values()->toArray();
+        }
+
+        // ── Hour-of-day demand profile ─────────────────────────────────────
+        // Aggregated across the whole window; drives the peak-hours chart.
+        // Every hour 0-23 is present so the chart has a stable x-axis.
+        //
+        // Hour extraction is driver-specific: MySQL has HOUR(), SQLite (used
+        // by the test suite) does not and needs strftime.
+        $driver = DB::connection()->getDriverName();
+        $hourExpr = match ($driver) {
+            'sqlite' => "CAST(strftime('%H', created_at) AS INTEGER)",
+            'pgsql'  => 'EXTRACT(HOUR FROM created_at)',
+            default  => 'HOUR(created_at)',
+        };
+
+        $hourRows = DB::table('transactions')
+            ->select(DB::raw("{$hourExpr} as hour"), DB::raw('COUNT(*) as ride_count'), DB::raw('SUM(final_amount) as revenue'))
+            ->where('status', 'PAID')
+            ->whereBetween('created_at', [$dateFrom, $dateTo])
+            ->groupBy(DB::raw($hourExpr))
+            ->get()
+            ->keyBy(fn ($row) => (int) $row->hour);
+
+        $hourlySeries = [];
+        for ($h = 0; $h < 24; $h++) {
+            $row = $hourRows->get($h);
+            $hourlySeries[] = [
+                'hour'    => $h,
+                'count'   => $row ? (int) $row->ride_count : 0,
+                'revenue' => $row ? (float) $row->revenue : 0.0,
+            ];
+        }
 
         // ── Remittance summary ─────────────────────────────────────────────
         // Remittances use a 'date' column (not created_at) — that's the
-        // business date the shift was remitted on.
+        // business date the shift was remitted on. NOTE: transaction totals
+        // above are windowed on created_at, so a shift running past midnight
+        // can land in a different bucket than its fares. The two are related
+        // but do not reconcile exactly; the UI labels them accordingly.
         $remittanceBase = Remittance::query()
             ->whereBetween('date', [$dateFrom->toDateString(), $dateTo->toDateString()]);
 
@@ -307,27 +378,75 @@ class AdminService
             })
             ->toArray();
 
+        $prevTotalFares = $previous['cash_total'] + $previous['gcash_total'];
+
         return [
             'date_range' => [
                 'from' => $dateFrom->toDateString(),
                 'to'   => $dateTo->toDateString(),
-                'days' => (int) $dateFrom->diffInDays($dateTo) + 1,
+                'days' => $windowDays,
+            ],
+            // The window immediately before this one, so the UI can label
+            // what the deltas are actually being compared against.
+            'previous_range' => [
+                'from' => $prevFrom->toDateString(),
+                'to'   => $prevTo->toDateString(),
             ],
             'totals' => [
-                'total_fares'      => $cashTotal + $gcashTotal,
+                'total_fares'      => $totalFares,
                 'cash_total'       => $cashTotal,
                 'gcash_total'      => $gcashTotal,
-                'paid_count'       => $paidCount,
+                // Rides settled for money (excludes free voucher rides), so
+                // this is directly comparable to cash_count + gcash_count.
+                'paid_count'       => $current['cash_count'] + $current['gcash_count'],
+                // Every PAID row including voucher rides = bodies carried.
+                'total_passengers' => $paidCount,
                 'pending_count'    => $pendingCount,
-                'total_passengers' => $totalPassengers,
+                'voucher_count'    => $voucherCount,
+                // Mean revenue per paying ride. Normalises the headline total
+                // so a busy-but-cheap window is distinguishable from a quiet
+                // one. Guarded against divide-by-zero on an empty window.
+                'avg_fare'         => $current['cash_count'] + $current['gcash_count'] > 0
+                    ? round($totalFares / ($current['cash_count'] + $current['gcash_count']), 2)
+                    : 0.0,
+            ],
+            // Same shape as `totals`, for the preceding window. The frontend
+            // derives percentage deltas from these rather than the backend
+            // pre-computing them, so it can format "no prior data" itself.
+            'previous_totals' => [
+                'total_fares'   => $prevTotalFares,
+                'cash_total'    => $previous['cash_total'],
+                'gcash_total'   => $previous['gcash_total'],
+                'paid_count'    => $previous['cash_count'] + $previous['gcash_count'],
+                'avg_fare'      => $previous['cash_count'] + $previous['gcash_count'] > 0
+                    ? round($prevTotalFares / ($previous['cash_count'] + $previous['gcash_count']), 2)
+                    : 0.0,
             ],
             'payment_split' => $paymentSplit,
             'daily_series'  => $dailySeries,
+            'hourly_series' => $hourlySeries,
+            'status_breakdown' => $statusBreakdown,
+            'gcash_health' => [
+                'attempts'     => $gcashAttempts,
+                'settled'      => $gcashSettled,
+                'failed'       => $statusBreakdown['FAILED'],
+                'expired'      => $statusBreakdown['EXPIRED'],
+                'cancelled'    => $statusBreakdown['CANCELLED'],
+                'success_rate' => $gcashAttempts > 0
+                    ? round(($gcashSettled / $gcashAttempts) * 100, 1)
+                    : null,
+            ],
             'remittances' => [
                 'total_remitted'   => $totalRemitted,
                 'total_collected'  => $totalCollected,
                 'total_shortage'   => $totalShortage,
                 'count'            => $remittanceCount,
+                // Shortage as a share of what was collected. An absolute peso
+                // figure alone can't distinguish ₱500 short on ₱600 from ₱500
+                // short on ₱600,000.
+                'shortage_rate'    => $totalCollected > 0
+                    ? round(($totalShortage / $totalCollected) * 100, 2)
+                    : 0.0,
             ],
             'fleet' => [
                 'active_vehicles'   => $activeVehicles,
@@ -337,6 +456,43 @@ class AdminService
             ],
             'pickup_points' => $pickupPoints,
             'heatmap_zones' => $heatmapZones,
+        ];
+    }
+
+    /**
+     * Revenue + ride counts for PAID transactions inside one window.
+     *
+     * Extracted so the current and immediately-preceding windows can be
+     * aggregated identically for period-over-period deltas.
+     *
+     * @return array{cash_total: float, gcash_total: float, cash_count: int, gcash_count: int, voucher_count: int, paid_count: int}
+     */
+    private function aggregateTransactionWindow(Carbon $from, Carbon $to): array
+    {
+        // One grouped query rather than six independent aggregates — the old
+        // code cloned the base builder and hit the table once per figure.
+        $rows = DB::table('transactions')
+            ->select(
+                'payment_method',
+                DB::raw('COUNT(*) as method_count'),
+                DB::raw('SUM(final_amount) as method_total')
+            )
+            ->where('status', 'PAID')
+            ->whereBetween('created_at', [$from, $to])
+            ->groupBy('payment_method')
+            ->get()
+            ->keyBy('payment_method');
+
+        $countFor = fn (string $m) => (int) ($rows->get($m)->method_count ?? 0);
+        $totalFor = fn (string $m) => (float) ($rows->get($m)->method_total ?? 0);
+
+        return [
+            'cash_total'    => $totalFor('CASH'),
+            'gcash_total'   => $totalFor('GCASH'),
+            'cash_count'    => $countFor('CASH'),
+            'gcash_count'   => $countFor('GCASH'),
+            'voucher_count' => $countFor('VOUCHER'),
+            'paid_count'    => $countFor('CASH') + $countFor('GCASH') + $countFor('VOUCHER'),
         ];
     }
 
@@ -864,26 +1020,69 @@ class AdminService
     // ── Email helpers ──────────────────────────────────────────────
 
     /**
+     * Default body copy for the approval email, used when an admin has never
+     * saved `account_approved_template`. Deliberately message-only: the fare
+     * type, verification date, and login button are rendered as UI by the
+     * Blade view, so repeating them here would just duplicate the email.
+     *
+     * Keep in sync with initialAccountApprovedTemplate in the frontend's
+     * settings-data.ts — the settings page writes its own default to the DB
+     * on the first save, and the two shouldn't disagree.
+     */
+    private const DEFAULT_APPROVED_TEMPLATE =
+        "Hi {name},\n\n"
+        . "Great news — we've reviewed the ID you submitted and your CHATCO commuter account is now approved and active.\n\n"
+        . "Log in with the email and password you registered with, and you're ready to ride.";
+
+    /** Default body copy for the rejection email. See DEFAULT_APPROVED_TEMPLATE. */
+    private const DEFAULT_REJECTED_TEMPLATE =
+        "Hi {name},\n\n"
+        . "Thanks for signing up with CHATCO. We've finished reviewing the ID attached to your commuter registration, "
+        . "and unfortunately we weren't able to approve it this time.";
+
+    /**
      * Send an approval notification email to the commuter.
-     * Reads the `account_approved_template` from the settings table.
-     * Best-effort: errors are logged but never thrown.
+     *
+     * The prose comes from the admin-editable `account_approved_template`
+     * setting; AccountApprovedMail wraps it in the branded HTML shell. The
+     * fare-type row is suppressed when the admin's own template already prints
+     * the type, so the commuter never reads it twice.
+     *
+     * Best-effort: errors are logged but never thrown — a mail outage must not
+     * roll back an approval the admin already committed.
      */
     private function sendApprovalEmail(User $user, $profile): void
     {
         try {
             $template = Setting::where('key', 'account_approved_template')->value('value')
-                ?? "Congratulations {name}!\n\nYour CHATCO commuter account has been approved.\n\nCommuter Type: {commuter_type}\n\nYou can now log in to the CHATCO app and start riding.";
+                ?: self::DEFAULT_APPROVED_TEMPLATE;
 
+            $commuterType = $this->commuterTypeLabel($profile->commuter_type ?? 'REGULAR');
+            $name = trim($profile->first_name . ' ' . $profile->surname);
+
+            // {commuterName} / {rejectionReason} are the names the admin
+            // settings page advertises; {name} / {reason} are the originals.
+            // Both are accepted so a template saved under either vocabulary
+            // still renders — an unsubstituted "{commuterName}" would otherwise
+            // ship straight to the commuter's inbox.
             $body = strtr($template, [
-                '{name}'          => trim($profile->first_name . ' ' . $profile->surname),
-                '{commuter_type}' => $profile->commuter_type ?? 'REGULAR',
+                '{name}'          => $name,
+                '{commuterName}'  => $name,
+                '{commuter_type}' => $commuterType,
+                '{commuterType}'  => $commuterType,
             ]);
 
-            Mail::raw($body, function ($message) use ($user) {
-                $message->to($user->email)
-                    ->subject('CHATCO — Account Approved');
-            });
-        } catch (\Exception $e) {
+            Mail::to($user->email)->send(new AccountApprovedMail(
+                body: $body,
+                name: $name,
+                email: $user->email,
+                commuterType: $commuterType,
+                verifiedAt: ($profile->verified_at ?? now())
+                    ->timezone(config('app.timezone'))
+                    ->format('M j, Y'),
+                showCommuterType: ! $this->templateMentions($template, ['commuter_type', 'commuterType']),
+            ));
+        } catch (\Throwable $e) {
             Log::error('Failed to send approval email', [
                 'error' => $e->getMessage(),
                 'user_id' => $user->id,
@@ -893,18 +1092,25 @@ class AdminService
 
     /**
      * Send a rejection notification email to the commuter.
-     * Reads the `account_rejected_template` from the settings table.
+     *
+     * Reads the `account_rejected_template` setting for the prose; the reason
+     * callout, the "what to do next" block, and the cooldown banner are UI
+     * rendered by AccountRejectedMail — each suppressed when the admin's
+     * template already carries the matching placeholder inline.
+     *
      * Best-effort: errors are logged but never thrown.
      */
     private function sendRejectionEmail(User $user, $profile, string $reason, ?\App\Models\RegistrationRejection $strike = null): void
     {
         try {
             $template = Setting::where('key', 'account_rejected_template')->value('value')
-                ?? "Hello {name},\n\nWe regret to inform you that your CHATCO commuter registration has been rejected.\n\nReason: {reason}\n\nYou may register again with a clearer valid ID. {next_steps}\n\nIf you believe this is an error, please contact support.";
+                ?: self::DEFAULT_REJECTED_TEMPLATE;
 
             // Tell the commuter what happens next: either re-register freely, or
             // (once the cooldown threshold is hit) wait out the pause.
-            if ($strike && $strike->blocked_until) {
+            $isBlocked = (bool) ($strike && $strike->blocked_until);
+
+            if ($isBlocked) {
                 $retryDate = $strike->blocked_until
                     ->timezone(config('app.timezone'))
                     ->format('M j, Y \a\t g:i A');
@@ -912,24 +1118,66 @@ class AdminService
                     . "new sign-ups with this email or contact number are temporarily paused until {$retryDate} "
                     . "for security. Please try again after that date.";
             } else {
-                $nextSteps = 'Please make sure your ID is clear, valid, and matches your details, then sign up again.';
+                $nextSteps = 'Fix what the reason above points to, then sign up again — there is no waiting period.';
             }
 
+            $name = trim($profile->first_name . ' ' . $profile->surname);
+
+            // See sendApprovalEmail() for why both placeholder vocabularies
+            // are substituted.
             $body = strtr($template, [
-                '{name}'       => trim($profile->first_name . ' ' . $profile->surname),
-                '{reason}'     => $reason,
-                '{next_steps}' => $nextSteps,
+                '{name}'            => $name,
+                '{commuterName}'    => $name,
+                '{reason}'          => $reason,
+                '{rejectionReason}' => $reason,
+                '{next_steps}'      => $nextSteps,
+                '{nextSteps}'       => $nextSteps,
             ]);
 
-            Mail::raw($body, function ($message) use ($user) {
-                $message->to($user->email)
-                    ->subject('CHATCO — Registration Update');
-            });
-        } catch (\Exception $e) {
+            Mail::to($user->email)->send(new AccountRejectedMail(
+                body: $body,
+                reason: $reason,
+                nextSteps: $nextSteps,
+                isBlocked: $isBlocked,
+                showReason: ! $this->templateMentions($template, ['reason', 'rejectionReason']),
+                showNextSteps: ! $this->templateMentions($template, ['next_steps', 'nextSteps']),
+            ));
+        } catch (\Throwable $e) {
             Log::error('Failed to send rejection email', [
                 'error' => $e->getMessage(),
                 'user_id' => $user->id,
             ]);
         }
+    }
+
+    /**
+     * Whether an admin's template already prints one of these placeholders.
+     *
+     * Drives the "don't say it twice" rule: if the prose contains {reason},
+     * the email skips its own reason callout. Checked against the RAW template
+     * (before substitution), since afterwards the placeholder is gone.
+     *
+     * @param  string[]  $placeholders  Names without braces.
+     */
+    private function templateMentions(string $template, array $placeholders): bool
+    {
+        foreach ($placeholders as $placeholder) {
+            if (str_contains($template, '{' . $placeholder . '}')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** Human-readable label for a fare tier, for display in emails. */
+    private function commuterTypeLabel(string $type): string
+    {
+        return match (strtoupper($type)) {
+            'STUDENT' => 'Student',
+            'SENIOR'  => 'Senior citizen',
+            'PWD'     => 'PWD',
+            default   => 'Regular',
+        };
     }
 }

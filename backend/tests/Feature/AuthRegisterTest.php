@@ -7,7 +7,9 @@ use App\Models\CommuterProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
@@ -45,8 +47,8 @@ class AuthRegisterTest extends TestCase
             'email' => 'maria.santos@example.com',
             'contact_number' => '09171234567',
             'username' => 'maria.santos',
-            'password' => 'SecurePass123',
-            'password_confirmation' => 'SecurePass123',
+            'password' => 'SecurePass123!',
+            'password_confirmation' => 'SecurePass123!',
             'language_preference' => 'English',
             'applied_type' => 'STUDENT',
         ], $overrides);
@@ -54,7 +56,7 @@ class AuthRegisterTest extends TestCase
 
     /**
      * Send a multipart POST with a fake ID image — mirrors what the real
-     * signup form does.
+     * signup form does, including the email verification it completes first.
      */
     private function registerWithFile(array $overrides = []): \Illuminate\Testing\TestResponse
     {
@@ -63,7 +65,28 @@ class AuthRegisterTest extends TestCase
             ['id_image' => UploadedFile::fake()->image('valid_id.jpg', 800, 600)]
         );
 
+        // The form can't reach /register until the address is verified, so
+        // stand in for that step. The gate itself is covered by
+        // EmailVerificationTest.
+        if (is_string($payload['email'] ?? null)) {
+            $this->markEmailVerified($payload['email']);
+        }
+
         return $this->post('/api/v1/auth/register', $payload, ['Accept' => 'application/json']);
+    }
+
+    /** Stamp an address as verified, as POST /auth/register/verify-code would. */
+    private function markEmailVerified(string $email): void
+    {
+        DB::table('email_verification_codes')->updateOrInsert(
+            ['email' => Str::lower(trim($email))],
+            [
+                'token' => Hash::make('000000'),
+                'attempts' => 0,
+                'verified_at' => now(),
+                'created_at' => now(),
+            ]
+        );
     }
 
     // ── Happy path ───────────────────────────────────────────────
@@ -106,8 +129,8 @@ class AuthRegisterTest extends TestCase
         $user = User::where('email', 'maria.santos@example.com')->first();
 
         // Password is hashed, not stored in plaintext.
-        $this->assertNotEquals('SecurePass123', $user->password);
-        $this->assertTrue(Hash::check('SecurePass123', $user->password));
+        $this->assertNotEquals('SecurePass123!', $user->password);
+        $this->assertTrue(Hash::check('SecurePass123!', $user->password));
     }
 
     public function test_register_uses_applied_type_for_commuter_type(): void
@@ -119,8 +142,10 @@ class AuthRegisterTest extends TestCase
                 'applied_type' => $type,
             ]);
 
+            // Addresses are normalised to lower case on the way in, so the
+            // stored value is compared in that form.
             $this->assertDatabaseHas('commuter_profiles', [
-                'email' => "applicant.{$type}@example.com",
+                'email' => Str::lower("applicant.{$type}@example.com"),
                 'commuter_type' => $type,
                 'applied_type' => $type,
             ]);
@@ -174,8 +199,8 @@ class AuthRegisterTest extends TestCase
     public function test_register_rejects_password_mismatch_with_422(): void
     {
         $this->registerWithFile([
-            'password' => 'SecurePass123',
-            'password_confirmation' => 'DifferentPass999',
+            'password' => 'SecurePass123!',
+            'password_confirmation' => 'DifferentPass999!',
         ])
             ->assertStatus(422)
             ->assertJsonStructure(['errors' => ['password']]);
@@ -289,7 +314,7 @@ class AuthRegisterTest extends TestCase
 
         $this->postJson('/api/v1/auth/login', [
             'login' => 'maria.santos@example.com',
-            'password' => 'SecurePass123',
+            'password' => 'SecurePass123!',
         ])
             ->assertStatus(403)
             ->assertJsonPath('success', false);

@@ -15,9 +15,10 @@ import Footer from "@/components/landing/Footer";
  *   3. "password" — set + confirm the new password; backend re-verifies the
  *                   code and saves the password, then we bounce to /login.
  *
- * The email step always shows the same "if an account exists…" confirmation
- * regardless of whether the email is registered, so this page can't be used
- * to enumerate accounts.
+ * The email step reports an unregistered address explicitly (backend returns
+ * 404) rather than advancing to the code screen — otherwise users sat waiting
+ * for a code that was never sent. Rejected registrations count as
+ * unregistered: rejection rewrites the account's email to a placeholder.
  */
 
 type Step = "email" | "code" | "password" | "done";
@@ -280,9 +281,12 @@ export default function ForgotPasswordPage() {
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Enter the code</h2>
                 <p className="mt-2 text-sm text-gray-500">
-                  If an account exists for{" "}
-                  <span className="font-semibold text-gray-700">{email}</span>, we&apos;ve sent a
-                  6-digit code. It expires in 15 minutes.
+                  We&apos;ve sent a 6-digit code to{" "}
+                  <span className="font-semibold text-gray-700">{email}</span>. It expires in 15
+                  minutes.
+                </p>
+                <p className="mt-2 text-xs text-gray-400">
+                  No email after a few minutes? Check your spam folder, then resend.
                 </p>
 
                 <form className="mt-8 space-y-6" onSubmit={handleVerifyCode}>
@@ -403,18 +407,35 @@ export default function ForgotPasswordPage() {
 
             {/* DONE */}
             {step === "done" && (
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">Reset your password</h2>
-                <div className="mt-8 p-4 bg-green-50 border border-green-200 rounded-xl">
-                  <p className="text-sm text-green-800 font-medium">Password reset! ✅</p>
-                  <p className="mt-1 text-sm text-green-700">
-                    You can now sign in with your new password. Redirecting you to login… (or{" "}
-                    <Link href="/login" className="font-semibold underline">
-                      click here
-                    </Link>
-                    )
-                  </p>
+              <div className="text-center">
+                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-50 border border-green-200">
+                  <svg
+                    className="h-10 w-10 text-green-600"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2.5}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
                 </div>
+
+                <h2 className="mt-8 text-3xl font-bold text-gray-900">Password reset</h2>
+                <p className="mt-3 text-base text-gray-500 leading-relaxed">
+                  Your password has been changed. You can now sign in with your new password.
+                </p>
+
+                <Link
+                  href="/login"
+                  className="mt-8 block w-full bg-[#1A5FB4] text-white py-3 rounded-xl font-semibold hover:bg-[#174a8c] transition"
+                >
+                  Go to login
+                </Link>
+
+                <p className="mt-4 text-sm text-gray-400">Redirecting you automatically…</p>
               </div>
             )}
 

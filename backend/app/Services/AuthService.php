@@ -15,7 +15,8 @@ use Illuminate\Validation\ValidationException;
 class AuthService
 {
     public function __construct(
-        private RegistrationGuard $registrationGuard
+        private RegistrationGuard $registrationGuard,
+        private EmailVerificationService $emailVerification,
     ) {}
 
     /**
@@ -162,6 +163,14 @@ class AuthService
             $data['contact_number'] ?? null,
         );
 
+        // The applicant must have proved they own this inbox (6-digit code,
+        // step 3 of the sign-up form). Checked here rather than in
+        // RegisterRequest so the ONLY path that creates a self-signed-up
+        // account enforces it — including any future caller of this service.
+        // The admin's onsite registration flow is deliberately exempt: staff
+        // have the applicant and their ID standing in front of them.
+        $this->emailVerification->assertVerified($data['email']);
+
         // Manual uniqueness check against NON-deleted users. Soft-deleted
         // (rejected) accounts have had their email rewritten to a unique
         // 'rejected+{timestamp}' placeholder by AdminService::rejectRegistration,
@@ -178,7 +187,7 @@ class AuthService
             ]);
         }
 
-        return DB::transaction(function () use ($data): array {
+        $created = DB::transaction(function () use ($data): array {
             $user = User::create([
                 'email' => $data['email'],
                 'password' => $data['password'], // 'hashed' cast on User
@@ -209,6 +218,13 @@ class AuthService
                 'profile' => $profile,
             ];
         });
+
+        // One account per verification. Burning it here (after the transaction
+        // commits) stops a single verified address from being replayed into a
+        // second registration inside the verification window.
+        $this->emailVerification->consume($data['email']);
+
+        return $created;
     }
 
     /**

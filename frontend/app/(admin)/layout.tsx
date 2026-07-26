@@ -16,11 +16,12 @@ import { SidebarSkeleton, ContentSkeleton, MobileSkeleton } from '@/components/a
 function AdminLayoutInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { isLoading: authLoading, isAuthenticated } = useAuth();
+  const { isLoading: authLoading, isAuthenticated, logout } = useAuth();
   const { closeSettingsDrawer } = useSettingsDrawer();
   const [isMobile, setIsMobile] = useState(false);
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [isSignOutOpen, setIsSignOutOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   // Detect screen size
   useEffect(() => {
@@ -67,11 +68,24 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
     return null;
   }
 
-  // Sign Out Handler
-  const handleSignOut = () => {
-    console.log("User signed out");
-    setIsSignOutOpen(false);
-    window.location.href = '/login';
+  // Sign Out Handler.
+  // This used to just set window.location to /login without ending the
+  // session — no logout request, no cleared auth state, no cleared
+  // localStorage. The cookie stayed valid, so the admin was never actually
+  // signed out and simply navigating back into the dashboard let them
+  // straight in. Delegating to the auth context's logout() revokes the
+  // session server-side first, then hard-redirects.
+  const handleSignOut = async () => {
+    if (isSigningOut) return; // guard against a double-tap firing two requests
+    setIsSigningOut(true);
+    try {
+      await logout();
+    } catch {
+      // logout() already redirects in its finally block; if it somehow
+      // throws, don't leave the modal stuck in a pending state.
+      setIsSigningOut(false);
+      setIsSignOutOpen(false);
+    }
   };
 
   // EMBED MODE
@@ -98,7 +112,12 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
           </div>
           {children}
         </main>
-        <SignOutModal isOpen={isSignOutOpen} onClose={() => setIsSignOutOpen(false)} onConfirm={handleSignOut} />
+        <SignOutModal
+          isOpen={isSignOutOpen}
+          onClose={() => setIsSignOutOpen(false)}
+          onConfirm={handleSignOut}
+          isPending={isSigningOut}
+        />
         <SettingsDrawer />
       </div>
     );

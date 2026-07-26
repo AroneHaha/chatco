@@ -1,20 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 
 /**
- * POST /api/auth/forgot-password
- * PUBLIC — no auth required. Proxies to Laravel POST /api/v1/auth/forgot-password.
+ * POST /api/auth/register/verify-code
+ * PUBLIC — no auth required. Proxies to Laravel POST /api/v1/auth/register/verify-code.
  *
- * Body: { email: string }
+ * Body: { email: string, code: string }
  *
- * Passes the backend's status through untouched: 200 when a code was sent,
- * 404 when no account holds that email, 502 when SMTP delivery failed. The
- * page renders `message` verbatim, so the wording lives in the backend.
+ * On a correct code → 200, and the address stays verified long enough to
+ * finish the form. On a wrong or expired code → 400; once the attempt budget
+ * is spent → 429, meaning the code is gone and a new one must be requested.
  */
 const API_URL = process.env.API_URL || "http://localhost:8000";
 const API_V1 = "/api/v1";
 
 export async function POST(request: NextRequest) {
-  let body: { email?: string };
+  let body: { email?: string; code?: string };
   try {
     body = await request.json();
   } catch {
@@ -22,13 +22,13 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const res = await fetch(`${API_URL}${API_V1}/auth/forgot-password`, {
+    const res = await fetch(`${API_URL}${API_V1}/auth/register/verify-code`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
       },
-      body: JSON.stringify({ email: body.email }),
+      body: JSON.stringify({ email: body.email, code: body.code }),
     });
 
     const data = await res.json().catch(() => ({}));

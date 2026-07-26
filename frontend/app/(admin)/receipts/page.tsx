@@ -5,8 +5,9 @@ import { useState, useMemo, useCallback } from 'react';
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
 import { SearchBar } from '@/components/admin/ui/search-bar';
-import { CalendarDays, Download, Filter, Wallet, Ticket, Banknote, ChevronLeft, ChevronRight, AlertCircle, RefreshCw, ReceiptText, Smartphone, Coins } from 'lucide-react';
+import { CalendarDays, Download, Filter, Wallet, Ticket, Banknote, ChevronLeft, ChevronRight, AlertCircle, RefreshCw, ReceiptText, Smartphone, Coins, HelpCircle } from 'lucide-react';
 import { useReceiptsData, type Receipt, type PaymentMethod } from '@/app/(admin)/receipts/data/receipts-data';
+import { statusBadge, methodStyle } from '@/app/(admin)/receipts/data/receipt-status';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 
 const ROWS_PER_PAGE = 20;
@@ -137,10 +138,19 @@ export default function ReceiptsPage() {
     URL.revokeObjectURL(url);
   }, [filteredData]);
 
-  // Summary stats
-  const totalFare = filteredData.reduce((sum: number, item: Receipt) => sum + item.fare, 0);
-  const cashCount = filteredData.filter((item: Receipt) => item.paymentMethod === 'Cash').length;
-  const gcashCount = filteredData.filter((item: Receipt) => item.paymentMethod === 'Gcash').length;
+  // Summary stats.
+  // Only settled rows count. These previously summed/counted every filtered
+  // row regardless of status, so a Failed or Expired receipt — badged red in
+  // the very same table — still added its fare to "Total Fares" and its row to
+  // the Cash/GCash tallies. The backend's own remittance totals filter on
+  // status = PAID, so this now agrees with them.
+  const settled = useMemo(
+    () => filteredData.filter((item: Receipt) => item.status === 'Completed'),
+    [filteredData]
+  );
+  const totalFare = settled.reduce((sum: number, item: Receipt) => sum + item.fare, 0);
+  const cashCount = settled.filter((item: Receipt) => item.paymentMethod === 'Cash').length;
+  const gcashCount = settled.filter((item: Receipt) => item.paymentMethod === 'Gcash').length;
 
   const columns = [
     { key: 'id', label: 'Receipt ID' },
@@ -154,14 +164,11 @@ export default function ReceiptsPage() {
       key: 'paymentMethod',
       label: 'Payment',
       render: (value: PaymentMethod) => (
-        <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${
-          value === 'Gcash' ? 'bg-[#62A0EA]/15 text-[#62A0EA]'
-          : value === 'Voucher' ? 'bg-pink-500/15 text-pink-400'
-          : 'bg-emerald-500/15 text-emerald-400'
-        }`}>
+        <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${methodStyle(value)}`}>
           {value === 'Gcash' && <Wallet size={12} />}
           {value === 'Voucher' && <Ticket size={12} />}
           {value === 'Cash' && <Banknote size={12} />}
+          {value === 'Unknown' && <HelpCircle size={12} />}
           {value}
         </span>
       ),
@@ -170,15 +177,8 @@ export default function ReceiptsPage() {
       key: 'status',
       label: 'Status',
       render: (value: string) => {
-        switch (value) {
-          case 'Completed': return <Badge variant="success">Completed</Badge>;
-          case 'Pending':   return <Badge variant="warning">Pending</Badge>;
-          case 'Failed':    return <Badge variant="danger">Failed</Badge>;
-          case 'Cancelled': return <Badge variant="danger">Cancelled</Badge>;
-          case 'Expired':   return <Badge variant="warning">Expired</Badge>;
-          case 'Refunded':  return <Badge variant="info">Refunded</Badge>;
-          default:          return <Badge variant="success">Completed</Badge>;
-        }
+        const { label, variant } = statusBadge(value);
+        return <Badge variant={variant}>{label}</Badge>;
       },
     },
     { key: 'date', label: 'Date' },
@@ -284,7 +284,7 @@ export default function ReceiptsPage() {
             <Wallet size={18} className="text-[#62A0EA]" />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] text-slate-500 uppercase tracking-wider">Total Fares</p>
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider">Settled Fares</p>
             <p className="text-xl font-bold text-[#62A0EA] truncate">₱{totalFare.toFixed(2)}</p>
           </div>
         </div>
@@ -293,7 +293,7 @@ export default function ReceiptsPage() {
             <Coins size={18} className="text-emerald-400" />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] text-slate-500 uppercase tracking-wider">Cash Payments</p>
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider">Cash Settled</p>
             <p className="text-xl font-bold text-emerald-400 truncate">{cashCount}</p>
           </div>
         </div>
@@ -302,7 +302,7 @@ export default function ReceiptsPage() {
             <Smartphone size={18} className="text-[#62A0EA]" />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] text-slate-500 uppercase tracking-wider">GCash Payments</p>
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider">GCash Settled</p>
             <p className="text-xl font-bold text-[#62A0EA] truncate">{gcashCount}</p>
           </div>
         </div>

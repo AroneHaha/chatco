@@ -8,7 +8,9 @@ use App\Models\CommuterProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
@@ -171,11 +173,23 @@ class RegistrationCooldownTest extends TestCase
             'email' => 'maria.santos@example.com',
             'contact_number' => '09171234567',
             'username' => 'maria.santos',
-            'password' => 'SecurePass123',
-            'password_confirmation' => 'SecurePass123',
+            'password' => 'SecurePass123!',
+            'password_confirmation' => 'SecurePass123!',
             'language_preference' => 'English',
             'applied_type' => 'STUDENT',
         ], $overrides, ['id_image' => UploadedFile::fake()->image('valid_id.jpg', 800, 600)]);
+
+        // Stand in for the sign-up form's email verification step so these
+        // tests exercise the cooldown, not the verification gate.
+        DB::table('email_verification_codes')->updateOrInsert(
+            ['email' => Str::lower(trim($payload['email']))],
+            [
+                'token' => Hash::make('000000'),
+                'attempts' => 0,
+                'verified_at' => now(),
+                'created_at' => now(),
+            ]
+        );
 
         return $this->post('/api/v1/auth/register', $payload, ['Accept' => 'application/json']);
     }

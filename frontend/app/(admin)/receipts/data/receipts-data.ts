@@ -13,8 +13,10 @@ export interface Receipt {
   plateNumber: string;
   route: string;
   fare: number;
-  paymentMethod: "Cash" | "Gcash" | "Voucher";
-  status: "Completed" | "Pending" | "Failed" | "Cancelled" | "Expired" | "Refunded";
+  // "Unknown" is the explicit fail-safe for a value the backend sent that we
+  // don't recognise. It is never guessed at — see mapLaravelTransaction.
+  paymentMethod: "Cash" | "Gcash" | "Voucher" | "Unknown";
+  status: "Completed" | "Pending" | "Failed" | "Cancelled" | "Expired" | "Unknown";
   date: string;
   time: string;
 }
@@ -44,27 +46,39 @@ async function fetchTransactions(): Promise<Receipt[]> {
  * Receipt type (camelCase).
  */
 function mapLaravelTransaction(r: Record<string, unknown>): Receipt {
-  const rawMethod = String(r.payment_method ?? "CASH");
-  const rawStatus = String(r.status ?? "PAID");
+  // Note the absent `?? "CASH"` / `?? "PAID"` defaults: a missing column used
+  // to be coerced into the happy path, so a row with no status at all rendered
+  // as a green "Completed" badge. Unrecognised now means "Unknown", loudly.
+  const rawMethod = String(r.payment_method ?? "");
+  const rawStatus = String(r.status ?? "");
 
   // Map backend payment_method to frontend paymentMethod.
   // Backend PaymentMethod enum: CASH, GCASH, VOUCHER (free reward rides).
-  let paymentMethod: Receipt["paymentMethod"] = "Cash";
-  if (rawMethod === "GCASH") paymentMethod = "Gcash";
-  else if (rawMethod === "VOUCHER") paymentMethod = "Voucher";
+  let paymentMethod: Receipt["paymentMethod"];
+  switch (rawMethod) {
+    case "CASH":    paymentMethod = "Cash"; break;
+    case "GCASH":   paymentMethod = "Gcash"; break;
+    case "VOUCHER": paymentMethod = "Voucher"; break;
+    default:        paymentMethod = "Unknown"; break;
+  }
 
-  // Map backend status to frontend status — all 7 PaymentStatus values
-  // are handled so nothing falls through to "Completed" incorrectly.
+  // Map backend status to frontend status. Anything unrecognised is
+  // surfaced as Unknown rather than assumed paid.
+  //
+  // REFUNDED is intentionally absent: the product has no refund flow, so a
+  // refunded row can only originate from a provider-side action outside this
+  // system. Falling through to the neutral "Unknown" badge is the honest
+  // outcome — it flags the row for a human instead of implying the app
+  // manages refunds.
   let status: Receipt["status"];
   switch (rawStatus) {
-    case "PAID":      status = "Completed"; break;
+    case "PAID":       status = "Completed"; break;
     case "PENDING":
     case "PROCESSING": status = "Pending"; break;
-    case "FAILED":    status = "Failed"; break;
-    case "CANCELLED": status = "Cancelled"; break;
-    case "EXPIRED":   status = "Expired"; break;
-    case "REFUNDED":  status = "Refunded"; break;
-    default:          status = "Completed"; break;
+    case "FAILED":     status = "Failed"; break;
+    case "CANCELLED":  status = "Cancelled"; break;
+    case "EXPIRED":    status = "Expired"; break;
+    default:           status = "Unknown"; break;
   }
 
   // Format date and time from created_at.

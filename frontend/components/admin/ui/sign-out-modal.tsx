@@ -2,17 +2,21 @@
 'use client';
 
 import { Modal } from '@/components/admin/ui/modal';
-import { LogOut } from 'lucide-react';
+import { LogOut, Loader2 } from 'lucide-react';
 
 interface SignOutModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  /** True while the logout request is in flight — locks both buttons. */
+  isPending?: boolean;
 }
 
-export function SignOutModal({ isOpen, onClose, onConfirm }: SignOutModalProps) {
+export function SignOutModal({ isOpen, onClose, onConfirm, isPending = false }: SignOutModalProps) {
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
+    // Closing mid-request would leave the session half-torn-down, so the
+    // backdrop/escape close is suppressed while signing out.
+    <Modal isOpen={isOpen} onClose={isPending ? () => {} : onClose}>
       <div className="text-center space-y-4">
         {/* Warning Icon */}
         <div className="mx-auto w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center">
@@ -31,16 +35,27 @@ export function SignOutModal({ isOpen, onClose, onConfirm }: SignOutModalProps) 
         <div className="flex gap-3 pt-4">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2.5 bg-white/10 border border-white/20 text-white font-medium rounded-lg hover:bg-white/20 transition-colors"
+            disabled={isPending}
+            className="flex-1 px-4 py-2.5 bg-white/10 border border-white/20 text-white font-medium rounded-lg hover:bg-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
-            className="flex-1 px-4 py-2.5 bg-red-500 text-white font-medium rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center gap-2"
+            disabled={isPending}
+            className="flex-1 px-4 py-2.5 bg-red-500 text-white font-medium rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <LogOut size={18} />
-            Yes, Sign Out
+            {isPending ? (
+              <>
+                <Loader2 size={18} className="animate-spin" />
+                Signing Out…
+              </>
+            ) : (
+              <>
+                <LogOut size={18} />
+                Yes, Sign Out
+              </>
+            )}
           </button>
         </div>
       </div>
