@@ -9,7 +9,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Mail\PasswordResetCodeMail;
 use App\Models\User;
+use App\Rules\StrongPassword;
 use App\Services\AuthService;
+use App\Services\EmailVerificationService;
+use App\Services\RegistrationGuard;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -32,7 +35,9 @@ class AuthController extends Controller
     private const MAX_CODE_ATTEMPTS = 5;
 
     public function __construct(
-        private AuthService $authService
+        private AuthService $authService,
+        private EmailVerificationService $emailVerification,
+        private RegistrationGuard $registrationGuard,
     ) {}
 
     public function login(Request $request): JsonResponse
@@ -137,6 +142,103 @@ class AuthController extends Controller
             ],
             'Registration submitted. An admin will review your account shortly.',
             201
+        );
+    }
+
+    /**
+     * POST /api/v1/auth/register/send-code — public.
+     *
+     * Step 1 of sign-up email verification. Mails a 6-digit code to the
+     * address the applicant typed on the contact step, so a typo or someone
+     * else's inbox can't reach the admin approval queue.
+     *
+     * The blockers that would fail the eventual registration are checked FIRST
+     * — rejection cooldown, address already in use — so the applicant learns
+     * about them here rather than after filling in the rest of the form.
+     */
+    public function sendRegistrationCode(Request $request): JsonResponse
+    {
+        $request->validate([
+            'email'          => ['required', 'string', 'email:rfc', 'max:255'],
+            'contact_number' => ['nullable', 'string', 'max:20'],
+        ]);
+
+        $email = $this->normalizeEmail($request->email);
+
+        // Same cooldown that guards registration — throws a 422 naming the
+        // date sign-ups reopen.
+        $this->registrationGuard->assertNotBlocked($email, $request->contact_number);
+
+        // Live accounts only: a rejected applicant's email was rewritten to a
+        // placeholder, so their original address is free to use again.
+        $taken = User::whereNull('users.deleted_at')->where('email', $email)->exists();
+
+        if ($taken) {
+            throw ValidationException::withMessages([
+                'email' => ['That email already has a CHATCO account. Sign in instead, or use "Forgot password" if you can\'t get in.'],
+            ]);
+        }
+
+        $wait = $this->emailVerification->secondsUntilResend($email);
+
+        if ($wait > 0) {
+            return $this->errorResponse(
+                "You just requested a code. Please wait {$wait} seconds before asking for another.",
+                429
+            );
+        }
+
+        try {
+            $this->emailVerification->sendCode($email);
+        } catch (\Throwable $e) {
+            Log::error('Sign-up verification code failed to send', [
+                'email' => $email,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->errorResponse(
+                'We could not send the verification code right now. Please check the address and try again in a few minutes.',
+                502
+            );
+        }
+
+        return $this->successResponse(
+            [
+                'expires_in_minutes' => EmailVerificationService::CODE_TTL_MINUTES,
+                'resend_in_seconds'  => EmailVerificationService::RESEND_COOLDOWN_SECONDS,
+            ],
+            'We sent a 6-digit code to ' . $email . '. It expires in ' . EmailVerificationService::CODE_TTL_MINUTES . ' minutes.'
+        );
+    }
+
+    /**
+     * POST /api/v1/auth/register/verify-code — public.
+     *
+     * Step 2 of sign-up email verification. A correct code stamps the address
+     * verified for EmailVerificationService::VERIFIED_TTL_MINUTES, which is
+     * what POST /auth/register later requires.
+     */
+    public function verifyRegistrationCode(Request $request): JsonResponse
+    {
+        $request->validate([
+            'email' => ['required', 'string', 'email:rfc', 'max:255'],
+            'code'  => ['required', 'string'],
+        ]);
+
+        [$status, $message] = $this->emailVerification->verifyCode(
+            $this->normalizeEmail($request->email),
+            trim($request->code)
+        );
+
+        if ($status !== 'valid') {
+            // 429 on 'locked' so the client can tell "wrong code, try again"
+            // apart from "that code is gone, request a new one".
+            return $this->errorResponse($message, $status === 'locked' ? 429 : 400);
+        }
+
+        return $this->successResponse(
+            ['verified_for_minutes' => EmailVerificationService::VERIFIED_TTL_MINUTES],
+            'Email verified. You can finish creating your account.'
         );
     }
 
@@ -262,9 +364,11 @@ class AuthController extends Controller
     public function resetPassword(Request $request): JsonResponse
     {
         $request->validate([
-            'email'    => 'required|email',
-            'code'     => 'required|string',
-            'password' => 'required|string|min:6|confirmed',
+            'email'    => ['required', 'email'],
+            'code'     => ['required', 'string'],
+            // Same policy as sign-up — a reset shouldn't be a way to end up
+            // with a weaker password than the account could be created with.
+            'password' => ['required', 'string', 'confirmed', new StrongPassword],
         ]);
 
         $email = $this->normalizeEmail($request->email);

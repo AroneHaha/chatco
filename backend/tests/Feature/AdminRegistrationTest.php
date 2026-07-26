@@ -9,6 +9,7 @@ use App\Models\ConductorProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -311,6 +312,18 @@ class AdminRegistrationTest extends TestCase
             ])
             ->assertStatus(200);
 
+        // Sign-up verifies the address before /register accepts it — stand in
+        // for that step (covered end-to-end by EmailVerificationTest).
+        DB::table('email_verification_codes')->updateOrInsert(
+            ['email' => 'reusable@example.com'],
+            [
+                'token' => Hash::make('000000'),
+                'attempts' => 0,
+                'verified_at' => now(),
+                'created_at' => now(),
+            ]
+        );
+
         // The same email can now be re-registered (end-to-end: register ->
         // reject -> register again with the same email).
         $response = $this->post('/api/v1/auth/register', [
@@ -321,8 +334,8 @@ class AdminRegistrationTest extends TestCase
             'email' => 'reusable@example.com',
             'contact_number' => '09179998888',
             'username' => 'reusable.v2',
-            'password' => 'SecurePass123',
-            'password_confirmation' => 'SecurePass123',
+            'password' => 'SecurePass123!',
+            'password_confirmation' => 'SecurePass123!',
             'applied_type' => 'REGULAR',
             'id_image' => UploadedFile::fake()->image('id.jpg', 800, 600),
         ], ['Accept' => 'application/json']);

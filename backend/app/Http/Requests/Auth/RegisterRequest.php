@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Rules\StrongPassword;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 /**
@@ -23,6 +25,14 @@ use Illuminate\Validation\Rule;
  * enforces uniqueness manually against NON-deleted users only, so a
  * previously-rejected email can be re-registered.
  *
+ * EMAIL VERIFICATION
+ * ------------------
+ * The address must already be verified — the applicant requests a 6-digit code
+ * (POST /auth/register/send-code) and enters it (POST /auth/register/verify-code)
+ * before this endpoint will create anything. That check lives in
+ * AuthService::register via EmailVerificationService, not here, because it
+ * needs to run alongside the rejection-cooldown guard.
+ *
  * ID IMAGE
  * --------
  * The valid-ID image is uploaded as a multipart file. We validate it's an
@@ -37,6 +47,21 @@ class RegisterRequest extends FormRequest
         return true; // public endpoint
     }
 
+    /**
+     * Normalise the email before anything looks at it.
+     *
+     * The verification code is stored against the lower-cased address, and
+     * uniqueness is checked against the stored value — so "Juan@Gmail.com"
+     * here has to resolve to the same key as the "juan@gmail.com" the
+     * applicant verified a minute ago.
+     */
+    protected function prepareForValidation(): void
+    {
+        if (is_string($this->email)) {
+            $this->merge(['email' => Str::lower(trim($this->email))]);
+        }
+    }
+
     public function rules(): array
     {
         return [
@@ -48,7 +73,7 @@ class RegisterRequest extends FormRequest
             'email' => ['required', 'string', 'email:rfc', 'max:255'],
             'contact_number' => ['required', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
             'username' => ['required', 'string', 'max:50', 'unique:commuter_profiles,username'],
-            'password' => ['required', 'string', 'min:8', 'max:128', 'confirmed'],
+            'password' => ['required', 'string', 'confirmed', new StrongPassword],
             'language_preference' => ['nullable', 'string', 'max:20'],
             'applied_type' => ['required', 'string', Rule::in(['REGULAR', 'STUDENT', 'SENIOR', 'PWD'])],
             'id_image' => ['required', 'file', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],

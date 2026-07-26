@@ -38,6 +38,10 @@ use App\Http\Controllers\SystemStatusController;
 Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:commuter-hail');
     Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:commuter-hail'); // PUBLIC — commuter self-sign-up (S5-T15)
+    // Sign-up email verification — the applicant must enter a 6-digit code
+    // mailed to their address before /register will create the account.
+    Route::post('/register/send-code', [AuthController::class, 'sendRegistrationCode'])->middleware('throttle:commuter-hail');
+    Route::post('/register/verify-code', [AuthController::class, 'verifyRegistrationCode'])->middleware('throttle:commuter-hail');
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
     // Password reset — public (no auth required, throttled to prevent abuse).
     // 3-step 6-digit-code flow: request code → verify code → set new password.
