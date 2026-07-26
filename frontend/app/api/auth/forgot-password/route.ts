@@ -6,8 +6,9 @@ import { NextRequest, NextResponse } from "next/server";
  *
  * Body: { email: string }
  *
- * Always returns 200 with a generic message (the backend does the same)
- * to prevent email-enumeration attacks.
+ * Passes the backend's status through untouched: 200 when a code was sent,
+ * 404 when no account holds that email, 502 when SMTP delivery failed. The
+ * page renders `message` verbatim, so the wording lives in the backend.
  */
 const API_URL = process.env.API_URL || "http://localhost:8000";
 const API_V1 = "/api/v1";

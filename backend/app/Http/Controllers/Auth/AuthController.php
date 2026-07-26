@@ -147,9 +147,18 @@ class AuthController extends Controller
      * generate a random 6-digit code, store it (hashed) in
      * password_reset_tokens, and email it to that address.
      *
-     * Always returns the same generic 200 response whether or not the email
-     * is registered — this prevents user-enumeration (an attacker can't tell
-     * which emails have accounts by probing this endpoint).
+     * An unregistered email gets an explicit 404 rather than a generic 200.
+     * This is a deliberate trade: it does let someone probe which emails have
+     * accounts, but POST /auth/register already leaks the same fact (it
+     * rejects an email held by a live user), so the silence bought little
+     * while regularly stranding real users on the code screen waiting for a
+     * mail that was never sent. The route's `throttle:commuter-hail` limiter
+     * (10/min per IP) keeps the endpoint from being scripted for bulk
+     * harvesting.
+     *
+     * Note the SoftDeletes scope means a REJECTED applicant — whose email is
+     * rewritten to rejected+{uuid}@chatco.local on rejection — is not found
+     * here, hence the message covering pending/rejected registrations.
      */
     public function forgotPassword(Request $request): JsonResponse
     {
@@ -166,39 +175,53 @@ class AuthController extends Controller
             ->where('email', $email)
             ->first(['id', 'email']);
 
-        if ($user) {
-            $code = $this->generateResetCode();
-
-            // Upsert by email so requesting a new code overwrites any pending
-            // one and resets the failed-attempt counter.
-            DB::table('password_reset_tokens')->updateOrInsert(
-                ['email' => $email],
-                [
-                    'token'      => Hash::make($code),
-                    'attempts'   => 0,
-                    'created_at' => now(),
-                ]
-            );
-
-            try {
-                Mail::to($user->email)->send(
-                    new PasswordResetCodeMail($code, self::CODE_TTL_MINUTES)
-                );
-            } catch (\Throwable $e) {
-                // Don't leak delivery failures to the client (still generic
-                // 200), but do record them so we can diagnose SMTP issues.
-                Log::error('Password reset code email failed to send', [
-                    'email' => $email,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        } else {
+        if (! $user) {
             Log::info('Password reset requested for unknown email', ['email' => $email]);
+
+            return $this->errorResponse(
+                'No account is registered with that email. If your registration is '
+                . 'still awaiting admin approval, or was rejected, you cannot reset '
+                . 'a password yet.',
+                404
+            );
+        }
+
+        $code = $this->generateResetCode();
+
+        // Upsert by email so requesting a new code overwrites any pending
+        // one and resets the failed-attempt counter.
+        DB::table('password_reset_tokens')->updateOrInsert(
+            ['email' => $email],
+            [
+                'token'      => Hash::make($code),
+                'attempts'   => 0,
+                'created_at' => now(),
+            ]
+        );
+
+        try {
+            Mail::to($user->email)->send(
+                new PasswordResetCodeMail($code, self::CODE_TTL_MINUTES)
+            );
+        } catch (\Throwable $e) {
+            // Surface delivery failures instead of reporting success — the
+            // user would otherwise sit on the code screen with no code and no
+            // explanation. The detail stays in the log; the client gets a
+            // generic "try again" so SMTP internals aren't exposed.
+            Log::error('Password reset code email failed to send', [
+                'email' => $email,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->errorResponse(
+                'We could not send the reset code right now. Please try again in a few minutes.',
+                502
+            );
         }
 
         return $this->successResponse(
             null,
-            'If an account with that email exists, we have sent a 6-digit reset code.',
+            'We have sent a 6-digit reset code to your email.',
             200
         );
     }
