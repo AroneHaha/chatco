@@ -98,14 +98,22 @@ export const initialNotificationTemplates: NotificationTemplate[] = [
   },
 ];
 
+// Only the message body — the branded header, account summary, fare-type
+// badge, login button, and footer are rendered around it by the backend's
+// email layout. Anything repeated here would show up twice in the inbox.
+// Must match AdminService::DEFAULT_APPROVED_TEMPLATE.
 export const initialAccountApprovedTemplate: string =
-  `Dear {commuterName},\n\nCongratulations! Your Chatco Commuter account has been successfully approved and verified.\n\nYou can now log in to the app using your registered credentials and start enjoying seamless cashless rides across the Chatco network.\n\nIf you did not request this account, please contact support immediately.\n\nSafe travels!\nThe Chatco Team`;
+  `Hi {name},\n\nGreat news — we've reviewed the ID you submitted and your CHATCO commuter account is now approved and active.\n\nLog in with the email and password you registered with, and you're ready to ride.`;
 
+// The reason and the next steps are rendered as their own highlighted blocks.
+// Drop {reason} / {next_steps} in here only if you'd rather have them inline —
+// using either one removes the matching block so nothing is said twice.
+// Must match AdminService::DEFAULT_REJECTED_TEMPLATE.
 export const initialAccountRejectedTemplate: string =
-  `Dear {commuterName},\n\nWe regret to inform you that your Chatco Commuter account registration has been rejected.\n\nReason: {rejectionReason}\n\nIf you believe this is a mistake, you may re-apply with valid and updated identification documents through the app or visit our local office.\n\nThank you for your understanding.\nThe Chatco Team`;
+  `Hi {name},\n\nThanks for signing up with CHATCO. We've finished reviewing the ID attached to your commuter registration, and unfortunately we weren't able to approve it this time.`;
 
-export const approvedTemplateVariables: string[] = ['{commuterName}'];
-export const rejectedTemplateVariables: string[] = ['{commuterName}', '{rejectionReason}'];
+export const approvedTemplateVariables: string[] = ['{name}', '{commuter_type}'];
+export const rejectedTemplateVariables: string[] = ['{name}', '{reason}', '{next_steps}'];
 
 // --- Expense Categories ---
 

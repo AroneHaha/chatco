@@ -182,7 +182,7 @@ export default function SafetyNotificationsPage() {
               <div className="space-y-4">
                 <div className="p-4 bg-sky-400/5 rounded-md border border-sky-400/20">
                   <h3 className="text-sm sm:text-base font-semibold text-sky-400 break-words">Successful Account Creation</h3>
-                  <p className="text-xs text-slate-400 mt-1 break-words">Sent when the admin approves and verifies the commuter&apos;s ID.</p>
+                  <p className="text-xs text-slate-400 mt-1 break-words">Sent when the admin approves and verifies the commuter&apos;s ID. This is the message body only &mdash; the CHATCO header, account summary, login button, and footer are added around it automatically.</p>
                   <textarea value={accountApprovedTemplate} onChange={(e) => { setAccountApprovedTemplate(e.target.value); setIsSaved(false); }} rows={6} className={`${textareaClasses} mt-3`} style={{ '--tw-ring-color': 'rgb(56 189 248)' } as any} />
                   <div className="mt-3 flex flex-wrap gap-2">
                     {approvedTemplateVariables.map((variable: string) => (
@@ -193,7 +193,7 @@ export default function SafetyNotificationsPage() {
 
                 <div className="p-4 bg-red-500/5 rounded-md border border-red-500/20">
                   <h3 className="text-sm sm:text-base font-semibold text-red-400 break-words">Rejected Account Creation</h3>
-                  <p className="text-xs text-slate-400 mt-1 break-words">Sent when the admin rejects the registration due to invalid ID.</p>
+                  <p className="text-xs text-slate-400 mt-1 break-words">Sent when the admin rejects the registration due to invalid ID. The rejection reason and the next steps appear as their own highlighted blocks &mdash; add <span className="font-mono text-slate-300">{'{reason}'}</span> or <span className="font-mono text-slate-300">{'{next_steps}'}</span> below only if you want them inline instead.</p>
                   <textarea value={accountRejectedTemplate} onChange={(e) => { setAccountRejectedTemplate(e.target.value); setIsSaved(false); }} rows={6} className={`${textareaClasses} mt-3`} style={{ '--tw-ring-color': 'rgb(239 68 68)' } as any} />
                   <div className="mt-3 flex flex-wrap gap-2">
                     {rejectedTemplateVariables.map((variable: string) => (

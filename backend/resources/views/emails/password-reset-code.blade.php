@@ -1,54 +1,49 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Password reset code</title>
-</head>
-<body style="margin:0; padding:0; background-color:#f3f4f6; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f3f4f6; padding:32px 12px;">
+@extends('emails.layout')
+
+@section('title', 'Your CHATCO password reset code')
+@section('eyebrow', 'Security')
+@section('accent', '#1A5FB4')
+@section('preheader', 'Your one-time code is inside — it expires in ' . $expiresInMinutes . ' minutes.')
+
+@section('content')
+    <!-- Security mark -->
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px;">
         <tr>
-            <td align="center">
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px; background-color:#ffffff; border-radius:16px; overflow:hidden; border:1px solid #e5e7eb;">
-                    <!-- Header -->
-                    <tr>
-                        <td style="background-color:#1A5FB4; padding:28px 32px;">
-                            <span style="font-size:24px; font-weight:800; color:#ffffff; letter-spacing:0.5px;">CHATCO</span>
-                        </td>
-                    </tr>
+            <td width="52" height="52" align="center" valign="middle" style="width:52px; height:52px; background-color:#eff6ff; border:1px solid #bfdbfe; border-radius:26px; font-size:24px; line-height:1;">&#128274;</td>
+        </tr>
+    </table>
 
-                    <!-- Body -->
-                    <tr>
-                        <td style="padding:32px;">
-                            <h1 style="margin:0 0 8px; font-size:20px; font-weight:700; color:#111827;">Reset your password</h1>
-                            <p style="margin:0 0 24px; font-size:14px; line-height:1.6; color:#6b7280;">
-                                We received a request to reset your CHATCO password. Enter the code below to continue. If you didn&rsquo;t ask for this, you can safely ignore this email &mdash; your password won&rsquo;t change.
-                            </p>
+    <h1 style="margin:0 0 6px; font-size:22px; font-weight:700; line-height:1.3; color:#0f172a;">Reset your password</h1>
+    <p style="margin:0 0 22px; font-size:13px; font-weight:600; letter-spacing:0.3px; text-transform:uppercase; color:#1A5FB4;">One-time verification code</p>
 
-                            <!-- Code -->
-                            <div style="text-align:center; margin:0 0 24px;">
-                                <div style="display:inline-block; background-color:#f0f6ff; border:1px solid #cfe0fa; border-radius:12px; padding:16px 28px;">
-                                    <span style="font-size:34px; font-weight:800; letter-spacing:10px; color:#1A5FB4; font-family:'Courier New',Courier,monospace;">{{ $code }}</span>
-                                </div>
-                            </div>
+    <p style="margin:0 0 24px; font-size:15px; line-height:1.65; color:#475569;">
+        We received a request to reset your CHATCO password. Enter the code below in the app to choose a new one.
+    </p>
 
-                            <p style="margin:0; font-size:13px; line-height:1.6; color:#6b7280;">
-                                This code expires in <strong style="color:#111827;">{{ $expiresInMinutes }} minutes</strong>. For your security, never share it with anyone.
-                            </p>
-                        </td>
-                    </tr>
-
-                    <!-- Footer -->
-                    <tr>
-                        <td style="padding:20px 32px; border-top:1px solid #f3f4f6;">
-                            <p style="margin:0; font-size:12px; color:#9ca3af;">
-                                &copy; {{ date('Y') }} CHATCO. This is an automated message &mdash; please don&rsquo;t reply.
-                            </p>
-                        </td>
-                    </tr>
-                </table>
+    <!-- Code -->
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
+        <tr>
+            <td align="center" style="padding:24px 16px; background-color:#f0f6ff; border:1px solid #cfe0fa; border-radius:14px;">
+                <p style="margin:0 0 10px; font-size:11px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:#5b86c4;">Your code</p>
+                <p style="margin:0 0 12px; font-size:34px; font-weight:800; letter-spacing:10px; line-height:1.1; color:#1A5FB4; font-family:'Courier New',Courier,monospace;">{{ $code }}</p>
+                <span style="display:inline-block; padding:4px 12px; background-color:#ffffff; border:1px solid #cfe0fa; border-radius:999px; font-size:12px; font-weight:600; color:#1A5FB4;">Expires in {{ $expiresInMinutes }} minutes</span>
             </td>
         </tr>
     </table>
-</body>
-</html>
+
+    <!-- Security note -->
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 4px; background-color:#fffbeb; border:1px solid #fde68a; border-radius:12px;">
+        <tr>
+            <td style="padding:16px 20px;">
+                <p style="margin:0 0 6px; font-size:11px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:#b45309;">Keep this code private</p>
+                <p style="margin:0; font-size:14px; line-height:1.6; color:#78350f;">
+                    CHATCO staff will never ask you for this code. Don&rsquo;t share it with anyone, even if they say they&rsquo;re from support.
+                </p>
+            </td>
+        </tr>
+    </table>
+
+    <p style="margin:0; padding-top:18px; border-top:1px solid #f1f5f9; font-size:12px; line-height:1.6; color:#94a3b8;">
+        Didn&rsquo;t ask for this? You can safely ignore this email &mdash; your password stays exactly as it is.
+    </p>
+@endsection

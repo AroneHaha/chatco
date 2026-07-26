@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Enums\UserRole;
+use App\Mail\AccountApprovedMail;
+use App\Mail\AccountRejectedMail;
 use App\Models\Remittance;
 use App\Models\ShiftLog;
 use App\Models\Setting;
@@ -1018,26 +1020,69 @@ class AdminService
     // ── Email helpers ──────────────────────────────────────────────
 
     /**
+     * Default body copy for the approval email, used when an admin has never
+     * saved `account_approved_template`. Deliberately message-only: the fare
+     * type, verification date, and login button are rendered as UI by the
+     * Blade view, so repeating them here would just duplicate the email.
+     *
+     * Keep in sync with initialAccountApprovedTemplate in the frontend's
+     * settings-data.ts — the settings page writes its own default to the DB
+     * on the first save, and the two shouldn't disagree.
+     */
+    private const DEFAULT_APPROVED_TEMPLATE =
+        "Hi {name},\n\n"
+        . "Great news — we've reviewed the ID you submitted and your CHATCO commuter account is now approved and active.\n\n"
+        . "Log in with the email and password you registered with, and you're ready to ride.";
+
+    /** Default body copy for the rejection email. See DEFAULT_APPROVED_TEMPLATE. */
+    private const DEFAULT_REJECTED_TEMPLATE =
+        "Hi {name},\n\n"
+        . "Thanks for signing up with CHATCO. We've finished reviewing the ID attached to your commuter registration, "
+        . "and unfortunately we weren't able to approve it this time.";
+
+    /**
      * Send an approval notification email to the commuter.
-     * Reads the `account_approved_template` from the settings table.
-     * Best-effort: errors are logged but never thrown.
+     *
+     * The prose comes from the admin-editable `account_approved_template`
+     * setting; AccountApprovedMail wraps it in the branded HTML shell. The
+     * fare-type row is suppressed when the admin's own template already prints
+     * the type, so the commuter never reads it twice.
+     *
+     * Best-effort: errors are logged but never thrown — a mail outage must not
+     * roll back an approval the admin already committed.
      */
     private function sendApprovalEmail(User $user, $profile): void
     {
         try {
             $template = Setting::where('key', 'account_approved_template')->value('value')
-                ?? "Congratulations {name}!\n\nYour CHATCO commuter account has been approved.\n\nCommuter Type: {commuter_type}\n\nYou can now log in to the CHATCO app and start riding.";
+                ?: self::DEFAULT_APPROVED_TEMPLATE;
 
+            $commuterType = $this->commuterTypeLabel($profile->commuter_type ?? 'REGULAR');
+            $name = trim($profile->first_name . ' ' . $profile->surname);
+
+            // {commuterName} / {rejectionReason} are the names the admin
+            // settings page advertises; {name} / {reason} are the originals.
+            // Both are accepted so a template saved under either vocabulary
+            // still renders — an unsubstituted "{commuterName}" would otherwise
+            // ship straight to the commuter's inbox.
             $body = strtr($template, [
-                '{name}'          => trim($profile->first_name . ' ' . $profile->surname),
-                '{commuter_type}' => $profile->commuter_type ?? 'REGULAR',
+                '{name}'          => $name,
+                '{commuterName}'  => $name,
+                '{commuter_type}' => $commuterType,
+                '{commuterType}'  => $commuterType,
             ]);
 
-            Mail::raw($body, function ($message) use ($user) {
-                $message->to($user->email)
-                    ->subject('CHATCO — Account Approved');
-            });
-        } catch (\Exception $e) {
+            Mail::to($user->email)->send(new AccountApprovedMail(
+                body: $body,
+                name: $name,
+                email: $user->email,
+                commuterType: $commuterType,
+                verifiedAt: ($profile->verified_at ?? now())
+                    ->timezone(config('app.timezone'))
+                    ->format('M j, Y'),
+                showCommuterType: ! $this->templateMentions($template, ['commuter_type', 'commuterType']),
+            ));
+        } catch (\Throwable $e) {
             Log::error('Failed to send approval email', [
                 'error' => $e->getMessage(),
                 'user_id' => $user->id,
@@ -1047,18 +1092,25 @@ class AdminService
 
     /**
      * Send a rejection notification email to the commuter.
-     * Reads the `account_rejected_template` from the settings table.
+     *
+     * Reads the `account_rejected_template` setting for the prose; the reason
+     * callout, the "what to do next" block, and the cooldown banner are UI
+     * rendered by AccountRejectedMail — each suppressed when the admin's
+     * template already carries the matching placeholder inline.
+     *
      * Best-effort: errors are logged but never thrown.
      */
     private function sendRejectionEmail(User $user, $profile, string $reason, ?\App\Models\RegistrationRejection $strike = null): void
     {
         try {
             $template = Setting::where('key', 'account_rejected_template')->value('value')
-                ?? "Hello {name},\n\nWe regret to inform you that your CHATCO commuter registration has been rejected.\n\nReason: {reason}\n\nYou may register again with a clearer valid ID. {next_steps}\n\nIf you believe this is an error, please contact support.";
+                ?: self::DEFAULT_REJECTED_TEMPLATE;
 
             // Tell the commuter what happens next: either re-register freely, or
             // (once the cooldown threshold is hit) wait out the pause.
-            if ($strike && $strike->blocked_until) {
+            $isBlocked = (bool) ($strike && $strike->blocked_until);
+
+            if ($isBlocked) {
                 $retryDate = $strike->blocked_until
                     ->timezone(config('app.timezone'))
                     ->format('M j, Y \a\t g:i A');
@@ -1066,24 +1118,66 @@ class AdminService
                     . "new sign-ups with this email or contact number are temporarily paused until {$retryDate} "
                     . "for security. Please try again after that date.";
             } else {
-                $nextSteps = 'Please make sure your ID is clear, valid, and matches your details, then sign up again.';
+                $nextSteps = 'Fix what the reason above points to, then sign up again — there is no waiting period.';
             }
 
+            $name = trim($profile->first_name . ' ' . $profile->surname);
+
+            // See sendApprovalEmail() for why both placeholder vocabularies
+            // are substituted.
             $body = strtr($template, [
-                '{name}'       => trim($profile->first_name . ' ' . $profile->surname),
-                '{reason}'     => $reason,
-                '{next_steps}' => $nextSteps,
+                '{name}'            => $name,
+                '{commuterName}'    => $name,
+                '{reason}'          => $reason,
+                '{rejectionReason}' => $reason,
+                '{next_steps}'      => $nextSteps,
+                '{nextSteps}'       => $nextSteps,
             ]);
 
-            Mail::raw($body, function ($message) use ($user) {
-                $message->to($user->email)
-                    ->subject('CHATCO — Registration Update');
-            });
-        } catch (\Exception $e) {
+            Mail::to($user->email)->send(new AccountRejectedMail(
+                body: $body,
+                reason: $reason,
+                nextSteps: $nextSteps,
+                isBlocked: $isBlocked,
+                showReason: ! $this->templateMentions($template, ['reason', 'rejectionReason']),
+                showNextSteps: ! $this->templateMentions($template, ['next_steps', 'nextSteps']),
+            ));
+        } catch (\Throwable $e) {
             Log::error('Failed to send rejection email', [
                 'error' => $e->getMessage(),
                 'user_id' => $user->id,
             ]);
         }
+    }
+
+    /**
+     * Whether an admin's template already prints one of these placeholders.
+     *
+     * Drives the "don't say it twice" rule: if the prose contains {reason},
+     * the email skips its own reason callout. Checked against the RAW template
+     * (before substitution), since afterwards the placeholder is gone.
+     *
+     * @param  string[]  $placeholders  Names without braces.
+     */
+    private function templateMentions(string $template, array $placeholders): bool
+    {
+        foreach ($placeholders as $placeholder) {
+            if (str_contains($template, '{' . $placeholder . '}')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** Human-readable label for a fare tier, for display in emails. */
+    private function commuterTypeLabel(string $type): string
+    {
+        return match (strtoupper($type)) {
+            'STUDENT' => 'Student',
+            'SENIOR'  => 'Senior citizen',
+            'PWD'     => 'PWD',
+            default   => 'Regular',
+        };
     }
 }

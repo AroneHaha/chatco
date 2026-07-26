@@ -56,6 +56,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Frontend URL
+    |--------------------------------------------------------------------------
+    |
+    | Root of the Next.js app (:3000), NOT the API. Anything we send outward —
+    | the "Log in" button in the approval email, the "Register again" button in
+    | the rejection email — has to land on a page a human can use, so it points
+    | here. APP_FRONTEND_URL wins if set (it's what config/payments.php already
+    | reads); otherwise FRONTEND_URL, the value CORS and Sanctum use.
+    |
+    */
+
+    'frontend_url' => rtrim(env('APP_FRONTEND_URL', env('FRONTEND_URL', 'http://localhost:3000')), '/'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |
