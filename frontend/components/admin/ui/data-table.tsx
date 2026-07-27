@@ -5,7 +5,9 @@ interface Column<T> {
   key: string;
   label: string;
   align?: 'left' | 'center' | 'right';
-  render?: (value: any, item: T) => ReactNode;
+  render?: (value: never, item: T) => ReactNode;
+  headerClassName?: string;
+  cellClassName?: string;
 }
 
 interface DataTableProps<T> {
@@ -21,9 +23,12 @@ interface DataTableProps<T> {
   maxHeight?: string;
   /** Keeps the header row visible while the body scrolls. Needs `maxHeight`. */
   stickyHeader?: boolean;
+  /** Disable horizontal overflow for compact, screen-fitting tables. */
+  allowHorizontalScroll?: boolean;
+  tableClassName?: string;
 }
 
-export function DataTable<T extends Record<string, any>>({
+export function DataTable<T extends object>({
   data,
   columns,
   searchQuery,
@@ -31,6 +36,8 @@ export function DataTable<T extends Record<string, any>>({
   onRowDoubleClick,
   maxHeight,
   stickyHeader = false,
+  allowHorizontalScroll = true,
+  tableClassName = '',
 }: DataTableProps<T>) {
   const filteredData = useMemo(() => {
     if (!searchQuery) {
@@ -39,20 +46,23 @@ export function DataTable<T extends Record<string, any>>({
 
     const lowerCaseQuery = searchQuery.toLowerCase();
     return data.filter((item) => {
-      return Object.values(item).some((value) =>
+      return Object.values(item as Record<string, unknown>).some((value) =>
         String(value).toLowerCase().includes(lowerCaseQuery)
       );
     });
   }, [data, searchQuery]);
 
   return (
-    <div className="overflow-x-auto scrollbar-themed" style={maxHeight ? { maxHeight, overflowY: 'auto' } : undefined}>
+    <div
+      className={`${allowHorizontalScroll ? 'overflow-x-auto' : 'overflow-x-hidden'} scrollbar-themed`}
+      style={maxHeight ? { maxHeight, overflowY: 'auto' } : undefined}
+    >
       {filteredData.length === 0 ? (
         <div className="py-12 text-center">
           <p className="text-sm text-slate-500">{emptyMessage}</p>
         </div>
       ) : (
-        <table className="min-w-full">
+        <table className={`min-w-full ${tableClassName}`}>
           <thead>
             <tr className="border-b border-[#1E2D45]">
               {columns.map((col) => (
@@ -65,7 +75,7 @@ export function DataTable<T extends Record<string, any>>({
                     // The <tr> border doesn't travel with sticky cells, so the
                     // divider is redrawn as an inset shadow on each header cell.
                     stickyHeader ? 'sticky top-0 z-10 bg-[#0B1220] shadow-[inset_0_-1px_0_#1E2D45]' : ''
-                  }`}
+                  } ${col.headerClassName ?? ''}`}
                 >
                   {col.label}
                 </th>
@@ -79,16 +89,19 @@ export function DataTable<T extends Record<string, any>>({
                 className={`hover:bg-[#162033] transition-colors ${onRowDoubleClick ? 'cursor-pointer' : ''}`}
                 onDoubleClick={() => onRowDoubleClick?.(item)}
               >
-                {columns.map((col) => (
-                  <td
-                    key={col.key}
-                    className={`px-4 py-3 text-sm text-slate-300 ${
-                      col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'
-                    }`}
-                  >
-                    {col.render ? col.render(item[col.key], item) : item[col.key]}
-                  </td>
-                ))}
+                {columns.map((col) => {
+                  const value = (item as Record<string, unknown>)[col.key];
+                  return (
+                    <td
+                      key={col.key}
+                      className={`px-4 py-3 text-sm text-slate-300 ${
+                        col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'
+                      } ${col.cellClassName ?? ''}`}
+                    >
+                      {col.render ? col.render(value as never, item) : (value as ReactNode)}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>

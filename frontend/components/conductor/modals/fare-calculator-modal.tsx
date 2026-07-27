@@ -93,6 +93,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   // by the commuter. The backend validates it + creates a PAID/VOUCHER
   // transaction with final_amount=0 (free ride).
   const [voucherCode, setVoucherCode] = useState("");
+  const [cashReceiptToken, setCashReceiptToken] = useState<string | null>(null);
 
   // GCash scan result state — kept for backwards compat with the existing
   // scan_result step UI. The commuter type is now detected by the backend
@@ -205,7 +206,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     const paymentMethodType: PaymentMethodType = method === "Voucher" ? "Voucher" : "Cash";
     const effectiveCommuterType = overrideCommuterType || commuterType;
 
-    await createTransaction(shiftId, {
+    return createTransaction(shiftId, {
       paymentMethod: paymentMethodType,
       finalAmount: method === "Voucher" ? 0 : fareData.finalFare,
       passengerName: "Commuter",
@@ -415,7 +416,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     // Cash payment: brief processing (just recording), then success
     await new Promise((r) => setTimeout(r, 800));
 
-    await recordTransaction("Cash");
+    const transaction = await recordTransaction("Cash");
+    setCashReceiptToken(transaction?.receiptQrToken ?? null);
     setStep("success");
   };
 
@@ -524,6 +526,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     setScannedCommuterType("REGULAR");
     setScannedCommuterName("Commuter");
     setVoucherCode("");
+    setCashReceiptToken(null);
     onClose();
   };
 
@@ -1675,7 +1678,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
 
     return (
       <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-        <div className="w-full sm:max-w-sm bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl">
+        <div className="w-full sm:max-w-sm max-h-[92vh] overflow-y-auto bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl modal-scroll">
           <div className="p-6 text-center">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center">
               <svg className="w-8 h-8 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -1752,6 +1755,20 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                 </div>
               )}
             </div>
+
+            {selectedMethod === "Cash" && cashReceiptToken && (
+              <div className="mb-6 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+                <p className="text-xs font-bold text-emerald-300">Digital cash receipt QR</p>
+                <p className="mt-1 text-[10px] leading-relaxed text-white/40">
+                  Let the commuter scan this from Rewards to credit +1 paid ride.
+                  Each receipt can only be claimed once.
+                </p>
+                <div className="mx-auto mt-3 w-fit rounded-xl bg-white p-3">
+                  <QRCodeSVG value={cashReceiptToken} size={144} level="M" />
+                </div>
+                <p className="mt-2 break-all font-mono text-[9px] text-white/25">{cashReceiptToken}</p>
+              </div>
+            )}
 
             <button
               onClick={handleClose}

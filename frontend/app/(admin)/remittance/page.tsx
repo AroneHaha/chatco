@@ -11,8 +11,7 @@ import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 
 export default function RemittancePage() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [selectedDate, setSelectedDate] = useState('');
   const [statusFilter, setStatusFilter] = useState<RemittanceStatus | 'All'>('All'); // Quick Filter State
 
   const quickFilters: (RemittanceStatus | 'All')[] = ['All', 'Pending', 'Remitted'];
@@ -33,8 +32,7 @@ export default function RemittancePage() {
       </StickyPageHeader>
 
       <div className="flex flex-col gap-6 mb-6">
-        {/* Today's at-a-glance summary */}
-        <RemittanceSummary />
+        <RemittanceSummary selectedDate={selectedDate} />
 
         {/* Quick Status Filters */}
         <div className="flex flex-wrap gap-2">
@@ -63,38 +61,24 @@ export default function RemittancePage() {
           />
 
           <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
-            {/* Start Date Filter */}
             <div className="relative flex-1 lg:flex-none">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <CalendarDays className="h-4 w-4 text-slate-400" />
               </div>
               <input
                 type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="block w-full lg:w-48 pl-10 pr-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] focus:border-[#62A0EA] [color-scheme:dark]"
-              />
-            </div>
-
-            {/* End Date Filter */}
-            <div className="relative flex-1 lg:flex-none">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <CalendarDays className="h-4 w-4 text-slate-400" />
-              </div>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                aria-label="Filter remittances by date"
                 className="block w-full lg:w-48 pl-10 pr-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] focus:border-[#62A0EA] [color-scheme:dark]"
               />
             </div>
 
             {/* Clear Filters Button */}
-            {(startDate || endDate || searchQuery || statusFilter !== 'All') && (
+            {(selectedDate || searchQuery || statusFilter !== 'All') && (
               <button
                 onClick={() => {
-                  setStartDate('');
-                  setEndDate('');
+                  setSelectedDate('');
                   setSearchQuery('');
                   setStatusFilter('All');
                 }}
@@ -111,8 +95,7 @@ export default function RemittancePage() {
       <div className="bg-[#0B1220] border border-[#1E2D45] rounded-xl p-4 sm:p-5">
         <RemittanceTable
           searchQuery={searchQuery}
-          startDate={startDate}
-          endDate={endDate}
+          selectedDate={selectedDate}
           statusFilter={statusFilter}
         />
       </div>

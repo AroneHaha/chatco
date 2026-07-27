@@ -33,6 +33,9 @@ class AdminUserController extends Controller
             'role'     => $request->query('role'),
             'search'   => $request->query('search'),
             'per_page' => $request->integer('per_page', 15),
+            'sort' => $request->query('sort', 'recent'),
+            'account_status' => $request->query('account_status'),
+            'active_only' => $request->boolean('active_only'),
         ]);
 
         return $this->successResponse($users, 'Users retrieved');

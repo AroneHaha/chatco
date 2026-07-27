@@ -28,12 +28,30 @@ interface UsersTableProps {
 
 export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete, onViewHistory, isRejectedTab, selectedUser, onSelectUser, onRowDoubleClick }: UsersTableProps) {
   const columns = [
-    { key: 'name', label: 'Name' },
-    { key: 'email', label: 'Email' },
-    { key: 'commuterType', label: 'Type', render: (value: string) => <Badge variant="info">{value}</Badge> },
+    {
+      key: 'name',
+      label: 'User',
+      headerClassName: 'w-[34%] px-2 sm:px-4',
+      cellClassName: 'px-2 sm:px-4 min-w-0',
+      render: (value: string, item: User) => (
+        <div className="min-w-0">
+          <p className="truncate font-medium text-white" title={value}>{value}</p>
+          <p className="truncate text-xs text-slate-500" title={item.email}>{item.email}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'commuterType',
+      label: 'Type',
+      headerClassName: 'w-[18%] px-2 sm:px-4',
+      cellClassName: 'px-2 sm:px-4',
+      render: (value: string) => <Badge variant="info">{value}</Badge>,
+    },
     { 
       key: 'status', 
       label: 'Status', 
+      headerClassName: 'w-[16%] px-2 sm:px-4',
+      cellClassName: 'px-2 sm:px-4',
       render: (value: string) => <Badge variant={value === 'Active' ? 'success' : value === 'Suspended' ? 'warning' : 'danger'}>{value}</Badge> 
     },
     ...(isRejectedTab ? [{
@@ -43,6 +61,8 @@ export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete,
       key: 'actions',
       label: 'Actions',
       align: 'center' as const,
+      headerClassName: 'w-[22%] px-2 sm:px-4',
+      cellClassName: 'px-2 sm:px-4',
       render: (_: unknown, item: User) => (
         <div className="flex items-center justify-center space-x-1">
           {!isRejectedTab && (
@@ -91,6 +111,10 @@ export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete,
           searchQuery={searchQuery}
           onRowDoubleClick={onRowDoubleClick ? (item) => onRowDoubleClick(item) : undefined}
           emptyMessage={isRejectedTab ? 'No rejected users.' : 'No users found.'}
+          maxHeight="58vh"
+          stickyHeader
+          allowHorizontalScroll={false}
+          tableClassName="table-fixed"
         />
       </GlassCard>
 

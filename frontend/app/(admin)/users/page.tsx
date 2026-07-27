@@ -1,7 +1,7 @@
 // app/(admin)/users/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { UsersTable } from '@/components/admin/users/users-table';
 import { RegistrationRequestsTable } from '@/components/admin/users/registration-requests-table';
 import { ReviewRequestModal } from '@/components/admin/users/review-request-modal';
@@ -41,6 +41,7 @@ export default function UsersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [rejectedPage, setRejectedPage] = useState(1);
 
   // Modal States
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
@@ -67,6 +68,18 @@ export default function UsersPage() {
     }, 400);
     return () => clearTimeout(timer);
   }, [searchQuery, setFilters]);
+
+  const filteredRejectedUsers = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return rejectedUsers;
+    return rejectedUsers.filter(user =>
+      [user.name, user.email, user.phoneNumber, user.rejectionReason]
+        .some(value => value.toLowerCase().includes(query))
+    );
+  }, [rejectedUsers, searchQuery]);
+  const rejectedTotalPages = Math.max(1, Math.ceil(filteredRejectedUsers.length / 10));
+  const safeRejectedPage = Math.min(rejectedPage, rejectedTotalPages);
+  const visibleRejectedUsers = filteredRejectedUsers.slice((safeRejectedPage - 1) * 10, safeRejectedPage * 10);
 
   // ─── Loading State ───
   if (isLoading && activeTab === 'active') {
@@ -308,15 +321,16 @@ export default function UsersPage() {
     filters.role === 'CONDUCTOR' ? 'Conductors' :
     filters.role === 'DRIVER' ? 'Drivers' :
     filters.role === 'ADMIN' ? 'Admins' :
-    'Commuters';
+    filters.role === 'COMMUTER' ? 'Commuters' :
+    'Users';
 
   return (
     <>
       <StickyPageHeader className="mb-6">
-        <h1 className="text-2xl font-bold text-white">Commuter Management</h1>
+        <h1 className="text-2xl font-bold text-white">User Management</h1>
       </StickyPageHeader>
       <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto mb-6 -mt-4 md:mt-0">
-          <SearchBar placeholder="Search commuters..." value={searchQuery} onChange={setSearchQuery} className="w-full sm:w-64" />
+          <SearchBar placeholder="Search users..." value={searchQuery} onChange={setSearchQuery} className="w-full sm:w-64" />
           {activeTab === 'active' && (
             <select
               value={filters.role ?? ''}
@@ -329,6 +343,40 @@ export default function UsersPage() {
               <option value="DRIVER" className="bg-gray-800">Drivers</option>
               <option value="ADMIN" className="bg-gray-800">Admins</option>
             </select>
+          )}
+          {activeTab === 'active' && (
+            <>
+              <select
+                value={filters.accountStatus}
+                onChange={(e) => setFilters({ accountStatus: e.target.value as typeof filters.accountStatus })}
+                aria-label="Filter by account status"
+                className="px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] [color-scheme:dark]"
+              >
+                <option value="" className="bg-gray-800">All Statuses</option>
+                <option value="ACTIVE" className="bg-gray-800">Active</option>
+                <option value="SUSPENDED" className="bg-gray-800">Suspended</option>
+              </select>
+              <select
+                value={filters.sort}
+                onChange={(e) => setFilters({ sort: e.target.value as typeof filters.sort })}
+                aria-label="Sort users"
+                className="px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] [color-scheme:dark]"
+              >
+                <option value="recent" className="bg-gray-800">Recent</option>
+                <option value="alphabetical" className="bg-gray-800">Alphabetical</option>
+                <option value="oldest" className="bg-gray-800">Oldest</option>
+              </select>
+              <select
+                value={filters.perPage}
+                onChange={(e) => setFilters({ perPage: Number(e.target.value) })}
+                aria-label="Users per page"
+                className="px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] [color-scheme:dark]"
+              >
+                <option value={10} className="bg-gray-800">10 / page</option>
+                <option value={20} className="bg-gray-800">20 / page</option>
+                <option value={50} className="bg-gray-800">50 / page</option>
+              </select>
+            </>
           )}
           {activeTab === 'pending' && (
             <button onClick={handleOpenRegisterModal} className="flex items-center justify-center space-x-2 px-4 py-2 bg-[#62A0EA] text-white font-medium rounded-md hover:bg-[#4A8BD4] transition-colors w-full sm:w-auto flex-shrink-0">
@@ -361,7 +409,7 @@ export default function UsersPage() {
       )}
 
       {/* 3 Tabs */}
-      <div className="flex space-x-1 mb-6 border-b border-[#1E2D45]">
+      <div className="flex space-x-1 mb-6 border-b border-[#1E2D45] overflow-x-auto scrollbar-themed">
         <button onClick={() => { setActiveTab('active'); setSelectedUser(null); }} className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-md transition-colors ${activeTab === 'active' ? 'text-white border-b-2 border-sky-400 bg-sky-400/10' : 'text-slate-400 hover:text-white hover:bg-[#1A2540]'}`}>
           <UserCheck size={20} /><span>Active {activeRoleLabel} ({pagination?.total ?? activeUsers.length})</span>
         </button>
@@ -389,7 +437,7 @@ export default function UsersPage() {
             onSelectUser={setSelectedUser}
           />
           {/* Pagination controls */}
-          {pagination && pagination.lastPage > 1 && (
+          {pagination && (
             <div className="flex items-center justify-between mt-4 px-2">
               <p className="text-sm text-slate-400">
                 Showing {pagination.from ?? 0}–{pagination.to ?? 0} of {pagination.total}
@@ -421,17 +469,27 @@ export default function UsersPage() {
         <RegistrationRequestsTable requests={pendingRequests} onSelectRequest={handleOpenReviewModal} />
       )}
       {activeTab === 'rejected' && (
-        <UsersTable
-          users={rejectedUsers}
-          searchQuery={searchQuery}
-          onDeactivate={() => {}}
-          onEdit={() => {}}
-          onDelete={() => {}}
-          onViewHistory={() => {}}
-          isRejectedTab={true}
-          selectedUser={null}
-          onSelectUser={() => {}}
-        />
+        <>
+          <UsersTable
+            users={visibleRejectedUsers}
+            searchQuery=""
+            onDeactivate={() => {}}
+            onEdit={() => {}}
+            onDelete={() => {}}
+            onViewHistory={() => {}}
+            isRejectedTab={true}
+            selectedUser={null}
+            onSelectUser={() => {}}
+          />
+          <div className="mt-4 flex items-center justify-between px-2 text-xs text-slate-500">
+            <span>Showing {filteredRejectedUsers.length ? (safeRejectedPage - 1) * 10 + 1 : 0}–{Math.min(safeRejectedPage * 10, filteredRejectedUsers.length)} of {filteredRejectedUsers.length}</span>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setRejectedPage(page => Math.max(1, page - 1))} disabled={safeRejectedPage === 1} className="rounded-md border border-[#1E2D45] px-3 py-1.5 disabled:opacity-30">Previous</button>
+              <span>{safeRejectedPage} / {rejectedTotalPages}</span>
+              <button onClick={() => setRejectedPage(page => Math.min(rejectedTotalPages, page + 1))} disabled={safeRejectedPage === rejectedTotalPages} className="rounded-md border border-[#1E2D45] px-3 py-1.5 disabled:opacity-30">Next</button>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Modals */}

@@ -245,7 +245,7 @@ interface RemittanceRow {
   remittance_status: string;
 }
 
-function useRemittanceRows() {
+function useRemittanceRows(range: AnalyticsRange) {
   const [rows, setRows] = useState<RemittanceRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -254,23 +254,21 @@ function useRemittanceRows() {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/admin/remittances?per_page=500', {
-        headers: { Accept: 'application/json' },
-      });
+      const params = new URLSearchParams({ per_page: '500' });
+      if (range.date_from) params.set('date_from', range.date_from);
+      if (range.date_to) params.set('date_to', range.date_to);
+      const res = await fetch(`/api/admin/remittances?${params}`, { headers: { Accept: 'application/json' } });
       if (!res.ok) throw new Error('Failed to fetch remittances');
       const json = await res.json();
-      // The endpoint returns a LengthAwarePaginator, so the rows live at
-      // json.data.data. Reading json.data alone handed the paginator OBJECT
-      // to setRows, and the .map() below then threw "rows.map is not a
-      // function" — the Reports tab crashed on every load.
-      const records = json.data?.data ?? json.data ?? json;
+      const payload = json.data;
+      const records = Array.isArray(payload) ? payload : payload?.data ?? [];
       setRows(Array.isArray(records) ? (records as RemittanceRow[]) : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load remittances');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [range.date_from, range.date_to]);
 
   useEffect(() => { fetchRows(); }, [fetchRows]);
 
@@ -280,19 +278,20 @@ function useRemittanceRows() {
 function ReportsTab({
   analyticsData,
   rangeLabel,
-  dateFrom,
-  dateTo,
+  range,
 }: {
   analyticsData: AnalyticsData | null;
   rangeLabel: string;
-  dateFrom?: string;
-  dateTo?: string;
+  range: AnalyticsRange;
 }) {
-  const { rows, isLoading, error, refetch } = useRemittanceRows();
+  const { rows, isLoading, error, refetch } = useRemittanceRows(range);
+  const dateFrom = range.date_from;
+  const dateTo = range.date_to;
 
   // Scope remittances to the selected window. The table used to show every
   // remittance ever recorded while the three panels beside it were range
-  // filtered, so the tab silently mixed two different periods.
+  // filtered, so the tab silently mixed two different periods. The backend
+  // also receives the range; this guard keeps proxy variants safe.
   const scopedRows = useMemo(() => {
     if (!dateFrom && !dateTo) return rows;
     return rows.filter(r => {
@@ -590,37 +589,6 @@ function OverviewTab({
         </div>
       </div>
 
-      {/* ── Remittance Summary ── */}
-      <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5">
-        <h2 className="text-lg font-bold text-white mb-1">Remittance Summary</h2>
-        {/* Stated explicitly: remittances are windowed on their business date
-            while fares are windowed on created_at, so a shift crossing
-            midnight lands in a different bucket than its transactions. The
-            two figures are related but do not reconcile exactly. */}
-        <p className="text-xs text-slate-500 mb-4">
-          Windowed on remittance date — may not reconcile exactly with fare totals for shifts crossing midnight.
-        </p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-[#0E1628] border border-[#1E2D45] rounded-md p-4">
-            <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Total Collected</p>
-            <p className="text-xl font-bold text-white font-mono truncate" title={formatPeso(data.remittances.total_collected)}>{formatPeso(data.remittances.total_collected)}</p>
-          </div>
-          <div className="bg-[#0E1628] border border-[#1E2D45] rounded-md p-4">
-            <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Total Remitted</p>
-            <p className="text-xl font-bold text-emerald-400 font-mono truncate" title={formatPeso(data.remittances.total_remitted)}>{formatPeso(data.remittances.total_remitted)}</p>
-          </div>
-          <div className="bg-[#0E1628] border border-[#1E2D45] rounded-md p-4">
-            <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Total Shortage</p>
-            <p className={`text-xl font-bold font-mono truncate ${data.remittances.total_shortage > 0 ? 'text-red-400' : 'text-slate-300'}`} title={formatPeso(data.remittances.total_shortage)}>{formatPeso(data.remittances.total_shortage)}</p>
-            <p className="text-[10px] text-slate-600 mt-0.5">{data.remittances.shortage_rate}% of collected</p>
-          </div>
-          <div className="bg-[#0E1628] border border-[#1E2D45] rounded-md p-4">
-            <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Remittance Count</p>
-            <p className="text-xl font-bold text-white">{formatNumber(data.remittances.count)}</p>
-          </div>
-        </div>
-      </div>
-
       {/* ── Payment status breakdown ── */}
       <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5">
         <h2 className="text-lg font-bold text-white mb-4">Transaction Status</h2>
@@ -812,8 +780,7 @@ export default function AnalyticsPage() {
         <ReportsTab
           analyticsData={data}
           rangeLabel={rangeLabel}
-          dateFrom={data?.date_range.from}
-          dateTo={data?.date_range.to}
+          range={range}
         />
       )}
     </div>

@@ -17,6 +17,8 @@ export interface Transaction {
   unitNumber?: string;
   driverName?: string;
   voucherCode?: string;
+  /** Opaque token encoded in the cash receipt QR for commuter reward claims. */
+  receiptQrToken?: string;
   timestamp: number;
 }
 

@@ -181,12 +181,12 @@ export function mapRemittance(r: unknown): RemittanceRecord {
     unitNumber: String(row.unit_number ?? "—"),
     totalPassengers: num(row.total_passengers),
     cashlessBreakdown: {
-      gcashScanned: num(row.gcash_scanned_total),
+      gcashScanned: num(row.gcash_scanned_total ?? row.gcash_total),
       gcashDirect: num(row.gcash_direct_total),
       voucher: num(row.voucher_total),
     },
-    totalCashless: num(row.total_cashless),
-    cashDeclared: num(row.cash_declared),
+    totalCashless: num(row.total_cashless ?? row.gcash_total),
+    cashDeclared: num(row.cash_declared ?? row.total_collected),
     cashTotal: num(row.cash_total),
     gcashTotal: num(row.gcash_total),
     remittanceStatus:
@@ -277,6 +277,7 @@ export function mapTransaction(t: unknown): Transaction {
     conductorName: txn.conductor_name ?? undefined,
     unitNumber: txn.unit_number ?? undefined,
     driverName: txn.driver_name ?? undefined,
+    receiptQrToken: txn.payment_method === "CASH" ? txn.qr_token ?? undefined : undefined,
     // created_at is an ISO 8601 string; timestamp is epoch millis
     timestamp: new Date(txn.created_at).getTime(),
   };

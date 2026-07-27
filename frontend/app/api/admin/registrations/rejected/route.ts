@@ -9,7 +9,7 @@ import { proxyToLaravel } from "@/lib/conductor/server/proxy";
  * Powers the Rejected tab in User Management.
  */
 export async function GET(request: NextRequest) {
-  const result = await proxyToLaravel(request, "/admin/registrations/rejected", {
+  const result = await proxyToLaravel(request, `/admin/registrations/rejected${new URL(request.url).search}`, {
     method: "GET",
   });
   if (!result.ok) return jsonError(result.message ?? "Failed to load rejected registrations.", result.status);

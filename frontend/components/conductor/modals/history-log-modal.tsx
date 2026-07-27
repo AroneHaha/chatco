@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { X, Loader2 } from "lucide-react";
 import { fetchShiftTransactions, type Transaction } from "@/lib/conductor/services/transactions.service";
-import type { PaymentMethodType } from "@/types";
 
 interface HistoryLogModalProps {
   isOpen: boolean;
@@ -11,7 +10,7 @@ interface HistoryLogModalProps {
   shiftId: string;
 }
 
-type PaymentMethod = PaymentMethodType;
+type PaymentFilter = "ALL" | "GCash" | "Cash" | "Voucher";
 
 const PAYMENT_METHOD_DISPLAY: Record<string, { label: string; color: string }> = {
   Voucher: { label: "Voucher", color: "text-pink-400" },
@@ -23,10 +22,12 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
   const [history, setHistory] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [filterMethod, setFilterMethod] = useState<PaymentMethod | "ALL">("ALL");
+  const [filterMethod, setFilterMethod] = useState<PaymentFilter>("ALL");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [showDateFilter, setShowDateFilter] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const transactionsPerPage = 8;
 
   // Track the previous open+shiftId key so we only fetch when the modal
   // actually opens or the shift changes — avoids cascading renders from
@@ -43,6 +44,7 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
       setDateTo("");
       setShowDateFilter(false);
       setFilterMethod("ALL");
+      setCurrentPage(1);
       // Use the real async API call — fetchShiftTransactions hits
       // GET /api/conductor/transactions?shift_id={id} and returns real DB data.
       // The old version used getShiftTransactions() (a synchronous localStorage
@@ -67,13 +69,20 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
 
   const filteredHistory = history.filter((tx) => {
     const txDate = new Date(tx.timestamp).toLocaleDateString("en-CA");
-    if (filterMethod !== "ALL" && tx.paymentMethod !== filterMethod) return false;
+    const methodGroup = tx.paymentMethod.startsWith("GCash") ? "GCash" : tx.paymentMethod;
+    if (filterMethod !== "ALL" && methodGroup !== filterMethod) return false;
     if (dateFrom !== "" && txDate < dateFrom) return false;
     if (dateTo !== "" && txDate > dateTo) return false;
     return true;
   });
 
   const filteredTotal = filteredHistory.reduce((sum, tx) => sum + tx.finalAmount, 0);
+  const totalPages = Math.max(1, Math.ceil(filteredHistory.length / transactionsPerPage));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const visibleHistory = filteredHistory.slice(
+    (safeCurrentPage - 1) * transactionsPerPage,
+    safeCurrentPage * transactionsPerPage
+  );
 
   const gcashCount = history.filter(tx => tx.paymentMethod === "GCash_Scanned" || tx.paymentMethod === "GCash_Direct").length;
   const cashCount = history.filter(tx => tx.paymentMethod === "Cash").length;
@@ -82,6 +91,7 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
   const clearDateFilter = () => {
     setDateFrom("");
     setDateTo("");
+    setCurrentPage(1);
   };
 
   if (!isOpen) return null;
@@ -118,7 +128,7 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50">
-      <div className="relative bg-[#1A2540] border border-[#2A3A55] rounded-xl shadow-2xl w-full max-w-md mx-0 sm:mx-4 max-h-[85vh] sm:max-h-[90vh] flex flex-col rounded-b-none sm:rounded-b-xl mb-16 sm:mb-0">
+      <div className="relative bg-[#17233B] border border-[#2A3A55] rounded-xl shadow-2xl w-full max-w-lg mx-0 sm:mx-4 h-[92vh] sm:h-[94vh] max-h-[920px] flex flex-col rounded-b-none sm:rounded-b-xl mb-16 sm:mb-0">
         <button
           onClick={onClose}
           className="absolute top-3 right-3 p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-white/8 transition-colors z-20"
@@ -172,7 +182,7 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
                 <input
                   type="date"
                   value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
+                  onChange={(e) => { setDateFrom(e.target.value); setCurrentPage(1); }}
                   max={dateTo || undefined}
                   className="w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-2 text-white text-xs focus:outline-none focus:border-[#1A5FB4] [color-scheme:dark]"
                 />
@@ -182,7 +192,7 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
                 <input
                   type="date"
                   value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
+                  onChange={(e) => { setDateTo(e.target.value); setCurrentPage(1); }}
                   min={dateFrom || undefined}
                   className="w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-2 text-white text-xs focus:outline-none focus:border-[#1A5FB4] [color-scheme:dark]"
                 />
@@ -212,7 +222,7 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
             return (
               <button
                 key={method}
-                onClick={() => setFilterMethod(method as PaymentMethod | "ALL")}
+                onClick={() => { setFilterMethod(method); setCurrentPage(1); }}
                 className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
                   isActive
                     ? activeStyle
@@ -256,8 +266,9 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-            {filteredHistory.map((tx) => {
-              const methodDisplay = PAYMENT_METHOD_DISPLAY[tx.paymentMethod] || { label: tx.paymentMethod, color: "text-white/50" };
+            {visibleHistory.map((tx) => {
+              const normalizedMethod = tx.paymentMethod.startsWith("GCash") ? "GCash" : tx.paymentMethod;
+              const methodDisplay = PAYMENT_METHOD_DISPLAY[normalizedMethod] || { label: tx.paymentMethod, color: "text-white/50" };
 
               const displayDate = new Date(tx.timestamp).toLocaleDateString("en-CA", {
                 month: "short",
@@ -275,9 +286,9 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
                 ? (tx.baseFare + (tx.succeedingKm * (tx.distance - 1))) - tx.baseFare
                 : 0;
 
-              const borderColor = getMethodBorderColor(tx.paymentMethod);
-              const methodBadge = getMethodBadge(tx.paymentMethod);
-              const methodDesc = getMethodDescription(tx.paymentMethod);
+              const borderColor = getMethodBorderColor(normalizedMethod);
+              const methodBadge = getMethodBadge(normalizedMethod);
+              const methodDesc = getMethodDescription(normalizedMethod);
 
               return (
                 <div key={tx.transactionId} className={`border rounded-xl overflow-hidden transition-colors ${borderColor}`}>
@@ -337,6 +348,32 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {!isLoading && filteredHistory.length > 0 && (
+          <div className="flex items-center justify-between border-t border-white/10 pt-3">
+            <p className="text-[11px] text-white/35">
+              Showing {(safeCurrentPage - 1) * transactionsPerPage + 1}–
+              {Math.min(safeCurrentPage * transactionsPerPage, filteredHistory.length)} of {filteredHistory.length}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(page => Math.max(1, page - 1))}
+                disabled={safeCurrentPage === 1}
+                className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/60 disabled:opacity-25"
+              >
+                Previous
+              </button>
+              <span className="text-[11px] text-white/40">{safeCurrentPage} / {totalPages}</span>
+              <button
+                onClick={() => setCurrentPage(page => Math.min(totalPages, page + 1))}
+                disabled={safeCurrentPage === totalPages}
+                className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/60 disabled:opacity-25"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
           </div>

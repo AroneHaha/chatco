@@ -25,7 +25,7 @@ export const CONDUCTOR_API = {
       `/api/conductor/earnings?shift_id=${encodeURIComponent(shiftId)}`,
   },
   remittances: {
-    list: "/api/conductor/remittances",
+    list: "/api/conductor/remittances?per_page=100",
     create: "/api/conductor/remittances",
   },
   payments: {

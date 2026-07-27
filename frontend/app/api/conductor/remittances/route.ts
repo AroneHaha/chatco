@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   const session = await getConductorSession(request);
   if (!session) return unauthorizedResponse();
 
-  const result = await proxyToLaravel(request, "/conductor/remittances", { method: "GET" });
+  const result = await proxyToLaravel(request, `/conductor/remittances${new URL(request.url).search}`, { method: "GET" });
   if (result.ok) {
     // Laravel returns a paginator: { data: [...rows], current_page, ... }.
     // Unwrap the inner array (tolerating a bare array too) and map each raw

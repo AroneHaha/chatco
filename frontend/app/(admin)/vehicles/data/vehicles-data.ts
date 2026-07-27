@@ -14,6 +14,7 @@ export interface Personnel {
 
 export interface Vehicle {
   id: string;
+  unitNumber: string;
   plateNumber: string;
   route: string;
   driver: string | null;
@@ -118,6 +119,7 @@ async function fetchVehiclesData(): Promise<VehiclesData> {
 
     return {
       id: String(v.id ?? ""),
+      unitNumber: String(v.unit_number ?? "—"),
       plateNumber: String(v.plate_number ?? "—"),
       route: route?.name ? String(route.name) : "—",
       driver: driver ? `${driver.first_name ?? ''} ${driver.last_name ?? ''}`.trim() : null,
@@ -129,7 +131,6 @@ async function fetchVehiclesData(): Promise<VehiclesData> {
 
   // Map Laravel Drivers to frontend Personnel type
   const driverPersonnel: Personnel[] = apiDrivers.map((d: Record<string, unknown>) => {
-    const vehicle = d.vehicle as Record<string, unknown> | null;
     return {
       id: String(d.id ?? ""),
       name: `${d.first_name ?? ''} ${d.last_name ?? ''}`.trim(),

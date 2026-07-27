@@ -84,6 +84,8 @@ export interface UsersTabFilters {
   search: string;
   perPage: number;
   page: number;
+  sort: "recent" | "oldest" | "alphabetical";
+  accountStatus: "" | "ACTIVE" | "SUSPENDED";
 }
 
 export interface UseUsersDataReturn {
@@ -167,16 +169,13 @@ export function useUsersData(): UseUsersDataReturn {
   // frontend-only "DRIVER" value. When role === "DRIVER" the hook fetches
   // from /api/admin/drivers instead of /api/admin/users (drivers aren't
   // users — they're a separate table).
-  const [filters, setFiltersState] = useState<{
-    role: TableRowRole | "";
-    search: string;
-    perPage: number;
-    page: number;
-  }>({
+  const [filters, setFiltersState] = useState<UsersTabFilters>({
     role: "COMMUTER",
     search: "",
     perPage: 10,
     page: 1,
+    sort: "recent",
+    accountStatus: "",
   });
 
   /**
@@ -186,7 +185,7 @@ export function useUsersData(): UseUsersDataReturn {
    * drivers), so we synthesize pagination metadata client-side.
    */
   const fetchUsers = useCallback(
-    async (f: { role: TableRowRole | ""; search: string; perPage: number; page: number }) => {
+    async (f: UsersTabFilters) => {
       setIsLoading(true);
       setError(null);
       try {
@@ -201,7 +200,17 @@ export function useUsersData(): UseUsersDataReturn {
           }
           const json = await res.json();
           const drivers: RawDriver[] = Array.isArray(json.data) ? json.data : [];
-          const mapped = drivers.map(mapDriverToActiveUser);
+          const query = f.search.trim().toLowerCase();
+          let mapped = drivers
+            .map(mapDriverToActiveUser)
+            .filter(user =>
+              (!query || [user.name, user.phoneNumber, user.commuterType].some(value => value.toLowerCase().includes(query))) &&
+              (!f.accountStatus || (f.accountStatus === "ACTIVE" ? user.status === "Active" : user.status === "Suspended"))
+            );
+          mapped = [...mapped].sort((a, b) => {
+            if (f.sort === "alphabetical") return a.name.localeCompare(b.name);
+            return f.sort === "oldest" ? a.id.localeCompare(b.id) : b.id.localeCompare(a.id);
+          });
           // Client-side pagination — backend returns all drivers at once.
           const perPage = f.perPage || 10;
           const page = f.page || 1;
@@ -229,12 +238,10 @@ export function useUsersData(): UseUsersDataReturn {
           search: f.search,
           perPage: f.perPage,
           page: f.page,
+          sort: f.sort,
+          accountStatus: f.accountStatus,
         });
-        // Filter out PENDING and REJECTED from the Active tab.
-        const activeOnly = result.users.filter(
-          (u) => u.accountStatus !== "PENDING" && u.accountStatus !== "REJECTED"
-        );
-        setActiveUsers(activeOnly.map(mapToActiveUser));
+        setActiveUsers(result.users.map(mapToActiveUser));
         setPagination(result.pagination);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load users.");
@@ -325,12 +332,15 @@ export function useUsersData(): UseUsersDataReturn {
   }, [fetchUsers, fetchPending, fetchRejected, filters]);
 
   const setFilters = useCallback(
-    (f: Partial<{ role: TableRowRole | ""; search: string; perPage: number; page: number }>) => {
+    (f: Partial<UsersTabFilters>) => {
       setFiltersState((prev) => {
         const roleChanged = f.role !== undefined && f.role !== prev.role;
         const searchChanged = f.search !== undefined && f.search !== prev.search;
+        const sortChanged = f.sort !== undefined && f.sort !== prev.sort;
+        const statusChanged = f.accountStatus !== undefined && f.accountStatus !== prev.accountStatus;
+        const pageSizeChanged = f.perPage !== undefined && f.perPage !== prev.perPage;
         const next = { ...prev, ...f };
-        if (roleChanged || searchChanged) next.page = 1;
+        if (roleChanged || searchChanged || sortChanged || statusChanged || pageSizeChanged) next.page = 1;
         return next;
       });
     },

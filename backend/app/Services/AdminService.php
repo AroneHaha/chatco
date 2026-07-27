@@ -509,8 +509,17 @@ class AdminService
         $perPage = max(1, min($perPage, 100));
 
         $query = User::query()
-            ->with($this->profileEagerLoads())
-            ->orderBy('created_at', 'desc');
+            ->with($this->profileEagerLoads());
+
+        if (! empty($filters['active_only'])) {
+            $query->where(function ($activeQuery) {
+                $activeQuery
+                    ->whereDoesntHave('commuterProfile')
+                    ->orWhereHas('commuterProfile', function ($profileQuery) {
+                        $profileQuery->whereNotIn('account_status', ['PENDING', 'REJECTED']);
+                    });
+            });
+        }
 
         if (! empty($filters['role'])) {
             $query->where('role', $filters['role']);
@@ -518,6 +527,31 @@ class AdminService
 
         if (! empty($filters['search'])) {
             $this->applySearch($query, trim($filters['search']));
+        }
+
+        if (! empty($filters['account_status'])) {
+            $query->whereHas('commuterProfile', function ($profileQuery) use ($filters) {
+                if ($filters['account_status'] === 'ACTIVE') {
+                    $profileQuery->whereIn('account_status', ['ACTIVE', 'APPROVED']);
+                } else {
+                    $profileQuery->where('account_status', $filters['account_status']);
+                }
+            });
+        }
+
+        $sort = $filters['sort'] ?? 'recent';
+        if ($sort === 'oldest') {
+            $query->orderBy('created_at', 'asc');
+        } elseif ($sort === 'alphabetical') {
+            $query
+                ->orderByRaw("COALESCE(
+                    (SELECT surname FROM commuter_profiles WHERE commuter_profiles.id = users.id),
+                    (SELECT last_name FROM conductor_profiles WHERE conductor_profiles.id = users.id),
+                    users.email
+                ) ASC")
+                ->orderBy('email', 'asc');
+        } else {
+            $query->orderBy('created_at', 'desc');
         }
 
         return $query->paginate($perPage)

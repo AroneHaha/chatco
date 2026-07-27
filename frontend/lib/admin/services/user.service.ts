@@ -105,6 +105,8 @@ export interface UserListFilters {
   search?: string;
   perPage?: number;
   page?: number;
+  sort?: "recent" | "oldest" | "alphabetical";
+  accountStatus?: "" | "ACTIVE" | "SUSPENDED";
 }
 
 // ─── Update input ───────────────────────────────────────────────────
@@ -204,6 +206,9 @@ function buildQueryString(filters: UserListFilters): string {
   }
   if (filters.perPage) params.set("per_page", String(filters.perPage));
   if (filters.page) params.set("page", String(filters.page));
+  if (filters.sort) params.set("sort", filters.sort);
+  if (filters.accountStatus) params.set("account_status", filters.accountStatus);
+  params.set("active_only", "1");
   const qs = params.toString();
   return qs ? `?${qs}` : "";
 }

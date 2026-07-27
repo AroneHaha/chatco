@@ -1,7 +1,7 @@
 // components/admin/remittance/remittance-table.tsx
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -18,14 +18,13 @@ const fmtPHP = (n: number) =>
 
 interface RemittanceTableProps {
   searchQuery: string;
-  startDate: string;
-  endDate: string;
+  selectedDate: string;
   statusFilter: RemittanceStatus | 'All';
 }
 
 const ROWS_PER_PAGE = 10;
 
-export function RemittanceTable({ searchQuery, startDate, endDate, statusFilter }: RemittanceTableProps) {
+export function RemittanceTable({ searchQuery, selectedDate, statusFilter }: RemittanceTableProps) {
   const { records, isLoading, error, refresh } = useRemittanceData();
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedRecord, setSelectedRecord] = useState<RemittanceRow | null>(null);
@@ -34,17 +33,11 @@ export function RemittanceTable({ searchQuery, startDate, endDate, statusFilter 
     setSelectedRecord(item);
   }, []);
 
-  // Reset to the first page whenever the filters change, so pagination never
-  // lands on an out-of-range (blank) page after the result set shrinks.
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, startDate, endDate, statusFilter]);
-
   // Column definitions now reference canonical RemittanceRecord field names
   const columns = [
     { key: 'shiftId', label: 'Shift ID' },
     { key: 'conductorName', label: 'Conductor' },
-    { key: 'unitNumber', label: 'Vehicle Plate' },
+    { key: 'unitNumber', label: 'Unit Number' },
     { key: 'date', label: 'Date' },
     {
       key: '_totalAmount' as const,
@@ -74,18 +67,15 @@ export function RemittanceTable({ searchQuery, startDate, endDate, statusFilter 
         item.conductorName.toLowerCase().includes(q) ||
         item.shiftId.toLowerCase().includes(q);
 
-      // Date range filter
-      const itemDate = new Date(item.date);
-      const matchesStart = !startDate || itemDate >= new Date(startDate);
-      const matchesEnd = !endDate || itemDate <= new Date(endDate);
+      const matchesDate = !selectedDate || item.date === selectedDate;
 
-      return matchesStatus && matchesSearch && matchesStart && matchesEnd;
+      return matchesStatus && matchesSearch && matchesDate;
     });
-  }, [records, searchQuery, startDate, endDate, statusFilter]);
+  }, [records, searchQuery, selectedDate, statusFilter]);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filteredData.length / ROWS_PER_PAGE));
-  const safeCurrentPage = currentPage > totalPages ? 1 : currentPage;
+  const safeCurrentPage = Math.min(currentPage, totalPages);
 
   const paginatedData = useMemo(() => {
     const startIndex = (safeCurrentPage - 1) * ROWS_PER_PAGE;

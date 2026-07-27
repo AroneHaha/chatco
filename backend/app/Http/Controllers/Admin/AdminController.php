@@ -779,7 +779,14 @@ class AdminController extends Controller
         $page = (int) $request->integer('page', 1);
 
         // 1. Completed remittances
-        $completedRemittances = Remittance::query()
+        $completedQuery = Remittance::query();
+        if ($request->filled('date_from')) {
+            $completedQuery->whereDate('date', '>=', $request->input('date_from'));
+        }
+        if ($request->filled('date_to')) {
+            $completedQuery->whereDate('date', '<=', $request->input('date_to'));
+        }
+        $completedRemittances = $completedQuery
             ->orderBy('date', 'desc')
             ->orderBy('time_in', 'desc')
             ->get()
@@ -800,7 +807,14 @@ class AdminController extends Controller
             });
 
         // 2. Active shifts with transactions (Pending)
-        $pendingShifts = ShiftLog::where('status', 'ACTIVE')
+        $pendingQuery = ShiftLog::where('status', 'ACTIVE');
+        if ($request->filled('date_from')) {
+            $pendingQuery->whereDate('time_in', '>=', $request->input('date_from'));
+        }
+        if ($request->filled('date_to')) {
+            $pendingQuery->whereDate('time_in', '<=', $request->input('date_to'));
+        }
+        $pendingShifts = $pendingQuery
             ->whereHas('transactions')
             ->with(['vehicle', 'driver'])
             ->get()

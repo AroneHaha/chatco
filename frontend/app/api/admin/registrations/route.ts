@@ -8,7 +8,7 @@ import { jsonError, jsonData, jsonValidationError } from "@/lib/conductor/server
 export async function GET(request: NextRequest) {
   // Reuse the shared proxy for the read path (JSON-only).
   const { proxyToLaravel } = await import("@/lib/conductor/server/proxy");
-  const result = await proxyToLaravel(request, "/admin/registrations", { method: "GET" });
+  const result = await proxyToLaravel(request, `/admin/registrations${new URL(request.url).search}`, { method: "GET" });
   if (!result.ok) return jsonError(result.message ?? "Failed to load registrations.", result.status);
   return jsonData(result.data);
 }

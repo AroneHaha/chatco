@@ -138,7 +138,7 @@ export function DriverDetailModal({ driver, onClose }: DriverDetailModalProps) {
     ?? `https://placehold.co/150x150/0A1E33/62A0EA?text=${driver.name.charAt(0)}`;
 
   return (
-    <Modal isOpen={!!driver} onClose={onClose} maxWidth="max-w-4xl">
+    <Modal isOpen={!!driver} onClose={onClose} maxWidth="max-w-5xl">
       {/* ─── Header (full width) ─── */}
       <div className="flex items-start gap-4 mb-5">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -316,7 +316,7 @@ export function DriverDetailModal({ driver, onClose }: DriverDetailModalProps) {
                 <p className="text-xs text-slate-600 italic">No shift history yet.</p>
               </div>
             ) : (
-              <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-[min(56vh,520px)] overflow-y-auto pr-2 scrollbar-themed rounded-lg">
                 {details.shift_logs.map((log) => (
                   <div key={log.shift_id} className="p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
                     <div className="flex items-center justify-between mb-1">

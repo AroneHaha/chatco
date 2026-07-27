@@ -116,7 +116,7 @@ function mapToViewModel(r: RawRegistration): PendingRegistration {
  * Lists all PENDING commuter registrations awaiting admin review.
  */
 export async function listPending(): Promise<PendingRegistration[]> {
-  const res = await fetch("/api/admin/registrations", {
+  const res = await fetch("/api/admin/registrations?per_page=100", {
     headers: { Accept: "application/json" },
   });
 
@@ -146,7 +146,7 @@ export interface RejectedRegistration extends PendingRegistration {
  * Lists all REJECTED commuter accounts (soft-deleted, email rewritten).
  */
 export async function listRejected(): Promise<RejectedRegistration[]> {
-  const res = await fetch("/api/admin/registrations/rejected", {
+  const res = await fetch("/api/admin/registrations/rejected?per_page=100", {
     headers: { Accept: "application/json" },
   });
 

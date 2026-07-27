@@ -2,22 +2,23 @@
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
 import { Pencil, Clock } from 'lucide-react'; // Added icons
+import type { Vehicle } from '@/app/(admin)/vehicles/data/vehicles-data';
 
 // REMOVED the hardcoded mockVehicles array since we are getting it from the page now
 
 interface VehicleTableProps {
-  vehicles: any[]; // Added vehicles prop
+  vehicles: Vehicle[];
   searchQuery: string;
-  onEdit: (vehicle: any) => void; // Added edit handler
-  onEditShift: (vehicle: any) => void; // Added shift handler
+  onEdit: (vehicle: Vehicle) => void;
+  onEditShift: (vehicle: Vehicle) => void;
   /** Double-clicking a row opens the vehicle details (incl. permanent QR). */
-  onRowDoubleClick?: (vehicle: any) => void;
+  onRowDoubleClick?: (vehicle: Vehicle) => void;
 }
 
 export function VehicleTable({ vehicles, searchQuery, onEdit, onEditShift, onRowDoubleClick }: VehicleTableProps) {
   const columns = [
-    { key: 'plateNumber', label: 'Plate' },
-    { key: 'route', label: 'Route' },
+    { key: 'unitNumber', label: 'Unit Number' },
+    { key: 'plateNumber', label: 'Plate Number' },
     { key: 'driver', label: 'Driver', render: (value: string | null) => value || <span className="text-slate-500 italic">Unassigned</span> },
     { key: 'conductor', label: 'Conductor', render: (value: string | null) => value || <span className="text-slate-500 italic">Unassigned</span> },
     {
@@ -35,7 +36,7 @@ export function VehicleTable({ vehicles, searchQuery, onEdit, onEditShift, onRow
       key: 'actions',
       label: 'Actions',
       // We pass the whole row (vehicle) to the render function so we can trigger the modals
-      render: (_: any, row: any) => (
+      render: (_: unknown, row: Vehicle) => (
         // Stop double-click on the action buttons from also opening the
         // details modal — the row-level onDoubleClick handles that intent.
         <div
