@@ -129,29 +129,34 @@ class LostItemService
     }
 
     /**
-     * Admin uploads an image for a lost item. Stores the file on the 'public'
-     * disk and updates image_url. Replaces any existing image.
+     * Admin uploads an image for a lost item. Stores the file on the public
+     * media disk and updates image_url. Replaces any existing image.
      *
      * @throws LostFoundException  Item not found.
      */
     public function uploadImage(string $itemId, UploadedFile $file): LostItem
     {
         $item = $this->show($itemId);
+        $mediaDisk = config('filesystems.uploads.public_media_disk', 'r2_public');
 
-        // Delete the previous image if it was stored on the public disk.
+        // Delete the previous image. Keep support for legacy local URLs.
         if ($item->image_url) {
             $oldPath = $this->extractPathFromUrl($item->image_url);
-            if ($oldPath && Storage::disk('public')->exists($oldPath)) {
-                Storage::disk('public')->delete($oldPath);
+            $oldDisk = str_contains($item->image_url, '/storage/')
+                ? 'public'
+                : $mediaDisk;
+
+            if ($oldPath && Storage::disk($oldDisk)->exists($oldPath)) {
+                Storage::disk($oldDisk)->delete($oldPath);
             }
         }
 
         $extension = $file->getClientOriginalExtension() ?: 'jpg';
         $filename = "{$itemId}-" . time() . "-" . Str::random(8) . ".{$extension}";
-        $path = $file->storeAs('lost-items', $filename, 'public');
+        $path = $file->storeAs('lost-items', $filename, $mediaDisk);
 
         $item->update([
-            'image_url' => Storage::disk('public')->url($path),
+            'image_url' => Storage::disk($mediaDisk)->url($path),
         ]);
 
         return $item->fresh(['vehicle', 'claims.claimant']);
@@ -571,21 +576,17 @@ class LostItemService
     }
 
     /**
-     * Extract the relative path from a public-disk URL, so we can delete
-     * the old file when replacing an image. Returns null if the URL doesn't
-     * look like a storage URL.
+     * Extract the object path from either an R2 URL or a legacy local URL.
      */
     private function extractPathFromUrl(string $url): ?string
     {
-        // Storage::disk('public')->url() produces something like
-        // "http://localhost/storage/lost-items/abc.jpg". We need just
-        // "lost-items/abc.jpg".
         $parts = parse_url($url);
-        $path = $parts['path'] ?? '';
-        // Strip the "/storage/" prefix if present.
-        if (str_starts_with($path, '/storage/')) {
-            $path = substr($path, strlen('/storage/'));
+        $path = ltrim($parts['path'] ?? '', '/');
+
+        if (str_starts_with($path, 'storage/')) {
+            $path = substr($path, strlen('storage/'));
         }
+
         return $path !== '' ? $path : null;
     }
 }

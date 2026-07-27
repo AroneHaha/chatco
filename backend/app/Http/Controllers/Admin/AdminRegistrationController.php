@@ -139,12 +139,15 @@ class AdminRegistrationController extends Controller
                 'role' => UserRole::COMMUTER,
             ]);
 
-            // Store the ID image to the 'public' disk (storage/app/public/ids/).
-            // Filename includes the user ID for traceability.
+            // Store the ID image on the private upload disk.
             $file = $request->file('id_image');
             $extension = $file->getClientOriginalExtension() ?: 'jpg';
             $filename = $user->id . '-' . Str::random(16) . '.' . $extension;
-            $idImagePath = $file->storeAs('ids', $filename, 'public');
+            $idImagePath = $file->storeAs(
+                'ids',
+                $filename,
+                config('filesystems.uploads.private_id_disk', 'r2_private')
+            );
 
             $profile = CommuterProfile::create([
                 'id' => $user->id,

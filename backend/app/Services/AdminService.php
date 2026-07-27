@@ -16,6 +16,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class AdminService
@@ -759,7 +760,7 @@ class AdminService
                     'contact_number'  => $c?->contact_number,
                     'username'        => $c?->username,
                     'applied_type'    => $c?->applied_type,
-                    'id_image_url'    => $c?->id_image_url,
+                    'id_image_url'    => $this->registrationIdUrl($c?->id_image_url),
                     'account_status'  => $c?->account_status,
                     'language_preference' => $c?->language_preference,
                     'verified_at'     => $c?->verified_at?->toIso8601String(),
@@ -809,7 +810,7 @@ class AdminService
                     'contact_number'  => $c?->contact_number,
                     'username'        => $c?->username,
                     'applied_type'    => $c?->applied_type,
-                    'id_image_url'    => $c?->id_image_url,
+                    'id_image_url'    => $this->registrationIdUrl($c?->id_image_url),
                     'account_status'  => $c?->account_status,
                     'language_preference' => $c?->language_preference,
                     'verified_at'     => $c?->verified_at?->toIso8601String(),
@@ -818,6 +819,28 @@ class AdminService
                     'rejected_at'     => optional($user->deleted_at)->toIso8601String(),
                 ];
             });
+    }
+
+    /**
+     * Return a short-lived URL for a private registration ID.
+     * Existing absolute URLs are retained for backwards compatibility.
+     */
+    private function registrationIdUrl(?string $path): ?string
+    {
+        if (! $path || filter_var($path, FILTER_VALIDATE_URL)) {
+            return $path;
+        }
+
+        $disk = config('filesystems.uploads.private_id_disk', 'r2_private');
+
+        if ($disk === 'r2_private') {
+            return Storage::disk($disk)->temporaryUrl(
+                $path,
+                now()->addMinutes(10)
+            );
+        }
+
+        return Storage::disk($disk)->url($path);
     }
 
     /**
