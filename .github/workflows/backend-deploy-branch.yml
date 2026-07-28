@@ -1,0 +1,40 @@
+name: Prepare Backend Deployment
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-deploy-branch.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: backend-deployment-branch
+  cancel-in-progress: true
+
+jobs:
+  prepare-backend:
+    name: Update backend-deploy branch
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Create backend-only branch
+        run: |
+          git subtree split --prefix=backend -b backend-deploy
+
+      - name: Push deployment branch
+        run: |
+          git push origin backend-deploy:backend-deploy
