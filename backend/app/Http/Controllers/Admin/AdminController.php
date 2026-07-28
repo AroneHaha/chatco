@@ -53,7 +53,7 @@ class AdminController extends Controller
     {
         $filters = [
             'date_from' => $request->string('date_from')->toString() ?: null,
-            'date_to'   => $request->string('date_to')->toString() ?: null,
+            'date_to' => $request->string('date_to')->toString() ?: null,
         ];
 
         $data = $this->adminService->analytics($filters);
@@ -106,14 +106,20 @@ class AdminController extends Controller
      */
     public function storeDriver(Request $request): JsonResponse
     {
+        $request->merge([
+            'license_number' => strtoupper(trim((string) $request->input('license_number'))),
+        ]);
+
         $validated = $request->validate([
             'first_name' => 'required|string|max:100',
             'middle_name' => 'nullable|string|max:100',
             'last_name' => 'required|string|max:100',
             'birthday' => 'required|date|before:today',
             'contact' => 'required|string|max:20',
-            'license_number' => 'required|string|max:50|unique:drivers,license_number',
+            'license_number' => ['required', 'string', 'regex:/^[A-Z][0-9]{2}-[0-9]{2}-[0-9]{6}$/', 'unique:drivers,license_number'],
             'profile_picture_url' => 'nullable|string|max:500',
+        ], [
+            'license_number.regex' => 'Use the Philippine LTO format N01-23-045678 (one letter, four digits, then six digits).',
         ]);
 
         $driver = Driver::create([
@@ -143,6 +149,9 @@ class AdminController extends Controller
     public function updateDriver(Request $request, string $id): JsonResponse
     {
         $driver = Driver::findOrFail($id);
+        $request->merge([
+            'license_number' => strtoupper(trim((string) $request->input('license_number'))),
+        ]);
 
         $validated = $request->validate([
             'first_name' => 'required|string|max:100',
@@ -150,8 +159,10 @@ class AdminController extends Controller
             'last_name' => 'required|string|max:100',
             'birthday' => 'required|date|before:today',
             'contact' => 'required|string|max:20',
-            'license_number' => 'required|string|max:50|unique:drivers,license_number,' . $id,
+            'license_number' => ['required', 'string', 'regex:/^[A-Z][0-9]{2}-[0-9]{2}-[0-9]{6}$/', 'unique:drivers,license_number,'.$id],
             'profile_picture_url' => 'nullable|string|max:500',
+        ], [
+            'license_number.regex' => 'Use the Philippine LTO format N01-23-045678 (one letter, four digits, then six digits).',
         ]);
 
         $driver->update([
@@ -205,7 +216,7 @@ class AdminController extends Controller
             ] : null,
             'conductor_partner' => $driver->vehicle?->conductor ? [
                 'id' => $driver->vehicle->conductor->id,
-                'name' => trim(($driver->vehicle->conductor->first_name ?? '') . ' ' . ($driver->vehicle->conductor->last_name ?? '')),
+                'name' => trim(($driver->vehicle->conductor->first_name ?? '').' '.($driver->vehicle->conductor->last_name ?? '')),
             ] : null,
             'assigned_route' => $driver->vehicle?->route?->name ?? 'Malolos - Meycauayan - Calumpit',
             'shift_logs' => $shiftLogs->map(function ($log) {
@@ -252,19 +263,19 @@ class AdminController extends Controller
         if ($driver->active_shift_id) {
             return response()->json([
                 'success' => false,
-                'data'    => null,
+                'data' => null,
                 'message' => 'Conflict',
-                'errors'  => [
+                'errors' => [
                     'driver' => [
-                        'Cannot remove a driver who is currently on an active shift. ' .
+                        'Cannot remove a driver who is currently on an active shift. '.
                         'End the shift (via conductor remittance) before removing this driver.',
                     ],
                 ],
-                'meta'    => null,
+                'meta' => null,
             ], 409);
         }
 
-        $fullName = trim(($driver->first_name ?? '') . ' ' . ($driver->last_name ?? ''));
+        $fullName = trim(($driver->first_name ?? '').' '.($driver->last_name ?? ''));
         $lastVehicle = $driver->vehicle
             ? ($driver->vehicle->unit_number ?: $driver->vehicle->plate_number)
             : null;
@@ -275,15 +286,15 @@ class AdminController extends Controller
         // pointing at a driver that wasn't actually deleted (or vice versa).
         DB::transaction(function () use ($driver, $fullName, $lastVehicle, $validated) {
             TerminatedPersonnel::create([
-                'personnel_id'      => $driver->id,
-                'personnel_type'    => 'DRIVER',
-                'name'              => $fullName ?: 'Unknown Driver',
-                'role'              => 'Driver',
-                'contact'           => $driver->contact,
-                'reason'            => $validated['reason'],
-                'termination_type'  => $validated['termination_type'],
-                'terminated_date'   => now()->toDateString(),
-                'last_vehicle'      => $lastVehicle,
+                'personnel_id' => $driver->id,
+                'personnel_type' => 'DRIVER',
+                'name' => $fullName ?: 'Unknown Driver',
+                'role' => 'Driver',
+                'contact' => $driver->contact,
+                'reason' => $validated['reason'],
+                'termination_type' => $validated['termination_type'],
+                'terminated_date' => now()->toDateString(),
+                'last_vehicle' => $lastVehicle,
             ]);
             $driver->delete();
         });
@@ -322,10 +333,10 @@ class AdminController extends Controller
         if ($request->user() && $request->user()->id === $user->id) {
             return response()->json([
                 'success' => false,
-                'data'    => null,
+                'data' => null,
                 'message' => 'Validation failed',
-                'errors'  => ['user' => ['You cannot remove your own account.']],
-                'meta'    => null,
+                'errors' => ['user' => ['You cannot remove your own account.']],
+                'meta' => null,
             ], 422);
         }
 
@@ -335,34 +346,34 @@ class AdminController extends Controller
         if ($conductor->vehicle && $conductor->vehicle->active_shift_id) {
             return response()->json([
                 'success' => false,
-                'data'    => null,
+                'data' => null,
                 'message' => 'Conflict',
-                'errors'  => [
+                'errors' => [
                     'conductor' => [
-                        'Cannot remove a conductor who is currently on an active shift. ' .
+                        'Cannot remove a conductor who is currently on an active shift. '.
                         'End the shift (via conductor remittance) before removing this conductor.',
                     ],
                 ],
-                'meta'    => null,
+                'meta' => null,
             ], 409);
         }
 
-        $fullName = trim(($conductor->first_name ?? '') . ' ' . ($conductor->last_name ?? ''));
+        $fullName = trim(($conductor->first_name ?? '').' '.($conductor->last_name ?? ''));
         $lastVehicle = $conductor->vehicle
             ? ($conductor->vehicle->unit_number ?: $conductor->vehicle->plate_number)
             : null;
 
         DB::transaction(function () use ($user, $conductor, $fullName, $lastVehicle, $validated) {
             TerminatedPersonnel::create([
-                'personnel_id'      => $conductor->id,
-                'personnel_type'    => 'CONDUCTOR',
-                'name'              => $fullName ?: 'Unknown Conductor',
-                'role'              => 'Conductor',
-                'contact'           => null,
-                'reason'            => $validated['reason'],
-                'termination_type'  => $validated['termination_type'],
-                'terminated_date'   => now()->toDateString(),
-                'last_vehicle'      => $lastVehicle,
+                'personnel_id' => $conductor->id,
+                'personnel_type' => 'CONDUCTOR',
+                'name' => $fullName ?: 'Unknown Conductor',
+                'role' => 'Conductor',
+                'contact' => null,
+                'reason' => $validated['reason'],
+                'termination_type' => $validated['termination_type'],
+                'terminated_date' => now()->toDateString(),
+                'last_vehicle' => $lastVehicle,
             ]);
             // Revoke ALL tokens BEFORE soft-deleting — so the conductor is
             // instantly logged out everywhere and can't use the account.
@@ -398,15 +409,15 @@ class AdminController extends Controller
         if ($conductor->vehicle && $conductor->vehicle->active_shift_id) {
             return response()->json([
                 'success' => false,
-                'data'    => null,
+                'data' => null,
                 'message' => 'Conflict',
-                'errors'  => [
+                'errors' => [
                     'conductor' => [
-                        'Cannot disable a conductor who is currently on an active shift. ' .
+                        'Cannot disable a conductor who is currently on an active shift. '.
                         'End the shift first.',
                     ],
                 ],
-                'meta'    => null,
+                'meta' => null,
             ], 409);
         }
 
@@ -440,28 +451,28 @@ class AdminController extends Controller
 
         $firstNameTrimmed = trim($firstName);
         $generatedUsername = strtolower(
-            substr($firstNameTrimmed, 0, 1) . '.' . preg_replace('/\s+/', '', $lastName)
+            substr($firstNameTrimmed, 0, 1).'.'.preg_replace('/\s+/', '', $lastName)
         );
 
         $birthdayFormatted = \Carbon\Carbon::parse($birthday)->format('mdY');
         $firstNameParts = preg_split('/\s+/', $firstNameTrimmed);
         $firstPart = strtolower($firstNameParts[0]);
         $restParts = implode('', array_map('strtolower', array_slice($firstNameParts, 1)));
-        $generatedPassword = $firstPart . '.' . $restParts . $birthdayFormatted;
+        $generatedPassword = $firstPart.'.'.$restParts.$birthdayFormatted;
 
         // Ensure username uniqueness — append a number if taken.
         $originalUsername = $generatedUsername;
         $counter = 1;
-        while (User::where('email', $generatedUsername . '@chatco.local')
+        while (User::where('email', $generatedUsername.'@chatco.local')
             ->where('id', '!=', $user->id)
             ->exists()) {
-            $generatedUsername = $originalUsername . $counter;
+            $generatedUsername = $originalUsername.$counter;
             $counter++;
         }
 
         // Update the user's password + email (derived from username).
         $user->update([
-            'email' => $generatedUsername . '@chatco.local',
+            'email' => $generatedUsername.'@chatco.local',
             'password' => $generatedPassword,
         ]);
 
@@ -581,7 +592,7 @@ class AdminController extends Controller
             ] : null,
             'driver_partner' => $conductor->vehicle?->driver ? [
                 'id' => $conductor->vehicle->driver->id,
-                'name' => trim(($conductor->vehicle->driver->first_name ?? '') . ' ' . ($conductor->vehicle->driver->last_name ?? '')),
+                'name' => trim(($conductor->vehicle->driver->first_name ?? '').' '.($conductor->vehicle->driver->last_name ?? '')),
             ] : null,
             'assigned_route' => $conductor->vehicle?->route?->name ?? 'Malolos - Meycauayan - Calumpit',
             'shift_logs' => $shiftLogs->map(function ($log) {
@@ -640,7 +651,7 @@ class AdminController extends Controller
         // compound first name like "Mhaku Jose" still produces "m.delacruz".
         $firstNameTrimmed = trim($firstName);
         $generatedUsername = strtolower(
-            substr($firstNameTrimmed, 0, 1) . '.' . preg_replace('/\s+/', '', $lastName)
+            substr($firstNameTrimmed, 0, 1).'.'.preg_replace('/\s+/', '', $lastName)
         );
 
         // Generate password: firstword.restwordsMMDDYYYY
@@ -652,20 +663,20 @@ class AdminController extends Controller
         $firstNameParts = preg_split('/\s+/', $firstNameTrimmed);
         $firstPart = strtolower($firstNameParts[0]);
         $restParts = implode('', array_map('strtolower', array_slice($firstNameParts, 1)));
-        $generatedPassword = $firstPart . '.' . $restParts . $birthdayFormatted;
+        $generatedPassword = $firstPart.'.'.$restParts.$birthdayFormatted;
 
         // Email is derived from username (conductor accounts don't have a real
         // email — they log in with the generated username via a custom field).
         // We store it as username@chatco.local to satisfy the NOT NULL email
         // constraint on the users table.
-        $email = $generatedUsername . '@chatco.local';
+        $email = $generatedUsername.'@chatco.local';
 
         // Ensure username/email uniqueness — append a number if taken.
         $originalUsername = $generatedUsername;
         $counter = 1;
         while (User::where('email', $email)->exists()) {
-            $generatedUsername = $originalUsername . $counter;
-            $email = $generatedUsername . '@chatco.local';
+            $generatedUsername = $originalUsername.$counter;
+            $email = $generatedUsername.'@chatco.local';
             $counter++;
         }
 
@@ -779,7 +790,14 @@ class AdminController extends Controller
         $page = (int) $request->integer('page', 1);
 
         // 1. Completed remittances
-        $completedRemittances = Remittance::query()
+        $completedQuery = Remittance::query();
+        if ($request->filled('date_from')) {
+            $completedQuery->whereDate('date', '>=', $request->input('date_from'));
+        }
+        if ($request->filled('date_to')) {
+            $completedQuery->whereDate('date', '<=', $request->input('date_to'));
+        }
+        $completedRemittances = $completedQuery
             ->orderBy('date', 'desc')
             ->orderBy('time_in', 'desc')
             ->get()
@@ -800,7 +818,14 @@ class AdminController extends Controller
             });
 
         // 2. Active shifts with transactions (Pending)
-        $pendingShifts = ShiftLog::where('status', 'ACTIVE')
+        $pendingQuery = ShiftLog::where('status', 'ACTIVE');
+        if ($request->filled('date_from')) {
+            $pendingQuery->whereDate('time_in', '>=', $request->input('date_from'));
+        }
+        if ($request->filled('date_to')) {
+            $pendingQuery->whereDate('time_in', '<=', $request->input('date_to'));
+        }
+        $pendingShifts = $pendingQuery
             ->whereHas('transactions')
             ->with(['vehicle', 'driver'])
             ->get()

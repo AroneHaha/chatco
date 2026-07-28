@@ -1,7 +1,7 @@
 // app/(admin)/vehicles/page.tsx
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { VehicleTable } from '@/components/admin/vehicles/vehicle-table';
 import { AddVehicleModal } from '@/components/admin/vehicles/add-vehicle-modal';
 import { EditVehicleModal } from '@/components/admin/vehicles/edit-vehicle-modal';
@@ -50,21 +50,7 @@ export default function VehiclesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'vehicles' | 'personnel' | 'history'>('vehicles');
   
-  const [vehicles, setVehicles] = useState<Vehicle[]>(data.vehicles);
-
-  // Sync vehicles when data changes
-  useMemo(() => {
-    setVehicles(data.vehicles);
-  }, [data.vehicles]);
-
-  const { unassignedDrivers, unassignedConductors } = useMemo(() => {
-    const assignedDrivers = new Set(vehicles.filter(v => v.driver).map(v => v.driver));
-    const assignedConductors = new Set(vehicles.filter(v => v.conductor).map(v => v.conductor));
-    return {
-      unassignedDrivers: data.personnel.filter((p): p is Personnel & { role: 'Driver' } => p.role === 'Driver' && !assignedDrivers.has(p.name)),
-      unassignedConductors: data.personnel.filter((p): p is Personnel & { role: 'Conductor' } => p.role === 'Conductor' && !assignedConductors.has(p.name)),
-    };
-  }, [vehicles, data.personnel]);
+  const vehicles = data.vehicles;
 
   // ─── Loading State ───
   if (isLoading) {

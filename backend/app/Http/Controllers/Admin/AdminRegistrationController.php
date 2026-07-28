@@ -54,9 +54,14 @@ class AdminRegistrationController extends Controller
      */
     public function pending(Request $request): JsonResponse
     {
-        $perPage = (int) $request->integer('per_page', 15);
+        $validated = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'applied_type' => ['nullable', Rule::in(['REGULAR', 'STUDENT', 'SENIOR', 'PWD'])],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
 
-        $registrations = $this->adminService->listPendingRegistrations($perPage);
+        $registrations = $this->adminService->listPendingRegistrations($validated);
 
         return $this->successResponse($registrations, 'Pending registrations retrieved');
     }
@@ -68,9 +73,14 @@ class AdminRegistrationController extends Controller
      */
     public function rejected(Request $request): JsonResponse
     {
-        $perPage = (int) $request->integer('per_page', 15);
+        $validated = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'applied_type' => ['nullable', Rule::in(['REGULAR', 'STUDENT', 'SENIOR', 'PWD'])],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
 
-        $registrations = $this->adminService->listRejectedRegistrations($perPage);
+        $registrations = $this->adminService->listRejectedRegistrations($validated);
 
         return $this->successResponse($registrations, 'Rejected registrations retrieved');
     }
@@ -139,12 +149,15 @@ class AdminRegistrationController extends Controller
                 'role' => UserRole::COMMUTER,
             ]);
 
-            // Store the ID image to the 'public' disk (storage/app/public/ids/).
-            // Filename includes the user ID for traceability.
+            // Store the ID image on the private upload disk.
             $file = $request->file('id_image');
             $extension = $file->getClientOriginalExtension() ?: 'jpg';
             $filename = $user->id . '-' . Str::random(16) . '.' . $extension;
-            $idImagePath = $file->storeAs('ids', $filename, 'public');
+            $idImagePath = $file->storeAs(
+                'ids',
+                $filename,
+                config('filesystems.uploads.private_id_disk', 'r2_private')
+            );
 
             $profile = CommuterProfile::create([
                 'id' => $user->id,

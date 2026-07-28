@@ -6,7 +6,6 @@ import { clearShift } from "@/lib/conductor/services/shift.service";
 import { useConductorShift } from "@/app/(conductor)/hooks/use-conductor-shift";
 import { useRemittanceData } from "@/app/(conductor)/hooks/use-remittance-data";
 import { SettingsSkeleton } from "@/components/conductor/ui/skeleton";
-import ClearCacheModal from "@/components/conductor/modals/clear-cache-modal";
 import SosConfirmModal from "@/components/conductor/modals/sos-confirm-modal";
 
 export default function SettingsPage() {
@@ -31,7 +30,6 @@ export default function SettingsPage() {
       .catch(() => {});
   }, []);
 
-  const [showClearCache, setShowClearCache] = useState(false);
   const [showSOS, setShowSOS] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -60,12 +58,6 @@ export default function SettingsPage() {
 
     return false;
   }, [debugLogoutUnlocked, shift, history, transactions]);
-
-  const handleClearCache = () => {
-    localStorage.removeItem("conductor_app_cache");
-    localStorage.removeItem("leaflet_tile_cache");
-    setShowClearCache(false);
-  };
 
   const handleLogout = () => {
     setShowLogoutConfirm(true);
@@ -222,85 +214,6 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* ===== Account & Security ===== */}
-        <section className="bg-[#071A2E] border border-white/[0.06] rounded-2xl p-4 lg:p-6">
-          <h2 className="text-[10px] uppercase tracking-wider font-semibold text-white/40 mb-4">
-            Account & Security
-          </h2>
-
-          <div className="space-y-3">
-            {/* Change Password */}
-            <button
-              disabled
-              className="w-full flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3.5 opacity-40 cursor-not-allowed"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-white/[0.04] flex items-center justify-center">
-                  <svg
-                    className="w-4 h-4 text-white/25"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={1.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"
-                    />
-                  </svg>
-                </div>
-                <div className="text-left">
-                  <p className="text-sm text-white font-semibold">
-                    Change Password
-                  </p>
-                  <p className="text-xs text-white/25 mt-0.5">
-                    Update your account password
-                  </p>
-                </div>
-              </div>
-              <span className="text-[9px] font-bold uppercase tracking-wider text-white/15 bg-white/[0.04] px-2.5 py-1 rounded-md border border-white/[0.04]">
-                Soon
-              </span>
-            </button>
-
-            {/* Push Notifications */}
-            <button
-              disabled
-              className="w-full flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3.5 opacity-40 cursor-not-allowed"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-white/[0.04] flex items-center justify-center">
-                  <svg
-                    className="w-4 h-4 text-white/25"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={1.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0"
-                    />
-                  </svg>
-                </div>
-                <div className="text-left">
-                  <p className="text-sm text-white font-semibold">
-                    Push Notifications
-                  </p>
-                  <p className="text-xs text-white/25 mt-0.5">
-                    Manage notification preferences
-                  </p>
-                </div>
-              </div>
-              <span className="text-[9px] font-bold uppercase tracking-wider text-white/15 bg-white/[0.04] px-2.5 py-1 rounded-md border border-white/[0.04]">
-                Soon
-              </span>
-            </button>
-          </div>
-        </section>
-
         {/* ===== Emergency SOS ===== */}
         <section className="bg-[#071A2E] border border-white/[0.06] rounded-2xl p-4 lg:p-6">
           <h2 className="text-[10px] uppercase tracking-wider font-semibold text-white/40 mb-4">
@@ -334,40 +247,6 @@ export default function SettingsPage() {
                 Send an emergency alert to dispatch
               </p>
             </div>
-          </button>
-        </section>
-
-        {/* ===== Danger Zone (Cache Only) ===== */}
-        <section className="bg-[#071A2E] border border-red-500/20 rounded-2xl p-4 lg:p-6">
-          <h2 className="text-[10px] uppercase tracking-wider font-semibold text-red-400/50 mb-4">
-            Data & Storage
-          </h2>
-
-          <button
-            onClick={() => setShowClearCache(true)}
-            className="w-full flex items-center justify-between bg-red-500/[0.03] border border-red-500/10 hover:bg-red-500/[0.07] hover:border-red-500/20 rounded-xl px-4 py-3.5 transition-all active:scale-[0.99]"
-          >
-            <div className="text-left">
-              <p className="text-sm text-red-400/70 font-semibold">
-                Clear App Cache
-              </p>
-              <p className="text-xs text-white/20 mt-0.5">
-                Free up space by removing temporary cached data
-              </p>
-            </div>
-            <svg
-              className="w-4 h-4 text-red-400/30 flex-shrink-0"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"
-              />
-            </svg>
           </button>
         </section>
 
@@ -426,11 +305,6 @@ export default function SettingsPage() {
       </div>
 
       {/* ===== EXTRACTED MODALS ===== */}
-      <ClearCacheModal
-        isOpen={showClearCache}
-        onClose={() => setShowClearCache(false)}
-        onConfirm={handleClearCache}
-      />
       <SosConfirmModal
         isOpen={showSOS}
          conductorId={shift?.shiftId || ""}

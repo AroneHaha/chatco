@@ -1,6 +1,7 @@
 "use client";
 
 import { formatTime } from "@/lib/conductor/services/shift.service";
+import { formatPeso } from "@/lib/utils/display";
 import { ConductorStatus } from "./use-dashboard-state";
 
 interface DesktopDashboardCardProps {
@@ -105,19 +106,19 @@ export function DesktopDashboardCard({
               </div>
             )}
           </div>
-          <p className="text-3xl font-extrabold text-[#62A0EA] mt-1">₱{total.toFixed(2)}</p>
+          <p className="text-3xl font-extrabold text-[#62A0EA] mt-1">{formatPeso(total)}</p>
           <div className="grid grid-cols-3 gap-2 mt-4">
             <div className="bg-white/5 rounded-xl p-3 border border-white/5">
               <p className="text-[10px] font-semibold text-blue-400/60 uppercase tracking-wider">GCash</p>
-              <p className="text-lg font-extrabold text-blue-400 mt-0.5">₱{gcash.toFixed(2)}</p>
+              <p className="text-lg font-extrabold text-blue-400 mt-0.5">{formatPeso(gcash)}</p>
             </div>
             <div className="bg-white/5 rounded-xl p-3 border border-white/5">
               <p className="text-[10px] font-semibold text-emerald-400/60 uppercase tracking-wider">Cash</p>
-              <p className="text-lg font-extrabold text-emerald-400 mt-0.5">₱{cash.toFixed(2)}</p>
+              <p className="text-lg font-extrabold text-emerald-400 mt-0.5">{formatPeso(cash)}</p>
             </div>
             <div className="bg-white/5 rounded-xl p-3 border border-white/5">
               <p className="text-[10px] font-semibold text-amber-400/60 uppercase tracking-wider">Voucher</p>
-              <p className="text-lg font-extrabold text-amber-400 mt-0.5">₱{voucher.toFixed(2)}</p>
+              <p className="text-lg font-extrabold text-amber-400 mt-0.5">{formatPeso(voucher)}</p>
             </div>
           </div>
         </div>

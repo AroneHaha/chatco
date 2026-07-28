@@ -8,16 +8,20 @@
 //
 // No mock data anywhere.
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   list as listUsers,
   update as updateUser,
   remove as deleteUser,
+  suspend as suspendUser,
+  unsuspend as unsuspendUser,
   type AdminUser,
   type UserListFilters,
   type PaginationMeta,
   type UpdateUserInput,
   type UserOperationError,
+  type SuspendUserInput,
+  type SuspensionDetails,
 } from "@/lib/admin/services/user.service";
 import * as registrationService from "@/lib/admin/services/registration.service";
 
@@ -52,6 +56,7 @@ export interface ActiveUser {
    * users — they come from /api/admin/drivers, not /api/admin/users).
    */
   _raw?: AdminUser;
+  suspension: SuspensionDetails | null;
 }
 
 export interface RejectedUser {
@@ -84,6 +89,8 @@ export interface UsersTabFilters {
   search: string;
   perPage: number;
   page: number;
+  sort: "recent" | "oldest" | "alphabetical";
+  accountStatus: "" | "ACTIVE" | "SUSPENDED";
 }
 
 export interface UseUsersDataReturn {
@@ -94,15 +101,24 @@ export interface UseUsersDataReturn {
   /** Fetches a user's activity timeline. Cached in historyLogs. */
   fetchUserActivity: (userId: string) => Promise<HistoryLog[]>;
   pagination: PaginationMeta | null;
+  pendingPagination: registrationService.RegistrationPagination | null;
+  rejectedPagination: registrationService.RegistrationPagination | null;
   isLoading: boolean;
+  isTableLoading: boolean;
   error: string | null;
   filters: UsersTabFilters;
   setFilters: (f: Partial<UsersTabFilters>) => void;
+  pendingType: registrationService.AppliedType | "";
+  setPendingType: (type: registrationService.AppliedType | "") => void;
+  setPendingPage: (page: number) => void;
+  setRejectedPage: (page: number) => void;
   refetch: () => void;
   updateUserApi: (id: string, data: UpdateUserInput) => Promise<void>;
   deleteUserApi: (id: string) => Promise<void>;
   approveRegistrationApi: (id: string) => Promise<string>;
   rejectRegistrationApi: (id: string, reason: string) => Promise<string>;
+  suspendUserApi: (id: string, input: SuspendUserInput) => Promise<void>;
+  unsuspendUserApi: (id: string) => Promise<void>;
 }
 
 function mapToActiveUser(u: AdminUser): ActiveUser {
@@ -117,6 +133,7 @@ function mapToActiveUser(u: AdminUser): ActiveUser {
     idImageUrl: "",
     role: u.role,
     _raw: u,
+    suspension: u.suspension,
   };
 }
 
@@ -152,31 +169,35 @@ function mapDriverToActiveUser(d: RawDriver): ActiveUser {
     languagePreference: "English",
     idImageUrl: "",
     role: "DRIVER",
+    suspension: null,
   };
 }
 
-export function useUsersData(): UseUsersDataReturn {
+export function useUsersData(activeTab: "active" | "pending" | "rejected" = "active"): UseUsersDataReturn {
   const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [rejectedUsers, setRejectedUsers] = useState<RejectedUser[]>([]);
   const [historyLogs, setHistoryLogs] = useState<Record<string, HistoryLog[]>>({});
   const [pagination, setPagination] = useState<PaginationMeta | null>(null);
+  const [pendingPagination, setPendingPagination] = useState<registrationService.RegistrationPagination | null>(null);
+  const [rejectedPagination, setRejectedPagination] = useState<registrationService.RegistrationPagination | null>(null);
+  const [pendingPage, setPendingPageState] = useState(1);
+  const [rejectedPage, setRejectedPageState] = useState(1);
+  const [pendingType, setPendingTypeState] = useState<registrationService.AppliedType | "">("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestSequence = useRef(0);
   // Local filter type extends the backend UserListFilters with the
   // frontend-only "DRIVER" value. When role === "DRIVER" the hook fetches
   // from /api/admin/drivers instead of /api/admin/users (drivers aren't
   // users — they're a separate table).
-  const [filters, setFiltersState] = useState<{
-    role: TableRowRole | "";
-    search: string;
-    perPage: number;
-    page: number;
-  }>({
+  const [filters, setFiltersState] = useState<UsersTabFilters>({
     role: "COMMUTER",
     search: "",
     perPage: 10,
     page: 1,
+    sort: "recent",
+    accountStatus: "",
   });
 
   /**
@@ -186,7 +207,8 @@ export function useUsersData(): UseUsersDataReturn {
    * drivers), so we synthesize pagination metadata client-side.
    */
   const fetchUsers = useCallback(
-    async (f: { role: TableRowRole | ""; search: string; perPage: number; page: number }) => {
+    async (f: UsersTabFilters) => {
+      const sequence = ++requestSequence.current;
       setIsLoading(true);
       setError(null);
       try {
@@ -201,7 +223,17 @@ export function useUsersData(): UseUsersDataReturn {
           }
           const json = await res.json();
           const drivers: RawDriver[] = Array.isArray(json.data) ? json.data : [];
-          const mapped = drivers.map(mapDriverToActiveUser);
+          const query = f.search.trim().toLowerCase();
+          let mapped = drivers
+            .map(mapDriverToActiveUser)
+            .filter(user =>
+              (!query || [user.name, user.phoneNumber, user.commuterType].some(value => value.toLowerCase().includes(query))) &&
+              (!f.accountStatus || (f.accountStatus === "ACTIVE" ? user.status === "Active" : user.status === "Suspended"))
+            );
+          mapped = [...mapped].sort((a, b) => {
+            if (f.sort === "alphabetical") return a.name.localeCompare(b.name);
+            return f.sort === "oldest" ? a.id.localeCompare(b.id) : b.id.localeCompare(a.id);
+          });
           // Client-side pagination — backend returns all drivers at once.
           const perPage = f.perPage || 10;
           const page = f.page || 1;
@@ -210,6 +242,7 @@ export function useUsersData(): UseUsersDataReturn {
           const from = total === 0 ? null : (page - 1) * perPage + 1;
           const to = total === 0 ? null : Math.min(page * perPage, total);
           const slice = mapped.slice((page - 1) * perPage, page * perPage);
+          if (sequence !== requestSequence.current) return;
           setActiveUsers(slice);
           setPagination({
             currentPage: page,
@@ -229,41 +262,64 @@ export function useUsersData(): UseUsersDataReturn {
           search: f.search,
           perPage: f.perPage,
           page: f.page,
+          sort: f.sort,
+          accountStatus: f.accountStatus,
         });
-        // Filter out PENDING and REJECTED from the Active tab.
-        const activeOnly = result.users.filter(
-          (u) => u.accountStatus !== "PENDING" && u.accountStatus !== "REJECTED"
-        );
-        setActiveUsers(activeOnly.map(mapToActiveUser));
+        if (sequence !== requestSequence.current) return;
+        setActiveUsers(result.users.map(mapToActiveUser));
         setPagination(result.pagination);
       } catch (err) {
+        if (sequence !== requestSequence.current) return;
         setError(err instanceof Error ? err.message : "Failed to load users.");
         setActiveUsers([]);
         setPagination(null);
       } finally {
-        setIsLoading(false);
+        if (sequence === requestSequence.current) setIsLoading(false);
       }
     },
     []
   );
 
   const fetchPending = useCallback(async () => {
+    const sequence = ++requestSequence.current;
+    setIsLoading(true);
+    setError(null);
     try {
-      const pending = await registrationService.listPending();
-      setPendingRequests(pending);
-    } catch {
+      const result = await registrationService.listPending({
+        search: filters.search,
+        appliedType: pendingType,
+        page: pendingPage,
+        perPage: filters.perPage,
+      });
+      if (sequence !== requestSequence.current) return;
+      setPendingRequests(result.registrations);
+      setPendingPagination(result.pagination);
+    } catch (err) {
+      if (sequence !== requestSequence.current) return;
       setPendingRequests([]);
+      setPendingPagination(null);
+      setError(err instanceof Error ? err.message : "Failed to load pending registrations.");
+    } finally {
+      if (sequence === requestSequence.current) setIsLoading(false);
     }
-  }, []);
+  }, [filters.search, filters.perPage, pendingPage, pendingType]);
 
   // ── Fetch rejected registrations (soft-deleted REJECTED commuters) ──
   // Rejected accounts are soft-deleted with their email rewritten to
   // 'rejected+{timestamp}@chatco.local'. The backend's listRejectedRegistrations
   // uses withTrashed() to include them. Powers the Rejected tab.
   const fetchRejected = useCallback(async () => {
+    const sequence = ++requestSequence.current;
+    setIsLoading(true);
+    setError(null);
     try {
-      const rejected = await registrationService.listRejected();
-      setRejectedUsers(rejected.map(r => ({
+      const result = await registrationService.listRejected({
+        search: filters.search,
+        page: rejectedPage,
+        perPage: filters.perPage,
+      });
+      if (sequence !== requestSequence.current) return;
+      setRejectedUsers(result.registrations.map(r => ({
         id: r.id,
         name: r.name,
         email: r.email,
@@ -274,10 +330,16 @@ export function useUsersData(): UseUsersDataReturn {
         status: "Rejected" as const,
         rejectionReason: r.rejectionReason,
       })));
-    } catch {
+      setRejectedPagination(result.pagination);
+    } catch (err) {
+      if (sequence !== requestSequence.current) return;
       setRejectedUsers([]);
+      setRejectedPagination(null);
+      setError(err instanceof Error ? err.message : "Failed to load rejected registrations.");
+    } finally {
+      if (sequence === requestSequence.current) setIsLoading(false);
     }
-  }, []);
+  }, [filters.search, filters.perPage, rejectedPage]);
 
   // ── Fetch a user's activity timeline ──
   // Calls GET /api/admin/users/{id}/activity which reuses existing data
@@ -313,24 +375,29 @@ export function useUsersData(): UseUsersDataReturn {
   }, []);
 
   const refetch = useCallback(() => {
-    fetchUsers(filters);
-    fetchPending();
-    fetchRejected();
-  }, [fetchUsers, fetchPending, fetchRejected, filters]);
+    if (activeTab === "active") void fetchUsers(filters);
+    if (activeTab === "pending") void fetchPending();
+    if (activeTab === "rejected") void fetchRejected();
+  }, [activeTab, fetchUsers, fetchPending, fetchRejected, filters]);
 
   useEffect(() => {
-    fetchUsers(filters);
-    fetchPending();
-    fetchRejected();
-  }, [fetchUsers, fetchPending, fetchRejected, filters]);
+    refetch();
+  }, [refetch]);
 
   const setFilters = useCallback(
-    (f: Partial<{ role: TableRowRole | ""; search: string; perPage: number; page: number }>) => {
+    (f: Partial<UsersTabFilters>) => {
+      if (f.search !== undefined || f.perPage !== undefined) {
+        setPendingPageState(1);
+        setRejectedPageState(1);
+      }
       setFiltersState((prev) => {
         const roleChanged = f.role !== undefined && f.role !== prev.role;
         const searchChanged = f.search !== undefined && f.search !== prev.search;
+        const sortChanged = f.sort !== undefined && f.sort !== prev.sort;
+        const statusChanged = f.accountStatus !== undefined && f.accountStatus !== prev.accountStatus;
+        const pageSizeChanged = f.perPage !== undefined && f.perPage !== prev.perPage;
         const next = { ...prev, ...f };
-        if (roleChanged || searchChanged) next.page = 1;
+        if (roleChanged || searchChanged || sortChanged || statusChanged || pageSizeChanged) next.page = 1;
         return next;
       });
     },
@@ -362,12 +429,11 @@ export function useUsersData(): UseUsersDataReturn {
   const approveRegistrationApi = useCallback(
     async (id: string): Promise<string> => {
       const result = await registrationService.approve(id);
-      // Refresh both lists: pending loses the row, active gains the commuter.
+      // Refresh only the visible queue. Other tabs load when opened.
       await fetchPending();
-      await fetchUsers(filters);
       return `Approved ${result.name} — commuter type: ${result.commuter_type}. They can now log in.`;
     },
-    [fetchPending, fetchUsers, filters]
+    [fetchPending]
   );
 
   const rejectRegistrationApi = useCallback(
@@ -380,6 +446,24 @@ export function useUsersData(): UseUsersDataReturn {
     [fetchPending]
   );
 
+  const suspendUserApi = useCallback(async (id: string, input: SuspendUserInput) => {
+    await suspendUser(id, input);
+    await fetchUsers(filters);
+  }, [fetchUsers, filters]);
+
+  const unsuspendUserApi = useCallback(async (id: string) => {
+    await unsuspendUser(id);
+    await fetchUsers(filters);
+  }, [fetchUsers, filters]);
+
+  const setPendingType = useCallback((type: registrationService.AppliedType | "") => {
+    setPendingTypeState(type);
+    setPendingPageState(1);
+  }, []);
+
+  const setPendingPage = useCallback((page: number) => setPendingPageState(Math.max(1, page)), []);
+  const setRejectedPage = useCallback((page: number) => setRejectedPageState(Math.max(1, page)), []);
+
   return {
     activeUsers,
     pendingRequests,
@@ -387,15 +471,24 @@ export function useUsersData(): UseUsersDataReturn {
     historyLogs,
     fetchUserActivity,
     pagination,
+    pendingPagination,
+    rejectedPagination,
     isLoading,
+    isTableLoading: isLoading,
     error,
     filters,
     setFilters,
+    pendingType,
+    setPendingType,
+    setPendingPage,
+    setRejectedPage,
     refetch,
     updateUserApi,
     deleteUserApi,
     approveRegistrationApi,
     rejectRegistrationApi,
+    suspendUserApi,
+    unsuspendUserApi,
   };
 }
 

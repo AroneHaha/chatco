@@ -14,6 +14,7 @@ import {
 } from './data/data-monitoring';
 import { SkeletonMetric, SkeletonTable, SkeletonMap } from '@/components/admin/ui/skeleton';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
+import { formatElapsedMinutes } from '@/lib/utils/display';
 
 // Dynamically import the map and disable SSR (Leaflet requires the window object)
 const AdminCommuterMap = dynamic<{
@@ -131,7 +132,7 @@ export default function MonitoringPage() {
       <div className="space-y-6">
         <div className="h-8 w-48 rounded bg-gray-700 animate-pulse" />
         <SkeletonMetric count={3} />
-        <SkeletonMap height="calc(100vh - 280px)" label="Loading Monitoring Map…" />
+        <SkeletonMap height="400px" label="Loading Monitoring Map…" />
         <SkeletonTable rows={5} columns={6} title="Active Vehicle Tracking" />
       </div>
     );
@@ -198,9 +199,9 @@ export default function MonitoringPage() {
         {metrics.map((item, index) => {
           const Icon = item.icon;
           return (
-            <div key={index} className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4 flex items-center space-x-4">
-              <div className={`p-3 bg-[#0E1628] rounded-full ${item.color}`}><Icon size={24} /></div>
-              <div><p className="text-sm font-medium text-slate-300">{item.title}</p><p className="text-2xl font-bold text-white">{item.value}</p></div>
+          <div key={index} className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-3 flex items-center space-x-3">
+              <div className={`p-2.5 bg-[#0E1628] rounded-lg ${item.color}`}><Icon size={20} /></div>
+              <div><p className="text-xs font-medium text-slate-400">{item.title}</p><p className="text-xl font-bold text-white">{item.value}</p></div>
             </div>
           );
         })}
@@ -260,7 +261,7 @@ export default function MonitoringPage() {
       )}
 
       {/* Map Container */}
-      <div id="monitoring-map" className="h-[calc(100vh-280px)] min-h-[400px]">
+      <div id="monitoring-map" className="h-[340px] sm:h-[400px] xl:h-[440px]">
         <AdminCommuterMap
           liveVehicles={liveMapVehicles}
           demandZones={data.demandZones}
@@ -320,7 +321,7 @@ export default function MonitoringPage() {
                         {!v.has_gps ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-400/15 text-slate-400" title="On shift, but the unit has not reported a GPS position yet"><WifiOff size={10} />Awaiting GPS</span>
                         ) : v.is_stale ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-400/15 text-amber-400"><WifiOff size={10} />Stale · {v.minutes_since_update}m ago</span>
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-400/15 text-amber-400"><WifiOff size={10} />Stale · {formatElapsedMinutes(v.minutes_since_update)} ago</span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-400/15 text-emerald-400"><span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span></span>Live</span>
                         )}

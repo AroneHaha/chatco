@@ -61,12 +61,12 @@ export function AdminBottomNav({ isMoreOpen, setIsMoreOpen, onSignOut }: AdminBo
               key={item.href}
               href={item.href}
               ref={el => { navItemRefs.current[index] = el; }}
-              className={`relative z-10 flex flex-col items-center justify-center w-full h-full text-xs font-medium transition-colors duration-200 ${
+              className={`relative z-10 flex flex-col items-center justify-center min-w-0 w-full h-full text-[10px] font-medium transition-colors duration-200 ${
                 isActive ? 'text-[#62A0EA]' : 'text-slate-500'
               }`}
             >
               <Icon size={20} />
-              <span className="mt-1">{item.label}</span>
+              <span className="mt-1 max-w-full truncate px-0.5">{item.label}</span>
             </Link>
           );
         })}

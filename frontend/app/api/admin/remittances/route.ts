@@ -14,7 +14,7 @@ import { proxyToLaravel } from "@/lib/conductor/server/proxy";
  * admins can access this endpoint.
  */
 export async function GET(request: NextRequest) {
-  const result = await proxyToLaravel(request, "/admin/remittances", {
+  const result = await proxyToLaravel(request, `/admin/remittances${new URL(request.url).search}`, {
     method: "GET",
   });
 

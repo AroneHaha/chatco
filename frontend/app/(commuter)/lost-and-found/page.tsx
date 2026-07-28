@@ -4,16 +4,18 @@ import { useLostAndFound } from "./use-lost-and-found";
 import { categories } from "./data";
 import LostItemCard from "@/components/commuter/lost-and-found/lost-item-card";
 import { ViewTab } from "./types";
+import { Bookmark, PackageSearch, ShieldCheck } from "lucide-react";
 
 export default function LostAndFoundPage() {
   const {
     activeTab, handleTabChange, activeCategory, handleCategoryChange, searchQuery, handleSearch,
-    currentPage, setCurrentPage, apiData, isLoading, listError,
+    setCurrentPage, apiData, isLoading, listError,
     watchlist, toggleWatchlist, claims, pendingClaimsCount, openClaimModal, cancelClaim,
     showClaimModal, setShowClaimModal, itemToClaim, proofText, setProofText,
     submitClaim, claimError, isSubmittingClaim,
     displayItems, formatDate, getStatusBadge, MAX_PENDING_CLAIMS
   } = useLostAndFound();
+  const visibleTotal = activeTab === "MY_CLAIMS" ? displayItems.length : apiData.totalItems;
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden bg-[#050F1A] relative">
@@ -23,7 +25,10 @@ export default function LostAndFoundPage() {
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-5">
           <div>
             <h1 className="text-white font-bold text-xl lg:text-2xl">Lost & Found</h1>
-            <p className="text-white/40 text-xs mt-1">{apiData.totalItems} items reported • Page {apiData.currentPage} of {apiData.totalPages}</p>
+            <p className="text-white/40 text-xs mt-1">
+              {visibleTotal} items in this view
+              {activeTab !== "MY_CLAIMS" && ` · Page ${apiData.currentPage} of ${apiData.totalPages}`}
+            </p>
           </div>
           <div className="flex bg-[#050F1A] rounded-xl p-1 border border-white/5 w-fit">
             {([ ["ALL", "All Items"], ["WATCHLIST", "Watchlist"], ["MY_CLAIMS", `Claims (${pendingClaimsCount}/${MAX_PENDING_CLAIMS})`] ] as [ViewTab, string][]).map(([key, label]) => (
@@ -50,6 +55,23 @@ export default function LostAndFoundPage() {
 
       {/* --- GRID --- */}
       <div className="flex-1 overflow-y-auto p-4 pb-28 lg:p-8 lg:pb-8">
+        <div className="mb-6 grid grid-cols-3 gap-2 sm:gap-3">
+          <div className="rounded-xl border border-white/10 bg-[#071A2E] p-3 sm:p-4">
+            <PackageSearch className="mb-2 h-4 w-4 text-[#62A0EA]" />
+            <p className="text-lg font-bold text-white">{visibleTotal}</p>
+            <p className="text-[9px] uppercase tracking-wider text-white/30">Matching items</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-[#071A2E] p-3 sm:p-4">
+            <Bookmark className="mb-2 h-4 w-4 text-amber-400" />
+            <p className="text-lg font-bold text-white">{watchlist.size}</p>
+            <p className="text-[9px] uppercase tracking-wider text-white/30">Watching</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-[#071A2E] p-3 sm:p-4">
+            <ShieldCheck className="mb-2 h-4 w-4 text-emerald-400" />
+            <p className="text-lg font-bold text-white">{pendingClaimsCount}/{MAX_PENDING_CLAIMS}</p>
+            <p className="text-[9px] uppercase tracking-wider text-white/30">Pending claims</p>
+          </div>
+        </div>
         {isLoading ? (
           <div className="h-full flex flex-col items-center justify-center">
             <div className="w-8 h-8 border-2 border-white/20 border-t-[#62A0EA] rounded-full animate-spin" />
@@ -62,8 +84,11 @@ export default function LostAndFoundPage() {
           </div>
         ) : displayItems.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center px-4">
-             <h3 className="text-white/70 font-semibold mb-1">No items found</h3>
-             <p className="text-white/40 text-sm">Try adjusting your search or filters.</p>
+             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
+               <PackageSearch className="h-7 w-7 text-white/20" />
+             </div>
+             <h3 className="text-white/70 font-semibold mb-1">No matching items</h3>
+             <p className="max-w-xs text-white/40 text-sm">Try another keyword or category. New found items appear here as soon as staff reports them.</p>
           </div>
         ) : (
           <>

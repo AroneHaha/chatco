@@ -40,20 +40,23 @@ function StatCard({ label, value, icon, accent, ring }: StatCardProps) {
  * Purely additive: reuses the same useRemittanceData() source as the table
  * and aggregates only records dated today. No existing logic is changed.
  */
-export function RemittanceSummary() {
+export function RemittanceSummary({ selectedDate = '' }: { selectedDate?: string }) {
   const { records, isLoading } = useRemittanceData();
 
-  const today = useMemo(() => {
-    const t = todayStr();
-    const todays = records.filter((r) => r.date === t);
+  const summary = useMemo(() => {
+    const targetDate = selectedDate || todayStr();
+    const matching = records.filter((r) => r.date === targetDate);
     return {
-      passengers: todays.reduce((s, r) => s + r.totalPassengers, 0),
-      cash: todays.reduce((s, r) => s + r.cashTotal, 0),
-      gcash: todays.reduce((s, r) => s + r.gcashTotal, 0),
-      total: todays.reduce((s, r) => s + r.cashTotal + r.gcashTotal, 0),
-      shifts: todays.length,
+      passengers: matching.reduce((s, r) => s + r.totalPassengers, 0),
+      cash: matching.reduce((s, r) => s + r.cashTotal, 0),
+      gcash: matching.reduce((s, r) => s + r.gcashTotal, 0),
+      total: matching.reduce((s, r) => s + r.cashTotal + r.gcashTotal, 0),
     };
-  }, [records]);
+  }, [records, selectedDate]);
+
+  const periodLabel = selectedDate
+    ? new Date(`${selectedDate}T00:00:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
+    : 'Today';
 
   if (isLoading) {
     return (
@@ -68,29 +71,29 @@ export function RemittanceSummary() {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
       <StatCard
-        label="Passengers (Today)"
-        value={String(today.passengers)}
+        label={`Passengers (${periodLabel})`}
+        value={String(summary.passengers)}
         icon={<Users size={20} />}
         accent="text-pink-400"
         ring="bg-pink-500/15"
       />
       <StatCard
-        label="Cash (Today)"
-        value={fmtPHP(today.cash)}
+        label={`Cash (${periodLabel})`}
+        value={fmtPHP(summary.cash)}
         icon={<Banknote size={20} />}
         accent="text-emerald-400"
         ring="bg-emerald-500/15"
       />
       <StatCard
-        label="GCash (Today)"
-        value={fmtPHP(today.gcash)}
+        label={`GCash (${periodLabel})`}
+        value={fmtPHP(summary.gcash)}
         icon={<Smartphone size={20} />}
         accent="text-blue-400"
         ring="bg-blue-500/15"
       />
       <StatCard
-        label="Total Collected (Today)"
-        value={fmtPHP(today.total)}
+        label={`Total (${periodLabel})`}
+        value={fmtPHP(summary.total)}
         icon={<Wallet size={20} />}
         accent="text-[#62A0EA]"
         ring="bg-[#62A0EA]/15"

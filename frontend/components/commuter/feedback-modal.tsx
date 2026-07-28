@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import type { CommuterPayment } from "@/lib/commuter/services/payment.service";
+import { formatPeso } from "@/lib/utils/display";
 import {
   submit,
   FeedbackOperationError,
@@ -232,7 +233,7 @@ export default function FeedbackModal({
             )}
             <div className="flex justify-between">
               <span className="text-gray-500">Fare</span>
-              <span className="font-bold text-[#071A2E]">₱{ride.amount.toFixed(2)}</span>
+              <span className="font-bold text-[#071A2E]">{formatPeso(ride.amount)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500">Ride date</span>

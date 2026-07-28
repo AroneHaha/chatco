@@ -60,6 +60,42 @@ return [
             'report' => false,
         ],
 
+        'r2_public' => [
+            'driver' => 's3',
+            'key' => env('R2_ACCESS_KEY_ID'),
+            'secret' => env('R2_SECRET_ACCESS_KEY'),
+            'region' => env('R2_REGION', 'auto'),
+            'bucket' => env('R2_PUBLIC_BUCKET'),
+            'url' => rtrim((string) env('R2_PUBLIC_URL', ''), '/'),
+            'endpoint' => env('R2_ENDPOINT'),
+            'use_path_style_endpoint' => false,
+            'throw' => true,
+            'report' => true,
+        ],
+
+        'r2_private' => [
+            'driver' => 's3',
+            'key' => env('R2_ACCESS_KEY_ID'),
+            'secret' => env('R2_SECRET_ACCESS_KEY'),
+            'region' => env('R2_REGION', 'auto'),
+            'bucket' => env('R2_PRIVATE_BUCKET'),
+            'endpoint' => env('R2_ENDPOINT'),
+            'use_path_style_endpoint' => false,
+            'throw' => true,
+            'report' => true,
+        ],
+
+    ],
+
+    'uploads' => [
+        'public_media_disk' => env(
+            'PUBLIC_MEDIA_DISK',
+            env('R2_PUBLIC_BUCKET') ? 'r2_public' : 'public'
+        ),
+        'private_id_disk' => env(
+            'PRIVATE_ID_DISK',
+            env('R2_PRIVATE_BUCKET') ? 'r2_private' : 'public'
+        ),
     ],
 
     /*

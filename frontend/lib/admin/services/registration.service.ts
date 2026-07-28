@@ -31,6 +31,13 @@ export interface RawRegistration {
   // How many times this applicant's identity (email/contact) was previously
   // rejected. Present on the pending list; absent (→ 0) on the rejected list.
   rejection_count?: number;
+  rejection_history?: Array<{
+    reason: string;
+    attempt_number: number;
+    blocked_until: string | null;
+    rejected_at: string;
+  }>;
+  blocked_until?: string | null;
   created_at: string;
 }
 
@@ -50,7 +57,45 @@ export interface PendingRegistration {
   appliedType: AppliedType;
   /** Prior rejections of this applicant's identity (0 = first-time applicant). */
   rejectionCount: number;
+  rejectionHistory: Array<{
+    reason: string;
+    attemptNumber: number;
+    blockedUntil: string | null;
+    rejectedAt: string;
+  }>;
+  blockedUntil: string | null;
   createdAt: string;
+}
+
+export interface RegistrationListFilters {
+  search?: string;
+  appliedType?: AppliedType | "";
+  perPage?: number;
+  page?: number;
+}
+
+export interface RegistrationPagination {
+  currentPage: number;
+  perPage: number;
+  total: number;
+  lastPage: number;
+  from: number | null;
+  to: number | null;
+}
+
+export interface RegistrationListResult<T> {
+  registrations: T[];
+  pagination: RegistrationPagination;
+}
+
+interface Paginator<T> {
+  data: T[];
+  current_page: number;
+  per_page: number;
+  total: number;
+  last_page: number;
+  from: number | null;
+  to: number | null;
 }
 
 export interface ApproveResult {
@@ -105,7 +150,34 @@ function mapToViewModel(r: RawRegistration): PendingRegistration {
     username: r.username,
     appliedType: r.applied_type,
     rejectionCount: r.rejection_count ?? 0,
+    rejectionHistory: (r.rejection_history ?? []).map(item => ({
+      reason: item.reason,
+      attemptNumber: item.attempt_number,
+      blockedUntil: item.blocked_until,
+      rejectedAt: item.rejected_at,
+    })),
+    blockedUntil: r.blocked_until ?? null,
     createdAt: r.created_at,
+  };
+}
+
+function buildQuery(filters: RegistrationListFilters): string {
+  const params = new URLSearchParams();
+  if (filters.search?.trim()) params.set("search", filters.search.trim());
+  if (filters.appliedType) params.set("applied_type", filters.appliedType);
+  params.set("per_page", String(filters.perPage ?? 10));
+  params.set("page", String(filters.page ?? 1));
+  return `?${params.toString()}`;
+}
+
+function paginationFrom(raw: Partial<Paginator<unknown>> | null, fallbackCount: number): RegistrationPagination {
+  return {
+    currentPage: raw?.current_page ?? 1,
+    perPage: raw?.per_page ?? fallbackCount,
+    total: raw?.total ?? fallbackCount,
+    lastPage: raw?.last_page ?? 1,
+    from: raw?.from ?? (fallbackCount ? 1 : null),
+    to: raw?.to ?? fallbackCount,
   };
 }
 
@@ -115,9 +187,14 @@ function mapToViewModel(r: RawRegistration): PendingRegistration {
  * GET /api/admin/registrations
  * Lists all PENDING commuter registrations awaiting admin review.
  */
-export async function listPending(): Promise<PendingRegistration[]> {
-  const res = await fetch("/api/admin/registrations", {
+export async function listPending(
+  filters: RegistrationListFilters = {},
+  signal?: AbortSignal,
+): Promise<RegistrationListResult<PendingRegistration>> {
+  const res = await fetch(`/api/admin/registrations${buildQuery(filters)}`, {
     headers: { Accept: "application/json" },
+    credentials: "include",
+    signal,
   });
 
   if (!res.ok) {
@@ -131,8 +208,12 @@ export async function listPending(): Promise<PendingRegistration[]> {
 
   const json = await res.json();
   // The backend returns a paginator: { data: { data: [...], ... } }
-  const rows = json.data?.data ?? json.data ?? [];
-  return (rows as RawRegistration[]).map(mapToViewModel);
+  const paginator = json.data ?? {};
+  const rows = paginator.data ?? (Array.isArray(paginator) ? paginator : []);
+  return {
+    registrations: (rows as RawRegistration[]).map(mapToViewModel),
+    pagination: paginationFrom(paginator, rows.length),
+  };
 }
 
 /** Frontend view-model for rejected registrations (includes rejection reason). */
@@ -145,9 +226,14 @@ export interface RejectedRegistration extends PendingRegistration {
  * GET /api/admin/registrations/rejected
  * Lists all REJECTED commuter accounts (soft-deleted, email rewritten).
  */
-export async function listRejected(): Promise<RejectedRegistration[]> {
-  const res = await fetch("/api/admin/registrations/rejected", {
+export async function listRejected(
+  filters: RegistrationListFilters = {},
+  signal?: AbortSignal,
+): Promise<RegistrationListResult<RejectedRegistration>> {
+  const res = await fetch(`/api/admin/registrations/rejected${buildQuery(filters)}`, {
     headers: { Accept: "application/json" },
+    credentials: "include",
+    signal,
   });
 
   if (!res.ok) {
@@ -160,12 +246,16 @@ export async function listRejected(): Promise<RejectedRegistration[]> {
   }
 
   const json = await res.json();
-  const rows = json.data?.data ?? json.data ?? [];
-  return (rows as (RawRegistration & { rejection_reason: string; rejected_at: string })[]).map(r => ({
-    ...mapToViewModel(r),
-    rejectionReason: r.rejection_reason ?? "—",
-    rejectedAt: r.rejected_at ?? r.created_at,
-  }));
+  const paginator = json.data ?? {};
+  const rows = paginator.data ?? (Array.isArray(paginator) ? paginator : []);
+  return {
+    registrations: (rows as (RawRegistration & { rejection_reason: string; rejected_at: string })[]).map(r => ({
+      ...mapToViewModel(r),
+      rejectionReason: r.rejection_reason ?? "Not provided",
+      rejectedAt: r.rejected_at ?? r.created_at,
+    })),
+    pagination: paginationFrom(paginator, rows.length),
+  };
 }
 
 /**

@@ -242,6 +242,9 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::put('/users/{id}', [AdminUserController::class, 'update'])->middleware('throttle:conductor-write');
     Route::patch('/users/{id}', [AdminUserController::class, 'update'])->middleware('throttle:conductor-write');
     Route::delete('/users/{id}', [AdminUserController::class, 'destroy'])->middleware('throttle:conductor-write');
+    Route::post('/users/{id}/suspend', [AdminUserController::class, 'suspend'])->middleware('throttle:admin-write');
+    Route::post('/users/{id}/unsuspend', [AdminUserController::class, 'unsuspend'])->middleware('throttle:admin-write');
+    Route::get('/users/{id}/suspensions', [AdminUserController::class, 'suspensions'])->middleware('throttle:conductor-read');
     Route::get('/registrations', [AdminRegistrationController::class, 'pending'])->middleware('throttle:conductor-read');
     Route::get('/registrations/rejected', [AdminRegistrationController::class, 'rejected'])->middleware('throttle:conductor-read');
     Route::post('/registrations', [AdminRegistrationController::class, 'store'])->middleware('throttle:conductor-write');
@@ -310,6 +313,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::get('/lost-items/{itemId}', [AdminLostItemController::class, 'show'])->middleware('throttle:conductor-read');
     Route::post('/lost-items/{itemId}/image', [AdminLostItemController::class, 'uploadImage'])->middleware('throttle:admin-write');
     Route::get('/lost-items/{itemId}/claims', [AdminLostItemController::class, 'claims'])->middleware('throttle:conductor-read');
+    Route::post('/lost-items/{itemId}/claims/manual', [AdminLostItemController::class, 'storeManualClaim'])->middleware('throttle:admin-write');
     Route::patch('/lost-items/{itemId}/claims/{claimId}/approve', [AdminLostItemController::class, 'approveClaim'])->middleware('throttle:admin-write');
     Route::patch('/lost-items/{itemId}/claims/{claimId}/release', [AdminLostItemController::class, 'releaseClaim'])->middleware('throttle:admin-write');
     Route::patch('/lost-items/{itemId}/claims/{claimId}/reject', [AdminLostItemController::class, 'rejectClaim'])->middleware('throttle:admin-write');

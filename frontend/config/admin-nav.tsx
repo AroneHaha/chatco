@@ -8,7 +8,6 @@ import {
   Sliders,
   Users,
   FileText,
-  Menu,
   Megaphone,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -45,10 +44,10 @@ export const systemNav: NavItem[] = [
 /* ─── Mobile Bottom Nav ─── */
 
 export const mobileMainItems: NavItem[] = [
-  { href: "/admin-dashboard", label: "Home", icon: Home },
-  { href: "/remittance", label: "Remit", icon: Receipt },
-  { href: "/monitoring", label: "Map", icon: Map },
-  { href: "/analytics", label: "Stats", icon: BarChart3 },
+  { href: "/admin-dashboard", label: "Dashboard", icon: Home },
+  { href: "/remittance", label: "Remittance", icon: Receipt },
+  { href: "/monitoring", label: "Monitoring", icon: Map },
+  { href: "/analytics", label: "Analytics", icon: BarChart3 },
 ];
 
 export const mobileOverflowItems: NavItem[] = [

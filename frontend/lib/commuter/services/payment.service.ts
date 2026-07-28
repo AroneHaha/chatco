@@ -52,6 +52,9 @@ export interface ClaimResult {
   transactionId: string;
   checkoutUrl: string | null;
   amount: number;
+  regularAmount: number;
+  discountAmount: number;
+  passengerRole: string | null;
   pickupName: string | null;
   dropoffName: string | null;
 }
@@ -148,6 +151,9 @@ export async function claimGcash(qrToken: string): Promise<ClaimResult> {
     transaction_id: string;
     checkout_url: string | null;
     amount: number;
+    regular_amount: number;
+    discount_amount: number;
+    passenger_role: string | null;
     pickup_name: string | null;
     dropoff_name: string | null;
   }>>(COMMUTER_API.payments.claim, { qr_token: qrToken });
@@ -157,6 +163,9 @@ export async function claimGcash(qrToken: string): Promise<ClaimResult> {
     transactionId: d.transaction_id,
     checkoutUrl: d.checkout_url,
     amount: Number(d.amount) || 0,
+    regularAmount: Number(d.regular_amount) || Number(d.amount) || 0,
+    discountAmount: Number(d.discount_amount) || 0,
+    passengerRole: d.passenger_role,
     pickupName: d.pickup_name,
     dropoffName: d.dropoff_name,
   };

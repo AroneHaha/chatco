@@ -106,10 +106,6 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
       <div className="flex h-screen bg-[#0B1120]">
         <AdminSidebar onSignOut={() => setIsSignOutOpen(true)} />
         <main className="flex-1 overflow-y-auto p-6 lg:p-8 text-white">
-          {/* Notification Bell — fixed top-right */}
-          <div className="fixed top-4 right-6 z-50">
-            <NotificationBell />
-          </div>
           {children}
         </main>
         <SignOutModal

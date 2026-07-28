@@ -14,6 +14,7 @@ interface HistoryTableProps {
 const LOGS_PER_PAGE = 10;
 
 export function HistoryTable({ terminatedPersonnel, shiftHistoryLog, searchQuery }: HistoryTableProps) {
+  const [historyTab, setHistoryTab] = useState<"terminated" | "shifts">("terminated");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [logPage, setLogPage] = useState(1);
 
@@ -59,12 +60,35 @@ export function HistoryTable({ terminatedPersonnel, shiftHistoryLog, searchQuery
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      <div className="inline-flex rounded-lg border border-[#1E2D45] bg-[#0E1628] p-1">
+        <button
+          onClick={() => setHistoryTab("terminated")}
+          className={`flex items-center gap-2 rounded-md px-4 py-2 text-xs font-semibold transition-colors ${
+            historyTab === "terminated" ? "bg-red-400/15 text-red-300" : "text-slate-500 hover:text-slate-300"
+          }`}
+        >
+          <UserX size={14} />
+          Terminated History
+          <span className="rounded bg-black/20 px-1.5 py-0.5">{filteredPersonnel.length}</span>
+        </button>
+        <button
+          onClick={() => setHistoryTab("shifts")}
+          className={`flex items-center gap-2 rounded-md px-4 py-2 text-xs font-semibold transition-colors ${
+            historyTab === "shifts" ? "bg-[#62A0EA]/15 text-[#62A0EA]" : "text-slate-500 hover:text-slate-300"
+          }`}
+        >
+          <Clock size={14} />
+          Recent Shift History
+          <span className="rounded bg-black/20 px-1.5 py-0.5">{filteredLogs.length}</span>
+        </button>
+      </div>
       {/* ───────────────────────────────────────────────────────────────
           SECTION 1: Separated Personnel
           (Empty until a /admin/terminated backend endpoint exists that
           lists soft-deleted drivers/conductors with termination metadata.)
           ─────────────────────────────────────────────────────────────── */}
+      {historyTab === "terminated" && (
       <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg overflow-hidden">
         <div className="p-4 border-b border-[#162033] flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -76,7 +100,7 @@ export function HistoryTable({ terminatedPersonnel, shiftHistoryLog, searchQuery
           </span>
         </div>
 
-        <div className="divide-y divide-[#162033]">
+        <div className="divide-y divide-[#162033] max-h-[56vh] overflow-y-auto scrollbar-themed">
           {filteredPersonnel.length === 0 ? (
             <div className="p-8 text-center text-slate-500 text-sm space-y-2">
               <p>No terminated personnel records found{searchQuery ? ' for this search' : ''}.</p>
@@ -151,7 +175,7 @@ export function HistoryTable({ terminatedPersonnel, shiftHistoryLog, searchQuery
                         {personnelLogs.length === 0 ? (
                           <p className="text-xs text-slate-600 italic pl-6">No detailed shift logs available for this user.</p>
                         ) : (
-                          <div className="space-y-2 pl-6 border-l-2 border-[#1E2D45]">
+                          <div className="space-y-2 pl-6 border-l-2 border-[#1E2D45] max-h-52 overflow-y-auto pr-2 scrollbar-themed">
                             {personnelLogs.map((log) => (
                               <div key={log.id} className="relative bg-[#131C2E] p-3 rounded-md">
                                 <div className="absolute -left-[25px] top-3 w-2 h-2 rounded-full bg-slate-600"></div>
@@ -173,6 +197,7 @@ export function HistoryTable({ terminatedPersonnel, shiftHistoryLog, searchQuery
           )}
         </div>
       </div>
+      )}
 
       {/* ───────────────────────────────────────────────────────────────
           SECTION 2: Recent Shift History
@@ -181,6 +206,7 @@ export function HistoryTable({ terminatedPersonnel, shiftHistoryLog, searchQuery
           (one for the driver, one for the conductor) by vehicles-data.ts,
           so this list shows ALL personnel shift activity in one timeline.
           ─────────────────────────────────────────────────────────────── */}
+      {historyTab === "shifts" && (
       <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg overflow-hidden">
         <div className="p-4 border-b border-[#162033] flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -204,7 +230,7 @@ export function HistoryTable({ terminatedPersonnel, shiftHistoryLog, searchQuery
           </div>
         ) : (
           <>
-            <div className="p-4 space-y-2">
+            <div className="p-4 space-y-2 max-h-[50vh] overflow-y-auto scrollbar-themed">
               {currentLogs.map((log) => (
                 <div
                   key={log.id}
@@ -264,6 +290,7 @@ export function HistoryTable({ terminatedPersonnel, shiftHistoryLog, searchQuery
           </>
         )}
       </div>
+      )}
     </div>
   );
 }

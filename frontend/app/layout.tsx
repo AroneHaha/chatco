@@ -10,9 +10,17 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "CHATCO — Smart Jeepney Commuting Platform",
+  title: {
+    default: "CHATCO | Smart Jeepney Platform",
+    template: "%s | CHATCO",
+  },
   description:
-    "Revolutionizing Philippine jeepney transport with GCash payments, real-time tracking, smart hailing, and fleet management.",
+    "GCash payments, real-time tracking, smart hailing, and fleet management for CHATCO commuters and personnel.",
+  icons: {
+    icon: "/logo-transparent.png",
+    shortcut: "/logo-transparent.png",
+    apple: "/logo-transparent.png",
+  },
 };
 
 export default function RootLayout({

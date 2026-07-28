@@ -39,6 +39,7 @@ class AuthService
             'adminProfile',
             'conductorProfile',
             'commuterProfile',
+            'activeSuspension',
         ])
             ->where(function ($q) use ($login) {
                 $q->where('email', $login)
@@ -64,6 +65,17 @@ class AuthService
         //   PENDING    -> RegistrationPendingException  (awaiting approval)
         //   REJECTED   -> RegistrationPendingException  (admin declined)
         //   APPROVED/ACTIVE -> allowed to log in
+        if ($user->activeSuspension) {
+            $suspension = $user->activeSuspension;
+            $duration = $suspension->is_permanent
+                ? 'permanently'
+                : 'until ' . $suspension->ends_at?->timezone(config('app.timezone'))->format('M j, Y g:i A');
+
+            throw new AccountSuspendedException(
+                "This account is suspended {$duration}. Reason: {$suspension->reason}"
+            );
+        }
+
         if ($user->isCommuter()) {
             $status = $user->commuterProfile?->account_status;
 
@@ -229,9 +241,9 @@ class AuthService
 
     /**
      * Store the uploaded valid-ID image to the configured disk and return
-     * the storage path. The file is saved to storage/app/public/ids/ so it
-     * can be served via the public storage symlink. NEVER store the raw
-     * file in the DB — only the path.
+     * the storage path. Government/student IDs are stored on the configured
+     * private disk and are exposed to admins only through temporary URLs.
+     * NEVER store the raw file in the DB — only the object path.
      *
      * @param  User  $user
      * @param  \Illuminate\Http\UploadedFile  $file
@@ -239,11 +251,14 @@ class AuthService
      */
     private function storeIdImage(User $user, $file): string
     {
-        // Store to the 'public' disk (storage/app/public/ids/)
         // The filename includes the user ID for traceability.
         $extension = $file->getClientOriginalExtension() ?: 'jpg';
         $filename = $user->id . '-' . Str::random(16) . '.' . $extension;
 
-        return $file->storeAs('ids', $filename, 'public');
+        return $file->storeAs(
+            'ids',
+            $filename,
+            config('filesystems.uploads.private_id_disk', 'r2_private')
+        );
     }
 }

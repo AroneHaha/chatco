@@ -1,15 +1,20 @@
 // components/admin/users/registration-requests-table.tsx
+'use client';
+
 import { GlassCard } from '@/components/admin/ui/glass-card';
 import { Badge } from '@/components/admin/ui/badge';
 import { Eye } from 'lucide-react';
 import type { PendingRequest } from '@/app/(admin)/users/data/users-data';
+import type { RegistrationPagination } from '@/lib/admin/services/registration.service';
 
 interface RegistrationRequestsTableProps {
   requests: PendingRequest[];
   onSelectRequest: (request: PendingRequest) => void;
+  pagination: RegistrationPagination | null;
+  onPageChange: (page: number) => void;
 }
 
-export function RegistrationRequestsTable({ requests, onSelectRequest }: RegistrationRequestsTableProps) {
+export function RegistrationRequestsTable({ requests, onSelectRequest, pagination, onPageChange }: RegistrationRequestsTableProps) {
   return (
     <GlassCard className="p-4">
       <div className="space-y-4">
@@ -43,6 +48,16 @@ export function RegistrationRequestsTable({ requests, onSelectRequest }: Registr
           ))
         )}
       </div>
+      {pagination && pagination.lastPage > 1 && (
+        <div className="mt-4 flex items-center justify-between border-t border-[#1E2D45] pt-4 text-xs text-slate-500">
+          <span>Showing {pagination.from ?? 0}-{pagination.to ?? 0} of {pagination.total}</span>
+          <div className="flex items-center gap-2">
+            <button onClick={() => onPageChange(pagination.currentPage - 1)} disabled={pagination.currentPage === 1} className="rounded-md border border-[#1E2D45] px-3 py-1.5 disabled:opacity-30">Previous</button>
+            <span>{pagination.currentPage} / {pagination.lastPage}</span>
+            <button onClick={() => onPageChange(pagination.currentPage + 1)} disabled={pagination.currentPage === pagination.lastPage} className="rounded-md border border-[#1E2D45] px-3 py-1.5 disabled:opacity-30">Next</button>
+          </div>
+        </div>
+      )}
     </GlassCard>
   );
 }

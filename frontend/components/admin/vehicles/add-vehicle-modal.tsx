@@ -1,14 +1,9 @@
 // components/admin/vehicles/add-vehicle-modal.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import { Info } from 'lucide-react';
-
-interface Route {
-  id: string;
-  name: string;
-}
 
 interface AddVehicleModalProps {
   isOpen: boolean;
@@ -23,7 +18,7 @@ interface AddVehicleModalProps {
  * Add New Vehicle modal.
  *
  * Per the vehicle-assignment refactor, this modal ONLY captures the
- * vehicle's own attributes (unit number, plate, route, status). Driver and
+ * vehicle's own attributes (unit number, plate number, status). Driver and
  * conductor assignment is intentionally excluded — a newly created vehicle
  * starts with NO current driver or conductor. Assignment happens
  * automatically through the conductor login (shift-start) workflow.
@@ -32,28 +27,11 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
   const [formData, setFormData] = useState({
     unit_number: '',
     plate_number: '',
-    route_id: '',
     status: 'ACTIVE',
   });
-  const [routes, setRoutes] = useState<Route[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
-
-  // Fetch routes only (drivers/conductors no longer needed — assignment is
-  // automatic via conductor login).
-  useEffect(() => {
-    if (!isOpen) return;
-
-    fetch('/api/admin/routes')
-      .then(r => r.json())
-      .then((routesRes) => {
-        setRoutes(routesRes.data ?? []);
-      })
-      .catch(() => {
-        setError('Failed to load routes. Please try again.');
-      });
-  }, [isOpen]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -62,13 +40,6 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Client-side guard: route_id is required (mirrors backend validation).
-    if (!formData.route_id) {
-      setError('Please select a route for this vehicle.');
-      setFieldErrors({ route_id: ['Please select a route.'] });
-      return;
-    }
 
     setIsSubmitting(true);
     setError(null);
@@ -81,7 +52,6 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
         body: JSON.stringify({
           unit_number: formData.unit_number,
           plate_number: formData.plate_number,
-          route_id: formData.route_id, // Always present (required)
           status: formData.status,
           // NOTE: driver_id and conductor_id are intentionally NOT sent.
           // A new vehicle starts unassigned; personnel are linked
@@ -102,7 +72,7 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
       }
 
       // Reset form and close
-      setFormData({ unit_number: '', plate_number: '', route_id: '', status: 'ACTIVE' });
+      setFormData({ unit_number: '', plate_number: '', status: 'ACTIVE' });
       // Pass the created vehicle's id up so the parent can surface the
       // freshly-generated permanent QR (downloadable / printable).
       const createdId = String(data?.data?.id ?? '');
@@ -129,7 +99,7 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
 
         <div>
           <label htmlFor="unit_number" className="block text-xs font-medium text-slate-300 mb-1.5">
-            Unit Number <span className="text-red-400">*</span>
+            Unit Number / Unit ID <span className="text-red-400">*</span>
           </label>
           <input type="text" id="unit_number" name="unit_number" value={formData.unit_number} onChange={handleChange} required placeholder="e.g., UNIT-011"
             className={`${inputClasses} ${fieldErrors.unit_number ? 'border-red-500/50' : ''}`} />
@@ -147,23 +117,6 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
           {fieldErrors.plate_number && (
             <p className="text-xs text-red-400 mt-1">{fieldErrors.plate_number[0]}</p>
           )}
-        </div>
-
-        <div>
-          <label htmlFor="route_id" className="block text-xs font-medium text-slate-300 mb-1.5">
-            Route <span className="text-red-400">*</span>
-          </label>
-          <select id="route_id" name="route_id" value={formData.route_id} onChange={handleChange} required
-            className={`${inputClasses} [color-scheme:dark] ${fieldErrors.route_id ? 'border-red-500/50' : ''}`}>
-            <option value="" className="bg-gray-800" disabled>Select Route...</option>
-            {routes.map(r => (
-              <option key={r.id} value={r.id} className="bg-gray-800">{r.name}</option>
-            ))}
-          </select>
-          {fieldErrors.route_id && (
-            <p className="text-xs text-red-400 mt-1">{fieldErrors.route_id[0]}</p>
-          )}
-          {routes.length === 0 && <p className="text-xs text-amber-400 mt-1">No routes available. Create a route first.</p>}
         </div>
 
         <div>

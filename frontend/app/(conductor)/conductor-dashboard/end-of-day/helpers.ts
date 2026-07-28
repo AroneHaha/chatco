@@ -1,5 +1,7 @@
 // app/(conductor)/conductor-dashboard/end-of-day/helpers.ts
-export const fmt = (n: number | undefined | null) => `₱${(n ?? 0).toFixed(2)}`;
+import { formatPeso } from "@/lib/utils/display";
+
+export const fmt = (n: number | undefined | null) => formatPeso(n ?? 0);
 
 export const fmtDate = (d: string) =>
   new Date(d + "T00:00:00").toLocaleDateString("en-PH", {

@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents, Circle, Tooltip } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { formatElapsedMinutes } from "@/lib/utils/display";
 
 // --- 1. TYPES (kept — these define the API contract) ---
 type VehicleCapacity = "AVAILABLE" | "STANDING" | "FULL";
@@ -467,7 +468,7 @@ export default function AdminCommuterMap({
                   )}
                   {vehicle.is_stale && (
                     <div className="text-[10px] font-medium text-amber-600 bg-amber-50 p-1.5 rounded text-center border border-amber-100">
-                      ⚠ Stale — last update {vehicle.minutes_since_update} min ago
+                      ⚠ Stale — last update {formatElapsedMinutes(vehicle.minutes_since_update)} ago
                     </div>
                   )}
                 </div>

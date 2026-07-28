@@ -339,6 +339,19 @@ export default function ScanModal({ onClose }: ScanModalProps) {
                 <p className="text-3xl font-extrabold text-white">{formatCurrency(claimResult.amount)}</p>
               </div>
 
+              {claimResult.discountAmount > 0 && (
+                <>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-white/40">Regular fare</span>
+                    <span className="text-white/60 line-through">{formatCurrency(claimResult.regularAmount)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-emerald-400">{claimResult.passengerRole?.replaceAll('_', ' ')} discount</span>
+                    <span className="font-semibold text-emerald-400">-{formatCurrency(claimResult.discountAmount)}</span>
+                  </div>
+                </>
+              )}
+
               {/* Route */}
               <div className="flex justify-between text-sm">
                 <span className="text-white/40">Route</span>

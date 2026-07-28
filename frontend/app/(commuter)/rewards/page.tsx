@@ -45,6 +45,7 @@ export default function RewardsPage() {
 
   // "How rewards work" explainer, opened from the ? on the progress card.
   const [showRewardsHelp, setShowRewardsHelp] = useState(false);
+  const [voucherCopied, setVoucherCopied] = useState(false);
 
   // Stable identity: an inline arrow here would be a new function on every
   // render, which the scan modal would otherwise see as a changed prop.
@@ -128,8 +129,8 @@ export default function RewardsPage() {
             )}
           </div>
 
-          <div className="space-y-3">
-            {announcements.slice(0, 3).map((item) => {
+          <div className="space-y-3 max-h-80 overflow-y-auto pr-1 modal-scroll">
+            {announcements.map((item) => {
               const config = announcementConfig[item.type];
               return (
                 <div
@@ -153,6 +154,11 @@ export default function RewardsPage() {
                 </div>
               );
             })}
+            {announcements.length === 0 && (
+              <div className="rounded-xl border border-dashed border-white/10 py-8 text-center text-xs text-white/30">
+                No announcements right now.
+              </div>
+            )}
           </div>
         </div>
 
@@ -347,17 +353,28 @@ export default function RewardsPage() {
           <div className="bg-[#071A2E] w-full max-w-sm rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="p-6 text-center border-b border-white/10">
               <h2 className="text-white font-bold text-xl">Voucher Activated!</h2>
-              <p className="text-white/40 text-xs mt-1">Show this screen to the conductor</p>
+              <p className="text-white/40 text-xs mt-1">No scan is required—the conductor enters this code.</p>
             </div>
             <div className="p-8 flex flex-col items-center justify-center flex-1 bg-[#050F1A]">
-              <div className="w-40 h-40 bg-white rounded-xl flex items-center justify-center shadow-lg mb-4">
-                <div className="grid grid-cols-5 gap-1 w-24 h-24">
-                  {Array.from({length: 25}).map((_, i) => (
-                    <div key={i} className={`w-full h-full rounded-sm ${Math.random() > 0.3 ? 'bg-black' : 'bg-white'}`}></div>
-                  ))}
-                </div>
+              <div className="w-full rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-5 text-center">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300/60">Free ride code</p>
+                <p className="text-emerald-300 font-extrabold text-2xl tracking-[0.18em] mt-2 break-all">{activeVoucher}</p>
               </div>
-              <p className="text-emerald-400 font-extrabold text-lg tracking-widest mt-2">{activeVoucher}</p>
+              <ol className="mt-5 space-y-2 self-stretch text-left text-xs text-white/50">
+                <li><span className="mr-2 text-emerald-400">1.</span>Tell the conductor you are using a free ride voucher.</li>
+                <li><span className="mr-2 text-emerald-400">2.</span>Show this code so they can enter it in Fare Payment.</li>
+                <li><span className="mr-2 text-emerald-400">3.</span>The voucher becomes used when the free fare is recorded.</li>
+              </ol>
+              <button
+                onClick={() => {
+                  void navigator.clipboard.writeText(activeVoucher);
+                  setVoucherCopied(true);
+                  setTimeout(() => setVoucherCopied(false), 1600);
+                }}
+                className="mt-5 w-full rounded-xl border border-emerald-500/20 bg-emerald-500/10 py-2.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/15"
+              >
+                {voucherCopied ? 'Code copied' : 'Copy code'}
+              </button>
             </div>
             <div className="p-4 border-t border-white/10">
               <button onClick={() => setShowVoucherModal(false)} className="w-full bg-white/5 hover:bg-white/10 text-white/70 text-sm font-semibold py-3 rounded-xl border border-white/10 transition-colors">Close</button>

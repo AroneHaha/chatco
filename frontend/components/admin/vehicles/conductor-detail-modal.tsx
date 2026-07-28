@@ -16,7 +16,6 @@ import {
   AtSign,
   KeyRound,
   Ban,
-  AlertTriangle,
   Loader2,
 } from 'lucide-react';
 import type { Personnel } from '@/app/(admin)/vehicles/data/vehicles-data';
@@ -187,7 +186,7 @@ export function ConductorDetailModal({ conductor, onClose }: ConductorDetailModa
     ?? `https://placehold.co/150x150/0A1E33/F59E0B?text=${conductor.name.charAt(0)}`;
 
   return (
-    <Modal isOpen={!!conductor} onClose={onClose} maxWidth="max-w-4xl">
+    <Modal isOpen={!!conductor} onClose={onClose} maxWidth="max-w-5xl">
       {/* ─── Header (full width) ─── */}
       <div className="flex items-start gap-4 mb-5">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -388,7 +387,7 @@ export function ConductorDetailModal({ conductor, onClose }: ConductorDetailModa
                 <p className="text-xs text-slate-600 italic">No shift history yet.</p>
               </div>
             ) : (
-              <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-[min(56vh,520px)] overflow-y-auto pr-2 scrollbar-themed rounded-lg">
                 {details.shift_logs.map((log) => (
                   <div key={log.shift_id} className="p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
                     <div className="flex items-center justify-between mb-1">

@@ -1,7 +1,7 @@
 // components/admin/vehicles/personnel-table.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { DataTable } from "@/components/admin/ui/data-table";
 import { GlassCard } from "@/components/admin/ui/glass-card";
 import { Edit, Trash, ChevronLeft, ChevronRight } from "lucide-react";
@@ -33,18 +33,33 @@ export function PersonnelTable({ personnel, searchQuery, onEdit, onDelete }: Per
       p.role.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / ITEMS_PER_PAGE));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
   const currentData = filteredData.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
+    (safeCurrentPage - 1) * ITEMS_PER_PAGE,
+    safeCurrentPage * ITEMS_PER_PAGE
   );
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery]);
-
   const columns = [
-    { key: "name", label: "Name" },
+    {
+      key: "name",
+      label: "Personnel",
+      render: (value: string, row: Personnel) => (
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold border flex-shrink-0 ${
+            row.role === "Driver"
+              ? "bg-[#62A0EA]/10 border-[#62A0EA]/25 text-[#62A0EA]"
+              : "bg-amber-400/10 border-amber-400/25 text-amber-400"
+          }`}>
+            {value.split(" ").map(part => part[0]).join("").slice(0, 2)}
+          </div>
+          <div className="min-w-0">
+            <p className="truncate font-medium text-white">{value}</p>
+            <p className="text-[10px] text-slate-600 font-mono">ID {row.id}</p>
+          </div>
+        </div>
+      ),
+    },
     {
       key: "role",
       label: "Role",
@@ -71,13 +86,19 @@ export function PersonnelTable({ personnel, searchQuery, onEdit, onDelete }: Per
       render: (_: unknown, row: Personnel) => (
         <div className="flex items-center justify-center gap-2">
           <button
-            onClick={() => onEdit(row)}
+            onClick={(event) => { event.stopPropagation(); onEdit(row); }}
+            onDoubleClick={(event) => event.stopPropagation()}
+            aria-label={`Edit ${row.name}`}
+            title="Edit personnel"
             className="p-1.5 text-slate-400 hover:text-[#62A0EA] hover:bg-[#62A0EA]/10 rounded-md transition-colors"
           >
             <Edit size={16} />
           </button>
           <button
-            onClick={() => onDelete(row)}
+            onClick={(event) => { event.stopPropagation(); onDelete(row); }}
+            onDoubleClick={(event) => event.stopPropagation()}
+            aria-label={`Remove ${row.name}`}
+            title="Remove personnel"
             className="p-1.5 text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
           >
             <Trash size={16} />
@@ -91,9 +112,10 @@ export function PersonnelTable({ personnel, searchQuery, onEdit, onDelete }: Per
     <>
       <GlassCard className="p-4 sm:p-6 flex flex-col gap-4">
         {/* Double-click hint */}
-        <div className="flex items-center justify-end">
-          <p className="text-[10px] text-slate-600 italic">
-            Double-click a row to view full profile
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs font-semibold text-white">Chatco Personnel</p>
+          <p className="text-[10px] text-slate-500">
+            Double-click any row for profile and assignment history
           </p>
         </div>
 
@@ -103,11 +125,14 @@ export function PersonnelTable({ personnel, searchQuery, onEdit, onDelete }: Per
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
-              <DataTable
+            <DataTable
                 data={currentData}
                 columns={columns}
-                searchQuery={searchQuery}
+                searchQuery=""
+                maxHeight="58vh"
+                stickyHeader
+                allowHorizontalScroll={false}
+                tableClassName="table-fixed"
                 onRowDoubleClick={(item) => {
                   const p = item as Personnel;
                   if (p.role === "Driver") {
@@ -117,14 +142,13 @@ export function PersonnelTable({ personnel, searchQuery, onEdit, onDelete }: Per
                   }
                 }}
               />
-            </div>
 
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-[#1E2D45]">
               <p className="text-xs text-slate-500 order-2 sm:order-1">
                 Showing{" "}
                 <span className="text-slate-300 font-medium">
-                  {(currentPage - 1) * ITEMS_PER_PAGE + 1} to{" "}
-                  {Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)}
+                  {filteredData.length ? (safeCurrentPage - 1) * ITEMS_PER_PAGE + 1 : 0} to{" "}
+                  {Math.min(safeCurrentPage * ITEMS_PER_PAGE, filteredData.length)}
                 </span>{" "}
                 of{" "}
                 <span className="text-slate-300 font-medium">
@@ -136,7 +160,7 @@ export function PersonnelTable({ personnel, searchQuery, onEdit, onDelete }: Per
               <div className="flex items-center gap-2 order-1 sm:order-2">
                 <button
                   onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                  disabled={currentPage === 1}
+                  disabled={safeCurrentPage === 1}
                   className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-slate-400 bg-[#0E1628] border border-[#1E2D45] rounded-md hover:bg-[#1A2540] hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed active:scale-[0.98]"
                 >
                   <ChevronLeft size={16} />
@@ -149,7 +173,7 @@ export function PersonnelTable({ personnel, searchQuery, onEdit, onDelete }: Per
                       key={page}
                       onClick={() => setCurrentPage(page)}
                       className={`w-9 h-9 rounded-md text-sm font-medium transition-colors ${
-                        currentPage === page
+                        safeCurrentPage === page
                           ? "bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/30"
                           : "text-slate-400 hover:bg-[#1A2540] hover:text-white"
                       }`}
@@ -160,14 +184,14 @@ export function PersonnelTable({ personnel, searchQuery, onEdit, onDelete }: Per
                 </div>
 
                 <span className="sm:hidden text-xs text-slate-500 font-medium px-2">
-                  {currentPage} / {totalPages}
+                  {safeCurrentPage} / {totalPages}
                 </span>
 
                 <button
                   onClick={() =>
                     setCurrentPage((prev) => Math.min(prev + 1, totalPages))
                   }
-                  disabled={currentPage === totalPages}
+                  disabled={safeCurrentPage === totalPages}
                   className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-slate-400 bg-[#0E1628] border border-[#1E2D45] rounded-md hover:bg-[#1A2540] hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed active:scale-[0.98]"
                 >
                   Next

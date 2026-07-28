@@ -67,6 +67,22 @@ class User extends Authenticatable
         return $this->hasOne(CommuterProfile::class, 'id', 'id');
     }
 
+    public function suspensions()
+    {
+        return $this->hasMany(UserSuspension::class);
+    }
+
+    public function activeSuspension()
+    {
+        return $this->hasOne(UserSuspension::class)
+            ->whereNull('lifted_at')
+            ->where(function ($query) {
+                $query->where('is_permanent', true)
+                    ->orWhere('ends_at', '>', now());
+            })
+            ->latestOfMany('starts_at');
+    }
+
     // Helper Methods
 
     public function hasRole(UserRole $role): bool

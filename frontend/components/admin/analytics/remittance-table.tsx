@@ -99,7 +99,7 @@ export function RemittanceTable({ data }: RemittanceTableProps) {
             <thead className="sticky top-0 bg-[#131C2E] z-10">
               <tr className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold border-b border-[#1E2D45]">
                 <th className="pb-3 pr-2 font-medium">Shift ID</th>
-                <th className="pb-3 pr-2 font-medium">{selectedConductor ? "Vehicle Plate" : "Conductor"}</th>
+                <th className="pb-3 pr-2 font-medium">{selectedConductor ? "Unit Number" : "Conductor"}</th>
                 <th className="pb-3 pr-2 font-medium hidden md:table-cell">Date</th>
                 <th className="pb-3 pr-2 font-medium text-right">Cash</th>
                 <th className="pb-3 pr-2 font-medium text-right">GCash</th>

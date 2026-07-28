@@ -1,7 +1,7 @@
 // components/admin/remittance/remittance-table.tsx
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -18,33 +18,28 @@ const fmtPHP = (n: number) =>
 
 interface RemittanceTableProps {
   searchQuery: string;
-  startDate: string;
-  endDate: string;
+  selectedDate: string;
   statusFilter: RemittanceStatus | 'All';
 }
 
 const ROWS_PER_PAGE = 10;
 
-export function RemittanceTable({ searchQuery, startDate, endDate, statusFilter }: RemittanceTableProps) {
+export function RemittanceTable({ searchQuery, selectedDate, statusFilter }: RemittanceTableProps) {
   const { records, isLoading, error, refresh } = useRemittanceData();
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedRecord, setSelectedRecord] = useState<RemittanceRow | null>(null);
+  const [conductorFilter, setConductorFilter] = useState('');
+  const [driverFilter, setDriverFilter] = useState('');
 
   const handleRowClick = useCallback((item: RemittanceRow) => {
     setSelectedRecord(item);
   }, []);
 
-  // Reset to the first page whenever the filters change, so pagination never
-  // lands on an out-of-range (blank) page after the result set shrinks.
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, startDate, endDate, statusFilter]);
-
   // Column definitions now reference canonical RemittanceRecord field names
   const columns = [
     { key: 'shiftId', label: 'Shift ID' },
     { key: 'conductorName', label: 'Conductor' },
-    { key: 'unitNumber', label: 'Vehicle Plate' },
+    { key: 'unitNumber', label: 'Unit Number' },
     { key: 'date', label: 'Date' },
     {
       key: '_totalAmount' as const,
@@ -72,20 +67,36 @@ export function RemittanceTable({ searchQuery, startDate, endDate, statusFilter 
       const q = searchQuery.toLowerCase();
       const matchesSearch =
         item.conductorName.toLowerCase().includes(q) ||
+        item.driverName.toLowerCase().includes(q) ||
         item.shiftId.toLowerCase().includes(q);
 
-      // Date range filter
-      const itemDate = new Date(item.date);
-      const matchesStart = !startDate || itemDate >= new Date(startDate);
-      const matchesEnd = !endDate || itemDate <= new Date(endDate);
+      const matchesDate = !selectedDate || item.date === selectedDate;
+      const matchesConductor = !conductorFilter || item.conductorName === conductorFilter;
+      const matchesDriver = !driverFilter || item.driverName === driverFilter;
 
-      return matchesStatus && matchesSearch && matchesStart && matchesEnd;
+      return matchesStatus && matchesSearch && matchesDate && matchesConductor && matchesDriver;
     });
-  }, [records, searchQuery, startDate, endDate, statusFilter]);
+  }, [records, searchQuery, selectedDate, statusFilter, conductorFilter, driverFilter]);
+
+  const conductorOptions = useMemo(
+    () => [...new Set(records.map((record) => record.conductorName).filter((name) => name && name !== '—'))].sort(),
+    [records],
+  );
+  const driverOptions = useMemo(
+    () => [...new Set(records.map((record) => record.driverName).filter((name) => name && name !== '—'))].sort(),
+    [records],
+  );
+
+  const filterKey = `${searchQuery}|${selectedDate}|${statusFilter}|${conductorFilter}|${driverFilter}`;
+  const [previousFilterKey, setPreviousFilterKey] = useState(filterKey);
+  if (filterKey !== previousFilterKey) {
+    setPreviousFilterKey(filterKey);
+    setCurrentPage(1);
+  }
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filteredData.length / ROWS_PER_PAGE));
-  const safeCurrentPage = currentPage > totalPages ? 1 : currentPage;
+  const safeCurrentPage = Math.min(currentPage, totalPages);
 
   const paginatedData = useMemo(() => {
     const startIndex = (safeCurrentPage - 1) * ROWS_PER_PAGE;
@@ -125,6 +136,30 @@ export function RemittanceTable({ searchQuery, startDate, endDate, statusFilter 
 
   return (
     <div>
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <label className="space-y-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Conductor</span>
+          <select
+            value={conductorFilter}
+            onChange={(event) => setConductorFilter(event.target.value)}
+            className="w-full rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white [color-scheme:dark]"
+          >
+            <option value="">All conductors</option>
+            {conductorOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+          </select>
+        </label>
+        <label className="space-y-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Driver</span>
+          <select
+            value={driverFilter}
+            onChange={(event) => setDriverFilter(event.target.value)}
+            className="w-full rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white [color-scheme:dark]"
+          >
+            <option value="">All drivers</option>
+            {driverOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+          </select>
+        </label>
+      </div>
       {/* Click hint */}
       <p className="text-xs text-slate-600 mb-3 flex items-center gap-1.5">
         <span className="px-1.5 py-0.5 bg-[#0E1628] rounded text-[10px] text-slate-500 border border-[#1E2D45] font-mono">click</span>

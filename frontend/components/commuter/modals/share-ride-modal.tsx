@@ -20,14 +20,12 @@ export default function ShareRideModal({ commuterName, lat: propLat, lng: propLn
   const [isCopied, setIsCopied] = useState(false);
   const [isExpired, setIsExpired] = useState(false);
   const [gpsStatus, setGpsStatus] = useState<"idle" | "requesting" | "success" | "error">("idle");
+  const [isStopping, setIsStopping] = useState(false);
+  const [isStopped, setIsStopped] = useState(false);
 
   // Track the share token + current position so we can push updates.
   const tokenRef = useRef<string | null>(null);
   const watchIdRef = useRef<number | null>(null);
-  // Rotate the token only on the FIRST create of this modal instance. Guards
-  // against React StrictMode's double-invoke (dev) minting two links — the
-  // second call falls through to the safe reuse path instead of rotating.
-  const hasRotatedRef = useRef(false);
 
   // ── Get current GPS position ──
   const getCurrentPosition = (): Promise<{ lat: number; lng: number }> => {
@@ -86,18 +84,13 @@ export default function ShareRideModal({ commuterName, lat: propLat, lng: propLn
           setGpsStatus("success");
         }
 
-        // Rotate on the first create of this modal open (mints a fresh, unique
-        // token and kills any earlier link); a StrictMode-repeated call reuses.
-        const shouldRotate = !hasRotatedRef.current;
-        hasRotatedRef.current = true;
-
         const res = await fetch("/api/commuter/share-ride", {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
           body: JSON.stringify({
             lat: initLat ?? undefined,
             lng: initLng ?? undefined,
-            rotate: shouldRotate,
+            rotate: false,
           }),
         });
 
@@ -188,17 +181,23 @@ export default function ShareRideModal({ commuterName, lat: propLat, lng: propLn
   }, [shareUrl]);
 
   const handleStopSharing = useCallback(async () => {
+    if (isStopping) return;
+    setIsStopping(true);
     if (watchIdRef.current != null && navigator.geolocation) {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
     }
     try {
-      await fetch("/api/commuter/share-ride", { method: "DELETE" });
+      const response = await fetch("/api/commuter/share-ride", { method: "DELETE" });
+      if (!response.ok) throw new Error("Unable to stop sharing.");
+      setIsStopped(true);
+      setTimeout(onClose, 1200);
     } catch {
-      // Best-effort
+      setError("Unable to stop location sharing. Please try again.");
+    } finally {
+      setIsStopping(false);
     }
-    onClose();
-  }, [onClose]);
+  }, [isStopping, onClose]);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -225,6 +224,14 @@ export default function ShareRideModal({ commuterName, lat: propLat, lng: propLn
             <div className="flex flex-col items-center justify-center py-12 gap-3">
               <Loader2 className="w-8 h-8 text-[#1A5FB4] animate-spin" />
               <p className="text-sm text-gray-500">Getting your GPS position…</p>
+            </div>
+          ) : isStopped ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-600">
+                <svg className="h-9 w-9" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+              </div>
+              <h3 className="text-lg font-bold text-[#071A2E]">Location sharing stopped</h3>
+              <p className="text-sm text-gray-500">The tracking link is no longer active.</p>
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center py-8 gap-3">
@@ -309,9 +316,10 @@ export default function ShareRideModal({ commuterName, lat: propLat, lng: propLn
                 {!isExpired && (
                   <button
                     onClick={handleStopSharing}
-                    className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
+                    disabled={isStopping}
+                    className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold border border-red-200 text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
                   >
-                    Stop Sharing
+                    {isStopping ? "Stopping…" : "Stop Sharing"}
                   </button>
                 )}
                 <button

@@ -1,6 +1,7 @@
 "use client";
 
 import { ConductorStatus } from "./use-dashboard-state";
+import { formatPeso } from "@/lib/utils/display";
 
 interface MobileDashboardCardProps {
   unitNumber: string;
@@ -95,20 +96,20 @@ export function MobileDashboardCard({
           <div className="bg-[#1A5FB4]/10 border border-[#1A5FB4]/20 rounded-xl p-3">
             <div className="flex items-center justify-between mb-2">
               <p className="text-[9px] font-semibold text-[#62A0EA]/60 uppercase tracking-wider">Total Collected</p>
-              <p className="text-xl font-extrabold text-[#62A0EA]">₱{total.toFixed(2)}</p>
+              <p className="text-xl font-extrabold text-[#62A0EA]">{formatPeso(total)}</p>
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div className="bg-white/5 rounded-lg p-2 border border-white/5">
                 <p className="text-[8px] font-semibold text-blue-400/60 uppercase tracking-wider">GCash</p>
-                <p className="text-sm font-extrabold text-blue-400">₱{gcash.toFixed(2)}</p>
+                <p className="text-sm font-extrabold text-blue-400">{formatPeso(gcash)}</p>
               </div>
               <div className="bg-white/5 rounded-lg p-2 border border-white/5">
                 <p className="text-[8px] font-semibold text-emerald-400/60 uppercase tracking-wider">Cash</p>
-                <p className="text-sm font-extrabold text-emerald-400">₱{cash.toFixed(2)}</p>
+                <p className="text-sm font-extrabold text-emerald-400">{formatPeso(cash)}</p>
               </div>
               <div className="bg-white/5 rounded-lg p-2 border border-white/5">
                 <p className="text-[8px] font-semibold text-amber-400/60 uppercase tracking-wider">Voucher</p>
-                <p className="text-sm font-extrabold text-amber-400">₱{voucher.toFixed(2)}</p>
+                <p className="text-sm font-extrabold text-amber-400">{formatPeso(voucher)}</p>
               </div>
             </div>
           </div>

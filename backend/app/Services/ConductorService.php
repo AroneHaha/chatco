@@ -22,7 +22,9 @@ class ConductorService
      */
     public function listRemittances(User $conductor, int $perPage = 15): LengthAwarePaginator
     {
-        return Remittance::where('conductor_id', $conductor->id)
+        $conductorId = $conductor->conductorProfile?->id ?? $conductor->id;
+
+        return Remittance::where('conductor_id', $conductorId)
             ->with([
                 'shift:id,shift_id,conductor_id,driver_id,vehicle_id,route_id,time_in,time_out,status',
                 'vehicle:id,unit_number,plate_number,route_id',

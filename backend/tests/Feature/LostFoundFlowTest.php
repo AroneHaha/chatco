@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\LostItem;
 use App\Models\Claim;
+use App\Models\LostItem;
 use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -48,8 +48,11 @@ class LostFoundFlowTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private User $commuter;
+
     private User $otherCommuter;
+
     private Vehicle $vehicle;
 
     protected function setUp(): void
@@ -82,12 +85,13 @@ class LostFoundFlowTest extends TestCase
     {
         $this->admin();
         $response = $this->postJson('/api/v1/admin/lost-items', [
-            'item_name'   => 'Blue Backpack',
+            'item_name' => 'Blue Backpack',
             'description' => 'Navy blue Jansport backpack left near back row',
-            'category'    => 'BAG',
-            'vehicle_id'  => $this->vehicle->id,
+            'category' => 'BAG',
+            'vehicle_id' => $this->vehicle->id,
         ]);
         $response->assertStatus(201);
+
         return LostItem::where('item_name', 'Blue Backpack')->first();
     }
 
@@ -97,9 +101,9 @@ class LostFoundFlowTest extends TestCase
     {
         $this->admin();
         $response = $this->postJson('/api/v1/admin/lost-items', [
-            'item_name'   => 'Phone',
+            'item_name' => 'Phone',
             'description' => 'Black Samsung phone',
-            'category'    => 'ELECTRONICS',
+            'category' => 'ELECTRONICS',
         ]);
 
         $response->assertStatus(201)
@@ -109,7 +113,7 @@ class LostFoundFlowTest extends TestCase
 
         $this->assertDatabaseHas('lost_items', [
             'item_name' => 'Phone',
-            'status'    => 'AVAILABLE',
+            'status' => 'AVAILABLE',
         ]);
     }
 
@@ -117,7 +121,7 @@ class LostFoundFlowTest extends TestCase
     {
         $this->commuter();
         $response = $this->postJson('/api/v1/admin/lost-items', [
-            'item_name'   => 'Phone',
+            'item_name' => 'Phone',
             'description' => 'Black Samsung phone',
         ]);
 
@@ -213,14 +217,14 @@ class LostFoundFlowTest extends TestCase
             ->assertJsonPath('data.status', 'PENDING');
 
         $this->assertDatabaseHas('claims', [
-            'item_id'    => $item->id,
-            'status'     => 'PENDING',
-            'proof'      => 'Has my student ID in the front pocket',
+            'item_id' => $item->id,
+            'status' => 'PENDING',
+            'proof' => 'Has my student ID in the front pocket',
         ]);
 
         // Item status flips to CLAIMED
         $this->assertDatabaseHas('lost_items', [
-            'id'     => $item->id,
+            'id' => $item->id,
             'status' => 'CLAIMED',
         ]);
     }
@@ -322,6 +326,30 @@ class LostFoundFlowTest extends TestCase
         $this->assertEquals(2, Claim::where('item_id', $item->id)->count());
     }
 
+    public function test_admin_can_record_a_walk_in_claimant_without_an_account(): void
+    {
+        $item = $this->createItem();
+        $this->admin();
+
+        $this->postJson("/api/v1/admin/lost-items/{$item->id}/claims/manual", [
+            'claimant_name' => 'Walk In Claimant',
+            'claimant_contact' => '+639171234567',
+            'claimant_email' => 'walkin@example.com',
+            'proof' => 'Presented a matching bag keychain and a government ID.',
+        ])->assertStatus(201)
+            ->assertJsonPath('data.claimant_name', 'Walk In Claimant')
+            ->assertJsonPath('data.claimant_id', null);
+
+        $this->assertDatabaseHas('claims', [
+            'item_id' => $item->id,
+            'claimant_id' => null,
+            'claimant_name' => 'Walk In Claimant',
+            'claimant_contact' => '+639171234567',
+            'claimant_email' => 'walkin@example.com',
+            'status' => 'PENDING',
+        ]);
+    }
+
     // ── Admin: approve / release / reject / close ──────────────
 
     public function test_admin_can_approve_claim(): void
@@ -339,8 +367,8 @@ class LostFoundFlowTest extends TestCase
 
         // Stage 1: approve → item APPROVED (not RELEASED yet)
         $this->assertDatabaseHas('lost_items', [
-            'id'          => $item->id,
-            'status'      => 'APPROVED',
+            'id' => $item->id,
+            'status' => 'APPROVED',
         ]);
         // released_to/released_at NOT set until release
         $this->assertNull(LostItem::find($item->id)->released_to);
@@ -363,8 +391,8 @@ class LostFoundFlowTest extends TestCase
             ->assertJsonPath('data.status', 'APPROVED');
 
         $this->assertDatabaseHas('lost_items', [
-            'id'          => $item->id,
-            'status'      => 'RELEASED',
+            'id' => $item->id,
+            'status' => 'RELEASED',
             'released_to' => $this->commuter->commuterProfile->id,
         ]);
         $this->assertNotNull(LostItem::find($item->id)->released_at);
@@ -440,7 +468,7 @@ class LostFoundFlowTest extends TestCase
 
         // Item reverts to AVAILABLE (no pending claims remain)
         $this->assertDatabaseHas('lost_items', [
-            'id'     => $item->id,
+            'id' => $item->id,
             'status' => 'AVAILABLE',
         ]);
     }
@@ -465,7 +493,7 @@ class LostFoundFlowTest extends TestCase
 
         // Item reverts to AVAILABLE (no pending claims remain)
         $this->assertDatabaseHas('lost_items', [
-            'id'     => $item->id,
+            'id' => $item->id,
             'status' => 'AVAILABLE',
         ]);
     }
@@ -594,8 +622,8 @@ class LostFoundFlowTest extends TestCase
             ->assertJsonPath('success', true);
 
         $this->assertDatabaseHas('lost_item_watchlists', [
-            'item_id'      => $item->id,
-            'commuter_id'  => $this->commuter->commuterProfile->id,
+            'item_id' => $item->id,
+            'commuter_id' => $this->commuter->commuterProfile->id,
         ]);
     }
 
@@ -784,6 +812,7 @@ class LostFoundFlowTest extends TestCase
         if (str_starts_with($path, '/storage/')) {
             $path = substr($path, strlen('/storage/'));
         }
+
         return $path;
     }
 }

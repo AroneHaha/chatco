@@ -10,6 +10,7 @@ import {
   systemNav,
 } from '@/config/admin-nav';
 import { useSettingsDrawer } from '@/components/admin/ui/settings-drawer';
+import { NotificationBell } from '@/components/admin/layout/notification-bell';
 
 interface AdminSidebarProps {
   onSignOut: () => void;
@@ -20,14 +21,17 @@ export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
   const { isSettingsOpen, openSettingsDrawer } = useSettingsDrawer();
 
   return (
-    <nav className="w-64 bg-[#0D1424] border-r border-[#1E2D45] flex flex-col">
+    <nav className="relative z-40 w-64 bg-[#0D1424] border-r border-[#1E2D45] flex flex-col">
       {/* Logo */}
-      <div className="p-5 flex items-center gap-3">
-        <Image src="/logo-transparent.png" alt="CHATCO" width={36} height={36} className="flex-shrink-0" />
-        <div>
-          <h2 className="text-base font-bold text-white leading-tight">CHATCO</h2>
-          <p className="text-[10px] text-slate-500 uppercase tracking-wider">Admin Panel</p>
+      <div className="p-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <Image src="/logo-transparent.png" alt="CHATCO" width={36} height={36} className="flex-shrink-0" />
+          <div className="min-w-0">
+            <h2 className="text-base font-bold text-white leading-tight">CHATCO</h2>
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider">Admin Panel</p>
+          </div>
         </div>
+        <NotificationBell />
       </div>
 
       {/* Nav Links — grouped */}

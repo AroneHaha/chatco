@@ -215,7 +215,7 @@ export function NotificationBell() {
           edge, so a hard 320px panel ran off-screen on narrow phones — the
           width is clamped to what's available and grows back at sm. */}
       {isOpen && (
-        <div className="absolute right-0 top-12 w-[calc(100vw-1.5rem)] max-w-[20rem] sm:w-96 sm:max-w-none bg-[#0D1424] border border-white/10 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden z-50">
+        <div className="absolute right-0 top-12 w-[calc(100vw-1.5rem)] max-w-[20rem] sm:w-96 sm:max-w-none md:left-full md:right-auto md:top-0 md:ml-3 bg-[#0D1424] border border-white/10 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden z-50">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
             <div className="flex items-center gap-2">
