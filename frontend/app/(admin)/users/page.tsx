@@ -1,7 +1,7 @@
 // app/(admin)/users/page.tsx
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { UsersTable } from '@/components/admin/users/users-table';
 import { RegistrationRequestsTable } from '@/components/admin/users/registration-requests-table';
 import { ReviewRequestModal } from '@/components/admin/users/review-request-modal';
@@ -17,8 +17,11 @@ import type { ActiveUser, PendingRequest, RejectedUser } from './data/users-data
 import type { UpdateUserInput } from '@/lib/admin/services/user.service';
 import { SkeletonTable } from '@/components/admin/ui/skeleton';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
+import { SuspensionModal } from '@/components/admin/users/suspension-modal';
+import type { SuspendUserInput } from '@/lib/admin/services/user.service';
 
 export default function UsersPage() {
+  const [activeTab, setActiveTab] = useState<'active' | 'pending' | 'rejected'>('active');
   const {
     activeUsers,
     pendingRequests,
@@ -26,22 +29,31 @@ export default function UsersPage() {
     historyLogs,
     fetchUserActivity,
     pagination,
+    pendingPagination,
+    rejectedPagination,
     isLoading,
     error,
     filters,
     setFilters,
+    pendingType,
+    setPendingType,
+    setPendingPage,
+    setRejectedPage,
     refetch,
     updateUserApi,
     deleteUserApi,
     approveRegistrationApi,
     rejectRegistrationApi,
-  } = useUsersData();
+    suspendUserApi,
+    unsuspendUserApi,
+  } = useUsersData(activeTab);
 
-  const [activeTab, setActiveTab] = useState<'active' | 'pending' | 'rejected'>('active');
   const [searchQuery, setSearchQuery] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [rejectedPage, setRejectedPage] = useState(1);
+  const [isReviewProcessing, setIsReviewProcessing] = useState(false);
+  const [suspensionUser, setSuspensionUser] = useState<ActiveUser | null>(null);
+  const [isSuspensionProcessing, setIsSuspensionProcessing] = useState(false);
 
   // Modal States
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
@@ -65,57 +77,11 @@ export default function UsersPage() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setFilters({ search: searchQuery });
-    }, 400);
+    }, 600);
     return () => clearTimeout(timer);
   }, [searchQuery, setFilters]);
 
-  const filteredRejectedUsers = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return rejectedUsers;
-    return rejectedUsers.filter(user =>
-      [user.name, user.email, user.phoneNumber, user.rejectionReason]
-        .some(value => value.toLowerCase().includes(query))
-    );
-  }, [rejectedUsers, searchQuery]);
-  const rejectedTotalPages = Math.max(1, Math.ceil(filteredRejectedUsers.length / 10));
-  const safeRejectedPage = Math.min(rejectedPage, rejectedTotalPages);
-  const visibleRejectedUsers = filteredRejectedUsers.slice((safeRejectedPage - 1) * 10, safeRejectedPage * 10);
-
   // ─── Loading State ───
-  if (isLoading && activeTab === 'active') {
-    return (
-      <>
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-          <h1 className="text-2xl font-bold text-white">Commuter Management</h1>
-        </div>
-        <div className="flex space-x-1 mb-6 border-b border-[#1E2D45]">
-          <div className="py-2 px-4"><span className="text-sm text-slate-500">Active Commuters</span></div>
-          <div className="py-2 px-4"><span className="text-sm text-slate-500">Pending Verification</span></div>
-          <div className="py-2 px-4"><span className="text-sm text-slate-500">Rejected</span></div>
-        </div>
-        <SkeletonTable rows={5} columns={5} />
-      </>
-    );
-  }
-
-  // ─── Error State ───
-  if (error && activeTab === 'active') {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 gap-4">
-        <AlertCircle size={40} className="text-red-400" />
-        <p className="text-slate-300 text-center">Failed to load commuter data.</p>
-        <p className="text-slate-500 text-sm text-center">{error}</p>
-        <button
-          onClick={refetch}
-          className="flex items-center gap-2 px-4 py-2 bg-[#62A0EA] text-white rounded-md hover:bg-[#4A8BD4] transition-colors"
-        >
-          <RefreshCw size={16} />
-          Retry
-        </button>
-      </div>
-    );
-  }
-
   // ─── Modal Handlers ───
   const handleOpenRegisterModal = () => setIsRegisterModalOpen(true);
   const handleCloseRegisterModal = () => setIsRegisterModalOpen(false);
@@ -195,16 +161,37 @@ export default function UsersPage() {
   };
 
   // Suspend / Reactivate — toggles account_status via the API.
-  const handleDeactivateUser = async (userId: string): Promise<void> => {
-    const user = activeUsers.find(u => u.id === userId);
-    if (!user) return;
-    const newStatus = user.status === 'Active' ? 'SUSPENDED' : 'ACTIVE';
+  const handleDeactivateUser = (user: ActiveUser): void => {
+    setSuspensionUser(user);
+  };
+
+  const handleSuspendUser = async (input: SuspendUserInput): Promise<void> => {
+    if (!suspensionUser) return;
     setActionError(null);
+    setIsSuspensionProcessing(true);
     try {
-      await updateUserApi(userId, { accountStatus: newStatus });
+      await suspendUserApi(suspensionUser.id, input);
+      setSuspensionUser(null);
+      setSuccessMessage('Account suspended and active sessions revoked.');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to update user status.';
-      setActionError(msg);
+      setActionError(err instanceof Error ? err.message : 'Failed to suspend account.');
+    } finally {
+      setIsSuspensionProcessing(false);
+    }
+  };
+
+  const handleUnsuspendUser = async (): Promise<void> => {
+    if (!suspensionUser) return;
+    setActionError(null);
+    setIsSuspensionProcessing(true);
+    try {
+      await unsuspendUserApi(suspensionUser.id);
+      setSuspensionUser(null);
+      setSuccessMessage('Account reactivated.');
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to reactivate account.');
+    } finally {
+      setIsSuspensionProcessing(false);
     }
   };
 
@@ -285,6 +272,7 @@ export default function UsersPage() {
     if (!selectedRequest) return;
     setActionError(null);
     setSuccessMessage(null);
+    setIsReviewProcessing(true);
     try {
       const msg = await approveRegistrationApi(selectedRequest.id);
       setSuccessMessage(msg);
@@ -293,6 +281,8 @@ export default function UsersPage() {
       setTimeout(() => setSuccessMessage(null), 5000);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Failed to approve registration.');
+    } finally {
+      setIsReviewProcessing(false);
     }
   };
 
@@ -300,6 +290,7 @@ export default function UsersPage() {
     if (!selectedRequest) return;
     setActionError(null);
     setSuccessMessage(null);
+    setIsReviewProcessing(true);
     try {
       const msg = await rejectRegistrationApi(selectedRequest.id, reason);
       setSuccessMessage(msg);
@@ -307,6 +298,8 @@ export default function UsersPage() {
       setTimeout(() => setSuccessMessage(null), 5000);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Failed to reject registration.');
+    } finally {
+      setIsReviewProcessing(false);
     }
   };
 
@@ -379,10 +372,22 @@ export default function UsersPage() {
             </>
           )}
           {activeTab === 'pending' && (
-            <button onClick={handleOpenRegisterModal} className="flex items-center justify-center space-x-2 px-4 py-2 bg-[#62A0EA] text-white font-medium rounded-md hover:bg-[#4A8BD4] transition-colors w-full sm:w-auto flex-shrink-0">
-              <Plus size={20} /><span>Register Onsite</span>
-            </button>
+            <select
+              value={pendingType}
+              onChange={(event) => setPendingType(event.target.value as typeof pendingType)}
+              aria-label="Filter pending registrations by commuter type"
+              className="px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm [color-scheme:dark]"
+            >
+              <option value="">All Types</option>
+              <option value="REGULAR">Regular</option>
+              <option value="STUDENT">Student</option>
+              <option value="SENIOR">Senior Citizen</option>
+              <option value="PWD">PWD</option>
+            </select>
           )}
+          <button onClick={handleOpenRegisterModal} className="flex items-center justify-center space-x-2 px-4 py-2 bg-[#62A0EA] text-white font-medium rounded-md hover:bg-[#4A8BD4] transition-colors w-full sm:w-auto flex-shrink-0">
+            <Plus size={20} /><span>Register Onsite</span>
+          </button>
         </div>
 
       {/* Action error banner */}
@@ -414,14 +419,27 @@ export default function UsersPage() {
           <UserCheck size={20} /><span>Active {activeRoleLabel} ({pagination?.total ?? activeUsers.length})</span>
         </button>
         <button onClick={() => setActiveTab('pending')} className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-md transition-colors ${activeTab === 'pending' ? 'text-white border-b-2 border-amber-400 bg-amber-400/10' : 'text-slate-400 hover:text-white hover:bg-[#1A2540]'}`}>
-          <Users size={20} /><span>Pending Verification ({pendingRequests.length})</span>
+          <Users size={20} /><span>Pending Verification ({pendingPagination?.total ?? '...'})</span>
         </button>
         <button onClick={() => setActiveTab('rejected')} className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-md transition-colors ${activeTab === 'rejected' ? 'text-white border-b-2 border-red-400 bg-red-400/10' : 'text-slate-400 hover:text-white hover:bg-[#1A2540]'}`}>
-          <XCircle size={20} /><span>Rejected ({rejectedUsers.length})</span>
+          <XCircle size={20} /><span>Rejected ({rejectedPagination?.total ?? '...'})</span>
         </button>
       </div>
 
       {/* Tab Content */}
+      {isLoading ? (
+        <SkeletonTable rows={6} columns={5} />
+      ) : error ? (
+        <div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-xl border border-red-400/20 bg-red-400/5 p-8">
+          <AlertCircle size={36} className="text-red-400" />
+          <p className="text-center font-medium text-slate-200">Unable to load this table.</p>
+          <p className="max-w-xl text-center text-sm text-slate-500">{error}</p>
+          <button onClick={refetch} className="flex items-center gap-2 rounded-md bg-[#62A0EA] px-4 py-2 text-sm font-medium text-white">
+            <RefreshCw size={16} /> Retry
+          </button>
+        </div>
+      ) : (
+        <>
       {activeTab === 'active' && (
         <>
           <UsersTable
@@ -466,12 +484,17 @@ export default function UsersPage() {
         </>
       )}
       {activeTab === 'pending' && (
-        <RegistrationRequestsTable requests={pendingRequests} onSelectRequest={handleOpenReviewModal} />
+        <RegistrationRequestsTable
+          requests={pendingRequests}
+          onSelectRequest={handleOpenReviewModal}
+          pagination={pendingPagination}
+          onPageChange={setPendingPage}
+        />
       )}
       {activeTab === 'rejected' && (
         <>
           <UsersTable
-            users={visibleRejectedUsers}
+            users={rejectedUsers}
             searchQuery=""
             onDeactivate={() => {}}
             onEdit={() => {}}
@@ -481,14 +504,16 @@ export default function UsersPage() {
             selectedUser={null}
             onSelectUser={() => {}}
           />
-          <div className="mt-4 flex items-center justify-between px-2 text-xs text-slate-500">
-            <span>Showing {filteredRejectedUsers.length ? (safeRejectedPage - 1) * 10 + 1 : 0}–{Math.min(safeRejectedPage * 10, filteredRejectedUsers.length)} of {filteredRejectedUsers.length}</span>
+          {rejectedPagination && <div className="mt-4 flex items-center justify-between px-2 text-xs text-slate-500">
+            <span>Showing {rejectedPagination.from ?? 0}-{rejectedPagination.to ?? 0} of {rejectedPagination.total}</span>
             <div className="flex items-center gap-2">
-              <button onClick={() => setRejectedPage(page => Math.max(1, page - 1))} disabled={safeRejectedPage === 1} className="rounded-md border border-[#1E2D45] px-3 py-1.5 disabled:opacity-30">Previous</button>
-              <span>{safeRejectedPage} / {rejectedTotalPages}</span>
-              <button onClick={() => setRejectedPage(page => Math.min(rejectedTotalPages, page + 1))} disabled={safeRejectedPage === rejectedTotalPages} className="rounded-md border border-[#1E2D45] px-3 py-1.5 disabled:opacity-30">Next</button>
+              <button onClick={() => setRejectedPage(rejectedPagination.currentPage - 1)} disabled={rejectedPagination.currentPage === 1} className="rounded-md border border-[#1E2D45] px-3 py-1.5 disabled:opacity-30">Previous</button>
+              <span>{rejectedPagination.currentPage} / {rejectedPagination.lastPage}</span>
+              <button onClick={() => setRejectedPage(rejectedPagination.currentPage + 1)} disabled={rejectedPagination.currentPage === rejectedPagination.lastPage} className="rounded-md border border-[#1E2D45] px-3 py-1.5 disabled:opacity-30">Next</button>
             </div>
-          </div>
+          </div>}
+        </>
+      )}
         </>
       )}
 
@@ -496,11 +521,13 @@ export default function UsersPage() {
       <AddRegistrationModal isOpen={isRegisterModalOpen} onClose={handleCloseRegisterModal} onSave={handleSaveRegistration} />
 
       <ReviewRequestModal
+        key={selectedRequest?.id ?? 'closed-review'}
         isOpen={isReviewModalOpen}
         onClose={handleCloseReviewModal}
         request={selectedRequest}
         onApprove={handleApproveRequest}
         onReject={handleRejectRequest}
+        isProcessing={isReviewProcessing}
       />
 
       <EditUserModal
@@ -523,6 +550,16 @@ export default function UsersPage() {
         isOpen={isFeedbackModalOpen}
         onClose={handleCloseFeedbackModal}
         staff={feedbackStaff}
+      />
+
+      <SuspensionModal
+        key={suspensionUser?.id ?? 'closed-suspension'}
+        user={suspensionUser}
+        isOpen={!!suspensionUser}
+        isProcessing={isSuspensionProcessing}
+        onClose={() => setSuspensionUser(null)}
+        onSuspend={handleSuspendUser}
+        onUnsuspend={handleUnsuspendUser}
       />
     </>
   );

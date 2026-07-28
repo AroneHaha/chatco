@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\RegistrationRejection;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -45,6 +46,21 @@ class RegistrationGuard
     public function rejectionCountFor(?string $email, ?string $contact): int
     {
         return $this->identityQuery($email, $contact)->count();
+    }
+
+    /**
+     * Complete rejection history for an applicant identity, newest first.
+     */
+    public function historyFor(?string $email, ?string $contact): Collection
+    {
+        return $this->identityQuery($email, $contact)
+            ->orderByDesc('created_at')
+            ->get([
+                'reason',
+                'attempt_number',
+                'blocked_until',
+                'created_at',
+            ]);
     }
 
     /**

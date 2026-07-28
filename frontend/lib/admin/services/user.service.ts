@@ -33,6 +33,27 @@ interface RawUser {
   contact_number: string | null;
   verified_at: string | null;
   created_at: string | null;
+  suspension: RawSuspension | null;
+}
+
+interface RawSuspension {
+  id: string;
+  reason_code: string;
+  reason: string;
+  starts_at: string;
+  ends_at: string | null;
+  is_permanent: boolean;
+  lifted_at: string | null;
+}
+
+export interface SuspensionDetails {
+  id: string;
+  reasonCode: string;
+  reason: string;
+  startsAt: string;
+  endsAt: string | null;
+  isPermanent: boolean;
+  liftedAt: string | null;
 }
 
 /**
@@ -80,6 +101,7 @@ export interface AdminUser {
   contactNumber: string | null;
   verifiedAt: string | null;
   createdAt: string | null;
+  suspension: SuspensionDetails | null;
 }
 
 /** Pagination metadata returned by the list endpoint. */
@@ -191,7 +213,23 @@ function mapUser(raw: RawUser): AdminUser {
     contactNumber: raw.contact_number,
     verifiedAt: raw.verified_at,
     createdAt: raw.created_at,
+    suspension: raw.suspension ? {
+      id: raw.suspension.id,
+      reasonCode: raw.suspension.reason_code,
+      reason: raw.suspension.reason,
+      startsAt: raw.suspension.starts_at,
+      endsAt: raw.suspension.ends_at,
+      isPermanent: raw.suspension.is_permanent,
+      liftedAt: raw.suspension.lifted_at,
+    } : null,
   };
+}
+
+export interface SuspendUserInput {
+  reasonCode: "POLICY_VIOLATION" | "FRAUD_SUSPECTED" | "SAFETY_CONCERN" | "ABUSIVE_BEHAVIOR" | "PAYMENT_ISSUE" | "OTHER";
+  reason: string;
+  isPermanent: boolean;
+  durationDays?: 1 | 3 | 7 | 14 | 30 | 90;
 }
 
 // ─── Service functions ──────────────────────────────────────────────
@@ -359,6 +397,36 @@ export async function remove(id: string): Promise<void> {
     }
     throw translateError(res.status, message);
   }
+}
+
+export async function suspend(id: string, input: SuspendUserInput): Promise<AdminUser> {
+  const res = await fetch(`${API_BASE}/${encodeURIComponent(id)}/suspend`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "include",
+    body: JSON.stringify({
+      reason_code: input.reasonCode,
+      reason: input.reason,
+      is_permanent: input.isPermanent,
+      duration_days: input.isPermanent ? null : input.durationDays,
+    }),
+  });
+
+  if (!res.ok) throw translateError(res.status, await safeMessage(res));
+  const json = await res.json();
+  return mapUser(json.data as RawUser);
+}
+
+export async function unsuspend(id: string): Promise<AdminUser> {
+  const res = await fetch(`${API_BASE}/${encodeURIComponent(id)}/unsuspend`, {
+    method: "POST",
+    headers: { Accept: "application/json" },
+    credentials: "include",
+  });
+
+  if (!res.ok) throw translateError(res.status, await safeMessage(res));
+  const json = await res.json();
+  return mapUser(json.data as RawUser);
 }
 
 // ─── Error helpers ──────────────────────────────────────────────────

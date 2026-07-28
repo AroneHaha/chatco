@@ -8,6 +8,7 @@ use App\Services\AdminService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 /**
  * Admin user management (S5-T3): list, view, update, soft-delete.
@@ -85,5 +86,46 @@ class AdminUserController extends Controller
         }
 
         return $this->successResponse(null, 'User deleted');
+    }
+
+    public function suspend(Request $request, string $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'reason_code' => ['required', Rule::in([
+                'POLICY_VIOLATION',
+                'FRAUD_SUSPECTED',
+                'SAFETY_CONCERN',
+                'ABUSIVE_BEHAVIOR',
+                'PAYMENT_ISSUE',
+                'OTHER',
+            ])],
+            'reason' => ['required', 'string', 'min:5', 'max:500'],
+            'is_permanent' => ['required', 'boolean'],
+            'duration_days' => [
+                Rule::requiredIf(! $request->boolean('is_permanent')),
+                'nullable',
+                'integer',
+                Rule::in([1, 3, 7, 14, 30, 90]),
+            ],
+        ]);
+
+        $user = $this->adminService->suspendUser($id, $validated, $request->user());
+
+        return $this->successResponse($user, 'Account suspended and active sessions revoked.');
+    }
+
+    public function unsuspend(Request $request, string $id): JsonResponse
+    {
+        $user = $this->adminService->unsuspendUser($id, $request->user());
+
+        return $this->successResponse($user, 'Account reactivated.');
+    }
+
+    public function suspensions(string $id): JsonResponse
+    {
+        return $this->successResponse(
+            $this->adminService->suspensionHistory($id),
+            'Suspension history retrieved'
+        );
     }
 }

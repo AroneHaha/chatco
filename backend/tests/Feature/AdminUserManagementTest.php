@@ -328,4 +328,78 @@ class AdminUserManagementTest extends TestCase
             ->deleteJson("/api/v1/admin/users/{$target->id}")
             ->assertStatus(403);
     }
+
+    public function test_suspend_records_reason_revokes_tokens_and_blocks_login(): void
+    {
+        [$admin, $headers] = $this->asAdmin();
+        $commuter = $this->makeCommuter('suspend-flow@gmail.com');
+        $this->tokenFor($commuter);
+
+        $this->withHeaders($headers)
+            ->postJson("/api/v1/admin/users/{$commuter->id}/suspend", [
+                'reason_code' => 'POLICY_VIOLATION',
+                'reason' => 'Repeated violation of the commuter conduct policy.',
+                'is_permanent' => false,
+                'duration_days' => 7,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.account_status', 'SUSPENDED')
+            ->assertJsonPath('data.suspension.reason_code', 'POLICY_VIOLATION')
+            ->assertJsonPath('data.suspension.is_permanent', false);
+
+        $this->assertDatabaseHas('user_suspensions', [
+            'user_id' => $commuter->id,
+            'reason_code' => 'POLICY_VIOLATION',
+            'is_permanent' => false,
+        ]);
+        $this->assertDatabaseMissing('personal_access_tokens', [
+            'tokenable_id' => $commuter->id,
+        ]);
+
+        $this->postJson('/api/v1/auth/login', [
+            'login' => 'suspend-flow@gmail.com',
+            'password' => 'password123',
+        ])->assertStatus(403)
+            ->assertJsonPath('message', fn (string $message) =>
+                str_contains($message, 'This account is suspended until')
+                && str_contains($message, 'Reason: Repeated violation of the commuter conduct policy.')
+            );
+
+        $this->travel(8)->days();
+
+        $this->postJson('/api/v1/auth/login', [
+            'login' => 'suspend-flow@gmail.com',
+            'password' => 'password123',
+        ])->assertOk();
+    }
+
+    public function test_unsuspend_lifts_history_and_allows_login_again(): void
+    {
+        [$admin, $headers] = $this->asAdmin();
+        $commuter = $this->makeCommuter('unsuspend-flow@gmail.com');
+
+        $this->withHeaders($headers)
+            ->postJson("/api/v1/admin/users/{$commuter->id}/suspend", [
+                'reason_code' => 'SAFETY_CONCERN',
+                'reason' => 'Temporary review required for a safety report.',
+                'is_permanent' => true,
+            ])
+            ->assertOk();
+
+        $this->withHeaders($headers)
+            ->postJson("/api/v1/admin/users/{$commuter->id}/unsuspend")
+            ->assertOk()
+            ->assertJsonPath('data.account_status', 'ACTIVE')
+            ->assertJsonPath('data.suspension', null);
+
+        $this->assertDatabaseMissing('user_suspensions', [
+            'user_id' => $commuter->id,
+            'lifted_at' => null,
+        ]);
+
+        $this->postJson('/api/v1/auth/login', [
+            'login' => 'unsuspend-flow@gmail.com',
+            'password' => 'password123',
+        ])->assertOk();
+    }
 }

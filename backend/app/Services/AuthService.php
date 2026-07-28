@@ -39,6 +39,7 @@ class AuthService
             'adminProfile',
             'conductorProfile',
             'commuterProfile',
+            'activeSuspension',
         ])
             ->where(function ($q) use ($login) {
                 $q->where('email', $login)
@@ -64,6 +65,17 @@ class AuthService
         //   PENDING    -> RegistrationPendingException  (awaiting approval)
         //   REJECTED   -> RegistrationPendingException  (admin declined)
         //   APPROVED/ACTIVE -> allowed to log in
+        if ($user->activeSuspension) {
+            $suspension = $user->activeSuspension;
+            $duration = $suspension->is_permanent
+                ? 'permanently'
+                : 'until ' . $suspension->ends_at?->timezone(config('app.timezone'))->format('M j, Y g:i A');
+
+            throw new AccountSuspendedException(
+                "This account is suspended {$duration}. Reason: {$suspension->reason}"
+            );
+        }
+
         if ($user->isCommuter()) {
             $status = $user->commuterProfile?->account_status;
 

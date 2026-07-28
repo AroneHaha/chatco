@@ -9,6 +9,7 @@ use App\Models\Remittance;
 use App\Models\ShiftLog;
 use App\Models\Setting;
 use App\Models\User;
+use App\Models\UserSuspension;
 use App\Models\Vehicle;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -531,13 +532,18 @@ class AdminService
         }
 
         if (! empty($filters['account_status'])) {
-            $query->whereHas('commuterProfile', function ($profileQuery) use ($filters) {
-                if ($filters['account_status'] === 'ACTIVE') {
-                    $profileQuery->whereIn('account_status', ['ACTIVE', 'APPROVED']);
-                } else {
-                    $profileQuery->where('account_status', $filters['account_status']);
-                }
-            });
+            if ($filters['account_status'] === 'SUSPENDED') {
+                $query->where(function (Builder $statusQuery) {
+                    $statusQuery->whereHas('activeSuspension')
+                        ->orWhereHas('commuterProfile', fn (Builder $profile) => $profile->where('account_status', 'SUSPENDED'));
+                });
+            } else {
+                $query->whereDoesntHave('activeSuspension')
+                    ->where(function (Builder $statusQuery) {
+                        $statusQuery->whereDoesntHave('commuterProfile')
+                            ->orWhereHas('commuterProfile', fn (Builder $profile) => $profile->whereIn('account_status', ['ACTIVE', 'APPROVED']));
+                    });
+            }
         }
 
         $sort = $filters['sort'] ?? 'recent';
@@ -655,6 +661,83 @@ class AdminService
         return true;
     }
 
+    public function suspendUser(string $id, array $data, User $actingAdmin): array
+    {
+        $user = User::with($this->profileEagerLoads())->find($id);
+
+        if (! $user) {
+            abort(404, 'User not found.');
+        }
+
+        if ($user->id === $actingAdmin->id) {
+            throw ValidationException::withMessages([
+                'user' => ['You cannot suspend your own account.'],
+            ]);
+        }
+
+        $endsAt = ! empty($data['is_permanent'])
+            ? null
+            : Carbon::now()->addDays((int) $data['duration_days']);
+
+        DB::transaction(function () use ($user, $data, $actingAdmin, $endsAt) {
+            UserSuspension::where('user_id', $user->id)
+                ->whereNull('lifted_at')
+                ->update([
+                    'lifted_at' => now(),
+                    'lifted_by' => $actingAdmin->id,
+                ]);
+
+            UserSuspension::create([
+                'user_id' => $user->id,
+                'reason_code' => $data['reason_code'],
+                'reason' => $data['reason'],
+                'starts_at' => now(),
+                'ends_at' => $endsAt,
+                'is_permanent' => (bool) ($data['is_permanent'] ?? false),
+                'suspended_by' => $actingAdmin->id,
+            ]);
+
+            $user->tokens()->delete();
+        });
+
+        return $this->present($user->fresh()->load($this->profileEagerLoads()));
+    }
+
+    public function unsuspendUser(string $id, User $actingAdmin): array
+    {
+        $user = User::with($this->profileEagerLoads())->find($id);
+
+        if (! $user) {
+            abort(404, 'User not found.');
+        }
+
+        DB::transaction(function () use ($user, $actingAdmin) {
+            UserSuspension::where('user_id', $user->id)
+                ->whereNull('lifted_at')
+                ->update([
+                    'lifted_at' => now(),
+                    'lifted_by' => $actingAdmin->id,
+                ]);
+
+            if ($user->isCommuter() && $user->commuterProfile?->account_status === 'SUSPENDED') {
+                $user->commuterProfile->update(['account_status' => 'ACTIVE']);
+            }
+        });
+
+        return $this->present($user->fresh()->load($this->profileEagerLoads()));
+    }
+
+    public function suspensionHistory(string $id): array
+    {
+        $user = User::findOrFail($id);
+
+        return $user->suspensions()
+            ->latest('starts_at')
+            ->get()
+            ->map(fn (UserSuspension $suspension) => $this->presentSuspension($suspension))
+            ->all();
+    }
+
     // ── Internals ────────────────────────────────────────────────
 
     private function profileEagerLoads(): array
@@ -663,6 +746,7 @@ class AdminService
             'adminProfile:id,first_name,middle_name,last_name',
             'conductorProfile:id,first_name,middle_name,last_name,generated_username',
             'commuterProfile:id,first_name,middle_name,surname,contact_number,commuter_type,account_status,verified_at,username',
+            'activeSuspension',
         ];
     }
 
@@ -709,16 +793,32 @@ class AdminService
     {
         $commuter = $user->commuterProfile;
 
+        $suspension = $user->activeSuspension;
+
         return [
             'id'             => $user->id,
             'email'          => $user->email,
             'role'           => $user->role->value,
             'name'           => $user->getDisplayName(),
-            'account_status' => $commuter?->account_status,
+            'account_status' => $suspension ? 'SUSPENDED' : $commuter?->account_status,
             'commuter_type'  => $commuter?->commuter_type,
             'contact_number' => $commuter?->contact_number,
             'verified_at'    => optional($commuter?->verified_at)->toIso8601String(),
             'created_at'     => optional($user->created_at)->toIso8601String(),
+            'suspension'     => $suspension ? $this->presentSuspension($suspension) : null,
+        ];
+    }
+
+    private function presentSuspension(UserSuspension $suspension): array
+    {
+        return [
+            'id' => $suspension->id,
+            'reason_code' => $suspension->reason_code,
+            'reason' => $suspension->reason,
+            'starts_at' => $suspension->starts_at?->toIso8601String(),
+            'ends_at' => $suspension->ends_at?->toIso8601String(),
+            'is_permanent' => $suspension->is_permanent,
+            'lifted_at' => $suspension->lifted_at?->toIso8601String(),
         ];
     }
 
@@ -738,17 +838,26 @@ class AdminService
      * valid ID (id_image_url), applied_type (the discount tier they requested),
      * and identifying fields so the admin can verify the ID matches the tier.
      */
-    public function listPendingRegistrations(int $perPage = 15): LengthAwarePaginator
+    public function listPendingRegistrations(array $filters = []): LengthAwarePaginator
     {
+        $perPage = max(1, min((int) ($filters['per_page'] ?? 15), 100));
+
         return User::where('role', UserRole::COMMUTER)
             ->whereHas('commuterProfile', function ($q) {
                 $q->where('account_status', 'PENDING');
+            })
+            ->when($filters['applied_type'] ?? null, function (Builder $query, string $type) {
+                $query->whereHas('commuterProfile', fn (Builder $profile) => $profile->where('applied_type', $type));
+            })
+            ->when($filters['search'] ?? null, function (Builder $query, string $search) {
+                $this->applySearch($query, trim($search));
             })
             ->with(['commuterProfile:id,first_name,middle_name,surname,birthdate,gender,email,contact_number,commuter_type,applied_type,account_status,id_image_url,verified_at,rejection_reason,username,language_preference'])
             ->orderBy('created_at', 'asc') // oldest first — FIFO review queue
             ->paginate($perPage)
             ->through(function (User $user) {
                 $c = $user->commuterProfile;
+                $history = $this->registrationHistoryPayload($user->email, $c?->contact_number);
                 return [
                     'id'              => $user->id,
                     'email'           => $user->email,
@@ -772,6 +881,8 @@ class AdminService
                         $user->email,
                         $c?->contact_number,
                     ),
+                    'rejection_history' => $history['history'],
+                    'blocked_until' => $history['blocked_until'],
                     'created_at'      => optional($user->created_at)->toIso8601String(),
                 ];
             });
@@ -787,21 +898,36 @@ class AdminService
      * Returns the same shape as listPendingRegistrations so the frontend
      * can reuse the RejectedUser table component.
      */
-    public function listRejectedRegistrations(int $perPage = 15): LengthAwarePaginator
+    public function listRejectedRegistrations(array $filters = []): LengthAwarePaginator
     {
+        $perPage = max(1, min((int) ($filters['per_page'] ?? 15), 100));
+
         return User::withTrashed()
             ->where('role', UserRole::COMMUTER)
             ->whereHas('commuterProfile', function ($q) {
                 $q->where('account_status', 'REJECTED');
+            })
+            ->when($filters['applied_type'] ?? null, function (Builder $query, string $type) {
+                $query->whereHas('commuterProfile', fn (Builder $profile) => $profile->where('applied_type', $type));
+            })
+            ->when($filters['search'] ?? null, function (Builder $query, string $search) {
+                $term = '%' . trim($search) . '%';
+                $query->whereHas('commuterProfile', fn (Builder $profile) => $profile
+                    ->where('first_name', 'like', $term)
+                    ->orWhere('surname', 'like', $term)
+                    ->orWhere('email', 'like', $term)
+                    ->orWhere('contact_number', 'like', $term)
+                    ->orWhere('rejection_reason', 'like', $term));
             })
             ->with(['commuterProfile:id,first_name,middle_name,surname,birthdate,gender,email,contact_number,commuter_type,applied_type,account_status,id_image_url,verified_at,rejection_reason,username,language_preference'])
             ->orderBy('updated_at', 'desc') // most recently rejected first
             ->paginate($perPage)
             ->through(function (User $user) {
                 $c = $user->commuterProfile;
+                $history = $this->registrationHistoryPayload($c?->email, $c?->contact_number);
                 return [
                     'id'              => $user->id,
-                    'email'           => $user->email,
+                    'email'           => $c?->email ?? $user->email,
                     'first_name'      => $c?->first_name,
                     'middle_name'     => $c?->middle_name,
                     'surname'         => $c?->surname,
@@ -815,10 +941,31 @@ class AdminService
                     'language_preference' => $c?->language_preference,
                     'verified_at'     => $c?->verified_at?->toIso8601String(),
                     'rejection_reason'=> $c?->rejection_reason,
+                    'rejection_count' => count($history['history']),
+                    'rejection_history' => $history['history'],
+                    'blocked_until' => $history['blocked_until'],
                     'created_at'      => optional($user->created_at)->toIso8601String(),
                     'rejected_at'     => optional($user->deleted_at)->toIso8601String(),
                 ];
             });
+    }
+
+    private function registrationHistoryPayload(?string $email, ?string $contact): array
+    {
+        $history = $this->registrationGuard->historyFor($email, $contact);
+        $activeBlock = $history->first(
+            fn ($rejection) => $rejection->blocked_until?->isFuture()
+        );
+
+        return [
+            'history' => $history->map(fn ($rejection) => [
+                'reason' => $rejection->reason,
+                'attempt_number' => $rejection->attempt_number,
+                'blocked_until' => $rejection->blocked_until?->toIso8601String(),
+                'rejected_at' => $rejection->created_at?->toIso8601String(),
+            ])->values()->all(),
+            'blocked_until' => $activeBlock?->blocked_until?->toIso8601String(),
+        ];
     }
 
     /**

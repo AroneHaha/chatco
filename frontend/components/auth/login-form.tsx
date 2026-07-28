@@ -14,6 +14,7 @@ export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const isSuspendedError = error.toLowerCase().includes("account is suspended");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,8 +26,8 @@ export default function LoginForm() {
       // and updates the global auth state. Role-based redirect is handled here.
       const redirectPath = await login(email, password);
       router.push(redirectPath);
-    } catch (err: any) {
-      setError(err.message || "An unexpected error occurred.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred.");
     } finally {
       setIsLoading(false);
     }
@@ -44,8 +45,18 @@ export default function LoginForm() {
 
       {/* Error Message Display */}
       {error && (
-        <div className="mt-6 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">
-          {error}
+        <div className={`mt-6 border text-sm px-4 py-3 rounded-xl ${
+          isSuspendedError
+            ? "bg-amber-50 border-amber-200 text-amber-900"
+            : "bg-red-50 border-red-200 text-red-700"
+        }`}>
+          {isSuspendedError && <p className="mb-1 font-bold">Account suspended</p>}
+          <p>{error}</p>
+          {isSuspendedError && (
+            <Link href="/" className="mt-3 inline-flex font-semibold text-[#1A5FB4] hover:underline">
+              Back to home page
+            </Link>
+          )}
         </div>
       )}
 
