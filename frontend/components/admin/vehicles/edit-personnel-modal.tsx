@@ -3,8 +3,17 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
-import { MapPin, Upload, Check, User, Save, Phone, IdCard, Calendar } from 'lucide-react';
+import { Upload, Check, User, Save, Phone, IdCard, Calendar } from 'lucide-react';
 import type { Personnel } from '@/app/(admin)/vehicles/data/vehicles-data';
+
+function formatLicenseNumber(value: string): string {
+  const normalized = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const letter = normalized.match(/[A-Z]/)?.[0] ?? '';
+  const digits = normalized.replace(/[^0-9]/g, '').slice(0, 10);
+  return [letter + digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 10)]
+    .filter(Boolean)
+    .join('-');
+}
 
 interface EditPersonnelModalProps {
   isOpen: boolean;
@@ -131,7 +140,10 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => ({
+      ...prev,
+      [name]: name === 'license_number' ? formatLicenseNumber(value) : value,
+    }));
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -366,6 +378,9 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
               required
               disabled={isSubmitting || isLoadingMeta}
               placeholder="e.g. N01-23-045678"
+              maxLength={13}
+              pattern="[A-Z][0-9]{2}-[0-9]{2}-[0-9]{6}"
+              title="Use the LTO format N01-23-045678"
               className={`${inputClasses} ${fieldErrors.license_number ? 'border-red-500/50' : ''}`}
             />
             {fieldErrors.license_number && <p className="text-xs text-red-400 mt-1">{fieldErrors.license_number[0]}</p>}
@@ -411,8 +426,8 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
           </div>
         )}
 
-        {/* Fixed Data — Role and Route are read-only (per spec: route is fixed to single corridor) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Role is display-only. Route assignment belongs to vehicles. */}
+        <div>
           <div>
             <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-2">
               <User size={14} /> Role
@@ -420,15 +435,6 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
             <select disabled className="block w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-slate-500 cursor-not-allowed text-sm [color-scheme:dark]">
               <option className="bg-gray-800">{roleLabel}</option>
             </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-2">
-              <MapPin size={14} /> Assigned Route
-            </label>
-            <select disabled className="block w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-slate-500 cursor-not-allowed text-sm [color-scheme:dark]">
-              <option className="bg-gray-800">Malolos - Meycauayan - Calumpit</option>
-            </select>
-            <p className="text-xs text-slate-600 mt-1">Fixed to the single active e-jeep corridor.</p>
           </div>
         </div>
 

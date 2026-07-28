@@ -687,6 +687,32 @@ export async function claimsForItem(itemId: string): Promise<LostFoundClaim[]> {
   }
 }
 
+export async function recordManualClaim(
+  itemId: string,
+  input: { name: string; contact?: string; email?: string; proof: string },
+): Promise<LostFoundClaim> {
+  try {
+    const response = await api.post<ApiResponseEnvelope<RawClaim>>(
+      `/api/admin/lost-items/${itemId}/claims/manual`,
+      {
+        claimant_name: input.name,
+        claimant_contact: input.contact || null,
+        claimant_email: input.email || null,
+        proof: input.proof,
+      },
+    );
+    return mapClaim(response.data);
+  } catch (err) {
+    if (err instanceof ApiError) {
+      throw classifyError(err, "Unable to record this walk-in claimant.");
+    }
+    throw new LostFoundOperationError(
+      "network",
+      err instanceof Error ? err.message : "Unable to reach the backend service.",
+    );
+  }
+}
+
 /**
  * Approve a pending claim. Flips the item → APPROVED (ready for release).
  * @throws {LostFoundOperationError} 404/422 (claim not PENDING)/401/403/5xx

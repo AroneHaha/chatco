@@ -43,12 +43,12 @@ use Illuminate\Support\Str;
 class LostItemService
 {
     private const ITEM_AVAILABLE = 'AVAILABLE';
-    private const ITEM_CLAIMED   = 'CLAIMED';
-    private const ITEM_APPROVED  = 'APPROVED';
-    private const ITEM_RELEASED  = 'RELEASED';
-    private const ITEM_CLOSED    = 'CLOSED';
+    private const ITEM_CLAIMED = 'CLAIMED';
+    private const ITEM_APPROVED = 'APPROVED';
+    private const ITEM_RELEASED = 'RELEASED';
+    private const ITEM_CLOSED = 'CLOSED';
 
-    private const CLAIM_PENDING  = 'PENDING';
+    private const CLAIM_PENDING = 'PENDING';
     private const CLAIM_APPROVED = 'APPROVED';
     private const CLAIM_REJECTED = 'REJECTED';
 
@@ -72,7 +72,7 @@ class LostItemService
             $search = $filters['search'];
             $query->where(function ($q) use ($search) {
                 $q->where('item_name', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+                    ->orWhere('description', 'like', "%{$search}%");
             });
         }
 
@@ -112,19 +112,19 @@ class LostItemService
     public function create(User $admin, array $data): LostItem
     {
         return LostItem::create([
-            'item_name'          => $data['item_name'],
-            'description'        => $data['description'],
-            'image_url'          => $data['image_url'] ?? null,
-            'plate_number'       => $data['plate_number'] ?? null,
-            'driver_name'        => $data['driver_name'] ?? null,
-            'conductor_name'     => $data['conductor_name'] ?? null,
-            'vehicle_id'         => $data['vehicle_id'] ?? null,
-            'estimated_time_lost'=> $data['estimated_time_lost'] ?? null,
-            'category'           => $data['category'] ?? null,
-            'reported_by_id'     => $admin->id,
-            'reported_by_role'   => $admin->role->value,
-            'reporter_name'      => $this->adminDisplayName($admin),
-            'status'             => self::ITEM_AVAILABLE,
+            'item_name' => $data['item_name'],
+            'description' => $data['description'],
+            'image_url' => $data['image_url'] ?? null,
+            'plate_number' => $data['plate_number'] ?? null,
+            'driver_name' => $data['driver_name'] ?? null,
+            'conductor_name' => $data['conductor_name'] ?? null,
+            'vehicle_id' => $data['vehicle_id'] ?? null,
+            'estimated_time_lost' => $data['estimated_time_lost'] ?? null,
+            'category' => $data['category'] ?? null,
+            'reported_by_id' => $admin->id,
+            'reported_by_role' => $admin->role->value,
+            'reporter_name' => $this->adminDisplayName($admin),
+            'status' => self::ITEM_AVAILABLE,
         ]);
     }
 
@@ -132,7 +132,7 @@ class LostItemService
      * Admin uploads an image for a lost item. Stores the file on the public
      * media disk and updates image_url. Replaces any existing image.
      *
-     * @throws LostFoundException  Item not found.
+     * @throws LostFoundException Item not found.
      */
     public function uploadImage(string $itemId, UploadedFile $file): LostItem
     {
@@ -167,7 +167,7 @@ class LostItemService
      * or CLAIMED (i.e. not APPROVED/RELEASED/CLOSED). Creates a PENDING claim
      * and flips item → CLAIMED if it was AVAILABLE.
      *
-     * @throws LostFoundException  Item not found, or not claimable.
+     * @throws LostFoundException Item not found, or not claimable.
      */
     public function claim(User $commuter, string $itemId, array $data): Claim
     {
@@ -187,17 +187,51 @@ class LostItemService
 
         return DB::transaction(function () use ($item, $commuter, $profile, $data): Claim {
             $claim = Claim::create([
-                'item_id'         => $item->id,
-                'claimant_id'     => $profile->id,
-                'claimant_name'   => trim($profile->first_name . ' ' . $profile->surname),
-                'claimant_contact'=> $data['claimant_contact'] ?? $profile->contact_number,
-                'claimant_email'  => $data['claimant_email'] ?? $commuter->email ?? $profile->email,
-                'status'          => self::CLAIM_PENDING,
-                'proof'           => $data['proof'] ?? null,
+                'item_id' => $item->id,
+                'claimant_id' => $profile->id,
+                'claimant_name' => trim($profile->first_name.' '.$profile->surname),
+                'claimant_contact' => $data['claimant_contact'] ?? $profile->contact_number,
+                'claimant_email' => $data['claimant_email'] ?? $commuter->email ?? $profile->email,
+                'status' => self::CLAIM_PENDING,
+                'proof' => $data['proof'] ?? null,
             ]);
 
             // Flip AVAILABLE → CLAIMED so other commuters see it's being
             // reviewed. Multiple claims are allowed until one is approved.
+            if ($item->status === self::ITEM_AVAILABLE) {
+                $item->update(['status' => self::ITEM_CLAIMED]);
+            }
+
+            return $claim->load('item');
+        });
+    }
+
+    /**
+     * Admin-assisted claim for a walk-in claimant without a CHATCO account.
+     * The nullable claimant_id clearly distinguishes this record while the
+     * retained name/contact/proof preserves accountability.
+     */
+    public function createManualClaim(User $admin, string $itemId, array $data): Claim
+    {
+        $item = $this->show($itemId);
+
+        if (! in_array($item->status, [self::ITEM_AVAILABLE, self::ITEM_CLAIMED], true)) {
+            throw LostFoundException::itemNotClaimable(
+                "This item is {$item->status} and cannot be claimed"
+            );
+        }
+
+        return DB::transaction(function () use ($admin, $item, $data): Claim {
+            $claim = Claim::create([
+                'item_id' => $item->id,
+                'claimant_id' => null,
+                'claimant_name' => trim($data['claimant_name']),
+                'claimant_contact' => $data['claimant_contact'] ?? null,
+                'claimant_email' => $data['claimant_email'] ?? null,
+                'status' => self::CLAIM_PENDING,
+                'proof' => trim($data['proof'])." [Recorded by {$admin->email}]",
+            ]);
+
             if ($item->status === self::ITEM_AVAILABLE) {
                 $item->update(['status' => self::ITEM_CLAIMED]);
             }
@@ -214,7 +248,7 @@ class LostItemService
      * state. Capped at the latest 100 claims — far above the 3-pending cap
      * the UI enforces.
      *
-     * @throws LostFoundException  Commuter profile missing.
+     * @throws LostFoundException Commuter profile missing.
      */
     public function myClaims(User $commuter): array
     {
@@ -242,7 +276,7 @@ class LostItemService
      * APPROVED/REJECTED claims cannot be cancelled (the review has already
      * happened); the guards below throw → 422 in the controller.
      *
-     * @throws LostFoundException  Claim not found / not owned / not PENDING.
+     * @throws LostFoundException Claim not found / not owned / not PENDING.
      */
     public function cancelClaim(User $commuter, string $claimId): void
     {
@@ -302,8 +336,8 @@ class LostItemService
         try {
             return LostItemWatchlist::firstOrCreate(
                 [
-                    'item_id'      => $item->id,
-                    'commuter_id'  => $profile->id,
+                    'item_id' => $item->id,
+                    'commuter_id' => $profile->id,
                 ],
             );
         } catch (UniqueConstraintViolationException) {
@@ -356,6 +390,7 @@ class LostItemService
     public function claimsForItem(string $itemId): array
     {
         $item = $this->show($itemId);
+
         return $item->claims()
             ->with('claimant', 'reviewer')
             ->orderByDesc('created_at')
@@ -370,7 +405,7 @@ class LostItemService
      * the admin must call releaseClaim() to record the handover. All OTHER
      * pending claims on the same item are auto-rejected.
      *
-     * @throws LostFoundException  Claim not found, not PENDING, or item CLOSED.
+     * @throws LostFoundException Claim not found, not PENDING, or item CLOSED.
      */
     public function approveClaim(User $admin, string $itemId, string $claimId): Claim
     {
@@ -392,9 +427,9 @@ class LostItemService
 
             // Approve this claim.
             $claim->update([
-                'status'       => self::CLAIM_APPROVED,
-                'reviewed_by'  => $admin->id,
-                'reviewed_at'  => now(),
+                'status' => self::CLAIM_APPROVED,
+                'reviewed_by' => $admin->id,
+                'reviewed_at' => now(),
             ]);
 
             // Move item to APPROVED stage (awaiting release/handover).
@@ -407,9 +442,9 @@ class LostItemService
                 ->where('id', '!=', $claim->id)
                 ->where('status', self::CLAIM_PENDING)
                 ->update([
-                    'status'           => self::CLAIM_REJECTED,
-                    'reviewed_by'      => $admin->id,
-                    'reviewed_at'      => now(),
+                    'status' => self::CLAIM_REJECTED,
+                    'reviewed_by' => $admin->id,
+                    'reviewed_at' => now(),
                     'rejection_reason' => 'Another claim was approved',
                 ]);
 
@@ -424,7 +459,7 @@ class LostItemService
      * APPROVED (it was already approved in Stage 1). This records the actual
      * handover to the commuter.
      *
-     * @throws LostFoundException  Claim not found, not APPROVED, or item not APPROVED.
+     * @throws LostFoundException Claim not found, not APPROVED, or item not APPROVED.
      */
     public function releaseClaim(User $admin, string $itemId, string $claimId): Claim
     {
@@ -452,7 +487,7 @@ class LostItemService
             }
 
             $item->update([
-                'status'      => self::ITEM_RELEASED,
+                'status' => self::ITEM_RELEASED,
                 'released_to' => $claim->claimant_id,
                 'released_at' => now(),
             ]);
@@ -470,7 +505,7 @@ class LostItemService
      * - Rejecting an APPROVED claim: item reverts to CLAIMED if other pending
      *   claims exist, or AVAILABLE if none remain.
      *
-     * @throws LostFoundException  Claim not found, or already REJECTED.
+     * @throws LostFoundException Claim not found, or already REJECTED.
      */
     public function rejectClaim(User $admin, string $itemId, string $claimId, ?string $reason): Claim
     {
@@ -501,9 +536,9 @@ class LostItemService
             }
 
             $claim->update([
-                'status'           => self::CLAIM_REJECTED,
-                'reviewed_by'      => $admin->id,
-                'reviewed_at'      => now(),
+                'status' => self::CLAIM_REJECTED,
+                'reviewed_by' => $admin->id,
+                'reviewed_at' => now(),
                 'rejection_reason' => $reason,
             ]);
 
@@ -531,7 +566,7 @@ class LostItemService
     /**
      * Admin closes a released item after the handover is complete.
      *
-     * @throws LostFoundException  Item not RELEASED.
+     * @throws LostFoundException Item not RELEASED.
      */
     public function close(User $admin, string $itemId): LostItem
     {
@@ -544,7 +579,7 @@ class LostItemService
         }
 
         $item->update([
-            'status'    => self::ITEM_CLOSED,
+            'status' => self::ITEM_CLOSED,
             'closed_by' => $admin->id,
             'closed_at' => now(),
         ]);
@@ -570,8 +605,9 @@ class LostItemService
     {
         $profile = $admin->adminProfile;
         if ($profile) {
-            return trim($profile->first_name . ' ' . $profile->last_name);
+            return trim($profile->first_name.' '.$profile->last_name);
         }
+
         return $admin->email;
     }
 

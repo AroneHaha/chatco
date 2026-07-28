@@ -12,6 +12,7 @@ import {
   ChevronDown, ChevronUp, MapPin, Hash,
   ChevronLeft, ChevronRight, Search, X,
 } from 'lucide-react';
+import { formatPeso } from '@/lib/utils/display';
 
 // ─── Remittance History pagination ─────────────────────────────────────
 const REMIT_PAGE_SIZE = 5;
@@ -312,7 +313,7 @@ export function ConductorDetailModal({ isOpen, onClose, record, allRecords }: Co
                               </div>
                             </div>
                             <div className="sm:text-right flex-shrink-0">
-                              <p className="text-sm text-[#62A0EA] font-medium">₱{Number(txn.final_amount).toFixed(2)}</p>
+                              <p className="text-sm text-[#62A0EA] font-medium">{formatPeso(Number(txn.final_amount))}</p>
                               <p className="text-[10px] text-slate-600">
                                 {new Date(txn.created_at).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true })}
                               </p>

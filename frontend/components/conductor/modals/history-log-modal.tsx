@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X, Loader2 } from "lucide-react";
 import { fetchShiftTransactions, type Transaction } from "@/lib/conductor/services/transactions.service";
+import { formatPeso } from "@/lib/utils/display";
 
 interface HistoryLogModalProps {
   isOpen: boolean;
@@ -242,7 +243,7 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
               <p className="text-[10px] font-semibold text-[#62A0EA]/60 uppercase tracking-wider">Filtered Results</p>
               <p className="text-white text-sm font-semibold mt-0.5">{filteredHistory.length} transaction{filteredHistory.length !== 1 ? "s" : ""}</p>
             </div>
-            <p className="text-lg font-extrabold text-[#62A0EA]">₱{filteredTotal.toFixed(2)}</p>
+            <p className="text-lg font-extrabold text-[#62A0EA]">{formatPeso(filteredTotal)}</p>
           </div>
         )}
 
@@ -304,7 +305,7 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
                       <p className="text-white/40 text-xs mt-0.5 truncate">{displayDate} • {tx.from} → {tx.to}</p>
                     </div>
                     <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
-                      <p className={`font-bold ${methodDisplay.color}`}>₱{tx.finalAmount.toFixed(2)}</p>
+                      <p className={`font-bold ${methodDisplay.color}`}>{formatPeso(tx.finalAmount)}</p>
                       <svg className={`w-4 h-4 text-white/30 transition-transform ${expandedId === tx.transactionId ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
                     </div>
                   </button>
@@ -323,10 +324,10 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
                         <p className="text-white/50 font-bold uppercase text-[10px]">Route &amp; Fare</p>
                         <div className="flex justify-between"><span className="text-gray-400">Route:</span><span className="text-white capitalize">{tx.from} → {tx.to}</span></div>
                         <div className="flex justify-between"><span className="text-gray-400">Distance:</span><span className="text-white">{tx.distance} km</span></div>
-                        <div className="flex justify-between"><span className="text-gray-400">First Km:</span><span className="text-white">₱{tx.baseFare.toFixed(2)}</span></div>
-                        <div className="flex justify-between"><span className="text-gray-400">Succeeding:</span><span className="text-white">₱{succeedingFare.toFixed(2)}</span></div>
-                        {(tx.discountAmount ?? 0) > 0 && <div className="flex justify-between text-green-400"><span>Discount:</span><span>-₱{(tx.discountAmount ?? 0).toFixed(2)}</span></div>}
-                        <div className="flex justify-between font-bold text-base text-[#62A0EA] border-t border-white/10 pt-2 mt-1"><span>Total:</span><span>₱{tx.finalAmount.toFixed(2)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-400">First Km:</span><span className="text-white">{formatPeso(tx.baseFare)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-400">Succeeding:</span><span className="text-white">{formatPeso(succeedingFare)}</span></div>
+                        {(tx.discountAmount ?? 0) > 0 && <div className="flex justify-between text-green-400"><span>Discount:</span><span>-{formatPeso(tx.discountAmount ?? 0)}</span></div>}
+                        <div className="flex justify-between font-bold text-base text-[#62A0EA] border-t border-white/10 pt-2 mt-1"><span>Total:</span><span>{formatPeso(tx.finalAmount)}</span></div>
                       </div>
                       <div className="border-t border-dashed border-white/10 pt-2 space-y-1">
                         <p className="text-white/50 font-bold uppercase text-[10px]">Unit Info</p>

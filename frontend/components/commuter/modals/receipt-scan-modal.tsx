@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { claimCashReceipt, type ReceiptClaimResult } from "@/lib/commuter/services/payment.service";
 import { ApiError, NetworkError } from "@/lib/api/client";
+import { formatPeso } from "@/lib/utils/display";
 
 interface ReceiptScanModalProps {
   onClose: () => void;
@@ -286,7 +287,7 @@ export default function ReceiptScanModal({ onClose, onClaimed }: ReceiptScanModa
               <div className="w-full mt-5 bg-[#050F1A] border border-white/10 rounded-xl p-4 space-y-2 text-left">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] text-white/40">Fare</span>
-                  <span className="text-sm font-bold text-white">₱{result.amount.toFixed(2)}</span>
+                  <span className="text-sm font-bold text-white">{formatPeso(result.amount)}</span>
                 </div>
                 {(result.pickupName || result.dropoffName) && (
                   <div className="flex items-center justify-between gap-3">

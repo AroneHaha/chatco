@@ -19,6 +19,7 @@ import type { LostFoundFormData } from '@/components/admin/lost-found/add-lost-f
 import {
   listForAdmin,
   claimsForItem,
+  recordManualClaim,
   report as reportItem,
   uploadImage as apiUploadImage,
   approveClaim as apiApproveClaim,
@@ -187,6 +188,17 @@ export default function LostFoundPage() {
     }
   };
 
+  const handleRecordManualClaim = async (
+    itemId: string,
+    input: { name: string; contact?: string; email?: string; proof: string },
+  ) => {
+    setActionError(null);
+    await recordManualClaim(itemId, input);
+    const fresh = await claimsForItem(itemId);
+    setClaimsByItem((prev) => ({ ...prev, [itemId]: fresh.map(mapServiceClaimToAdmin) }));
+    await refresh();
+  };
+
   /** Admin closes a released item (finalizes after handover). */
   const handleCloseItem = async (itemId: string) => {
     setActionError(null);
@@ -294,6 +306,7 @@ export default function LostFoundPage() {
         itemId={selectedItemId || ''}
         claims={selectedItemId ? (claimsByItem[selectedItemId] ?? []) : []}
         onClaimAction={handleClaimAction}
+        onRecordManualClaim={handleRecordManualClaim}
       />
     </div>
   );

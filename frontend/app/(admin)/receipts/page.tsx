@@ -9,6 +9,8 @@ import { CalendarDays, Download, Filter, Wallet, Ticket, Banknote, ChevronLeft, 
 import { useReceiptsData, type Receipt, type PaymentMethod } from '@/app/(admin)/receipts/data/receipts-data';
 import { statusBadge } from '@/app/(admin)/receipts/data/receipt-status';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
+import { exportReport, type ReportFormat } from '@/lib/utils/export-report';
+import { formatPeso } from '@/lib/utils/display';
 
 const ROWS_PER_PAGE = 20;
 
@@ -100,42 +102,25 @@ export default function ReceiptsPage() {
     return filteredData.slice(startIndex, startIndex + ROWS_PER_PAGE);
   }, [filteredData, safeCurrentPage]);
 
-  // ── CSV Export ──
-  // Generates a CSV from the currently-filtered data (not just the current
-  // page) and triggers a download. All fields are quoted + escaped to handle
-  // commas/newlines in values.
-  const handleExportCSV = useCallback(() => {
-    const headers = ['Transaction ID', 'Commuter Name', 'Commuter ID', 'Plate Number', 'Route', 'Fare', 'Payment Method', 'Status', 'Date', 'Time'];
-    const rows = filteredData.map(r => [
-      r.id,
-      r.commuterName,
-      r.commuterId,
-      r.plateNumber,
-      r.route,
-      r.fare.toFixed(2),
-      r.paymentMethod,
-      r.status,
-      r.date,
-      r.time,
-    ]);
-
-    // Escape each value: wrap in quotes, double any existing quotes.
-    const escapeCsv = (val: string | number) => `"${String(val).replace(/"/g, '""')}"`;
-    const csvContent = [
-      headers.map(escapeCsv).join(','),
-      ...rows.map(row => row.map(escapeCsv).join(',')),
-    ].join('\n');
-
-    // Add BOM so Excel opens UTF-8 correctly.
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `chatco-receipts-${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+  const handleReportExport = useCallback((format: ReportFormat) => {
+    exportReport({
+      title: 'CHATCO Fare Receipts',
+      fileName: `chatco-receipts-${new Date().toISOString().split('T')[0]}`,
+      format,
+      headers: ['Transaction ID', 'Commuter', 'Commuter ID', 'Plate Number', 'Route', 'Fare', 'Payment Method', 'Status', 'Date', 'Time'],
+      rows: filteredData.map((receipt) => [
+        receipt.id,
+        receipt.commuterName,
+        receipt.commuterId,
+        receipt.plateNumber,
+        receipt.route,
+        receipt.fare.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
+        receipt.paymentMethod,
+        receipt.status,
+        receipt.date,
+        receipt.time,
+      ]),
+    });
   }, [filteredData]);
 
   // Summary stats.
@@ -193,7 +178,7 @@ export default function ReceiptsPage() {
       cellClassName: 'px-2 sm:px-3',
       render: (value: number, row: Receipt) => (
         <div className="space-y-1">
-          <p className="text-slate-200 font-semibold">₱{value.toFixed(2)}</p>
+          <p className="text-slate-200 font-semibold">{formatPeso(value)}</p>
           <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
             row.paymentMethod === 'Gcash' ? 'bg-[#62A0EA]/15 text-[#62A0EA]'
             : row.paymentMethod === 'Voucher' ? 'bg-pink-500/15 text-pink-400'
@@ -303,15 +288,18 @@ export default function ReceiptsPage() {
           >
             <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
           </button>
-          <button
-            onClick={handleExportCSV}
-            disabled={filteredData.length === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-[#62A0EA] text-white text-sm font-medium rounded-md hover:bg-[#4A8BD4] transition-colors shadow-lg shadow-[#62A0EA]/25 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-            title={filteredData.length === 0 ? 'No data to export' : `Export ${filteredData.length} receipts to CSV`}
-          >
-            <Download size={16} />
-            <span className="hidden sm:inline">Export CSV</span>
-          </button>
+          {(['pdf', 'excel', 'word'] as const).map((format) => (
+            <button
+              key={format}
+              onClick={() => handleReportExport(format)}
+              disabled={filteredData.length === 0}
+              className="flex items-center gap-2 px-3 py-2 bg-[#62A0EA] text-white text-xs font-medium rounded-md hover:bg-[#4A8BD4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title={`Export ${filteredData.length} receipts to ${format.toUpperCase()}`}
+            >
+              <Download size={14} />
+              <span>{format === 'pdf' ? 'PDF' : format === 'excel' ? 'Excel' : 'Word'}</span>
+            </button>
+          ))}
         </div>
 
       {/* ── Summary Cards ── */}
@@ -331,7 +319,7 @@ export default function ReceiptsPage() {
           </div>
           <div className="min-w-0">
             <p className="text-[10px] text-slate-500 uppercase tracking-wider">Settled Fares</p>
-            <p className="text-xl font-bold text-[#62A0EA] truncate">₱{totalFare.toFixed(2)}</p>
+            <p className="text-xl font-bold text-[#62A0EA] truncate">{formatPeso(totalFare)}</p>
           </div>
         </div>
         <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl p-4 flex items-center gap-3">

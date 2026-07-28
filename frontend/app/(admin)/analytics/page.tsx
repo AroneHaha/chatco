@@ -40,6 +40,7 @@ import { PeakHoursChart } from '@/components/admin/analytics/peak-hours-chart';
 import type { PickupPoint } from '@/app/(admin)/analytics/data/analytics-data';
 import { SkeletonCard } from '@/components/admin/ui/skeleton';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
+import { exportReport, type ReportFormat } from '@/lib/utils/export-report';
 import type {
   AnalyticsRemittance,
   PaymentMethodUsage,
@@ -366,6 +367,29 @@ function ReportsTab({
     URL.revokeObjectURL(url);
   }, [scopedRows, dateFrom, dateTo]);
 
+  const handleReportExport = useCallback((format: ReportFormat) => {
+    exportReport({
+      title: 'CHATCO Remittance Analytics',
+      fileName: `chatco-remittances-${dateFrom ?? 'all'}-to-${dateTo ?? 'all'}`,
+      format,
+      headers: ['Shift ID', 'Conductor', 'Driver', 'Unit', 'Date', 'Time In', 'Time Out', 'Cash', 'GCash', 'Total', 'Passengers', 'Status'],
+      rows: scopedRows.map((row) => [
+        row.shift_id,
+        row.conductor_name ?? '',
+        row.driver_name ?? '',
+        row.unit_number ?? '',
+        row.date ?? '',
+        row.time_in ?? '',
+        row.time_out ?? '',
+        row.cash_total.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
+        row.gcash_total.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
+        (row.cash_total + row.gcash_total).toLocaleString('en-PH', { minimumFractionDigits: 2 }),
+        row.total_passengers ?? 0,
+        row.remittance_status ?? '',
+      ]),
+    });
+  }, [scopedRows, dateFrom, dateTo]);
+
   if (isLoading) {
     return (
       <div className="grid lg:grid-cols-2 gap-6">
@@ -407,12 +431,24 @@ function ReportsTab({
           <button
             onClick={handleExportCSV}
             disabled={scopedRows.length === 0}
-            title={scopedRows.length === 0 ? 'No data to export' : `Export ${scopedRows.length} remittances`}
-            className="flex items-center gap-2 px-3 py-2 bg-[#62A0EA] text-white text-xs font-medium rounded-md hover:bg-[#4A8BD4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title={`Export ${scopedRows.length} remittances to CSV`}
+            className="flex items-center gap-1.5 px-2.5 py-2 bg-[#334155] text-white text-xs font-medium rounded-md hover:bg-[#475569] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Download size={14} />
-            <span className="hidden sm:inline">Export CSV</span>
+            <Download size={13} />
+            <span>CSV</span>
           </button>
+          {(['pdf', 'excel', 'word'] as const).map((format) => (
+            <button
+              key={format}
+              onClick={() => handleReportExport(format)}
+              disabled={scopedRows.length === 0}
+              title={`Export ${scopedRows.length} remittances to ${format.toUpperCase()}`}
+              className="flex items-center gap-1.5 px-2.5 py-2 bg-[#62A0EA] text-white text-xs font-medium rounded-md hover:bg-[#4A8BD4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download size={13} />
+              <span>{format === 'pdf' ? 'PDF' : format === 'excel' ? 'Excel' : 'Word'}</span>
+            </button>
+          ))}
         </div>
       </div>
 

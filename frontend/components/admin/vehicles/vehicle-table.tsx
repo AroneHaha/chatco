@@ -35,12 +35,13 @@ export function VehicleTable({ vehicles, searchQuery, onEdit, onEditShift, onRow
     {
       key: 'actions',
       label: 'Actions',
+      align: 'center' as const,
       // We pass the whole row (vehicle) to the render function so we can trigger the modals
       render: (_: unknown, row: Vehicle) => (
         // Stop double-click on the action buttons from also opening the
         // details modal — the row-level onDoubleClick handles that intent.
         <div
-          className="flex items-center justify-end gap-2"
+          className="flex items-center justify-center gap-2"
           onDoubleClick={(e) => e.stopPropagation()}
         >
           {/* Shift History Button (clock icon) */}

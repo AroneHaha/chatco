@@ -28,6 +28,8 @@ export function RemittanceTable({ searchQuery, selectedDate, statusFilter }: Rem
   const { records, isLoading, error, refresh } = useRemittanceData();
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedRecord, setSelectedRecord] = useState<RemittanceRow | null>(null);
+  const [conductorFilter, setConductorFilter] = useState('');
+  const [driverFilter, setDriverFilter] = useState('');
 
   const handleRowClick = useCallback((item: RemittanceRow) => {
     setSelectedRecord(item);
@@ -65,13 +67,32 @@ export function RemittanceTable({ searchQuery, selectedDate, statusFilter }: Rem
       const q = searchQuery.toLowerCase();
       const matchesSearch =
         item.conductorName.toLowerCase().includes(q) ||
+        item.driverName.toLowerCase().includes(q) ||
         item.shiftId.toLowerCase().includes(q);
 
       const matchesDate = !selectedDate || item.date === selectedDate;
+      const matchesConductor = !conductorFilter || item.conductorName === conductorFilter;
+      const matchesDriver = !driverFilter || item.driverName === driverFilter;
 
-      return matchesStatus && matchesSearch && matchesDate;
+      return matchesStatus && matchesSearch && matchesDate && matchesConductor && matchesDriver;
     });
-  }, [records, searchQuery, selectedDate, statusFilter]);
+  }, [records, searchQuery, selectedDate, statusFilter, conductorFilter, driverFilter]);
+
+  const conductorOptions = useMemo(
+    () => [...new Set(records.map((record) => record.conductorName).filter((name) => name && name !== '—'))].sort(),
+    [records],
+  );
+  const driverOptions = useMemo(
+    () => [...new Set(records.map((record) => record.driverName).filter((name) => name && name !== '—'))].sort(),
+    [records],
+  );
+
+  const filterKey = `${searchQuery}|${selectedDate}|${statusFilter}|${conductorFilter}|${driverFilter}`;
+  const [previousFilterKey, setPreviousFilterKey] = useState(filterKey);
+  if (filterKey !== previousFilterKey) {
+    setPreviousFilterKey(filterKey);
+    setCurrentPage(1);
+  }
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filteredData.length / ROWS_PER_PAGE));
@@ -115,6 +136,30 @@ export function RemittanceTable({ searchQuery, selectedDate, statusFilter }: Rem
 
   return (
     <div>
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <label className="space-y-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Conductor</span>
+          <select
+            value={conductorFilter}
+            onChange={(event) => setConductorFilter(event.target.value)}
+            className="w-full rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white [color-scheme:dark]"
+          >
+            <option value="">All conductors</option>
+            {conductorOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+          </select>
+        </label>
+        <label className="space-y-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Driver</span>
+          <select
+            value={driverFilter}
+            onChange={(event) => setDriverFilter(event.target.value)}
+            className="w-full rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white [color-scheme:dark]"
+          >
+            <option value="">All drivers</option>
+            {driverOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+          </select>
+        </label>
+      </div>
       {/* Click hint */}
       <p className="text-xs text-slate-600 mb-3 flex items-center gap-1.5">
         <span className="px-1.5 py-0.5 bg-[#0E1628] rounded text-[10px] text-slate-500 border border-[#1E2D45] font-mono">click</span>

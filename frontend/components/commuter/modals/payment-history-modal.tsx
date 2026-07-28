@@ -11,6 +11,7 @@ import {
   type Feedback,
 } from "@/lib/commuter/services/feedback.service";
 import FeedbackModal from "@/components/commuter/feedback-modal";
+import { formatPeso } from "@/lib/utils/display";
 
 interface PaymentHistoryModalProps {
   onClose: () => void;
@@ -310,7 +311,7 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
                       </div>
 
                       <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
-                        <p className="text-sm font-bold text-[#071A2E]">- ₱{tx.amount.toFixed(2)}</p>
+                        <p className="text-sm font-bold text-[#071A2E]">- {formatPeso(tx.amount)}</p>
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${badge.bg} ${badge.text}`}>
                           {badge.label}
                         </span>
@@ -357,7 +358,7 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
                           )}
                           <div className="flex justify-between">
                             <span className="text-gray-400">Fare</span>
-                            <span className="font-bold text-[#071A2E]">₱{tx.amount.toFixed(2)}</span>
+                            <span className="font-bold text-[#071A2E]">{formatPeso(tx.amount)}</span>
                           </div>
                         </div>
 

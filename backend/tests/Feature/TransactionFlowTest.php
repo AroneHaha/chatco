@@ -11,18 +11,21 @@ use App\Models\AdminProfile;
 use App\Models\CommuterProfile;
 use App\Models\ConductorProfile;
 use App\Models\Driver;
+use App\Models\FarePoint;
 use App\Models\PaymentEvent;
 use App\Models\Route;
 use App\Models\ShiftLog;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Models\Voucher;
 use App\Services\PaymentService;
 use App\Services\TransactionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 /**
@@ -38,13 +41,21 @@ class TransactionFlowTest extends TestCase
     use RefreshDatabase;
 
     private User $conductor;
+
     private User $conductor2;
+
     private User $commuter1;
+
     private User $commuter2;
+
     private User $admin;
+
     private Vehicle $vehicle;
+
     private ShiftLog $shift;
+
     private ShiftLog $shift2;
+
     private ConductorProfile $conductorProfile2;
 
     protected function setUp(): void
@@ -187,7 +198,7 @@ class TransactionFlowTest extends TestCase
         // The cash token must not be redeemable through the GCash path — that
         // path binds PENDING rows and would hand out a ride that was not paid
         // through the gateway.
-        $this->expectException(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+        $this->expectException(HttpException::class);
         app(TransactionService::class)->claimGcash($this->commuter1, $txn->qr_token);
     }
 
@@ -231,7 +242,7 @@ class TransactionFlowTest extends TestCase
         try {
             $svc->claimCashReceipt($this->commuter2, $txn->qr_token);
             $this->fail('a claimed receipt must not be claimable again');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             $this->assertSame(409, $e->getStatusCode());
         }
 
@@ -250,7 +261,7 @@ class TransactionFlowTest extends TestCase
         try {
             $svc->claimCashReceipt($this->commuter1, $txn->qr_token);
             $this->fail('an expired receipt must not be claimable');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             $this->assertSame(410, $e->getStatusCode());
         }
 
@@ -277,7 +288,7 @@ class TransactionFlowTest extends TestCase
         try {
             app(TransactionService::class)->claimCashReceipt($this->commuter1, $gcash->qr_token);
             $this->fail('a GCash QR must not be claimable as a cash receipt');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             $this->assertSame(422, $e->getStatusCode());
         }
 
@@ -289,14 +300,14 @@ class TransactionFlowTest extends TestCase
         try {
             app(TransactionService::class)->claimCashReceipt($this->commuter1, 'not-a-real-token');
             $this->fail('an unknown token must 404');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             $this->assertSame(404, $e->getStatusCode());
         }
     }
 
     public function test_voucher_ride_mints_no_receipt_token(): void
     {
-        $voucher = \App\Models\Voucher::create([
+        $voucher = Voucher::create([
             'commuter_id' => $this->commuter1->commuterProfile->id,
             'code' => 'REWARD-TESTCODE', 'type' => 'REWARD', 'status' => 'AVAILABLE',
             'amount' => 0, 'expires_at' => now()->addDays(30), 'ride_origin' => 'Test',
@@ -382,6 +393,42 @@ class TransactionFlowTest extends TestCase
 
         $txn->refresh();
         $this->assertSame($this->commuter1->commuterProfile->id, $txn->passenger_id);
+    }
+
+    public function test_gcash_claim_automatically_applies_verified_role_discount(): void
+    {
+        $this->commuter1->commuterProfile->update(['commuter_type' => 'Student']);
+
+        FarePoint::create([
+            'route_id' => $this->shift->route_id,
+            'point_number' => 1,
+            'code' => 'PUL',
+            'name' => 'Pulilan',
+            'regular_fare' => 13,
+            'discounted_fare' => 12,
+        ]);
+        FarePoint::create([
+            'route_id' => $this->shift->route_id,
+            'point_number' => 2,
+            'code' => 'PLA',
+            'name' => 'Plaridel',
+            'regular_fare' => 38,
+            'discounted_fare' => 32,
+        ]);
+
+        $transaction = $this->createPendingGcashTransaction(['final_amount' => 25]);
+        $result = app(TransactionService::class)->claimGcash($this->commuter1, $transaction->qr_token);
+
+        $this->assertSame(20.0, $result['amount']);
+        $this->assertSame(25.0, $result['regular_amount']);
+        $this->assertSame(5.0, $result['discount_amount']);
+        $this->assertSame('STUDENT', $result['passenger_role']);
+        $this->assertDatabaseHas('transactions', [
+            'transaction_id' => $transaction->transaction_id,
+            'passenger_role' => 'STUDENT',
+            'final_amount' => 20,
+            'discount_amount' => 5,
+        ]);
     }
 
     public function test_gcash_claim_is_idempotent_for_same_commuter(): void
@@ -673,7 +720,7 @@ class TransactionFlowTest extends TestCase
         try {
             $callback();
             $this->fail("Expected HTTP {$status} abort, but none was thrown.");
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             $this->assertSame($status, $e->getStatusCode());
         }
     }

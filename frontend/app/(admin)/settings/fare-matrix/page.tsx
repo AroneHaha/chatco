@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Save, X, MapPin, Search, Route, RefreshCw } from 'lucide-react';
 import * as farePointService from '@/lib/admin/services/fare-point.service';
 import type { FarePoint as ApiFarePoint } from '@/lib/admin/services/fare-point.service';
+import { formatPeso } from '@/lib/utils/display';
 
 // Adapter: convert API fare point to the format the original UI expects
 interface FarePoint {
@@ -330,13 +331,13 @@ export default function FareMatrixPage() {
                 <span className="text-sm text-white font-medium">{farePreview.fareResult.toPoint.name}</span>
               </div>
               <div className="flex justify-between text-sm"><span className="text-white/60">Barangays Traveled</span><span className="font-semibold text-white">{farePreview.fareResult.barangaysTraveled} pts</span></div>
-              <div className="flex justify-between text-sm"><span className="text-white/60">Base Fare</span><span className="font-semibold text-white">₱{farePreview.fareResult.baseFare.toFixed(2)}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-white/60">Base Fare</span><span className="font-semibold text-white">{formatPeso(farePreview.fareResult.baseFare)}</span></div>
               {farePreview.fareResult.succeedingCount > 0 && (
-                <div className="flex justify-between text-sm"><span className="text-white/60">Succeeding ({farePreview.fareResult.succeedingCount} x ₱{farePreview.fareResult.succeedingFare.toFixed(2)})</span><span className="font-semibold text-white">₱{(farePreview.fareResult.succeedingFare * farePreview.fareResult.succeedingCount).toFixed(2)}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-white/60">Succeeding ({farePreview.fareResult.succeedingCount} x {formatPeso(farePreview.fareResult.succeedingFare)})</span><span className="font-semibold text-white">{formatPeso(farePreview.fareResult.succeedingFare * farePreview.fareResult.succeedingCount)}</span></div>
               )}
               <div className="border-t border-dashed border-white/10 my-2" />
-              <div className="flex justify-between text-sm"><span className="text-white/60">Regular</span><span className="font-semibold text-[#62A0EA]">₱{farePreview.fareResult.regularFare.toFixed(2)}</span></div>
-              <div className="flex justify-between text-sm"><span className="text-white/60">Discounted</span><span className="font-semibold text-emerald-400">₱{farePreview.fareResult.discountedFare.toFixed(2)}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-white/60">Regular</span><span className="font-semibold text-[#62A0EA]">{formatPeso(farePreview.fareResult.regularFare)}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-white/60">Discounted</span><span className="font-semibold text-emerald-400">{formatPeso(farePreview.fareResult.discountedFare)}</span></div>
             </div>
           ) : (
             <div className="text-white/20 text-xs text-center py-3">
@@ -473,8 +474,8 @@ export default function FareMatrixPage() {
                       {/* Fares */}
                       <div className="flex items-center gap-4 flex-shrink-0">
                         <div className="text-right">
-                          <p className="text-xs font-bold text-[#62A0EA]">₱{point.regularFare.toFixed(2)}</p>
-                          <p className="text-[10px] text-emerald-400/70">₱{point.discountedFare.toFixed(2)}</p>
+                          <p className="text-xs font-bold text-[#62A0EA]">{formatPeso(point.regularFare)}</p>
+                          <p className="text-[10px] text-emerald-400/70">{formatPeso(point.discountedFare)}</p>
                         </div>
 
                         {/* Actions */}

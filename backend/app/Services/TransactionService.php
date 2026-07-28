@@ -4,12 +4,18 @@ namespace App\Services;
 
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
+use App\Models\CommuterProfile;
+use App\Models\FarePoint;
+use App\Models\Setting;
 use App\Models\ShiftLog;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Models\Voucher;
 use App\Support\Payments\PaymentGatewayException;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
  * TransactionService — sole gatekeeper for ALL fare/payment business logic.
@@ -71,31 +77,30 @@ class TransactionService
      * pickup + dropoff within the idempotency window), returns it instead
      * of creating a duplicate.
      *
-     * @param  User    $conductor  The conductor recording the fare
-     * @param  array   $data       {
-     *     final_amount:    float (required) -- the fare charged
-     *     base_fare:        float (optional) -- matrix base fare
-     *     distance:         float (optional) -- km between pickup/dropoff
-     *     discount_amount:  float (optional) -- discount applied
-     *     pickup_name:      string (optional) -- human-readable pickup
-     *     dropoff_name:     string (optional) -- human-readable dropoff
-     *     passenger_name:   string (optional) -- passenger display name
-     *     passenger_role:   string (optional) -- REGULAR/STUDENT/SENIOR/PWD
-     * }
+     * @param  User  $conductor  The conductor recording the fare
+     * @param  array  $data  {
+     *                       final_amount:    float (required) -- the fare charged
+     *                       base_fare:        float (optional) -- matrix base fare
+     *                       distance:         float (optional) -- km between pickup/dropoff
+     *                       discount_amount:  float (optional) -- discount applied
+     *                       pickup_name:      string (optional) -- human-readable pickup
+     *                       dropoff_name:     string (optional) -- human-readable dropoff
+     *                       passenger_name:   string (optional) -- passenger display name
+     *                       passenger_role:   string (optional) -- REGULAR/STUDENT/SENIOR/PWD
+     *                       }
+     * @return Transaction The created (or existing) PAID transaction
      *
-     * @return Transaction  The created (or existing) PAID transaction
-     *
-     * @throws \Symfony\Component\HttpKernel\Exception\HttpException
-     *         422 if conductor has no active shift
+     * @throws HttpException
+     *                       422 if conductor has no active shift
      */
     public function recordCashFare(User $conductor, array $data): Transaction
     {
         $shift = $this->resolveConductorActiveShift($conductor);
 
-        $paymentMethod  = $data['payment_method'] ?? 'CASH';
-        $finalAmount    = (float) ($data['final_amount'] ?? 0);
-        $pickupName     = $data['pickup_name'] ?? null;
-        $dropoffName    = $data['dropoff_name'] ?? null;
+        $paymentMethod = $data['payment_method'] ?? 'CASH';
+        $finalAmount = (float) ($data['final_amount'] ?? 0);
+        $pickupName = $data['pickup_name'] ?? null;
+        $dropoffName = $data['dropoff_name'] ?? null;
         $idempotencyKey = $data['idempotency_key'] ?? null;
 
         // ─── Idempotency check ──────────────────────────────────────
@@ -121,7 +126,7 @@ class TransactionService
                 abort(422, 'Voucher code is required for voucher payments.');
             }
 
-            $voucher = \App\Models\Voucher::where('code', $voucherCode)->first();
+            $voucher = Voucher::where('code', $voucherCode)->first();
             if (! $voucher) {
                 abort(422, 'Voucher code not found.');
             }
@@ -141,9 +146,9 @@ class TransactionService
 
             // Look up the commuter's name for the denormalized field.
             if ($passengerId) {
-                $commuterProfile = \App\Models\CommuterProfile::find($passengerId);
+                $commuterProfile = CommuterProfile::find($passengerId);
                 if ($commuterProfile) {
-                    $passengerName = trim($commuterProfile->first_name . ' ' . $commuterProfile->surname);
+                    $passengerName = trim($commuterProfile->first_name.' '.$commuterProfile->surname);
                 }
             }
 
@@ -166,30 +171,30 @@ class TransactionService
 
         // ─── Persist with denormalized conductor/vehicle/driver info ──
         return Transaction::create([
-            'transaction_id'   => $this->generateTransactionId(),
-            'shift_id'         => $shift->shift_id,
-            'payment_method'   => $paymentMethod,
-            'status'           => PaymentStatus::PAID->value,
-            'qr_token'         => $receiptToken,
-            'idempotency_key'  => $idempotencyKey,
-            'final_amount'     => $finalAmount,
-            'base_fare'        => isset($data['base_fare']) ? (float) $data['base_fare'] : null,
-            'distance'         => isset($data['distance']) ? (float) $data['distance'] : null,
-            'discount_amount'  => isset($data['discount_amount']) ? (float) $data['discount_amount'] : null,
-            'pickup_name'      => $pickupName,
-            'dropoff_name'     => $dropoffName,
-            'passenger_name'   => $passengerName,
-            'passenger_role'   => $data['passenger_role'] ?? null,
-            'passenger_id'     => $passengerId,
+            'transaction_id' => $this->generateTransactionId(),
+            'shift_id' => $shift->shift_id,
+            'payment_method' => $paymentMethod,
+            'status' => PaymentStatus::PAID->value,
+            'qr_token' => $receiptToken,
+            'idempotency_key' => $idempotencyKey,
+            'final_amount' => $finalAmount,
+            'base_fare' => isset($data['base_fare']) ? (float) $data['base_fare'] : null,
+            'distance' => isset($data['distance']) ? (float) $data['distance'] : null,
+            'discount_amount' => isset($data['discount_amount']) ? (float) $data['discount_amount'] : null,
+            'pickup_name' => $pickupName,
+            'dropoff_name' => $dropoffName,
+            'passenger_name' => $passengerName,
+            'passenger_role' => $data['passenger_role'] ?? null,
+            'passenger_id' => $passengerId,
             // Denormalized from shift_log for fast reporting without JOINs
-            'conductor_name'   => $shift->conductor_name,
-            'unit_number'      => $shift->unit_number,
-            'driver_name'      => $shift->driver_name,
-            'voucher_id'       => $voucherId,
+            'conductor_name' => $shift->conductor_name,
+            'unit_number' => $shift->unit_number,
+            'driver_name' => $shift->driver_name,
+            'voucher_id' => $voucherId,
             // Cash/voucher has no fare_point UUIDs (S4-T1 made these nullable)
-            'pickup_stop_id'   => null,
-            'dropoff_stop_id'  => null,
-            'paid_at'          => now(),
+            'pickup_stop_id' => null,
+            'dropoff_stop_id' => null,
+            'paid_at' => now(),
         ]);
     }
 
@@ -201,25 +206,24 @@ class TransactionService
      * The conductor generates this; the commuter scans the QR to claim.
      * PayMongo SANDBOX authorize happens after claim.
      *
-     * @param  User    $conductor  The conductor initiating the GCash fare
-     * @param  array   $data       {
-     *     final_amount:    float (required) -- the fare to charge via GCash
-     *     pickup_name:      string (optional)
-     *     dropoff_name:     string (optional)
-     *     passenger_name:   string (optional) -- usually null until claim
-     * }
-     *
+     * @param  User  $conductor  The conductor initiating the GCash fare
+     * @param  array  $data  {
+     *                       final_amount:    float (required) -- the fare to charge via GCash
+     *                       pickup_name:      string (optional)
+     *                       dropoff_name:     string (optional)
+     *                       passenger_name:   string (optional) -- usually null until claim
+     *                       }
      * @return array {
-     *     transaction:  Transaction  -- the PENDING transaction row
-     *     qr_token:     string       -- opaque token for the binding QR
-     *     checkout_url: string|null  -- gateway hosted authorize URL (null when
-     *                                   no real provider is configured / fake)
-     *     amount:       float        -- the amount to charge
-     *     expires_at:   string       -- ISO 8601 timestamp when the QR expires
-     * }
+     *               transaction:  Transaction  -- the PENDING transaction row
+     *               qr_token:     string       -- opaque token for the binding QR
+     *               checkout_url: string|null  -- gateway hosted authorize URL (null when
+     *               no real provider is configured / fake)
+     *               amount:       float        -- the amount to charge
+     *               expires_at:   string       -- ISO 8601 timestamp when the QR expires
+     *               }
      *
-     * @throws \Symfony\Component\HttpKernel\Exception\HttpException
-     *         422 if conductor has no active shift; 502 on a real gateway failure
+     * @throws HttpException
+     *                       422 if conductor has no active shift; 502 on a real gateway failure
      */
     public function initiateGcashFare(User $conductor, array $data): array
     {
@@ -244,23 +248,23 @@ class TransactionService
         // Persist the PENDING transaction first so its id can be sent to the
         // gateway as correlation metadata.
         $transaction = Transaction::create([
-            'transaction_id'   => $this->generateTransactionId(),
-            'shift_id'         => $shift->shift_id,
-            'payment_method'   => PaymentMethod::GCASH->value,
-            'status'           => PaymentStatus::PENDING->value,
-            'final_amount'     => $finalAmount,
-            'base_fare'        => isset($data['base_fare']) ? (float) $data['base_fare'] : null,
-            'distance'         => isset($data['distance']) ? (float) $data['distance'] : null,
-            'discount_amount'  => isset($data['discount_amount']) ? (float) $data['discount_amount'] : null,
-            'pickup_name'      => $data['pickup_name'] ?? null,
-            'dropoff_name'     => $data['dropoff_name'] ?? null,
-            'passenger_name'   => $data['passenger_name'] ?? null,
-            'conductor_name'   => $shift->conductor_name,
-            'unit_number'      => $shift->unit_number,
-            'driver_name'      => $shift->driver_name,
-            'pickup_stop_id'   => null,
-            'dropoff_stop_id'  => null,
-            'qr_token'         => $qrToken,
+            'transaction_id' => $this->generateTransactionId(),
+            'shift_id' => $shift->shift_id,
+            'payment_method' => PaymentMethod::GCASH->value,
+            'status' => PaymentStatus::PENDING->value,
+            'final_amount' => $finalAmount,
+            'base_fare' => isset($data['base_fare']) ? (float) $data['base_fare'] : null,
+            'distance' => isset($data['distance']) ? (float) $data['distance'] : null,
+            'discount_amount' => isset($data['discount_amount']) ? (float) $data['discount_amount'] : null,
+            'pickup_name' => $data['pickup_name'] ?? null,
+            'dropoff_name' => $data['dropoff_name'] ?? null,
+            'passenger_name' => $data['passenger_name'] ?? null,
+            'conductor_name' => $shift->conductor_name,
+            'unit_number' => $shift->unit_number,
+            'driver_name' => $shift->driver_name,
+            'pickup_stop_id' => null,
+            'dropoff_stop_id' => null,
+            'qr_token' => $qrToken,
             'payment_provider' => $this->paymentService->gatewayName(),
         ]);
 
@@ -271,7 +275,7 @@ class TransactionService
             $intent = $this->paymentService->createIntentFor($transaction, $amountCentavos);
 
             $transaction->update([
-                'payment_reference'    => $intent->reference,
+                'payment_reference' => $intent->reference,
                 'payment_checkout_url' => $intent->checkoutUrl,
             ]);
             $transaction->refresh();
@@ -282,11 +286,11 @@ class TransactionService
         }
 
         return [
-            'transaction'  => $transaction,
-            'qr_token'     => $qrToken,
+            'transaction' => $transaction,
+            'qr_token' => $qrToken,
             'checkout_url' => $transaction->payment_checkout_url,
-            'amount'       => $finalAmount,
-            'expires_at'   => $expiresAt->toIso8601String(),
+            'amount' => $finalAmount,
+            'expires_at' => $expiresAt->toIso8601String(),
         ];
     }
 
@@ -347,11 +351,11 @@ class TransactionService
     private function gcashInitiationPayload(Transaction $transaction): array
     {
         return [
-            'transaction'  => $transaction,
-            'qr_token'     => $transaction->qr_token,
+            'transaction' => $transaction,
+            'qr_token' => $transaction->qr_token,
             'checkout_url' => $transaction->payment_checkout_url,
-            'amount'       => (float) $transaction->final_amount,
-            'expires_at'   => $transaction->created_at->copy()->addMinutes($this->claimTtlMinutes())->toIso8601String(),
+            'amount' => (float) $transaction->final_amount,
+            'expires_at' => $transaction->created_at->copy()->addMinutes($this->claimTtlMinutes())->toIso8601String(),
         ];
     }
 
@@ -362,68 +366,125 @@ class TransactionService
      * transaction (no error). If a DIFFERENT commuter already claimed,
      * returns 409.
      *
-     * @param  User    $commuter  The commuter scanning the QR
-     * @param  string  $qrToken   The opaque token from the QR
-     *
+     * @param  User  $commuter  The commuter scanning the QR
+     * @param  string  $qrToken  The opaque token from the QR
      * @return array {
-     *     transaction_id:  string
-     *     checkout_url:     string|null
-     *     amount:           float
-     *     pickup_name:      string|null
-     *     dropoff_name:     string|null
-     * }
+     *               transaction_id:  string
+     *               checkout_url:     string|null
+     *               amount:           float
+     *               pickup_name:      string|null
+     *               dropoff_name:     string|null
+     *               }
      *
-     * @throws \Symfony\Component\HttpKernel\Exception\HttpException
-     *         404 if no transaction has this qr_token
-     *         410 if transaction is not claimable (PAID, FAILED, or expired)
-     *         409 if a different commuter already claimed it
-     *         422 if the commuter has no commuter_profile (cannot claim)
+     * @throws HttpException
+     *                       404 if no transaction has this qr_token
+     *                       410 if transaction is not claimable (PAID, FAILED, or expired)
+     *                       409 if a different commuter already claimed it
+     *                       422 if the commuter has no commuter_profile (cannot claim)
      */
     public function claimGcash(User $commuter, string $qrToken): array
     {
-        $transaction = Transaction::where('qr_token', $qrToken)->first();
-
-        if (! $transaction) {
-            abort(404, 'Transaction not found');
-        }
-
-        // 410 if not claimable: not PENDING (already PAID/FAILED/etc.) or expired.
-        if ($transaction->status !== PaymentStatus::PENDING) {
-            abort(410, 'Transaction is no longer claimable');
-        }
-
-        $createdAt = $transaction->created_at;
-        if ($createdAt && $createdAt->diffInMinutes(now()) > $this->claimTtlMinutes()) {
-            // Flip the row to EXPIRED so the DB matches the 410 we return —
-            // the conductor's status poll then sees EXPIRED and can restart.
-            $this->paymentService->expireIfStale($transaction);
-            abort(410, 'Transaction has expired');
-        }
-
-        // The commuter must have a commuter_profile (the passenger_id FK
-        // references commuter_profiles.id, not users.id)
         $commuterProfile = $commuter->commuterProfile;
         if (! $commuterProfile) {
             abort(422, 'Commuter profile required to claim a GCash transaction');
         }
 
-        // Idempotent: same commuter already claimed -> return the transaction
-        if ($transaction->passenger_id !== null) {
-            if ($transaction->passenger_id === $commuterProfile->id) {
-                return $this->formatClaimResponse($transaction);
+        $result = DB::transaction(function () use ($commuterProfile, $qrToken): array {
+            $transaction = Transaction::where('qr_token', $qrToken)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $transaction) {
+                abort(404, 'Transaction not found');
             }
-            // Different commuter already claimed
-            abort(409, 'Transaction already claimed by another commuter');
+
+            // 410 if not claimable: not PENDING (already PAID/FAILED/etc.) or expired.
+            if ($transaction->status !== PaymentStatus::PENDING) {
+                abort(410, 'Transaction is no longer claimable');
+            }
+
+            $createdAt = $transaction->created_at;
+            if ($createdAt && $createdAt->diffInMinutes(now()) > $this->claimTtlMinutes()) {
+                // Flip the row to EXPIRED so the DB matches the 410 we return —
+                // the conductor's status poll then sees EXPIRED and can restart.
+                $this->paymentService->expireIfStale($transaction);
+
+                return ['expired' => true];
+            }
+
+            // Idempotent: same commuter already claimed -> return the transaction
+            if ($transaction->passenger_id !== null) {
+                if ($transaction->passenger_id === $commuterProfile->id) {
+                    return $this->formatClaimResponse($transaction);
+                }
+                // Different commuter already claimed
+                abort(409, 'Transaction already claimed by another commuter');
+            }
+
+            $updates = [
+                'passenger_id' => $commuterProfile->id,
+                'passenger_name' => trim($commuterProfile->first_name.' '.$commuterProfile->surname),
+                'passenger_role' => strtoupper((string) $commuterProfile->commuter_type),
+            ];
+
+            $discountedAmount = $this->discountedFareFor($transaction, (string) $commuterProfile->commuter_type);
+            if ($discountedAmount !== null && $discountedAmount < (float) $transaction->final_amount) {
+                $regularAmount = (float) $transaction->final_amount;
+                $intent = $this->paymentService->createIntentFor(
+                    $transaction,
+                    (int) round($discountedAmount * 100),
+                );
+                $updates += [
+                    'final_amount' => $discountedAmount,
+                    'discount_amount' => round($regularAmount - $discountedAmount, 2),
+                    'payment_reference' => $intent->reference,
+                    'payment_checkout_url' => $intent->checkoutUrl,
+                ];
+            }
+
+            $transaction->update($updates);
+            $transaction->refresh();
+
+            return $this->formatClaimResponse($transaction);
+        }, 3);
+
+        if (($result['expired'] ?? false) === true) {
+            abort(410, 'Transaction has expired');
         }
 
-        // Bind the commuter
-        $transaction->update([
-            'passenger_id'   => $commuterProfile->id,
-            'passenger_name' => $commuterProfile->first_name . ' ' . $commuterProfile->surname,
-        ]);
-        $transaction->refresh();
+        return $result;
+    }
 
-        return $this->formatClaimResponse($transaction);
+    /**
+     * Resolve a verified commuter's fare from the same matrix used by the
+     * frontend. Regular commuters and unmatched legacy stop names are left
+     * unchanged.
+     */
+    private function discountedFareFor(Transaction $transaction, string $commuterType): ?float
+    {
+        $type = strtoupper(trim($commuterType));
+        if (! in_array($type, ['STUDENT', 'SENIOR', 'SENIOR_CITIZEN', 'PWD'], true)) {
+            return null;
+        }
+
+        $pickup = trim((string) $transaction->pickup_name);
+        $dropoff = trim((string) $transaction->dropoff_name);
+        if ($pickup === '' || $dropoff === '') {
+            return null;
+        }
+
+        $from = FarePoint::whereRaw('LOWER(name) = ?', [mb_strtolower($pickup)])->first();
+        $to = FarePoint::whereRaw('LOWER(name) = ?', [mb_strtolower($dropoff)])->first();
+        if (! $from || ! $to) {
+            return null;
+        }
+
+        $minimum = (float) (Setting::where('key', 'base_fare_discounted')->value('value') ?? 12);
+
+        return round(max(
+            abs((float) $from->discounted_fare - (float) $to->discounted_fare),
+            $minimum,
+        ), 2);
     }
 
     /**
@@ -443,74 +504,77 @@ class TransactionService
      * Idempotent: the same commuter re-scanning their own receipt is a no-op
      * that reports already_claimed, so a double-scan never double-counts.
      *
-     * @param  User    $commuter  The commuter scanning the receipt QR
-     * @param  string  $qrToken   The opaque token printed on the receipt
-     *
+     * @param  User  $commuter  The commuter scanning the receipt QR
+     * @param  string  $qrToken  The opaque token printed on the receipt
      * @return array {
-     *     transaction_id:  string
-     *     amount:          float
-     *     pickup_name:     string|null
-     *     dropoff_name:    string|null
-     *     conductor_name:  string|null
-     *     unit_number:     string|null
-     *     paid_at:         string|null
-     *     already_claimed: bool
-     * }
+     *               transaction_id:  string
+     *               amount:          float
+     *               pickup_name:     string|null
+     *               dropoff_name:    string|null
+     *               conductor_name:  string|null
+     *               unit_number:     string|null
+     *               paid_at:         string|null
+     *               already_claimed: bool
+     *               }
      *
-     * @throws \Symfony\Component\HttpKernel\Exception\HttpException
-     *         404 if no transaction carries this token
-     *         410 if the receipt is older than the TTL
-     *         409 if another commuter already claimed it
-     *         422 if the row is not a claimable cash ride, or no profile
+     * @throws HttpException
+     *                       404 if no transaction carries this token
+     *                       410 if the receipt is older than the TTL
+     *                       409 if another commuter already claimed it
+     *                       422 if the row is not a claimable cash ride, or no profile
      */
     public function claimCashReceipt(User $commuter, string $qrToken): array
     {
-        $transaction = Transaction::where('qr_token', $qrToken)->first();
-
-        if (! $transaction) {
-            abort(404, 'Receipt not recognised');
-        }
-
-        // Only cash receipts are claimable this way. A GCash token belongs to
-        // the live checkout flow (claimGcash) and must not be redeemable here
-        // — that would bind an unpaid PENDING ride and hand out a free point.
-        // NOTE: payment_method is enum-cast on the model, so this compares
-        // enum-to-enum. Comparing against ->value here would always be true.
-        if ($transaction->payment_method !== PaymentMethod::CASH) {
-            abort(422, 'This QR is not a cash receipt');
-        }
-
-        if ($transaction->status !== PaymentStatus::PAID) {
-            abort(422, 'This ride is not a completed cash payment');
-        }
-
-        // 410 once the receipt is past its window. Measured from created_at,
-        // which is when the fare was recorded and the receipt printed.
-        $createdAt = $transaction->created_at;
-        if ($createdAt && $createdAt->copy()->addHours($this->receiptTtlHours())->isPast()) {
-            abort(410, 'This receipt has expired');
-        }
-
         // passenger_id references commuter_profiles.id, not users.id.
         $commuterProfile = $commuter->commuterProfile;
         if (! $commuterProfile) {
             abort(422, 'Commuter profile required to claim a receipt');
         }
 
-        if ($transaction->passenger_id !== null) {
-            if ($transaction->passenger_id === $commuterProfile->id) {
-                return $this->formatReceiptClaimResponse($transaction, alreadyClaimed: true);
+        return DB::transaction(function () use ($commuterProfile, $qrToken): array {
+            $transaction = Transaction::where('qr_token', $qrToken)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $transaction) {
+                abort(404, 'Receipt not recognised');
             }
-            abort(409, 'This receipt has already been claimed');
-        }
 
-        $transaction->update([
-            'passenger_id'   => $commuterProfile->id,
-            'passenger_name' => trim($commuterProfile->first_name . ' ' . $commuterProfile->surname),
-        ]);
-        $transaction->refresh();
+            // Only cash receipts are claimable this way. A GCash token belongs to
+            // the live checkout flow (claimGcash) and must not be redeemable here
+            // — that would bind an unpaid PENDING ride and hand out a free point.
+            // NOTE: payment_method is enum-cast on the model, so this compares
+            // enum-to-enum. Comparing against ->value here would always be true.
+            if ($transaction->payment_method !== PaymentMethod::CASH) {
+                abort(422, 'This QR is not a cash receipt');
+            }
 
-        return $this->formatReceiptClaimResponse($transaction, alreadyClaimed: false);
+            if ($transaction->status !== PaymentStatus::PAID) {
+                abort(422, 'This ride is not a completed cash payment');
+            }
+
+            // 410 once the receipt is past its window. Measured from created_at,
+            // which is when the fare was recorded and the receipt printed.
+            $createdAt = $transaction->created_at;
+            if ($createdAt && $createdAt->copy()->addHours($this->receiptTtlHours())->isPast()) {
+                abort(410, 'This receipt has expired');
+            }
+
+            if ($transaction->passenger_id !== null) {
+                if ($transaction->passenger_id === $commuterProfile->id) {
+                    return $this->formatReceiptClaimResponse($transaction, alreadyClaimed: true);
+                }
+                abort(409, 'This receipt has already been claimed');
+            }
+
+            $transaction->update([
+                'passenger_id' => $commuterProfile->id,
+                'passenger_name' => trim($commuterProfile->first_name.' '.$commuterProfile->surname),
+            ]);
+            $transaction->refresh();
+
+            return $this->formatReceiptClaimResponse($transaction, alreadyClaimed: false);
+        }, 3);
     }
 
     /**
@@ -519,13 +583,13 @@ class TransactionService
     private function formatReceiptClaimResponse(Transaction $transaction, bool $alreadyClaimed): array
     {
         return [
-            'transaction_id'  => $transaction->transaction_id,
-            'amount'          => (float) $transaction->final_amount,
-            'pickup_name'     => $transaction->pickup_name,
-            'dropoff_name'    => $transaction->dropoff_name,
-            'conductor_name'  => $transaction->conductor_name,
-            'unit_number'     => $transaction->unit_number,
-            'paid_at'         => $transaction->paid_at?->toIso8601String(),
+            'transaction_id' => $transaction->transaction_id,
+            'amount' => (float) $transaction->final_amount,
+            'pickup_name' => $transaction->pickup_name,
+            'dropoff_name' => $transaction->dropoff_name,
+            'conductor_name' => $transaction->conductor_name,
+            'unit_number' => $transaction->unit_number,
+            'paid_at' => $transaction->paid_at?->toIso8601String(),
             'already_claimed' => $alreadyClaimed,
         ];
     }
@@ -535,14 +599,12 @@ class TransactionService
     /**
      * List all transactions for a shift, scoped to the conductor's own shift.
      *
-     * @param  User    $conductor
-     * @param  string  $shiftId
      *
      * @return Collection<Transaction>
      *
-     * @throws \Symfony\Component\HttpKernel\Exception\HttpException
-     *         403 if the shift does not belong to this conductor
-     *         404 if the shift does not exist
+     * @throws HttpException
+     *                       403 if the shift does not belong to this conductor
+     *                       404 if the shift does not exist
      */
     public function getShiftTransactions(User $conductor, string $shiftId): Collection
     {
@@ -564,14 +626,12 @@ class TransactionService
      * counted -- it may still FAIL). cash_total is the remit figure;
      * gcash_total is record-only (not physically remitted).
      *
-     * @param  User    $conductor
-     * @param  string  $shiftId
      *
      * @return array{ cash_total: float, gcash_total: float, total: float }
      *
-     * @throws \Symfony\Component\HttpKernel\Exception\HttpException
-     *         403 if the shift does not belong to this conductor
-     *         404 if the shift does not exist
+     * @throws HttpException
+     *                       403 if the shift does not belong to this conductor
+     *                       404 if the shift does not exist
      */
     public function getShiftEarnings(User $conductor, string $shiftId): array
     {
@@ -587,13 +647,13 @@ class TransactionService
             ->selectRaw("COALESCE(SUM(CASE WHEN payment_method = 'GCASH' THEN final_amount ELSE 0 END), 0) AS gcash_total")
             ->first();
 
-        $cashTotal  = (float) ($row->cash_total ?? 0);
+        $cashTotal = (float) ($row->cash_total ?? 0);
         $gcashTotal = (float) ($row->gcash_total ?? 0);
 
         return [
-            'cash_total'  => $cashTotal,
+            'cash_total' => $cashTotal,
             'gcash_total' => $gcashTotal,
-            'total'       => $cashTotal + $gcashTotal,
+            'total' => $cashTotal + $gcashTotal,
         ];
     }
 
@@ -650,7 +710,7 @@ class TransactionService
      */
     private function generateTransactionId(): string
     {
-        return 'TXN-' . strtoupper(Str::random(15));
+        return 'TXN-'.strtoupper(Str::random(15));
     }
 
     /**
@@ -660,10 +720,13 @@ class TransactionService
     {
         return [
             'transaction_id' => $transaction->transaction_id,
-            'checkout_url'   => $transaction->payment_checkout_url,
-            'amount'         => (float) $transaction->final_amount,
-            'pickup_name'    => $transaction->pickup_name,
-            'dropoff_name'   => $transaction->dropoff_name,
+            'checkout_url' => $transaction->payment_checkout_url,
+            'amount' => (float) $transaction->final_amount,
+            'regular_amount' => (float) $transaction->final_amount + (float) ($transaction->discount_amount ?? 0),
+            'discount_amount' => (float) ($transaction->discount_amount ?? 0),
+            'passenger_role' => $transaction->passenger_role,
+            'pickup_name' => $transaction->pickup_name,
+            'dropoff_name' => $transaction->dropoff_name,
         ];
     }
 }

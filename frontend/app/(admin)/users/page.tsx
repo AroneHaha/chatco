@@ -19,6 +19,7 @@ import { SkeletonTable } from '@/components/admin/ui/skeleton';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 import { SuspensionModal } from '@/components/admin/users/suspension-modal';
 import type { SuspendUserInput } from '@/lib/admin/services/user.service';
+import { OperationResultModal } from '@/components/admin/ui/operation-result-modal';
 
 export default function UsersPage() {
   const [activeTab, setActiveTab] = useState<'active' | 'pending' | 'rejected'>('active');
@@ -54,6 +55,11 @@ export default function UsersPage() {
   const [isReviewProcessing, setIsReviewProcessing] = useState(false);
   const [suspensionUser, setSuspensionUser] = useState<ActiveUser | null>(null);
   const [isSuspensionProcessing, setIsSuspensionProcessing] = useState(false);
+  const [reviewResult, setReviewResult] = useState<{
+    type: 'success' | 'error';
+    title: string;
+    message: string;
+  } | null>(null);
 
   // Modal States
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
@@ -275,12 +281,18 @@ export default function UsersPage() {
     setIsReviewProcessing(true);
     try {
       const msg = await approveRegistrationApi(selectedRequest.id);
-      setSuccessMessage(msg);
       handleCloseReviewModal();
-      // Auto-clear the success message after 5 seconds
-      setTimeout(() => setSuccessMessage(null), 5000);
+      setReviewResult({
+        type: 'success',
+        title: 'Registration approved',
+        message: msg,
+      });
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Failed to approve registration.');
+      setReviewResult({
+        type: 'error',
+        title: 'Approval failed',
+        message: err instanceof Error ? err.message : 'Failed to approve registration.',
+      });
     } finally {
       setIsReviewProcessing(false);
     }
@@ -293,11 +305,18 @@ export default function UsersPage() {
     setIsReviewProcessing(true);
     try {
       const msg = await rejectRegistrationApi(selectedRequest.id, reason);
-      setSuccessMessage(msg);
       handleCloseReviewModal();
-      setTimeout(() => setSuccessMessage(null), 5000);
+      setReviewResult({
+        type: 'success',
+        title: 'Registration rejected',
+        message: msg,
+      });
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Failed to reject registration.');
+      setReviewResult({
+        type: 'error',
+        title: 'Rejection failed',
+        message: err instanceof Error ? err.message : 'Failed to reject registration.',
+      });
     } finally {
       setIsReviewProcessing(false);
     }
@@ -560,6 +579,13 @@ export default function UsersPage() {
         onClose={() => setSuspensionUser(null)}
         onSuspend={handleSuspendUser}
         onUnsuspend={handleUnsuspendUser}
+      />
+      <OperationResultModal
+        isOpen={reviewResult !== null}
+        type={reviewResult?.type ?? 'success'}
+        title={reviewResult?.title ?? ''}
+        message={reviewResult?.message ?? ''}
+        onClose={() => setReviewResult(null)}
       />
     </>
   );

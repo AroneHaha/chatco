@@ -45,6 +45,9 @@ export default function CommuterHome() {
   const [activeHailId, setActiveHailId] = useState<string | null>(null);
   const [hailPending, setHailPending] = useState(false);
   const [hailError, setHailError] = useState<string | null>(null);
+  const [sosTapHint, setSosTapHint] = useState(false);
+  const lastSosTapRef = useRef(0);
+  const sosHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ─── CONDUCTOR RADIUS + GPS TRACKING ────────────────────────────────
   const [nearbyVehicles, setNearbyVehicles] = useState<NearbyVehicle[]>([]);
@@ -80,16 +83,19 @@ export default function CommuterHome() {
       }
       const ctx = audioCtxRef.current;
       if (ctx.state === "suspended") void ctx.resume();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = 880;
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.25);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.26);
+      [880, 1175, 880].forEach((frequency, index) => {
+        const start = ctx.currentTime + index * 0.18;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "square";
+        osc.frequency.value = frequency;
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(0.28, start + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.14);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + 0.15);
+      });
     } catch {
       /* audio unavailable — ignore */
     }
@@ -200,6 +206,29 @@ export default function CommuterHome() {
   const commuterType = commuterProfile?.commuterType ?? "REGULAR";
   const commuterId = commuterProfile?.id ?? user?.id ?? "unknown";
 
+  useEffect(() => () => {
+    if (sosHintTimerRef.current) clearTimeout(sosHintTimerRef.current);
+  }, []);
+
+  const handleSosDoubleTap = useCallback(() => {
+    const now = Date.now();
+    if (now - lastSosTapRef.current <= 1200) {
+      if (sosHintTimerRef.current) clearTimeout(sosHintTimerRef.current);
+      lastSosTapRef.current = 0;
+      setSosTapHint(false);
+      setShowSOS(true);
+      return;
+    }
+
+    lastSosTapRef.current = now;
+    setSosTapHint(true);
+    if (sosHintTimerRef.current) clearTimeout(sosHintTimerRef.current);
+    sosHintTimerRef.current = setTimeout(() => {
+      lastSosTapRef.current = 0;
+      setSosTapHint(false);
+    }, 1200);
+  }, []);
+
   const quickActions = [
     {
       label: "Share Ride",
@@ -212,7 +241,7 @@ export default function CommuterHome() {
       label: "SOS",
       iconPath:
         "M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z",
-      action: () => setShowSOS(true),
+      action: handleSosDoubleTap,
       isSos: true,
     },
   ];
@@ -423,7 +452,9 @@ export default function CommuterHome() {
                 <svg className={`w-4 h-4 ${action.isSos ? "text-red-400" : "text-blue-300"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d={action.iconPath} />
                 </svg>
-                <span className={`text-xs font-semibold ${action.isSos ? "text-red-400" : "text-white/70"}`}>{action.label}</span>
+                <span className={`text-xs font-semibold ${action.isSos ? "text-red-400" : "text-white/70"}`}>
+                  {action.isSos && sosTapHint ? "Tap SOS again" : action.label}
+                </span>
               </button>
             ))}
           </div>
@@ -567,7 +598,9 @@ export default function CommuterHome() {
                   <svg className={`w-4 h-4 ${action.isSos ? "text-red-400" : "text-blue-300"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d={action.iconPath} />
                   </svg>
-                  <span className={`text-xs font-semibold ${action.isSos ? "text-red-400" : "text-white/70"}`}>{action.label}</span>
+                  <span className={`text-xs font-semibold ${action.isSos ? "text-red-400" : "text-white/70"}`}>
+                    {action.isSos && sosTapHint ? "Tap SOS again" : action.label}
+                  </span>
                 </button>
               ))}
             </div>

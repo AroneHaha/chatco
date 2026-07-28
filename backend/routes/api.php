@@ -313,6 +313,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::get('/lost-items/{itemId}', [AdminLostItemController::class, 'show'])->middleware('throttle:conductor-read');
     Route::post('/lost-items/{itemId}/image', [AdminLostItemController::class, 'uploadImage'])->middleware('throttle:admin-write');
     Route::get('/lost-items/{itemId}/claims', [AdminLostItemController::class, 'claims'])->middleware('throttle:conductor-read');
+    Route::post('/lost-items/{itemId}/claims/manual', [AdminLostItemController::class, 'storeManualClaim'])->middleware('throttle:admin-write');
     Route::patch('/lost-items/{itemId}/claims/{claimId}/approve', [AdminLostItemController::class, 'approveClaim'])->middleware('throttle:admin-write');
     Route::patch('/lost-items/{itemId}/claims/{claimId}/release', [AdminLostItemController::class, 'releaseClaim'])->middleware('throttle:admin-write');
     Route::patch('/lost-items/{itemId}/claims/{claimId}/reject', [AdminLostItemController::class, 'rejectClaim'])->middleware('throttle:admin-write');

@@ -14,6 +14,7 @@ import {
 } from './data/data-monitoring';
 import { SkeletonMetric, SkeletonTable, SkeletonMap } from '@/components/admin/ui/skeleton';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
+import { formatElapsedMinutes } from '@/lib/utils/display';
 
 // Dynamically import the map and disable SSR (Leaflet requires the window object)
 const AdminCommuterMap = dynamic<{
@@ -320,7 +321,7 @@ export default function MonitoringPage() {
                         {!v.has_gps ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-400/15 text-slate-400" title="On shift, but the unit has not reported a GPS position yet"><WifiOff size={10} />Awaiting GPS</span>
                         ) : v.is_stale ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-400/15 text-amber-400"><WifiOff size={10} />Stale · {v.minutes_since_update}m ago</span>
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-400/15 text-amber-400"><WifiOff size={10} />Stale · {formatElapsedMinutes(v.minutes_since_update)} ago</span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-400/15 text-emerald-400"><span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span></span>Live</span>
                         )}

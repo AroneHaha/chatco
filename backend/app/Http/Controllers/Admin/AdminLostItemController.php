@@ -42,7 +42,7 @@ class AdminLostItemController extends Controller
     public function index(Request $request): JsonResponse
     {
         $filters = [
-            'status'   => $request->string('status')->toString() ?: null,
+            'status' => $request->string('status')->toString() ?: null,
             'category' => $request->string('category')->toString() ?: null,
         ];
         $perPage = (int) $request->integer('per_page', 15);
@@ -109,6 +109,35 @@ class AdminLostItemController extends Controller
     }
 
     /**
+     * Record an in-person claimant who does not have a CHATCO account.
+     * A name, proof statement, and at least one contact channel are retained
+     * in the audit trail before the normal approve/release workflow.
+     */
+    public function storeManualClaim(Request $request, string $itemId): JsonResponse
+    {
+        $validated = $request->validate([
+            'claimant_name' => ['required', 'string', 'max:100'],
+            'claimant_contact' => ['nullable', 'string', 'max:20', 'required_without:claimant_email'],
+            'claimant_email' => ['nullable', 'email', 'max:255', 'required_without:claimant_contact'],
+            'proof' => ['required', 'string', 'min:10', 'max:500'],
+        ]);
+
+        try {
+            $claim = $this->lostItemService->createManualClaim(
+                $request->user(),
+                $itemId,
+                $validated,
+            );
+        } catch (LostFoundException $e) {
+            $status = str_contains($e->getMessage(), 'not found') ? 404 : 422;
+
+            return $this->errorResponse($e->getMessage(), $status);
+        }
+
+        return $this->successResponse($claim, 'Walk-in claimant recorded', 201);
+    }
+
+    /**
      * PATCH /admin/lost-items/{itemId}/claims/{claimId}/approve
      */
     public function approveClaim(Request $request, string $itemId, string $claimId): JsonResponse
@@ -121,6 +150,7 @@ class AdminLostItemController extends Controller
             );
         } catch (LostFoundException $e) {
             $status = str_contains($e->getMessage(), 'not found') ? 404 : 422;
+
             return $this->errorResponse($e->getMessage(), $status);
         }
 
@@ -141,6 +171,7 @@ class AdminLostItemController extends Controller
             );
         } catch (LostFoundException $e) {
             $status = str_contains($e->getMessage(), 'not found') ? 404 : 422;
+
             return $this->errorResponse($e->getMessage(), $status);
         }
 
@@ -161,6 +192,7 @@ class AdminLostItemController extends Controller
             );
         } catch (LostFoundException $e) {
             $status = str_contains($e->getMessage(), 'not found') ? 404 : 422;
+
             return $this->errorResponse($e->getMessage(), $status);
         }
 
@@ -179,6 +211,7 @@ class AdminLostItemController extends Controller
             );
         } catch (LostFoundException $e) {
             $status = str_contains($e->getMessage(), 'not found') ? 404 : 422;
+
             return $this->errorResponse($e->getMessage(), $status);
         }
 
