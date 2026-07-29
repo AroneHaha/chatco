@@ -32,6 +32,8 @@ export default function UsersPage() {
     pagination,
     pendingPagination,
     rejectedPagination,
+    pendingTotal,
+    rejectedTotal,
     isLoading,
     error,
     filters,
@@ -438,10 +440,10 @@ export default function UsersPage() {
           <UserCheck size={20} /><span>Active {activeRoleLabel} ({pagination?.total ?? activeUsers.length})</span>
         </button>
         <button onClick={() => setActiveTab('pending')} className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-md transition-colors ${activeTab === 'pending' ? 'text-white border-b-2 border-amber-400 bg-amber-400/10' : 'text-slate-400 hover:text-white hover:bg-[#1A2540]'}`}>
-          <Users size={20} /><span>Pending Verification ({pendingPagination?.total ?? '...'})</span>
+          <Users size={20} /><span>Pending Verification ({pendingTotal})</span>
         </button>
         <button onClick={() => setActiveTab('rejected')} className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-md transition-colors ${activeTab === 'rejected' ? 'text-white border-b-2 border-red-400 bg-red-400/10' : 'text-slate-400 hover:text-white hover:bg-[#1A2540]'}`}>
-          <XCircle size={20} /><span>Rejected ({rejectedPagination?.total ?? '...'})</span>
+          <XCircle size={20} /><span>Rejected ({rejectedTotal})</span>
         </button>
       </div>
 

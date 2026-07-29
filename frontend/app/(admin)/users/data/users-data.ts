@@ -103,6 +103,8 @@ export interface UseUsersDataReturn {
   pagination: PaginationMeta | null;
   pendingPagination: registrationService.RegistrationPagination | null;
   rejectedPagination: registrationService.RegistrationPagination | null;
+  pendingTotal: number;
+  rejectedTotal: number;
   isLoading: boolean;
   isTableLoading: boolean;
   error: string | null;
@@ -181,6 +183,8 @@ export function useUsersData(activeTab: "active" | "pending" | "rejected" = "act
   const [pagination, setPagination] = useState<PaginationMeta | null>(null);
   const [pendingPagination, setPendingPagination] = useState<registrationService.RegistrationPagination | null>(null);
   const [rejectedPagination, setRejectedPagination] = useState<registrationService.RegistrationPagination | null>(null);
+  const [pendingTotal, setPendingTotal] = useState(0);
+  const [rejectedTotal, setRejectedTotal] = useState(0);
   const [pendingPage, setPendingPageState] = useState(1);
   const [rejectedPage, setRejectedPageState] = useState(1);
   const [pendingType, setPendingTypeState] = useState<registrationService.AppliedType | "">("");
@@ -341,6 +345,29 @@ export function useUsersData(activeTab: "active" | "pending" | "rejected" = "act
     }
   }, [filters.search, filters.perPage, rejectedPage]);
 
+  /**
+   * Load registration totals independently of the selected tab. Inactive
+   * tabs do not have pagination data yet, which previously left their
+   * labels showing "(...)" until the user opened each tab.
+   */
+  const refreshRegistrationTotals = useCallback(async () => {
+    const [pendingResult, rejectedResult] = await Promise.allSettled([
+      registrationService.listPending({ page: 1, perPage: 1 }),
+      registrationService.listRejected({ page: 1, perPage: 1 }),
+    ]);
+
+    if (pendingResult.status === "fulfilled") {
+      setPendingTotal(pendingResult.value.pagination.total);
+    }
+    if (rejectedResult.status === "fulfilled") {
+      setRejectedTotal(rejectedResult.value.pagination.total);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshRegistrationTotals();
+  }, [refreshRegistrationTotals]);
+
   // ── Fetch a user's activity timeline ──
   // Calls GET /api/admin/users/{id}/activity which reuses existing data
   // (transactions, shift_logs, verification dates) to build a chronological
@@ -429,21 +456,19 @@ export function useUsersData(activeTab: "active" | "pending" | "rejected" = "act
   const approveRegistrationApi = useCallback(
     async (id: string): Promise<string> => {
       const result = await registrationService.approve(id);
-      // Refresh only the visible queue. Other tabs load when opened.
-      await fetchPending();
+      await Promise.all([fetchPending(), refreshRegistrationTotals()]);
       return `Approved ${result.name} — commuter type: ${result.commuter_type}. They can now log in.`;
     },
-    [fetchPending]
+    [fetchPending, refreshRegistrationTotals]
   );
 
   const rejectRegistrationApi = useCallback(
     async (id: string, reason: string): Promise<string> => {
       await registrationService.reject(id, reason);
-      // Refresh the pending list (the rejected row is soft-deleted).
-      await fetchPending();
+      await Promise.all([fetchPending(), refreshRegistrationTotals()]);
       return `Registration rejected. Reason: "${reason}". The email is now available for re-registration.`;
     },
-    [fetchPending]
+    [fetchPending, refreshRegistrationTotals]
   );
 
   const suspendUserApi = useCallback(async (id: string, input: SuspendUserInput) => {
@@ -473,6 +498,8 @@ export function useUsersData(activeTab: "active" | "pending" | "rejected" = "act
     pagination,
     pendingPagination,
     rejectedPagination,
+    pendingTotal,
+    rejectedTotal,
     isLoading,
     isTableLoading: isLoading,
     error,
