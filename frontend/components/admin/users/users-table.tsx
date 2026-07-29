@@ -111,7 +111,7 @@ export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete,
           searchQuery={searchQuery}
           onRowDoubleClick={onRowDoubleClick ? (item) => onRowDoubleClick(item) : undefined}
           emptyMessage={isRejectedTab ? 'No rejected users.' : 'No users found.'}
-          maxHeight="58vh"
+          height="32rem"
           stickyHeader
           allowHorizontalScroll={false}
           tableClassName="table-fixed"

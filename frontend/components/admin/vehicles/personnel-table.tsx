@@ -3,8 +3,9 @@
 
 import { useState } from "react";
 import { DataTable } from "@/components/admin/ui/data-table";
+import { TablePagination } from "@/components/admin/ui/table-pagination";
 import { GlassCard } from "@/components/admin/ui/glass-card";
-import { Edit, Trash, ChevronLeft, ChevronRight } from "lucide-react";
+import { Edit, Trash } from "lucide-react";
 import type { Personnel } from "@/app/(admin)/vehicles/data/vehicles-data";
 import { DriverDetailModal } from "@/components/admin/vehicles/driver-detail-modal";
 import { ConductorDetailModal } from "@/components/admin/vehicles/conductor-detail-modal";
@@ -119,88 +120,34 @@ export function PersonnelTable({ personnel, searchQuery, onEdit, onDelete }: Per
           </p>
         </div>
 
-        {personnel.length === 0 ? (
-          <div className="py-12 text-center text-slate-500 text-sm">
-            No personnel records found.
-          </div>
-        ) : (
-          <>
-            <DataTable
-                data={currentData}
-                columns={columns}
-                searchQuery=""
-                maxHeight="58vh"
-                stickyHeader
-                allowHorizontalScroll={false}
-                tableClassName="table-fixed"
-                onRowDoubleClick={(item) => {
-                  const p = item as Personnel;
-                  if (p.role === "Driver") {
-                    setSelectedDriver(p);
-                  } else if (p.role === "Conductor") {
-                    setSelectedConductor(p);
-                  }
-                }}
-              />
+        <DataTable
+          data={currentData}
+          columns={columns}
+          searchQuery=""
+          emptyMessage="No personnel records found."
+          height="32rem"
+          stickyHeader
+          allowHorizontalScroll={false}
+          tableClassName="table-fixed"
+          onRowDoubleClick={(item) => {
+            const p = item as Personnel;
+            if (p.role === "Driver") {
+              setSelectedDriver(p);
+            } else if (p.role === "Conductor") {
+              setSelectedConductor(p);
+            }
+          }}
+        />
 
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-[#1E2D45]">
-              <p className="text-xs text-slate-500 order-2 sm:order-1">
-                Showing{" "}
-                <span className="text-slate-300 font-medium">
-                  {filteredData.length ? (safeCurrentPage - 1) * ITEMS_PER_PAGE + 1 : 0} to{" "}
-                  {Math.min(safeCurrentPage * ITEMS_PER_PAGE, filteredData.length)}
-                </span>{" "}
-                of{" "}
-                <span className="text-slate-300 font-medium">
-                  {filteredData.length}
-                </span>{" "}
-                personnel
-              </p>
-
-              <div className="flex items-center gap-2 order-1 sm:order-2">
-                <button
-                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                  disabled={safeCurrentPage === 1}
-                  className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-slate-400 bg-[#0E1628] border border-[#1E2D45] rounded-md hover:bg-[#1A2540] hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed active:scale-[0.98]"
-                >
-                  <ChevronLeft size={16} />
-                  Prev
-                </button>
-
-                <div className="hidden sm:flex items-center gap-1">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                    <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className={`w-9 h-9 rounded-md text-sm font-medium transition-colors ${
-                        safeCurrentPage === page
-                          ? "bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/30"
-                          : "text-slate-400 hover:bg-[#1A2540] hover:text-white"
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  ))}
-                </div>
-
-                <span className="sm:hidden text-xs text-slate-500 font-medium px-2">
-                  {safeCurrentPage} / {totalPages}
-                </span>
-
-                <button
-                  onClick={() =>
-                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-                  }
-                  disabled={safeCurrentPage === totalPages}
-                  className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-slate-400 bg-[#0E1628] border border-[#1E2D45] rounded-md hover:bg-[#1A2540] hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed active:scale-[0.98]"
-                >
-                  Next
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            </div>
-          </>
-        )}
+        <TablePagination
+          currentPage={safeCurrentPage}
+          totalPages={totalPages}
+          from={currentData.length ? (safeCurrentPage - 1) * ITEMS_PER_PAGE + 1 : 0}
+          to={(safeCurrentPage - 1) * ITEMS_PER_PAGE + currentData.length}
+          total={filteredData.length}
+          label="personnel"
+          onPageChange={setCurrentPage}
+        />
       </GlassCard>
 
       {/* Driver Detail Modal — opens on double-click of a Driver row */}
