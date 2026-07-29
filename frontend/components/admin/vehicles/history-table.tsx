@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react';
 import { Clock, UserX } from 'lucide-react';
 import { Badge } from '@/components/admin/ui/badge';
 import { DataTable } from '@/components/admin/ui/data-table';
-import { GlassCard } from '@/components/admin/ui/glass-card';
 import { TablePagination } from '@/components/admin/ui/table-pagination';
 import type { ShiftLog, TerminatedPersonnel } from '@/app/(admin)/vehicles/data/vehicles-data';
 
@@ -156,7 +155,7 @@ export function HistoryTable({
         </button>
       </div>
 
-      <GlassCard className="p-4 sm:p-5">
+      <div className="space-y-4">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             {isTerminated ? (
@@ -208,7 +207,7 @@ export function HistoryTable({
           label="records"
           onPageChange={isTerminated ? setTerminatedPage : setShiftPage}
         />
-      </GlassCard>
+      </div>
     </div>
   );
 }

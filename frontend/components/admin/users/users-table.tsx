@@ -1,7 +1,6 @@
 // components/admin/users/users-table.tsx
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
-import { GlassCard } from '@/components/admin/ui/glass-card';
 import { Modal } from '@/components/admin/ui/modal';
 import { Clock, UserIcon, Mail, Phone, CreditCard, Pencil, Trash2 } from 'lucide-react';
 import type { ActiveUser, RejectedUser } from '@/app/(admin)/users/data/users-data';
@@ -104,7 +103,7 @@ export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete,
 
   return (
     <>
-      <GlassCard className="p-4">
+      <div>
         <DataTable
           data={users}
           columns={columns}
@@ -116,7 +115,7 @@ export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete,
           allowHorizontalScroll={false}
           tableClassName="table-fixed"
         />
-      </GlassCard>
+      </div>
 
       {/* User Details Modal */}
       <Modal isOpen={!!selectedUser} onClose={() => onSelectUser(null)}>

@@ -4,7 +4,6 @@
 import { useState } from "react";
 import { DataTable } from "@/components/admin/ui/data-table";
 import { TablePagination } from "@/components/admin/ui/table-pagination";
-import { GlassCard } from "@/components/admin/ui/glass-card";
 import { Edit, Trash } from "lucide-react";
 import type { Personnel } from "@/app/(admin)/vehicles/data/vehicles-data";
 import { DriverDetailModal } from "@/components/admin/vehicles/driver-detail-modal";
@@ -111,7 +110,7 @@ export function PersonnelTable({ personnel, searchQuery, onEdit, onDelete }: Per
 
   return (
     <>
-      <GlassCard className="p-4 sm:p-6 flex flex-col gap-4">
+      <div className="flex flex-col gap-4">
         {/* Double-click hint */}
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs font-semibold text-white">Chatco Personnel</p>
@@ -148,7 +147,7 @@ export function PersonnelTable({ personnel, searchQuery, onEdit, onDelete }: Per
           label="personnel"
           onPageChange={setCurrentPage}
         />
-      </GlassCard>
+      </div>
 
       {/* Driver Detail Modal — opens on double-click of a Driver row */}
       <DriverDetailModal

@@ -4,7 +4,6 @@
 import { useMemo, useState } from 'react';
 import { DataTable } from '@/components/admin/ui/data-table';
 import { TablePagination } from '@/components/admin/ui/table-pagination';
-import { GlassCard } from '@/components/admin/ui/glass-card';
 import { Badge } from '@/components/admin/ui/badge';
 import { Pencil, Clock } from 'lucide-react'; // Added icons
 import type { Vehicle } from '@/app/(admin)/vehicles/data/vehicles-data';
@@ -109,7 +108,7 @@ export function VehicleTable({ vehicles, searchQuery, onEdit, onEditShift, onRow
   ];
 
   return (
-    <GlassCard className="p-4 sm:p-5">
+    <div className="space-y-4">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-white">Vehicle Registry</h2>
         <span className="rounded-md bg-[#62A0EA]/10 px-2 py-1 text-xs font-bold text-[#62A0EA]">
@@ -135,6 +134,6 @@ export function VehicleTable({ vehicles, searchQuery, onEdit, onEditShift, onRow
         label="vehicles"
         onPageChange={setCurrentPage}
       />
-    </GlassCard>
+    </div>
   );
 }

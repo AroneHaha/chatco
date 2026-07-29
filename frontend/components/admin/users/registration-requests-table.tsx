@@ -3,7 +3,6 @@
 import { Eye } from 'lucide-react';
 import { Badge } from '@/components/admin/ui/badge';
 import { DataTable } from '@/components/admin/ui/data-table';
-import { GlassCard } from '@/components/admin/ui/glass-card';
 import { TablePagination } from '@/components/admin/ui/table-pagination';
 import type { PendingRequest } from '@/app/(admin)/users/data/users-data';
 import type { RegistrationPagination } from '@/lib/admin/services/registration.service';
@@ -79,7 +78,7 @@ export function RegistrationRequestsTable({
   ];
 
   return (
-    <GlassCard className="p-4">
+    <div className="space-y-4">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-white">Pending Verification</h2>
         <span className="rounded-md bg-amber-400/10 px-2 py-1 text-xs font-bold text-amber-300">
@@ -105,6 +104,6 @@ export function RegistrationRequestsTable({
         label="requests"
         onPageChange={onPageChange}
       />
-    </GlassCard>
+    </div>
   );
 }
