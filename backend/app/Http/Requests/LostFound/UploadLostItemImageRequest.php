@@ -5,11 +5,10 @@ namespace App\Http\Requests\LostFound;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Validates POST /api/v1/admin/lost-items/{itemId}/image (multipart upload).
+ * Validates POST /api/v1/admin/lost-items/{itemId}/photos (multipart upload).
  *
- * Accepts a single image file (jpg/jpeg/png/webp) up to 5MB. The file is
- * stored on the 'public' disk and the resulting URL is saved to
- * lost_items.image_url, replacing any previous image.
+ * Accepts a single image file (jpg/jpeg/png/webp) up to 5MB, appended as the
+ * next photo on the item (max 3 — see LostItemService::MAX_PHOTOS).
  */
 class UploadLostItemImageRequest extends FormRequest
 {

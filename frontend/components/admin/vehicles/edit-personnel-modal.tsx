@@ -6,6 +6,9 @@ import { Modal } from '@/components/admin/ui/modal';
 import { Upload, Check, User, Save, Phone, IdCard, Calendar } from 'lucide-react';
 import type { Personnel } from '@/app/(admin)/vehicles/data/vehicles-data';
 
+// Mirrors the backend's LTO format check (AdminController::updateDriver).
+const LICENSE_NUMBER_PATTERN = /^[A-Z][0-9]{2}-[0-9]{2}-[0-9]{6}$/;
+
 function formatLicenseNumber(value: string): string {
   const normalized = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
   const letter = normalized.match(/[A-Z]/)?.[0] ?? '';
@@ -177,9 +180,15 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
       return;
     }
 
-    setIsSubmitting(true);
     setError(null);
     setFieldErrors({});
+
+    if (!isConductor && !LICENSE_NUMBER_PATTERN.test(formData.license_number)) {
+      setFieldErrors({ license_number: ['Use the Philippine LTO format N01-23-045678 (one letter, four digits, then six digits).'] });
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       const requestBody: Record<string, unknown> = {

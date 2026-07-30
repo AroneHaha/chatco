@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LostFound\RejectClaimRequest;
 use App\Http\Requests\LostFound\StoreLostItemRequest;
+use App\Http\Requests\LostFound\UpdateLostItemRequest;
 use App\Http\Requests\LostFound\UploadLostItemImageRequest;
 use App\Services\LostItemService;
 use App\Support\LostFound\LostFoundException;
@@ -15,15 +16,18 @@ use Illuminate\Http\Request;
 /**
  * Sprint 6 (T3) — Admin Lost & Found management.
  *
- *   GET   /api/v1/admin/lost-items                          — list (with claims)
- *   POST  /api/v1/admin/lost-items                          — create reported item
- *   GET   /api/v1/admin/lost-items/{itemId}                 — detail + claims
- *   POST  /api/v1/admin/lost-items/{itemId}/image           — upload item image
- *   GET   /api/v1/admin/lost-items/{itemId}/claims          — claims for an item
- *   PATCH /api/v1/admin/lost-items/{itemId}/claims/{claimId}/approve
- *   PATCH /api/v1/admin/lost-items/{itemId}/claims/{claimId}/release
- *   PATCH /api/v1/admin/lost-items/{itemId}/claims/{claimId}/reject
- *   PATCH /api/v1/admin/lost-items/{itemId}/close           — close released item
+ *   GET    /api/v1/admin/lost-items                          — list (with claims)
+ *   POST   /api/v1/admin/lost-items                          — create reported item
+ *   GET    /api/v1/admin/lost-items/{itemId}                 — detail + claims
+ *   PATCH  /api/v1/admin/lost-items/{itemId}                 — edit item (blocked once CLOSED)
+ *   POST   /api/v1/admin/lost-items/{itemId}/photos          — add a photo (max 3)
+ *   DELETE /api/v1/admin/lost-items/{itemId}/photos/{photoId} — remove a photo
+ *   PATCH  /api/v1/admin/lost-items/{itemId}/reactivate      — EXPIRED → AVAILABLE
+ *   GET    /api/v1/admin/lost-items/{itemId}/claims          — claims for an item
+ *   PATCH  /api/v1/admin/lost-items/{itemId}/claims/{claimId}/approve
+ *   PATCH  /api/v1/admin/lost-items/{itemId}/claims/{claimId}/release
+ *   PATCH  /api/v1/admin/lost-items/{itemId}/claims/{claimId}/reject
+ *   PATCH  /api/v1/admin/lost-items/{itemId}/close           — close released item
  *
  * This replaces the old AdminController::lostItems() 501 stub. All routes
  * are behind role:ADMIN via the admin route group.
@@ -37,12 +41,20 @@ class AdminLostItemController extends Controller
     ) {}
 
     /**
-     * GET /admin/lost-items?status=&category=&per_page=
+     * GET /admin/lost-items?status=&statuses[]=&category=&per_page=
+     *
+     * `statuses[]` (repeated query param) filters to any of several statuses
+     * at once — powers the admin History tab (?statuses[]=RELEASED&statuses[]=CLOSED)
+     * without a dedicated endpoint. `status` (singular) still filters to one
+     * exact status, e.g. the Expired tab (?status=EXPIRED).
      */
     public function index(Request $request): JsonResponse
     {
+        $statuses = $request->query('statuses');
+
         $filters = [
             'status' => $request->string('status')->toString() ?: null,
+            'statuses' => is_array($statuses) ? array_values(array_filter($statuses, 'is_string')) : null,
             'category' => $request->string('category')->toString() ?: null,
         ];
         $perPage = (int) $request->integer('per_page', 15);
@@ -77,21 +89,71 @@ class AdminLostItemController extends Controller
     }
 
     /**
-     * POST /admin/lost-items/{itemId}/image
-     * Uploads an image for a lost item (multipart/form-data).
+     * PATCH /admin/lost-items/{itemId}
+     * Edits a reported item's descriptive fields. Blocked once CLOSED.
      */
-    public function uploadImage(UploadLostItemImageRequest $request, string $itemId): JsonResponse
+    public function update(UpdateLostItemRequest $request, string $itemId): JsonResponse
     {
         try {
-            $item = $this->lostItemService->uploadImage(
+            $item = $this->lostItemService->update($itemId, $request->validated());
+        } catch (LostFoundException $e) {
+            $status = str_contains($e->getMessage(), 'not found') ? 404 : 422;
+
+            return $this->errorResponse($e->getMessage(), $status);
+        }
+
+        return $this->successResponse($item, 'Lost item updated');
+    }
+
+    /**
+     * POST /admin/lost-items/{itemId}/photos
+     * Adds a photo to a lost item (multipart/form-data), up to 3 total.
+     */
+    public function addPhoto(UploadLostItemImageRequest $request, string $itemId): JsonResponse
+    {
+        try {
+            $item = $this->lostItemService->addPhoto(
                 $itemId,
                 $request->file('image'),
             );
         } catch (LostFoundException $e) {
+            $status = str_contains($e->getMessage(), 'not found') ? 404 : 422;
+
+            return $this->errorResponse($e->getMessage(), $status);
+        }
+
+        return $this->successResponse($item, 'Photo added');
+    }
+
+    /**
+     * DELETE /admin/lost-items/{itemId}/photos/{photoId}
+     */
+    public function destroyPhoto(string $itemId, string $photoId): JsonResponse
+    {
+        try {
+            $item = $this->lostItemService->deletePhoto($itemId, $photoId);
+        } catch (LostFoundException $e) {
             return $this->errorResponse($e->getMessage(), 404);
         }
 
-        return $this->successResponse($item, 'Image uploaded');
+        return $this->successResponse($item, 'Photo removed');
+    }
+
+    /**
+     * PATCH /admin/lost-items/{itemId}/reactivate
+     * Brings an auto-expired item back to AVAILABLE.
+     */
+    public function reactivate(string $itemId): JsonResponse
+    {
+        try {
+            $item = $this->lostItemService->reactivate($itemId);
+        } catch (LostFoundException $e) {
+            $status = str_contains($e->getMessage(), 'not found') ? 404 : 422;
+
+            return $this->errorResponse($e->getMessage(), $status);
+        }
+
+        return $this->successResponse($item, 'Item reactivated');
     }
 
     /**

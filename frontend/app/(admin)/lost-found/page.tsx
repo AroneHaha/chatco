@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { LostFoundGrid } from '@/components/admin/lost-found/lost-found-grid';
 import { AddLostFoundModal } from '@/components/admin/lost-found/add-lost-found-modal';
+import { EditLostFoundModal, type EditLostFoundFormData } from '@/components/admin/lost-found/edit-lost-found-modal';
 import { ViewItemModal } from '@/components/admin/lost-found/view-item-modal';
 import { ClaimsListModal } from '@/components/admin/lost-found/claims-list-modal';
 import { Plus } from 'lucide-react';
@@ -21,7 +22,10 @@ import {
   claimsForItem,
   recordManualClaim,
   report as reportItem,
-  uploadImage as apiUploadImage,
+  update as apiUpdateItem,
+  addPhoto as apiAddPhoto,
+  deletePhoto as apiDeletePhoto,
+  reactivate as apiReactivateItem,
   approveClaim as apiApproveClaim,
   releaseClaim as apiReleaseClaim,
   rejectClaim as apiRejectClaim,
@@ -31,11 +35,17 @@ import {
   type LostFoundClaim as ServiceClaim,
 } from '@/lib/shared/services/lost-found.service';
 
+type AdminTab = 'ALL' | 'PENDING_CLAIMS' | 'HISTORY' | 'EXPIRED';
+
 /**
  * Sprint 6 (S6-T8) — Admin Lost & Found management, wired to the real backend.
  *
  *   listForAdmin()  → GET /api/v1/admin/lost-items (items + claims eager-loaded)
  *   report()        → POST /api/v1/admin/lost-items (admin reports a new item)
+ *   update()        → PATCH /api/v1/admin/lost-items/{id} (edit descriptive fields)
+ *   addPhoto()      → POST /api/v1/admin/lost-items/{id}/photos (up to 3)
+ *   deletePhoto()   → DELETE /api/v1/admin/lost-items/{id}/photos/{pid}
+ *   reactivate()    → PATCH /api/v1/admin/lost-items/{id}/reactivate (EXPIRED → AVAILABLE)
  *   claimsForItem() → GET /api/v1/admin/lost-items/{id}/claims
  *   approveClaim()  → PATCH /api/v1/admin/lost-items/{id}/claims/{cid}/approve
  *   releaseClaim()  → PATCH /api/v1/admin/lost-items/{id}/claims/{cid}/release
@@ -43,32 +53,38 @@ import {
  *   close()         → PATCH /api/v1/admin/lost-items/{id}/close
  *
  * The grid shows items with their display status (Unmatched/Claimed/Released/
- * Closed) + claimed_by info (admin-only). The Claims modal fetches the full
- * claim list per item and offers Approve/Release/Reject actions. After each
- * action, the item list is refetched so the grid reflects the new status.
+ * Closed/Expired) + claimed_by info (admin-only). The Claims modal fetches the
+ * full claim list per item and offers Approve/Release/Reject actions. History
+ * (Released+Closed) and Expired are server-filtered tabs — everything else is
+ * fetched unfiltered and split client-side.
  *
  * Role:ADMIN enforced at the Laravel /admin route group.
  */
 export default function LostFoundPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isClaimsModalOpen, setIsClaimsModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   const [items, setItems] = useState<LostFoundItem[]>([]);
   const [claimsByItem, setClaimsByItem] = useState<Record<string, Claim[]>>({});
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [editingItem, setEditingItem] = useState<LostFoundItem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isActing, setIsActing] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'ALL' | 'PENDING_CLAIMS'>('ALL');
+  const [activeTab, setActiveTab] = useState<AdminTab>('ALL');
   const [activeCategory, setActiveCategory] = useState<ItemCategory | 'ALL'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 15;
 
-  /** Fetch the admin list (items + claims eager-loaded) and refresh the grid. */
+  /** Fetch the admin list (items + claims eager-loaded) and refresh the grid.
+   * History (Released+Closed) and Expired are filtered server-side so their
+   * pagination is correct — older historical/expired items aren't hidden on
+   * a later page of the unfiltered "All Items" fetch. */
   const refresh = useCallback(async () => {
     setIsLoading(true);
     setListError(null);
@@ -77,6 +93,8 @@ export default function LostFoundPage() {
         page: currentPage,
         perPage: ITEMS_PER_PAGE,
         category: activeCategory === 'ALL' ? undefined : activeCategory,
+        ...(activeTab === 'EXPIRED' ? { status: 'EXPIRED' } : {}),
+        ...(activeTab === 'HISTORY' ? { statuses: ['RELEASED', 'CLOSED'] } : {}),
       });
       const mapped = result.items.map(mapServiceItemToAdmin);
       setItems(mapped);
@@ -91,12 +109,21 @@ export default function LostFoundPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentPage, activeCategory]);
+  }, [currentPage, activeCategory, activeTab]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
+  /** Merge a freshly-mutated item (from update/addPhoto/deletePhoto) back into
+   * the currently-loaded list without a full refetch — keeps the detail modal
+   * responsive while adding/removing photos. */
+  const upsertItemInState = useCallback((updated: ServiceItem): LostFoundItem => {
+    const mapped = mapServiceItemToAdmin(updated);
+    setItems((prev) => prev.map((it) => (it.id === mapped.id ? mapped : it)));
+    return mapped;
+  }, []);
+
   const filteredItems = items.filter((item) => {
-    if (activeTab === 'PENDING_CLAIMS') return item.status === 'Unmatched' || item.status === 'Claimed';
+    if (activeTab === 'PENDING_CLAIMS' && !(item.status === 'Unmatched' || item.status === 'Claimed')) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       if (!item.itemName.toLowerCase().includes(q) && !item.description.toLowerCase().includes(q)) return false;
@@ -113,13 +140,16 @@ export default function LostFoundPage() {
   const handleCloseClaimsModal = () => { setSelectedItemId(null); setIsClaimsModalOpen(false); };
   const handleOpenDetailModal = (itemId: string) => { setSelectedItemId(itemId); setIsDetailModalOpen(true); };
   const handleCloseDetailModal = () => { setSelectedItemId(null); setIsDetailModalOpen(false); };
+  const handleOpenEditModal = (item: LostFoundItem) => { setEditingItem(item); setIsEditModalOpen(true); };
+  const handleCloseEditModal = () => { setEditingItem(null); setIsEditModalOpen(false); };
 
   /**
-   * Admin reports a new lost item → POST /admin/lost-items, then uploads the
-   * photo (if one was attached) via the multipart endpoint. The base64
-   * preview is NEVER sent as image_url — the backend caps that column at 500
-   * chars, so a data-URI would fail validation; the real file goes through
-   * POST /admin/lost-items/{id}/image instead.
+   * Admin reports a new lost item → POST /admin/lost-items, then uploads each
+   * attached photo (up to 3) via the multipart endpoint, sequentially so
+   * position ordering (0 = thumbnail) matches the order photos were added.
+   * The base64 previews are NEVER sent as image_url — the backend caps that
+   * column at 500 chars, so a data-URI would fail validation; the real files
+   * go through POST /admin/lost-items/{id}/photos instead.
    */
   const handleSaveItem = async (newItem: LostFoundFormData) => {
     setActionError(null);
@@ -133,15 +163,17 @@ export default function LostFoundPage() {
         estimatedTimeLost: newItem.estimatedTimeLost || undefined,
         category: newItem.category,
       });
-      if (newItem.imageFile) {
+      if (newItem.imageFiles.length > 0) {
         try {
-          await apiUploadImage(created.id, newItem.imageFile);
+          for (const file of newItem.imageFiles) {
+            await apiAddPhoto(created.id, file);
+          }
         } catch (err) {
           // The item exists — surface the photo failure without rolling back.
           setActionError(
             err instanceof LostFoundOperationError
-              ? `Item created, but the photo failed to upload: ${err.message}`
-              : 'Item created, but the photo failed to upload.'
+              ? `Item created, but a photo failed to upload: ${err.message}`
+              : 'Item created, but a photo failed to upload.'
           );
         }
       }
@@ -149,6 +181,57 @@ export default function LostFoundPage() {
       void refresh();
     } catch (err) {
       setActionError(err instanceof LostFoundOperationError ? err.message : 'Unable to report item.');
+    }
+  };
+
+  /** Admin edits a reported item's descriptive fields (blocked once CLOSED). */
+  const handleSaveEdit = async (itemId: string, data: EditLostFoundFormData) => {
+    const updated = await apiUpdateItem(itemId, {
+      itemName: data.itemName,
+      description: data.description,
+      plateNumber: data.plateNumber || undefined,
+      driverName: data.driverName || undefined,
+      conductorName: data.conductorName || undefined,
+      estimatedTimeLost: data.estimatedTimeLost || undefined,
+      category: data.category,
+    });
+    upsertItemInState(updated);
+  };
+
+  /** Add a photo to an item (up to 3) — used by the detail view's gallery. */
+  const handleAddPhoto = async (itemId: string, file: File) => {
+    setActionError(null);
+    try {
+      const updated = await apiAddPhoto(itemId, file);
+      upsertItemInState(updated);
+    } catch (err) {
+      setActionError(err instanceof LostFoundOperationError ? err.message : 'Unable to add this photo.');
+    }
+  };
+
+  /** Remove a photo from an item — used by the detail view's gallery. */
+  const handleDeletePhoto = async (itemId: string, photoId: string) => {
+    setActionError(null);
+    try {
+      const updated = await apiDeletePhoto(itemId, photoId);
+      upsertItemInState(updated);
+    } catch (err) {
+      setActionError(err instanceof LostFoundOperationError ? err.message : 'Unable to remove this photo.');
+    }
+  };
+
+  /** Bring an auto-expired item back to AVAILABLE (a claimant turned up late). */
+  const handleReactivateItem = async (itemId: string) => {
+    setActionError(null);
+    setIsActing(true);
+    try {
+      await apiReactivateItem(itemId);
+      handleCloseDetailModal();
+      void refresh();
+    } catch (err) {
+      setActionError(err instanceof LostFoundOperationError ? err.message : 'Unable to reactivate this item.');
+    } finally {
+      setIsActing(false);
     }
   };
 
@@ -227,9 +310,9 @@ export default function LostFoundPage() {
             <p className="text-slate-500 text-xs mt-1">{filteredItems.length} items • Page {currentPage} of {totalPages}</p>
           </div>
           <div className="flex items-center gap-2 w-full lg:w-fit flex-shrink-0">
-            <div className="flex bg-[#0E1628] rounded-md p-1 border border-[#1E2D45] flex-1 lg:flex-none">
-              {([ ["ALL", "All Items"], ["PENDING_CLAIMS", "Pending Claims"] ] as const).map(([key, label]) => (
-                <button key={key} onClick={() => { setActiveTab(key); setCurrentPage(1); }} className={`flex-1 lg:flex-none px-3 py-2 rounded-md text-xs font-semibold transition-all text-center ${activeTab === key ? "bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/30" : "text-slate-500 hover:text-slate-300 hover:bg-[#1A2540]"}`}>{label}</button>
+            <div className="flex bg-[#0E1628] rounded-md p-1 border border-[#1E2D45] flex-1 lg:flex-none overflow-x-auto no-scrollbar">
+              {([ ["ALL", "All Items"], ["PENDING_CLAIMS", "Pending Claims"], ["HISTORY", "History"], ["EXPIRED", "Expired"] ] as [AdminTab, string][]).map(([key, label]) => (
+                <button key={key} onClick={() => { setActiveTab(key); setCurrentPage(1); }} className={`flex-1 lg:flex-none px-3 py-2 rounded-md text-xs font-semibold transition-all text-center whitespace-nowrap ${activeTab === key ? "bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/30" : "text-slate-500 hover:text-slate-300 hover:bg-[#1A2540]"}`}>{label}</button>
               ))}
             </div>
             <button onClick={handleOpenAddModal} className="flex items-center justify-center gap-2 px-4 py-2 bg-[#62A0EA] text-white text-xs font-semibold rounded-md hover:bg-[#4A8BD4] transition-colors shadow-lg shadow-[#62A0EA]/30 flex-shrink-0">
@@ -281,7 +364,9 @@ export default function LostFoundPage() {
                 items={displayItems}
                 onViewClaims={handleOpenClaimsModal}
                 onViewDetails={handleOpenDetailModal}
+                onEdit={handleOpenEditModal}
                 onClose={handleCloseItem}
+                onReactivate={handleReactivateItem}
                 isActing={isActing}
               />
             </div>
@@ -298,8 +383,18 @@ export default function LostFoundPage() {
         )}
       </div>
 
-      <ViewItemModal isOpen={isDetailModalOpen} onClose={handleCloseDetailModal} item={items.find((i) => i.id === selectedItemId) ?? null} />
+      <ViewItemModal
+        isOpen={isDetailModalOpen}
+        onClose={handleCloseDetailModal}
+        item={items.find((i) => i.id === selectedItemId) ?? null}
+        onEdit={(item) => { handleCloseDetailModal(); handleOpenEditModal(item); }}
+        onReactivate={handleReactivateItem}
+        onAddPhoto={handleAddPhoto}
+        onDeletePhoto={handleDeletePhoto}
+        isActing={isActing}
+      />
       <AddLostFoundModal isOpen={isAddModalOpen} onClose={handleCloseAddModal} onSave={handleSaveItem} />
+      <EditLostFoundModal isOpen={isEditModalOpen} onClose={handleCloseEditModal} item={editingItem} onSave={handleSaveEdit} />
       <ClaimsListModal
         isOpen={isClaimsModalOpen}
         onClose={handleCloseClaimsModal}
@@ -329,6 +424,8 @@ function mapServiceItemToAdmin(item: ServiceItem): LostFoundItem {
     reporterName: item.reporterName,
     status: item.displayStatus as ItemStatus,
     claimedBy: item.claimedBy,
+    expiredAt: item.expiredAt,
+    photos: item.photos,
   };
 }
 
@@ -342,5 +439,6 @@ function mapServiceClaimToAdmin(claim: ServiceClaim): Claim {
     claimDate: claim.claimDate,
     status: claim.displayStatus as ClaimStatus,
     proof: claim.proof,
+    linkedAccount: claim.linkedAccount,
   };
 }

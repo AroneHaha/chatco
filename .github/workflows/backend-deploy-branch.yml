@@ -1,6 +1,8 @@
-name: Prepare Backend Deployment
+name: Build Backend Deployment
 
 on:
+  workflow_dispatch:
+
   push:
     branches:
       - dev
@@ -12,29 +14,65 @@ permissions:
   contents: write
 
 concurrency:
-  group: backend-deployment-branch
+  group: backend-deployment
   cancel-in-progress: true
 
 jobs:
-  prepare-backend:
-    name: Update backend-deploy branch
+  build-backend:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download repository
+      - name: Checkout dev branch
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Configure Git
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: mbstring, bcmath, curl, fileinfo, openssl, pdo_mysql
+          coverage: none
+
+      - name: Build production dependencies
+        working-directory: backend
         run: |
+          composer install \
+            --no-dev \
+            --prefer-dist \
+            --no-interaction \
+            --no-progress \
+            --optimize-autoloader
+
+      - name: Prepare deployment files
+        run: |
+          mkdir backend-release
+
+          rsync -a backend/ backend-release/ \
+            --exclude=".env" \
+            --exclude=".env.live" \
+            --exclude=".env.remote" \
+            --exclude=".phpunit.result.cache" \
+            --exclude="node_modules" \
+            --exclude="tests"
+
+          rm -f backend-release/composer.json
+
+      - name: Publish backend-deploy branch
+        working-directory: backend-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git init
+          git checkout -b backend-deploy
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Create backend-only branch
-        run: |
-          git subtree split --prefix=backend -b backend-deploy
+          git add -f .
+          git commit -m "Deploy backend from $GITHUB_SHA"
 
-      - name: Push deployment branch
-        run: |
-          git push origin backend-deploy:backend-deploy
+          git remote add origin \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          git push --force origin backend-deploy

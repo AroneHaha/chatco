@@ -1,21 +1,31 @@
 // components/admin/lost-found/lost-found-grid.tsx
 import { Badge } from '@/components/admin/ui/badge';
-import { Eye, List, CheckCircle } from 'lucide-react';
+import { Eye, List, CheckCircle, User, Pencil, RotateCcw } from 'lucide-react';
 import type { LostFoundItem } from '@/app/(admin)/lost-found/data/lost-found-data';
 
 interface LostFoundGridProps {
   items: LostFoundItem[];
   onViewClaims: (itemId: string) => void;
   onViewDetails: (itemId: string) => void;
+  onEdit: (item: LostFoundItem) => void;
   onClose?: (itemId: string) => void;
+  onReactivate?: (itemId: string) => void;
   isActing?: boolean;
 }
 
-export function LostFoundGrid({ items, onViewClaims, onViewDetails, onClose, isActing }: LostFoundGridProps) {
+function formatPostedDate(dateStr: string): string {
+  try {
+    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch {
+    return dateStr;
+  }
+}
+
+export function LostFoundGrid({ items, onViewClaims, onViewDetails, onEdit, onClose, onReactivate, isActing }: LostFoundGridProps) {
   return (
     <>
       {items.map((item) => (
-        <div key={item.id} className="bg-[#131C2E] border border-[#1E2D45] rounded-lg overflow-hidden group flex flex-col relative">
+        <div key={item.id} className="bg-[#131C2E] border border-[#1E2D45] rounded-xl overflow-hidden group flex flex-col relative shadow-lg shadow-black/20 hover:border-[#2A3A55] transition-colors">
           <div className="relative h-48 bg-[#0E1628] flex-shrink-0">
             {item.imageUrl ? (
               <img src={item.imageUrl} alt={item.itemName} className="w-full h-full object-cover" />
@@ -25,47 +35,40 @@ export function LostFoundGrid({ items, onViewClaims, onViewDetails, onClose, isA
                 <span className="text-[10px] font-semibold uppercase tracking-wider">No photo yet</span>
               </div>
             )}
-            <div className="absolute top-2 right-2">
-              <Badge variant={item.status === 'Claimed' || item.status === 'Returned' ? 'info' : item.status === 'Rejected' ? 'danger' : 'warning'}>
+            <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/50 to-transparent pointer-events-none" />
+            <div className="absolute top-2.5 right-2.5">
+              <Badge variant={item.status === 'Claimed' || item.status === 'Returned' ? 'info' : item.status === 'Rejected' || item.status === 'Expired' ? 'danger' : 'warning'}>
                 {item.status}
               </Badge>
             </div>
-            <div className="absolute top-2 left-2">
-              <div className="px-2 py-1 bg-black/60 backdrop-blur-sm rounded-full text-xs text-slate-200">
+            <div className="absolute top-2.5 left-2.5">
+              <div className="px-2.5 py-1 bg-black/50 backdrop-blur-sm border border-white/10 rounded-full text-[10px] font-semibold uppercase tracking-wider text-slate-200">
                 {item.category}
               </div>
             </div>
           </div>
 
           <div className="p-4 flex flex-col flex-1">
-            <h3 className="text-sm font-semibold text-white mb-1">{item.itemName}</h3>
+            <h3 className="text-sm font-semibold text-white mb-1 leading-tight">{item.itemName}</h3>
             <p className="text-xs text-slate-400 line-clamp-2 mb-3">{item.description}</p>
 
-            {/* Exact Commuter List Format */}
-            <div className="mt-auto space-y-1.5 text-xs border-t border-[#1E2D45] pt-3">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Plate Number</span>
-                <span className="text-slate-200 font-medium">{item.plateNumber}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Est. Time</span>
-                <span className="text-slate-200 font-medium">{item.estimatedTimeLost}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Driver</span>
-                <span className="text-slate-200 font-medium">{item.driverName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Conductor</span>
-                <span className="text-slate-200 font-medium">{item.conductorName}</span>
-              </div>
-              {item.claimedBy && (
-                <div className="flex justify-between pt-1 border-t border-[#1E2D45]">
-                  <span className="text-slate-500">Claimed By</span>
-                  <span className="text-[#62A0EA] font-medium">{item.claimedBy}</span>
-                </div>
-              )}
+            <div className="mt-auto grid grid-cols-2 gap-x-3 gap-y-2 text-xs bg-[#0E1628]/60 border border-[#1E2D45] rounded-lg p-3">
+              <div><p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Plate No.</p><p className="text-slate-200 font-medium truncate">{item.plateNumber}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Est. Time</p><p className="text-slate-200 font-medium truncate">{item.estimatedTimeLost}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Driver</p><p className="text-slate-200 font-medium truncate">{item.driverName}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Conductor</p><p className="text-slate-200 font-medium truncate">{item.conductorName}</p></div>
             </div>
+
+            {item.claimedBy && (
+              <div className="mt-2.5 flex items-center gap-1.5 text-xs text-[#62A0EA] bg-[#62A0EA]/10 border border-[#62A0EA]/20 rounded-lg px-2.5 py-1.5">
+                <User size={12} className="flex-shrink-0" />
+                <span className="truncate">Claimed by <span className="font-medium">{item.claimedBy}</span></span>
+              </div>
+            )}
+
+            <p className="mt-3 text-center text-[10px] text-slate-600">
+              Reported by {item.reporterName} · {formatPostedDate(item.datePosted)}
+            </p>
           </div>
 
           {/* Action Buttons — always visible on mobile (touch), hover-visible on desktop */}
@@ -78,6 +81,10 @@ export function LostFoundGrid({ items, onViewClaims, onViewDetails, onClose, isA
               <List size={16} />
               <span className="lg:hidden">Claims</span>
             </button>
+            <button onClick={() => onEdit(item)} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-slate-300 hover:bg-white/10 hover:text-white text-xs font-medium transition-colors active:scale-95" title="Edit Item">
+              <Pencil size={16} />
+              <span className="lg:hidden">Edit</span>
+            </button>
             {onClose && item.status === 'Released' && (
               <button
                 onClick={() => onClose(item.id)}
@@ -87,6 +94,17 @@ export function LostFoundGrid({ items, onViewClaims, onViewDetails, onClose, isA
               >
                 <CheckCircle size={16} />
                 <span className="lg:hidden">Close</span>
+              </button>
+            )}
+            {onReactivate && item.status === 'Expired' && (
+              <button
+                onClick={() => onReactivate(item.id)}
+                disabled={isActing}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-md text-emerald-300 hover:bg-emerald-500/10 hover:text-emerald-200 text-xs font-medium transition-colors active:scale-95 disabled:opacity-50"
+                title="Reactivate item"
+              >
+                <RotateCcw size={16} />
+                <span className="lg:hidden">Reactivate</span>
               </button>
             )}
           </div>

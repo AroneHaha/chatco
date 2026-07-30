@@ -33,11 +33,13 @@ class LostItem extends Model
         'released_at',
         'closed_by',
         'closed_at',
+        'expired_at',
     ];
 
     protected $casts = [
         'released_at' => 'datetime',
         'closed_at'   => 'datetime',
+        'expired_at'  => 'datetime',
     ];
 
     /**
@@ -65,6 +67,12 @@ class LostItem extends Model
     public function claims()
     {
         return $this->hasMany(Claim::class, 'item_id');
+    }
+
+    /** Up to 3 photos, ordered by position (0 = thumbnail). */
+    public function photos()
+    {
+        return $this->hasMany(LostItemPhoto::class, 'item_id')->orderBy('position');
     }
 
     public function releasedTo()

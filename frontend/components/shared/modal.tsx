@@ -10,9 +10,13 @@ interface ModalProps {
   children: ReactNode;
   maxWidth?: string;
   rounded?: string;
+  /** Optional fixed panel height (e.g. `h-[min(700px,85vh)]`) so a modal with
+   * little content doesn't shrink-to-fit and look undersized; content past
+   * that height scrolls in the existing `overflow-y-auto` body region. */
+  height?: string;
 }
 
-export function Modal({ isOpen, onClose, children, maxWidth = 'max-w-md', rounded = 'rounded-xl' }: ModalProps) {
+export function Modal({ isOpen, onClose, children, maxWidth = 'max-w-md', rounded = 'rounded-xl', height }: ModalProps) {
   if (!isOpen) return null;
 
   return (
@@ -27,7 +31,7 @@ export function Modal({ isOpen, onClose, children, maxWidth = 'max-w-md', rounde
     // while shrinking the container, and the header got cut off.
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 md:pb-4 bg-black/50">
       <div
-        className={`relative bg-[#1A2540] border border-[#2A3A55] ${rounded} shadow-2xl w-full ${maxWidth} max-h-full flex flex-col`}
+        className={`relative bg-[#1A2540] border border-[#2A3A55] ${rounded} shadow-2xl w-full ${maxWidth} ${height ?? ''} max-h-full flex flex-col`}
         role="dialog"
         aria-modal="true"
       >

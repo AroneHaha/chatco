@@ -36,12 +36,18 @@ use Tests\TestCase;
  *   GET    /api/v1/admin/lost-items                    (ADMIN)
  *   POST   /api/v1/admin/lost-items                    (ADMIN)
  *   GET    /api/v1/admin/lost-items/{itemId}           (ADMIN)
- *   POST   /api/v1/admin/lost-items/{itemId}/image     (ADMIN)
+ *   PATCH  /api/v1/admin/lost-items/{itemId}           (ADMIN)
+ *   POST   /api/v1/admin/lost-items/{itemId}/photos    (ADMIN)
+ *   DELETE /api/v1/admin/lost-items/{itemId}/photos/{photoId} (ADMIN)
+ *   PATCH  /api/v1/admin/lost-items/{itemId}/reactivate (ADMIN)
  *   GET    /api/v1/admin/lost-items/{itemId}/claims    (ADMIN)
  *   PATCH  /api/v1/admin/lost-items/{itemId}/claims/{claimId}/approve  (ADMIN)
  *   PATCH  /api/v1/admin/lost-items/{itemId}/claims/{claimId}/release  (ADMIN)
  *   PATCH  /api/v1/admin/lost-items/{itemId}/claims/{claimId}/reject   (ADMIN)
  *   PATCH  /api/v1/admin/lost-items/{itemId}/close     (ADMIN)
+ *
+ * Also covers: lost-items:expire (auto-archives stale AVAILABLE items) and
+ * the targeted (per-user) announcements created on claim approve/reject.
  */
 class LostFoundFlowTest extends TestCase
 {
@@ -706,99 +712,344 @@ class LostFoundFlowTest extends TestCase
         $this->assertDatabaseCount('lost_item_watchlists', 0);
     }
 
-    // ── Image upload (ADMIN) ───────────────────────────────────
+    // ── Photo upload (ADMIN) ────────────────────────────────────
 
-    public function test_admin_can_upload_lost_item_image(): void
+    public function test_admin_can_add_lost_item_photo(): void
     {
         $item = $this->createItem();
 
         $this->admin();
-        $response = $this->postJson("/api/v1/admin/lost-items/{$item->id}/image", [
+        $response = $this->postJson("/api/v1/admin/lost-items/{$item->id}/photos", [
             'image' => UploadedFile::fake()->image('backpack.jpg', 800, 600),
         ]);
 
         $response->assertStatus(200)
             ->assertJsonPath('success', true);
 
-        // image_url is set and file exists on disk
+        // image_url (the thumbnail = position 0) is set and the file exists on disk
         $item->refresh();
         $this->assertNotNull($item->image_url);
         Storage::disk('public')->assertExists(
             $this->extractPathFromUrl($item->image_url)
         );
+        $this->assertDatabaseCount('lost_item_photos', 1);
     }
 
-    public function test_image_upload_validates_file_type(): void
+    public function test_photo_upload_validates_file_type(): void
     {
         $item = $this->createItem();
 
         $this->admin();
-        $response = $this->postJson("/api/v1/admin/lost-items/{$item->id}/image", [
+        $response = $this->postJson("/api/v1/admin/lost-items/{$item->id}/photos", [
             'image' => UploadedFile::fake()->create('document.pdf', 100, 'application/pdf'),
         ]);
 
         $response->assertStatus(422);
     }
 
-    public function test_image_upload_validates_file_size(): void
+    public function test_photo_upload_validates_file_size(): void
     {
         $item = $this->createItem();
 
         $this->admin();
         // 6MB file → exceeds 5MB limit
-        $response = $this->postJson("/api/v1/admin/lost-items/{$item->id}/image", [
+        $response = $this->postJson("/api/v1/admin/lost-items/{$item->id}/photos", [
             'image' => UploadedFile::fake()->image('huge.jpg')->size(6144),
         ]);
 
         $response->assertStatus(422);
     }
 
-    public function test_commuter_cannot_upload_image(): void
+    public function test_commuter_cannot_upload_photo(): void
     {
         $item = $this->createItem();
 
         $this->commuter();
-        $response = $this->postJson("/api/v1/admin/lost-items/{$item->id}/image", [
+        $response = $this->postJson("/api/v1/admin/lost-items/{$item->id}/photos", [
             'image' => UploadedFile::fake()->image('backpack.jpg', 100, 100),
         ]);
 
         $response->assertStatus(403);
     }
 
-    public function test_image_upload_replaces_previous_image(): void
+    public function test_second_photo_is_added_not_replaced(): void
     {
         $item = $this->createItem();
 
         $this->admin();
-        // First upload
-        $this->postJson("/api/v1/admin/lost-items/{$item->id}/image", [
+        // First upload — becomes position 0 (the thumbnail).
+        $this->postJson("/api/v1/admin/lost-items/{$item->id}/photos", [
             'image' => UploadedFile::fake()->image('first.jpg', 800, 600),
         ]);
         $item->refresh();
         $firstUrl = $item->image_url;
-        $firstPath = $this->extractPathFromUrl($firstUrl);
-        Storage::disk('public')->assertExists($firstPath);
+        Storage::disk('public')->assertExists($this->extractPathFromUrl($firstUrl));
 
-        // Second upload — should replace the first
-        $this->postJson("/api/v1/admin/lost-items/{$item->id}/image", [
+        // Second upload — appended at position 1; the thumbnail is unchanged.
+        $this->postJson("/api/v1/admin/lost-items/{$item->id}/photos", [
             'image' => UploadedFile::fake()->image('second.jpg', 800, 600),
         ]);
         $item->refresh();
-        $secondUrl = $item->image_url;
 
-        $this->assertNotEquals($firstUrl, $secondUrl);
-        // Old file should be deleted
-        Storage::disk('public')->assertMissing($firstPath);
+        $this->assertSame($firstUrl, $item->image_url);
+        Storage::disk('public')->assertExists($this->extractPathFromUrl($firstUrl));
+        $this->assertDatabaseCount('lost_item_photos', 2);
     }
 
-    public function test_image_upload_returns_404_for_missing_item(): void
+    public function test_photo_upload_rejects_a_fourth_photo(): void
+    {
+        $item = $this->createItem();
+
+        $this->admin();
+        foreach (['a.jpg', 'b.jpg', 'c.jpg'] as $name) {
+            $this->postJson("/api/v1/admin/lost-items/{$item->id}/photos", [
+                'image' => UploadedFile::fake()->image($name, 400, 400),
+            ])->assertStatus(200);
+        }
+
+        $response = $this->postJson("/api/v1/admin/lost-items/{$item->id}/photos", [
+            'image' => UploadedFile::fake()->image('d.jpg', 400, 400),
+        ]);
+
+        $response->assertStatus(422);
+        $this->assertDatabaseCount('lost_item_photos', 3);
+    }
+
+    public function test_admin_can_delete_photo_and_positions_recompact(): void
+    {
+        $item = $this->createItem();
+
+        $this->admin();
+        foreach (['a.jpg', 'b.jpg'] as $name) {
+            $this->postJson("/api/v1/admin/lost-items/{$item->id}/photos", [
+                'image' => UploadedFile::fake()->image($name, 400, 400),
+            ]);
+        }
+        $item->refresh();
+        $photos = $item->photos()->orderBy('position')->get();
+        $firstPhotoId = $photos[0]->id;
+        $secondUrl = $photos[1]->url;
+
+        $response = $this->deleteJson("/api/v1/admin/lost-items/{$item->id}/photos/{$firstPhotoId}");
+        $response->assertStatus(200)->assertJsonPath('success', true);
+
+        $item->refresh();
+        // The remaining photo (formerly position 1) becomes the new position 0 thumbnail.
+        $this->assertSame($secondUrl, $item->image_url);
+        $this->assertDatabaseCount('lost_item_photos', 1);
+        $this->assertSame(0, $item->photos()->first()->position);
+    }
+
+    public function test_photo_upload_returns_404_for_missing_item(): void
     {
         $this->admin();
-        $response = $this->postJson('/api/v1/admin/lost-items/nonexistent-id/image', [
+        $response = $this->postJson('/api/v1/admin/lost-items/nonexistent-id/photos', [
             'image' => UploadedFile::fake()->image('test.jpg', 100, 100),
         ]);
 
         $response->assertStatus(404);
+    }
+
+    // ── Edit item (ADMIN) ───────────────────────────────────────
+
+    public function test_admin_can_edit_item(): void
+    {
+        $item = $this->createItem();
+
+        $this->admin();
+        $response = $this->patchJson("/api/v1/admin/lost-items/{$item->id}", [
+            'item_name' => 'Blue Backpack (corrected)',
+            'description' => $item->description,
+            'plate_number' => 'XYZ 9999',
+        ]);
+
+        $response->assertStatus(200)->assertJsonPath('success', true);
+        $item->refresh();
+        $this->assertSame('Blue Backpack (corrected)', $item->item_name);
+        $this->assertSame('XYZ 9999', $item->plate_number);
+    }
+
+    public function test_cannot_edit_closed_item(): void
+    {
+        $item = $this->createItem();
+        $this->commuter();
+        $claim = $this->postJson("/api/v1/lost-found/{$item->id}/claim", ['proof' => 'It has a keychain'])->json('data');
+
+        $this->admin();
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim['id']}/approve");
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim['id']}/release");
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/close");
+
+        $response = $this->patchJson("/api/v1/admin/lost-items/{$item->id}", [
+            'item_name' => 'Should not apply',
+            'description' => $item->description,
+        ]);
+
+        $response->assertStatus(422);
+    }
+
+    public function test_commuter_cannot_edit_item(): void
+    {
+        $item = $this->createItem();
+        $this->commuter();
+
+        $response = $this->patchJson("/api/v1/admin/lost-items/{$item->id}", [
+            'item_name' => 'Hijacked name',
+            'description' => $item->description,
+        ]);
+
+        $response->assertStatus(403);
+    }
+
+    // ── Auto-expiry + reactivate (ADMIN) ─────────────────────────
+
+    public function test_expire_command_archives_stale_available_items(): void
+    {
+        $item = $this->createItem();
+        $item->forceFill(['created_at' => now()->subDays(31)])->save();
+
+        $this->artisan('lost-items:expire')->assertExitCode(0);
+
+        $item->refresh();
+        $this->assertSame('EXPIRED', $item->status);
+        $this->assertNotNull($item->expired_at);
+    }
+
+    public function test_expire_command_ignores_recent_items(): void
+    {
+        $item = $this->createItem();
+
+        $this->artisan('lost-items:expire')->assertExitCode(0);
+
+        $item->refresh();
+        $this->assertSame('AVAILABLE', $item->status);
+    }
+
+    public function test_expire_command_ignores_claimed_items(): void
+    {
+        $item = $this->createItem();
+        $this->commuter();
+        $this->postJson("/api/v1/lost-found/{$item->id}/claim", ['proof' => 'It has a keychain']);
+        $item->forceFill(['created_at' => now()->subDays(31)])->save();
+
+        $this->artisan('lost-items:expire')->assertExitCode(0);
+
+        $item->refresh();
+        $this->assertSame('CLAIMED', $item->status);
+    }
+
+    public function test_expired_item_cannot_be_claimed(): void
+    {
+        $item = $this->createItem();
+        $item->update(['status' => 'EXPIRED', 'expired_at' => now()]);
+
+        $this->commuter();
+        $response = $this->postJson("/api/v1/lost-found/{$item->id}/claim", ['proof' => 'It has a keychain']);
+
+        $response->assertStatus(422);
+    }
+
+    public function test_expired_item_excluded_from_commuter_browse(): void
+    {
+        $item = $this->createItem();
+        $item->update(['status' => 'EXPIRED', 'expired_at' => now()]);
+
+        $this->commuter();
+        $response = $this->getJson('/api/v1/lost-found');
+
+        $ids = collect($response->json('data.data'))->pluck('id');
+        $this->assertFalse($ids->contains($item->id));
+    }
+
+    public function test_admin_can_reactivate_expired_item(): void
+    {
+        $item = $this->createItem();
+        $item->update(['status' => 'EXPIRED', 'expired_at' => now()]);
+
+        $this->admin();
+        $response = $this->patchJson("/api/v1/admin/lost-items/{$item->id}/reactivate");
+
+        $response->assertStatus(200)->assertJsonPath('success', true);
+        $item->refresh();
+        $this->assertSame('AVAILABLE', $item->status);
+        $this->assertNull($item->expired_at);
+    }
+
+    public function test_cannot_reactivate_non_expired_item(): void
+    {
+        $item = $this->createItem();
+
+        $this->admin();
+        $response = $this->patchJson("/api/v1/admin/lost-items/{$item->id}/reactivate");
+
+        $response->assertStatus(422);
+    }
+
+    // ── Claim-status notifications ───────────────────────────────
+
+    public function test_approving_claim_notifies_claimant(): void
+    {
+        $item = $this->createItem();
+        $this->commuter();
+        $claim = $this->postJson("/api/v1/lost-found/{$item->id}/claim", ['proof' => 'It has a keychain'])->json('data');
+
+        $this->admin();
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim['id']}/approve");
+
+        $this->assertDatabaseHas('announcements', [
+            'user_id' => $this->commuter->id,
+            'type' => 'claim_approved',
+        ]);
+    }
+
+    public function test_rejecting_claim_notifies_claimant(): void
+    {
+        $item = $this->createItem();
+        $this->commuter();
+        $claim = $this->postJson("/api/v1/lost-found/{$item->id}/claim", ['proof' => 'It has a keychain'])->json('data');
+
+        $this->admin();
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim['id']}/reject", ['rejection_reason' => 'Proof did not match']);
+
+        $this->assertDatabaseHas('announcements', [
+            'user_id' => $this->commuter->id,
+            'type' => 'claim_rejected',
+        ]);
+    }
+
+    public function test_walk_in_claim_approval_does_not_create_notification(): void
+    {
+        $item = $this->createItem();
+        $this->admin();
+        $claim = $this->postJson("/api/v1/admin/lost-items/{$item->id}/claims/manual", [
+            'claimant_name' => 'Walk-in Person',
+            'claimant_contact' => '09171234567',
+            'proof' => 'Described the item accurately',
+        ])->json('data');
+
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim['id']}/approve");
+
+        $this->assertDatabaseCount('announcements', 0);
+    }
+
+    public function test_targeted_announcement_only_visible_to_recipient(): void
+    {
+        $item = $this->createItem();
+        $this->commuter();
+        $claim = $this->postJson("/api/v1/lost-found/{$item->id}/claim", ['proof' => 'It has a keychain'])->json('data');
+
+        $this->admin();
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim['id']}/approve");
+
+        // The claimant sees it in their feed.
+        $this->commuter();
+        $mine = $this->getJson('/api/v1/announcements')->json('data.data');
+        $this->assertTrue(collect($mine)->contains(fn ($a) => $a['type'] === 'claim_approved'));
+
+        // A different commuter does not.
+        $this->otherCommuter();
+        $theirs = $this->getJson('/api/v1/announcements')->json('data.data');
+        $this->assertFalse(collect($theirs)->contains(fn ($a) => $a['type'] === 'claim_approved'));
     }
 
     /**

@@ -14,6 +14,11 @@ use Illuminate\Support\Str;
  * users (GET /announcements), per-user read tracking via AnnouncementRead.
  * Soft-archiving (status=ARCHIVED) hides from the feed without losing the
  * audit trail.
+ *
+ * `user_id` (nullable) targets a single recipient — null means broadcast to
+ * everyone (the original behaviour); a set user_id is only visible to that
+ * user. System-generated rows (e.g. LostItemService claim-status updates)
+ * always target a specific user; admin-authored ones are always broadcasts.
  */
 class Announcement extends Model
 {
@@ -29,6 +34,7 @@ class Announcement extends Model
         'message',
         'created_by',
         'status',
+        'user_id',
     ];
 
     protected $casts = [
@@ -48,6 +54,12 @@ class Announcement extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /** Null for broadcast announcements; set for a targeted, single-user one. */
+    public function recipient()
+    {
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     public function reads()

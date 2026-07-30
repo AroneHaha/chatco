@@ -3,14 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 const API_URL = process.env.API_URL || "http://localhost:8000";
 
 /**
- * POST /api/admin/lost-items/{itemId}/image
+ * POST /api/admin/lost-items/{itemId}/photos
  *
- * Sprint 6 (S6-T8) — admin uploads/replaces the photo of a lost item.
- *
+ * Admin adds a photo to a lost item (up to 3 — position 0 is the thumbnail).
  * Forwards the multipart body (field `image`: jpg/jpeg/png/webp, max 5MB) to
- * Laravel POST /api/v1/admin/lost-items/{itemId}/image. The backend stores the
- * file on the public disk, saves the URL to lost_items.image_url (deleting any
- * previous file), and returns the fresh LostItem row.
+ * Laravel POST /api/v1/admin/lost-items/{itemId}/photos.
  *
  * This route can't use the JSON proxy helpers — multipart needs the FormData
  * passed through so fetch sets the boundary header itself.
@@ -39,7 +36,7 @@ export async function POST(
   }
 
   try {
-    const res = await fetch(`${API_URL}/api/v1/admin/lost-items/${id}/image`, {
+    const res = await fetch(`${API_URL}/api/v1/admin/lost-items/${id}/photos`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,

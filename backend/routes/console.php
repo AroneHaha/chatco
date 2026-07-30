@@ -42,3 +42,9 @@ Schedule::command('vehicles:reset-daily-assignments')
 // limit from the settings table (default 12h). Auto-ends them with a
 // remittance record so the conductor's earnings are preserved.
 Schedule::command('shifts:auto-end-stale')->hourly();
+
+// ─── Auto-expire stale Lost & Found items (daily) ────────────────────
+// Archives items that have sat AVAILABLE (reported, never claimed) for
+// LostItemService::EXPIRY_DAYS. Not deletion — expired items stay visible
+// to admins under a dedicated filter and can be reactivated manually.
+Schedule::command('lost-items:expire')->dailyAt('01:00')->timezone('Asia/Manila');
