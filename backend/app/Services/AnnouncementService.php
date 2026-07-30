@@ -34,11 +34,16 @@ class AnnouncementService
 
     /**
      * User-facing feed: ACTIVE announcements, newest first, with is_read.
+     * Includes broadcasts (user_id IS NULL) plus rows targeted at this user.
      * Supports ?unread_only=1 to filter to unread only.
      */
     public function listForUser(User $user, array $filters, int $perPage = 15): LengthAwarePaginator
     {
         $query = Announcement::where('status', self::STATUS_ACTIVE)
+            ->where(function ($q) use ($user) {
+                $q->whereNull('announcements.user_id')
+                  ->orWhere('announcements.user_id', $user->id);
+            })
             ->select('announcements.*')
             ->selectRaw(
                 'CASE WHEN announcement_reads.user_id IS NOT NULL THEN 1 ELSE 0 END AS is_read'
@@ -99,6 +104,22 @@ class AnnouncementService
         ]);
     }
 
+    /**
+     * System-generated, single-recipient announcement (e.g. a Lost & Found
+     * claim status update). Not part of the admin CRUD surface — callers are
+     * other services, not controllers.
+     */
+    public function notifyUser(string $userId, string $type, string $title, string $message): Announcement
+    {
+        return Announcement::create([
+            'user_id' => $userId,
+            'type'    => $type,
+            'title'   => $title,
+            'message' => $message,
+            'status'  => self::STATUS_ACTIVE,
+        ]);
+    }
+
     public function update(string $id, array $data): Announcement
     {
         $announcement = $this->show($id);
@@ -145,10 +166,14 @@ class AnnouncementService
 
     /**
      * Count of ACTIVE announcements the user has NOT read — for the bell badge.
+     * Includes broadcasts (user_id IS NULL) plus rows targeted at this user.
      */
     public function unreadCount(User $user): int
     {
         return Announcement::where('status', self::STATUS_ACTIVE)
+            ->where(function ($q) use ($user) {
+                $q->whereNull('user_id')->orWhere('user_id', $user->id);
+            })
             ->whereNotExists(function ($query) use ($user) {
                 $query->select(DB::raw(1))
                       ->from('announcement_reads')

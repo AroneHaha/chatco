@@ -1,10 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { useLostAndFound } from "./use-lost-and-found";
 import { categories } from "./data";
 import LostItemCard from "@/components/commuter/lost-and-found/lost-item-card";
-import { ViewTab } from "./types";
-import { Bookmark, PackageSearch, ShieldCheck } from "lucide-react";
+import { LostItem, ViewTab } from "./types";
+import { PackageSearch } from "lucide-react";
 
 export default function LostAndFoundPage() {
   const {
@@ -16,6 +17,10 @@ export default function LostAndFoundPage() {
     displayItems, formatDate, getStatusBadge, MAX_PENDING_CLAIMS
   } = useLostAndFound();
   const visibleTotal = activeTab === "MY_CLAIMS" ? displayItems.length : apiData.totalItems;
+
+  // Full-detail view — the card only shows a clamped description and a
+  // thumbnail; this surfaces the complete description and a larger photo.
+  const [detailItem, setDetailItem] = useState<LostItem | null>(null);
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden bg-[#050F1A] relative">
@@ -55,23 +60,6 @@ export default function LostAndFoundPage() {
 
       {/* --- GRID --- */}
       <div className="flex-1 overflow-y-auto p-4 pb-28 lg:p-8 lg:pb-8">
-        <div className="mb-6 grid grid-cols-3 gap-2 sm:gap-3">
-          <div className="rounded-xl border border-white/10 bg-[#071A2E] p-3 sm:p-4">
-            <PackageSearch className="mb-2 h-4 w-4 text-[#62A0EA]" />
-            <p className="text-lg font-bold text-white">{visibleTotal}</p>
-            <p className="text-[9px] uppercase tracking-wider text-white/30">Matching items</p>
-          </div>
-          <div className="rounded-xl border border-white/10 bg-[#071A2E] p-3 sm:p-4">
-            <Bookmark className="mb-2 h-4 w-4 text-amber-400" />
-            <p className="text-lg font-bold text-white">{watchlist.size}</p>
-            <p className="text-[9px] uppercase tracking-wider text-white/30">Watching</p>
-          </div>
-          <div className="rounded-xl border border-white/10 bg-[#071A2E] p-3 sm:p-4">
-            <ShieldCheck className="mb-2 h-4 w-4 text-emerald-400" />
-            <p className="text-lg font-bold text-white">{pendingClaimsCount}/{MAX_PENDING_CLAIMS}</p>
-            <p className="text-[9px] uppercase tracking-wider text-white/30">Pending claims</p>
-          </div>
-        </div>
         {isLoading ? (
           <div className="h-full flex flex-col items-center justify-center">
             <div className="w-8 h-8 border-2 border-white/20 border-t-[#62A0EA] rounded-full animate-spin" />
@@ -103,6 +91,7 @@ export default function LostAndFoundPage() {
                   onToggleWatchlist={toggleWatchlist}
                   onOpenClaimModal={openClaimModal}
                   onCancelClaim={cancelClaim}
+                  onOpenDetails={setDetailItem}
                   formatDate={formatDate}
                   getStatusBadge={getStatusBadge}
                 />
@@ -122,18 +111,74 @@ export default function LostAndFoundPage() {
         )}
       </div>
 
+      {/* --- ITEM DETAIL MODAL --- */}
+      {detailItem && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setDetailItem(null)}>
+          <div className="bg-[#071A2E] w-full max-w-lg max-h-[85vh] rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="relative h-56 flex-shrink-0 bg-[#0A1E33]">
+              {detailItem.imageUrl ? (
+                <img src={detailItem.imageUrl} alt={detailItem.itemName} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-white/20">
+                  <PackageSearch className="w-10 h-10" />
+                  <span className="text-[10px] font-semibold uppercase tracking-wider">No photo yet</span>
+                </div>
+              )}
+              <button onClick={() => setDetailItem(null)} className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center bg-black/50 border border-white/20 text-white hover:bg-black/70 transition-colors">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+              <div className="absolute top-3 left-3 bg-black/40 backdrop-blur-sm border border-white/10 text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full">{detailItem.category}</div>
+            </div>
+            <div className="p-6 overflow-y-auto">
+              <h2 className="text-white font-bold text-lg mb-2">{detailItem.itemName}</h2>
+              <p className="text-white/60 text-sm whitespace-pre-wrap mb-5">{detailItem.description}</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 mb-5 bg-white/5 rounded-xl p-4 border border-white/5">
+                <div><p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold">Plate No.</p><p className="text-xs text-white/80 font-medium">{detailItem.plateNumber}</p></div>
+                <div><p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold">Est. Time</p><p className="text-xs text-white/80 font-medium">{detailItem.estimatedTimeLost}</p></div>
+                <div><p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold">Driver</p><p className="text-xs text-white/80 font-medium">{detailItem.driverName}</p></div>
+                <div><p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold">Conductor</p><p className="text-xs text-white/80 font-medium">{detailItem.conductorName}</p></div>
+              </div>
+              <p className="text-center text-[10px] text-white/20 mb-5">Posted on {formatDate(detailItem.datePosted)}</p>
+              <div className="flex items-center gap-3">
+                {(() => {
+                  const status = claims.get(detailItem.id)?.status || "NONE";
+                  const limitReached = pendingClaimsCount >= MAX_PENDING_CLAIMS && status === "NONE";
+                  if (status === "PENDING") {
+                    return <button onClick={() => cancelClaim(detailItem.id)} className="flex-1 bg-white/5 hover:bg-white/10 text-white/60 hover:text-white text-sm font-medium py-2.5 rounded-xl border border-white/10 transition-colors">Cancel Claim</button>;
+                  }
+                  if (status === "VALIDATED") {
+                    return <div className="flex-1 bg-white/5 text-sm font-semibold py-2.5 rounded-xl text-center text-emerald-400">Validated - Proceed</div>;
+                  }
+                  return (
+                    <button
+                      onClick={() => { if (limitReached) return; setDetailItem(null); openClaimModal(detailItem); }}
+                      className={`flex-1 text-sm font-bold py-2.5 rounded-xl shadow-lg transition-colors ${limitReached ? "bg-white/5 text-white/30 cursor-not-allowed shadow-none" : "bg-[#FF6D3A] hover:bg-[#e55a2b] text-white shadow-[#FF6D3A]/30"}`}
+                    >
+                      {limitReached ? "Claim Limit Reached" : status === "REJECTED" ? "Claim Again" : "Claim Item"}
+                    </button>
+                  );
+                })()}
+                <button onClick={() => toggleWatchlist(detailItem.id)} className={`w-11 h-11 flex-shrink-0 rounded-xl border flex items-center justify-center transition-colors ${watchlist.has(detailItem.id) ? "bg-[#1A5FB4]/20 border-[#62A0EA]/30 text-[#62A0EA]" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}`}>
+                  <svg className="w-5 h-5" fill={watchlist.has(detailItem.id) ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" /></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* --- CLAIM MODAL --- */}
       {showClaimModal && itemToClaim && (
         <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="bg-[#071A2E] w-full max-w-md rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-hidden">
-            <div className="p-6 border-b border-white/10">
+          <div className="bg-[#071A2E] w-full max-w-lg h-[min(700px,85vh)] rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-hidden">
+            <div className="p-6 border-b border-white/10 flex-shrink-0">
               <h2 className="text-white font-bold text-lg">Claim this Item?</h2>
               <p className="text-white/40 text-xs mt-1">You are claiming: <span className="text-[#62A0EA] font-semibold">{itemToClaim.itemName}</span></p>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 flex-1 overflow-y-auto">
               <div>
                 <label className="block text-sm font-semibold text-white/70 mb-2">Proof of Ownership <span className="text-red-400">*</span></label>
-                <textarea rows={3} value={proofText} onChange={(e) => setProofText(e.target.value)} placeholder="Describe a specific detail..." className="w-full bg-[#050F1A] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#62A0EA] transition-colors resize-none" />
+                <textarea rows={6} value={proofText} onChange={(e) => setProofText(e.target.value)} placeholder="Describe a specific detail..." className="w-full bg-[#050F1A] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#62A0EA] transition-colors resize-none" />
                 <p className="text-[10px] text-white/30 mt-2">This will be reviewed by the admin.</p>
               </div>
               {claimError && (
@@ -150,7 +195,7 @@ export default function LostAndFoundPage() {
                 </div>
               </div>
             </div>
-            <div className="p-6 border-t border-white/10 flex gap-3">
+            <div className="p-6 border-t border-white/10 flex gap-3 flex-shrink-0">
               <button onClick={() => setShowClaimModal(false)} className="flex-1 bg-white/5 hover:bg-white/10 text-white/70 text-sm font-semibold py-3 rounded-xl border border-white/10 transition-colors">Cancel</button>
               <button onClick={submitClaim} disabled={!proofText.trim() || isSubmittingClaim} className={`flex-1 text-sm font-bold py-3 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 ${!proofText.trim() || isSubmittingClaim ? "bg-white/10 text-white/30 cursor-not-allowed" : "bg-[#FF6D3A] hover:bg-[#e55a2b] text-white shadow-[#FF6D3A]/30"}`}>
                 {isSubmittingClaim ? (

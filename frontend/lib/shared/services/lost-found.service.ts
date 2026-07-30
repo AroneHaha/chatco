@@ -11,8 +11,12 @@
  *     POST /api/lost-found/{id}/claim              → claim(id, { proof, contact?, email? })
  *
  *   ADMIN (role:ADMIN):
- *     GET  /api/admin/lost-items                   → listForAdmin({ status?, category?, page? })
+ *     GET  /api/admin/lost-items                   → listForAdmin({ status?, statuses?, category?, page? })
  *     POST /api/admin/lost-items                   → report({ itemName, description, ... })
+ *     PATCH /api/admin/lost-items/{id}              → update(id, { itemName, description, ... })
+ *     POST /api/admin/lost-items/{id}/photos       → addPhoto(id, file)
+ *     DELETE /api/admin/lost-items/{id}/photos/{pid} → deletePhoto(id, pid)
+ *     PATCH /api/admin/lost-items/{id}/reactivate   → reactivate(id)
  *     GET  /api/admin/lost-items/{id}/claims       → claimsForItem(id)
  *     PATCH /api/admin/lost-items/{id}/claims/{cid}/approve   → approveClaim(id, cid)
  *     PATCH /api/admin/lost-items/{id}/claims/{cid}/release   → releaseClaim(id, cid)
@@ -45,7 +49,8 @@ export type BackendItemStatus =
   | "CLAIMED"
   | "APPROVED"
   | "RELEASED"
-  | "CLOSED";
+  | "CLOSED"
+  | "EXPIRED";
 
 /** Backend claims.status values. */
 export type BackendClaimStatus = "PENDING" | "APPROVED" | "REJECTED";
@@ -73,10 +78,21 @@ interface RawLostItem {
   released_at: string | null;
   closed_by: string | null;
   closed_at: string | null;
+  expired_at: string | null;
   created_at: string;
   updated_at: string;
   // Eager-loaded only on the admin list (listForAdmin)
   claims?: RawClaim[];
+  // Eager-loaded on every fetch — up to 3 photos, position 0 is the thumbnail
+  // (also mirrored onto image_url so single-image read sites keep working).
+  photos?: RawPhoto[];
+}
+
+/** A lost_item_photos row as returned by Laravel (snake_case). */
+interface RawPhoto {
+  id: string;
+  url: string;
+  position: number;
 }
 
 /** A claims row as returned by Laravel (snake_case). */
@@ -95,6 +111,15 @@ interface RawClaim {
   created_at: string;
   // Eager-loaded on GET /commuter/claims (myClaims)
   item?: RawLostItem | null;
+  // Eager-loaded on the admin claim list (claims.claimant) — null for walk-in
+  // claimants recorded via storeManualClaim (no claimant_id).
+  claimant?: {
+    id: string;
+    first_name: string;
+    surname: string;
+    username: string;
+    account_status: string;
+  } | null;
 }
 
 /** A lost_item_watchlists row as returned by Laravel (snake_case). */
@@ -157,6 +182,10 @@ export interface LostFoundItem {
   releasedTo: string | null;
   releasedAt: string | null;
   closedAt: string | null;
+  /** When lost-items:expire auto-archived this item; null if never expired. */
+  expiredAt: string | null;
+  /** Up to 3 photos, position 0 first (the thumbnail — same URL as imageUrl). */
+  photos: { id: string; url: string }[];
 }
 
 /** A claim on a lost item. */
@@ -174,6 +203,8 @@ export interface LostFoundClaim {
   proof: string;
   rejectionReason: string | null;
   reviewedAt: string | null;
+  /** The registered account that filed this claim; null for walk-in claimants. */
+  linkedAccount: { id: string; name: string; username: string; accountStatus: string } | null;
 }
 
 /** Paginated list result. */
@@ -229,9 +260,11 @@ export class LostFoundOperationError extends Error {
  *   APPROVED  → Claimed    (a claim was approved; transient — release follows)
  *   RELEASED  → Released   (handed over to the claimant)
  *   CLOSED    → Closed     (admin closed the item after handover)
+ *   EXPIRED   → Expired    (auto-archived, unclaimed past the expiry window)
  *
  * The commuter UI uses its own status badge logic (it only sees AVAILABLE
- * vs CLAIMED in the default list, both shown as "active").
+ * vs CLAIMED in the default list, both shown as "active"; EXPIRED items are
+ * excluded from the commuter browse list entirely).
  */
 function mapItemDisplayStatus(status: string): string {
   switch (status) {
@@ -244,6 +277,8 @@ function mapItemDisplayStatus(status: string): string {
       return "Released";
     case "CLOSED":
       return "Closed";
+    case "EXPIRED":
+      return "Expired";
     default:
       return status;
   }
@@ -285,6 +320,8 @@ function mapItem(raw: RawLostItem): LostFoundItem {
     releasedTo: raw.released_to,
     releasedAt: raw.released_at,
     closedAt: raw.closed_at,
+    expiredAt: raw.expired_at,
+    photos: (raw.photos ?? []).map((p) => ({ id: p.id, url: p.url })),
   };
 }
 
@@ -301,6 +338,14 @@ function mapClaim(raw: RawClaim): LostFoundClaim {
     proof: raw.proof ?? "",
     rejectionReason: raw.rejection_reason ?? null,
     reviewedAt: raw.reviewed_at,
+    linkedAccount: raw.claimant
+      ? {
+          id: raw.claimant.id,
+          name: `${raw.claimant.first_name} ${raw.claimant.surname}`.trim(),
+          username: raw.claimant.username,
+          accountStatus: raw.claimant.account_status,
+        }
+      : null,
   };
 }
 
@@ -387,10 +432,15 @@ export async function list(params: {
 /**
  * Fetch a paginated list of lost items WITH claims eager-loaded (admin view).
  *
+ * `statuses` (multiple) filters to any of several statuses at once — powers
+ * the admin History tab (RELEASED + CLOSED) without a dedicated endpoint.
+ * `status` (single) still filters to one exact status, e.g. the Expired tab.
+ *
  * @throws {LostFoundOperationError} 401/403/5xx
  */
 export async function listForAdmin(params: {
   status?: string;
+  statuses?: string[];
   category?: string;
   page?: number;
   perPage?: number;
@@ -401,9 +451,17 @@ export async function listForAdmin(params: {
     page: params.page,
     per_page: params.perPage,
   });
+  const statusesQs = (params.statuses ?? [])
+    .map((s) => `statuses[]=${encodeURIComponent(s)}`)
+    .join("&");
+  const fullQs = statusesQs
+    ? qs
+      ? `${qs}&${statusesQs}`
+      : `?${statusesQs}`
+    : qs;
   try {
     const response = await api.get<ApiResponseEnvelope<PaginatedEnvelope<RawLostItem>>>(
-      `/api/admin/lost-items${qs}`
+      `/api/admin/lost-items${fullQs}`
     );
     const p = response.data;
     return {
@@ -592,20 +650,22 @@ export async function report(params: {
 }
 
 /**
- * Admin uploads/replaces the photo of a lost item (multipart).
+ * Admin adds a photo to a lost item (multipart), up to 3 total. Appended at
+ * the next open position — position 0 (the first photo ever added) is the
+ * thumbnail shown everywhere a single image was shown before.
  *
  * Uses raw fetch instead of the shared api client — the client always sends
  * `Content-Type: application/json`, which breaks multipart (the browser must
  * set the boundary itself). Field name + limits per the backend
  * UploadLostItemImageRequest: `image`, jpg/jpeg/png/webp, max 5MB.
  *
- * @throws {LostFoundOperationError} 404/422 (bad type or >5MB)/401/403/5xx
+ * @throws {LostFoundOperationError} 404/422 (bad type, >5MB, or already at 3 photos)/401/403/5xx
  */
-export async function uploadImage(itemId: string, file: File): Promise<LostFoundItem> {
+export async function addPhoto(itemId: string, file: File): Promise<LostFoundItem> {
   const formData = new FormData();
   formData.append("image", file);
   try {
-    const res = await fetch(`/api/admin/lost-items/${itemId}/image`, {
+    const res = await fetch(`/api/admin/lost-items/${itemId}/photos`, {
       method: "POST",
       body: formData,
       credentials: "include",
@@ -614,13 +674,105 @@ export async function uploadImage(itemId: string, file: File): Promise<LostFound
     if (!res.ok) {
       throw classifyError(
         new ApiError(res.status, res.statusText, body),
-        "Unable to upload the item photo."
+        "Unable to add this photo."
       );
     }
     const envelope = body as ApiResponseEnvelope<RawLostItem>;
     return mapItem(envelope.data);
   } catch (err) {
     if (err instanceof LostFoundOperationError) throw err;
+    throw new LostFoundOperationError(
+      "network",
+      err instanceof Error ? err.message : "Unable to reach the backend service."
+    );
+  }
+}
+
+/**
+ * Admin removes a photo from a lost item. Remaining photos re-compact to
+ * stay at contiguous positions, and the thumbnail (imageUrl) re-syncs to
+ * whatever now sits at position 0 (null if none left).
+ *
+ * @throws {LostFoundOperationError} 404/401/403/5xx
+ */
+export async function deletePhoto(itemId: string, photoId: string): Promise<LostFoundItem> {
+  try {
+    const response = await api.delete<ApiResponseEnvelope<RawLostItem>>(
+      `/api/admin/lost-items/${itemId}/photos/${photoId}`
+    );
+    return mapItem(response.data);
+  } catch (err) {
+    if (err instanceof ApiError) {
+      throw classifyError(err, "Unable to remove this photo.");
+    }
+    throw new LostFoundOperationError(
+      "network",
+      err instanceof Error ? err.message : "Unable to reach the backend service."
+    );
+  }
+}
+
+/**
+ * Admin edits a previously reported item's descriptive fields. Blocked once
+ * the item is CLOSED (a finalized historical record).
+ *
+ * @throws {LostFoundOperationError} 404/422 (item CLOSED)/401/403/5xx
+ */
+export async function update(
+  itemId: string,
+  params: {
+    itemName: string;
+    description: string;
+    plateNumber?: string;
+    driverName?: string;
+    conductorName?: string;
+    vehicleId?: string;
+    estimatedTimeLost?: string;
+    category?: string;
+  }
+): Promise<LostFoundItem> {
+  try {
+    const response = await api.patch<ApiResponseEnvelope<RawLostItem>>(
+      `/api/admin/lost-items/${itemId}`,
+      {
+        item_name: params.itemName,
+        description: params.description,
+        ...(params.plateNumber ? { plate_number: params.plateNumber } : {}),
+        ...(params.driverName ? { driver_name: params.driverName } : {}),
+        ...(params.conductorName ? { conductor_name: params.conductorName } : {}),
+        ...(params.vehicleId ? { vehicle_id: params.vehicleId } : {}),
+        ...(params.estimatedTimeLost ? { estimated_time_lost: params.estimatedTimeLost } : {}),
+        ...(params.category ? { category: params.category } : {}),
+      }
+    );
+    return mapItem(response.data);
+  } catch (err) {
+    if (err instanceof ApiError) {
+      throw classifyError(err, "Unable to update this item.");
+    }
+    throw new LostFoundOperationError(
+      "network",
+      err instanceof Error ? err.message : "Unable to reach the backend service."
+    );
+  }
+}
+
+/**
+ * Admin manually brings an EXPIRED item back to AVAILABLE (e.g. a claimant
+ * turns up after the archive window closed). Not lost forever.
+ *
+ * @throws {LostFoundOperationError} 404/422 (not currently EXPIRED)/401/403/5xx
+ */
+export async function reactivate(itemId: string): Promise<LostFoundItem> {
+  try {
+    const response = await api.patch<ApiResponseEnvelope<RawLostItem>>(
+      `/api/admin/lost-items/${itemId}/reactivate`
+    );
+    return mapItem(response.data);
+  } catch (err) {
+    if (err instanceof ApiError) {
+      throw classifyError(err, "Unable to reactivate this item.");
+    }
     throw new LostFoundOperationError(
       "network",
       err instanceof Error ? err.message : "Unable to reach the backend service."

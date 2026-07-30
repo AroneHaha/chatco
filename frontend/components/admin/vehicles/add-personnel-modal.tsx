@@ -5,6 +5,9 @@ import { useState, useRef } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import { UserPlus, Upload, Check, User, Phone, IdCard } from 'lucide-react';
 
+// Mirrors the backend's LTO format check (AdminController::storeDriver).
+const LICENSE_NUMBER_PATTERN = /^[A-Z][0-9]{2}-[0-9]{2}-[0-9]{6}$/;
+
 function formatLicenseNumber(value: string): string {
   const normalized = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
   const letter = normalized.match(/[A-Z]/)?.[0] ?? '';
@@ -71,9 +74,15 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    setIsSubmitting(true);
     setError(null);
     setFieldErrors({});
+
+    if (!LICENSE_NUMBER_PATTERN.test(formData.licenseNumber)) {
+      setFieldErrors({ licenseNumber: ['Use the Philippine LTO format N01-23-045678 (one letter, four digits, then six digits).'] });
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       // Build the request body matching Laravel's storeDriver() validation.

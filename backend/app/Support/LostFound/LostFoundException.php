@@ -28,4 +28,9 @@ class LostFoundException extends RuntimeException
     {
         return new self("{$entity} not found");
     }
+
+    public static function invalid(string $reason): self
+    {
+        return new self($reason);
+    }
 }

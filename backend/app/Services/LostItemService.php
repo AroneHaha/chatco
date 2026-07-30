@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Claim;
 use App\Models\CommuterProfile;
 use App\Models\LostItem;
+use App\Models\LostItemPhoto;
 use App\Models\LostItemWatchlist;
 use App\Models\User;
 use App\Support\LostFound\LostFoundException;
@@ -25,6 +26,8 @@ use Illuminate\Support\Str;
  *   APPROVED   → a claim was APPROVED; awaiting handover (release)
  *   RELEASED   → an APPROVED claim was released; released_to + released_at set
  *   CLOSED     → admin closes the item after handover is complete
+ *   EXPIRED    → AVAILABLE for EXPIRY_DAYS with no claim; auto-archived by
+ *                `lost-items:expire` (reactivate() can bring it back)
  *
  * Claim lifecycle (status column on claims):
  *   PENDING    → submitted by a commuter, awaiting admin review
@@ -47,10 +50,21 @@ class LostItemService
     private const ITEM_APPROVED = 'APPROVED';
     private const ITEM_RELEASED = 'RELEASED';
     private const ITEM_CLOSED = 'CLOSED';
+    private const ITEM_EXPIRED = 'EXPIRED';
 
     private const CLAIM_PENDING = 'PENDING';
     private const CLAIM_APPROVED = 'APPROVED';
     private const CLAIM_REJECTED = 'REJECTED';
+
+    /** Days an AVAILABLE, unclaimed item can sit before lost-items:expire archives it. */
+    public const EXPIRY_DAYS = 30;
+
+    /** Max photos per item (position 0-2; 0 is the thumbnail). */
+    private const MAX_PHOTOS = 3;
+
+    public function __construct(
+        private readonly AnnouncementService $announcementService,
+    ) {}
 
     /**
      * Paginated browse list for any authenticated role.
@@ -59,7 +73,11 @@ class LostItemService
      */
     public function listItems(array $filters, int $perPage = 15): LengthAwarePaginator
     {
-        $query = LostItem::with('vehicle')
+        $query = LostItem::with(['vehicle', 'photos'])
+            // Expired items are archived, not deleted — they stay visible to
+            // admins under a dedicated filter, but drop out of the commuter
+            // browse list entirely (nothing to claim, nothing to see).
+            ->where('status', '!=', self::ITEM_EXPIRED)
             ->orderByDesc('created_at');
 
         if (! empty($filters['status'])) {
@@ -81,14 +99,21 @@ class LostItemService
 
     /**
      * Admin list — includes claims + releasedTo for full audit visibility.
+     *
+     * `status` filters to a single exact status (existing behaviour).
+     * `statuses` (array) filters to any of several — powers the admin
+     * "History" tab (RELEASED + CLOSED) without a dedicated endpoint.
      */
     public function listForAdmin(array $filters, int $perPage = 15): LengthAwarePaginator
     {
-        $query = LostItem::with(['vehicle', 'claims.claimant', 'releasedTo', 'closedBy'])
+        $query = LostItem::with(['vehicle', 'photos', 'claims.claimant', 'releasedTo', 'closedBy'])
             ->orderByDesc('created_at');
 
         if (! empty($filters['status'])) {
             $query->where('status', $filters['status']);
+        }
+        if (! empty($filters['statuses']) && is_array($filters['statuses'])) {
+            $query->whereIn('status', $filters['statuses']);
         }
         if (! empty($filters['category'])) {
             $query->where('category', $filters['category']);
@@ -100,7 +125,7 @@ class LostItemService
     public function show(string $itemId): LostItem
     {
         try {
-            return LostItem::with(['vehicle', 'claims.claimant'])->findOrFail($itemId);
+            return LostItem::with(['vehicle', 'photos', 'claims.claimant', 'releasedTo', 'closedBy'])->findOrFail($itemId);
         } catch (ModelNotFoundException) {
             throw LostFoundException::notFound('Item');
         }
@@ -129,37 +154,110 @@ class LostItemService
     }
 
     /**
-     * Admin uploads an image for a lost item. Stores the file on the public
-     * media disk and updates image_url. Replaces any existing image.
+     * Admin edits a previously reported item's descriptive fields. Blocked
+     * once the item is CLOSED — that's a finalized historical record.
+     * Photos, status, and the claim/release audit trail are untouched here.
      *
-     * @throws LostFoundException Item not found.
+     * @throws LostFoundException Item not found, or item is CLOSED.
      */
-    public function uploadImage(string $itemId, UploadedFile $file): LostItem
+    public function update(string $itemId, array $data): LostItem
     {
         $item = $this->show($itemId);
-        $mediaDisk = config('filesystems.uploads.public_media_disk', 'r2_public');
 
-        // Delete the previous image. Keep support for legacy local URLs.
-        if ($item->image_url) {
-            $oldPath = $this->extractPathFromUrl($item->image_url);
-            $oldDisk = str_contains($item->image_url, '/storage/')
-                ? 'public'
-                : $mediaDisk;
-
-            if ($oldPath && Storage::disk($oldDisk)->exists($oldPath)) {
-                Storage::disk($oldDisk)->delete($oldPath);
-            }
+        if ($item->status === self::ITEM_CLOSED) {
+            throw LostFoundException::invalid('Cannot edit a closed item');
         }
 
+        $item->update(array_filter([
+            'item_name' => $data['item_name'] ?? null,
+            'description' => $data['description'] ?? null,
+            'plate_number' => $data['plate_number'] ?? null,
+            'driver_name' => $data['driver_name'] ?? null,
+            'conductor_name' => $data['conductor_name'] ?? null,
+            'vehicle_id' => array_key_exists('vehicle_id', $data) ? $data['vehicle_id'] : null,
+            'estimated_time_lost' => $data['estimated_time_lost'] ?? null,
+            'category' => $data['category'] ?? null,
+        ], fn ($v) => $v !== null));
+
+        return $item->fresh(['vehicle', 'photos', 'claims.claimant']);
+    }
+
+    /**
+     * Admin adds a photo to a lost item (up to MAX_PHOTOS). Appended at the
+     * next open position — position 0 is kept mirrored onto
+     * lost_items.image_url so every existing single-image read site (grid
+     * cards, claim modals) keeps working without changes.
+     *
+     * @throws LostFoundException Item not found, or already at MAX_PHOTOS.
+     */
+    public function addPhoto(string $itemId, UploadedFile $file): LostItem
+    {
+        $item = $this->show($itemId);
+        $existing = $item->photos()->count();
+
+        if ($existing >= self::MAX_PHOTOS) {
+            throw LostFoundException::invalid('This item already has the maximum of ' . self::MAX_PHOTOS . ' photos');
+        }
+
+        $mediaDisk = config('filesystems.uploads.public_media_disk', 'r2_public');
         $extension = $file->getClientOriginalExtension() ?: 'jpg';
         $filename = "{$itemId}-" . time() . "-" . Str::random(8) . ".{$extension}";
         $path = $file->storeAs('lost-items', $filename, $mediaDisk);
+        $url = Storage::disk($mediaDisk)->url($path);
 
-        $item->update([
-            'image_url' => Storage::disk($mediaDisk)->url($path),
-        ]);
+        DB::transaction(function () use ($item, $url, $existing): void {
+            LostItemPhoto::create([
+                'item_id' => $item->id,
+                'url' => $url,
+                'position' => $existing,
+            ]);
 
-        return $item->fresh(['vehicle', 'claims.claimant']);
+            if ($existing === 0) {
+                $item->update(['image_url' => $url]);
+            }
+        });
+
+        return $item->fresh(['vehicle', 'photos', 'claims.claimant']);
+    }
+
+    /**
+     * Admin removes a photo from a lost item. Remaining photos are
+     * re-compacted to stay at contiguous positions 0..n-1, and
+     * lost_items.image_url is re-synced to whatever now sits at position 0
+     * (null if the item has no photos left).
+     *
+     * @throws LostFoundException Item or photo not found.
+     */
+    public function deletePhoto(string $itemId, string $photoId): LostItem
+    {
+        $item = $this->show($itemId);
+        $photo = $item->photos()->where('id', $photoId)->first();
+
+        if (! $photo) {
+            throw LostFoundException::notFound('Photo');
+        }
+
+        $mediaDisk = config('filesystems.uploads.public_media_disk', 'r2_public');
+
+        DB::transaction(function () use ($item, $photo, $mediaDisk): void {
+            $oldPath = $this->extractPathFromUrl($photo->url);
+            $oldDisk = str_contains($photo->url, '/storage/') ? 'public' : $mediaDisk;
+            if ($oldPath && Storage::disk($oldDisk)->exists($oldPath)) {
+                Storage::disk($oldDisk)->delete($oldPath);
+            }
+            $photo->delete();
+
+            $remaining = $item->photos()->orderBy('position')->get();
+            foreach ($remaining->values() as $index => $remainingPhoto) {
+                if ($remainingPhoto->position !== $index) {
+                    $remainingPhoto->update(['position' => $index]);
+                }
+            }
+
+            $item->update(['image_url' => $remaining->first()->url ?? null]);
+        });
+
+        return $item->fresh(['vehicle', 'photos', 'claims.claimant']);
     }
 
     /**
@@ -448,6 +546,16 @@ class LostItemService
                     'rejection_reason' => 'Another claim was approved',
                 ]);
 
+            // Walk-in claimants (claimant_id null) have no CHATCO account to notify.
+            if ($claim->claimant_id) {
+                $this->announcementService->notifyUser(
+                    $claim->claimant_id,
+                    'claim_approved',
+                    'Claim Approved',
+                    "Your claim on \"{$item->item_name}\" was approved. Bring a valid ID and the proof you submitted to the terminal office to complete the handover."
+                );
+            }
+
             return $claim->fresh(['item', 'claimant', 'reviewer']);
         });
     }
@@ -491,6 +599,15 @@ class LostItemService
                 'released_to' => $claim->claimant_id,
                 'released_at' => now(),
             ]);
+
+            if ($claim->claimant_id) {
+                $this->announcementService->notifyUser(
+                    $claim->claimant_id,
+                    'claim_released',
+                    'Item Returned',
+                    "\"{$item->item_name}\" has been marked as returned to you. Thanks for using CHATCO Lost & Found!"
+                );
+            }
 
             return $claim->fresh(['item', 'claimant', 'reviewer']);
         });
@@ -559,6 +676,16 @@ class LostItemService
                 }
             }
 
+            if ($claim->claimant_id) {
+                $reasonSuffix = $reason ? " Reason: {$reason}." : '';
+                $this->announcementService->notifyUser(
+                    $claim->claimant_id,
+                    'claim_rejected',
+                    'Claim Rejected',
+                    "Your claim on \"{$item->item_name}\" was not approved.{$reasonSuffix} You're welcome to review the item again and submit a new claim with more specific proof."
+                );
+            }
+
             return $claim->fresh(['item', 'claimant', 'reviewer']);
         });
     }
@@ -585,6 +712,54 @@ class LostItemService
         ]);
 
         return $item->fresh(['vehicle', 'releasedTo', 'closedBy']);
+    }
+
+    // ── Auto-expiry ──────────────────────────────────────────────
+
+    /**
+     * Archives AVAILABLE items that have sat unclaimed for EXPIRY_DAYS.
+     * Called by the `lost-items:expire` scheduled command (daily).
+     *
+     * Items with an active claim history (CLAIMED/APPROVED/RELEASED/CLOSED)
+     * are never touched — only genuinely unclaimed items go stale. Expiring
+     * is not deletion: the row, photos, and any past (rejected) claims stay
+     * intact, and an admin can reactivate() the item if a claimant turns up
+     * late.
+     *
+     * @return int Number of items expired.
+     */
+    public function expireStale(): int
+    {
+        $cutoff = now()->subDays(self::EXPIRY_DAYS);
+
+        return LostItem::where('status', self::ITEM_AVAILABLE)
+            ->where('created_at', '<', $cutoff)
+            ->update([
+                'status' => self::ITEM_EXPIRED,
+                'expired_at' => now(),
+            ]);
+    }
+
+    /**
+     * Admin manually brings an EXPIRED item back to AVAILABLE — e.g. a
+     * claimant shows up after the archive window closed. Not lost forever.
+     *
+     * @throws LostFoundException Item not found, or not currently EXPIRED.
+     */
+    public function reactivate(string $itemId): LostItem
+    {
+        $item = $this->show($itemId);
+
+        if ($item->status !== self::ITEM_EXPIRED) {
+            throw LostFoundException::invalid("Only EXPIRED items can be reactivated (current status: {$item->status})");
+        }
+
+        $item->update([
+            'status' => self::ITEM_AVAILABLE,
+            'expired_at' => null,
+        ]);
+
+        return $item->fresh(['vehicle', 'photos']);
     }
 
     // ── Private helpers ────────────────────────────────────────

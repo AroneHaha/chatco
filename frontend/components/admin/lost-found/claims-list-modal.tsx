@@ -114,7 +114,7 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, onClaimAction
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
+    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-lg" height="h-[min(700px,85vh)]">
       <div className="flex items-center justify-between mb-5 pr-8">
         <h2 className="text-lg sm:text-xl font-bold text-white">Claims for Item</h2>
         <div className="flex items-center gap-3">
@@ -149,7 +149,7 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, onClaimAction
         </form>
       )}
 
-      <div className="space-y-3 max-h-96 overflow-y-auto">
+      <div className="space-y-3">
         {claims.length > 0 ? claims.map((claim: Claim) => (
           <div
             key={claim.id}
@@ -167,7 +167,11 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, onClaimAction
                 </div>
                 <div>
                   <p className="text-white font-medium">{claim.claimantName}</p>
-                  <p className="text-xs text-slate-500">Claimant</p>
+                  {claim.linkedAccount ? (
+                    <p className="text-xs text-emerald-400">Account: @{claim.linkedAccount.username}</p>
+                  ) : (
+                    <p className="text-xs text-slate-500">Walk-in (no account)</p>
+                  )}
                 </div>
               </div>
               <Badge variant={getBadgeVariant(claim.status)}>
