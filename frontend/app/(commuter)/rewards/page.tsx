@@ -19,6 +19,7 @@ const announcementConfig: Record<AnnouncementType, { color: string; bg: string; 
   SAFETY: { color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", label: "Safety", emoji: "🛡️" },
   SYSTEM: { color: "text-[#62A0EA]", bg: "bg-[#1A5FB4]/10 border-[#1A5FB4]/20", label: "System", emoji: "🔔" },
   MAINTENANCE: { color: "text-red-400", bg: "bg-red-500/10 border-red-500/20", label: "Advisory", emoji: "🚧" },
+  CLAIM_UPDATE: { color: "text-violet-400", bg: "bg-violet-500/10 border-violet-500/20", label: "Claim Update", emoji: "📦" },
 };
 
 function formatRelativeTime(iso: string): string {

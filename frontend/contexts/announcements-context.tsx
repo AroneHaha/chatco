@@ -48,11 +48,14 @@ const FEED_PAGE_SIZE = 15;
 
 /**
  * Map the backend's free-form `type` string (max 20, e.g. 'holiday', 'route',
- * 'system', 'safety', 'promo', 'maintenance') to one of the 4 canonical
+ * 'system', 'safety', 'promo', 'maintenance', 'claim_approved') to a canonical
  * AnnouncementType values the rewards panel's announcementConfig expects.
  */
 function mapType(rawType: string): AnnouncementType {
   const t = (rawType ?? "").toLowerCase();
+  if (["claim_approved", "claim_rejected", "claim_released"].some((type) => t.includes(type))) {
+    return "CLAIM_UPDATE";
+  }
   if (["safety", "alert", "sos", "warning"].some((k) => t.includes(k))) {
     return "SAFETY";
   }
