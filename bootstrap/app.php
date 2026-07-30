@@ -1,0 +1,80 @@
+<?php
+
+use App\Models\PersonalAccessToken;
+use Illuminate\Foundation\Application;
+use Illuminate\Foundation\Configuration\Exceptions;
+use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
+use Illuminate\Http\Request;
+use Illuminate\Auth\AuthenticationException;
+use Illuminate\Validation\ValidationException;
+use Laravel\Sanctum\Sanctum;
+
+$app = Application::configure(basePath: dirname(__DIR__))
+    ->withRouting(
+        web: __DIR__.'/../routes/web.php',
+        api: __DIR__.'/../routes/api.php',
+        apiPrefix: 'api/v1',
+        commands: __DIR__.'/../routes/console.php',
+        health: '/up',
+    )
+    ->withMiddleware(function (Middleware $middleware) {
+        $middleware->api(prepend: [
+            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+        ]);
+
+        $middleware->statefulApi();
+
+        $middleware->alias([
+            'role' => \App\Http\Middleware\EnsureUserRole::class,
+            'maintenance' => \App\Http\Middleware\BlockDuringMaintenance::class,
+        ]);
+    })
+    ->withExceptions(function (Exceptions $exceptions) {
+        // Handle unauthenticated requests — return 401 JSON instead of trying
+        // to redirect to a 'login' named route (which doesn't exist in this
+        // API-only app, causing a RouteNotFoundException that Symfony renders
+        // as an HTML redirect page). This fixes the HTML redirect responses
+        // that were breaking curl/browser tests of API endpoints.
+        $exceptions->render(function (AuthenticationException $e, Request $request) {
+            return response()->json([
+                'success' => false,
+                'data'    => null,
+                'message' => 'Unauthenticated.',
+                'errors'  => null,
+                'meta'    => null,
+            ], 401);
+        });
+
+        $exceptions->render(function (ValidationException $e, Request $request) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'data'    => null,
+                    'message' => 'Validation failed',
+                    'errors'  => $e->errors(),
+                    'meta'    => null,
+                ], 422);
+            }
+        });
+
+        // Render 429 rate-limit responses using the project's ApiResponse JSON
+        // envelope so the frontend can handle them gracefully (consistent with
+        // the 422 ValidationException handler above).
+        $exceptions->render(function (ThrottleRequestsException $e, Request $request) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'data'    => null,
+                    'message' => 'Too many requests. Please slow down.',
+                    'errors'  => null,
+                    'meta'    => null,
+                ], 429);
+            }
+        });
+    })
+    ->create();
+
+Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
+
+return $app;
