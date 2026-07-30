@@ -395,10 +395,8 @@ class TransactionFlowTest extends TestCase
         $this->assertSame($this->commuter1->commuterProfile->id, $txn->passenger_id);
     }
 
-    public function test_gcash_claim_automatically_applies_verified_role_discount(): void
+    public function test_gcash_claim_automatically_applies_all_verified_role_discounts(): void
     {
-        $this->commuter1->commuterProfile->update(['commuter_type' => 'Student']);
-
         FarePoint::create([
             'route_id' => $this->shift->route_id,
             'point_number' => 1,
@@ -416,18 +414,40 @@ class TransactionFlowTest extends TestCase
             'discounted_fare' => 32,
         ]);
 
+        foreach (['STUDENT', 'SENIOR', 'PWD'] as $commuterType) {
+            $this->commuter1->commuterProfile->update(['commuter_type' => $commuterType]);
+            $transaction = $this->createPendingGcashTransaction(['final_amount' => 25]);
+            $result = app(TransactionService::class)->claimGcash($this->commuter1, $transaction->qr_token);
+
+            $this->assertSame(20.0, $result['amount']);
+            $this->assertSame(25.0, $result['regular_amount']);
+            $this->assertSame(5.0, $result['discount_amount']);
+            $this->assertSame($commuterType, $result['passenger_role']);
+            $this->assertDatabaseHas('transactions', [
+                'transaction_id' => $transaction->transaction_id,
+                'passenger_role' => $commuterType,
+                'final_amount' => 20,
+                'discount_amount' => 5,
+            ]);
+        }
+    }
+
+    public function test_gcash_claim_keeps_regular_fare_for_regular_commuter(): void
+    {
+        $this->commuter1->commuterProfile->update(['commuter_type' => 'REGULAR']);
         $transaction = $this->createPendingGcashTransaction(['final_amount' => 25]);
+
         $result = app(TransactionService::class)->claimGcash($this->commuter1, $transaction->qr_token);
 
-        $this->assertSame(20.0, $result['amount']);
+        $this->assertSame(25.0, $result['amount']);
         $this->assertSame(25.0, $result['regular_amount']);
-        $this->assertSame(5.0, $result['discount_amount']);
-        $this->assertSame('STUDENT', $result['passenger_role']);
+        $this->assertSame(0.0, $result['discount_amount']);
+        $this->assertSame('REGULAR', $result['passenger_role']);
         $this->assertDatabaseHas('transactions', [
             'transaction_id' => $transaction->transaction_id,
-            'passenger_role' => 'STUDENT',
-            'final_amount' => 20,
-            'discount_amount' => 5,
+            'passenger_role' => 'REGULAR',
+            'final_amount' => 25,
+            'discount_amount' => null,
         ]);
     }
 

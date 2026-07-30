@@ -431,7 +431,7 @@ export default function ReceiptsPage() {
           columns={columns}
           searchQuery=""
           emptyMessage="No receipts match your filters."
-          maxHeight="60vh"
+          height="32rem"
           stickyHeader
           allowHorizontalScroll={false}
           tableClassName="table-fixed"

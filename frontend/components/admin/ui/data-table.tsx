@@ -16,10 +16,9 @@ interface DataTableProps<T> {
   searchQuery: string;
   emptyMessage?: string;
   onRowDoubleClick?: (item: T) => void;
-  /**
-   * Caps the table's height and scrolls the body instead of growing the page.
-   * Any CSS length, e.g. "60vh". Omit for the default auto-height behaviour.
-   */
+  /** Fixed table viewport height. Records never increase the card height. */
+  height?: string;
+  /** @deprecated Use `height`. Kept so older callers remain compatible. */
   maxHeight?: string;
   /** Keeps the header row visible while the body scrolls. Needs `maxHeight`. */
   stickyHeader?: boolean;
@@ -34,11 +33,13 @@ export function DataTable<T extends object>({
   searchQuery,
   emptyMessage = 'No data found.',
   onRowDoubleClick,
+  height,
   maxHeight,
   stickyHeader = false,
   allowHorizontalScroll = true,
   tableClassName = '',
 }: DataTableProps<T>) {
+  const tableHeight = height ?? maxHeight ?? '32rem';
   const filteredData = useMemo(() => {
     if (!searchQuery) {
       return data;
@@ -54,16 +55,19 @@ export function DataTable<T extends object>({
 
   return (
     <div
-      className={`${allowHorizontalScroll ? 'overflow-x-auto' : 'overflow-x-hidden'} scrollbar-themed`}
-      style={maxHeight ? { maxHeight, overflowY: 'auto' } : undefined}
+      className={`flex w-full flex-col overflow-hidden rounded-lg border border-[#1E2D45] bg-[#131C2E] ${
+        allowHorizontalScroll ? 'overflow-x-auto' : 'overflow-x-hidden'
+      } scrollbar-themed`}
+      style={{ height: tableHeight }}
     >
       {filteredData.length === 0 ? (
-        <div className="py-12 text-center">
+        <div className="flex min-h-0 flex-1 items-center justify-center px-6 text-center">
           <p className="text-sm text-slate-500">{emptyMessage}</p>
         </div>
       ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto scrollbar-themed">
         <table className={`min-w-full ${tableClassName}`}>
-          <thead>
+          <thead className={stickyHeader ? 'sticky top-0 z-10' : ''}>
             <tr className="border-b border-[#1E2D45]">
               {columns.map((col) => (
                 <th
@@ -74,7 +78,7 @@ export function DataTable<T extends object>({
                   } ${
                     // The <tr> border doesn't travel with sticky cells, so the
                     // divider is redrawn as an inset shadow on each header cell.
-                    stickyHeader ? 'sticky top-0 z-10 bg-[#0B1220] shadow-[inset_0_-1px_0_#1E2D45]' : ''
+                    stickyHeader ? 'bg-[#131C2E] shadow-[inset_0_-1px_0_#1E2D45]' : 'bg-[#131C2E]'
                   } ${col.headerClassName ?? ''}`}
                 >
                   {col.label}
@@ -86,7 +90,7 @@ export function DataTable<T extends object>({
             {filteredData.map((item, idx) => (
               <tr
                 key={idx}
-                className={`hover:bg-[#162033] transition-colors ${onRowDoubleClick ? 'cursor-pointer' : ''}`}
+                className={`h-12 hover:bg-[#162033] transition-colors ${onRowDoubleClick ? 'cursor-pointer' : ''}`}
                 onDoubleClick={() => onRowDoubleClick?.(item)}
               >
                 {columns.map((col) => {
@@ -106,6 +110,7 @@ export function DataTable<T extends object>({
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   );

@@ -9,7 +9,12 @@
  * Do NOT re-define Announcement or AnnouncementType elsewhere.
  */
 
-export type AnnouncementType = "SYSTEM" | "PROMO" | "MAINTENANCE" | "SAFETY";
+export type AnnouncementType =
+  | "SYSTEM"
+  | "PROMO"
+  | "MAINTENANCE"
+  | "SAFETY"
+  | "CLAIM_UPDATE";
 
 export interface Announcement {
   id: string;

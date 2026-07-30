@@ -1,5 +1,9 @@
+'use client';
+
 // components/admin/vehicles/vehicle-table.tsx
+import { useMemo, useState } from 'react';
 import { DataTable } from '@/components/admin/ui/data-table';
+import { TablePagination } from '@/components/admin/ui/table-pagination';
 import { Badge } from '@/components/admin/ui/badge';
 import { Pencil, Clock } from 'lucide-react'; // Added icons
 import type { Vehicle } from '@/app/(admin)/vehicles/data/vehicles-data';
@@ -15,7 +19,36 @@ interface VehicleTableProps {
   onRowDoubleClick?: (vehicle: Vehicle) => void;
 }
 
+const ROWS_PER_PAGE = 10;
+
 export function VehicleTable({ vehicles, searchQuery, onEdit, onEditShift, onRowDoubleClick }: VehicleTableProps) {
+  const [currentPage, setCurrentPage] = useState(1);
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const filteredVehicles = useMemo(
+    () =>
+      vehicles.filter((vehicle) =>
+        [
+          vehicle.unitNumber,
+          vehicle.plateNumber,
+          vehicle.driver,
+          vehicle.conductor,
+          vehicle.status,
+        ].some((value) => String(value ?? '').toLowerCase().includes(normalizedQuery)),
+      ),
+    [vehicles, normalizedQuery],
+  );
+  const filterKey = normalizedQuery;
+  const [previousFilterKey, setPreviousFilterKey] = useState(filterKey);
+  if (filterKey !== previousFilterKey) {
+    setPreviousFilterKey(filterKey);
+    setCurrentPage(1);
+  }
+  const totalPages = Math.max(1, Math.ceil(filteredVehicles.length / ROWS_PER_PAGE));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const pageRows = filteredVehicles.slice(
+    (safeCurrentPage - 1) * ROWS_PER_PAGE,
+    safeCurrentPage * ROWS_PER_PAGE,
+  );
   const columns = [
     { key: 'unitNumber', label: 'Unit Number' },
     { key: 'plateNumber', label: 'Plate Number' },
@@ -74,13 +107,33 @@ export function VehicleTable({ vehicles, searchQuery, onEdit, onEditShift, onRow
     },
   ];
 
-  // Changed mockVehicles to the vehicles prop
   return (
-    <DataTable
-      data={vehicles}
-      columns={columns}
-      searchQuery={searchQuery}
-      onRowDoubleClick={onRowDoubleClick}
-    />
+    <div className="space-y-4">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-white">Vehicle Registry</h2>
+        <span className="rounded-md bg-[#62A0EA]/10 px-2 py-1 text-xs font-bold text-[#62A0EA]">
+          {filteredVehicles.length} Records
+        </span>
+      </div>
+      <DataTable
+        data={pageRows}
+        columns={columns}
+        searchQuery=""
+        emptyMessage="No vehicles match your search."
+        height="32rem"
+        stickyHeader
+        tableClassName="table-fixed"
+        onRowDoubleClick={onRowDoubleClick}
+      />
+      <TablePagination
+        currentPage={safeCurrentPage}
+        totalPages={totalPages}
+        from={pageRows.length ? (safeCurrentPage - 1) * ROWS_PER_PAGE + 1 : 0}
+        to={(safeCurrentPage - 1) * ROWS_PER_PAGE + pageRows.length}
+        total={filteredVehicles.length}
+        label="vehicles"
+        onPageChange={setCurrentPage}
+      />
+    </div>
   );
 }
