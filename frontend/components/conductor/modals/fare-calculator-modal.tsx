@@ -107,14 +107,55 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   const [receiptSettings, setReceiptSettings] = useState<ReceiptSettings>(
     DEFAULT_RECEIPT_SETTINGS
   );
+  const [receiptSettingsLoaded, setReceiptSettingsLoaded] = useState(false);
+  const autoPrintTriggeredRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!isOpen) return;
+    setReceiptSettingsLoaded(false);
 
     void fetchReceiptSettings()
       .then(setReceiptSettings)
-      .catch(() => setReceiptSettings(DEFAULT_RECEIPT_SETTINGS));
+      .catch(() => setReceiptSettings(DEFAULT_RECEIPT_SETTINGS))
+      .finally(() => setReceiptSettingsLoaded(true));
   }, [isOpen]);
+  // Automatically open the browser print dialog once per completed transaction
+  // when enabled by the admin. sessionStorage prevents React rerenders, GCash
+  // polling, or modal remounts in the same tab from prompting twice.
+  useEffect(() => {
+    const transactionId = receiptTransaction?.transactionId;
+    if (
+      step !== "success" ||
+      !receiptSettingsLoaded ||
+      !receiptSettings.autoPrint ||
+      !transactionId
+    ) {
+      return;
+    }
+
+    const storageKey = `chatco:auto-printed:${transactionId}`;
+    if (autoPrintTriggeredRef.current.has(transactionId)) return;
+
+    try {
+      if (window.sessionStorage.getItem(storageKey) === "1") {
+        autoPrintTriggeredRef.current.add(transactionId);
+        return;
+      }
+      window.sessionStorage.setItem(storageKey, "1");
+    } catch {
+      // Storage can be unavailable in privacy modes; the in-memory guard still
+      // prevents duplicate prompts for the lifetime of this mounted modal.
+    }
+
+    autoPrintTriggeredRef.current.add(transactionId);
+    const timer = window.setTimeout(() => window.print(), 150);
+    return () => window.clearTimeout(timer);
+  }, [
+    step,
+    receiptSettingsLoaded,
+    receiptSettings.autoPrint,
+    receiptTransaction?.transactionId,
+  ]);
 
   // GCash scan result state — kept for backwards compat with the existing
   // scan_result step UI. The commuter type is now detected by the backend
