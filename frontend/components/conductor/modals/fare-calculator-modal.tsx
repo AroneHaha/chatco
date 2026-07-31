@@ -1811,6 +1811,14 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
             </div>
 
             <button
+              type="button"
+              onClick={() => window.print()}
+              className="mb-3 w-full rounded-xl border border-white/15 bg-white/10 py-3 text-sm font-bold text-white transition-colors hover:bg-white/15"
+            >
+              Print Receipt
+            </button>
+
+            <button
               onClick={handleClose}
               className={`w-full py-3 rounded-xl text-white text-sm font-bold transition-colors ${
                 selectedMethod === "GCash"

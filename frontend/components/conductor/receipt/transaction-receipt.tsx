@@ -1,4 +1,5 @@
 import { QRCodeSVG } from "qrcode.react";
+import type { CSSProperties } from "react";
 import type { ReceiptSettings } from "@/lib/conductor/services/receipt-settings.service";
 
 interface TransactionReceiptProps {
@@ -53,8 +54,12 @@ export default function TransactionReceipt({
   return (
     <section
       aria-label="Fare receipt"
-      className="mx-auto bg-white px-3 py-4 font-mono text-[11px] leading-snug text-black shadow-lg"
-      style={{ width, maxWidth: "100%" }}
+      className="thermal-receipt mx-auto bg-white px-3 py-4 font-mono text-[11px] leading-snug text-black shadow-lg"
+      style={{
+        width,
+        maxWidth: "100%",
+        "--receipt-paper-width": `${settings.paperWidth}mm`,
+      } as CSSProperties}
     >
       <header className="text-center">
         <p className="text-[13px] font-bold tracking-wide">

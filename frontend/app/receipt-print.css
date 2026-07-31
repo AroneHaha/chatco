@@ -1,0 +1,32 @@
+/* Isolate the conductor receipt and fit the admin-selected thermal roll. */
+@media print {
+  @page {
+    margin: 0;
+  }
+
+  body {
+    margin: 0 !important;
+    background: #fff !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .thermal-receipt,
+  .thermal-receipt * {
+    visibility: visible !important;
+  }
+
+  .thermal-receipt {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: var(--receipt-paper-width) !important;
+    max-width: none !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
