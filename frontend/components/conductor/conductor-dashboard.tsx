@@ -19,6 +19,10 @@ export default function ConductorDashboard() {
     hails,
     status,
     setStatus,
+    isOnBreak,
+    breakBusy,
+    breakError,
+    toggleBreak,
     showHistory,
     setShowHistory,
     mobileCardExpanded,
@@ -57,6 +61,26 @@ export default function ConductorDashboard() {
 
   return (
     <div className="relative h-full w-full bg-[#050F1A] flex flex-col lg:block">
+      <div className="absolute right-4 top-16 z-30 flex flex-col items-end gap-1 lg:top-4">
+        <button
+          type="button"
+          onClick={() => void toggleBreak()}
+          disabled={breakBusy}
+          className={`rounded-xl border px-4 py-2 text-xs font-bold shadow-lg transition-colors disabled:cursor-wait disabled:opacity-60 ${
+            isOnBreak
+              ? "border-emerald-400/40 bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30"
+              : "border-amber-400/40 bg-amber-500/20 text-amber-300 hover:bg-amber-500/30"
+          }`}
+        >
+          {breakBusy ? "Updating..." : isOnBreak ? "Resume Duty" : "Take a Break"}
+        </button>
+        {breakError && (
+          <p className="max-w-56 rounded bg-red-950/90 px-2 py-1 text-right text-[10px] text-red-300">
+            {breakError}
+          </p>
+        )}
+      </div>
+
       <MobileDashboardCard
         unitNumber={unitNumber}
         route={route}
@@ -85,7 +109,11 @@ export default function ConductorDashboard() {
         cash={liveTransactions.cash}
         voucher={liveTransactions.voucher}
         shiftTimeIn={shift?.timeIn}
-        onPaymentClick={() => window.dispatchEvent(new CustomEvent("conductor:open-payment"))}
+        onPaymentClick={() => {
+          if (!isOnBreak) {
+            window.dispatchEvent(new CustomEvent("conductor:open-payment"));
+          }
+        }}
         onHistoryClick={() => setShowHistory(true)}
       />
 

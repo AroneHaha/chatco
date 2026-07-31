@@ -56,6 +56,8 @@ interface LaravelShiftLog {
   driver_name: string;
   unit_number: string;
   plate_number: string;
+  is_on_break: boolean;
+  break_started_at: string | null;
   time_in: string;
   time_out: string | null;
   status: string;
@@ -152,6 +154,8 @@ export function mapShiftLog(s: unknown): ConductorShift {
     timeIn: shift.time_in,
     timeOut: shift.time_out,
     isActive: shift.status === "ACTIVE",
+    isOnBreak: Boolean(shift.is_on_break),
+    breakStartedAt: shift.break_started_at,
   };
 }
 

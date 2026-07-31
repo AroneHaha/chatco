@@ -318,7 +318,9 @@ export default function MonitoringPage() {
                       <td className="py-3.5 pr-4 text-center"><span className={`text-sm font-semibold ${v.speed !== null && v.speed > SPEED_LIMIT_KMH ? 'text-red-400' : 'text-slate-300'}`}>{v.speed !== null ? `${v.speed} km/h` : '—'}</span></td>
                       <td className="py-3.5 pr-4 text-center"><span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-medium ${v.capacity_status === 'AVAILABLE' ? 'bg-green-400/15 text-green-400' : v.capacity_status === 'STANDING' ? 'bg-yellow-400/15 text-yellow-400' : 'bg-red-400/15 text-red-400 font-bold'}`}>{v.capacity_status}</span></td>
                       <td className="py-3.5 text-center">
-                        {!v.has_gps ? (
+                        {v.is_on_break ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-sky-400/15 px-2.5 py-0.5 text-[11px] font-medium text-sky-300">On Break</span>
+                        ) : !v.has_gps ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-400/15 text-slate-400" title="On shift, but the unit has not reported a GPS position yet"><WifiOff size={10} />Awaiting GPS</span>
                         ) : v.is_stale ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-400/15 text-amber-400"><WifiOff size={10} />Stale · {formatElapsedMinutes(v.minutes_since_update)} ago</span>

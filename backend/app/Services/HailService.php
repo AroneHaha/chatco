@@ -89,8 +89,12 @@ class HailService
         }
 
         // ─── Verify vehicle is currently on active shift ────────────
-        if (! ShiftLog::where('vehicle_id', $vehicleId)->active()->exists()) {
+        $activeShift = ShiftLog::where('vehicle_id', $vehicleId)->active()->first();
+        if (! $activeShift) {
             abort(422, 'Vehicle not on duty');
+        }
+        if ($activeShift->is_on_break) {
+            abort(422, 'Vehicle is currently on break');
         }
 
         // ─── Persist hail + dispatch broadcast (transactional) ──────

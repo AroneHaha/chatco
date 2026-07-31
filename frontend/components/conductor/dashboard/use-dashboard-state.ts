@@ -16,7 +16,8 @@ const TO_CAPACITY: Record<ConductorStatus, "AVAILABLE" | "STANDING" | "FULL"> = 
 };
 
 export function useDashboardState() {
-  const { shift, elapsed, status: shiftStatus, error: shiftError } = useConductorShift();
+  const { shift, elapsed, status: shiftStatus, error: shiftError, refresh: refreshShift } =
+    useConductorShift();
   const { summary: liveTransactions, status: txnStatus, error: txnError } =
     useConductorTransactions(shift?.shiftId ?? null);
   // Conductor just observes waiting commuters on the map; the commuter drives
@@ -56,6 +57,31 @@ export function useDashboardState() {
 
   const [showHistory, setShowHistory] = useState(false);
   const [mobileCardExpanded, setMobileCardExpanded] = useState(true);
+  const [breakBusy, setBreakBusy] = useState(false);
+  const [breakError, setBreakError] = useState<string | null>(null);
+
+  const toggleBreak = useCallback(async () => {
+    if (!shift || breakBusy) return;
+
+    setBreakBusy(true);
+    setBreakError(null);
+    try {
+      const res = await fetch(CONDUCTOR_API.breakStatus, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ is_on_break: !shift.isOnBreak }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message ?? `Unable to update break status (HTTP ${res.status}).`);
+      }
+      await refreshShift();
+    } catch (error) {
+      setBreakError(error instanceof Error ? error.message : "Unable to update break status.");
+    } finally {
+      setBreakBusy(false);
+    }
+  }, [breakBusy, refreshShift, shift]);
 
   const conductorName = shift?.conductorName || "—";
   const unitNumber = shift?.unitNumber || "—";
@@ -73,6 +99,10 @@ export function useDashboardState() {
     hails,
     status,
     setStatus,
+    isOnBreak: Boolean(shift?.isOnBreak),
+    breakBusy,
+    breakError,
+    toggleBreak,
     showHistory,
     setShowHistory,
     mobileCardExpanded,

@@ -25,6 +25,8 @@ export interface FleetVehicle {
   conductor_name: string | null;
   last_update: string | null;
   minutes_since_update: number | null;
+  is_on_break: boolean;
+  break_started_at: string | null;
   /** False when the unit is on shift but has never posted a GPS ping. */
   has_gps: boolean;
   is_stale: boolean;

@@ -174,6 +174,25 @@ class ConductorController extends Controller
     }
 
     /**
+     * POST /api/conductor/break-status
+     */
+    public function updateBreakStatus(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'is_on_break' => ['required', 'boolean'],
+        ]);
+
+        $shift = $this->shiftService->setBreakStatus(
+            $request->user(),
+            (bool) $validated['is_on_break'],
+        );
+
+        return $this->successResponse(
+            $shift,
+            $shift->is_on_break ? 'Break started' : 'Break ended',
+        );
+    }
+    /**
      * POST /api/conductor/location
      * GPS update — triggers VehicleLocationUpdated broadcast.
      */

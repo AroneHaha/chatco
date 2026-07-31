@@ -40,7 +40,9 @@ export default function ConductorPaymentModal() {
   const [showFareCalc, setShowFareCalc] = useState(false);
 
   useEffect(() => {
-    const handler = () => setShowFareCalc(true);
+    const handler = () => {
+      if (!shift?.isOnBreak) setShowFareCalc(true);
+    };
     window.addEventListener("conductor:open-payment", handler);
     return () => window.removeEventListener("conductor:open-payment", handler);
   }, []);

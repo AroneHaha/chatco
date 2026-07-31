@@ -201,6 +201,7 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->grou
 
     // Capacity status updates
     Route::post('/capacity-status', [ConductorController::class, 'updateCapacityStatus'])->middleware('throttle:conductor-write');
+    Route::post('/break-status', [ConductorController::class, 'updateBreakStatus'])->middleware('throttle:conductor-write');
 
     // Transaction lifecycle (S4-T5) — cash recording, GCash initiate, earnings.
     // POST fare recording uses conductor-write (30/min) — comfortably above
