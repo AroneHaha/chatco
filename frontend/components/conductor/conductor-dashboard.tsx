@@ -61,7 +61,7 @@ export default function ConductorDashboard() {
 
   return (
     <div className="relative h-full w-full bg-[#050F1A] flex flex-col lg:block">
-      <div className="absolute right-4 top-16 z-30 flex flex-col items-end gap-1 lg:top-4">
+      <div className="absolute right-4 top-4 z-30 hidden flex-col items-end gap-1 lg:flex">
         <button
           type="button"
           onClick={() => void toggleBreak()}
@@ -95,6 +95,10 @@ export default function ConductorDashboard() {
         cash={liveTransactions.cash}
         voucher={liveTransactions.voucher}
         onHistoryClick={() => setShowHistory(true)}
+        isOnBreak={isOnBreak}
+        breakBusy={breakBusy}
+        breakError={breakError}
+        onToggleBreak={() => void toggleBreak()}
       />
 
       <DesktopDashboardCard
