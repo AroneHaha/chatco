@@ -17,6 +17,10 @@ interface MobileDashboardCardProps {
   cash: number;
   voucher: number;
   onHistoryClick: () => void;
+  isOnBreak: boolean;
+  breakBusy: boolean;
+  breakError: string | null;
+  onToggleBreak: () => void;
 }
 
 export function MobileDashboardCard({
@@ -33,6 +37,10 @@ export function MobileDashboardCard({
   cash,
   voucher,
   onHistoryClick,
+  isOnBreak,
+  breakBusy,
+  breakError,
+  onToggleBreak,
 }: MobileDashboardCardProps) {
   return (
     <div className="lg:hidden flex-shrink-0 bg-[#071A2E]/95 backdrop-blur-xl z-20 border-b border-white/10">
@@ -52,6 +60,27 @@ export function MobileDashboardCard({
         <div className="flex items-center gap-2 flex-shrink-0 ml-2">
           <div className="w-8 h-8 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold text-xs shadow-lg border-2 border-white/20">{conductorName[0]}</div>
         </div>
+      </div>
+
+      <div className="px-4 pb-3">
+        <button
+          type="button"
+          onClick={onToggleBreak}
+          disabled={breakBusy}
+          aria-pressed={isOnBreak}
+          className={`flex min-h-11 w-full items-center justify-center rounded-xl border px-4 py-2.5 text-sm font-bold shadow-lg transition-colors active:scale-[0.99] disabled:cursor-wait disabled:opacity-60 ${
+            isOnBreak
+              ? "border-emerald-400/40 bg-emerald-500/20 text-emerald-300"
+              : "border-amber-400/40 bg-amber-500/20 text-amber-300"
+          }`}
+        >
+          {breakBusy ? "Updating..." : isOnBreak ? "Resume Duty" : "Take a Break"}
+        </button>
+        {breakError && (
+          <p role="alert" className="mt-1.5 rounded-lg bg-red-950/90 px-3 py-2 text-center text-xs text-red-300">
+            {breakError}
+          </p>
+        )}
       </div>
 
       <div

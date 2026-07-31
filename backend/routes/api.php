@@ -172,6 +172,7 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->grou
     Route::get('/profile', [ConductorController::class, 'profile'])->middleware('throttle:conductor-read');
     Route::get('/units', [ConductorController::class, 'units'])->middleware('throttle:conductor-read');
     Route::get('/drivers', [ConductorController::class, 'drivers'])->middleware('throttle:conductor-read');
+    Route::get('/receipt-settings', [ConductorController::class, 'receiptSettings'])->middleware('throttle:conductor-read');
 
     // Ratings for a shift the conductor crewed — powers the metrics page.
     // shift_id is required; the service scopes rows to auth()->id() so a
@@ -200,6 +201,7 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->grou
 
     // Capacity status updates
     Route::post('/capacity-status', [ConductorController::class, 'updateCapacityStatus'])->middleware('throttle:conductor-write');
+    Route::post('/break-status', [ConductorController::class, 'updateBreakStatus'])->middleware('throttle:conductor-write');
 
     // Transaction lifecycle (S4-T5) — cash recording, GCash initiate, earnings.
     // POST fare recording uses conductor-write (30/min) — comfortably above

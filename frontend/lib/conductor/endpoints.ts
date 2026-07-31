@@ -7,6 +7,7 @@ export const CONDUCTOR_API = {
   profile: "/api/conductor/profile",
   units: "/api/conductor/units",
   drivers: "/api/conductor/drivers",
+  receiptSettings: "/api/conductor/receipt-settings",
   shifts: {
     active: "/api/conductor/shifts/active",
     start: "/api/conductor/shifts/start",
@@ -42,6 +43,7 @@ export const CONDUCTOR_API = {
   hailReject: (id: string) =>
     `/api/conductor/hails/${encodeURIComponent(id)}/reject`,
   shiftLogs: "/api/conductor/shift-logs",
+  breakStatus: "/api/conductor/break-status",
   location: "/api/conductor/location",
   capacityStatus: "/api/conductor/capacity-status",
 } as const;

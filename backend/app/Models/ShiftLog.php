@@ -28,6 +28,8 @@ class ShiftLog extends Model
         'time_in',
         'time_out',
         'is_active',
+        'is_on_break',
+        'break_started_at',
         'notes',
         'status',
     ];
@@ -38,6 +40,8 @@ class ShiftLog extends Model
             'time_in' => 'datetime',
             'time_out' => 'datetime',
             'is_active' => 'boolean',
+            'is_on_break' => 'boolean',
+            'break_started_at' => 'datetime',
             'status' => ShiftStatus::class,
         ];
     }

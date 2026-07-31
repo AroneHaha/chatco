@@ -16,6 +16,12 @@ import {
   type CommuterType,
 } from "@/lib/shared/fare/fare-calculator";
 import { createTransaction } from "@/lib/conductor/services/transactions.service";
+import TransactionReceipt from "@/components/conductor/receipt/transaction-receipt";
+import {
+  DEFAULT_RECEIPT_SETTINGS,
+  fetchReceiptSettings,
+  type ReceiptSettings,
+} from "@/lib/conductor/services/receipt-settings.service";
 import {
   initiateGcash,
   fetchPendingGcash,
@@ -94,6 +100,62 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   // transaction with final_amount=0 (free ride).
   const [voucherCode, setVoucherCode] = useState("");
   const [cashReceiptToken, setCashReceiptToken] = useState<string | null>(null);
+  const [receiptTransaction, setReceiptTransaction] = useState<{
+    transactionId: string;
+    timestamp: number;
+  } | null>(null);
+  const [receiptSettings, setReceiptSettings] = useState<ReceiptSettings>(
+    DEFAULT_RECEIPT_SETTINGS
+  );
+  const [receiptSettingsLoaded, setReceiptSettingsLoaded] = useState(false);
+  const autoPrintTriggeredRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setReceiptSettingsLoaded(false);
+
+    void fetchReceiptSettings()
+      .then(setReceiptSettings)
+      .catch(() => setReceiptSettings(DEFAULT_RECEIPT_SETTINGS))
+      .finally(() => setReceiptSettingsLoaded(true));
+  }, [isOpen]);
+  // Automatically open the browser print dialog once per completed transaction
+  // when enabled by the admin. sessionStorage prevents React rerenders, GCash
+  // polling, or modal remounts in the same tab from prompting twice.
+  useEffect(() => {
+    const transactionId = receiptTransaction?.transactionId;
+    if (
+      step !== "success" ||
+      !receiptSettingsLoaded ||
+      !receiptSettings.autoPrint ||
+      !transactionId
+    ) {
+      return;
+    }
+
+    const storageKey = `chatco:auto-printed:${transactionId}`;
+    if (autoPrintTriggeredRef.current.has(transactionId)) return;
+
+    try {
+      if (window.sessionStorage.getItem(storageKey) === "1") {
+        autoPrintTriggeredRef.current.add(transactionId);
+        return;
+      }
+      window.sessionStorage.setItem(storageKey, "1");
+    } catch {
+      // Storage can be unavailable in privacy modes; the in-memory guard still
+      // prevents duplicate prompts for the lifetime of this mounted modal.
+    }
+
+    autoPrintTriggeredRef.current.add(transactionId);
+    const timer = window.setTimeout(() => window.print(), 150);
+    return () => window.clearTimeout(timer);
+  }, [
+    step,
+    receiptSettingsLoaded,
+    receiptSettings.autoPrint,
+    receiptTransaction?.transactionId,
+  ]);
 
   // GCash scan result state — kept for backwards compat with the existing
   // scan_result step UI. The commuter type is now detected by the backend
@@ -272,6 +334,10 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
         // PAID is always terminal — success regardless of prior EXPIRED state.
         if (status === "paid") {
           stopPolling();
+          setReceiptTransaction({
+            transactionId,
+            timestamp: Date.now(),
+          });
           setStep("success");
           return;
         }
@@ -418,6 +484,11 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
 
     const transaction = await recordTransaction("Cash");
     setCashReceiptToken(transaction?.receiptQrToken ?? null);
+    setReceiptTransaction(
+      transaction
+        ? { transactionId: transaction.transactionId, timestamp: transaction.timestamp }
+        : null
+    );
     setStep("success");
   };
 
@@ -435,7 +506,12 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     setStep("processing");
 
     try {
-      await recordTransaction("Voucher");
+      const transaction = await recordTransaction("Voucher");
+      setReceiptTransaction(
+        transaction
+          ? { transactionId: transaction.transactionId, timestamp: transaction.timestamp }
+          : null
+      );
       setStep("success");
     } catch (err) {
       setGcashError(err instanceof Error ? err.message : "Voucher validation failed.");
@@ -527,6 +603,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     setScannedCommuterName("Commuter");
     setVoucherCode("");
     setCashReceiptToken(null);
+    setReceiptTransaction(null);
     onClose();
   };
 
@@ -1756,19 +1833,31 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
               )}
             </div>
 
-            {selectedMethod === "Cash" && cashReceiptToken && (
-              <div className="mb-6 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-                <p className="text-xs font-bold text-emerald-300">Digital cash receipt QR</p>
-                <p className="mt-1 text-[10px] leading-relaxed text-white/40">
-                  Let the commuter scan this from Rewards to credit +1 paid ride.
-                  Each receipt can only be claimed once.
-                </p>
-                <div className="mx-auto mt-3 w-fit rounded-xl bg-white p-3">
-                  <QRCodeSVG value={cashReceiptToken} size={144} level="M" />
-                </div>
-                <p className="mt-2 break-all font-mono text-[9px] text-white/25">{cashReceiptToken}</p>
-              </div>
-            )}
+            <div className="mb-6">
+              <TransactionReceipt
+                settings={receiptSettings}
+                transactionId={receiptTransaction?.transactionId ?? gcashInitiation?.transactionId}
+                timestamp={receiptTransaction?.timestamp}
+                unitNumber={unitNumber || "—"}
+                conductorName={conductorName || "—"}
+                passengerType={getCommuterTypeLabel(selectedMethod === "GCash" ? scannedCommuterType : commuterType)}
+                from={pickupPoint?.name ?? "—"}
+                to={dropoffPoint?.name ?? "—"}
+                baseFare={activeFareInfo.regularFare}
+                discountAmount={activeFareInfo.discountAmount}
+                finalFare={activeFareInfo.finalFare}
+                paymentMethod={selectedMethod ?? "—"}
+                receiptQrToken={selectedMethod === "Cash" ? cashReceiptToken : null}
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="mb-3 w-full rounded-xl border border-white/15 bg-white/10 py-3 text-sm font-bold text-white transition-colors hover:bg-white/15"
+            >
+              Print Receipt
+            </button>
 
             <button
               onClick={handleClose}

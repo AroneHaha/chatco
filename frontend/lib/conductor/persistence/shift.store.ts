@@ -8,6 +8,8 @@ export interface ConductorShift {
   driverName: string;
   timeIn: string;
   timeOut: string | null;
+  isOnBreak?: boolean;
+  breakStartedAt?: string | null;
   isActive: boolean;
 }
 

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 import { AuthProvider } from "@/contexts/auth-context";
 import "./globals.css";
+import "./receipt-print.css";
 
 const poppins = Poppins({
   subsets: ["latin"],

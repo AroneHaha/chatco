@@ -176,6 +176,33 @@ class ShiftService
     }
 
     /**
+     * Pause or resume the authenticated conductor's active shift.
+     */
+    public function setBreakStatus(User $conductor, bool $isOnBreak): ShiftLog
+    {
+        if (! $conductor->isConductor()) {
+            abort(403, 'Forbidden');
+        }
+
+        return DB::transaction(function () use ($conductor, $isOnBreak) {
+            $shift = ShiftLog::where('conductor_id', $conductor->id)
+                ->active()
+                ->lockForUpdate()
+                ->first();
+
+            if (! $shift) {
+                abort(422, 'No active shift');
+            }
+
+            $shift->update([
+                'is_on_break' => $isOnBreak,
+                'break_started_at' => $isOnBreak ? ($shift->break_started_at ?? now()) : null,
+            ]);
+
+            return $shift->fresh(['vehicle', 'driver', 'route']);
+        });
+    }
+    /**
      * Get the conductor's current active shift.
      */
     public function getActiveShift(User $conductor): ?ShiftLog
