@@ -7,6 +7,7 @@ export const CONDUCTOR_API = {
   profile: "/api/conductor/profile",
   units: "/api/conductor/units",
   drivers: "/api/conductor/drivers",
+  receiptSettings: "/api/conductor/receipt-settings",
   shifts: {
     active: "/api/conductor/shifts/active",
     start: "/api/conductor/shifts/start",

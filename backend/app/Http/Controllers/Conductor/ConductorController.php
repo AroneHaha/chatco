@@ -10,6 +10,7 @@ use App\Http\Requests\Conductor\StartShiftRequest;
 use App\Http\Requests\Conductor\UpdateLocationRequest;
 use App\Http\Requests\Conductor\SubmitRemittanceRequest;
 use App\Models\Driver;
+use App\Models\Setting;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\ConductorService;
@@ -138,6 +139,38 @@ class ConductorController extends Controller
         $ratings = $this->feedbackService->listForShift($shiftId, $request->user());
 
         return $this->successResponse($ratings, 'Ratings retrieved');
+    }
+
+    /**
+     * Read-only receipt configuration for the conductor's completed-fare UI.
+     * The general admin settings store remains protected by role:ADMIN.
+     */
+    public function receiptSettings(): JsonResponse
+    {
+        $defaults = [
+            'receipt_business_name' => 'CHATCO',
+            'receipt_address_line' => '',
+            'receipt_footer_note' => 'Thank you for riding with Chatco!',
+            'receipt_paper_width' => '58',
+            'receipt_auto_print' => 'true',
+            'receipt_show_datetime' => 'true',
+            'receipt_show_transaction_id' => 'true',
+            'receipt_show_route' => 'true',
+            'receipt_show_unit' => 'true',
+            'receipt_show_conductor' => 'true',
+            'receipt_show_passenger' => 'true',
+            'receipt_show_fare_breakdown' => 'true',
+        ];
+
+        $saved = Setting::where('category', 'receipt')
+            ->whereIn('key', array_keys($defaults))
+            ->pluck('value', 'key')
+            ->all();
+
+        return $this->successResponse(
+            array_replace($defaults, $saved),
+            'Receipt settings retrieved',
+        );
     }
 
     /**
