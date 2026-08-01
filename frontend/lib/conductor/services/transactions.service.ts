@@ -128,6 +128,32 @@ export async function createTransaction(
   }
 }
 
+export interface GroupPassengerInput {
+  passenger_type: "REGULAR" | "SENIOR" | "SENIOR_CITIZEN" | "STUDENT" | "PWD";
+  quantity: number;
+}
+
+export async function createGroupCashTransaction(
+  shiftId: string,
+  input: { pickupStopId: string; dropoffStopId: string; passengers: GroupPassengerInput[] }
+): Promise<transactionsStore.Transaction> {
+  const response = await api.post<{ data: transactionsStore.Transaction }>(
+    CONDUCTOR_API.transactions.create,
+    {
+      shiftId,
+      paymentMethod: "Cash",
+      pickupStopId: input.pickupStopId,
+      dropoffStopId: input.dropoffStopId,
+      idempotencyKey: crypto.randomUUID(),
+      passengers: input.passengers,
+    }
+  );
+
+  transactionsStore.cacheTransaction(shiftId, response.data);
+  window.dispatchEvent(new CustomEvent("conductor:transaction-updated"));
+  return response.data;
+}
+
 /**
  * Synchronous localStorage read — used by the dashboard for instant
  * rendering before the API call resolves. Kept for backward compat

@@ -34,6 +34,7 @@ export type { FarePoint, FareResult };
 
 /** Extended point with landmarks + coordinates (for the pickup/dropoff selector UI). */
 export interface PointArea {
+  id?: string;
   pointNumber: number;
   name: string;
   code: string;
@@ -126,6 +127,7 @@ export async function loadFareMatrix(): Promise<void> {
 
       // Map API points → PointArea (for the pickup/dropoff selector UI)
       cachedPointAreas = data.points.map(p => ({
+        id: p.id,
         pointNumber: p.pointNumber,
         name: p.name,
         code: p.code,

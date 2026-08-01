@@ -323,13 +323,171 @@ class TransactionFlowTest extends TestCase
         $this->assertNull($txn->qr_token);
     }
 
+    public function test_group_cash_creates_one_paid_receipt_per_passenger_and_one_reward_slot(): void
+    {
+        $group = app(TransactionService::class)->recordGroupedCashFare($this->conductor, [
+            'pickup_name' => 'Calumpit',
+            'dropoff_name' => 'Bustos',
+            'idempotency_key' => 'group-cash-test',
+            'group_passengers' => [
+                ['type' => 'REGULAR', 'quantity' => 2, 'final_amount' => 15, 'base_fare' => 15, 'discount_amount' => 0],
+                ['type' => 'STUDENT', 'quantity' => 1, 'final_amount' => 12, 'base_fare' => 15, 'discount_amount' => 3],
+            ],
+        ]);
+
+        $this->assertSame(3, $group->passenger_count);
+        $this->assertSame(42.0, (float) $group->total_amount);
+        $this->assertCount(3, $group->transactions);
+        $this->assertSame(1, $group->transactions->where('reward_eligible', true)->count());
+        $this->assertSame(1, $group->transactions->whereNotNull('qr_token')->count());
+        $this->assertTrue($group->transactions->every(fn ($transaction) => $transaction->status === PaymentStatus::PAID));
+    }
+
+    public function test_group_gcash_settles_all_receipts_but_credits_only_the_payer_once(): void
+    {
+        config(['payments.gateways.paymongo.secret' => null]);
+        $this->forgetGateway();
+
+        $result = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'final_amount' => 42,
+            'pickup_name' => 'Calumpit',
+            'dropoff_name' => 'Bustos',
+            'group_passengers' => [
+                ['type' => 'REGULAR', 'quantity' => 2, 'final_amount' => 15, 'base_fare' => 15, 'discount_amount' => 0],
+                ['type' => 'PWD', 'quantity' => 1, 'final_amount' => 12, 'base_fare' => 15, 'discount_amount' => 3],
+            ],
+        ]);
+
+        $anchor = $result['transaction'];
+        $this->assertCount(3, $result['receipts']);
+        app(TransactionService::class)->claimGcash($this->commuter1, $anchor->qr_token);
+        app(PaymentService::class)->transitionTo($anchor->fresh(), PaymentStatus::PAID);
+
+        $receipts = Transaction::where('group_id', $anchor->group_id)->get();
+        $this->assertTrue($receipts->every(fn ($transaction) => $transaction->status === PaymentStatus::PAID));
+        $this->assertTrue($receipts->every(fn ($transaction) => $transaction->payer_name === 'Commuter One'));
+        $this->assertSame(1, $this->paidRideCountFor($this->commuter1->commuterProfile->id));
+    }
+
+    public function test_multi_passenger_cash_is_one_transaction_with_server_calculated_breakdown(): void
+    {
+        [$pickup, $dropoff] = $this->createFarePoints();
+
+        $transaction = app(TransactionService::class)->recordMultiPassengerCashFare($this->conductor, [
+            'pickup_stop_id' => $pickup->id,
+            'dropoff_stop_id' => $dropoff->id,
+            'idempotency_key' => 'normalized-cash-test',
+            'passengers' => [
+                ['passenger_type' => 'REGULAR', 'quantity' => 2],
+                ['passenger_type' => 'STUDENT', 'quantity' => 1],
+                ['passenger_type' => 'SENIOR', 'quantity' => 1],
+                ['passenger_type' => 'PWD', 'quantity' => 1],
+            ],
+        ]);
+
+        $this->assertSame(1, Transaction::count());
+        $this->assertSame(5, $transaction->total_passengers);
+        $this->assertSame(75.0, (float) $transaction->gross_amount);
+        $this->assertSame(9.0, (float) $transaction->discount_amount);
+        $this->assertSame(66.0, (float) $transaction->final_amount);
+        $this->assertCount(4, $transaction->passengerBreakdown);
+    }
+
+    public function test_multi_passenger_endpoint_rejects_zero_negative_and_unknown_types(): void
+    {
+        [$pickup, $dropoff] = $this->createFarePoints();
+        $base = [
+            'payment_method' => 'CASH',
+            'pickup_stop_id' => $pickup->id,
+            'dropoff_stop_id' => $dropoff->id,
+        ];
+
+        foreach ([
+            [['passenger_type' => 'REGULAR', 'quantity' => 0]],
+            [['passenger_type' => 'STUDENT', 'quantity' => -1]],
+            [['passenger_type' => 'ADULT', 'quantity' => 1]],
+        ] as $passengers) {
+            $this->actingAs($this->conductor, 'sanctum')
+                ->postJson('/api/v1/conductor/transactions', $base + ['passengers' => $passengers])
+                ->assertStatus(422);
+        }
+    }
+
+    public function test_multi_gcash_snapshots_payer_and_counts_one_reward_after_repeated_settlement(): void
+    {
+        config(['payments.gateways.paymongo.secret' => null]);
+        $this->forgetGateway();
+        [$pickup, $dropoff] = $this->createFarePoints();
+
+        $result = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'pickup_stop_id' => $pickup->id,
+            'dropoff_stop_id' => $dropoff->id,
+            'passengers' => [
+                ['passenger_type' => 'REGULAR', 'quantity' => 2],
+                ['passenger_type' => 'PWD', 'quantity' => 2],
+            ],
+        ]);
+        $transaction = $result['transaction'];
+        app(TransactionService::class)->claimGcash($this->commuter1, $transaction->qr_token);
+        app(PaymentService::class)->transitionTo($transaction->fresh(), PaymentStatus::PAID);
+        app(PaymentService::class)->transitionTo($transaction->fresh(), PaymentStatus::PAID);
+
+        $transaction->refresh();
+        $this->assertSame($this->commuter1->commuterProfile->id, $transaction->payer_id);
+        $this->assertSame('Commuter One', $transaction->payer_name_snapshot);
+        $this->assertSame(1, $this->paidRideCountFor($this->commuter1->commuterProfile->id));
+
+        $this->actingAs($this->admin, 'sanctum')
+            ->getJson('/api/v1/admin/transactions')
+            ->assertOk()
+            ->assertJsonPath('data.data.0.total_passengers', 4)
+            ->assertJsonPath('data.data.0.payer_name_snapshot', 'Commuter One')
+            ->assertJsonCount(2, 'data.data.0.passenger_breakdown');
+    }
+
+    public function test_historical_single_passenger_row_remains_readable_without_breakdown(): void
+    {
+        $transaction = app(TransactionService::class)->recordCashFare($this->conductor, [
+            'final_amount' => 15,
+            'pickup_name' => 'Legacy A',
+            'dropoff_name' => 'Legacy B',
+            'passenger_role' => 'REGULAR',
+        ]);
+
+        $this->assertSame(1, $transaction->total_passengers);
+        $this->assertCount(0, $transaction->passengerBreakdown()->get());
+    }
+
     /** PAID non-voucher rides bound to a commuter — what rewards counts. */
     private function paidRideCountFor(string $profileId): int
     {
         return Transaction::where('passenger_id', $profileId)
             ->where('status', PaymentStatus::PAID->value)
             ->where('payment_method', '!=', PaymentMethod::VOUCHER->value)
+            ->where('reward_eligible', true)
             ->count();
+    }
+
+    private function createFarePoints(): array
+    {
+        $pickup = FarePoint::create([
+            'route_id' => $this->shift->route_id,
+            'point_number' => 1,
+            'code' => 'TST-01',
+            'name' => 'Test Pickup',
+            'regular_fare' => 15,
+            'discounted_fare' => 12,
+        ]);
+        $dropoff = FarePoint::create([
+            'route_id' => $this->shift->route_id,
+            'point_number' => 2,
+            'code' => 'TST-02',
+            'name' => 'Test Dropoff',
+            'regular_fare' => 30,
+            'discounted_fare' => 24,
+        ]);
+
+        return [$pickup, $dropoff];
     }
 
     // ─── 2. GCash Initiation ────────────────────────────────────────

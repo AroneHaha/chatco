@@ -1,6 +1,7 @@
 import { QRCodeSVG } from "qrcode.react";
 import type { CSSProperties } from "react";
 import type { ReceiptSettings } from "@/lib/conductor/services/receipt-settings.service";
+import type { PassengerBreakdown } from "@/lib/conductor/persistence/transactions.store";
 
 interface TransactionReceiptProps {
   settings: ReceiptSettings;
@@ -16,6 +17,11 @@ interface TransactionReceiptProps {
   finalFare: number;
   paymentMethod: string;
   receiptQrToken?: string | null;
+  payerName?: string | null;
+  driverName?: string;
+  totalPassengers?: number;
+  grossFare?: number;
+  passengerBreakdown?: PassengerBreakdown[];
 }
 
 function money(value: number): string {
@@ -48,6 +54,11 @@ export default function TransactionReceipt({
   finalFare,
   paymentMethod,
   receiptQrToken,
+  payerName,
+  driverName,
+  totalPassengers = 1,
+  grossFare,
+  passengerBreakdown = [],
 }: TransactionReceiptProps) {
   const width = settings.paperWidth === "80" ? 300 : 230;
 
@@ -78,7 +89,10 @@ export default function TransactionReceipt({
       )}
       {settings.showUnit && <Row label="Unit" value={unitNumber} />}
       {settings.showConductor && <Row label="Conductor" value={conductorName} />}
-      {settings.showPassenger && <Row label="Passenger" value={passengerType} />}
+      {driverName && <Row label="Driver" value={driverName} />}
+      {settings.showPassenger && (
+        <Row label={payerName ? "Paid by" : "Passenger"} value={payerName || passengerType} />
+      )}
 
       {settings.showRoute && (
         <>
@@ -91,7 +105,15 @@ export default function TransactionReceipt({
       {settings.showFareBreakdown && (
         <>
           <div className="my-1.5 border-t border-dashed border-black/40" />
-          <Row label="Base fare" value={money(baseFare)} />
+          {passengerBreakdown.length > 0 ? passengerBreakdown.filter((line) => line.quantity > 0).map((line) => (
+            <Row
+              key={line.passengerType}
+              label={`${line.passengerType === "SENIOR" || line.passengerType === "SENIOR_CITIZEN" ? "Senior Citizen" : line.passengerType.charAt(0) + line.passengerType.slice(1).toLowerCase()} × ${line.quantity}`}
+              value={money(line.subtotal)}
+            />
+          )) : <Row label="Base fare" value={money(baseFare)} />}
+          <Row label="Passengers" value={String(totalPassengers)} />
+          {grossFare != null && <Row label="Gross fare" value={money(grossFare)} />}
           {discountAmount > 0 && <Row label="Discount" value={`-${money(discountAmount)}`} />}
         </>
       )}

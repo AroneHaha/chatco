@@ -78,10 +78,25 @@ interface LaravelShiftLog {
 interface LaravelTransaction {
   transaction_id: string;
   shift_id: string;
+  group_id: string | null;
+  group_position: number | null;
+  reward_eligible: boolean | number;
   payment_method: string; // "CASH" | "GCASH"
   final_amount: string | number;
   passenger_id: string | null;
   passenger_name: string | null;
+  payer_name: string | null;
+  payer_name_snapshot: string | null;
+  payer_id: string | null;
+  total_passengers: number | null;
+  gross_amount: string | number | null;
+  passenger_breakdown?: Array<{
+    passenger_type: "REGULAR" | "STUDENT" | "SENIOR" | "SENIOR_CITIZEN" | "PWD";
+    quantity: number;
+    unit_fare: string | number;
+    unit_discount_amount: string | number;
+    subtotal: string | number;
+  }>;
   passenger_role: string | null;
   pickup_stop_id: string | null;
   dropoff_stop_id: string | null;
@@ -270,6 +285,8 @@ export function mapTransaction(t: unknown): Transaction {
     paymentMethod: mapPaymentMethod(txn.payment_method),
     finalAmount: Number(txn.final_amount) || 0,
     passengerName: txn.passenger_name ?? "",
+    payerName: txn.payer_name_snapshot ?? txn.payer_name ?? undefined,
+    payerId: txn.payer_id ?? undefined,
     passengerId: txn.passenger_id ?? "",
     passengerRole: txn.passenger_role ?? undefined,
     from: txn.pickup_name ?? "",
@@ -282,6 +299,18 @@ export function mapTransaction(t: unknown): Transaction {
     unitNumber: txn.unit_number ?? undefined,
     driverName: txn.driver_name ?? undefined,
     receiptQrToken: txn.payment_method === "CASH" ? txn.qr_token ?? undefined : undefined,
+    groupId: txn.group_id ?? undefined,
+    groupPosition: txn.group_position ?? undefined,
+    rewardEligible: Boolean(txn.reward_eligible),
+    totalPassengers: Number(txn.total_passengers) || 1,
+    grossAmount: Number(txn.gross_amount) || Number(txn.final_amount) || 0,
+    passengerBreakdown: txn.passenger_breakdown?.map((line) => ({
+      passengerType: line.passenger_type,
+      quantity: Number(line.quantity),
+      unitFare: Number(line.unit_fare),
+      unitDiscountAmount: Number(line.unit_discount_amount),
+      subtotal: Number(line.subtotal),
+    })),
     // created_at is an ISO 8601 string; timestamp is epoch millis
     timestamp: new Date(txn.created_at).getTime(),
   };

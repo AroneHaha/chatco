@@ -80,6 +80,10 @@ export async function POST(request: NextRequest) {
       passenger_role: txnBody.passengerRole ?? txnBody.passenger_role,
       idempotency_key: txnBody.idempotencyKey ?? txnBody.idempotency_key,
       voucher_code: txnBody.voucherCode ?? txnBody.voucher_code ?? undefined,
+      pickup_stop_id: txnBody.pickupStopId ?? txnBody.pickup_stop_id ?? undefined,
+      dropoff_stop_id: txnBody.dropoffStopId ?? txnBody.dropoff_stop_id ?? undefined,
+      passengers: txnBody.passengers ?? undefined,
+      group_passengers: txnBody.groupPassengers ?? txnBody.group_passengers ?? undefined,
     };
 
     const result = await proxyToLaravel(request, "/conductor/transactions", {
@@ -91,8 +95,15 @@ export async function POST(request: NextRequest) {
       return jsonError(result.message ?? "Failed to record transaction.", result.status);
     }
 
-    const transaction = mapTransaction(result.data);
-    return jsonData(transaction, 201);
+    const group = result.data as { transactions?: unknown[]; [key: string]: unknown };
+    if (Array.isArray(group?.transactions)) {
+      return jsonData({
+        ...group,
+        transactions: group.transactions.map(mapTransaction),
+      }, 201);
+    }
+
+    return jsonData(mapTransaction(result.data), 201);
   } catch (error) {
     return jsonError(
       error instanceof Error ? error.message : "Unable to save transaction."
