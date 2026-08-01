@@ -11,6 +11,8 @@
 
 import { api } from "@/lib/api/client";
 import { CONDUCTOR_API } from "@/lib/conductor/endpoints";
+import type { Transaction } from "@/lib/conductor/persistence/transactions.store";
+import type { GroupPassengerInput } from "@/lib/conductor/services/transactions.service";
 
 export type PaymentStatus =
   | "pending" | "processing" | "paid" | "failed" | "cancelled" | "expired" | "refunded";
@@ -27,6 +29,71 @@ export interface GcashInitiation {
    *  transaction row instead). */
   from?: string | null;
   to?: string | null;
+  groupId?: string | null;
+  receipts?: Transaction[];
+}
+
+interface LaravelReceipt {
+  transaction_id: string;
+  payment_method: string;
+  final_amount: string | number;
+  passenger_id: string | null;
+  passenger_name: string | null;
+  passenger_role: string | null;
+  payer_name: string | null;
+  payer_name_snapshot?: string | null;
+  payer_id?: string | null;
+  total_passengers?: number;
+  gross_amount?: string | number | null;
+  passenger_breakdown?: Array<{
+    passenger_type: "REGULAR" | "STUDENT" | "SENIOR" | "SENIOR_CITIZEN" | "PWD";
+    quantity: number;
+    unit_fare: string | number;
+    unit_discount_amount: string | number;
+    subtotal: string | number;
+  }>;
+  pickup_name: string | null;
+  dropoff_name: string | null;
+  base_fare: string | number | null;
+  discount_amount: string | number | null;
+  group_id: string | null;
+  group_position: number | null;
+  reward_eligible: boolean | number;
+  qr_token: string | null;
+  created_at: string;
+}
+
+function mapReceipt(row: LaravelReceipt): Transaction {
+  return {
+    transactionId: row.transaction_id,
+    paymentMethod: row.payment_method === "GCASH" ? "GCash_Scanned" : "Cash",
+    finalAmount: Number(row.final_amount) || 0,
+    passengerName: row.passenger_name ?? "",
+    passengerId: row.passenger_id ?? "",
+    passengerRole: row.passenger_role ?? undefined,
+    payerName: row.payer_name_snapshot ?? row.payer_name ?? undefined,
+    payerId: row.payer_id ?? undefined,
+    from: row.pickup_name ?? "",
+    to: row.dropoff_name ?? "",
+    distance: 0,
+    baseFare: Number(row.base_fare) || 0,
+    succeedingKm: 0,
+    discountAmount: Number(row.discount_amount) || 0,
+    receiptQrToken: row.qr_token ?? undefined,
+    groupId: row.group_id ?? undefined,
+    groupPosition: row.group_position ?? undefined,
+    rewardEligible: Boolean(row.reward_eligible),
+    totalPassengers: Number(row.total_passengers) || 1,
+    grossAmount: Number(row.gross_amount) || Number(row.final_amount) || 0,
+    passengerBreakdown: row.passenger_breakdown?.map((line) => ({
+      passengerType: line.passenger_type,
+      quantity: Number(line.quantity),
+      unitFare: Number(line.unit_fare),
+      unitDiscountAmount: Number(line.unit_discount_amount),
+      subtotal: Number(line.subtotal),
+    })),
+    timestamp: new Date(row.created_at).getTime(),
+  };
 }
 
 interface InitiateResponse {
@@ -36,11 +103,18 @@ interface InitiateResponse {
     checkout_url: string | null;
     amount: number | string;
     expires_at: string;
+    group_id?: string | null;
+    receipts?: LaravelReceipt[];
   };
 }
 
 interface StatusResponse {
-  data: { status: string; paid_at: string | null };
+  data: {
+    status: string;
+    paid_at: string | null;
+    payer_name?: string | null;
+    receipts?: LaravelReceipt[];
+  };
 }
 
 /**
@@ -54,6 +128,9 @@ export async function initiateGcash(input: {
   baseFare?: number;
   distance?: number;
   discountAmount?: number;
+  groupPassengers?: GroupPassengerInput[];
+  pickupStopId?: string;
+  dropoffStopId?: string;
 }): Promise<GcashInitiation> {
   const response = await api.post<InitiateResponse>(
     CONDUCTOR_API.payments.gcashInitiate,
@@ -64,6 +141,9 @@ export async function initiateGcash(input: {
       baseFare: input.baseFare,
       distance: input.distance,
       discountAmount: input.discountAmount,
+      pickupStopId: input.pickupStopId,
+      dropoffStopId: input.dropoffStopId,
+      passengers: input.groupPassengers,
     }
   );
 
@@ -74,6 +154,8 @@ export async function initiateGcash(input: {
     checkoutUrl: d.checkout_url,
     amount: Number(d.amount) || 0,
     expiresAt: d.expires_at,
+    groupId: d.group_id,
+    receipts: d.receipts?.map(mapReceipt),
   };
 }
 
@@ -86,6 +168,8 @@ interface PendingResponse {
     expires_at: string;
     pickup_name: string | null;
     dropoff_name: string | null;
+    group_id?: string | null;
+    receipts?: LaravelReceipt[];
   } | null;
 }
 
@@ -108,17 +192,27 @@ export async function fetchPendingGcash(): Promise<GcashInitiation | null> {
     expiresAt: d.expires_at,
     from: d.pickup_name,
     to: d.dropoff_name,
+    groupId: d.group_id,
+    receipts: d.receipts?.map(mapReceipt),
   };
 }
 
 /**
  * Poll the current payment status (webhook keeps it fresh).
  */
-export async function fetchStatus(transactionId: string): Promise<PaymentStatus> {
+export async function fetchStatus(transactionId: string): Promise<{
+  status: PaymentStatus;
+  payerName: string | null;
+  receipts: Transaction[];
+}> {
   const response = await api.get<StatusResponse>(
     CONDUCTOR_API.payments.status(transactionId)
   );
-  return (response.data.status?.toLowerCase() as PaymentStatus) ?? "pending";
+  return {
+    status: (response.data.status?.toLowerCase() as PaymentStatus) ?? "pending",
+    payerName: response.data.payer_name ?? null,
+    receipts: (response.data.receipts ?? []).map(mapReceipt),
+  };
 }
 
 /**

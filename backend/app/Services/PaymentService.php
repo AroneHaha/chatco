@@ -187,6 +187,12 @@ class PaymentService
         $transaction->update($attributes);
         $transaction->refresh();
 
+        if ($transaction->group_id) {
+            Transaction::where('group_id', $transaction->group_id)
+                ->where('transaction_id', '!=', $transaction->transaction_id)
+                ->update($attributes);
+        }
+
         broadcast(new PaymentStatusUpdated($transaction, $target->value));
 
         return $transaction;

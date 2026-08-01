@@ -36,6 +36,10 @@ interface ApiTransaction {
   status: string;
   final_amount: string | number;
   passenger_name: string | null;
+  payer_name?: string | null;
+  payer_name_snapshot?: string | null;
+  total_passengers?: number;
+  passenger_breakdown?: Array<{ passenger_type: string; quantity: number }>;
   pickup_name: string | null;
   dropoff_name: string | null;
   created_at: string;
@@ -305,10 +309,18 @@ export function ConductorDetailModal({ isOpen, onClose, record, allRecords }: Co
                             <div className="flex items-center gap-3 min-w-0">
                               <div className="flex-shrink-0">{getBadge(txn.payment_method)}</div>
                               <div className="min-w-0">
-                                <p className="text-sm text-white font-medium truncate">{txn.passenger_name || 'Cash Passenger'}</p>
+                                <p className="text-sm text-white font-medium truncate">
+                                  {txn.payment_method === 'GCASH'
+                                    ? txn.payer_name_snapshot || txn.payer_name || txn.passenger_name || 'GCash Payer'
+                                    : txn.passenger_name || 'Cash Passenger'}
+                                </p>
                                 <p className="text-xs text-slate-500 flex items-center gap-1 truncate">
                                   <MapPin size={10} />
                                   {txn.pickup_name || '—'} → {txn.dropoff_name || '—'}
+                                </p>
+                                <p className="text-[10px] text-slate-600 truncate">
+                                  {txn.total_passengers ?? 1} passenger{(txn.total_passengers ?? 1) === 1 ? '' : 's'}
+                                  {txn.passenger_breakdown?.length ? ` · ${txn.passenger_breakdown.map((line) => `${line.passenger_type} × ${line.quantity}`).join(', ')}` : ''}
                                 </p>
                               </div>
                             </div>

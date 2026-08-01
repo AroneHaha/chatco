@@ -19,7 +19,23 @@ export interface Transaction {
   voucherCode?: string;
   /** Opaque token encoded in the cash receipt QR for commuter reward claims. */
   receiptQrToken?: string;
+  groupId?: string;
+  groupPosition?: number;
+  rewardEligible?: boolean;
+  payerName?: string;
+  payerId?: string;
+  totalPassengers?: number;
+  grossAmount?: number;
+  passengerBreakdown?: PassengerBreakdown[];
   timestamp: number;
+}
+
+export interface PassengerBreakdown {
+  passengerType: "REGULAR" | "STUDENT" | "SENIOR" | "SENIOR_CITIZEN" | "PWD";
+  quantity: number;
+  unitFare: number;
+  unitDiscountAmount: number;
+  subtotal: number;
 }
 
 const PREFIX = "conductor_txns_";

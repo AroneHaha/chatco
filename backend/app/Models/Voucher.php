@@ -23,6 +23,7 @@ class Voucher extends Model
         'amount',
         'expires_at',
         'ride_origin',
+        'reward_cycle_number',
     ];
 
     protected function casts(): array
@@ -30,6 +31,7 @@ class Voucher extends Model
         return [
             'amount' => 'decimal:2',
             'expires_at' => 'datetime',
+            'reward_cycle_number' => 'integer',
         ];
     }
 

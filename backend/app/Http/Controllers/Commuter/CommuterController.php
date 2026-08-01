@@ -13,6 +13,7 @@ use App\Services\CommuterService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class CommuterController extends Controller
@@ -115,6 +116,7 @@ class CommuterController extends Controller
         $totalRides = Transaction::where('passenger_id', $profile->id)
             ->where('status', 'PAID')
             ->where('payment_method', '!=', PaymentMethod::VOUCHER->value)
+            ->where('reward_eligible', true)
             ->count();
 
         // Current cycle progress (rides since last voucher earned).
@@ -124,25 +126,29 @@ class CommuterController extends Controller
         // earned = how many vouchers the commuter should have based on ride count.
         // existing = how many REWARD-type vouchers already exist in the DB.
         $earned = intdiv($totalRides, $ridesForFreeReward);
-        $existingVoucherCount = Voucher::where('commuter_id', $profile->id)
-            ->where('type', 'REWARD')
-            ->count();
+        DB::transaction(function () use ($profile, $earned) {
+            $profile->newQuery()->whereKey($profile->id)->lockForUpdate()->first();
+            $existingVoucherCount = Voucher::where('commuter_id', $profile->id)
+                ->where('type', 'REWARD')
+                ->count();
 
-        if ($earned > $existingVoucherCount) {
-            $toGenerate = $earned - $existingVoucherCount;
-            for ($i = 0; $i < $toGenerate; $i++) {
-                $cycleNumber = $existingVoucherCount + $i + 1;
-                Voucher::create([
-                    'commuter_id'  => $profile->id,
-                    'code'         => 'REWARD-' . strtoupper(Str::random(8)),
-                    'type'         => 'REWARD',
-                    'status'       => 'AVAILABLE',
-                    'amount'       => 0, // Free ride — no monetary value
-                    'expires_at'   => now()->addDays(30),
-                    'ride_origin'  => "{$cycleNumber}th Ride Reward",
-                ]);
+            for ($cycleNumber = $existingVoucherCount + 1; $cycleNumber <= $earned; $cycleNumber++) {
+                Voucher::firstOrCreate(
+                    [
+                        'commuter_id' => $profile->id,
+                        'type' => 'REWARD',
+                        'reward_cycle_number' => $cycleNumber,
+                    ],
+                    [
+                        'code' => 'REWARD-' . strtoupper(Str::random(8)),
+                        'status' => 'AVAILABLE',
+                        'amount' => 0,
+                        'expires_at' => now()->addDays(30),
+                        'ride_origin' => "{$cycleNumber}th Ride Reward",
+                    ],
+                );
             }
-        }
+        }, 3);
 
         // Fetch all the commuter's vouchers (reward + admin-assigned).
         $vouchers = Voucher::where('commuter_id', $profile->id)
