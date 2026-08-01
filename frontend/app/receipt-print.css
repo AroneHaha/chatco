@@ -19,14 +19,18 @@
   }
 
   .thermal-receipt {
-    position: absolute !important;
-    inset: 0 auto auto 0 !important;
+    position: relative !important;
     width: var(--receipt-paper-width) !important;
     max-width: none !important;
     margin: 0 !important;
     box-shadow: none !important;
     break-inside: avoid;
+    break-after: page;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
+  }
+
+  .thermal-receipt:last-of-type {
+    break-after: auto;
   }
 }

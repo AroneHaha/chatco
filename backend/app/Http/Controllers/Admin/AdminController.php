@@ -761,7 +761,7 @@ class AdminController extends Controller
     {
         $perPage = (int) $request->integer('per_page', 100);
 
-        $query = Transaction::with(['shiftLog', 'passenger'])
+        $query = Transaction::with(['shiftLog', 'passenger', 'payer', 'passengerBreakdown'])
             ->orderBy('created_at', 'desc');
 
         if ($request->has('shift_id')) {
@@ -845,7 +845,7 @@ class AdminController extends Controller
                 $totalPassengers = (int) DB::table('transactions')
                     ->where('shift_id', $s->shift_id)
                     ->where('status', 'PAID')
-                    ->count();
+                    ->sum('total_passengers');
 
                 return [
                     'shift_id' => $s->shift_id,

@@ -107,13 +107,16 @@ export default function ReceiptsPage() {
       title: 'CHATCO Fare Receipts',
       fileName: `chatco-receipts-${new Date().toISOString().split('T')[0]}`,
       format,
-      headers: ['Transaction ID', 'Commuter', 'Commuter ID', 'Plate Number', 'Route', 'Fare', 'Payment Method', 'Status', 'Date', 'Time'],
+      headers: ['Transaction ID', 'Paid By', 'Passengers', 'Passenger Breakdown', 'Plate Number', 'Route', 'Gross Fare', 'Discount', 'Final Fare', 'Payment Method', 'Status', 'Date', 'Time'],
       rows: filteredData.map((receipt) => [
         receipt.id,
-        receipt.commuterName,
-        receipt.commuterId,
+        receipt.paidBy ?? '',
+        receipt.totalPassengers,
+        receipt.passengerBreakdown,
         receipt.plateNumber,
         receipt.route,
+        receipt.grossFare.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
+        receipt.discountAmount.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
         receipt.fare.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
         receipt.paymentMethod,
         receipt.status,
@@ -154,8 +157,9 @@ export default function ReceiptsPage() {
       cellClassName: 'px-2 sm:px-3 min-w-0',
       render: (value: string, row: Receipt) => (
         <div className="min-w-0">
-          <p className="truncate text-sm text-slate-200" title={value}>{value}</p>
-          <p className="truncate text-[10px] text-slate-600" title={row.commuterId}>{row.commuterId}</p>
+          <p className="truncate text-sm text-slate-200" title={row.passengerBreakdown}>{row.totalPassengers} passenger{row.totalPassengers === 1 ? '' : 's'}</p>
+          <p className="truncate text-[10px] text-slate-500" title={row.passengerBreakdown}>{row.passengerBreakdown}</p>
+          {row.paidBy && <p className="truncate text-[10px] text-blue-400" title={row.paidBy}>Paid by: {row.paidBy}</p>}
         </div>
       ),
     },
@@ -179,6 +183,7 @@ export default function ReceiptsPage() {
       render: (value: number, row: Receipt) => (
         <div className="space-y-1">
           <p className="text-slate-200 font-semibold">{formatPeso(value)}</p>
+          {row.discountAmount > 0 && <p className="text-[10px] text-emerald-400">-{formatPeso(row.discountAmount)} discount</p>}
           <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
             row.paymentMethod === 'Gcash' ? 'bg-[#62A0EA]/15 text-[#62A0EA]'
             : row.paymentMethod === 'Voucher' ? 'bg-pink-500/15 text-pink-400'

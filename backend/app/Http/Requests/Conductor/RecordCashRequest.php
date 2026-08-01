@@ -34,9 +34,9 @@ class RecordCashRequest extends FormRequest
     {
         return [
             'payment_method'   => 'required|string|in:CASH,VOUCHER',
-            'final_amount'     => 'required|numeric|min:0',
-            'pickup_name'      => 'required|string|max:100',
-            'dropoff_name'     => 'required|string|max:100',
+            'final_amount'     => 'required_without:passengers|nullable|numeric|min:0',
+            'pickup_name'      => 'required_without:passengers|nullable|string|max:100',
+            'dropoff_name'     => 'required_without:passengers|nullable|string|max:100',
             'base_fare'        => 'nullable|numeric|min:0',
             'distance'         => 'nullable|numeric|min:0',
             'discount_amount'  => 'nullable|numeric|min:0',
@@ -46,6 +46,17 @@ class RecordCashRequest extends FormRequest
             'dropoff_stop_id'  => 'nullable|uuid|exists:fare_points,id',
             'idempotency_key'  => 'nullable|string|max:100',
             'voucher_code'     => 'nullable|string|required_if:payment_method,VOUCHER|max:50',
+            'passengers' => 'nullable|array|min:1|max:4|required_with:pickup_stop_id,dropoff_stop_id',
+            'passengers.*.passenger_type' => 'required_with:passengers|string|in:REGULAR,STUDENT,SENIOR,SENIOR_CITIZEN,PWD',
+            'passengers.*.quantity' => 'required_with:passengers|integer|min:1|max:50',
+            'pickup_stop_id' => 'required_with:passengers|nullable|uuid|exists:fare_points,id',
+            'dropoff_stop_id' => 'required_with:passengers|nullable|uuid|exists:fare_points,id',
+            'group_passengers' => 'nullable|array|min:1|max:50',
+            'group_passengers.*.type' => 'required_with:group_passengers|string|in:REGULAR,SENIOR_CITIZEN,STUDENT,PWD',
+            'group_passengers.*.quantity' => 'required_with:group_passengers|integer|min:1|max:50',
+            'group_passengers.*.final_amount' => 'required_with:group_passengers|numeric|min:0',
+            'group_passengers.*.base_fare' => 'nullable|numeric|min:0',
+            'group_passengers.*.discount_amount' => 'nullable|numeric|min:0',
         ];
     }
 

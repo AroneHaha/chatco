@@ -33,10 +33,18 @@ class Transaction extends Model
     protected $fillable = [
         'transaction_id',
         'shift_id',
+        'group_id',
+        'group_position',
+        'reward_eligible',
         'payment_method',
         'final_amount',
+        'total_passengers',
+        'gross_amount',
         'passenger_id',
+        'payer_id',
+        'payer_name_snapshot',
         'passenger_name',
+        'payer_name',
         'passenger_role',
         'pickup_stop_id',
         'dropoff_stop_id',
@@ -65,6 +73,8 @@ class Transaction extends Model
     {
         return [
             'final_amount' => 'decimal:2',
+            'total_passengers' => 'integer',
+            'gross_amount' => 'decimal:2',
             'distance' => 'decimal:2',
             'base_fare' => 'decimal:2',
             'succeeding_km' => 'decimal:2',
@@ -73,6 +83,8 @@ class Transaction extends Model
             'payment_method' => PaymentMethod::class,
             'status' => PaymentStatus::class,
             'payment_metadata' => 'array',
+            'group_position' => 'integer',
+            'reward_eligible' => 'boolean',
         ];
     }
 
@@ -86,6 +98,21 @@ class Transaction extends Model
     public function passenger()
     {
         return $this->belongsTo(CommuterProfile::class, 'passenger_id');
+    }
+
+    public function payer()
+    {
+        return $this->belongsTo(CommuterProfile::class, 'payer_id');
+    }
+
+    public function passengerBreakdown()
+    {
+        return $this->hasMany(TransactionPassenger::class, 'transaction_id', 'transaction_id');
+    }
+
+    public function paymentGroup()
+    {
+        return $this->belongsTo(PaymentGroup::class, 'group_id');
     }
 
     public function pickupStop()

@@ -13,6 +13,11 @@ export interface Receipt {
   plateNumber: string;
   route: string;
   fare: number;
+  grossFare: number;
+  discountAmount: number;
+  totalPassengers: number;
+  paidBy: string | null;
+  passengerBreakdown: string;
   // "Unknown" is the explicit fail-safe for a value the backend sent that we
   // don't recognise. It is never guessed at — see mapLaravelTransaction.
   paymentMethod: "Cash" | "Gcash" | "Voucher" | "Unknown";
@@ -108,14 +113,30 @@ function mapLaravelTransaction(r: Record<string, unknown>): Receipt {
   const pickupName = String(r.pickup_name ?? "");
   const dropoffName = String(r.dropoff_name ?? "");
   const route = pickupName && dropoffName ? `${pickupName} → ${dropoffName}` : "—";
+  const breakdown = Array.isArray(r.passenger_breakdown)
+    ? (r.passenger_breakdown as Array<Record<string, unknown>>)
+        .filter((line) => Number(line.quantity) > 0)
+        .map((line) => `${String(line.passenger_type) === "SENIOR" ? "Senior Citizen" : String(line.passenger_type)} × ${Number(line.quantity)}`)
+        .join(", ")
+    : String(r.passenger_role ?? "Regular");
+  const paidBy = rawMethod === "GCASH"
+    ? String(r.payer_name_snapshot ?? r.payer_name ?? r.passenger_name ?? "") || null
+    : null;
 
   return {
     id: String(r.transaction_id ?? ""),
-    commuterName: String(r.passenger_name ?? "Cash Passenger"),
+    commuterName: rawMethod === "GCASH"
+      ? String(r.payer_name ?? r.passenger_name ?? "GCash Payer")
+      : String(r.passenger_name ?? "Cash Passenger"),
     commuterId: String(r.passenger_id ?? ""),
     plateNumber,
     route,
     fare: Number(r.final_amount) || 0,
+    grossFare: Number(r.gross_amount) || Number(r.final_amount) || 0,
+    discountAmount: Number(r.discount_amount) || 0,
+    totalPassengers: Number(r.total_passengers) || 1,
+    paidBy,
+    passengerBreakdown: breakdown,
     paymentMethod,
     status,
     date,

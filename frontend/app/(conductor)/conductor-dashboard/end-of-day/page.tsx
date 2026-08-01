@@ -73,7 +73,7 @@ export default function EndOfDayPage() {
 
     return {
       breakdown,
-      totalPassengers: transactions.length,
+      totalPassengers: transactions.reduce((sum, transaction) => sum + (transaction.totalPassengers ?? 1), 0),
       gcashTotal,
       cashTotal,
       grandTotal,

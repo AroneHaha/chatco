@@ -106,7 +106,7 @@ class PaymentController extends Controller
      */
     public function status(Request $request, string $id): JsonResponse
     {
-        $transaction = Transaction::with('shiftLog:shift_id,conductor_id')
+        $transaction = Transaction::with(['shiftLog:shift_id,conductor_id', 'passengerBreakdown'])
             ->where('transaction_id', $id)
             ->first();
 
@@ -133,6 +133,17 @@ class PaymentController extends Controller
         return $this->successResponse([
             'status' => $transaction->status->value,
             'paid_at' => $transaction->paid_at?->toIso8601String(),
+            'payer_name' => $transaction->payer_name_snapshot ?? $transaction->payer_name ?? $transaction->passenger_name,
+            'payer_id' => $transaction->payer_id ?? $transaction->passenger_id,
+            'total_passengers' => $transaction->total_passengers,
+            'gross_amount' => $transaction->gross_amount,
+            'discount_amount' => $transaction->discount_amount,
+            'final_amount' => $transaction->final_amount,
+            'passenger_breakdown' => $transaction->passengerBreakdown,
+            'group_id' => $transaction->group_id,
+            'receipts' => $transaction->group_id
+                ? Transaction::where('group_id', $transaction->group_id)->orderBy('group_position')->get()
+                : [$transaction],
         ], 'Transaction status retrieved');
     }
 

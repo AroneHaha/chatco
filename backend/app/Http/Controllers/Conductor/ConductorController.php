@@ -277,6 +277,30 @@ class ConductorController extends Controller
      */
     public function storeTransaction(RecordCashRequest $request): JsonResponse
     {
+        if ($request->has('passengers')) {
+            $transaction = $this->transactionService->recordMultiPassengerCashFare(
+                $request->user(),
+                $request->validated(),
+            );
+
+            return $this->successResponse($transaction, 'Multi-passenger cash fare recorded', 201);
+        }
+
+        if ($request->has('group_passengers')) {
+            $group = $this->transactionService->recordGroupedCashFare(
+                $request->user(),
+                $request->validated(),
+            );
+
+            return $this->successResponse([
+                'group_id' => $group->id,
+                'payer_name' => $group->payer_name,
+                'total_amount' => (float) $group->total_amount,
+                'passenger_count' => $group->passenger_count,
+                'transactions' => $group->transactions,
+            ], 'Group cash fare recorded', 201);
+        }
+
         $transaction = $this->transactionService->recordCashFare(
             $request->user(),
             $request->validated(),
@@ -313,6 +337,8 @@ class ConductorController extends Controller
             'checkout_url'   => $result['checkout_url'],
             'amount'         => $result['amount'],
             'expires_at'     => $result['expires_at'],
+            'group_id'       => $result['group_id'] ?? null,
+            'receipts'       => $result['receipts'] ?? [],
         ], 'GCash fare initiated', 201);
     }
 
@@ -344,6 +370,8 @@ class ConductorController extends Controller
             // Route names so the resumed QR screen can show the trip.
             'pickup_name'    => $transaction->pickup_name,
             'dropoff_name'   => $transaction->dropoff_name,
+            'group_id'       => $result['group_id'] ?? null,
+            'receipts'       => $result['receipts'] ?? [],
         ], 'Pending GCash payment found');
     }
 

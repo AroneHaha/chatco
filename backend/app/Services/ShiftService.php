@@ -120,7 +120,7 @@ class ShiftService
         )->total;
 
         $totalPassengers = (int) DB::selectOne(
-            "SELECT COUNT(*) as cnt FROM transactions WHERE shift_id = ? AND status = 'PAID'",
+            "SELECT COALESCE(SUM(total_passengers), 0) as cnt FROM transactions WHERE shift_id = ? AND status = 'PAID'",
             [$shiftIdValue]
         )->cnt;
 
