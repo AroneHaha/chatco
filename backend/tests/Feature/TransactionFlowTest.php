@@ -331,8 +331,8 @@ class TransactionFlowTest extends TestCase
             'dropoff_name' => 'Bustos',
             'idempotency_key' => 'group-cash-test',
             'group_passengers' => [
-                ['type' => 'REGULAR', 'quantity' => 2, 'final_amount' => 15, 'base_fare' => 15, 'discount_amount' => 0],
                 ['type' => 'STUDENT', 'quantity' => 1, 'final_amount' => 12, 'base_fare' => 15, 'discount_amount' => 3],
+                ['type' => 'REGULAR', 'quantity' => 2, 'final_amount' => 15, 'base_fare' => 15, 'discount_amount' => 0],
             ],
         ]);
 
@@ -342,6 +342,8 @@ class TransactionFlowTest extends TestCase
         $this->assertCount(3, $group->transactions);
         $this->assertSame(3, $group->transactions->pluck('transaction_id')->unique()->count());
         $this->assertTrue($group->transactions->every(fn ($transaction) => $transaction->pickup_name === 'Calumpit' && $transaction->dropoff_name === 'Bustos'));
+        $this->assertSame('STUDENT', $group->transactions->first()->passenger_role);
+        $this->assertSame(12.0, (float) $group->transactions->first()->final_amount);
         $this->assertSame(1, $group->transactions->where('reward_eligible', true)->count());
         $this->assertSame(1, $group->transactions->whereNotNull('qr_token')->count());
         $this->assertTrue($group->transactions->every(fn ($transaction) => $transaction->status === PaymentStatus::PAID));

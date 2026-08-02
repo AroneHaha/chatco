@@ -265,15 +265,15 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   }, [fareInfo, groupCounts]);
 
   // Multiple-payment input represents companions only. The payer is always
-  // passenger #1 and is added automatically as a regular fare until a GCash
-  // claim binds the verified commuter account.
+  // passenger #1. Cash uses the type selected by the conductor; GCash uses a
+  // regular placeholder until the verified commuter account claims the QR.
   const groupPassengers = useMemo<GroupPassengerInput[]>(() => {
-    const passengers = companionPassengers.map((passenger) => ({ ...passenger }));
-    const regular = passengers.find((passenger) => passenger.passenger_type === "REGULAR");
-    if (regular) regular.quantity += 1;
-    else passengers.unshift({ passenger_type: "REGULAR", quantity: 1 });
-    return passengers;
-  }, [companionPassengers]);
+    const payerType: GroupPassengerType = selectedMethod === "GCash" ? "REGULAR" : commuterType;
+    return [
+      { passenger_type: payerType, quantity: 1 },
+      ...companionPassengers.map((passenger) => ({ ...passenger })),
+    ];
+  }, [companionPassengers, commuterType, selectedMethod]);
 
   const groupCompanionCount = companionPassengers.reduce((sum, row) => sum + row.quantity, 0);
   const groupPassengerCount = groupPassengers.reduce((sum, row) => sum + row.quantity, 0);
@@ -1461,11 +1461,35 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                 <div>
                   <p className="text-sm font-semibold text-white">Payer</p>
                   <p className="text-[10px] text-blue-200/70">
-                    {selectedMethod === "GCash" ? "ChatCo account detected after scan" : "Anonymous cash passenger · Regular"}
+                    {selectedMethod === "GCash"
+                      ? "ChatCo account and discount detected after scan"
+                      : `Anonymous cash passenger · ${getCommuterTypeLabel(commuterType)}`}
                   </p>
                 </div>
                 <span className="rounded-full bg-blue-400/15 px-2 py-1 text-[10px] font-bold text-blue-200">Automatically added</span>
               </div>
+              {selectedMethod === "Cash" && (
+                <div className="mt-3">
+                  <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-blue-100/60">Payer type</p>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {passengerTypes.map(({ type, label }) => (
+                      <button
+                        key={`payer-${type}`}
+                        type="button"
+                        aria-pressed={commuterType === type}
+                        onClick={() => setCommuterType(type)}
+                        className={`rounded-lg px-1.5 py-2 text-[10px] font-semibold transition-colors ${
+                          commuterType === type
+                            ? "bg-[#1A5FB4] text-white"
+                            : "border border-white/10 bg-white/5 text-white/55 hover:text-white"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">Companions only</p>
             {passengerTypes.map(({ type, label }) => {
