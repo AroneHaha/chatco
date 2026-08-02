@@ -261,10 +261,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     if (!fareInfo) return [];
     return (Object.entries(groupCounts) as [GroupPassengerType, number][])
       .filter(([, quantity]) => quantity > 0)
-      .map(([type, quantity]) => {
-        const discounted = type !== "REGULAR";
-        return { passenger_type: type, quantity };
-      });
+      .map(([type, quantity]) => ({ passenger_type: type, quantity }));
   }, [fareInfo, groupCounts]);
 
   // Multiple-payment input represents companions only. The payer is always
@@ -617,9 +614,6 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   // Default: GREEN for pickup & dropoff
   // Special: VIOLET/PURPLE when pickup == dropoff (same barangay)
   const isSameBarangay = !!(pickupPoint && dropoffPoint && pickupPoint.pointNumber === dropoffPoint.pointNumber);
-
-  const pickupColor = isSameBarangay ? "violet" : "green";
-  const dropoffColor = isSameBarangay ? "violet" : "green";
 
   // Color utility classes for pickup/dropoff indicators
   const pickupDotClass = isSameBarangay ? "bg-violet-500" : "bg-emerald-500";
@@ -1144,8 +1138,6 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
               const itemPickupBg = isSameBarangay ? "bg-violet-500/15 border-violet-500/40" : "bg-emerald-500/15 border-emerald-500/40";
               const itemDropoffBg = isSameBarangay ? "bg-violet-500/15 border-violet-500/40" : "bg-emerald-500/15 border-emerald-500/40";
               const itemBothBg = "bg-violet-500/20 border-violet-500/40";
-              const itemPickupTag = isSameBarangay ? pickupTagClass : pickupTagClass;
-              const itemDropoffTag = isSameBarangay ? dropoffTagClass : dropoffTagClass;
               const itemPickupLabel = isSameBarangay ? pickupLabelClass : pickupLabelClass;
               const itemDropoffLabel = isSameBarangay ? dropoffLabelClass : dropoffLabelClass;
 
@@ -1532,9 +1524,15 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
               <button
                 type="button"
                 disabled={groupCompanionCount === 0 || !pickupPoint || !dropoffPoint || isInitiatingGcash}
-                onClick={() => setStep("confirm")}
+                onClick={handleConfirmPayment}
                 className="flex-1 rounded-xl bg-[#1A5FB4] py-3 text-sm font-bold text-white disabled:opacity-40"
-              >Review {formatCurrency(groupTotalFare)}</button>
+              >
+                {isInitiatingGcash
+                  ? "Starting…"
+                  : selectedMethod === "GCash"
+                    ? `Generate QR · ${formatCurrency(groupTotalFare)}`
+                    : `Pay ${formatCurrency(groupTotalFare)}`}
+              </button>
             </div>
           </div>
         </div>
@@ -2143,7 +2141,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                 Close
               </button>
               <button
-                onClick={() => setStep("confirm")}
+                onClick={() => setStep(isGroupMode ? "passengers" : "confirm")}
                 className={`flex-1 py-3 rounded-xl text-white text-sm font-bold transition-colors ${
                   selectedMethod === "GCash"
                     ? "bg-[#1A5FB4] hover:bg-[#164A8F]"

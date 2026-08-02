@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
 import { proxyToLaravel } from "@/lib/conductor/server/proxy";
-import { API_V1 } from "@/lib/commuter/server/proxy";
 import { jsonData, jsonError } from "@/lib/conductor/server/response";
 
 /**
@@ -20,7 +19,7 @@ export async function POST(
   const { id } = await ctx.params;
   const result = await proxyToLaravel(
     request,
-    `${API_V1}/payments/${encodeURIComponent(id)}/cancel`,
+    `/payments/${encodeURIComponent(id)}/cancel`,
     { method: "POST", body: await request.text() }
   );
 
