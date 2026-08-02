@@ -112,6 +112,7 @@ export default function ConductorDashboard() {
         gcash={liveTransactions.gcash}
         cash={liveTransactions.cash}
         voucher={liveTransactions.voucher}
+        isOnBreak={isOnBreak}
         shiftTimeIn={shift?.timeIn}
         onPaymentClick={() => {
           if (!isOnBreak) {
@@ -121,7 +122,12 @@ export default function ConductorDashboard() {
         onHistoryClick={() => setShowHistory(true)}
       />
 
-      <DashboardMapContainer unitNumber={unitNumber} hails={hails} />
+      <DashboardMapContainer
+        unitNumber={unitNumber}
+        hails={hails}
+        status={status}
+        isOnBreak={isOnBreak}
+      />
 
       <HistoryLogModal isOpen={showHistory} onClose={() => setShowHistory(false)} shiftId={shift?.shiftId || ""} />
     </div>

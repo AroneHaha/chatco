@@ -15,6 +15,7 @@ interface DesktopDashboardCardProps {
   gcash: number;
   cash: number;
   voucher: number;
+  isOnBreak: boolean;
   shiftTimeIn: string | undefined;
   onPaymentClick: () => void;
   onHistoryClick: () => void;
@@ -31,6 +32,7 @@ export function DesktopDashboardCard({
   gcash,
   cash,
   voucher,
+  isOnBreak,
   shiftTimeIn,
   onPaymentClick,
   onHistoryClick,
@@ -54,7 +56,16 @@ export function DesktopDashboardCard({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-10 h-10 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold shadow-lg border-2 border-white/20">{conductorName[0]}</div>
+          <div
+            aria-label={isOnBreak ? "Conductor on break" : "Conductor on duty"}
+            className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shadow-lg border-2 transition-colors duration-300 ${
+              isOnBreak
+                ? "border-sky-300/50 bg-sky-500 shadow-sky-500/30"
+                : "border-white/20 bg-[#1A5FB4]"
+            }`}
+          >
+            {conductorName[0]}
+          </div>
         </div>
       </div>
 
@@ -72,15 +83,19 @@ export function DesktopDashboardCard({
 
         <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
           <div className="flex items-center gap-1.5 mb-3">
-            <div className={`w-2 h-2 rounded-full transition-colors duration-300 ${status === 'Available' ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50' : status === 'Standing' ? 'bg-amber-400 shadow-sm shadow-amber-400/50' : 'bg-gray-500'}`} />
+            <div className={`w-2 h-2 rounded-full transition-colors duration-300 ${isOnBreak ? 'bg-sky-400 shadow-sm shadow-sky-400/50' : status === 'Available' ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50' : status === 'Standing' ? 'bg-amber-400 shadow-sm shadow-amber-400/50' : 'bg-red-400 shadow-sm shadow-red-400/50'}`} />
             <p className="text-xs font-semibold text-white/50 uppercase tracking-wider">Unit Status</p>
+            <span className={`ml-auto text-xs font-bold ${isOnBreak ? "text-sky-300" : "text-white/60"}`}>
+              {isOnBreak ? "On Break" : status}
+            </span>
           </div>
           <div className="flex gap-2">
             {(["Available", "Standing", "Full"] as const).map((s) => (
               <button
                 key={s}
                 onClick={() => setStatus(s)}
-                className={`flex-1 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors border ${
+                disabled={isOnBreak}
+                className={`flex-1 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors border disabled:cursor-not-allowed disabled:opacity-40 ${
                   status === s
                     ? s === "Available"
                       ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400"

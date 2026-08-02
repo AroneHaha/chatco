@@ -64,6 +64,8 @@ const MAP_CENTER: L.LatLngTuple = [rawBounds.getCenter().lat, rawBounds.getCente
 interface ConductorMapProps {
   unitNumber?: string;
   hails?: ConductorHailRequest[];
+  capacityStatus?: "Available" | "Standing" | "Full";
+  isOnBreak?: boolean;
 }
 
 function getDistanceMeters(a: [number, number], b: [number, number]): number {
@@ -73,6 +75,8 @@ function getDistanceMeters(a: [number, number], b: [number, number]): number {
 export default function ConductorMap({
   unitNumber = "—",
   hails = [],
+  capacityStatus = "Available",
+  isOnBreak = false,
 }: ConductorMapProps) {
   const [isDomReady, setIsDomReady] = useState(false);
   const [vehiclePosition, setVehiclePosition] = useState<L.LatLngTuple>(MAP_CENTER);
@@ -80,8 +84,9 @@ export default function ConductorMap({
 
   useEffect(() => {
     let cancelled = false;
+    let raf2: number | undefined;
     const raf1 = requestAnimationFrame(() => {
-      const raf2 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
         if (!cancelled && typeof document !== "undefined") {
           setIsDomReady(true);
         }
@@ -90,6 +95,7 @@ export default function ConductorMap({
     return () => {
       cancelled = true;
       cancelAnimationFrame(raf1);
+      if (raf2 !== undefined) cancelAnimationFrame(raf2);
     };
   }, []);
 
@@ -121,12 +127,26 @@ export default function ConductorMap({
     [hails, vehiclePosition]
   );
 
-  // Conductor's Vehicle Marker
+  const markerPresentation = useMemo(() => {
+    if (isOnBreak) {
+      return { color: "#38BDF8", glow: "rgba(56,189,248,0.35)", label: "On Break" };
+    }
+    if (capacityStatus === "Standing") {
+      return { color: "#FBBF24", glow: "rgba(251,191,36,0.35)", label: "Standing" };
+    }
+    if (capacityStatus === "Full") {
+      return { color: "#F87171", glow: "rgba(248,113,113,0.35)", label: "Full" };
+    }
+    return { color: "#34D399", glow: "rgba(52,211,153,0.35)", label: "Available" };
+  }, [capacityStatus, isOnBreak]);
+
+  // Conductor's Vehicle Marker. Break state overrides capacity color because
+  // the unit is temporarily unavailable even though its saved capacity stays.
   const vehicleIcon = useMemo(() => new L.DivIcon({
     className: "custom-vehicle-icon",
     html: `
-      <div style="width: 44px; height: 44px; background: #071A2E; border-radius: 50%; border: 2.5px solid #1A5FB4; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 12px rgba(0,0,0,0.5), 0 0 8px #1A5FB440;">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1A5FB4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <div style="width: 44px; height: 44px; background: #071A2E; border-radius: 50%; border: 2.5px solid ${markerPresentation.color}; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 12px rgba(0,0,0,0.5), 0 0 10px ${markerPresentation.glow}; transition: border-color 200ms ease, box-shadow 200ms ease;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${markerPresentation.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H18.75m-7.5-10.5H6.375c-.621 0-1.125.504-1.125 1.125v6.75m12-6.75h-3.375c-.621 0-1.125.504-1.125 1.125v6.75m0 0H5.625m12-6.75h-1.5m-1.5 0h-1.5" />
         </svg>
       </div>
@@ -134,7 +154,7 @@ export default function ConductorMap({
     iconSize: [44, 44],
     iconAnchor: [22, 22],
     popupAnchor: [0, -25],
-  }), []);
+  }), [markerPresentation]);
 
   // Hailing Commuter Marker
   const hailingIcon = useMemo(() => new L.DivIcon({
@@ -173,17 +193,27 @@ export default function ConductorMap({
         <Polyline positions={ROUTE_COORDS} pathOptions={{ color: '#62A0EA', weight: 4, opacity: 0.9, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }} />
 
         {/* 1km Radius Circle — conductor's operational pickup zone */}
-        <Circle center={vehiclePosition} radius={RADIUS_M} pathOptions={{ color: '#1A5FB4', fillColor: '#1A5FB4', fillOpacity: 0.05, weight: 1.5, opacity: 0.3, dashArray: '8 4' }} />
+        <Circle center={vehiclePosition} radius={RADIUS_M} pathOptions={{ color: markerPresentation.color, fillColor: markerPresentation.color, fillOpacity: 0.05, weight: 1.5, opacity: 0.3, dashArray: '8 4' }} />
 
         <Marker position={vehiclePosition} icon={vehicleIcon}>
           <Popup>
             <div className="space-y-2 min-w-[180px]">
               <div className="flex items-center justify-between">
-                <div className="font-bold text-[#1A5FB4]">{unitNumber} (You)</div>
-                <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-[#1A5FB4]/10 text-[#1A5FB4] border border-[#1A5FB4]/30">Active</span>
+                <div className="font-bold" style={{ color: markerPresentation.color }}>{unitNumber} (You)</div>
+                <span
+                  className="rounded border px-1.5 py-0.5 text-[9px] font-bold uppercase"
+                  style={{
+                    backgroundColor: `${markerPresentation.color}1A`,
+                    borderColor: `${markerPresentation.color}4D`,
+                    color: markerPresentation.color,
+                  }}
+                >
+                  {isOnBreak ? "On Break" : "Active"}
+                </span>
               </div>
               <div className="text-xs text-gray-500 space-y-0.5 pt-1 border-t border-gray-100">
-                <p><span className="font-medium text-gray-700">Status:</span> Available</p>
+                <p><span className="font-medium text-gray-700">Status:</span> {markerPresentation.label}</p>
+                {isOnBreak && <p><span className="font-medium text-gray-700">Capacity:</span> {capacityStatus}</p>}
                 <p><span className="font-medium text-gray-700">Radius:</span> 1 km pickup zone</p>
               </div>
             </div>

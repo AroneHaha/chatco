@@ -58,7 +58,16 @@ export function MobileDashboardCard({
           <p className="text-[10px] text-white/40 font-medium mt-0.5 truncate">{route}</p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-          <div className="w-8 h-8 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold text-xs shadow-lg border-2 border-white/20">{conductorName[0]}</div>
+          <div
+            aria-label={isOnBreak ? "Conductor on break" : "Conductor on duty"}
+            className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-lg border-2 transition-colors duration-300 ${
+              isOnBreak
+                ? "border-sky-300/50 bg-sky-500 shadow-sky-500/30"
+                : "border-white/20 bg-[#1A5FB4]"
+            }`}
+          >
+            {conductorName[0]}
+          </div>
         </div>
       </div>
 
@@ -92,15 +101,19 @@ export function MobileDashboardCard({
           <div className="flex items-center gap-2">
             <div className="flex-1 bg-white/5 rounded-xl px-3 py-2 border border-white/10">
               <div className="flex items-center gap-1.5 mb-1.5">
-                <div className={`w-2 h-2 rounded-full transition-colors duration-300 ${status === 'Available' ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50' : status === 'Standing' ? 'bg-amber-400 shadow-sm shadow-amber-400/50' : 'bg-gray-500'}`} />
+                <div className={`w-2 h-2 rounded-full transition-colors duration-300 ${isOnBreak ? 'bg-sky-400 shadow-sm shadow-sky-400/50' : status === 'Available' ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50' : status === 'Standing' ? 'bg-amber-400 shadow-sm shadow-amber-400/50' : 'bg-red-400 shadow-sm shadow-red-400/50'}`} />
                 <span className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Status</span>
+                <span className={`ml-auto text-[10px] font-bold ${isOnBreak ? "text-sky-300" : "text-white/60"}`}>
+                  {isOnBreak ? "On Break" : status}
+                </span>
               </div>
               <div className="flex gap-1.5">
                 {(["Available", "Standing", "Full"] as const).map((s) => (
                   <button
                     key={s}
                     onClick={() => setStatus(s)}
-                    className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-colors border ${
+                    disabled={isOnBreak}
+                    className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-colors border disabled:cursor-not-allowed disabled:opacity-40 ${
                       status === s
                         ? s === "Available"
                           ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400"
