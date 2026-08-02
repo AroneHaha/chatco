@@ -81,6 +81,8 @@ export default function ReceiptsPage() {
       const matchesSearch =
         !query ||
         item.commuterName.toLowerCase().includes(query) ||
+        item.commuterRole.toLowerCase().includes(query) ||
+        item.multiplePaymentReference?.toLowerCase().includes(query) ||
         item.id.toLowerCase().includes(query);
       // Exact date wins when set; otherwise fall back to the preset range.
       const matchesDate = specificDate
@@ -107,12 +109,13 @@ export default function ReceiptsPage() {
       title: 'CHATCO Fare Receipts',
       fileName: `chatco-receipts-${new Date().toISOString().split('T')[0]}`,
       format,
-      headers: ['Transaction ID', 'Paid By', 'Passengers', 'Passenger Breakdown', 'Plate Number', 'Route', 'Gross Fare', 'Discount', 'Final Fare', 'Payment Method', 'Status', 'Date', 'Time'],
+      headers: ['Transaction ID', 'Multiple Payment Ref', 'Commuter', 'Role', 'Paid By', 'Plate Number', 'Route', 'Gross Fare', 'Discount', 'Final Fare', 'Payment Method', 'Status', 'Date', 'Time'],
       rows: filteredData.map((receipt) => [
         receipt.id,
+        receipt.multiplePaymentReference ?? '',
+        receipt.commuterName,
+        receipt.commuterRole,
         receipt.paidBy ?? '',
-        receipt.totalPassengers,
-        receipt.passengerBreakdown,
         receipt.plateNumber,
         receipt.route,
         receipt.grossFare.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
@@ -146,19 +149,24 @@ export default function ReceiptsPage() {
       label: 'Receipt',
       headerClassName: 'w-[18%] px-2 sm:px-3',
       cellClassName: 'px-2 sm:px-3 min-w-0',
-      render: (value: string) => (
-        <span className="block truncate font-mono text-xs text-slate-400" title={value}>{value}</span>
+      render: (value: string, row: Receipt) => (
+        <div className="min-w-0">
+          <span className="block truncate font-mono text-xs text-slate-400" title={value}>{value}</span>
+          {row.multiplePaymentReference && (
+            <span className="block truncate font-mono text-[10px] text-blue-400">{row.multiplePaymentReference}</span>
+          )}
+        </div>
       ),
     },
     {
       key: 'commuterName',
-      label: 'Passenger',
+      label: 'Commuter',
       headerClassName: 'w-[20%] px-2 sm:px-3',
       cellClassName: 'px-2 sm:px-3 min-w-0',
       render: (value: string, row: Receipt) => (
         <div className="min-w-0">
-          <p className="truncate text-sm text-slate-200" title={row.passengerBreakdown}>{row.totalPassengers} passenger{row.totalPassengers === 1 ? '' : 's'}</p>
-          <p className="truncate text-[10px] text-slate-500" title={row.passengerBreakdown}>{row.passengerBreakdown}</p>
+          <p className="truncate text-sm text-slate-200" title={value}>{value}</p>
+          <p className="truncate text-[10px] text-slate-500">{row.commuterRole}</p>
           {row.paidBy && <p className="truncate text-[10px] text-blue-400" title={row.paidBy}>Paid by: {row.paidBy}</p>}
         </div>
       ),
@@ -355,7 +363,7 @@ export default function ReceiptsPage() {
         {/* Row 1 — search + date */}
         <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
           <SearchBar
-            placeholder="Search by Passenger or Receipt ID..."
+            placeholder="Search by Commuter, reference, or receipt ID..."
             value={searchQuery}
             onChange={setSearchQuery}
             className="w-full sm:flex-1 sm:min-w-56"

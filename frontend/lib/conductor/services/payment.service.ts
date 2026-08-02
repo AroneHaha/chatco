@@ -30,6 +30,7 @@ export interface GcashInitiation {
   from?: string | null;
   to?: string | null;
   groupId?: string | null;
+  multiplePaymentReference?: string | null;
   receipts?: Transaction[];
 }
 
@@ -104,6 +105,7 @@ interface InitiateResponse {
     amount: number | string;
     expires_at: string;
     group_id?: string | null;
+    multiple_payment_reference?: string | null;
     receipts?: LaravelReceipt[];
   };
 }
@@ -143,7 +145,19 @@ export async function initiateGcash(input: {
       discountAmount: input.discountAmount,
       pickupStopId: input.pickupStopId,
       dropoffStopId: input.dropoffStopId,
-      passengers: input.groupPassengers,
+      groupPassengers: input.groupPassengers?.map((passenger) => {
+        const discounted = passenger.passenger_type !== "REGULAR";
+        const finalAmount = discounted
+          ? Math.max(0, (input.baseFare ?? input.finalAmount) - (input.discountAmount ?? 0))
+          : input.baseFare ?? input.finalAmount;
+        return {
+          type: passenger.passenger_type,
+          quantity: passenger.quantity,
+          final_amount: finalAmount,
+          base_fare: input.baseFare ?? finalAmount,
+          discount_amount: discounted ? input.discountAmount ?? 0 : 0,
+        };
+      }),
     }
   );
 
@@ -155,6 +169,7 @@ export async function initiateGcash(input: {
     amount: Number(d.amount) || 0,
     expiresAt: d.expires_at,
     groupId: d.group_id,
+    multiplePaymentReference: d.multiple_payment_reference,
     receipts: d.receipts?.map(mapReceipt),
   };
 }
@@ -169,6 +184,7 @@ interface PendingResponse {
     pickup_name: string | null;
     dropoff_name: string | null;
     group_id?: string | null;
+    multiple_payment_reference?: string | null;
     receipts?: LaravelReceipt[];
   } | null;
 }
@@ -193,6 +209,7 @@ export async function fetchPendingGcash(): Promise<GcashInitiation | null> {
     from: d.pickup_name,
     to: d.dropoff_name,
     groupId: d.group_id,
+    multiplePaymentReference: d.multiple_payment_reference,
     receipts: d.receipts?.map(mapReceipt),
   };
 }

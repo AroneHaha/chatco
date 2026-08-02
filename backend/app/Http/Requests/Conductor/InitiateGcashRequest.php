@@ -37,13 +37,13 @@ class InitiateGcashRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'payment_method'   => 'required|string|in:GCASH',
-            'final_amount'     => 'required_without:passengers|nullable|numeric|min:1',
-            'pickup_name'      => 'required_without:passengers|nullable|string|max:100',
-            'dropoff_name'     => 'required_without:passengers|nullable|string|max:100',
-            'base_fare'        => 'nullable|numeric|min:0',
-            'distance'         => 'nullable|numeric|min:0',
-            'discount_amount'  => 'nullable|numeric|min:0',
+            'payment_method' => 'required|string|in:GCASH',
+            'final_amount' => 'required_without_all:passengers,group_passengers|nullable|numeric|min:1',
+            'pickup_name' => 'required_without:passengers|nullable|string|max:100',
+            'dropoff_name' => 'required_without:passengers|nullable|string|max:100',
+            'base_fare' => 'nullable|numeric|min:0',
+            'distance' => 'nullable|numeric|min:0',
+            'discount_amount' => 'nullable|numeric|min:0',
             'passengers' => 'nullable|array|min:1|max:4|required_with:pickup_stop_id,dropoff_stop_id',
             'passengers.*.passenger_type' => 'required_with:passengers|string|in:REGULAR,STUDENT,SENIOR,SENIOR_CITIZEN,PWD',
             'passengers.*.quantity' => 'required_with:passengers|integer|min:1|max:50',
@@ -61,18 +61,18 @@ class InitiateGcashRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'payment_method.required'  => 'Payment method is required',
-            'payment_method.in'        => 'Payment method must be GCASH for this endpoint',
-            'final_amount.required'    => 'Final amount is required',
-            'final_amount.numeric'     => 'Final amount must be a number',
-            'final_amount.min'         => 'Final amount must be at least ₱1.00 (PayMongo minimum)',
-            'pickup_name.required'     => 'Pickup point is required',
-            'pickup_name.string'       => 'Pickup point must be text',
-            'dropoff_name.required'    => 'Dropoff point is required',
-            'dropoff_name.string'      => 'Dropoff point must be text',
-            'base_fare.numeric'        => 'Base fare must be a number',
-            'distance.numeric'         => 'Distance must be a number',
-            'discount_amount.numeric'  => 'Discount amount must be a number',
+            'payment_method.required' => 'Payment method is required',
+            'payment_method.in' => 'Payment method must be GCASH for this endpoint',
+            'final_amount.required' => 'Final amount is required',
+            'final_amount.numeric' => 'Final amount must be a number',
+            'final_amount.min' => 'Final amount must be at least ₱1.00 (PayMongo minimum)',
+            'pickup_name.required' => 'Pickup point is required',
+            'pickup_name.string' => 'Pickup point must be text',
+            'dropoff_name.required' => 'Dropoff point is required',
+            'dropoff_name.string' => 'Dropoff point must be text',
+            'base_fare.numeric' => 'Base fare must be a number',
+            'distance.numeric' => 'Distance must be a number',
+            'discount_amount.numeric' => 'Discount amount must be a number',
         ];
     }
 }

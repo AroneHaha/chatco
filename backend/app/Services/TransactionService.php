@@ -219,6 +219,7 @@ class TransactionService
             $passengers = $this->expandGroupPassengers($data['group_passengers']);
             $group = PaymentGroup::create([
                 'id' => (string) Str::uuid(),
+                'reference_number' => $this->generateMultiplePaymentReference(),
                 'shift_id' => $shift->shift_id,
                 'payment_method' => PaymentMethod::CASH->value,
                 'pickup_name' => $data['pickup_name'],
@@ -255,7 +256,7 @@ class TransactionService
             $data['passengers'],
         );
 
-        return DB::transaction(function () use ($shift, $data, $fare, $idempotencyKey) {
+        return DB::transaction(function () use ($shift, $fare, $idempotencyKey) {
             $transaction = Transaction::create([
                 'transaction_id' => $this->generateTransactionId(),
                 'shift_id' => $shift->shift_id,
@@ -508,7 +509,7 @@ class TransactionService
      */
     private function gcashInitiationPayload(Transaction $transaction): array
     {
-        $transaction->loadMissing('passengerBreakdown');
+        $transaction->loadMissing(['passengerBreakdown', 'paymentGroup:id,reference_number']);
 
         return [
             'transaction' => $transaction,
@@ -517,6 +518,7 @@ class TransactionService
             'amount' => (float) $transaction->final_amount,
             'expires_at' => $transaction->created_at->copy()->addMinutes($this->claimTtlMinutes())->toIso8601String(),
             'group_id' => $transaction->group_id,
+            'multiple_payment_reference' => $transaction->paymentGroup?->reference_number,
             'receipts' => $transaction->group_id
                 ? Transaction::where('group_id', $transaction->group_id)->orderBy('group_position')->get()
                 : collect([$transaction]),
@@ -530,6 +532,7 @@ class TransactionService
         $group = DB::transaction(function () use ($shift, $data, $passengers) {
             $group = PaymentGroup::create([
                 'id' => (string) Str::uuid(),
+                'reference_number' => $this->generateMultiplePaymentReference(),
                 'shift_id' => $shift->shift_id,
                 'payment_method' => PaymentMethod::GCASH->value,
                 'pickup_name' => $data['pickup_name'],
@@ -606,7 +609,7 @@ class TransactionService
                 'discount_amount' => $passenger['discount_amount'],
                 'pickup_name' => $group->pickup_name,
                 'dropoff_name' => $group->dropoff_name,
-                'passenger_name' => 'Commuter',
+                'passenger_name' => 'Passenger',
                 'passenger_role' => $passenger['type'],
                 'conductor_name' => $shift->conductor_name,
                 'unit_number' => $shift->unit_number,
@@ -684,6 +687,8 @@ class TransactionService
             $updates = $transaction->group_id
                 ? [
                     'passenger_id' => $commuterProfile->id,
+                    'passenger_name' => $payerName,
+                    'passenger_role' => strtoupper((string) $commuterProfile->commuter_type),
                     'payer_name' => $payerName,
                 ]
                 : ($isMultiPassenger ? [
@@ -907,7 +912,7 @@ class TransactionService
     {
         $shift = $this->verifyShiftOwnership($conductor, $shiftId);
 
-        return Transaction::with('passengerBreakdown')
+        return Transaction::with(['passengerBreakdown', 'paymentGroup:id,reference_number'])
             ->where('shift_id', $shift->shift_id)
             ->orderBy('created_at', 'desc')
             ->get();
@@ -963,6 +968,15 @@ class TransactionService
      * Note: shift_logs.conductor_id FK → conductor_profiles.id, so we
      * query by $conductor->conductorProfile->id, not $conductor->id.
      */
+    private function generateMultiplePaymentReference(): string
+    {
+        do {
+            $reference = 'MP-'.now()->format('ymd').'-'.Str::upper(Str::random(6));
+        } while (PaymentGroup::where('reference_number', $reference)->exists());
+
+        return $reference;
+    }
+
     private function resolveConductorActiveShift(User $conductor): ShiftLog
     {
         $conductorProfileId = $conductor->conductorProfile?->id;

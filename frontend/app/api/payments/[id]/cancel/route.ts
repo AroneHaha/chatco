@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { proxyToLaravel } from "@/lib/conductor/server/proxy";
 import { API_V1 } from "@/lib/commuter/server/proxy";
-import { jsonError } from "@/lib/conductor/server/response";
+import { jsonData, jsonError } from "@/lib/conductor/server/response";
 
 /**
  * POST /api/payments/{id}/cancel
@@ -31,5 +31,5 @@ export async function POST(
     );
   }
 
-  return Response.json(result.data ?? { status: "CANCELLED" }, { status: 200 });
+  return jsonData(result.data ?? { status: "CANCELLED" });
 }

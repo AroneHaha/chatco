@@ -98,6 +98,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   const [gcashStatus, setGcashStatus] = useState<GcashPaymentStatus | null>(null);
   const [gcashError, setGcashError] = useState<string | null>(null);
   const [isInitiatingGcash, setIsInitiatingGcash] = useState(false);
+  const [isCancellingGcash, setIsCancellingGcash] = useState(false);
   /** Seconds until the displayed QR expires (drives the countdown badge). */
   const [qrSecondsLeft, setQrSecondsLeft] = useState<number | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -256,7 +257,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     };
   }, [pickupPoint, dropoffPoint, scannedCommuterType]);
 
-  const groupPassengers = useMemo<GroupPassengerInput[]>(() => {
+  const companionPassengers = useMemo<GroupPassengerInput[]>(() => {
     if (!fareInfo) return [];
     return (Object.entries(groupCounts) as [GroupPassengerType, number][])
       .filter(([, quantity]) => quantity > 0)
@@ -266,6 +267,18 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
       });
   }, [fareInfo, groupCounts]);
 
+  // Multiple-payment input represents companions only. The payer is always
+  // passenger #1 and is added automatically as a regular fare until a GCash
+  // claim binds the verified commuter account.
+  const groupPassengers = useMemo<GroupPassengerInput[]>(() => {
+    const passengers = companionPassengers.map((passenger) => ({ ...passenger }));
+    const regular = passengers.find((passenger) => passenger.passenger_type === "REGULAR");
+    if (regular) regular.quantity += 1;
+    else passengers.unshift({ passenger_type: "REGULAR", quantity: 1 });
+    return passengers;
+  }, [companionPassengers]);
+
+  const groupCompanionCount = companionPassengers.reduce((sum, row) => sum + row.quantity, 0);
   const groupPassengerCount = groupPassengers.reduce((sum, row) => sum + row.quantity, 0);
   const groupTotalFare = groupPassengers.reduce(
     (sum, row) => sum + (row.passenger_type === "REGULAR" ? fareInfo?.regularFare ?? 0 : fareInfo?.discountedFare ?? 0) * row.quantity,
@@ -451,7 +464,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
         to: dropoffPoint.name,
         baseFare: regularFare,
         distance: barangaysTraveled,
-        discountAmount: 0,
+        discountAmount: isGroupMode ? regularFare - apiGetFareBetween(pickupPoint.pointNumber, dropoffPoint.pointNumber, true) : 0,
         groupPassengers: isGroupMode ? groupPassengers : undefined,
         pickupStopId: isGroupMode ? pickupPoint.id : undefined,
         dropoffStopId: isGroupMode ? dropoffPoint.id : undefined,
@@ -495,18 +508,22 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   // state machine, stops polling, and returns to the method selection step.
   const handleCancelGcash = async () => {
     if (!gcashInitiation) return;
-    stopPolling();
+    setIsCancellingGcash(true);
+    setGcashError(null);
     try {
       await cancelPayment(gcashInitiation.transactionId);
-    } catch {
-      // Even if the cancel API fails (e.g. already expired), we still
-      // reset the UI — the 5-minute TTL will eventually clean it up.
+      stopPolling();
+      setGcashInitiation(null);
+      setGcashStatus(null);
+      setStep("method");
+      setSelectedMethod(null);
+    } catch (error) {
+      // Keep the QR visible when cancellation was not confirmed; hiding it
+      // would falsely imply the pending transaction was invalidated.
+      setGcashError(error instanceof Error ? error.message : "Unable to cancel payment.");
+    } finally {
+      setIsCancellingGcash(false);
     }
-    setGcashInitiation(null);
-    setGcashStatus(null);
-    setGcashError(null);
-    setStep("method");
-    setSelectedMethod(null);
   };
 
   const handlePayWithCash = async () => {
@@ -520,13 +537,18 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     try {
       if (isGroupMode) {
         const result = await createGroupCashTransaction(shiftId!, {
-          pickupStopId: pickupPoint.id!,
-          dropoffStopId: dropoffPoint.id!,
+          from: pickupPoint.name,
+          to: dropoffPoint.name,
+          regularFare: fareInfo.regularFare,
+          discountedFare: fareInfo.discountedFare,
           passengers: groupPassengers,
         });
-        setReceiptTransactions([result]);
-        setCashReceiptToken(result.receiptQrToken ?? null);
-        setReceiptTransaction({ transactionId: result.transactionId, timestamp: result.timestamp });
+        setReceiptTransactions(result.transactions);
+        const firstReceipt = result.transactions[0];
+        setCashReceiptToken(firstReceipt?.receiptQrToken ?? null);
+        setReceiptTransaction(firstReceipt
+          ? { transactionId: firstReceipt.transactionId, timestamp: firstReceipt.timestamp }
+          : null);
       } else {
         const transaction = await recordTransaction("Cash");
         setCashReceiptToken(transaction?.receiptQrToken ?? null);
@@ -653,6 +675,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     setGcashStatus(null);
     setGcashError(null);
     setIsInitiatingGcash(false);
+    setIsCancellingGcash(false);
     setScannedCommuterType("REGULAR");
     setScannedCommuterName("Commuter");
     setVoucherCode("");
@@ -1029,18 +1052,25 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                     <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">
                       {isGCash ? "Passengers" : "Commuter Type"}
                     </span>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={isGroupMode}
-                      onClick={() => setIsGroupMode((enabled) => !enabled)}
-                      className={`relative h-7 w-12 rounded-full border transition-colors ${isGroupMode ? "border-blue-300 bg-[#1A5FB4]" : "border-white/15 bg-white/10"}`}
-                    >
-                      <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${isGroupMode ? "translate-x-5" : "translate-x-1"}`} />
-                      <span className="sr-only">Multiple passengers</span>
-                    </button>
+                    <div className="flex rounded-lg border border-white/10 bg-white/5 p-0.5" role="group" aria-label="Payment passenger mode">
+                      {([false, true] as const).map((multiple) => (
+                        <button
+                          key={String(multiple)}
+                          type="button"
+                          aria-pressed={isGroupMode === multiple}
+                          onClick={() => setIsGroupMode(multiple)}
+                          className={`rounded-md px-2.5 py-1 text-[10px] font-semibold transition-colors ${isGroupMode === multiple ? "bg-[#1A5FB4] text-white" : "text-white/45 hover:text-white/70"}`}
+                        >
+                          {multiple ? "Multiple" : "Single"}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <p className="mt-1 text-[10px] text-white/45">Multiple passengers · Create one transaction for several passengers</p>
+                  <p className="mt-1 text-[10px] text-white/45">
+                    {isGroupMode
+                      ? "Multiple · Enter companions only; the payer is added automatically"
+                      : "Single · One payer, one transaction"}
+                  </p>
                   {!isGCash && !isGroupMode && (
                   <div className="flex gap-1.5 mt-1.5 overflow-x-auto pb-1 -mx-1 px-1">
                     {(
@@ -1062,7 +1092,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                   )}
                   {isGroupMode && (
                     <p className="mt-1.5 text-[10px] text-blue-300/70">
-                      Group mode selected · confirm the route to set passenger quantities.
+                      Multiple selected · review the route, then enter companion quantities.
                     </p>
                   )}
                 </div>
@@ -1323,7 +1353,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
               </div>
 
               <button
-                onClick={handleGCashLocationsSelected}
+                onClick={() => isGroupMode ? setStep("passengers") : handleGCashLocationsSelected()}
                 className="w-full py-3.5 rounded-xl font-bold text-sm transition-colors shadow-lg active:scale-[0.98] bg-[#1A5FB4] hover:bg-[#164A8F] text-white shadow-[#1A5FB4]/30"
               >
                 {isGroupMode ? "Review Transaction" : "Generate QR Code"}
@@ -1385,7 +1415,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                 </div>
               </div>
               <button
-                onClick={() => setStep("confirm")}
+                onClick={() => setStep(isGroupMode ? "passengers" : "confirm")}
                 className="w-full py-3.5 rounded-xl font-bold text-sm transition-colors shadow-lg active:scale-[0.98] bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30"
               >
                 {isGroupMode ? "Review Transaction" : `Pay ${formatCurrency(fareInfo.finalFare)} with Cash`}
@@ -1427,13 +1457,25 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
       <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
         <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#071A2E] shadow-2xl">
           <div className="border-b border-white/10 p-5">
-            <h2 className="text-lg font-bold text-white">Group Passengers</h2>
+            <h2 className="text-lg font-bold text-white">Passenger Group</h2>
             <p className="mt-1 text-xs text-white/40">
               {pickupPoint?.name} → {dropoffPoint?.name}
             </p>
           </div>
 
           <div className="space-y-3 p-5">
+            <div className="rounded-xl border border-blue-400/20 bg-blue-500/10 p-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-white">Payer</p>
+                  <p className="text-[10px] text-blue-200/70">
+                    {selectedMethod === "GCash" ? "ChatCo account detected after scan" : "Anonymous cash passenger · Regular"}
+                  </p>
+                </div>
+                <span className="rounded-full bg-blue-400/15 px-2 py-1 text-[10px] font-bold text-blue-200">Automatically added</span>
+              </div>
+            </div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">Companions only</p>
             {passengerTypes.map(({ type, label }) => {
               const count = groupCounts[type];
               const fare = type === "REGULAR" ? fareInfo?.regularFare ?? 0 : fareInfo?.discountedFare ?? 0;
@@ -1441,7 +1483,10 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                 <div key={type} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 p-3">
                   <div>
                     <p className="text-sm font-semibold text-white">{label}</p>
-                    <p className="text-[10px] text-white/40">Fare {formatCurrency(fare)} · Discount {formatCurrency(type === "REGULAR" ? 0 : (fareInfo?.regularFare ?? 0) - fare)}</p>
+                    <p className="text-[10px] text-white/40">
+                      Fare {formatCurrency(fare)}
+                      {type !== "REGULAR" && ` · Discount ${formatCurrency((fareInfo?.regularFare ?? 0) - fare)}`}
+                    </p>
                     <p className="text-[10px] text-blue-300/80">Subtotal {formatCurrency(fare * count)}</p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -1465,9 +1510,12 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
             })}
 
             <div className="rounded-xl border border-blue-400/20 bg-blue-500/10 p-4">
-              <div className="flex justify-between text-sm"><span className="text-white/50">Total passengers</span><span className="font-bold text-white">{groupPassengerCount}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-white/50">Companions entered</span><span className="font-bold text-white">{groupCompanionCount}</span></div>
+              <div className="mt-1 flex justify-between text-sm"><span className="text-white/50">Actual passengers (+ payer)</span><span className="font-bold text-white">{groupPassengerCount}</span></div>
               <div className="mt-2 flex justify-between text-sm"><span className="text-white/50">Gross fare</span><span className="text-white">{formatCurrency((fareInfo?.regularFare ?? 0) * groupPassengerCount)}</span></div>
-              <div className="mt-1 flex justify-between text-sm"><span className="text-white/50">Discounts</span><span className="text-emerald-300">-{formatCurrency(((fareInfo?.regularFare ?? 0) * groupPassengerCount) - groupTotalFare)}</span></div>
+              {((fareInfo?.regularFare ?? 0) * groupPassengerCount) - groupTotalFare > 0 && (
+                <div className="mt-1 flex justify-between text-sm"><span className="text-white/50">Discounts</span><span className="text-emerald-300">-{formatCurrency(((fareInfo?.regularFare ?? 0) * groupPassengerCount) - groupTotalFare)}</span></div>
+              )}
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {passengerTypes.filter(({ type }) => groupCounts[type] > 0).map(({ type, label }) => (
                   <span key={type} className="rounded-full bg-white/10 px-2 py-1 text-[10px] text-white/70">{label} × {groupCounts[type]}</span>
@@ -1480,13 +1528,13 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
             </div>
 
             <div className="flex gap-3 pt-1">
-              <button type="button" onClick={() => setStep("confirm")} className="flex-1 rounded-xl border border-white/10 py-3 text-sm font-semibold text-white/60">Back</button>
+              <button type="button" onClick={() => setStep("select")} className="flex-1 rounded-xl border border-white/10 py-3 text-sm font-semibold text-white/60">Back</button>
               <button
                 type="button"
-                disabled={groupPassengerCount === 0 || !pickupPoint?.id || !dropoffPoint?.id || isInitiatingGcash}
-                onClick={handleConfirmPayment}
+                disabled={groupCompanionCount === 0 || !pickupPoint || !dropoffPoint || isInitiatingGcash}
+                onClick={() => setStep("confirm")}
                 className="flex-1 rounded-xl bg-[#1A5FB4] py-3 text-sm font-bold text-white disabled:opacity-40"
-              >{selectedMethod === "GCash" ? "Generate QR" : `Pay ${formatCurrency(groupTotalFare)}`}</button>
+              >Review {formatCurrency(groupTotalFare)}</button>
             </div>
           </div>
         </div>
@@ -1567,6 +1615,12 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
             )}
           </div>
 
+          {gcashError && (
+            <p role="alert" className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-left text-[11px] text-red-300">
+              {gcashError}
+            </p>
+          )}
+
           {/* DEV ONLY: Simulate payment button — only shows when the backend
               has payments.allow_simulation=true (FakeGateway or sandbox). */}
           {process.env.NODE_ENV === "development" && (
@@ -1582,9 +1636,10 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
           <div className="flex gap-2">
             <button
               onClick={handleCancelGcash}
-              className="flex-1 py-2.5 rounded-xl border border-red-500/20 text-red-400 text-sm font-semibold hover:bg-red-500/10 transition-colors"
+              disabled={isCancellingGcash}
+              className="flex-1 py-2.5 rounded-xl border border-red-500/20 text-red-400 text-sm font-semibold hover:bg-red-500/10 transition-colors disabled:opacity-50"
             >
-              Cancel Payment
+              {isCancellingGcash ? "Cancelling…" : "Cancel Payment"}
             </button>
             <button
               onClick={() => { stopPolling(); setStep("select"); }}
@@ -1785,12 +1840,14 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                   </span>
                 </div>
               )}
-              <div className="flex justify-between text-sm">
-                <span className="text-white/50">Discount</span>
-                <span className="text-green-400">
-                  -{formatCurrency(activeFareInfo.discountAmount)}
-                </span>
-              </div>
+              {activeFareInfo.hasDiscount && activeFareInfo.discountAmount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-white/50">Discount</span>
+                  <span className="text-green-400">
+                    -{formatCurrency(activeFareInfo.discountAmount)}
+                  </span>
+                </div>
+              )}
               <div className="border-t border-white/10 pt-3 flex justify-between">
                 <span className="text-white font-semibold">Total</span>
                 <span className="text-xl font-extrabold text-white">
@@ -1853,14 +1910,14 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
 
             <div className="flex gap-3">
               <button
-                onClick={() => setStep("select")}
+                onClick={() => setStep(isGroupMode ? "passengers" : "select")}
                 disabled={isInitiatingGcash}
                 className="flex-1 py-3 rounded-xl border border-white/10 text-white/60 text-sm font-semibold hover:bg-white/5 transition-colors disabled:opacity-50"
               >
                 Back
               </button>
               <button
-                onClick={() => isGroupMode ? setStep("passengers") : handleConfirmPayment()}
+                onClick={handleConfirmPayment}
                 disabled={isInitiatingGcash || (selectedMethod === "Voucher" && !voucherCode.trim())}
                 className={`flex-1 py-3 rounded-xl text-white text-sm font-bold transition-colors shadow-lg disabled:opacity-60 disabled:cursor-not-allowed ${
                   selectedMethod === "GCash"
@@ -2012,7 +2069,10 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                     passengerType={transaction?.passengerRole
                       ? getCommuterTypeLabel(transaction.passengerRole as CommuterType)
                       : getCommuterTypeLabel(selectedMethod === "GCash" ? scannedCommuterType : commuterType)}
-                    payerName={selectedMethod === "GCash" ? transaction?.payerName : null}
+                    passengerName={selectedMethod === "Cash" ? "Passenger" : transaction?.passengerName}
+                    payerName={transaction?.payerName}
+                    groupPosition={transaction?.groupPosition}
+                    multiplePaymentReference={transaction?.multiplePaymentReference ?? gcashInitiation?.multiplePaymentReference}
                     driverName={transaction?.driverName ?? driverName}
                     totalPassengers={transaction?.totalPassengers ?? (isGroupMode ? groupPassengerCount : 1)}
                     grossFare={transaction?.grossAmount ?? (isGroupMode ? activeFareInfo.regularFare * groupPassengerCount : activeFareInfo.regularFare)}

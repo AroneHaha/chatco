@@ -79,6 +79,7 @@ interface LaravelTransaction {
   transaction_id: string;
   shift_id: string;
   group_id: string | null;
+  payment_group?: { reference_number: string | null } | null;
   group_position: number | null;
   reward_eligible: boolean | number;
   payment_method: string; // "CASH" | "GCASH"
@@ -300,6 +301,7 @@ export function mapTransaction(t: unknown): Transaction {
     driverName: txn.driver_name ?? undefined,
     receiptQrToken: txn.payment_method === "CASH" ? txn.qr_token ?? undefined : undefined,
     groupId: txn.group_id ?? undefined,
+    multiplePaymentReference: txn.payment_group?.reference_number ?? undefined,
     groupPosition: txn.group_position ?? undefined,
     rewardEligible: Boolean(txn.reward_eligible),
     totalPassengers: Number(txn.total_passengers) || 1,

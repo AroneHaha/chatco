@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback } from "react";
 export interface Receipt {
   id: string;
   commuterName: string;
+  commuterRole: string;
   commuterId: string;
   plateNumber: string;
   route: string;
@@ -17,6 +18,7 @@ export interface Receipt {
   discountAmount: number;
   totalPassengers: number;
   paidBy: string | null;
+  multiplePaymentReference: string | null;
   passengerBreakdown: string;
   // "Unknown" is the explicit fail-safe for a value the backend sent that we
   // don't recognise. It is never guessed at — see mapLaravelTransaction.
@@ -119,15 +121,24 @@ function mapLaravelTransaction(r: Record<string, unknown>): Receipt {
         .map((line) => `${String(line.passenger_type) === "SENIOR" ? "Senior Citizen" : String(line.passenger_type)} × ${Number(line.quantity)}`)
         .join(", ")
     : String(r.passenger_role ?? "Regular");
-  const paidBy = rawMethod === "GCASH"
-    ? String(r.payer_name_snapshot ?? r.payer_name ?? r.passenger_name ?? "") || null
-    : null;
+  const payerName = String(r.payer_name_snapshot ?? r.payer_name ?? "") || null;
+  const groupPosition = Number(r.group_position) || 0;
+  const isGroupCompanion = Boolean(r.group_id) && groupPosition > 1;
+  const commuterName = rawMethod === "CASH" || isGroupCompanion
+    ? "Passenger"
+    : String(r.passenger_name ?? payerName ?? "GCash Payer");
+  const rawRole = String(r.passenger_role ?? "REGULAR").toUpperCase();
+  const commuterRole = rawRole === "SENIOR" || rawRole === "SENIOR_CITIZEN"
+    ? "Senior Citizen"
+    : rawRole === "PWD"
+      ? "PWD"
+      : rawRole.charAt(0) + rawRole.slice(1).toLowerCase();
+  const paymentGroup = r.payment_group as Record<string, unknown> | null;
 
   return {
     id: String(r.transaction_id ?? ""),
-    commuterName: rawMethod === "GCASH"
-      ? String(r.payer_name ?? r.passenger_name ?? "GCash Payer")
-      : String(r.passenger_name ?? "Cash Passenger"),
+    commuterName,
+    commuterRole,
     commuterId: String(r.passenger_id ?? ""),
     plateNumber,
     route,
@@ -135,7 +146,10 @@ function mapLaravelTransaction(r: Record<string, unknown>): Receipt {
     grossFare: Number(r.gross_amount) || Number(r.final_amount) || 0,
     discountAmount: Number(r.discount_amount) || 0,
     totalPassengers: Number(r.total_passengers) || 1,
-    paidBy,
+    paidBy: isGroupCompanion ? payerName : null,
+    multiplePaymentReference: paymentGroup?.reference_number
+      ? String(paymentGroup.reference_number)
+      : null,
     passengerBreakdown: breakdown,
     paymentMethod,
     status,
