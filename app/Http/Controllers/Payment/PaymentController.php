@@ -106,7 +106,7 @@ class PaymentController extends Controller
      */
     public function status(Request $request, string $id): JsonResponse
     {
-        $transaction = Transaction::with('shiftLog:shift_id,conductor_id')
+        $transaction = Transaction::with(['shiftLog:shift_id,conductor_id', 'passengerBreakdown', 'paymentGroup:id,reference_number'])
             ->where('transaction_id', $id)
             ->first();
 
@@ -133,6 +133,18 @@ class PaymentController extends Controller
         return $this->successResponse([
             'status' => $transaction->status->value,
             'paid_at' => $transaction->paid_at?->toIso8601String(),
+            'payer_name' => $transaction->payer_name_snapshot ?? $transaction->payer_name ?? $transaction->passenger_name,
+            'payer_id' => $transaction->payer_id ?? $transaction->passenger_id,
+            'total_passengers' => $transaction->total_passengers,
+            'gross_amount' => $transaction->gross_amount,
+            'discount_amount' => $transaction->discount_amount,
+            'final_amount' => $transaction->final_amount,
+            'passenger_breakdown' => $transaction->passengerBreakdown,
+            'group_id' => $transaction->group_id,
+            'multiple_payment_reference' => $transaction->paymentGroup?->reference_number,
+            'receipts' => $transaction->group_id
+                ? Transaction::where('group_id', $transaction->group_id)->orderBy('group_position')->get()
+                : [$transaction],
         ], 'Transaction status retrieved');
     }
 
@@ -313,6 +325,21 @@ class PaymentController extends Controller
         // Transition through the state machine (PENDING → CANCELLED).
         // This respects the canTransitionTo guard + broadcasts PaymentStatusUpdated.
         $updated = $this->paymentService->transitionTo($transaction, PaymentStatus::CANCELLED);
+
+        // Invalidate both entry points immediately. A future ChatCo scan can
+        // no longer resolve the token, and the app no longer exposes the
+        // hosted checkout URL. The provider reference is retained strictly
+        // for audit/webhook reconciliation; CANCELLED is terminal, so a late
+        // provider event cannot settle the local transaction.
+        $invalidated = [
+            'qr_token' => null,
+            'payment_checkout_url' => null,
+        ];
+        if ($updated->group_id) {
+            Transaction::where('group_id', $updated->group_id)->update($invalidated);
+        } else {
+            $updated->update($invalidated);
+        }
 
         return $this->successResponse([
             'status' => $updated->status->value,

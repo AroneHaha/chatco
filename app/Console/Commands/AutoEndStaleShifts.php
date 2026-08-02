@@ -101,7 +101,7 @@ class AutoEndStaleShifts extends Command
         $totalPassengers = (int) DB::table('transactions')
             ->where('shift_id', $shift->shift_id)
             ->where('status', 'PAID')
-            ->count();
+            ->sum('total_passengers');
 
         $shortage = 0; // No shortage for auto-ended shifts (no cash declared).
 

@@ -402,7 +402,7 @@ class AdminService
                 // this is directly comparable to cash_count + gcash_count.
                 'paid_count'       => $current['cash_count'] + $current['gcash_count'],
                 // Every PAID row including voucher rides = bodies carried.
-                'total_passengers' => $paidCount,
+                'total_passengers' => $current['passenger_count'],
                 'pending_count'    => $pendingCount,
                 'voucher_count'    => $voucherCount,
                 // Mean revenue per paying ride. Normalises the headline total
@@ -477,7 +477,8 @@ class AdminService
             ->select(
                 'payment_method',
                 DB::raw('COUNT(*) as method_count'),
-                DB::raw('SUM(final_amount) as method_total')
+                DB::raw('SUM(final_amount) as method_total'),
+                DB::raw('SUM(total_passengers) as passenger_count')
             )
             ->where('status', 'PAID')
             ->whereBetween('created_at', [$from, $to])
@@ -487,6 +488,7 @@ class AdminService
 
         $countFor = fn (string $m) => (int) ($rows->get($m)->method_count ?? 0);
         $totalFor = fn (string $m) => (float) ($rows->get($m)->method_total ?? 0);
+        $passengersFor = fn (string $m) => (int) ($rows->get($m)->passenger_count ?? 0);
 
         return [
             'cash_total'    => $totalFor('CASH'),
@@ -495,6 +497,7 @@ class AdminService
             'gcash_count'   => $countFor('GCASH'),
             'voucher_count' => $countFor('VOUCHER'),
             'paid_count'    => $countFor('CASH') + $countFor('GCASH') + $countFor('VOUCHER'),
+            'passenger_count' => $passengersFor('CASH') + $passengersFor('GCASH') + $passengersFor('VOUCHER'),
         ];
     }
 

@@ -2,14 +2,15 @@
 
 namespace App\Http\Controllers\Conductor;
 
-use App\Http\Controllers\Controller;
 use App\Http\ApiResponse;
+use App\Http\Controllers\Controller;
 use App\Http\Requests\Conductor\InitiateGcashRequest;
 use App\Http\Requests\Conductor\RecordCashRequest;
 use App\Http\Requests\Conductor\StartShiftRequest;
-use App\Http\Requests\Conductor\UpdateLocationRequest;
 use App\Http\Requests\Conductor\SubmitRemittanceRequest;
+use App\Http\Requests\Conductor\UpdateLocationRequest;
 use App\Models\Driver;
+use App\Models\Setting;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\ConductorService;
@@ -26,9 +27,13 @@ class ConductorController extends Controller
     use ApiResponse;
 
     protected ShiftService $shiftService;
+
     protected LocationService $locationService;
+
     protected TransactionService $transactionService;
+
     protected ConductorService $conductorService;
+
     protected FeedbackService $feedbackService;
 
     public function __construct(
@@ -141,6 +146,58 @@ class ConductorController extends Controller
     }
 
     /**
+     * Read-only receipt configuration for the conductor's completed-fare UI.
+     * The general admin settings store remains protected by role:ADMIN.
+     */
+    public function receiptSettings(): JsonResponse
+    {
+        $defaults = [
+            'receipt_business_name' => 'CHATCO',
+            'receipt_address_line' => '',
+            'receipt_footer_note' => 'Thank you for riding with Chatco!',
+            'receipt_paper_width' => '58',
+            'receipt_auto_print' => 'true',
+            'receipt_show_datetime' => 'true',
+            'receipt_show_transaction_id' => 'true',
+            'receipt_show_route' => 'true',
+            'receipt_show_unit' => 'true',
+            'receipt_show_conductor' => 'true',
+            'receipt_show_passenger' => 'true',
+            'receipt_show_fare_breakdown' => 'true',
+        ];
+
+        $saved = Setting::where('category', 'receipt')
+            ->whereIn('key', array_keys($defaults))
+            ->pluck('value', 'key')
+            ->all();
+
+        return $this->successResponse(
+            array_replace($defaults, $saved),
+            'Receipt settings retrieved',
+        );
+    }
+
+    /**
+     * POST /api/conductor/break-status
+     */
+    public function updateBreakStatus(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'is_on_break' => ['required', 'boolean'],
+        ]);
+
+        $shift = $this->shiftService->setBreakStatus(
+            $request->user(),
+            (bool) $validated['is_on_break'],
+        );
+
+        return $this->successResponse(
+            $shift,
+            $shift->is_on_break ? 'Break started' : 'Break ended',
+        );
+    }
+
+    /**
      * POST /api/conductor/location
      * GPS update — triggers VehicleLocationUpdated broadcast.
      */
@@ -225,6 +282,31 @@ class ConductorController extends Controller
      */
     public function storeTransaction(RecordCashRequest $request): JsonResponse
     {
+        if ($request->has('passengers')) {
+            $transaction = $this->transactionService->recordMultiPassengerCashFare(
+                $request->user(),
+                $request->validated(),
+            );
+
+            return $this->successResponse($transaction, 'Multi-passenger cash fare recorded', 201);
+        }
+
+        if ($request->has('group_passengers')) {
+            $group = $this->transactionService->recordGroupedCashFare(
+                $request->user(),
+                $request->validated(),
+            );
+
+            return $this->successResponse([
+                'group_id' => $group->id,
+                'multiple_payment_reference' => $group->reference_number,
+                'payer_name' => $group->payer_name,
+                'total_amount' => (float) $group->total_amount,
+                'passenger_count' => $group->passenger_count,
+                'transactions' => $group->transactions,
+            ], 'Group cash fare recorded', 201);
+        }
+
         $transaction = $this->transactionService->recordCashFare(
             $request->user(),
             $request->validated(),
@@ -257,10 +339,13 @@ class ConductorController extends Controller
         // Return the spec-mandated payload shape (NOT the full transaction)
         return $this->successResponse([
             'transaction_id' => $result['transaction']->transaction_id,
-            'qr_token'       => $result['qr_token'],
-            'checkout_url'   => $result['checkout_url'],
-            'amount'         => $result['amount'],
-            'expires_at'     => $result['expires_at'],
+            'qr_token' => $result['qr_token'],
+            'checkout_url' => $result['checkout_url'],
+            'amount' => $result['amount'],
+            'expires_at' => $result['expires_at'],
+            'group_id' => $result['group_id'] ?? null,
+            'multiple_payment_reference' => $result['multiple_payment_reference'] ?? null,
+            'receipts' => $result['receipts'] ?? [],
         ], 'GCash fare initiated', 201);
     }
 
@@ -285,13 +370,16 @@ class ConductorController extends Controller
 
         return $this->successResponse([
             'transaction_id' => $transaction->transaction_id,
-            'qr_token'       => $result['qr_token'],
-            'checkout_url'   => $result['checkout_url'],
-            'amount'         => $result['amount'],
-            'expires_at'     => $result['expires_at'],
+            'qr_token' => $result['qr_token'],
+            'checkout_url' => $result['checkout_url'],
+            'amount' => $result['amount'],
+            'expires_at' => $result['expires_at'],
             // Route names so the resumed QR screen can show the trip.
-            'pickup_name'    => $transaction->pickup_name,
-            'dropoff_name'   => $transaction->dropoff_name,
+            'pickup_name' => $transaction->pickup_name,
+            'dropoff_name' => $transaction->dropoff_name,
+            'group_id' => $result['group_id'] ?? null,
+            'multiple_payment_reference' => $result['multiple_payment_reference'] ?? null,
+            'receipts' => $result['receipts'] ?? [],
         ], 'Pending GCash payment found');
     }
 
@@ -330,12 +418,12 @@ class ConductorController extends Controller
      */
     public function profile(): JsonResponse
     {
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = User::with('conductorProfile')->find(Auth::id());
 
         $profile = $user->conductorProfile;
         $name = $profile
-            ? trim($profile->first_name . ' ' . $profile->last_name)
+            ? trim($profile->first_name.' '.$profile->last_name)
             : null;
 
         return $this->successResponse([
