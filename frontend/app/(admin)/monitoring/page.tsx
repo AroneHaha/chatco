@@ -98,6 +98,7 @@ export default function MonitoringPage() {
       route_name: v.route_name,
       driver_name: v.driver_name,
       conductor_name: v.conductor_name,
+      is_on_break: v.is_on_break,
       is_stale: v.is_stale,
       minutes_since_update: v.minutes_since_update,
     })).filter(v => v.lat !== 0 && v.lng !== 0),
