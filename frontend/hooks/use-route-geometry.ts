@@ -5,19 +5,13 @@ import L from "leaflet";
 
 type RouteCoordinate = [number, number];
 
-interface FareMatrixPoint {
-  pointNumber: number;
-  latitude: number | null;
-  longitude: number | null;
-}
-
 export function useRouteGeometry(fallback: RouteCoordinate[]) {
   const [routeCoords, setRouteCoords] = useState<RouteCoordinate[]>(fallback);
 
   useEffect(() => {
     const controller = new AbortController();
 
-    void fetch("/api/fare-matrix", {
+    void fetch("/api/route-geometry", {
       headers: { Accept: "application/json" },
       signal: controller.signal,
     })
@@ -26,17 +20,18 @@ export function useRouteGeometry(fallback: RouteCoordinate[]) {
         return response.json();
       })
       .then((body) => {
-        const points = (body.data?.points ?? []) as FareMatrixPoint[];
-        const coordinates = points
+        const coordinates = (body.data?.coordinates ?? [])
           .filter(
-            (point) =>
-              Number.isFinite(Number(point.latitude)) &&
-              Number.isFinite(Number(point.longitude)) &&
-              point.latitude !== null &&
-              point.longitude !== null
+            (coordinate: unknown) =>
+              Array.isArray(coordinate) &&
+              coordinate.length >= 2 &&
+              Number.isFinite(Number(coordinate[0])) &&
+              Number.isFinite(Number(coordinate[1]))
           )
-          .sort((a, b) => a.pointNumber - b.pointNumber)
-          .map((point) => [Number(point.latitude), Number(point.longitude)] as RouteCoordinate);
+          .map(
+            (coordinate: [number | string, number | string]) =>
+              [Number(coordinate[0]), Number(coordinate[1])] as RouteCoordinate
+          );
 
         if (coordinates.length >= 2) setRouteCoords(coordinates);
       })
