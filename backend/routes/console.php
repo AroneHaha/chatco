@@ -23,8 +23,10 @@ Schedule::command('hails:expire')->everyMinute();
 
 // Hostinger shared hosting has no long-running Supervisor process. The
 // one-minute `schedule:run` cron starts this short-lived queue worker and it
-// exits cleanly after delivering queued broadcasts.
-Schedule::command('queue:work --stop-when-empty --tries=3 --timeout=55 --max-time=50')
+// exits cleanly after about 50 seconds. Keeping it alive while the queue is
+// empty prevents broadcasts created later in the minute from waiting for the
+// next cron tick.
+Schedule::command('queue:work --tries=3 --timeout=45 --max-time=50 --sleep=2')
     ->everyMinute()
     ->withoutOverlapping(2);
 
