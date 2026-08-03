@@ -88,8 +88,15 @@ class LostItemController extends Controller
      */
     public function myClaims(Request $request): JsonResponse
     {
+        $status = $request->string('status')->toString() ?: null;
+        if ($status && ! in_array($status, ['PENDING', 'APPROVED', 'REJECTED'], true)) {
+            return $this->errorResponse('Invalid claim status filter', 422);
+        }
+
+        $perPage = min(max((int) $request->integer('per_page', 10), 1), 50);
+
         try {
-            $claims = $this->lostItemService->myClaims($request->user());
+            $claims = $this->lostItemService->myClaims($request->user(), $perPage, $status);
         } catch (LostFoundException $e) {
             return $this->errorResponse($e->getMessage(), 422);
         }

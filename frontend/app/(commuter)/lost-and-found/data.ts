@@ -1,7 +1,7 @@
 import { LostItem, ItemCategory } from "./types";
 
-export const MAX_PENDING_CLAIMS = 3;
 export const ITEMS_PER_PAGE = 15;
+export const CLAIMS_PER_PAGE = 10;
 
 export const categories: { label: string; value: ItemCategory }[] = [
   { label: "All Items", value: "ALL" },

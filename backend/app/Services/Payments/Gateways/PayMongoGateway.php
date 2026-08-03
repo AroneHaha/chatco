@@ -53,43 +53,50 @@ class PayMongoGateway implements PaymentGateway
     {
         $this->assertConfigured();
 
-        // 1. PaymentIntent
-        $intent = $this->request()
-            ->post("{$this->baseUrl}/payment_intents", [
-                'data' => ['attributes' => [
-                    'amount' => $amountCentavos,
-                    'currency' => 'PHP',
-                    'payment_method_allowed' => ['gcash'],
-                    'capture_type' => 'automatic',
-                    'metadata' => $metadata,
-                ]],
-            ]);
-        $this->ensureSuccess($intent, 'create payment_intent');
-        $intentId = $intent->json('data.id');
-        if (! $intentId) {
-            throw new PaymentGatewayException('PayMongo: payment_intent response missing data.id');
-        }
+        try {
+            // 1. PaymentIntent
+            $intent = $this->request()
+                ->post("{$this->baseUrl}/payment_intents", [
+                    'data' => ['attributes' => [
+                        'amount' => $amountCentavos,
+                        'currency' => 'PHP',
+                        'payment_method_allowed' => ['gcash'],
+                        'capture_type' => 'automatic',
+                        'metadata' => $metadata,
+                    ]],
+                ]);
+            $this->ensureSuccess($intent, 'create payment_intent');
+            $intentId = $intent->json('data.id');
+            if (! $intentId) {
+                throw new PaymentGatewayException('PayMongo: payment_intent response missing data.id');
+            }
 
-        // 2. GCash PaymentMethod
-        $method = $this->request()
-            ->post("{$this->baseUrl}/payment_methods", [
-                'data' => ['attributes' => ['type' => 'gcash']],
-            ]);
-        $this->ensureSuccess($method, 'create payment_method');
-        $methodId = $method->json('data.id');
-        if (! $methodId) {
-            throw new PaymentGatewayException('PayMongo: payment_method response missing data.id');
-        }
+            // 2. GCash PaymentMethod
+            $method = $this->request()
+                ->post("{$this->baseUrl}/payment_methods", [
+                    'data' => ['attributes' => ['type' => 'gcash']],
+                ]);
+            $this->ensureSuccess($method, 'create payment_method');
+            $methodId = $method->json('data.id');
+            if (! $methodId) {
+                throw new PaymentGatewayException('PayMongo: payment_method response missing data.id');
+            }
 
-        // 3. Attach → hosted authorize URL
-        $attach = $this->request()
-            ->post("{$this->baseUrl}/payment_intents/{$intentId}/attach", [
-                'data' => ['attributes' => [
-                    'payment_method' => $methodId,
-                    'return_url' => $returnUrl,
-                ]],
-            ]);
-        $this->ensureSuccess($attach, 'attach payment_method');
+            // 3. Attach → hosted authorize URL
+            $attach = $this->request()
+                ->post("{$this->baseUrl}/payment_intents/{$intentId}/attach", [
+                    'data' => ['attributes' => [
+                        'payment_method' => $methodId,
+                        'return_url' => $returnUrl,
+                    ]],
+                ]);
+            $this->ensureSuccess($attach, 'attach payment_method');
+        } catch (ConnectionException $e) {
+            throw new PaymentGatewayException(
+                'PayMongo connection failed: '.$e->getMessage(),
+                context: ['operation' => 'create_intent']
+            );
+        }
 
         $checkoutUrl = $attach->json('data.attributes.next_action.redirect.url');
         if (! $checkoutUrl) {
@@ -108,7 +115,14 @@ class PayMongoGateway implements PaymentGateway
     {
         $this->assertConfigured();
 
-        $response = $this->request()->get("{$this->baseUrl}/payment_intents/{$reference}");
+        try {
+            $response = $this->request()->get("{$this->baseUrl}/payment_intents/{$reference}");
+        } catch (ConnectionException $e) {
+            throw new PaymentGatewayException(
+                'PayMongo connection failed: '.$e->getMessage(),
+                context: ['operation' => 'retrieve_status']
+            );
+        }
         $this->ensureSuccess($response, 'get payment_intent');
 
         return $this->mapIntentStatus($response->json('data.attributes.status'));
@@ -142,7 +156,7 @@ class PayMongoGateway implements PaymentGateway
             return false;
         }
 
-        $expected = hash_hmac('sha256', $timestamp . '.' . $rawBody, $this->webhookSecret);
+        $expected = hash_hmac('sha256', $timestamp.'.'.$rawBody, $this->webhookSecret);
         $candidate = $this->isSandbox() ? ($parts['te'] ?? null) : ($parts['li'] ?? null);
 
         return $candidate !== null && hash_equals($candidate, $expected);
@@ -229,7 +243,7 @@ class PayMongoGateway implements PaymentGateway
 
         $detail = is_array($body) && isset($body['errors'][0]['detail'])
             ? $body['errors'][0]['detail']
-            : 'HTTP ' . $response->status();
+            : 'HTTP '.$response->status();
 
         throw new PaymentGatewayException(
             "PayMongo: failed to {$operation} (HTTP {$response->status()}): {$detail}",

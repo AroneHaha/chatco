@@ -534,8 +534,17 @@ class TransactionService
     /** Create a single GCash intent that settles several passenger receipts. */
     private function initiateGroupedGcashFare(ShiftLog $shift, array $data): array
     {
-        $passengers = $this->expandGroupPassengers($data['group_passengers']);
-        $group = DB::transaction(function () use ($shift, $data, $passengers) {
+        $companions = $this->expandGroupPassengers($data['group_passengers']);
+        $receiptRows = array_merge([
+            [
+                'type' => 'REGULAR',
+                'final_amount' => 0.0,
+                'base_fare' => 0.0,
+                'discount_amount' => 0.0,
+            ],
+        ], $companions);
+
+        $group = DB::transaction(function () use ($shift, $data, $companions, $receiptRows) {
             $group = PaymentGroup::create([
                 'id' => (string) Str::uuid(),
                 'reference_number' => $this->generateMultiplePaymentReference(),
@@ -544,32 +553,17 @@ class TransactionService
                 'pickup_name' => $data['pickup_name'],
                 'dropoff_name' => $data['dropoff_name'],
                 'passenger_breakdown' => $data['group_passengers'],
-                'passenger_count' => count($passengers),
-                'total_amount' => array_sum(array_column($passengers, 'final_amount')),
+                'passenger_count' => count($companions),
+                'total_amount' => array_sum(array_column($companions, 'final_amount')),
             ]);
 
-            $this->createGroupReceiptRows($group, $shift, $passengers, PaymentMethod::GCASH, PaymentStatus::PENDING);
+            $this->createGroupReceiptRows($group, $shift, $receiptRows, PaymentMethod::GCASH, PaymentStatus::PENDING);
 
             return $group->load('transactions');
         }, 3);
 
         /** @var Transaction $anchor */
         $anchor = $group->transactions->first();
-        try {
-            $intent = $this->paymentService->createIntentFor(
-                $anchor,
-                (int) round((float) $group->total_amount * 100),
-            );
-            $anchor->update([
-                'payment_reference' => $intent->reference,
-                'payment_checkout_url' => $intent->checkoutUrl,
-            ]);
-            $anchor->refresh();
-        } catch (PaymentGatewayException $e) {
-            $group->delete();
-            report($e);
-            abort(502, 'Unable to initiate GCash group payment. Please try again.');
-        }
 
         return $this->gcashInitiationPayload($anchor);
     }
@@ -599,6 +593,7 @@ class TransactionService
         PaymentMethod $method,
         PaymentStatus $status,
     ): void {
+        $totalPassengers = count($passengers);
         foreach ($passengers as $position => $passenger) {
             $isRewardReceipt = $position === 0;
             Transaction::create([
@@ -611,6 +606,8 @@ class TransactionService
                 'status' => $status->value,
                 'qr_token' => $isRewardReceipt ? Str::random(32) : null,
                 'final_amount' => $passenger['final_amount'],
+                'total_passengers' => $totalPassengers,
+                'gross_amount' => $passenger['base_fare'],
                 'base_fare' => $passenger['base_fare'],
                 'discount_amount' => $passenger['discount_amount'],
                 'pickup_name' => $group->pickup_name,
@@ -720,18 +717,67 @@ class TransactionService
                 ]);
             }
 
+            $commuterType = (string) $commuterProfile->commuter_type;
             $discountedAmount = $isMultiPassenger
                 ? null
-                : $this->discountedFareFor($transaction, (string) $commuterProfile->commuter_type);
-            if ($discountedAmount !== null && $discountedAmount < (float) $transaction->final_amount) {
+                : $this->discountedFareFor($transaction, $commuterType);
+
+            if ($group && (float) $transaction->final_amount <= 0) {
+                $regularAmount = $this->regularFareForGroupPayer($transaction, $group);
+                $payerAmount = $discountedAmount ?? $regularAmount;
+                $amountToCharge = round((float) $group->total_amount + $payerAmount, 2);
+
+                try {
+                    $intent = $this->paymentService->createIntentFor(
+                        $transaction,
+                        (int) round($amountToCharge * 100),
+                    );
+                } catch (PaymentGatewayException $e) {
+                    report($e);
+                    abort(502, 'Unable to prepare GCash group payment. Please try again.');
+                }
+
+                $totalPassengers = (int) $group->passenger_count + 1;
+                $updates += [
+                    'final_amount' => $payerAmount,
+                    'base_fare' => $regularAmount,
+                    'gross_amount' => $regularAmount,
+                    'discount_amount' => round($regularAmount - $payerAmount, 2),
+                    'total_passengers' => $totalPassengers,
+                    'payment_reference' => $intent->reference,
+                    'payment_checkout_url' => $intent->checkoutUrl,
+                ];
+
+                $group->update([
+                    'total_amount' => $amountToCharge,
+                    'passenger_count' => $totalPassengers,
+                    'passenger_breakdown' => $this->addGroupPayerType(
+                        $group->passenger_breakdown,
+                        $commuterType,
+                        $payerAmount,
+                        $regularAmount,
+                    ),
+                ]);
+
+                Transaction::where('group_id', $transaction->group_id)->update([
+                    'total_passengers' => $totalPassengers,
+                ]);
+            } elseif ($discountedAmount !== null && $discountedAmount < (float) $transaction->final_amount) {
                 $regularAmount = (float) $transaction->final_amount;
                 $amountToCharge = $group
                     ? round((float) $group->total_amount - $regularAmount + $discountedAmount, 2)
                     : $discountedAmount;
-                $intent = $this->paymentService->createIntentFor(
-                    $transaction,
-                    (int) round($amountToCharge * 100),
-                );
+
+                try {
+                    $intent = $this->paymentService->createIntentFor(
+                        $transaction,
+                        (int) round($amountToCharge * 100),
+                    );
+                } catch (PaymentGatewayException $e) {
+                    report($e);
+                    abort(502, 'Unable to prepare GCash payment. Please try again.');
+                }
+
                 $updates += [
                     'final_amount' => $discountedAmount,
                     'discount_amount' => round($regularAmount - $discountedAmount, 2),
@@ -744,7 +790,7 @@ class TransactionService
                         'total_amount' => $amountToCharge,
                         'passenger_breakdown' => $this->replaceGroupPayerType(
                             $group->passenger_breakdown,
-                            (string) $commuterProfile->commuter_type,
+                            $commuterType,
                             $discountedAmount,
                             $regularAmount,
                         ),
@@ -795,6 +841,73 @@ class TransactionService
             abs((float) $from->discounted_fare - (float) $to->discounted_fare),
             $minimum,
         ), 2);
+    }
+
+    /** Resolve the regular fare for the scanner added to a grouped GCash QR. */
+    private function regularFareForGroupPayer(Transaction $transaction, PaymentGroup $group): float
+    {
+        $transactionBase = (float) ($transaction->base_fare ?? 0);
+        if ($transactionBase > 0) {
+            return round($transactionBase, 2);
+        }
+
+        $receiptBase = Transaction::where('group_id', $group->id)
+            ->where('transaction_id', '!=', $transaction->transaction_id)
+            ->where('base_fare', '>', 0)
+            ->orderBy('group_position')
+            ->value('base_fare');
+        if ($receiptBase !== null && (float) $receiptBase > 0) {
+            return round((float) $receiptBase, 2);
+        }
+
+        foreach ((array) $group->passenger_breakdown as $line) {
+            $baseFare = (float) ($line['base_fare'] ?? 0);
+            if ($baseFare > 0) {
+                return round($baseFare, 2);
+            }
+        }
+
+        foreach ((array) $group->passenger_breakdown as $line) {
+            $finalAmount = (float) ($line['final_amount'] ?? 0);
+            if ($finalAmount > 0) {
+                return round($finalAmount, 2);
+            }
+        }
+
+        return round((float) $transaction->final_amount, 2);
+    }
+
+    /** Add the verified scanner to the stored grouped-passenger breakdown. */
+    private function addGroupPayerType(
+        array $breakdown,
+        string $commuterType,
+        float $finalAmount,
+        float $baseFare,
+    ): array {
+        $payerType = strtoupper(trim($commuterType));
+        if ($payerType === 'SENIOR') {
+            $payerType = 'SENIOR_CITIZEN';
+        }
+
+        foreach ($breakdown as $index => $line) {
+            if (($line['type'] ?? null) !== $payerType) {
+                continue;
+            }
+
+            $breakdown[$index]['quantity'] = (int) ($line['quantity'] ?? 0) + 1;
+
+            return array_values($breakdown);
+        }
+
+        $breakdown[] = [
+            'type' => $payerType,
+            'quantity' => 1,
+            'final_amount' => $finalAmount,
+            'base_fare' => $baseFare,
+            'discount_amount' => round($baseFare - $finalAmount, 2),
+        ];
+
+        return array_values($breakdown);
     }
 
     /** Replace the regular payer placeholder with the verified commuter type. */

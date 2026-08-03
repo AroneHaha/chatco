@@ -7,7 +7,18 @@ import { AddLostFoundModal } from '@/components/admin/lost-found/add-lost-found-
 import { EditLostFoundModal, type EditLostFoundFormData } from '@/components/admin/lost-found/edit-lost-found-modal';
 import { ViewItemModal } from '@/components/admin/lost-found/view-item-modal';
 import { ClaimsListModal } from '@/components/admin/lost-found/claims-list-modal';
-import { Plus } from 'lucide-react';
+import {
+  AlertTriangle,
+  Archive,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardList,
+  History,
+  PackageSearch,
+  Plus,
+  Search,
+} from 'lucide-react';
 import {
   itemCategoriesWithAll,
   type LostFoundItem,
@@ -35,7 +46,8 @@ import {
   type LostFoundClaim as ServiceClaim,
 } from '@/lib/shared/services/lost-found.service';
 
-type AdminTab = 'ALL' | 'PENDING_CLAIMS' | 'HISTORY' | 'EXPIRED';
+type AdminTab = 'ALL' | 'PENDING_CLAIMS' | 'TO_RELEASE' | 'HISTORY' | 'EXPIRED';
+type PageMeta = { page: number; lastPage: number; total: number };
 
 /**
  * Sprint 6 (S6-T8) — Admin Lost & Found management, wired to the real backend.
@@ -74,6 +86,7 @@ export default function LostFoundPage() {
   const [listError, setListError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isActing, setIsActing] = useState(false);
+  const [pageMeta, setPageMeta] = useState<PageMeta>({ page: 1, lastPage: 1, total: 0 });
 
   const [activeTab, setActiveTab] = useState<AdminTab>('ALL');
   const [activeCategory, setActiveCategory] = useState<ItemCategory | 'ALL'>('ALL');
@@ -93,11 +106,16 @@ export default function LostFoundPage() {
         page: currentPage,
         perPage: ITEMS_PER_PAGE,
         category: activeCategory === 'ALL' ? undefined : activeCategory,
+        search: searchQuery.trim() || undefined,
+        ...(activeTab === 'ALL' ? { statuses: ['AVAILABLE', 'CLAIMED', 'APPROVED', 'RELEASED', 'EXPIRED'] } : {}),
         ...(activeTab === 'EXPIRED' ? { status: 'EXPIRED' } : {}),
-        ...(activeTab === 'HISTORY' ? { statuses: ['RELEASED', 'CLOSED'] } : {}),
+        ...(activeTab === 'HISTORY' ? { status: 'CLOSED' } : {}),
+        ...(activeTab === 'PENDING_CLAIMS' ? { status: 'CLAIMED' } : {}),
+        ...(activeTab === 'TO_RELEASE' ? { status: 'APPROVED' } : {}),
       });
       const mapped = result.items.map(mapServiceItemToAdmin);
       setItems(mapped);
+      setPageMeta({ page: result.page, lastPage: result.lastPage, total: result.total });
       // Seed the claims map from the eager-loaded claims (so the Claims modal
       // has data immediately without a second round-trip).
       const next: Record<string, Claim[]> = {};
@@ -106,10 +124,11 @@ export default function LostFoundPage() {
     } catch (err) {
       setListError(err instanceof LostFoundOperationError ? err.message : 'Unable to load lost items.');
       setItems([]);
+      setPageMeta({ page: currentPage, lastPage: 1, total: 0 });
     } finally {
       setIsLoading(false);
     }
-  }, [currentPage, activeCategory, activeTab]);
+  }, [currentPage, activeCategory, activeTab, searchQuery]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -123,16 +142,54 @@ export default function LostFoundPage() {
   }, []);
 
   const filteredItems = items.filter((item) => {
-    if (activeTab === 'PENDING_CLAIMS' && !(item.status === 'Unmatched' || item.status === 'Claimed')) return false;
+    const itemClaims = claimsByItem[item.id] ?? [];
+    const pendingClaims = itemClaims.filter((claim) => claim.status === 'Pending').length;
+    const approvedClaims = itemClaims.filter((claim) => claim.status === 'Approved').length;
+
+    if (activeTab === 'ALL' && item.status === 'Closed') return false;
+    if (activeTab === 'PENDING_CLAIMS' && pendingClaims === 0) return false;
+    if (activeTab === 'TO_RELEASE' && approvedClaims === 0) return false;
+    if (activeTab === 'HISTORY' && item.status !== 'Closed') return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      if (!item.itemName.toLowerCase().includes(q) && !item.description.toLowerCase().includes(q)) return false;
+      if (
+        !item.itemName.toLowerCase().includes(q) &&
+        !item.description.toLowerCase().includes(q) &&
+        !item.plateNumber.toLowerCase().includes(q) &&
+        !item.driverName.toLowerCase().includes(q) &&
+        !item.conductorName.toLowerCase().includes(q)
+      ) return false;
     }
     return true;
   });
 
-  const totalPages = Math.max(1, Math.ceil(filteredItems.length / ITEMS_PER_PAGE));
-  const displayItems = filteredItems.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  const totalPages = Math.max(1, pageMeta.lastPage);
+  const displayItems = filteredItems;
+  const pageNumbers = buildVisiblePages(pageMeta.page, totalPages);
+  const claimSummaries = Object.fromEntries(
+    Object.entries(claimsByItem).map(([itemId, itemClaims]) => [
+      itemId,
+      {
+        total: itemClaims.length,
+        pending: itemClaims.filter((claim) => claim.status === 'Pending').length,
+        approved: itemClaims.filter((claim) => claim.status === 'Approved').length,
+        accepted: itemClaims.filter((claim) => claim.status === 'Approved' || claim.status === 'Released' || claim.status === 'Returned').length,
+      },
+    ]),
+  );
+  const dashboardStats = [
+    { label: 'Shown', value: displayItems.length, icon: PackageSearch },
+    { label: 'New claims', value: Object.values(claimSummaries).filter((summary) => summary.pending > 0).length, icon: ClipboardList },
+    { label: 'To release', value: Object.values(claimSummaries).filter((summary) => summary.approved > 0).length, icon: CheckCircle2 },
+    { label: 'Expired', value: items.filter((item) => item.status === 'Expired').length, icon: AlertTriangle },
+  ];
+  const tabs: { key: AdminTab; label: string; description: string; icon: typeof PackageSearch }[] = [
+    { key: 'ALL', label: 'All Items', description: 'Open inventory', icon: PackageSearch },
+    { key: 'PENDING_CLAIMS', label: 'Claim Review', description: 'New and pending only', icon: ClipboardList },
+    { key: 'TO_RELEASE', label: 'To Be Released', description: 'Approved for handover', icon: CheckCircle2 },
+    { key: 'HISTORY', label: 'History', description: 'Closed records only', icon: History },
+    { key: 'EXPIRED', label: 'Expired', description: 'Archived records', icon: Archive },
+  ];
 
   const handleOpenAddModal = () => setIsAddModalOpen(true);
   const handleCloseAddModal = () => setIsAddModalOpen(false);
@@ -303,31 +360,82 @@ export default function LostFoundPage() {
           the boxed-card look and becomes a borderless, transparent full-width
           header — flush to the content edges like every other admin module —
           with just a full-width bottom divider. */}
-      <div className="flex-shrink-0 bg-[#131C2E] border-b border-[#1E2D45] p-4 z-10 mb-4 md:bg-transparent md:rounded-none md:px-0 md:pt-0 md:pb-5 md:mb-6">
-        <div className="flex flex-col sm:flex-row lg:flex-row lg:items-center lg:justify-between gap-4 mb-5">
+      <div className="z-10 mb-4 flex-shrink-0 border-b border-white/10 bg-[#071A2E] p-4 md:mb-6 md:rounded-none md:bg-transparent md:px-0 md:pt-0 md:pb-5">
+        <div className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">
-            <h1 className="text-white font-bold text-xl lg:text-2xl">Lost & Found Management</h1>
-            <p className="text-slate-500 text-xs mt-1">{filteredItems.length} items • Page {currentPage} of {totalPages}</p>
-          </div>
-          <div className="flex items-center gap-2 w-full lg:w-fit flex-shrink-0">
-            <div className="flex bg-[#0E1628] rounded-md p-1 border border-[#1E2D45] flex-1 lg:flex-none overflow-x-auto no-scrollbar">
-              {([ ["ALL", "All Items"], ["PENDING_CLAIMS", "Pending Claims"], ["HISTORY", "History"], ["EXPIRED", "Expired"] ] as [AdminTab, string][]).map(([key, label]) => (
-                <button key={key} onClick={() => { setActiveTab(key); setCurrentPage(1); }} className={`flex-1 lg:flex-none px-3 py-2 rounded-md text-xs font-semibold transition-all text-center whitespace-nowrap ${activeTab === key ? "bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/30" : "text-slate-500 hover:text-slate-300 hover:bg-[#1A2540]"}`}>{label}</button>
-              ))}
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#62A0EA]/20 bg-[#1A5FB4]/15 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#8CB9F0]">
+              <PackageSearch className="h-3.5 w-3.5" />
+              Admin workspace
             </div>
-            <button onClick={handleOpenAddModal} className="flex items-center justify-center gap-2 px-4 py-2 bg-[#62A0EA] text-white text-xs font-semibold rounded-md hover:bg-[#4A8BD4] transition-colors shadow-lg shadow-[#62A0EA]/30 flex-shrink-0">
-              <Plus size={16} /><span className="hidden xs:inline">Add Item</span>
-            </button>
+            <h1 className="text-xl font-bold leading-tight text-white lg:text-2xl">Lost & Found Management</h1>
+            <p className="mt-1 text-xs text-slate-500">{pageMeta.total} records | Page {pageMeta.page} of {totalPages}</p>
           </div>
+          <button
+            onClick={handleOpenAddModal}
+            className="inline-flex h-11 w-full flex-shrink-0 items-center justify-center gap-2 rounded-lg bg-[#FF6D3A] px-4 text-sm font-bold text-white shadow-lg shadow-[#FF6D3A]/25 transition-colors hover:bg-[#e55a2b] sm:w-auto"
+          >
+            <Plus size={16} />
+            Add Item
+          </button>
         </div>
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
-            <input type="text" placeholder="Search items, plates..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }} className="w-full bg-[#0E1628] border border-[#1E2D45] rounded-md pl-12 pr-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors" />
+
+        <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
+          {dashboardStats.map(({ label, value, icon: Icon }) => (
+            <div key={label} className="rounded-xl border border-white/10 bg-[#0E1628] p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</span>
+                <Icon className="h-4 w-4 text-[#62A0EA]" />
+              </div>
+              <p className="text-2xl font-bold leading-none text-white">{value}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-5">
+          {tabs.map(({ key, label, description, icon: Icon }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => { setActiveTab(key); setCurrentPage(1); }}
+              className={`rounded-xl border p-3 text-left transition-colors ${
+                activeTab === key
+                  ? 'border-[#62A0EA]/45 bg-[#1A5FB4]/20 text-white shadow-lg shadow-[#1A5FB4]/15'
+                  : 'border-white/10 bg-[#0E1628] text-slate-400 hover:bg-[#131C2E] hover:text-white'
+              }`}
+            >
+              <div className="mb-2 flex items-center gap-2">
+                <Icon className="h-4 w-4 text-[#62A0EA]" />
+                <span className="text-xs font-bold">{label}</span>
+              </div>
+              <p className="text-[10px] text-slate-500">{description}</p>
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-col gap-3 lg:flex-row">
+          <div className="relative min-w-0 flex-1">
+            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <input
+              type="text"
+              placeholder="Search item, plate, driver, or conductor..."
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+              className="w-full rounded-xl border border-white/10 bg-[#0E1628] py-3 pl-11 pr-4 text-sm text-white outline-none transition-colors placeholder:text-slate-500 focus:border-[#62A0EA]"
+            />
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar lg:max-w-[52%]">
             {itemCategoriesWithAll.map(cat => (
-              <button key={cat.value} onClick={() => { setActiveCategory(cat.value); setCurrentPage(1); }} className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-semibold border transition-colors ${activeCategory === cat.value ? "bg-[#62A0EA] border-[#62A0EA] text-white" : "bg-transparent border-[#1E2D45] text-slate-500 hover:bg-[#1A2540]"}`}>{cat.label}</button>
+              <button
+                key={cat.value}
+                onClick={() => { setActiveCategory(cat.value); setCurrentPage(1); }}
+                className={`flex-shrink-0 rounded-full border px-4 py-1.5 text-xs font-semibold transition-colors ${
+                  activeCategory === cat.value
+                    ? 'border-[#62A0EA] bg-[#1A5FB4] text-white'
+                    : 'border-white/10 bg-transparent text-slate-500 hover:bg-white/5 hover:text-slate-300'
+                }`}
+              >
+                {cat.label}
+              </button>
             ))}
           </div>
         </div>
@@ -343,9 +451,12 @@ export default function LostFoundPage() {
 
       <div className="flex-1 overflow-y-auto pb-28 lg:pb-8 px-4 md:px-0">
         {isLoading ? (
-          <div className="h-full flex flex-col items-center justify-center">
-            <div className="w-8 h-8 border-2 border-[#1E2D45] border-t-[#62A0EA] rounded-full animate-spin" />
-            <p className="text-slate-500 text-sm mt-4">Loading items...</p>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <div key={index} className="h-[430px] rounded-xl border border-white/10 bg-white/[0.04]">
+                <div className="h-full w-full animate-pulse rounded-[inherit] bg-gradient-to-r from-white/[0.03] via-white/[0.07] to-white/[0.03]" />
+              </div>
+            ))}
           </div>
         ) : listError ? (
           <div className="h-full flex flex-col items-center justify-center text-center px-4">
@@ -362,6 +473,7 @@ export default function LostFoundPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
               <LostFoundGrid
                 items={displayItems}
+                claimSummaries={claimSummaries}
                 onViewClaims={handleOpenClaimsModal}
                 onViewDetails={handleOpenDetailModal}
                 onEdit={handleOpenEditModal}
@@ -371,12 +483,51 @@ export default function LostFoundPage() {
               />
             </div>
             {totalPages > 1 && (
-              <div className="flex items-center justify-center gap-2 mt-8 mb-4">
-                <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} className={`px-4 py-2 rounded-md text-sm font-semibold ${currentPage === 1 ? "bg-[#0E1628] text-slate-600 cursor-not-allowed" : "bg-[#0E1628] border border-[#1E2D45] text-slate-400 hover:bg-[#1A2540]"}`}>Prev</button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                  <button key={page} onClick={() => setCurrentPage(page)} className={`w-9 h-9 rounded-md text-sm font-semibold ${currentPage === page ? "bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/30" : "bg-[#0E1628] border border-[#1E2D45] text-slate-400 hover:bg-[#1A2540]"}`}>{page}</button>
+              <div className="mt-8 mb-4 flex flex-wrap items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={pageMeta.page === 1}
+                  className={`inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors ${
+                    pageMeta.page === 1
+                      ? 'cursor-not-allowed border-white/5 bg-white/5 text-slate-600'
+                      : 'border-white/10 bg-[#0E1628] text-slate-400 hover:bg-[#1A2540] hover:text-white'
+                  }`}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Prev
+                </button>
+                {pageNumbers.map((page, index) => (
+                  page === 'ellipsis' ? (
+                    <span key={`ellipsis-${index}`} className="flex h-10 w-9 items-center justify-center text-sm font-semibold text-slate-600">...</span>
+                  ) : (
+                    <button
+                      key={page}
+                      type="button"
+                      onClick={() => setCurrentPage(page)}
+                      className={`h-10 w-10 rounded-lg text-sm font-semibold transition-colors ${
+                        pageMeta.page === page
+                          ? 'bg-[#1A5FB4] text-white shadow-lg shadow-[#1A5FB4]/30'
+                          : 'bg-[#0E1628] text-slate-400 hover:bg-[#1A2540] hover:text-white'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  )
                 ))}
-                <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} className={`px-4 py-2 rounded-md text-sm font-semibold ${currentPage === totalPages ? "bg-[#0E1628] text-slate-600 cursor-not-allowed" : "bg-[#0E1628] border border-[#1E2D45] text-slate-400 hover:bg-[#1A2540]"}`}>Next</button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={pageMeta.page === totalPages}
+                  className={`inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors ${
+                    pageMeta.page === totalPages
+                      ? 'cursor-not-allowed border-white/5 bg-white/5 text-slate-600'
+                      : 'border-white/10 bg-[#0E1628] text-slate-400 hover:bg-[#1A2540] hover:text-white'
+                  }`}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </button>
               </div>
             )}
           </>
@@ -408,6 +559,26 @@ export default function LostFoundPage() {
 }
 
 // ─── Mappers: shared service → admin data types ─────────────────────
+
+function buildVisiblePages(currentPage: number, totalPages: number): (number | 'ellipsis')[] {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const pages = new Set([1, totalPages, currentPage - 1, currentPage, currentPage + 1]);
+  const sortedPages = Array.from(pages)
+    .filter(page => page >= 1 && page <= totalPages)
+    .sort((a, b) => a - b);
+
+  return sortedPages.reduce<(number | 'ellipsis')[]>((result, page) => {
+    const previous = result[result.length - 1];
+    if (typeof previous === 'number' && page - previous > 1) {
+      result.push('ellipsis');
+    }
+    result.push(page);
+    return result;
+  }, []);
+}
 
 function mapServiceItemToAdmin(item: ServiceItem): LostFoundItem {
   return {

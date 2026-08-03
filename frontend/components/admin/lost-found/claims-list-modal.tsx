@@ -4,21 +4,18 @@
 import { useState } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import { Badge } from '@/components/admin/ui/badge';
-import { User, Phone, Mail, CheckCircle, XCircle, RotateCcw, UserPlus } from 'lucide-react';
+import {
+  CalendarDays,
+  CheckCircle2,
+  Mail,
+  Phone,
+  RotateCcw,
+  UserPlus,
+  UserRound,
+  XCircle,
+} from 'lucide-react';
 import type { Claim, ClaimStatus } from '@/app/(admin)/lost-found/data/lost-found-data';
 
-/**
- * Sprint 6 (S6-T8) — Admin claims review modal, wired to the real backend.
- *
- * Actions map to the backend's claim lifecycle:
- *   Approve → PATCH /admin/lost-items/{id}/claims/{cid}/approve (PENDING → APPROVED)
- *   Release → PATCH /admin/lost-items/{id}/claims/{cid}/release (APPROVED → RELEASED, handover)
- *   Reject  → PATCH /admin/lost-items/{id}/claims/{cid}/reject  (PENDING/APPROVED → REJECTED)
- *
- * `onClaimAction` is async — the modal awaits it and shows a loading state
- * on the clicked button. The modal closes only on success; on error the
- * parent surfaces an inline banner and the modal stays open.
- */
 type ClaimAction = 'Approve' | 'Release' | 'Reject';
 
 interface ClaimsListModalProps {
@@ -35,46 +32,84 @@ interface ClaimsListModalProps {
   }) => Promise<void>;
 }
 
+function getBadgeVariant(status: ClaimStatus): 'success' | 'warning' | 'danger' | 'info' {
+  switch (status) {
+    case 'Approved':
+    case 'Released':
+    case 'Returned':
+      return 'success';
+    case 'Pending':
+      return 'warning';
+    case 'Rejected':
+      return 'danger';
+    default:
+      return 'info';
+  }
+}
+
+function formatClaimDate(dateStr: string): string {
+  try {
+    return new Date(dateStr).toLocaleString('en-PH', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
+function availableActions(status: ClaimStatus): ClaimAction[] {
+  switch (status) {
+    case 'Pending':
+      return ['Approve', 'Reject'];
+    case 'Approved':
+      return ['Release', 'Reject'];
+    default:
+      return [];
+  }
+}
+
+function isAcceptedStatus(status: ClaimStatus): boolean {
+  return status === 'Approved' || status === 'Released' || status === 'Returned';
+}
+
+function getActionIcon(action: ClaimAction) {
+  switch (action) {
+    case 'Approve':
+      return <CheckCircle2 className="h-4 w-4" />;
+    case 'Release':
+      return <RotateCcw className="h-4 w-4" />;
+    case 'Reject':
+      return <XCircle className="h-4 w-4" />;
+  }
+}
+
 export function ClaimsListModal({ isOpen, onClose, itemId, claims, onClaimAction, onRecordManualClaim }: ClaimsListModalProps) {
-  const [selectedClaimId, setSelectedClaimId] = useState<string | null>(null);
-  const [pendingAction, setPendingAction] = useState<ClaimAction | null>(null);
+  const [pendingAction, setPendingAction] = useState<{ claimId: string; action: ClaimAction } | null>(null);
   const [showManualForm, setShowManualForm] = useState(false);
   const [manualForm, setManualForm] = useState({ name: '', contact: '', email: '', proof: '' });
   const [manualError, setManualError] = useState<string | null>(null);
   const [isSavingManual, setIsSavingManual] = useState(false);
+  const orderedClaims = [...claims].sort((a, b) => {
+    if (isAcceptedStatus(a.status) !== isAcceptedStatus(b.status)) {
+      return isAcceptedStatus(a.status) ? -1 : 1;
+    }
+    if (a.status === 'Pending' && b.status !== 'Pending') return -1;
+    if (a.status !== 'Pending' && b.status === 'Pending') return 1;
+    return new Date(b.claimDate).getTime() - new Date(a.claimDate).getTime();
+  });
 
-  const handleSelectClaim = (claimId: string) => {
-    setSelectedClaimId(claimId === selectedClaimId ? null : claimId);
-  };
-
-  const handleAction = async (action: ClaimAction) => {
-    if (!selectedClaimId) return;
-    setPendingAction(action);
+  const handleAction = async (claimId: string, action: ClaimAction) => {
+    setPendingAction({ claimId, action });
     try {
-      await onClaimAction(itemId, action, selectedClaimId);
-      // Parent closes the modal on success; if we're still mounted, reset.
-      setSelectedClaimId(null);
+      await onClaimAction(itemId, action, claimId);
     } catch {
-      // Parent surfaces the error; stay open so the admin can retry.
+      // Parent surfaces the error; keep the modal open for retry.
     } finally {
       setPendingAction(null);
-    }
-  };
-
-  const getActionIcon = (action: ClaimAction) => {
-    switch (action) {
-      case 'Approve': return <CheckCircle size={18} className="text-emerald-400" />;
-      case 'Release': return <RotateCcw size={18} className="text-sky-400" />;
-      case 'Reject': return <XCircle size={18} className="text-red-400" />;
-    }
-  };
-
-  const getBadgeVariant = (status: ClaimStatus): 'success' | 'warning' | 'danger' | 'info' => {
-    switch (status) {
-      case 'Approved': case 'Released': case 'Returned': return 'success';
-      case 'Pending': return 'warning';
-      case 'Rejected': return 'danger';
-      default: return 'info';
     }
   };
 
@@ -102,116 +137,153 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, onClaimAction
     }
   };
 
-  // Which actions are valid for the selected claim's current status.
-  const availableActions = (): ClaimAction[] => {
-    const claim = claims.find((c) => c.id === selectedClaimId);
-    if (!claim) return [];
-    switch (claim.status) {
-      case 'Pending': return ['Approve', 'Reject'];
-      case 'Approved': return ['Release', 'Reject'];
-      default: return []; // Released/Rejected/Returned — no further actions
-    }
-  };
-
   return (
-    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-lg" height="h-[min(700px,85vh)]">
-      <div className="flex items-center justify-between mb-5 pr-8">
-        <h2 className="text-lg sm:text-xl font-bold text-white">Claims for Item</h2>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-slate-500">{claims.length} claim(s)</span>
-          <button
-            type="button"
-            onClick={() => setShowManualForm((current) => !current)}
-            className="flex items-center gap-1.5 rounded-md bg-[#62A0EA] px-3 py-2 text-xs font-semibold text-white hover:bg-[#4A8BD4]"
-          >
-            <UserPlus size={14} /> Walk-in claimant
-          </button>
+    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-3xl" height="h-[min(760px,88vh)]">
+      <div className="mb-5 flex flex-col gap-3 pr-8 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#62A0EA]/20 bg-[#1A5FB4]/15 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#8CB9F0]">
+            <UserRound className="h-3.5 w-3.5" />
+            Claim desk
+          </div>
+          <h2 className="text-lg font-bold text-white sm:text-xl">Claims for Item</h2>
+          <p className="mt-1 text-xs text-slate-500">{claims.length} claim records</p>
         </div>
+        <button
+          type="button"
+          onClick={() => setShowManualForm((current) => !current)}
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#FF6D3A] px-3 py-2.5 text-xs font-bold text-white transition-colors hover:bg-[#e55a2b]"
+        >
+          <UserPlus className="h-4 w-4" />
+          Walk-in claimant
+        </button>
       </div>
 
       {showManualForm && (
-        <form onSubmit={handleManualSubmit} className="mb-4 space-y-3 rounded-lg border border-[#62A0EA]/30 bg-[#62A0EA]/5 p-4">
+        <form onSubmit={handleManualSubmit} className="mb-4 space-y-3 rounded-xl border border-[#62A0EA]/25 bg-[#1A5FB4]/10 p-4">
           <div>
             <h3 className="text-sm font-semibold text-white">Record claimant without an account</h3>
-            <p className="mt-1 text-xs text-slate-500">Keep their contact details and proof before approving a handover.</p>
+            <p className="mt-1 text-xs text-slate-500">Add contact details and proof before approving a handover.</p>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <input required maxLength={100} value={manualForm.name} onChange={(e) => setManualForm({ ...manualForm, name: e.target.value })} placeholder="Full name *" className="rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white" />
-            <input maxLength={20} value={manualForm.contact} onChange={(e) => setManualForm({ ...manualForm, contact: e.target.value })} placeholder="Phone number" className="rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white" />
-            <input type="email" maxLength={255} value={manualForm.email} onChange={(e) => setManualForm({ ...manualForm, email: e.target.value })} placeholder="Email address" className="rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white" />
-            <input required minLength={10} maxLength={500} value={manualForm.proof} onChange={(e) => setManualForm({ ...manualForm, proof: e.target.value })} placeholder="Proof of ownership *" className="rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white" />
+            <input required maxLength={100} value={manualForm.name} onChange={(e) => setManualForm({ ...manualForm, name: e.target.value })} placeholder="Full name *" className="rounded-lg border border-white/10 bg-[#0E1628] px-3 py-2 text-sm text-white outline-none focus:border-[#62A0EA]" />
+            <input maxLength={20} value={manualForm.contact} onChange={(e) => setManualForm({ ...manualForm, contact: e.target.value })} placeholder="Phone number" className="rounded-lg border border-white/10 bg-[#0E1628] px-3 py-2 text-sm text-white outline-none focus:border-[#62A0EA]" />
+            <input type="email" maxLength={255} value={manualForm.email} onChange={(e) => setManualForm({ ...manualForm, email: e.target.value })} placeholder="Email address" className="rounded-lg border border-white/10 bg-[#0E1628] px-3 py-2 text-sm text-white outline-none focus:border-[#62A0EA]" />
+            <input required minLength={10} maxLength={500} value={manualForm.proof} onChange={(e) => setManualForm({ ...manualForm, proof: e.target.value })} placeholder="Proof of ownership *" className="rounded-lg border border-white/10 bg-[#0E1628] px-3 py-2 text-sm text-white outline-none focus:border-[#62A0EA]" />
           </div>
           {manualError && <p className="text-xs text-red-400">{manualError}</p>}
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={() => setShowManualForm(false)} className="rounded-md border border-[#1E2D45] px-3 py-2 text-xs text-slate-300">Cancel</button>
-            <button disabled={isSavingManual} className="rounded-md bg-[#62A0EA] px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{isSavingManual ? 'Saving…' : 'Save claimant'}</button>
+            <button type="button" onClick={() => setShowManualForm(false)} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-white/5">Cancel</button>
+            <button disabled={isSavingManual} className="rounded-lg bg-[#62A0EA] px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{isSavingManual ? 'Saving...' : 'Save claimant'}</button>
           </div>
         </form>
       )}
 
-      <div className="space-y-3">
-        {claims.length > 0 ? claims.map((claim: Claim) => (
-          <div
-            key={claim.id}
-            className={`p-4 border rounded-md cursor-pointer transition-all ${
-              selectedClaimId === claim.id
-                ? 'border-[#62A0EA] bg-[#62A0EA]/10'
-                : 'border-[#1E2D45] bg-[#0E1628] hover:bg-[#131C2E]'
-            }`}
-            onClick={() => handleSelectClaim(claim.id)}
-          >
-            <div className="flex items-start justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-[#131C2E] rounded-full">
-                  <User size={20} className="text-slate-300" />
+      <div className="space-y-3 overflow-y-auto pr-1">
+        {orderedClaims.length > 0 ? orderedClaims.map((claim) => {
+          const actions = availableActions(claim.status);
+          const isAccepted = isAcceptedStatus(claim.status);
+          return (
+            <article key={claim.id} className={`rounded-xl border p-4 ${
+              isAccepted ? 'border-emerald-500/25 bg-emerald-500/10' : 'border-white/10 bg-[#0E1628]'
+            }`}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5">
+                      <UserRound className="h-5 w-5 text-slate-300" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-white">{claim.claimantName}</p>
+                      <p className="text-xs text-slate-500">
+                        {claim.linkedAccount ? `Account: @${claim.linkedAccount.username}` : 'Walk-in claimant'}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-white font-medium">{claim.claimantName}</p>
+                <Badge variant={getBadgeVariant(claim.status)}>{claim.status}</Badge>
+              </div>
+
+              {isAccepted && (
+                <div className="mt-3 w-fit max-w-full rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2">
+                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-200/70">Accepted claimant</p>
+                  <p className="truncate text-sm font-semibold text-emerald-100">{claim.claimantName}</p>
                   {claim.linkedAccount ? (
-                    <p className="text-xs text-emerald-400">Account: @{claim.linkedAccount.username}</p>
+                    <p className="mt-1 truncate text-xs text-emerald-100/70">
+                      {claim.linkedAccount.name} | @{claim.linkedAccount.username} | {claim.linkedAccount.accountStatus}
+                    </p>
                   ) : (
-                    <p className="text-xs text-slate-500">Walk-in (no account)</p>
+                    <p className="mt-1 text-xs text-emerald-100/70">Walk-in claimant without linked account</p>
                   )}
                 </div>
-              </div>
-              <Badge variant={getBadgeVariant(claim.status)}>
-                {claim.status}
-              </Badge>
-            </div>
-            <div className="mt-2 text-xs text-slate-300">
-              <p className="flex items-center"><Phone size={12} className="mr-1" /> {claim.claimantContact}</p>
-              <p className="flex items-center"><Mail size={12} className="mr-1" /> {claim.claimantEmail || 'N/A'}</p>
-              {claim.proof && (
-                <p className="mt-2 pt-2 border-t border-[#1E2D45] text-slate-400 italic">&ldquo;{claim.proof}&rdquo;</p>
               )}
-            </div>
+
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                <div className="rounded-lg border border-white/5 bg-white/[0.04] p-3">
+                  <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                    <CalendarDays className="h-3.5 w-3.5" />
+                    Submitted
+                  </div>
+                  <p className="text-xs font-medium text-slate-300">{formatClaimDate(claim.claimDate)}</p>
+                </div>
+                <div className="rounded-lg border border-white/5 bg-white/[0.04] p-3">
+                  <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                    <Phone className="h-3.5 w-3.5" />
+                    Phone
+                  </div>
+                  <p className="truncate text-xs font-medium text-slate-300">{claim.claimantContact || 'N/A'}</p>
+                </div>
+                <div className="rounded-lg border border-white/5 bg-white/[0.04] p-3">
+                  <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                    <Mail className="h-3.5 w-3.5" />
+                    Email
+                  </div>
+                  <p className="truncate text-xs font-medium text-slate-300">{claim.claimantEmail || 'N/A'}</p>
+                </div>
+              </div>
+
+              {claim.proof && (
+                <div className="mt-3 rounded-lg border border-white/5 bg-white/[0.04] p-3">
+                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Proof of ownership</p>
+                  <p className="text-xs leading-5 text-slate-300">{claim.proof}</p>
+                </div>
+              )}
+
+              {actions.length > 0 && (
+                <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-white/10 pt-3">
+                  {actions.map((action) => {
+                    const isPending = pendingAction?.claimId === claim.id && pendingAction.action === action;
+                    return (
+                      <button
+                        key={action}
+                        onClick={() => handleAction(claim.id, action)}
+                        disabled={pendingAction !== null}
+                        className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-white transition-colors disabled:opacity-50 ${
+                          action === 'Approve'
+                            ? 'bg-emerald-500 hover:bg-emerald-600'
+                            : action === 'Release'
+                              ? 'bg-[#1A5FB4] hover:bg-[#164c92]'
+                              : 'bg-red-500 hover:bg-red-600'
+                        }`}
+                      >
+                        {isPending ? (
+                          <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                        ) : getActionIcon(action)}
+                        {action}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </article>
+          );
+        }) : (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-white/10 bg-[#0E1628] px-4 py-10 text-center">
+            <UserRound className="mb-3 h-8 w-8 text-slate-600" />
+            <p className="text-sm font-semibold text-slate-300">No claims found</p>
+            <p className="mt-1 text-xs text-slate-500">Use walk-in claimant if the owner is at the office without an app account.</p>
           </div>
-        )) : (
-          <p className="text-center text-slate-500 py-8">No claims found for this item.</p>
         )}
       </div>
-
-      {selectedClaimId && availableActions().length > 0 && (
-        <div className="flex justify-end gap-2 pt-4 border-t border-[#1E2D45] mt-4">
-          {availableActions().map((action) => (
-            <button
-              key={action}
-              onClick={() => handleAction(action)}
-              disabled={pendingAction !== null}
-              className={`flex items-center space-x-2 px-3 py-2 text-white text-sm font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed ${
-                action === 'Approve' ? 'bg-emerald-500 hover:bg-emerald-600'
-                  : action === 'Release' ? 'bg-sky-500 hover:bg-sky-600'
-                  : 'bg-red-500 hover:bg-red-600'
-              }`}
-            >
-              {pendingAction === action ? (
-                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : getActionIcon(action)}
-              <span>{action}</span>
-            </button>
-          ))}
-        </div>
-      )}
     </Modal>
   );
 }
