@@ -6,6 +6,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { formatElapsedMinutes } from "@/lib/utils/display";
 import { useRouteGeometry } from "@/hooks/use-route-geometry";
+import DynamicRouteViewport from "@/components/maps/dynamic-route-viewport";
 
 // --- 1. TYPES (kept — these define the API contract) ---
 type VehicleCapacity = "AVAILABLE" | "STANDING" | "FULL";
@@ -422,6 +423,7 @@ export default function AdminCommuterMap({
         maxZoom={18}
         zoomSnap={1}
       >
+        <DynamicRouteViewport routeBounds={routeGeometry.routeBounds} mapBounds={routeGeometry.mapBounds} />
         <LocationFinder userLocationRef={userLocationRef} setUserActualLocation={setUserActualLocation} setShowMapPin={setShowMapPin} setArrowPos={setArrowPos} routeBounds={routeGeometry.routeBounds} mapBounds={routeGeometry.mapBounds} />
         <MapFocuser target={focusPosition} nonce={focusNonce} />
         <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />

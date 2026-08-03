@@ -146,3 +146,17 @@ export async function remove(id: string): Promise<void> {
     );
   }
 }
+
+/** Reorder every Fare Point in one route. The backend renumbers them 1..N. */
+export async function reorder(routeId: string, orderedIds: string[]): Promise<FarePoint[]> {
+  const res = await fetch("/api/admin/fare-points/reorder", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ route_id: routeId, ordered_ids: orderedIds }),
+  });
+  const json = await res.json();
+  if (!res.ok) {
+    throw new FarePointError(json.message ?? "Failed to reorder Fare Points.", json.errors ?? {}, res.status);
+  }
+  return json.data as FarePoint[];
+}

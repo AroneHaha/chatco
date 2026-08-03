@@ -6,9 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreFarePointRequest;
 use App\Http\Requests\Admin\UpdateFarePointRequest;
 use App\Models\FarePoint;
+use App\Models\Route;
+use App\Services\RouteGeometryService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Admin Fare Point CRUD (S6 Settings Batch 1).
@@ -23,6 +26,8 @@ use Illuminate\Http\Request;
 class AdminFarePointController extends Controller
 {
     use ApiResponse;
+
+    public function __construct(private RouteGeometryService $routeGeometryService) {}
 
     /**
      * GET /api/v1/admin/fare-points?route_id={uuid}
@@ -52,21 +57,29 @@ class AdminFarePointController extends Controller
 
         // Convert sub_stops string to the DB format (it's stored as a string).
         $farePoint = FarePoint::create([
-            'route_id'        => $validated['route_id'],
-            'point_number'    => $validated['point_number'],
-            'code'            => $validated['code'],
-            'name'            => $validated['name'],
-            'landmarks'       => $validated['landmarks'] ?? null,
-            'sub_stops'       => $validated['sub_stops'] ?? null,
-            'regular_fare'    => $validated['regular_fare'],
+            'route_id' => $validated['route_id'],
+            'point_number' => $validated['point_number'],
+            'code' => $validated['code'],
+            'name' => $validated['name'],
+            'landmarks' => $validated['landmarks'] ?? null,
+            'sub_stops' => $validated['sub_stops'] ?? null,
+            'regular_fare' => $validated['regular_fare'],
             'discounted_fare' => $validated['discounted_fare'],
-            'latitude'        => $validated['latitude'] ?? null,
-            'longitude'       => $validated['longitude'] ?? null,
+            'latitude' => $validated['latitude'] ?? null,
+            'longitude' => $validated['longitude'] ?? null,
         ]);
 
         $farePoint->load('route:id,name');
+        $this->routeGeometryService->syncDraftWaypointsFromFarePoints(
+            $farePoint->route,
+            $request->user()?->id,
+        );
 
-        return $this->successResponse($farePoint, 'Fare point created successfully', 201);
+        return $this->successResponse(
+            $farePoint,
+            'Fare point created. Review and publish the updated route draft.',
+            201
+        );
     }
 
     /**
@@ -76,8 +89,12 @@ class AdminFarePointController extends Controller
     public function update(UpdateFarePointRequest $request, string $id): JsonResponse
     {
         $farePoint = FarePoint::findOrFail($id);
+        $originalRouteId = $farePoint->route_id;
 
         $validated = $request->validated();
+        $routeFieldsChanged = collect(['route_id', 'point_number', 'latitude', 'longitude'])
+            ->contains(fn ($field) => array_key_exists($field, $validated)
+                && (string) $farePoint->{$field} !== (string) $validated[$field]);
 
         // Only update fields that were sent.
         $updateData = array_filter($validated, function ($value, $key) {
@@ -88,18 +105,80 @@ class AdminFarePointController extends Controller
         $farePoint->update($updateData);
         $farePoint->load('route:id,name');
 
-        return $this->successResponse($farePoint, 'Fare point updated successfully');
+        if ($routeFieldsChanged) {
+            if ($originalRouteId !== $farePoint->route_id) {
+                $originalRoute = Route::find($originalRouteId);
+                if ($originalRoute) {
+                    $this->routeGeometryService->syncDraftWaypointsFromFarePoints(
+                        $originalRoute,
+                        $request->user()?->id,
+                    );
+                }
+            }
+
+            $this->routeGeometryService->syncDraftWaypointsFromFarePoints(
+                $farePoint->route,
+                $request->user()?->id,
+            );
+        }
+
+        return $this->successResponse(
+            $farePoint,
+            $routeFieldsChanged
+                ? 'Fare point updated. Review and publish the updated route draft.'
+                : 'Fare point updated successfully'
+        );
     }
 
     /**
      * DELETE /api/v1/admin/fare-points/{id}
      * Delete a fare point.
      */
-    public function destroy(string $id): JsonResponse
+    public function destroy(Request $request, string $id): JsonResponse
     {
         $farePoint = FarePoint::findOrFail($id);
+        $route = $farePoint->route;
         $farePoint->delete();
+        $this->routeGeometryService->syncDraftWaypointsFromFarePoints(
+            $route,
+            $request->user()?->id,
+        );
 
-        return $this->successResponse(null, 'Fare point deleted successfully');
+        return $this->successResponse(null, 'Fare point deleted. Review and publish the updated route draft.');
+    }
+
+    public function reorder(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'route_id' => ['required', 'uuid', 'exists:routes,id'],
+            'ordered_ids' => ['required', 'array', 'min:1'],
+            'ordered_ids.*' => ['required', 'uuid', 'distinct', 'exists:fare_points,id'],
+        ]);
+
+        $route = Route::findOrFail($validated['route_id']);
+        $existingIds = $route->farePoints()->orderBy('point_number')->pluck('id')->all();
+        $orderedIds = array_values($validated['ordered_ids']);
+
+        if (count($existingIds) !== count($orderedIds)
+            || array_diff($existingIds, $orderedIds)
+            || array_diff($orderedIds, $existingIds)) {
+            return $this->errorResponse('The ordered list must contain every Fare Point for this route exactly once.', 422);
+        }
+
+        DB::transaction(function () use ($orderedIds) {
+            foreach ($orderedIds as $index => $id) {
+                FarePoint::whereKey($id)->update(['point_number' => $index + 1]);
+            }
+        });
+
+        $this->routeGeometryService->syncDraftWaypointsFromFarePoints(
+            $route,
+            $request->user()?->id,
+        );
+
+        return $this->successResponse(
+            $route->farePoints()->orderBy('point_number')->get(),
+            'Fare Points reordered. Review and publish the updated route draft.'
+        );
     }
 }

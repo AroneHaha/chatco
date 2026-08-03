@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 class Route extends Model
@@ -11,6 +12,7 @@ class Route extends Model
     use HasFactory;
 
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [
@@ -44,5 +46,10 @@ class Route extends Model
     public function farePoints()
     {
         return $this->hasMany(FarePoint::class);
+    }
+
+    public function versions(): HasMany
+    {
+        return $this->hasMany(RouteVersion::class)->orderByDesc('version');
     }
 }

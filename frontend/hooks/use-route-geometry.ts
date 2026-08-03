@@ -5,15 +5,27 @@ import L from "leaflet";
 
 type RouteCoordinate = [number, number];
 
-export function useRouteGeometry(fallback: RouteCoordinate[]) {
+function coordinatesMatch(left: RouteCoordinate[], right: RouteCoordinate[]) {
+  return left.length === right.length
+    && left.every((coordinate, index) =>
+      coordinate[0] === right[index][0] && coordinate[1] === right[index][1]);
+}
+
+export function useRouteGeometry(fallback: RouteCoordinate[], routeId?: string | null) {
   const [routeCoords, setRouteCoords] = useState<RouteCoordinate[]>(fallback);
+  const [routeName, setRouteName] = useState<string | null>(null);
+  const [version, setVersion] = useState<number | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
+    const url = routeId
+      ? `/api/route-geometry?route_id=${encodeURIComponent(routeId)}`
+      : "/api/route-geometry";
 
-    void fetch("/api/route-geometry", {
+    const refresh = () => void fetch(url, {
       headers: { Accept: "application/json" },
       signal: controller.signal,
+      cache: "no-store",
     })
       .then((response) => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -33,14 +45,26 @@ export function useRouteGeometry(fallback: RouteCoordinate[]) {
               [Number(coordinate[0]), Number(coordinate[1])] as RouteCoordinate
           );
 
-        if (coordinates.length >= 2) setRouteCoords(coordinates);
+        if (coordinates.length >= 2) {
+          setRouteCoords((current) => coordinatesMatch(current, coordinates) ? current : coordinates);
+          setRouteName(typeof body.data?.name === "string" ? body.data.name : null);
+          setVersion(Number.isFinite(Number(body.data?.version?.number))
+            ? Number(body.data.version.number)
+            : null);
+        }
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
       });
 
-    return () => controller.abort();
-  }, [fallback]);
+    refresh();
+    const interval = window.setInterval(refresh, 60_000);
+
+    return () => {
+      controller.abort();
+      window.clearInterval(interval);
+    };
+  }, [fallback, routeId]);
 
   return useMemo(() => {
     const rawBounds = L.latLngBounds(routeCoords);
@@ -52,6 +76,8 @@ export function useRouteGeometry(fallback: RouteCoordinate[]) {
 
     return {
       routeCoords,
+      routeName,
+      version,
       routeBounds,
       mapBounds,
       mapBoundsArray: [
@@ -60,5 +86,5 @@ export function useRouteGeometry(fallback: RouteCoordinate[]) {
       ] as [[number, number], [number, number]],
       center: [rawBounds.getCenter().lat, rawBounds.getCenter().lng] as L.LatLngTuple,
     };
-  }, [routeCoords]);
+  }, [routeCoords, routeName, version]);
 }

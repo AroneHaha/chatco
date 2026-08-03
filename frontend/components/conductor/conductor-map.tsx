@@ -7,6 +7,7 @@ import "leaflet/dist/leaflet.css";
 import { haversineMeters } from "@/lib/utils/geo";
 import type { ConductorHailRequest } from "@/lib/conductor/types";
 import { useRouteGeometry } from "@/hooks/use-route-geometry";
+import DynamicRouteViewport from "@/components/maps/dynamic-route-viewport";
 
 const RADIUS_M = 1000;
 const ROUTE_COORDS: [number, number][] = [
@@ -178,6 +179,7 @@ export default function ConductorMap({
         maxBoundsViscosity={1.0}
         minZoom={11}
       >
+        <DynamicRouteViewport routeBounds={routeGeometry.routeBounds} mapBounds={routeGeometry.mapBounds} />
         <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
 
         <Polyline positions={routeGeometry.routeCoords} pathOptions={{ color: '#62A0EA', weight: 8, opacity: 0.2, lineCap: 'round', lineJoin: 'round' }} />

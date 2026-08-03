@@ -2,10 +2,18 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, X, MapPin, Search, Route, RefreshCw } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, X, MapPin, Search, Route, RefreshCw, ArrowUp, ArrowDown } from 'lucide-react';
 import * as farePointService from '@/lib/admin/services/fare-point.service';
 import type { FarePoint as ApiFarePoint } from '@/lib/admin/services/fare-point.service';
+import * as routeService from '@/lib/admin/services/route.service';
+import type { AdminRoute } from '@/lib/admin/services/route.service';
 import { formatPeso } from '@/lib/utils/display';
+
+const RouteEditor = dynamic(() => import('@/components/admin/routes/route-editor'), {
+  ssr: false,
+  loading: () => <div className="h-[560px] animate-pulse rounded-2xl border border-white/5 bg-[#071A2E]" />,
+});
 
 // Adapter: convert API fare point to the format the original UI expects
 interface FarePoint {
@@ -35,11 +43,16 @@ function mapApiToLocal(api: ApiFarePoint): FarePoint {
 }
 
 export default function FareMatrixPage() {
+  const [routes, setRoutes] = useState<AdminRoute[]>([]);
+  const [selectedRouteId, setSelectedRouteId] = useState<string>('');
+  const [apiFarePoints, setApiFarePoints] = useState<ApiFarePoint[]>([]);
   const [farePoints, setFarePoints] = useState<FarePoint[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [showCreateRoute, setShowCreateRoute] = useState(false);
+  const [newRouteName, setNewRouteName] = useState('');
 
   const [expandedPoint, setExpandedPoint] = useState<number | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -66,23 +79,49 @@ export default function FareMatrixPage() {
   const [editLatitude, setEditLatitude] = useState('');
   const [editLongitude, setEditLongitude] = useState('');
 
-  // Fetch fare points from API
+  const fetchRoutes = useCallback(async () => {
+    try {
+      const data = await routeService.listRoutes();
+      setRoutes(data);
+      setSelectedRouteId((current) => {
+        if (current && data.some((route) => route.id === current)) return current;
+        return data.find((route) => route.status === 'ACTIVE')?.id ?? data[0]?.id ?? '';
+      });
+      if (data.length === 0) setIsLoading(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load routes');
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchRoutes();
+  }, [fetchRoutes]);
+
+  // Fetch Fare Points only for the selected route.
   const fetchFarePoints = useCallback(async () => {
+    if (!selectedRouteId) return;
     setIsLoading(true);
     setError(null);
     try {
-      const data = await farePointService.list();
+      const data = await farePointService.list(selectedRouteId);
+      setApiFarePoints(data);
       setFarePoints(data.map(mapApiToLocal));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load fare points');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [selectedRouteId]);
 
   useEffect(() => {
-    fetchFarePoints();
+    void fetchFarePoints();
   }, [fetchFarePoints]);
+
+  const selectedRoute = useMemo(
+    () => routes.find((route) => route.id === selectedRouteId) ?? null,
+    [routes, selectedRouteId]
+  );
 
   // Filtered points by search
   const filteredPoints = useMemo(() => {
@@ -137,19 +176,13 @@ export default function FareMatrixPage() {
   };
 
   const handleAddPoint = async () => {
-    if (!newName.trim()) return;
+    if (!newName.trim() || !selectedRouteId) return;
     setIsSaving(true);
     setError(null);
     try {
       const coordinates = parseCoordinatePair(newLatitude, newLongitude);
-      // Get the first route_id (single corridor for now)
-      const routesRes = await fetch('/api/admin/routes', { headers: { Accept: 'application/json' } });
-      const routesJson = await routesRes.json();
-      const routeId = routesJson.data?.[0]?.id;
-      if (!routeId) throw new Error('No route found. Create a route first.');
-
       await farePointService.create({
-        route_id: routeId,
+        route_id: selectedRouteId,
         point_number: farePoints.length + 1,
         code: `P${String(farePoints.length + 1).padStart(2, '0')}`,
         name: newName.trim(),
@@ -162,7 +195,7 @@ export default function FareMatrixPage() {
       setNewName(''); setNewRegular('18'); setNewDiscounted('14.4'); setNewSubStops('');
       setNewLatitude(''); setNewLongitude('');
       setShowAddForm(false);
-      await fetchFarePoints();
+      await Promise.all([fetchFarePoints(), fetchRoutes()]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add fare point');
     } finally {
@@ -199,7 +232,7 @@ export default function FareMatrixPage() {
       });
       showSuccess(`Point "${editName}" updated successfully.`);
       setEditingPoint(null);
-      await fetchFarePoints();
+      await Promise.all([fetchFarePoints(), fetchRoutes()]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update fare point');
     } finally {
@@ -219,9 +252,48 @@ export default function FareMatrixPage() {
       if (expandedPoint === pointNumber) setExpandedPoint(null);
       if (previewFrom === pointNumber) setPreviewFrom(null);
       if (previewTo === pointNumber) setPreviewTo(null);
-      await fetchFarePoints();
+      await Promise.all([fetchFarePoints(), fetchRoutes()]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete fare point');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCreateRoute = async () => {
+    if (!newRouteName.trim()) return;
+    setIsSaving(true);
+    setError(null);
+    try {
+      const created = await routeService.createRoute(newRouteName.trim());
+      setNewRouteName('');
+      setShowCreateRoute(false);
+      await fetchRoutes();
+      setSelectedRouteId(created.id);
+      showSuccess(`Route "${created.name}" created. Add Fare Points and publish its geometry when ready.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create route');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleMovePoint = async (pointNumber: number, direction: -1 | 1) => {
+    if (!selectedRouteId) return;
+    const currentIndex = apiFarePoints.findIndex((point) => point.point_number === pointNumber);
+    const targetIndex = currentIndex + direction;
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= apiFarePoints.length) return;
+
+    const reordered = [...apiFarePoints];
+    [reordered[currentIndex], reordered[targetIndex]] = [reordered[targetIndex], reordered[currentIndex]];
+    setIsSaving(true);
+    setError(null);
+    try {
+      await farePointService.reorder(selectedRouteId, reordered.map((point) => point.id));
+      await Promise.all([fetchFarePoints(), fetchRoutes()]);
+      showSuccess('Fare Point order updated. Review the route draft before publishing.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reorder Fare Points');
     } finally {
       setIsSaving(false);
     }
@@ -249,7 +321,7 @@ export default function FareMatrixPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-white">Fare Matrix Management</h1>
-            <p className="text-sm text-white/40 mt-1">{farePoints.length} point areas along the Calumpit–Meycauayan route</p>
+            <p className="text-sm text-white/40 mt-1">{farePoints.length} point areas on {selectedRoute?.name ?? 'the selected route'}</p>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={fetchFarePoints} title="Refresh" className="p-2.5 text-white/40 hover:text-white bg-[#071A2E] border border-white/[0.06] rounded-xl transition-colors">
@@ -258,12 +330,45 @@ export default function FareMatrixPage() {
             <button
               type="button"
               onClick={() => setShowAddForm(!showAddForm)}
+              disabled={!selectedRoute}
               className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-[#1A5FB4] text-white font-bold rounded-xl hover:bg-[#165a9f] transition-colors active:scale-95 shadow-lg shadow-[#1A5FB4]/30"
             >
               {showAddForm ? <X size={18} /> : <Plus size={18} />}
               <span>{showAddForm ? 'Cancel' : 'Add Point Area'}</span>
             </button>
           </div>
+        </div>
+
+        {/* Route selection controls Fare Points, map geometry, and hailing coverage together. */}
+        <div className="rounded-2xl border border-white/[0.06] bg-[#071A2E] p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-white/30">Managed Route</label>
+              <select
+                value={selectedRouteId}
+                onChange={(event) => {
+                  setSelectedRouteId(event.target.value);
+                  setPreviewFrom(null);
+                  setPreviewTo(null);
+                }}
+                className="w-full rounded-xl border border-white/10 bg-[#050F1A] px-3 py-2.5 text-sm text-white outline-none focus:border-[#62A0EA]"
+              >
+                {routes.length === 0 && <option value="">No routes created</option>}
+                {routes.map((route) => (
+                  <option key={route.id} value={route.id}>{route.name} ({route.status})</option>
+                ))}
+              </select>
+            </div>
+            <button type="button" onClick={() => setShowCreateRoute((visible) => !visible)} className="flex items-center justify-center gap-2 rounded-xl border border-[#62A0EA]/30 px-4 py-2.5 text-sm font-semibold text-[#93C5FD] hover:bg-[#1A5FB4]/10">
+              <Plus size={16} /> New Route
+            </button>
+          </div>
+          {showCreateRoute && (
+            <div className="mt-3 flex flex-col gap-2 border-t border-white/5 pt-3 sm:flex-row">
+              <input value={newRouteName} onChange={(event) => setNewRouteName(event.target.value)} placeholder="e.g. Calumpit–Marilao via McArthur Highway" className={inputClasses} />
+              <button type="button" onClick={handleCreateRoute} disabled={isSaving || !newRouteName.trim()} className="whitespace-nowrap rounded-xl bg-[#1A5FB4] px-5 py-2.5 text-sm font-bold text-white disabled:opacity-40">Create Route</button>
+            </div>
+          )}
         </div>
 
         {/* Error Banner */}
@@ -280,6 +385,10 @@ export default function FareMatrixPage() {
             <p className="text-sm text-emerald-400">{successMsg}</p>
             <button onClick={() => setSuccessMsg(null)} className="text-emerald-400 hover:text-emerald-300"><X size={16} /></button>
           </div>
+        )}
+
+        {selectedRoute && (
+          <RouteEditor route={selectedRoute} farePoints={apiFarePoints} onRouteChanged={fetchRoutes} />
         )}
 
         {/* Fare Info Banner */}
@@ -470,7 +579,7 @@ export default function FareMatrixPage() {
             <p className="text-[10px] text-white/25">
               {searchQuery.trim() ? `${filteredPoints.length} of ${farePoints.length} point areas` : `${farePoints.length} point areas total`}
             </p>
-            <p className="text-[10px] text-white/25">Meycauayan → Calumpit</p>
+            <p className="text-[10px] text-white/25">{selectedRoute?.name ?? 'No route selected'}</p>
           </div>
 
           {/* Point Areas List */}
@@ -521,6 +630,12 @@ export default function FareMatrixPage() {
 
                         {/* Actions */}
                         <div className="flex items-center gap-0.5">
+                          <button type="button" onClick={() => handleMovePoint(point.pointNumber, -1)} disabled={point.pointNumber === 1 || isSaving} className="p-1.5 text-white/20 hover:text-white disabled:opacity-20" title="Move earlier">
+                            <ArrowUp size={13} />
+                          </button>
+                          <button type="button" onClick={() => handleMovePoint(point.pointNumber, 1)} disabled={point.pointNumber === farePoints.length || isSaving} className="p-1.5 text-white/20 hover:text-white disabled:opacity-20" title="Move later">
+                            <ArrowDown size={13} />
+                          </button>
                           <button type="button" onClick={() => handleStartEdit(point.pointNumber)} className="p-1.5 text-white/20 hover:text-[#62A0EA] transition-colors" title="Edit">
                             <Pencil size={14} />
                           </button>

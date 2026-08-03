@@ -17,16 +17,16 @@ class StoreFarePointRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'route_id'        => ['required', 'uuid', 'exists:routes,id'],
-            'point_number'    => ['required', 'integer', 'min:1'],
-            'code'            => ['required', 'string', 'max:10'],
-            'name'            => ['required', 'string', 'max:100'],
-            'landmarks'       => ['nullable', 'string', 'max:500'],
-            'sub_stops'       => ['nullable', 'string', 'max:500'],
-            'regular_fare'    => ['required', 'numeric', 'min:0'],
+            'route_id' => ['required', 'uuid', 'exists:routes,id'],
+            'point_number' => ['required', 'integer', 'min:1'],
+            'code' => ['required', 'string', 'max:10'],
+            'name' => ['required', 'string', 'max:100'],
+            'landmarks' => ['nullable', 'string', 'max:500'],
+            'sub_stops' => ['nullable', 'string', 'max:500'],
+            'regular_fare' => ['required', 'numeric', 'min:0'],
             'discounted_fare' => ['required', 'numeric', 'min:0'],
-            'latitude'        => ['nullable', 'numeric'],
-            'longitude'       => ['nullable', 'numeric'],
+            'latitude' => ['nullable', 'required_with:longitude', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'required_with:latitude', 'numeric', 'between:-180,180'],
         ];
     }
 

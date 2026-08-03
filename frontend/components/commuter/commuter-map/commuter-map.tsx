@@ -19,11 +19,13 @@ import { useState, useEffect, useMemo } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { formatDistance } from "@/lib/shared/geo/nearby-detector";
+import { distanceToPolylineMeters } from "@/lib/utils/geo";
 import { ROUTE_COORDS } from "./commuter-map-constants";
 import { useRouteGeometry } from "@/hooks/use-route-geometry";
 import { getCapacityConfig, createCommuterIcon, createJeepneyIcon } from "./commuter-map-icons";
 import { useCommuterTracking } from "./use-commuter-tracking";
 import LocationFinder from "./location-finder";
+import DynamicRouteViewport from "@/components/maps/dynamic-route-viewport";
 
 // --- MAIN COMPONENT ---
 
@@ -61,11 +63,18 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
   // Notify parent of tracking updates
   useEffect(() => {
     if (gpsStatus === "available") {
-      onNearbyVehiclesChange?.(radiusResult?.withinRadius || [], gpsStatus, userActualLocation);
+      const isInsideRouteCoverage = userActualLocation
+        ? distanceToPolylineMeters(userActualLocation, routeGeometry.routeCoords) <= 1000
+        : false;
+      onNearbyVehiclesChange?.(
+        isInsideRouteCoverage ? radiusResult?.withinRadius || [] : [],
+        gpsStatus,
+        userActualLocation
+      );
     } else {
       onNearbyVehiclesChange?.([], gpsStatus, userActualLocation);
     }
-  }, [radiusResult, gpsStatus, userActualLocation, onNearbyVehiclesChange]);
+  }, [radiusResult, gpsStatus, userActualLocation, onNearbyVehiclesChange, routeGeometry.routeCoords]);
 
   // Double-RAF for DOM readiness (ensures Leaflet gets accurate container dimensions)
   useEffect(() => {
@@ -109,6 +118,7 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
       )}
 
       <MapContainer center={routeGeometry.center} zoom={12} zoomControl={false} attributionControl={false} className="commuter-map-container" style={{ background: '#050F1A' }} maxBounds={routeGeometry.mapBoundsArray} maxBoundsViscosity={1.0} minZoom={isDesktop ? 13 : 11}>
+        <DynamicRouteViewport routeBounds={routeGeometry.routeBounds} mapBounds={routeGeometry.mapBounds} />
         <LocationFinder
           userLocationRef={userLocationRef}
           setUserActualLocation={setUserActualLocation}
