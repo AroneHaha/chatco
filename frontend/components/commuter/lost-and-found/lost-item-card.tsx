@@ -1,10 +1,10 @@
 import { LostItem, ClaimStatus } from "@/app/(commuter)/lost-and-found/types";
+import { Bookmark, CheckCircle2, Clock3, Eye, FileCheck2, IdCard, PackageSearch, UserRound, XCircle } from "lucide-react";
 
 interface LostItemCardProps {
   item: LostItem;
   isWatched: boolean;
   claimStatus: ClaimStatus;
-  claimLimitReached: boolean;
   onToggleWatchlist: (id: string) => void;
   onOpenClaimModal: (item: LostItem) => void;
   onCancelClaim: (id: string) => void;
@@ -13,60 +13,90 @@ interface LostItemCardProps {
   getStatusBadge: (status: ClaimStatus) => string;
 }
 
-export default function LostItemCard({ item, isWatched, claimStatus, claimLimitReached, onToggleWatchlist, onOpenClaimModal, onCancelClaim, onOpenDetails, formatDate, getStatusBadge }: LostItemCardProps) {
+export default function LostItemCard({ item, isWatched, claimStatus, onToggleWatchlist, onOpenClaimModal, onCancelClaim, onOpenDetails, formatDate, getStatusBadge }: LostItemCardProps) {
+  const claimLabel =
+    claimStatus === "PENDING"
+      ? "Pending"
+      : claimStatus === "VALIDATED"
+        ? "Validated"
+        : claimStatus === "REJECTED"
+          ? "Rejected"
+          : null;
+
   return (
-    <div className="bg-[#071A2E] rounded-2xl border border-white/10 overflow-hidden flex flex-col group hover:border-white/20 transition-all shadow-lg shadow-black/20">
-      <button type="button" onClick={() => onOpenDetails(item)} className="relative h-48 bg-[#0A1E33] overflow-hidden w-full text-left cursor-pointer">
+    <article className="group flex min-h-full flex-col overflow-hidden rounded-xl border border-white/10 bg-[#071A2E] shadow-lg shadow-black/20 transition-colors hover:border-[#62A0EA]/35">
+      <button type="button" onClick={() => onOpenDetails(item)} className="relative aspect-[4/3] w-full overflow-hidden bg-[#0A1E33] text-left">
         {item.imageUrl ? (
-          <img src={item.imageUrl} alt={item.itemName} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500" />
+          <img src={item.imageUrl} alt={item.itemName} className="h-full w-full object-cover opacity-85 transition-transform duration-500 group-hover:scale-105 group-hover:opacity-100" />
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-white/20">
-            <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A1.5 1.5 0 0021.75 19.5V4.5A1.5 1.5 0 0020.25 3H3.75A1.5 1.5 0 002.25 4.5v15A1.5 1.5 0 003.75 21z" /></svg>
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-white/20">
+            <PackageSearch className="h-11 w-11" />
             <span className="text-[10px] font-semibold uppercase tracking-wider">No photo yet</span>
           </div>
         )}
-        <span onClick={(e) => { e.stopPropagation(); onToggleWatchlist(item.id); }} role="button" aria-label={isWatched ? "Remove from watchlist" : "Add to watchlist"} className={`absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center transition-all backdrop-blur-sm border ${isWatched ? "bg-[#1A5FB4] border-[#62A0EA] shadow-lg shadow-[#1A5FB4]/40" : "bg-black/40 border-white/20 hover:bg-black/60"}`}>
-          <svg className={`w-5 h-5 transition-colors ${isWatched ? "text-white fill-white" : "text-white/80"}`} fill={isWatched ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" /></svg>
-        </span>
-        <div className="absolute top-3 left-3 bg-black/40 backdrop-blur-sm border border-white/10 text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full">{item.category}</div>
+        <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 bg-gradient-to-t from-black/75 via-black/25 to-transparent p-3">
+          <span className="rounded-full border border-white/15 bg-black/45 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white backdrop-blur-sm">{item.category}</span>
+          {claimLabel && (
+            <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider backdrop-blur-sm ${getStatusBadge(claimStatus)}`}>{claimLabel}</span>
+          )}
+        </div>
       </button>
 
-      <div className="p-5 flex-1 flex flex-col">
-        <div className="flex items-start justify-between mb-2">
-          <h3 className="text-white font-bold text-base leading-tight">{item.itemName}</h3>
-          {claimStatus !== "NONE" && (<span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ml-2 flex-shrink-0 ${getStatusBadge(claimStatus)}`}>{claimStatus}</span>)}
-        </div>
-        <p className="text-white/40 text-xs mb-1 line-clamp-2 flex-grow">{item.description}</p>
-        <button type="button" onClick={() => onOpenDetails(item)} className="text-left text-[11px] font-semibold text-[#62A0EA] hover:text-[#8CB9F0] mb-4 transition-colors">View full details</button>
-
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2 mb-5 bg-white/5 rounded-xl p-3 border border-white/5">
-          <div><p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold">Plate No.</p><p className="text-xs text-white/80 font-medium">{item.plateNumber}</p></div>
-          <div><p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold">Est. Time</p><p className="text-xs text-white/80 font-medium">{item.estimatedTimeLost}</p></div>
-          <div><p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold">Driver</p><p className="text-xs text-white/80 font-medium">{item.driverName}</p></div>
-          <div><p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold">Conductor</p><p className="text-xs text-white/80 font-medium">{item.conductorName}</p></div>
+      <div className="flex flex-1 flex-col p-4">
+        <div className="mb-3">
+          <button type="button" onClick={() => onOpenDetails(item)} className="block w-full text-left">
+            <h3 className="line-clamp-1 text-base font-bold leading-tight text-white transition-colors group-hover:text-[#8CB9F0]">{item.itemName}</h3>
+          </button>
+          <p className="mt-1 line-clamp-2 min-h-8 text-xs leading-4 text-white/48">{item.description}</p>
         </div>
 
-        <div className="flex items-center gap-3 mt-auto">
+        <div className="mb-4 grid gap-2 rounded-lg border border-white/8 bg-white/[0.04] p-3">
+          <div className="flex items-center gap-2 text-xs text-white/70">
+            <IdCard className="h-3.5 w-3.5 text-[#62A0EA]" />
+            <span className="min-w-0 truncate">{item.plateNumber || "Plate unavailable"}</span>
+            <span className="mx-1 h-1 w-1 rounded-full bg-white/20" />
+            <Clock3 className="h-3.5 w-3.5 text-[#62A0EA]" />
+            <span className="min-w-0 truncate">{item.estimatedTimeLost || "Time unavailable"}</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-white/45">
+            <UserRound className="h-3.5 w-3.5 text-white/30" />
+            <span className="min-w-0 truncate">{item.driverName || "Driver unavailable"}</span>
+            <span className="mx-1 h-1 w-1 rounded-full bg-white/15" />
+            <span className="min-w-0 truncate">{item.conductorName || "Conductor unavailable"}</span>
+          </div>
+        </div>
+
+        <div className="mt-auto flex items-center gap-2">
           {claimStatus === "NONE" ? (
-            <button onClick={() => claimLimitReached ? null : onOpenClaimModal(item)} className={`flex-1 text-sm font-bold py-2.5 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 ${claimLimitReached ? "bg-white/5 text-white/30 cursor-not-allowed shadow-none" : "bg-[#FF6D3A] hover:bg-[#e55a2b] text-white shadow-[#FF6D3A]/30"}`}>
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              {claimLimitReached ? "Claim Limit Reached" : "Claim Item"}
+            <button onClick={() => onOpenClaimModal(item)} className="flex-1 rounded-lg bg-[#FF6D3A] px-3 py-2.5 text-sm font-bold text-white shadow-lg shadow-[#FF6D3A]/25 transition-colors hover:bg-[#e55a2b]">
+              Claim Item
             </button>
           ) : claimStatus === "PENDING" ? (
-            <button onClick={() => onCancelClaim(item.id)} className="flex-1 bg-white/5 hover:bg-white/10 text-white/60 hover:text-white text-sm font-medium py-2.5 rounded-xl border border-white/10 transition-colors flex items-center justify-center gap-2">Cancel Claim</button>
+            <button onClick={() => onCancelClaim(item.id)} className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm font-semibold text-white/65 transition-colors hover:bg-white/10 hover:text-white">
+              Cancel Claim
+            </button>
           ) : claimStatus === "REJECTED" ? (
-            <button onClick={() => claimLimitReached ? null : onOpenClaimModal(item)} className={`flex-1 text-sm font-bold py-2.5 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 ${claimLimitReached ? "bg-white/5 text-white/30 cursor-not-allowed shadow-none" : "bg-[#FF6D3A] hover:bg-[#e55a2b] text-white shadow-[#FF6D3A]/30"}`}>
-              {claimLimitReached ? "Claim Limit Reached" : "Claim Again"}
+            <button onClick={() => onOpenClaimModal(item)} className="flex-1 rounded-lg bg-[#FF6D3A] px-3 py-2.5 text-sm font-bold text-white shadow-lg shadow-[#FF6D3A]/25 transition-colors hover:bg-[#e55a2b]">
+              Claim Again
             </button>
           ) : (
-            <div className="flex-1 bg-white/5 text-sm font-semibold py-2.5 rounded-xl text-center text-emerald-400">Validated - Proceed</div>
+            <div className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2.5 text-sm font-semibold text-emerald-300">
+              <CheckCircle2 className="h-4 w-4" />
+              Validated
+            </div>
           )}
-          <button onClick={() => onToggleWatchlist(item.id)} className={`w-11 h-11 flex-shrink-0 rounded-xl border flex items-center justify-center transition-colors ${isWatched ? "bg-[#1A5FB4]/20 border-[#62A0EA]/30 text-[#62A0EA]" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}`}>
-            <svg className="w-5 h-5" fill={isWatched ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" /></svg>
+          <button type="button" onClick={() => onOpenDetails(item)} aria-label={`View ${item.itemName}`} className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white/50 transition-colors hover:bg-white/10 hover:text-white">
+            <Eye className="h-4 w-4" />
+          </button>
+          <button onClick={() => onToggleWatchlist(item.id)} aria-label={isWatched ? "Remove from watchlist" : "Add to watchlist"} className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border transition-colors ${isWatched ? "border-[#62A0EA]/35 bg-[#1A5FB4]/20 text-[#62A0EA]" : "border-white/10 bg-white/5 text-white/50 hover:bg-white/10 hover:text-white"}`}>
+            <Bookmark className={`h-4 w-4 ${isWatched ? "fill-current" : ""}`} />
           </button>
         </div>
-        <p className="text-center text-[10px] text-white/20 mt-3">Posted on {formatDate(item.datePosted)}</p>
+        <p className="mt-3 flex items-center justify-center gap-1.5 text-[10px] text-white/25">
+          {claimStatus === "REJECTED" ? <XCircle className="h-3 w-3" /> : <FileCheck2 className="h-3 w-3" />}
+          Posted {formatDate(item.datePosted)}
+        </p>
       </div>
-    </div>
+    </article>
   );
 }

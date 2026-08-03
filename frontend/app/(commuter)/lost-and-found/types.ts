@@ -1,5 +1,6 @@
 export type ItemCategory = "ALL" | "ACCESSORY" | "BAG" | "WALLET" | "GADGET" | "CLOTHING" | "DOCUMENT" | "OTHER";
 export type ClaimStatus = "NONE" | "PENDING" | "VALIDATED" | "REJECTED";
+export type ClaimFilter = "ALL" | Exclude<ClaimStatus, "NONE">;
 export type ViewTab = "ALL" | "WATCHLIST" | "MY_CLAIMS";
 
 export interface LostItem {
@@ -18,8 +19,11 @@ export interface LostItem {
 export interface ClaimData {
   /** The backend claim row id — needed to cancel (withdraw) the claim. */
   claimId: string;
-  status: ClaimStatus;
+  status: Exclude<ClaimStatus, "NONE">;
   proof: string;
+  claimDate: string;
+  reviewedAt: string | null;
+  rejectionReason: string | null;
   /** The claimed item (eager-loaded by GET /commuter/claims); null if deleted. */
   item: LostItem | null;
 }

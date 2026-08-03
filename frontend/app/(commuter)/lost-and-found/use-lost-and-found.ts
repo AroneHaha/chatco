@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { ItemCategory, ClaimStatus, LostItem, ClaimData, PaginatedAPIResponse, ViewTab } from "./types";
-import { ITEMS_PER_PAGE, MAX_PENDING_CLAIMS } from "./data";
+import { ItemCategory, ClaimFilter, ClaimStatus, LostItem, ClaimData, PaginatedAPIResponse, ViewTab } from "./types";
+import { CLAIMS_PER_PAGE, ITEMS_PER_PAGE } from "./data";
 import {
   list as listItems,
   claim as claimItem,
@@ -10,6 +10,7 @@ import {
   watch as apiWatch,
   unwatch as apiUnwatch,
   LostFoundOperationError,
+  type BackendClaimStatus,
   type LostFoundItem,
 } from "@/lib/shared/services/lost-found.service";
 
@@ -25,7 +26,7 @@ import {
  *   unwatch()     → DELETE /api/v1/lost-found/{id}/watchlist
  *
  * ALL state that matters lives in the database:
- *   - Claims (badges, the 3-pending cap, "My Claims" tab, cancel) come from
+ *   - Claims (badges, "My Claims" tab, cancel) come from
  *     GET /commuter/claims — they survive reloads and follow the commuter
  *     across devices. Cancel actually deletes the claim row server-side.
  *   - The watchlist is persisted per commuter; the heart toggle is optimistic
@@ -43,6 +44,7 @@ import {
 export function useLostAndFound() {
   const [activeTab, setActiveTab] = useState<ViewTab>("ALL");
   const [activeCategory, setActiveCategory] = useState<ItemCategory>("ALL");
+  const [claimFilter, setClaimFilter] = useState<ClaimFilter>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -53,43 +55,67 @@ export function useLostAndFound() {
   const [isSubmittingClaim, setIsSubmittingClaim] = useState(false);
 
   // DB-backed: watchlisted item ids (for the card hearts) + the commuter's
-  // own claims keyed by item id. Both loaded on mount, refreshed after writes.
+  // current claims page keyed by item id. Claims are loaded page-by-page.
   const [watchlist, setWatchlist] = useState<Set<string>>(new Set());
   const [claims, setClaims] = useState<Map<string, ClaimData>>(new Map());
+  const [claimPageData, setClaimPageData] = useState({ totalPages: 1, totalItems: 0, currentPage: 1 });
 
   const [apiData, setApiData] = useState<PaginatedAPIResponse>({ items: [], totalPages: 1, totalItems: 0, currentPage: 1 });
   const [isLoading, setIsLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
 
-  const pendingClaimsCount = Array.from(claims.values()).filter(c => c.status === "PENDING").length;
-
   /** Backend claim status → the UI's ClaimStatus union. */
-  const toUiClaimStatus = (backend: string): ClaimStatus => {
+  const toUiClaimStatus = (backend: string): Exclude<ClaimStatus, "NONE"> => {
     if (backend === "APPROVED") return "VALIDATED";
     if (backend === "REJECTED") return "REJECTED";
     return "PENDING";
   };
 
-  /** Reload the commuter's own claims from the DB (newest claim per item wins). */
-  const loadClaims = useCallback(async () => {
+  const toBackendClaimStatus = (filter: ClaimFilter): BackendClaimStatus | undefined => {
+    if (filter === "PENDING") return "PENDING";
+    if (filter === "VALIDATED") return "APPROVED";
+    if (filter === "REJECTED") return "REJECTED";
+    return undefined;
+  };
+
+  /** Reload one page of the commuter's own claims from the DB. */
+  const loadClaims = useCallback(async (page = currentPage, filter = claimFilter) => {
+    setIsLoading(true);
+    setListError(null);
     try {
-      const rows = await fetchMyClaims();
+      const result = await fetchMyClaims({
+        page,
+        perPage: CLAIMS_PER_PAGE,
+        status: toBackendClaimStatus(filter),
+      });
       const next = new Map<string, ClaimData>();
-      // rows are newest-first — keep only the first (newest) claim per item.
-      for (const row of rows) {
+      // Rows are newest-first. Keep one visible card state per item on this page.
+      for (const row of result.claims) {
         if (next.has(row.itemId)) continue;
         next.set(row.itemId, {
           claimId: row.id,
           status: toUiClaimStatus(row.status),
           proof: row.proof,
+          claimDate: row.claimDate,
+          reviewedAt: row.reviewedAt,
+          rejectionReason: row.rejectionReason,
           item: row.item ? mapServiceItemToViewModel(row.item) : null,
         });
       }
       setClaims(next);
+      setClaimPageData({
+        totalPages: result.lastPage,
+        totalItems: result.total,
+        currentPage: result.page,
+      });
     } catch {
-      // Non-fatal: cards just show no claim badges until the next reload.
+      setListError("Unable to load your claims.");
+      setClaims(new Map());
+      setClaimPageData({ totalPages: 1, totalItems: 0, currentPage: page });
+    } finally {
+      setIsLoading(false);
     }
-  }, []);
+  }, [claimFilter, currentPage]);
 
   /** Reload the watchlisted item ids from the DB (for the card hearts). */
   const loadWatchlistIds = useCallback(async () => {
@@ -101,7 +127,7 @@ export function useLostAndFound() {
     }
   }, []);
 
-  useEffect(() => { void loadClaims(); void loadWatchlistIds(); }, [loadClaims, loadWatchlistIds]);
+  useEffect(() => { void loadWatchlistIds(); }, [loadWatchlistIds]);
 
   const fetchLostItems = useCallback(async (page: number, limit: number, category: ItemCategory, search: string) => {
     setIsLoading(true);
@@ -154,9 +180,7 @@ export function useLostAndFound() {
 
   useEffect(() => {
     if (activeTab === "MY_CLAIMS") {
-      // Claim items come from the claims map (already loaded from the DB).
-      setIsLoading(false);
-      setListError(null);
+      void loadClaims(currentPage, claimFilter);
       return;
     }
     if (activeTab === "WATCHLIST") {
@@ -164,10 +188,11 @@ export function useLostAndFound() {
       return;
     }
     void fetchLostItems(currentPage, ITEMS_PER_PAGE, activeCategory, searchQuery);
-  }, [activeTab, fetchLostItems, fetchWatchlistItems, currentPage, activeCategory, searchQuery]);
+  }, [activeTab, fetchLostItems, fetchWatchlistItems, loadClaims, currentPage, activeCategory, claimFilter, searchQuery]);
 
   const handleTabChange = (tab: ViewTab) => { setActiveTab(tab); setActiveCategory("ALL"); setSearchQuery(""); setCurrentPage(1); };
   const handleCategoryChange = (cat: ItemCategory) => { setActiveCategory(cat); setCurrentPage(1); };
+  const handleClaimFilterChange = (filter: ClaimFilter) => { setClaimFilter(filter); setCurrentPage(1); };
   const handleSearch = (val: string) => { setSearchQuery(val); setCurrentPage(1); };
 
   /** Local category/search filter for tabs whose data isn't server-filtered. */
@@ -183,12 +208,15 @@ export function useLostAndFound() {
   const displayItems: LostItem[] =
     activeTab === "MY_CLAIMS"
       ? Array.from(claims.values())
-          .map(c => c.item)
+          .map(claim => claim.item)
           .filter((item): item is LostItem => item !== null)
           .filter(matchesLocalFilters)
       : activeTab === "WATCHLIST"
         ? apiData.items.filter(matchesLocalFilters)
         : apiData.items;
+
+  const displayClaims: ClaimData[] = Array.from(claims.values())
+    .filter(claim => claim.item ? matchesLocalFilters(claim.item) : true);
 
   /**
    * Optimistic watchlist toggle, persisted to the DB. The heart flips
@@ -211,7 +239,6 @@ export function useLostAndFound() {
   };
 
   const openClaimModal = (item: LostItem) => {
-    if (pendingClaimsCount >= MAX_PENDING_CLAIMS) return;
     setItemToClaim(item);
     setProofText("");
     setClaimError(null);
@@ -223,14 +250,15 @@ export function useLostAndFound() {
    * claims map from the DB (server truth — carries the claimId needed for
    * cancel). On 409 → inline "Item already claimed"; 422 → inline validation.
    */
-  const submitClaim = async () => {
-    if (!itemToClaim || !proofText.trim()) return;
+  const submitClaim = async (): Promise<boolean> => {
+    if (!itemToClaim || !proofText.trim()) return false;
     setIsSubmittingClaim(true);
     setClaimError(null);
     try {
       await claimItem(itemToClaim.id, { proof: proofText.trim() });
-      await loadClaims();
+      await loadClaims(1, "ALL");
       setShowClaimModal(false);
+      return true;
     } catch (err) {
       if (err instanceof LostFoundOperationError) {
         // 409 → "Item already claimed" (the backend rejects claims on
@@ -239,6 +267,7 @@ export function useLostAndFound() {
       } else {
         setClaimError(err instanceof Error ? err.message : "Unable to submit claim.");
       }
+      return false;
     } finally {
       setIsSubmittingClaim(false);
     }
@@ -259,7 +288,7 @@ export function useLostAndFound() {
       } catch {
         // Fall through — the reload below resyncs to the DB's truth.
       }
-      await loadClaims();
+      await loadClaims(currentPage, claimFilter);
     })();
   };
 
@@ -277,13 +306,13 @@ export function useLostAndFound() {
   };
 
   return {
-    activeTab, handleTabChange, activeCategory, handleCategoryChange, searchQuery, handleSearch,
+    activeTab, handleTabChange, activeCategory, handleCategoryChange, claimFilter, handleClaimFilterChange, searchQuery, handleSearch,
     currentPage, setCurrentPage, apiData, isLoading, listError,
-    watchlist, toggleWatchlist, claims, pendingClaimsCount,
+    watchlist, toggleWatchlist, claims, claimPageData,
     openClaimModal, cancelClaim,
     showClaimModal, setShowClaimModal, itemToClaim, proofText, setProofText,
     submitClaim, claimError, isSubmittingClaim,
-    displayItems, formatDate, getStatusBadge, MAX_PENDING_CLAIMS,
+    displayItems, displayClaims, formatDate, getStatusBadge,
   };
 }
 

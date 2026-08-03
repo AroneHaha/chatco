@@ -80,11 +80,37 @@ class LostFoundSelfServiceTest extends TestCase
 
         $response->assertStatus(200)
             ->assertJsonPath('success', true)
-            ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.id', $mine->id)
-            ->assertJsonPath('data.0.status', 'PENDING')
-            ->assertJsonPath('data.0.item.id', $itemA->id)
-            ->assertJsonPath('data.0.item.item_name', 'Item A');
+            ->assertJsonCount(1, 'data.data')
+            ->assertJsonPath('data.data.0.id', $mine->id)
+            ->assertJsonPath('data.data.0.status', 'PENDING')
+            ->assertJsonPath('data.data.0.item.id', $itemA->id)
+            ->assertJsonPath('data.data.0.item.item_name', 'Item A')
+            ->assertJsonPath('data.per_page', 10)
+            ->assertJsonPath('data.total', 1);
+    }
+
+    public function test_my_claims_are_paginated_and_status_filterable(): void
+    {
+        $this->claimAs($this->commuter, $this->createItem('Item A'));
+        $second = $this->claimAs($this->commuter, $this->createItem('Item B'));
+        $this->claimAs($this->commuter, $this->createItem('Item C'));
+
+        Sanctum::actingAs($this->admin);
+        $this->patchJson("/api/v1/admin/lost-items/{$second->item_id}/claims/{$second->id}/approve")
+            ->assertStatus(200);
+
+        Sanctum::actingAs($this->commuter);
+        $this->getJson('/api/v1/commuter/claims?per_page=2')
+            ->assertStatus(200)
+            ->assertJsonCount(2, 'data.data')
+            ->assertJsonPath('data.per_page', 2)
+            ->assertJsonPath('data.total', 3);
+
+        $this->getJson('/api/v1/commuter/claims?status=APPROVED&per_page=10')
+            ->assertStatus(200)
+            ->assertJsonCount(1, 'data.data')
+            ->assertJsonPath('data.data.0.id', $second->id)
+            ->assertJsonPath('data.data.0.status', 'APPROVED');
     }
 
     public function test_my_claims_requires_commuter_role(): void
