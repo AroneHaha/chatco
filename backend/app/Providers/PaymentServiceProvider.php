@@ -23,9 +23,18 @@ class PaymentServiceProvider extends ServiceProvider
     {
         $this->app->singleton(PaymentGateway::class, function () {
             $name = (string) config('payments.default', 'paymongo');
+
+            if (
+                $name === 'paymongo'
+                && app()->environment('local')
+                && (bool) config('payments.allow_simulation')
+            ) {
+                return new FakeGateway;
+            }
+
             $gateway = $this->makeGateway($name);
 
-            return $gateway->isConfigured() ? $gateway : new FakeGateway();
+            return $gateway->isConfigured() ? $gateway : new FakeGateway;
         });
     }
 
@@ -40,7 +49,7 @@ class PaymentServiceProvider extends ServiceProvider
                 retryTimes: (int) config('payments.gateways.paymongo.retry_times', 2),
                 retrySleepMs: (int) config('payments.gateways.paymongo.retry_sleep_ms', 250),
             ),
-            'fake' => new FakeGateway(),
+            'fake' => new FakeGateway,
             default => throw new InvalidArgumentException("Unknown payment gateway [{$name}]."),
         };
     }

@@ -2,7 +2,11 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Html5Qrcode } from "html5-qrcode";
-import { claimGcash, type ClaimResult } from "@/lib/commuter/services/payment.service";
+import {
+  claimGcash,
+  simulatePayment,
+  type ClaimResult,
+} from "@/lib/commuter/services/payment.service";
 import { ApiError } from "@/lib/api/client";
 import { formatCurrency } from "@/lib/shared/fare/fare-calculator";
 
@@ -33,8 +37,8 @@ type Step = "scanning" | "verifying" | "confirm" | "redirecting" | "success" | "
  * shows the final result.
  *
  * In DEV mode (FakeGateway, no PayMongo keys), checkout_url is null. The
- * claim still binds the commuter to the transaction, and the conductor's
- * [DEV] Simulate Payment button drives it to PAID through the webhook path.
+ * commuter scan action simulates PAID through the same backend transition
+ * used by webhook/simulation flows.
  */
 export default function ScanModal({ onClose }: ScanModalProps) {
   const [step, setStep] = useState<Step>("scanning");
@@ -142,7 +146,16 @@ export default function ScanModal({ onClose }: ScanModalProps) {
     try {
       const result = await claimGcash(qrToken.trim());
       setClaimResult(result);
-      setStep("confirm");
+
+      if (result.checkoutUrl) {
+        setStep("redirecting");
+        window.location.href = result.checkoutUrl;
+        return;
+      }
+
+      setStep("redirecting");
+      await simulatePayment(result.transactionId, "PAID");
+      setStep("success");
     } catch (err) {
       // Extract the backend's specific error message. The ApiError.body
       // contains the Laravel envelope { success, data, message, errors }.
@@ -186,8 +199,8 @@ export default function ScanModal({ onClose }: ScanModalProps) {
   // In real mode, checkout_url is the PayMongo hosted page. The commuter
   // authorizes there, PayMongo redirects to /gcash/return, and the webhook
   // flips the transaction to PAID.
-  // In dev mode (FakeGateway), checkout_url is null — we show a waiting
-  // state and the conductor's [DEV] Simulate button drives it to PAID.
+  // In dev mode (FakeGateway), checkout_url is null. Scanning simulates a
+  // PAID provider event so the database and conductor poller update too.
   const handleConfirmPayment = useCallback(() => {
     if (!claimResult) return;
 
@@ -196,11 +209,13 @@ export default function ScanModal({ onClose }: ScanModalProps) {
       setStep("redirecting");
       window.location.href = claimResult.checkoutUrl;
     } else {
-      // Dev mode (FakeGateway) — no redirect. Show a waiting state.
-      // The conductor's [DEV] Simulate Payment button will drive the
-      // status to PAID via the webhook path. The commuter can close
-      // this modal and check their payment history for the final status.
-      setStep("success");
+      setStep("redirecting");
+      simulatePayment(claimResult.transactionId, "PAID")
+        .then(() => setStep("success"))
+        .catch((err) => {
+          setError(err instanceof Error ? err.message : "Unable to complete the simulated payment.");
+          setStep("failed");
+        });
     }
   }, [claimResult]);
 
@@ -388,7 +403,7 @@ export default function ScanModal({ onClose }: ScanModalProps) {
               <p className="text-[10px] text-white/40">
                 {claimResult.checkoutUrl
                   ? "You'll be redirected to GCash's secure page to authorize this payment."
-                  : "Dev mode — the conductor will simulate the payment. Check your payment history for the final status."}
+                  : "Dev mode - scanning completes the simulated payment."}
               </p>
             </div>
 

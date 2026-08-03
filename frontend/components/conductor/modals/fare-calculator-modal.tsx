@@ -257,26 +257,23 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     };
   }, [pickupPoint, dropoffPoint, scannedCommuterType]);
 
-  const companionPassengers = useMemo<GroupPassengerInput[]>(() => {
+  const enteredGroupPassengers = useMemo<GroupPassengerInput[]>(() => {
     if (!fareInfo) return [];
     return (Object.entries(groupCounts) as [GroupPassengerType, number][])
       .filter(([, quantity]) => quantity > 0)
       .map(([type, quantity]) => ({ passenger_type: type, quantity }));
   }, [fareInfo, groupCounts]);
 
-  // Multiple-payment input represents companions only. The payer is always
-  // passenger #1. Cash uses the type selected by the conductor; GCash uses a
-  // regular placeholder until the verified commuter account claims the QR.
+  // Cash group input represents all passengers. GCash group input represents
+  // companions only; the verified commuter who scans the QR is added on claim.
   const groupPassengers = useMemo<GroupPassengerInput[]>(() => {
-    const payerType: GroupPassengerType = selectedMethod === "GCash" ? "REGULAR" : commuterType;
-    return [
-      { passenger_type: payerType, quantity: 1 },
-      ...companionPassengers.map((passenger) => ({ ...passenger })),
-    ];
-  }, [companionPassengers, commuterType, selectedMethod]);
+    return enteredGroupPassengers.map((passenger) => ({ ...passenger }));
+  }, [enteredGroupPassengers]);
 
-  const groupCompanionCount = companionPassengers.reduce((sum, row) => sum + row.quantity, 0);
+  const groupEnteredCount = enteredGroupPassengers.reduce((sum, row) => sum + row.quantity, 0);
   const groupPassengerCount = groupPassengers.reduce((sum, row) => sum + row.quantity, 0);
+  const finalGroupPassengerCount = selectedMethod === "GCash" ? groupPassengerCount + 1 : groupPassengerCount;
+  const shouldShowGroupFareSummary = selectedMethod !== "GCash" || groupEnteredCount > 0;
   const groupTotalFare = groupPassengers.reduce(
     (sum, row) => sum + (row.passenger_type === "REGULAR" ? fareInfo?.regularFare ?? 0 : fareInfo?.discountedFare ?? 0) * row.quantity,
     0
@@ -463,8 +460,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
         distance: barangaysTraveled,
         discountAmount: isGroupMode ? regularFare - apiGetFareBetween(pickupPoint.pointNumber, dropoffPoint.pointNumber, true) : 0,
         groupPassengers: isGroupMode ? groupPassengers : undefined,
-        pickupStopId: isGroupMode ? pickupPoint.id : undefined,
-        dropoffStopId: isGroupMode ? dropoffPoint.id : undefined,
+        pickupStopId: undefined,
+        dropoffStopId: undefined,
       });
 
       setGcashInitiation(initiation);
@@ -1062,7 +1059,9 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                   </div>
                   <p className="mt-1 text-[10px] text-white/45">
                     {isGroupMode
-                      ? "Multiple · Enter companions only; the payer is added automatically"
+                      ? isGCash
+                        ? "Multiple - Enter companions only; the payer is added after QR claim"
+                        : "Multiple - Enter passenger quantities"
                       : "Single · One payer, one transaction"}
                   </p>
                   {!isGCash && !isGroupMode && (
@@ -1086,7 +1085,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                   )}
                   {isGroupMode && (
                     <p className="mt-1.5 text-[10px] text-blue-300/70">
-                      Multiple selected · review the route, then enter companion quantities.
+                      Multiple selected - review the route, then enter passenger quantities.
                     </p>
                   )}
                 </div>
@@ -1456,54 +1455,26 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
           </div>
 
           <div className="space-y-3 p-5">
-            <div className="rounded-xl border border-blue-400/20 bg-blue-500/10 p-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-white">Payer</p>
-                  <p className="text-[10px] text-blue-200/70">
-                    {selectedMethod === "GCash"
-                      ? "ChatCo account and discount detected after scan"
-                      : `Anonymous cash passenger · ${getCommuterTypeLabel(commuterType)}`}
-                  </p>
-                </div>
-                <span className="rounded-full bg-blue-400/15 px-2 py-1 text-[10px] font-bold text-blue-200">Automatically added</span>
-              </div>
-              {selectedMethod === "Cash" && (
-                <div className="mt-3">
-                  <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-blue-100/60">Payer type</p>
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {passengerTypes.map(({ type, label }) => (
-                      <button
-                        key={`payer-${type}`}
-                        type="button"
-                        aria-pressed={commuterType === type}
-                        onClick={() => setCommuterType(type)}
-                        className={`rounded-lg px-1.5 py-2 text-[10px] font-semibold transition-colors ${
-                          commuterType === type
-                            ? "bg-[#1A5FB4] text-white"
-                            : "border border-white/10 bg-white/5 text-white/55 hover:text-white"
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">Companions only</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">
+              {selectedMethod === "GCash" ? "Companions only" : "Passengers"}
+            </p>
             {passengerTypes.map(({ type, label }) => {
               const count = groupCounts[type];
               const fare = type === "REGULAR" ? fareInfo?.regularFare ?? 0 : fareInfo?.discountedFare ?? 0;
+              const shouldShowTypeFare = selectedMethod !== "GCash" || count > 0;
               return (
                 <div key={type} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 p-3">
                   <div>
                     <p className="text-sm font-semibold text-white">{label}</p>
-                    <p className="text-[10px] text-white/40">
-                      Fare {formatCurrency(fare)}
-                      {type !== "REGULAR" && ` · Discount ${formatCurrency((fareInfo?.regularFare ?? 0) - fare)}`}
-                    </p>
-                    <p className="text-[10px] text-blue-300/80">Subtotal {formatCurrency(fare * count)}</p>
+                    {shouldShowTypeFare && (
+                      <>
+                        <p className="text-[10px] text-white/40">
+                          Fare {formatCurrency(fare)}
+                          {type !== "REGULAR" && ` · Discount ${formatCurrency((fareInfo?.regularFare ?? 0) - fare)}`}
+                        </p>
+                        <p className="text-[10px] text-blue-300/80">Subtotal {formatCurrency(fare * count)}</p>
+                      </>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
                     <button
@@ -1526,35 +1497,50 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
             })}
 
             <div className="rounded-xl border border-blue-400/20 bg-blue-500/10 p-4">
-              <div className="flex justify-between text-sm"><span className="text-white/50">Companions entered</span><span className="font-bold text-white">{groupCompanionCount}</span></div>
-              <div className="mt-1 flex justify-between text-sm"><span className="text-white/50">Actual passengers (+ payer)</span><span className="font-bold text-white">{groupPassengerCount}</span></div>
-              <div className="mt-2 flex justify-between text-sm"><span className="text-white/50">Gross fare</span><span className="text-white">{formatCurrency((fareInfo?.regularFare ?? 0) * groupPassengerCount)}</span></div>
-              {((fareInfo?.regularFare ?? 0) * groupPassengerCount) - groupTotalFare > 0 && (
-                <div className="mt-1 flex justify-between text-sm"><span className="text-white/50">Discounts</span><span className="text-emerald-300">-{formatCurrency(((fareInfo?.regularFare ?? 0) * groupPassengerCount) - groupTotalFare)}</span></div>
+              <div className="flex justify-between text-sm">
+                <span className="text-white/50">{selectedMethod === "GCash" ? "Companions entered" : "Passengers entered"}</span>
+                <span className="font-bold text-white">
+                  {groupEnteredCount}
+                  {selectedMethod === "GCash" && (
+                    <span className="ml-1 text-[11px] font-semibold text-blue-200/70">(+ you)</span>
+                  )}
+                </span>
+              </div>
+              {shouldShowGroupFareSummary && (
+                <>
+                  <div className="mt-2 flex justify-between text-sm"><span className="text-white/50">Gross fare</span><span className="text-white">{formatCurrency((fareInfo?.regularFare ?? 0) * groupPassengerCount)}</span></div>
+                  {((fareInfo?.regularFare ?? 0) * groupPassengerCount) - groupTotalFare > 0 && (
+                    <div className="mt-1 flex justify-between text-sm"><span className="text-white/50">Discounts</span><span className="text-emerald-300">-{formatCurrency(((fareInfo?.regularFare ?? 0) * groupPassengerCount) - groupTotalFare)}</span></div>
+                  )}
+                </>
               )}
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {passengerTypes.filter(({ type }) => groupCounts[type] > 0).map(({ type, label }) => (
                   <span key={type} className="rounded-full bg-white/10 px-2 py-1 text-[10px] text-white/70">{label} × {groupCounts[type]}</span>
                 ))}
               </div>
-              <div className="mt-3 flex justify-between border-t border-white/10 pt-3">
-                <span className="text-sm font-semibold text-white">Estimated total</span>
-                <span className="text-xl font-extrabold text-white">{formatCurrency(groupTotalFare)}</span>
-              </div>
+              {shouldShowGroupFareSummary && (
+                <div className="mt-3 flex justify-between border-t border-white/10 pt-3">
+                  <span className="text-sm font-semibold text-white">Estimated total</span>
+                  <span className="text-xl font-extrabold text-white">{formatCurrency(groupTotalFare)}</span>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={() => setStep("select")} className="flex-1 rounded-xl border border-white/10 py-3 text-sm font-semibold text-white/60">Back</button>
               <button
                 type="button"
-                disabled={groupCompanionCount === 0 || !pickupPoint || !dropoffPoint || isInitiatingGcash}
+                disabled={groupEnteredCount === 0 || !pickupPoint || !dropoffPoint || isInitiatingGcash}
                 onClick={handleConfirmPayment}
                 className="flex-1 rounded-xl bg-[#1A5FB4] py-3 text-sm font-bold text-white disabled:opacity-40"
               >
                 {isInitiatingGcash
                   ? "Starting…"
                   : selectedMethod === "GCash"
-                    ? `Generate QR · ${formatCurrency(groupTotalFare)}`
+                    ? groupEnteredCount > 0
+                      ? `Generate QR · ${formatCurrency(groupTotalFare)}`
+                      : "Generate QR"
                     : `Pay ${formatCurrency(groupTotalFare)}`}
               </button>
             </div>
@@ -1989,8 +1975,28 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   // ─── STEP: Success ──────────────────────────────────────────────
 
   if (step === "success") {
+    const receiptTotalFare = isGroupMode && receiptTransactions.length > 0
+      ? receiptTransactions.reduce((sum, transaction) => sum + transaction.finalAmount, 0)
+      : null;
+    const receiptGrossFare = isGroupMode && receiptTransactions.length > 0
+      ? receiptTransactions.reduce(
+          (sum, transaction) => sum + (transaction.grossAmount ?? transaction.baseFare ?? transaction.finalAmount),
+          0
+        )
+      : null;
+    const receiptDiscount = isGroupMode && receiptTransactions.length > 0
+      ? receiptTransactions.reduce((sum, transaction) => sum + (transaction.discountAmount ?? 0), 0)
+      : null;
+    const successPassengerCount = isGroupMode && receiptTransactions.length > 0
+      ? receiptTransactions.length
+      : finalGroupPassengerCount;
     const activeFareInfo = isGroupMode && fareInfo
-      ? { ...fareInfo, finalFare: groupTotalFare }
+      ? {
+          ...fareInfo,
+          finalFare: receiptTotalFare ?? groupTotalFare,
+          discountAmount: receiptDiscount ?? fareInfo.discountAmount,
+          hasDiscount: (receiptDiscount ?? 0) > 0,
+        }
       : selectedMethod === "GCash" ? gcashFareInfo : fareInfo;
     if (!activeFareInfo) return null;
 
@@ -2096,8 +2102,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                     groupPosition={transaction?.groupPosition}
                     multiplePaymentReference={transaction?.multiplePaymentReference ?? gcashInitiation?.multiplePaymentReference}
                     driverName={transaction?.driverName ?? driverName}
-                    totalPassengers={transaction?.totalPassengers ?? (isGroupMode ? groupPassengerCount : 1)}
-                    grossFare={transaction?.grossAmount ?? (isGroupMode ? activeFareInfo.regularFare * groupPassengerCount : activeFareInfo.regularFare)}
+                    totalPassengers={transaction?.totalPassengers ?? (isGroupMode ? successPassengerCount : 1)}
+                    grossFare={transaction?.grossAmount ?? (isGroupMode ? receiptGrossFare ?? activeFareInfo.regularFare * successPassengerCount : activeFareInfo.regularFare)}
                     passengerBreakdown={transaction?.passengerBreakdown}
                     from={transaction?.from || pickupPoint?.name || "—"}
                     to={transaction?.to || dropoffPoint?.name || "—"}

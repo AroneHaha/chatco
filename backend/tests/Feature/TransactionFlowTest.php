@@ -392,11 +392,14 @@ class TransactionFlowTest extends TestCase
 
         $anchor = $result['transaction'];
         $this->assertSame(42.0, $result['amount']);
-        $this->assertCount(3, $result['receipts']);
+        $this->assertSame(0.0, (float) $anchor->final_amount);
+        $this->assertNull($anchor->payment_reference);
+        $this->assertCount(4, $result['receipts']);
         $pending = app(TransactionService::class)->findPendingGcashForConductor($this->conductor);
         $this->assertSame($anchor->transaction_id, $pending['transaction']->transaction_id);
         $this->assertSame($anchor->qr_token, $pending['qr_token']);
-        app(TransactionService::class)->claimGcash($this->commuter1, $anchor->qr_token);
+        $claim = app(TransactionService::class)->claimGcash($this->commuter1, $anchor->qr_token);
+        $this->assertSame(57.0, $claim['amount']);
         app(PaymentService::class)->transitionTo($anchor->fresh(), PaymentStatus::PAID);
 
         $receipts = Transaction::where('group_id', $anchor->group_id)->get();
@@ -427,15 +430,16 @@ class TransactionFlowTest extends TestCase
         $anchor->refresh();
         $group = $anchor->paymentGroup()->firstOrFail();
 
-        $this->assertSame(39.0, $claim['amount']);
-        $this->assertSame(45.0, $claim['regular_amount']);
+        $this->assertSame(54.0, $claim['amount']);
+        $this->assertSame(60.0, $claim['regular_amount']);
         $this->assertSame(6.0, $claim['discount_amount']);
         $this->assertSame('STUDENT', $claim['passenger_role']);
         $this->assertSame(12.0, (float) $anchor->final_amount);
         $this->assertSame(3.0, (float) $anchor->discount_amount);
-        $this->assertSame(39.0, (float) $group->total_amount);
+        $this->assertSame(54.0, (float) $group->total_amount);
+        $this->assertSame(4, $group->passenger_count);
         $this->assertSame([
-            ['type' => 'REGULAR', 'quantity' => 1, 'final_amount' => 15, 'base_fare' => 15, 'discount_amount' => 0],
+            ['type' => 'REGULAR', 'quantity' => 2, 'final_amount' => 15, 'base_fare' => 15, 'discount_amount' => 0],
             ['type' => 'PWD', 'quantity' => 1, 'final_amount' => 12, 'base_fare' => 15, 'discount_amount' => 3],
             ['type' => 'STUDENT', 'quantity' => 1, 'final_amount' => 12, 'base_fare' => 15, 'discount_amount' => 3],
         ], $group->passenger_breakdown);
@@ -755,7 +759,7 @@ class TransactionFlowTest extends TestCase
             ->assertJsonPath('data.status', 'CANCELLED');
 
         $receipts = Transaction::where('group_id', $anchor->group_id)->get();
-        $this->assertCount(3, $receipts);
+        $this->assertCount(4, $receipts);
         $this->assertTrue($receipts->every(fn ($transaction) => $transaction->status === PaymentStatus::CANCELLED));
         $this->assertTrue($receipts->every(fn ($transaction) => $transaction->qr_token === null));
         $this->assertTrue($receipts->every(fn ($transaction) => $transaction->payment_checkout_url === null));
