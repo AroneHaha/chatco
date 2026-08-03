@@ -126,6 +126,7 @@ return array(
     'App\\Models\\Announcement' => $baseDir . '/app/Models/Announcement.php',
     'App\\Models\\AnnouncementRead' => $baseDir . '/app/Models/AnnouncementRead.php',
     'App\\Models\\Claim' => $baseDir . '/app/Models/Claim.php',
+    'App\\Models\\ClaimRejectionAudit' => $baseDir . '/app/Models/ClaimRejectionAudit.php',
     'App\\Models\\CommuterProfile' => $baseDir . '/app/Models/CommuterProfile.php',
     'App\\Models\\ConductorProfile' => $baseDir . '/app/Models/ConductorProfile.php',
     'App\\Models\\Driver' => $baseDir . '/app/Models/Driver.php',

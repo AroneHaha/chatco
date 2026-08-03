@@ -630,6 +630,7 @@ class ComposerStaticInit1554d9a7755277c7b64a5a5f7daac88e
         'App\\Models\\Announcement' => __DIR__ . '/../..' . '/app/Models/Announcement.php',
         'App\\Models\\AnnouncementRead' => __DIR__ . '/../..' . '/app/Models/AnnouncementRead.php',
         'App\\Models\\Claim' => __DIR__ . '/../..' . '/app/Models/Claim.php',
+        'App\\Models\\ClaimRejectionAudit' => __DIR__ . '/../..' . '/app/Models/ClaimRejectionAudit.php',
         'App\\Models\\CommuterProfile' => __DIR__ . '/../..' . '/app/Models/CommuterProfile.php',
         'App\\Models\\ConductorProfile' => __DIR__ . '/../..' . '/app/Models/ConductorProfile.php',
         'App\\Models\\Driver' => __DIR__ . '/../..' . '/app/Models/Driver.php',

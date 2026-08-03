@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Claim;
+use App\Models\ClaimRejectionAudit;
 use App\Models\CommuterProfile;
 use App\Models\LostItem;
 use App\Models\LostItemPhoto;
@@ -62,6 +63,9 @@ class LostItemService
     /** Max photos per item (position 0-2; 0 is the thumbnail). */
     private const MAX_PHOTOS = 3;
 
+    /** Max final rejected claims a commuter may have for the same item. */
+    private const MAX_REJECTIONS_PER_COMMUTER_ITEM = 3;
+
     public function __construct(
         private readonly AnnouncementService $announcementService,
     ) {}
@@ -117,6 +121,16 @@ class LostItemService
         }
         if (! empty($filters['category'])) {
             $query->where('category', $filters['category']);
+        }
+        if (! empty($filters['search'])) {
+            $search = $filters['search'];
+            $query->where(function ($q) use ($search) {
+                $q->where('item_name', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%")
+                    ->orWhere('plate_number', 'like', "%{$search}%")
+                    ->orWhere('driver_name', 'like', "%{$search}%")
+                    ->orWhere('conductor_name', 'like', "%{$search}%");
+            });
         }
 
         return $query->paginate($perPage);
@@ -283,6 +297,17 @@ class LostItemService
             throw LostFoundException::notFound('Commuter profile');
         }
 
+        $rejectedCount = Claim::where('item_id', $item->id)
+            ->where('claimant_id', $profile->id)
+            ->where('status', self::CLAIM_REJECTED)
+            ->count();
+
+        if ($rejectedCount >= self::MAX_REJECTIONS_PER_COMMUTER_ITEM) {
+            throw LostFoundException::itemNotClaimable(
+                'You have reached the maximum number of rejected claims for this item'
+            );
+        }
+
         return DB::transaction(function () use ($item, $commuter, $profile, $data): Claim {
             $claim = Claim::create([
                 'item_id' => $item->id,
@@ -348,7 +373,7 @@ class LostItemService
      *
      * @throws LostFoundException Commuter profile missing.
      */
-    public function myClaims(User $commuter): array
+    public function myClaims(User $commuter, int $perPage = 10, ?string $status = null): LengthAwarePaginator
     {
         /** @var CommuterProfile $profile */
         $profile = $commuter->commuterProfile;
@@ -356,12 +381,15 @@ class LostItemService
             throw LostFoundException::notFound('Commuter profile');
         }
 
-        return Claim::with('item.vehicle')
+        $query = Claim::with('item.vehicle')
             ->where('claimant_id', $profile->id)
-            ->orderByDesc('created_at')
-            ->limit(100)
-            ->get()
-            ->all();
+            ->orderByDesc('created_at');
+
+        if ($status) {
+            $query->where('status', $status);
+        }
+
+        return $query->paginate($perPage);
     }
 
     /**
@@ -536,15 +564,27 @@ class LostItemService
             ]);
 
             // Auto-reject other pending claims on the same item.
-            Claim::where('item_id', $item->id)
+            $autoRejectedClaims = Claim::where('item_id', $item->id)
                 ->where('id', '!=', $claim->id)
                 ->where('status', self::CLAIM_PENDING)
-                ->update([
+                ->get();
+
+            foreach ($autoRejectedClaims as $autoRejectedClaim) {
+                $autoRejectedClaim->update([
                     'status' => self::CLAIM_REJECTED,
                     'reviewed_by' => $admin->id,
                     'reviewed_at' => now(),
                     'rejection_reason' => 'Another claim was approved',
                 ]);
+
+                $this->recordRejectionAudit(
+                    $autoRejectedClaim,
+                    $admin,
+                    self::CLAIM_PENDING,
+                    self::CLAIM_REJECTED,
+                    'Another claim was approved',
+                );
+            }
 
             // Walk-in claimants (claimant_id null) have no CHATCO account to notify.
             if ($claim->claimant_id) {
@@ -652,12 +692,19 @@ class LostItemService
                 );
             }
 
+            $previousStatus = $claim->status;
+            $resultingStatus = $previousStatus === self::CLAIM_APPROVED
+                ? self::CLAIM_PENDING
+                : self::CLAIM_REJECTED;
+
             $claim->update([
-                'status' => self::CLAIM_REJECTED,
-                'reviewed_by' => $admin->id,
-                'reviewed_at' => now(),
-                'rejection_reason' => $reason,
+                'status' => $resultingStatus,
+                'reviewed_by' => $resultingStatus === self::CLAIM_REJECTED ? $admin->id : null,
+                'reviewed_at' => $resultingStatus === self::CLAIM_REJECTED ? now() : null,
+                'rejection_reason' => $resultingStatus === self::CLAIM_REJECTED ? $reason : null,
             ]);
+
+            $this->recordRejectionAudit($claim, $admin, $previousStatus, $resultingStatus, $reason);
 
             // Determine the new item status based on remaining claims.
             $pendingCount = Claim::where('item_id', $claim->item_id)
@@ -678,12 +725,28 @@ class LostItemService
 
             if ($claim->claimant_id) {
                 $reasonSuffix = $reason ? " Reason: {$reason}." : '';
-                $this->announcementService->notifyUser(
-                    $claim->claimant_id,
-                    'claim_rejected',
-                    'Claim Rejected',
-                    "Your claim on \"{$item->item_name}\" was not approved.{$reasonSuffix} You're welcome to review the item again and submit a new claim with more specific proof."
-                );
+                if ($resultingStatus === self::CLAIM_PENDING) {
+                    $this->announcementService->notifyUser(
+                        $claim->claimant_id,
+                        'claim_reopened',
+                        'Claim Review Reopened',
+                        "Your approved claim on \"{$item->item_name}\" was sent back for review.{$reasonSuffix}"
+                    );
+                } else {
+                    $rejectedCount = Claim::where('item_id', $claim->item_id)
+                        ->where('claimant_id', $claim->claimant_id)
+                        ->where('status', self::CLAIM_REJECTED)
+                        ->count();
+                    $retryText = $rejectedCount >= self::MAX_REJECTIONS_PER_COMMUTER_ITEM
+                        ? ' You have reached the rejection limit for this item.'
+                        : " You're welcome to review the item again and submit a new claim with more specific proof.";
+                    $this->announcementService->notifyUser(
+                        $claim->claimant_id,
+                        'claim_rejected',
+                        'Claim Rejected',
+                        "Your claim on \"{$item->item_name}\" was not approved.{$reasonSuffix}{$retryText}"
+                    );
+                }
             }
 
             return $claim->fresh(['item', 'claimant', 'reviewer']);
@@ -774,6 +837,24 @@ class LostItemService
         } catch (ModelNotFoundException) {
             throw LostFoundException::notFound('Claim');
         }
+    }
+
+    private function recordRejectionAudit(
+        Claim $claim,
+        User $admin,
+        string $previousStatus,
+        string $resultingStatus,
+        ?string $reason,
+    ): void {
+        ClaimRejectionAudit::create([
+            'claim_id' => $claim->id,
+            'item_id' => $claim->item_id,
+            'claimant_id' => $claim->claimant_id,
+            'rejected_by' => $admin->id,
+            'previous_status' => $previousStatus,
+            'resulting_status' => $resultingStatus,
+            'rejection_reason' => $reason,
+        ]);
     }
 
     private function adminDisplayName(User $admin): string

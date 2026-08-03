@@ -27,6 +27,8 @@
         <env name="DB_DATABASE" value=":memory:"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="PAYMENT_GCASH_CLAIM_TTL" value="3"/>
+        <env name="PAYMONGO_SECRET_KEY" value=""/>
+        <env name="PAYMONGO_WEBHOOK_SECRET" value=""/>
         <env name="PUBLIC_MEDIA_DISK" value="public"/>
         <env name="PRIVATE_ID_DISK" value="public"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
