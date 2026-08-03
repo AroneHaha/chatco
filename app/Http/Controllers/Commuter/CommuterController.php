@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Commuter;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Commuter\ChangePasswordRequest;
+use App\Http\Requests\Commuter\UpdateLocationRequest;
 use App\Http\Requests\Commuter\UpdateProfileRequest;
 use App\Enums\PaymentMethod;
+use App\Models\CommuterLocation;
 use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\Voucher;
@@ -80,9 +82,57 @@ class CommuterController extends Controller
         return $this->successResponse(null, 'Password updated successfully');
     }
 
-    public function trips(): JsonResponse
+    public function trips(Request $request): JsonResponse
     {
-        return $this->notImplementedResponse();
+        $profileId = $request->user()->commuterProfile?->id;
+
+        if (! $profileId) {
+            return $this->successResponse([], 'No commuter profile found');
+        }
+
+        $perPage = min(max((int) $request->integer('per_page', 20), 1), 100);
+
+        $trips = Transaction::query()
+            ->where('passenger_id', $profileId)
+            ->where('status', 'PAID')
+            ->with('paymentGroup:id,reference_number')
+            ->orderByDesc('paid_at')
+            ->orderByDesc('created_at')
+            ->paginate($perPage)
+            ->through(fn (Transaction $trip) => [
+                'id' => $trip->transaction_id,
+                'pickup' => $trip->pickup_name,
+                'dropoff' => $trip->dropoff_name,
+                'paymentMethod' => $trip->payment_method->value,
+                'amount' => (float) $trip->final_amount,
+                'passengerRole' => $trip->passenger_role,
+                'conductorName' => $trip->conductor_name,
+                'driverName' => $trip->driver_name,
+                'unitNumber' => $trip->unit_number,
+                'paidAt' => $trip->paid_at?->toIso8601String(),
+                'createdAt' => $trip->created_at?->toIso8601String(),
+                'multiplePaymentReference' => $trip->paymentGroup?->reference_number,
+            ]);
+
+        return $this->successResponse($trips, 'Trip history retrieved');
+    }
+
+    public function updateLocation(UpdateLocationRequest $request): JsonResponse
+    {
+        $profileId = $request->user()->commuterProfile?->id;
+
+        if (! $profileId) {
+            return $this->errorResponse('Commuter profile required.', 422);
+        }
+
+        $location = CommuterLocation::updateOrCreate(
+            ['commuter_id' => $profileId],
+            $request->validated(),
+        );
+
+        return $this->successResponse([
+            'updatedAt' => $location->updated_at?->toIso8601String(),
+        ], 'Location updated');
     }
 
     /**
