@@ -2,17 +2,17 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
-use App\Models\User;
+use App\Enums\UserRole;
 use App\Models\AdminProfile;
 use App\Models\ConductorProfile;
-use App\Models\CommuterProfile;
-use App\Models\Route;
-use App\Models\FarePoint;
 use App\Models\Driver;
+use App\Models\FarePoint;
+use App\Models\Route;
+use App\Models\RouteVersion;
+use App\Models\User;
 use App\Models\Vehicle;
-use App\Enums\UserRole;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -24,49 +24,49 @@ class DatabaseSeeder extends Seeder
 
         // ── Admin ──
         $admin = User::create([
-            'email'    => 'admin@gmail.com',
+            'email' => 'admin@gmail.com',
             'password' => Hash::make('password123'),
-            'role'     => UserRole::ADMIN,
+            'role' => UserRole::ADMIN,
         ]);
         AdminProfile::create([
-            'id'                  => $admin->id,
-            'first_name'          => 'System',
-            'middle_name'         => null,
-            'last_name'           => 'Admin',
+            'id' => $admin->id,
+            'first_name' => 'System',
+            'middle_name' => null,
+            'last_name' => 'Admin',
             'profile_picture_url' => null,
         ]);
 
         // ── Conductors ──
         $conductor1 = User::create([
-            'email'    => 'conductor1@gmail.com',
+            'email' => 'conductor1@gmail.com',
             'password' => Hash::make('password123'),
-            'role'     => UserRole::CONDUCTOR,
+            'role' => UserRole::CONDUCTOR,
         ]);
         ConductorProfile::create([
-            'id'                  => $conductor1->id,
-            'first_name'          => 'Juan',
-            'middle_name'         => null,
-            'last_name'           => 'Dela Cruz',
-            'birthday'            => '1990-03-15',
+            'id' => $conductor1->id,
+            'first_name' => 'Juan',
+            'middle_name' => null,
+            'last_name' => 'Dela Cruz',
+            'birthday' => '1990-03-15',
             'profile_picture_url' => null,
-            'generated_username'  => 'conductor001',
-            'generated_password'  => Hash::make('password123'),
+            'generated_username' => 'conductor001',
+            'generated_password' => Hash::make('password123'),
         ]);
 
         $conductor2 = User::create([
-            'email'    => 'conductor2@gmail.com',
+            'email' => 'conductor2@gmail.com',
             'password' => Hash::make('password123'),
-            'role'     => UserRole::CONDUCTOR,
+            'role' => UserRole::CONDUCTOR,
         ]);
         ConductorProfile::create([
-            'id'                  => $conductor2->id,
-            'first_name'          => 'Maria',
-            'middle_name'         => 'Santos',
-            'last_name'           => 'Reyes',
-            'birthday'            => '1992-07-20',
+            'id' => $conductor2->id,
+            'first_name' => 'Maria',
+            'middle_name' => 'Santos',
+            'last_name' => 'Reyes',
+            'birthday' => '1992-07-20',
             'profile_picture_url' => null,
-            'generated_username'  => 'conductor002',
-            'generated_password'  => Hash::make('password123'),
+            'generated_username' => 'conductor002',
+            'generated_password' => Hash::make('password123'),
         ]);
 
         // ── Commuters ──
@@ -120,9 +120,22 @@ class DatabaseSeeder extends Seeder
         }, $barangayStops);
 
         $route = Route::create([
-            'name'      => 'McArthur Highway — Calumpit to Meycauayan',
-            'status'    => 'ACTIVE',
+            'name' => 'McArthur Highway — Calumpit to Meycauayan',
+            'status' => 'ACTIVE',
             'waypoints' => $waypoints, // auto JSON via cast
+        ]);
+
+        RouteVersion::create([
+            'route_id' => $route->id,
+            'version' => 1,
+            'status' => RouteVersion::STATUS_PUBLISHED,
+            'geometry' => config('chatco_route.bootstrap_geometry'),
+            'waypoints' => config('chatco_route.bootstrap_geometry'),
+            'notes' => 'Initial verified route.',
+            'effective_from' => now(),
+            'published_at' => now(),
+            'created_by' => $admin->id,
+            'published_by' => $admin->id,
         ]);
 
         // ════════════════════════════════════════════════════
@@ -148,16 +161,16 @@ class DatabaseSeeder extends Seeder
             }
 
             FarePoint::create([
-                'route_id'        => $route->id,
-                'point_number'    => $pointNumber,
-                'code'            => $stop['code'],
-                'name'            => $stop['name'],
-                'landmarks'       => $stop['landmarks'], // auto JSON via cast
-                'sub_stops'       => null,
-                'regular_fare'    => $regularFare,
+                'route_id' => $route->id,
+                'point_number' => $pointNumber,
+                'code' => $stop['code'],
+                'name' => $stop['name'],
+                'landmarks' => $stop['landmarks'], // auto JSON via cast
+                'sub_stops' => null,
+                'regular_fare' => $regularFare,
                 'discounted_fare' => $discountedFare,
-                'latitude'        => $stop['lat'],
-                'longitude'       => $stop['lng'],
+                'latitude' => $stop['lat'],
+                'longitude' => $stop['lng'],
             ]);
         }
 
@@ -195,41 +208,41 @@ class DatabaseSeeder extends Seeder
             [$firstName, $lastName, $birthday, $contact, $hireDate] = $spec;
 
             // Generate unique license number
-            $licenseNumber = 'DL-2024-' . str_pad($i + 1, 4, '0', STR_PAD_LEFT);
+            $licenseNumber = 'DL-2024-'.str_pad($i + 1, 4, '0', STR_PAD_LEFT);
 
             // Create the driver — starts with no vehicle (unassigned pool).
             Driver::create([
-                'first_name'          => $firstName,
-                'middle_name'         => null,
-                'last_name'           => $lastName,
-                'birthday'            => $birthday,
-                'contact'             => $contact,
-                'license_number'      => $licenseNumber,
-                'hire_date'           => $hireDate,
+                'first_name' => $firstName,
+                'middle_name' => null,
+                'last_name' => $lastName,
+                'birthday' => $birthday,
+                'contact' => $contact,
+                'license_number' => $licenseNumber,
+                'hire_date' => $hireDate,
                 'profile_picture_url' => null,
-                'status'              => 'ACTIVE',
-                'vehicle_id'          => null,
+                'status' => 'ACTIVE',
+                'vehicle_id' => null,
             ]);
 
             // Generate unique plate: XXX NNNN (3 letters + space + 4 digits)
-            $plateNumber = $platePrefixes[$i] . ' ' . str_pad($i + 1, 4, '0', STR_PAD_LEFT);
+            $plateNumber = $platePrefixes[$i].' '.str_pad($i + 1, 4, '0', STR_PAD_LEFT);
 
             // Generate unique unit number: UNIT-001 through UNIT-010
-            $unitNumber = 'UNIT-' . str_pad($i + 1, 3, '0', STR_PAD_LEFT);
+            $unitNumber = 'UNIT-'.str_pad($i + 1, 3, '0', STR_PAD_LEFT);
 
             // Create the vehicle — starts UNASSIGNED (no current driver or
             // conductor). Assignment happens at conductor login, not here.
             Vehicle::create([
-                'unit_number'          => $unitNumber,
-                'plate_number'         => $plateNumber,
-                'route_id'             => $route->id,
-                'driver_id'            => null,
-                'conductor_id'         => null,
-                'status'               => 'ACTIVE',
-                'speed'                => null,
-                'capacity_status'      => 'AVAILABLE',
-                'latitude'             => null,
-                'longitude'            => null,
+                'unit_number' => $unitNumber,
+                'plate_number' => $plateNumber,
+                'route_id' => $route->id,
+                'driver_id' => null,
+                'conductor_id' => null,
+                'status' => 'ACTIVE',
+                'speed' => null,
+                'capacity_status' => 'AVAILABLE',
+                'latitude' => null,
+                'longitude' => null,
                 'last_location_update' => null,
             ]);
         }

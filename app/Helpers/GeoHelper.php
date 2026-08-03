@@ -13,8 +13,6 @@ namespace App\Helpers;
  *   - EARTH_RADIUS_M : Earth's mean radius in meters (matches frontend)
  *   - HAIL_RADIUS_M  : hard 1KM limit enforced by HailService — changing
  *                      this value here changes the rule everywhere.
- *
- * @package App\Helpers
  */
 final class GeoHelper
 {
@@ -44,7 +42,7 @@ final class GeoHelper
      * @param  float  $lng1  Longitude of point A (degrees)
      * @param  float  $lat2  Latitude of point B (degrees)
      * @param  float  $lng2  Longitude of point B (degrees)
-     * @return float         Distance in meters
+     * @return float Distance in meters
      */
     public static function haversineMeters(
         float $lat1,
@@ -70,13 +68,13 @@ final class GeoHelper
      * Convenience wrapper: returns true when the great-circle distance
      * between two points is within the given radius.
      *
-     * @param  float  $lat1          Latitude of point A (degrees)
-     * @param  float  $lng1          Longitude of point A (degrees)
-     * @param  float  $lat2          Latitude of point B (degrees)
-     * @param  float  $lng2          Longitude of point B (degrees)
+     * @param  float  $lat1  Latitude of point A (degrees)
+     * @param  float  $lng1  Longitude of point A (degrees)
+     * @param  float  $lat2  Latitude of point B (degrees)
+     * @param  float  $lng2  Longitude of point B (degrees)
      * @param  float  $radiusMeters  Radius threshold in meters
-     *                                (defaults to HAIL_RADIUS_M = 1000)
-     * @return bool                   True if distance <= radiusMeters
+     *                               (defaults to HAIL_RADIUS_M = 1000)
+     * @return bool True if distance <= radiusMeters
      */
     public static function isWithinRadius(
         float $lat1,
@@ -86,5 +84,62 @@ final class GeoHelper
         float $radiusMeters = self::HAIL_RADIUS_M
     ): bool {
         return self::haversineMeters($lat1, $lng1, $lat2, $lng2) <= $radiusMeters;
+    }
+
+    /**
+     * Shortest distance from a point to a route polyline. Coordinates use the
+     * application-wide [latitude, longitude] order. The local equirectangular
+     * projection is accurate for corridor-scale distances and avoids a costly
+     * database GIS dependency.
+     *
+     * @param  array<int, array{0: float|int, 1: float|int}>  $coordinates
+     */
+    public static function distanceToPolylineMeters(
+        float $latitude,
+        float $longitude,
+        array $coordinates
+    ): float {
+        if (count($coordinates) < 2) {
+            return INF;
+        }
+
+        $referenceLatitude = $latitude * M_PI / 180;
+        $minimumDistance = INF;
+
+        for ($index = 0; $index < count($coordinates) - 1; $index++) {
+            $start = $coordinates[$index];
+            $end = $coordinates[$index + 1];
+
+            if (! is_array($start) || ! is_array($end)
+                || count($start) < 2 || count($end) < 2) {
+                continue;
+            }
+
+            $startX = ((float) $start[1] - $longitude) * M_PI / 180
+                * cos($referenceLatitude) * self::EARTH_RADIUS_M;
+            $startY = ((float) $start[0] - $latitude) * M_PI / 180
+                * self::EARTH_RADIUS_M;
+            $endX = ((float) $end[1] - $longitude) * M_PI / 180
+                * cos($referenceLatitude) * self::EARTH_RADIUS_M;
+            $endY = ((float) $end[0] - $latitude) * M_PI / 180
+                * self::EARTH_RADIUS_M;
+
+            $segmentX = $endX - $startX;
+            $segmentY = $endY - $startY;
+            $segmentLengthSquared = ($segmentX ** 2) + ($segmentY ** 2);
+
+            $projection = $segmentLengthSquared > 0
+                ? max(0, min(1, -($startX * $segmentX + $startY * $segmentY) / $segmentLengthSquared))
+                : 0;
+
+            $closestX = $startX + ($projection * $segmentX);
+            $closestY = $startY + ($projection * $segmentY);
+            $minimumDistance = min(
+                $minimumDistance,
+                sqrt(($closestX ** 2) + ($closestY ** 2))
+            );
+        }
+
+        return $minimumDistance;
     }
 }
