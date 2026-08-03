@@ -218,6 +218,14 @@ export interface LostFoundPage {
 /** One of the commuter's own claims, with the claimed item attached. */
 export type MyClaim = LostFoundClaim & { item: LostFoundItem | null };
 
+/** Paginated commuter claims result. */
+export interface MyClaimsPage {
+  claims: MyClaim[];
+  page: number;
+  lastPage: number;
+  total: number;
+}
+
 // ─── Typed errors ───────────────────────────────────────────────────
 
 export type LostFoundErrorCode =
@@ -442,12 +450,14 @@ export async function listForAdmin(params: {
   status?: string;
   statuses?: string[];
   category?: string;
+  search?: string;
   page?: number;
   perPage?: number;
 } = {}): Promise<LostFoundPage & { items: (LostFoundItem & { claims: LostFoundClaim[] })[] }> {
   const qs = buildQuery({
     status: params.status,
     category: params.category === "ALL" ? undefined : params.category,
+    search: params.search,
     page: params.page,
     per_page: params.perPage,
   });
@@ -574,13 +584,24 @@ export async function myWatchlist(params: {
  * "My Claims" tab + per-card badges — claim state lives in the DB, not React.
  * @throws {LostFoundOperationError} 401/403/5xx
  */
-export async function myClaims(): Promise<MyClaim[]> {
+export async function myClaims(params: {
+  page?: number;
+  perPage?: number;
+  status?: BackendClaimStatus;
+} = {}): Promise<MyClaimsPage> {
+  const qs = buildQuery({ page: params.page, per_page: params.perPage, status: params.status });
   try {
-    const response = await api.get<ApiResponseEnvelope<RawClaim[]>>(`/api/commuter/claims`);
-    return (response.data ?? []).map((raw) => ({
-      ...mapClaim(raw),
-      item: raw.item ? mapItem(raw.item) : null,
-    }));
+    const response = await api.get<ApiResponseEnvelope<PaginatedEnvelope<RawClaim>>>(`/api/commuter/claims${qs}`);
+    const p = response.data;
+    return {
+      claims: (p?.data ?? []).map((raw) => ({
+        ...mapClaim(raw),
+        item: raw.item ? mapItem(raw.item) : null,
+      })),
+      page: p?.current_page ?? params.page ?? 1,
+      lastPage: p?.last_page ?? 1,
+      total: p?.total ?? 0,
+    };
   } catch (err) {
     if (err instanceof ApiError) throw classifyError(err, "Unable to load your claims.");
     throw new LostFoundOperationError(

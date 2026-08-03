@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Claim;
+use App\Models\ClaimRejectionAudit;
 use App\Models\LostItem;
 use App\Models\User;
 use App\Models\Vehicle;
@@ -472,6 +473,15 @@ class LostFoundFlowTest extends TestCase
             ->assertJsonPath('data.status', 'REJECTED')
             ->assertJsonPath('data.rejection_reason', 'Proof does not match item description');
 
+        $this->assertDatabaseHas('claim_rejection_audits', [
+            'claim_id' => $claim->id,
+            'item_id' => $item->id,
+            'claimant_id' => $this->commuter->commuterProfile->id,
+            'previous_status' => 'PENDING',
+            'resulting_status' => 'REJECTED',
+            'rejection_reason' => 'Proof does not match item description',
+        ]);
+
         // Item reverts to AVAILABLE (no pending claims remain)
         $this->assertDatabaseHas('lost_items', [
             'id' => $item->id,
@@ -495,13 +505,61 @@ class LostFoundFlowTest extends TestCase
         ]);
 
         $response->assertStatus(200)
-            ->assertJsonPath('data.status', 'REJECTED');
+            ->assertJsonPath('data.status', 'PENDING')
+            ->assertJsonPath('data.rejection_reason', null);
 
-        // Item reverts to AVAILABLE (no pending claims remain)
+        $this->assertDatabaseHas('claim_rejection_audits', [
+            'claim_id' => $claim->id,
+            'item_id' => $item->id,
+            'claimant_id' => $this->commuter->commuterProfile->id,
+            'previous_status' => 'APPROVED',
+            'resulting_status' => 'PENDING',
+            'rejection_reason' => 'Claimant could not provide ID at handover',
+        ]);
+
+        // Item returns to claim review because the reverted claim is pending again.
         $this->assertDatabaseHas('lost_items', [
             'id' => $item->id,
-            'status' => 'AVAILABLE',
+            'status' => 'CLAIMED',
         ]);
+    }
+
+    public function test_commuter_cannot_submit_fourth_claim_after_three_rejections_for_same_item(): void
+    {
+        $item = $this->createItem();
+
+        for ($attempt = 1; $attempt <= 3; $attempt++) {
+            $this->commuter();
+            $this->postJson("/api/v1/lost-found/{$item->id}/claim", [
+                'proof' => "attempt {$attempt} proof",
+            ])->assertStatus(201);
+
+            $this->admin();
+            $claim = Claim::where('item_id', $item->id)
+                ->where('claimant_id', $this->commuter->commuterProfile->id)
+                ->where('status', 'PENDING')
+                ->latest()
+                ->firstOrFail();
+
+            $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/reject", [
+                'rejection_reason' => "attempt {$attempt} rejected",
+            ])->assertStatus(200);
+        }
+
+        $this->assertEquals(3, Claim::where('item_id', $item->id)
+            ->where('claimant_id', $this->commuter->commuterProfile->id)
+            ->where('status', 'REJECTED')
+            ->count());
+        $this->assertEquals(3, ClaimRejectionAudit::where('item_id', $item->id)
+            ->where('claimant_id', $this->commuter->commuterProfile->id)
+            ->where('resulting_status', 'REJECTED')
+            ->count());
+
+        $this->commuter();
+        $this->postJson("/api/v1/lost-found/{$item->id}/claim", [
+            'proof' => 'fourth proof should not be accepted',
+        ])->assertStatus(422)
+            ->assertJsonPath('message', 'You have reached the maximum number of rejected claims for this item');
     }
 
     public function test_cannot_approve_already_approved_claim(): void
