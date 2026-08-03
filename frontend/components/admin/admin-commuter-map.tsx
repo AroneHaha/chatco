@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents, Circle, Tooltip } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -240,6 +240,97 @@ function MapFocuser({ target, nonce }: { target?: [number, number] | null; nonce
   return null;
 }
 
+const VEHICLE_ANIMATION_MS = 4_800;
+const VEHICLE_SNAP_DISTANCE_M = 1_500;
+
+/**
+ * Leaflet normally teleports a marker whenever its `position` prop changes.
+ * Keep that prop stable and move the underlying marker between GPS samples so
+ * the admin sees continuous motion during the five-second polling interval.
+ */
+function SmoothVehicleMarker({
+  position,
+  icon,
+  zIndexOffset,
+  children,
+}: {
+  position: [number, number];
+  icon: L.DivIcon;
+  zIndexOffset: number;
+  children?: ReactNode;
+}) {
+  const markerRef = useRef<L.Marker | null>(null);
+  const [initialPosition] = useState<[number, number]>(() => position);
+  const animationFrameRef = useRef<number | null>(null);
+  const [targetLat, targetLng] = position;
+
+  useEffect(() => {
+    const marker = markerRef.current;
+    if (!marker) return;
+
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+
+    const start = marker.getLatLng();
+    const target = L.latLng(targetLat, targetLng);
+    const distance = start.distanceTo(target);
+
+    if (distance < 0.5) return;
+
+    // A very large change is normally a corrected/bad GPS sample. Snapping is
+    // safer than visibly driving the marker across unrelated roads.
+    if (distance > VEHICLE_SNAP_DISTANCE_M) {
+      marker.setLatLng(target);
+      return;
+    }
+
+    const startedAt = performance.now();
+    const startLat = start.lat;
+    const startLng = start.lng;
+    const latDelta = target.lat - startLat;
+    const lngDelta = target.lng - startLng;
+
+    const animate = (now: number) => {
+      const progress = Math.min((now - startedAt) / VEHICLE_ANIMATION_MS, 1);
+      const eased = progress < 0.5
+        ? 2 * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+      marker.setLatLng([
+        startLat + latDelta * eased,
+        startLng + lngDelta * eased,
+      ]);
+
+      if (progress < 1) {
+        animationFrameRef.current = requestAnimationFrame(animate);
+      } else {
+        animationFrameRef.current = null;
+      }
+    };
+
+    animationFrameRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+    };
+  }, [targetLat, targetLng]);
+
+  return (
+    <Marker
+      ref={markerRef}
+      position={initialPosition}
+      icon={icon}
+      zIndexOffset={zIndexOffset}
+    >
+      {children}
+    </Marker>
+  );
+}
+
 export default function AdminCommuterMap({
   isDesktop = false,
   vehicles = [],
@@ -459,7 +550,7 @@ export default function AdminCommuterMap({
               }
             : capacityConfig;
           return (
-            <Marker
+            <SmoothVehicleMarker
               key={`live-${vehicle.id}`}
               position={[vehicle.lat, vehicle.lng]}
               icon={getJeepneyIcon(vehicle.capacity, vehicle.is_stale, vehicle.is_on_break)}
@@ -495,7 +586,7 @@ export default function AdminCommuterMap({
                   )}
                 </div>
               </Popup>
-            </Marker>
+            </SmoothVehicleMarker>
           );
         })}
       </MapContainer>
