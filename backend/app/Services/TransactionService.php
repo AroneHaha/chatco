@@ -219,6 +219,7 @@ class TransactionService
             $passengers = $this->expandGroupPassengers($data['group_passengers']);
             $group = PaymentGroup::create([
                 'id' => (string) Str::uuid(),
+                'reference_number' => $this->generateMultiplePaymentReference(),
                 'shift_id' => $shift->shift_id,
                 'payment_method' => PaymentMethod::CASH->value,
                 'pickup_name' => $data['pickup_name'],
@@ -255,7 +256,7 @@ class TransactionService
             $data['passengers'],
         );
 
-        return DB::transaction(function () use ($shift, $data, $fare, $idempotencyKey) {
+        return DB::transaction(function () use ($shift, $fare, $idempotencyKey) {
             $transaction = Transaction::create([
                 'transaction_id' => $this->generateTransactionId(),
                 'shift_id' => $shift->shift_id,
@@ -489,6 +490,7 @@ class TransactionService
         $transaction = Transaction::where('shift_id', $shiftId)
             ->where('payment_method', PaymentMethod::GCASH->value)
             ->where('status', PaymentStatus::PENDING->value)
+            ->whereNotNull('qr_token')
             ->latest('created_at')
             ->first();
 
@@ -509,14 +511,20 @@ class TransactionService
     private function gcashInitiationPayload(Transaction $transaction): array
     {
         $transaction->loadMissing('passengerBreakdown');
+        $paymentGroup = $transaction->group_id
+            ? PaymentGroup::select(['id', 'reference_number', 'total_amount'])->find($transaction->group_id)
+            : null;
 
         return [
             'transaction' => $transaction,
             'qr_token' => $transaction->qr_token,
             'checkout_url' => $transaction->payment_checkout_url,
-            'amount' => (float) $transaction->final_amount,
+            'amount' => $paymentGroup
+                ? (float) $paymentGroup->total_amount
+                : (float) $transaction->final_amount,
             'expires_at' => $transaction->created_at->copy()->addMinutes($this->claimTtlMinutes())->toIso8601String(),
             'group_id' => $transaction->group_id,
+            'multiple_payment_reference' => $paymentGroup?->reference_number,
             'receipts' => $transaction->group_id
                 ? Transaction::where('group_id', $transaction->group_id)->orderBy('group_position')->get()
                 : collect([$transaction]),
@@ -530,6 +538,7 @@ class TransactionService
         $group = DB::transaction(function () use ($shift, $data, $passengers) {
             $group = PaymentGroup::create([
                 'id' => (string) Str::uuid(),
+                'reference_number' => $this->generateMultiplePaymentReference(),
                 'shift_id' => $shift->shift_id,
                 'payment_method' => PaymentMethod::GCASH->value,
                 'pickup_name' => $data['pickup_name'],
@@ -606,7 +615,7 @@ class TransactionService
                 'discount_amount' => $passenger['discount_amount'],
                 'pickup_name' => $group->pickup_name,
                 'dropoff_name' => $group->dropoff_name,
-                'passenger_name' => 'Commuter',
+                'passenger_name' => 'Passenger',
                 'passenger_role' => $passenger['type'],
                 'conductor_name' => $shift->conductor_name,
                 'unit_number' => $shift->unit_number,
@@ -684,6 +693,8 @@ class TransactionService
             $updates = $transaction->group_id
                 ? [
                     'passenger_id' => $commuterProfile->id,
+                    'passenger_name' => $payerName,
+                    'passenger_role' => strtoupper((string) $commuterProfile->commuter_type),
                     'payer_name' => $payerName,
                 ]
                 : ($isMultiPassenger ? [
@@ -697,11 +708,10 @@ class TransactionService
             $updates['payer_name_snapshot'] = $payerName;
             $updates['payer_name'] = $payerName;
 
+            $group = null;
             if ($transaction->group_id) {
-                // Group fares already contain the conductor-selected per-type
-                // discounts. The authenticated claimant is the payer, not a
-                // signal to recalculate every passenger's fare.
-                $transaction->paymentGroup()->update([
+                $group = PaymentGroup::whereKey($transaction->group_id)->lockForUpdate()->first();
+                $group?->update([
                     'payer_id' => $commuterProfile->id,
                     'payer_name' => $payerName,
                 ]);
@@ -710,14 +720,17 @@ class TransactionService
                 ]);
             }
 
-            $discountedAmount = ($transaction->group_id || $isMultiPassenger)
+            $discountedAmount = $isMultiPassenger
                 ? null
                 : $this->discountedFareFor($transaction, (string) $commuterProfile->commuter_type);
             if ($discountedAmount !== null && $discountedAmount < (float) $transaction->final_amount) {
                 $regularAmount = (float) $transaction->final_amount;
+                $amountToCharge = $group
+                    ? round((float) $group->total_amount - $regularAmount + $discountedAmount, 2)
+                    : $discountedAmount;
                 $intent = $this->paymentService->createIntentFor(
                     $transaction,
-                    (int) round($discountedAmount * 100),
+                    (int) round($amountToCharge * 100),
                 );
                 $updates += [
                     'final_amount' => $discountedAmount,
@@ -725,6 +738,18 @@ class TransactionService
                     'payment_reference' => $intent->reference,
                     'payment_checkout_url' => $intent->checkoutUrl,
                 ];
+
+                if ($group) {
+                    $group->update([
+                        'total_amount' => $amountToCharge,
+                        'passenger_breakdown' => $this->replaceGroupPayerType(
+                            $group->passenger_breakdown,
+                            (string) $commuterProfile->commuter_type,
+                            $discountedAmount,
+                            $regularAmount,
+                        ),
+                    ]);
+                }
             }
 
             $transaction->update($updates);
@@ -770,6 +795,52 @@ class TransactionService
             abs((float) $from->discounted_fare - (float) $to->discounted_fare),
             $minimum,
         ), 2);
+    }
+
+    /** Replace the regular payer placeholder with the verified commuter type. */
+    private function replaceGroupPayerType(
+        array $breakdown,
+        string $commuterType,
+        float $finalAmount,
+        float $baseFare,
+    ): array {
+        $payerType = strtoupper(trim($commuterType));
+        if ($payerType === 'SENIOR') {
+            $payerType = 'SENIOR_CITIZEN';
+        }
+
+        foreach ($breakdown as $index => $line) {
+            if (($line['type'] ?? null) !== 'REGULAR' || (int) ($line['quantity'] ?? 0) < 1) {
+                continue;
+            }
+
+            $breakdown[$index]['quantity'] = (int) $line['quantity'] - 1;
+            if ($breakdown[$index]['quantity'] === 0) {
+                unset($breakdown[$index]);
+            }
+            break;
+        }
+
+        $payerMerged = false;
+        foreach ($breakdown as $index => $line) {
+            if (($line['type'] ?? null) === $payerType) {
+                $breakdown[$index]['quantity'] = (int) ($line['quantity'] ?? 0) + 1;
+                $payerMerged = true;
+                break;
+            }
+        }
+
+        if (! $payerMerged) {
+            $breakdown[] = [
+                'type' => $payerType,
+                'quantity' => 1,
+                'final_amount' => $finalAmount,
+                'base_fare' => $baseFare,
+                'discount_amount' => round($baseFare - $finalAmount, 2),
+            ];
+        }
+
+        return array_values($breakdown);
     }
 
     /**
@@ -907,7 +978,7 @@ class TransactionService
     {
         $shift = $this->verifyShiftOwnership($conductor, $shiftId);
 
-        return Transaction::with('passengerBreakdown')
+        return Transaction::with(['passengerBreakdown', 'paymentGroup:id,reference_number'])
             ->where('shift_id', $shift->shift_id)
             ->orderBy('created_at', 'desc')
             ->get();
@@ -963,6 +1034,15 @@ class TransactionService
      * Note: shift_logs.conductor_id FK → conductor_profiles.id, so we
      * query by $conductor->conductorProfile->id, not $conductor->id.
      */
+    private function generateMultiplePaymentReference(): string
+    {
+        do {
+            $reference = 'MP-'.now()->format('ymd').'-'.Str::upper(Str::random(6));
+        } while (PaymentGroup::where('reference_number', $reference)->exists());
+
+        return $reference;
+    }
+
     private function resolveConductorActiveShift(User $conductor): ShiftLog
     {
         $conductorProfileId = $conductor->conductorProfile?->id;
@@ -1016,12 +1096,23 @@ class TransactionService
      */
     private function formatClaimResponse(Transaction $transaction): array
     {
+        $finalAmount = (float) $transaction->final_amount;
+        $regularAmount = $finalAmount + (float) ($transaction->discount_amount ?? 0);
+        $discountAmount = (float) ($transaction->discount_amount ?? 0);
+
+        if ($transaction->group_id) {
+            $groupReceipts = Transaction::where('group_id', $transaction->group_id);
+            $finalAmount = (float) (clone $groupReceipts)->sum('final_amount');
+            $regularAmount = (float) (clone $groupReceipts)->sum('base_fare');
+            $discountAmount = (float) (clone $groupReceipts)->sum('discount_amount');
+        }
+
         return [
             'transaction_id' => $transaction->transaction_id,
             'checkout_url' => $transaction->payment_checkout_url,
-            'amount' => (float) $transaction->final_amount,
-            'regular_amount' => (float) $transaction->final_amount + (float) ($transaction->discount_amount ?? 0),
-            'discount_amount' => (float) ($transaction->discount_amount ?? 0),
+            'amount' => $finalAmount,
+            'regular_amount' => $regularAmount,
+            'discount_amount' => $discountAmount,
             'passenger_role' => $transaction->passenger_role,
             'pickup_name' => $transaction->pickup_name,
             'dropoff_name' => $transaction->dropoff_name,

@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreRouteRequest;
 use App\Http\Requests\Admin\UpdateRouteRequest;
-use App\Enums\UserRole;
 use App\Models\ConductorProfile;
 use App\Models\Driver;
 use App\Models\Remittance;
@@ -18,8 +18,10 @@ use App\Models\Vehicle;
 use App\Services\AdminService;
 use App\Services\LocationService;
 use App\Traits\ApiResponse;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -454,7 +456,7 @@ class AdminController extends Controller
             substr($firstNameTrimmed, 0, 1).'.'.preg_replace('/\s+/', '', $lastName)
         );
 
-        $birthdayFormatted = \Carbon\Carbon::parse($birthday)->format('mdY');
+        $birthdayFormatted = Carbon::parse($birthday)->format('mdY');
         $firstNameParts = preg_split('/\s+/', $firstNameTrimmed);
         $firstPart = strtolower($firstNameParts[0]);
         $restParts = implode('', array_map('strtolower', array_slice($firstNameParts, 1)));
@@ -659,7 +661,7 @@ class AdminController extends Controller
         // For a compound first name "Mhaku Jose" → "mhaku.jose05142000"
         // (no spaces in the password — the dot separates the first word from
         // any remaining words, and the birthday is appended directly)
-        $birthdayFormatted = \Carbon\Carbon::parse($birthday)->format('mdY');
+        $birthdayFormatted = Carbon::parse($birthday)->format('mdY');
         $firstNameParts = preg_split('/\s+/', $firstNameTrimmed);
         $firstPart = strtolower($firstNameParts[0]);
         $restParts = implode('', array_map('strtolower', array_slice($firstNameParts, 1)));
@@ -761,7 +763,7 @@ class AdminController extends Controller
     {
         $perPage = (int) $request->integer('per_page', 100);
 
-        $query = Transaction::with(['shiftLog', 'passenger', 'payer', 'passengerBreakdown'])
+        $query = Transaction::with(['shiftLog', 'passenger', 'payer', 'passengerBreakdown', 'paymentGroup:id,reference_number'])
             ->orderBy('created_at', 'desc');
 
         if ($request->has('shift_id')) {
@@ -873,7 +875,7 @@ class AdminController extends Controller
 
         // Return in the same shape as Laravel's paginator so the frontend
         // can use the same extraction logic.
-        $paginated = new \Illuminate\Pagination\LengthAwarePaginator(
+        $paginated = new LengthAwarePaginator(
             $items,
             $total,
             $perPage,

@@ -20,6 +20,7 @@ export interface Transaction {
   /** Opaque token encoded in the cash receipt QR for commuter reward claims. */
   receiptQrToken?: string;
   groupId?: string;
+  multiplePaymentReference?: string;
   groupPosition?: number;
   rewardEligible?: boolean;
   payerName?: string;

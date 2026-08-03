@@ -135,23 +135,58 @@ export interface GroupPassengerInput {
 
 export async function createGroupCashTransaction(
   shiftId: string,
-  input: { pickupStopId: string; dropoffStopId: string; passengers: GroupPassengerInput[] }
-): Promise<transactionsStore.Transaction> {
-  const response = await api.post<{ data: transactionsStore.Transaction }>(
+  input: {
+    from: string;
+    to: string;
+    regularFare: number;
+    discountedFare: number;
+    passengers: GroupPassengerInput[];
+  }
+): Promise<{
+  groupId: string;
+  multiplePaymentReference: string;
+  transactions: transactionsStore.Transaction[];
+}> {
+  const response = await api.post<{
+    data: {
+      group_id: string;
+      multiple_payment_reference: string;
+      transactions: transactionsStore.Transaction[];
+    };
+  }>(
     CONDUCTOR_API.transactions.create,
     {
       shiftId,
       paymentMethod: "Cash",
-      pickupStopId: input.pickupStopId,
-      dropoffStopId: input.dropoffStopId,
+      from: input.from,
+      to: input.to,
       idempotencyKey: crypto.randomUUID(),
-      passengers: input.passengers,
+      groupPassengers: input.passengers.map((passenger) => {
+        const discounted = passenger.passenger_type !== "REGULAR";
+        const finalAmount = discounted ? input.discountedFare : input.regularFare;
+        return {
+          type: passenger.passenger_type,
+          quantity: passenger.quantity,
+          final_amount: finalAmount,
+          base_fare: input.regularFare,
+          discount_amount: input.regularFare - finalAmount,
+        };
+      }),
     }
   );
 
-  transactionsStore.cacheTransaction(shiftId, response.data);
+  for (const transaction of response.data.transactions) {
+    transactionsStore.cacheTransaction(shiftId, transaction);
+  }
   window.dispatchEvent(new CustomEvent("conductor:transaction-updated"));
-  return response.data;
+  return {
+    groupId: response.data.group_id,
+    multiplePaymentReference: response.data.multiple_payment_reference,
+    transactions: response.data.transactions.map((transaction) => ({
+      ...transaction,
+      multiplePaymentReference: response.data.multiple_payment_reference,
+    })),
+  };
 }
 
 /**

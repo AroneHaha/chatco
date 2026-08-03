@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import type { ConductorHailRequest } from "@/lib/conductor/types";
+import type { ConductorStatus } from "./use-dashboard-state";
 
 const ConductorMap = dynamic(() => import("@/components/conductor/conductor-map"), {
   ssr: false,
@@ -11,12 +12,19 @@ const ConductorMap = dynamic(() => import("@/components/conductor/conductor-map"
 interface DashboardMapContainerProps {
   unitNumber: string;
   hails: ConductorHailRequest[];
+  status: ConductorStatus;
+  isOnBreak: boolean;
 }
 
-export function DashboardMapContainer({ unitNumber, hails }: DashboardMapContainerProps) {
+export function DashboardMapContainer({ unitNumber, hails, status, isOnBreak }: DashboardMapContainerProps) {
   return (
     <div className="fixed inset-0 z-0 lg:left-64">
-      <ConductorMap unitNumber={unitNumber} hails={hails} />
+      <ConductorMap
+        unitNumber={unitNumber}
+        hails={hails}
+        capacityStatus={status}
+        isOnBreak={isOnBreak}
+      />
     </div>
   );
 }

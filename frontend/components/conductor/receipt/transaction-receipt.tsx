@@ -10,6 +10,7 @@ interface TransactionReceiptProps {
   unitNumber: string;
   conductorName: string;
   passengerType: string;
+  passengerName?: string | null;
   from: string;
   to: string;
   baseFare: number;
@@ -18,6 +19,8 @@ interface TransactionReceiptProps {
   paymentMethod: string;
   receiptQrToken?: string | null;
   payerName?: string | null;
+  groupPosition?: number | null;
+  multiplePaymentReference?: string | null;
   driverName?: string;
   totalPassengers?: number;
   grossFare?: number;
@@ -47,6 +50,7 @@ export default function TransactionReceipt({
   unitNumber,
   conductorName,
   passengerType,
+  passengerName,
   from,
   to,
   baseFare,
@@ -55,6 +59,8 @@ export default function TransactionReceipt({
   paymentMethod,
   receiptQrToken,
   payerName,
+  groupPosition,
+  multiplePaymentReference,
   driverName,
   totalPassengers = 1,
   grossFare,
@@ -87,11 +93,21 @@ export default function TransactionReceipt({
       {settings.showTransactionId && transactionId && (
         <Row label="Ref" value={transactionId} />
       )}
+      {multiplePaymentReference && <Row label="Group ref" value={multiplePaymentReference} />}
       {settings.showUnit && <Row label="Unit" value={unitNumber} />}
       {settings.showConductor && <Row label="Conductor" value={conductorName} />}
       {driverName && <Row label="Driver" value={driverName} />}
       {settings.showPassenger && (
-        <Row label={payerName ? "Paid by" : "Passenger"} value={payerName || passengerType} />
+        <div className="flex justify-between gap-3">
+          <span className="text-black/60">Commuter</span>
+          <div className="text-right">
+            <p>{groupPosition && groupPosition > 1 ? "Passenger" : passengerName || payerName || "Passenger"}</p>
+            <p className="text-[10px] text-black/60">{passengerType}</p>
+            {groupPosition && groupPosition > 1 && payerName && (
+              <p className="text-[10px]">Paid by: {payerName}</p>
+            )}
+          </div>
+        </div>
       )}
 
       {settings.showRoute && (

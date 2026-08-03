@@ -31,6 +31,7 @@ export interface LiveVehicleMarker {
   route_name: string | null;
   driver_name: string | null;
   conductor_name: string | null;
+  is_on_break: boolean;
   is_stale: boolean;
   minutes_since_update: number | null;
 }
@@ -280,17 +281,27 @@ export default function AdminCommuterMap({
     iconSize: [20, 20], iconAnchor: [10, 10],
   }), []);
 
-  const getJeepneyIcon = useMemo(() => (capacity: VehicleCapacity, isStale: boolean = false) => {
+  const getJeepneyIcon = useMemo(() => (
+    capacity: VehicleCapacity,
+    isStale: boolean = false,
+    isOnBreak: boolean = false,
+  ) => {
     const config = getCapacityConfig(capacity);
+    const breakColor = '#38BDF8';
     // Stale vehicles get a gray dashed border + reduced opacity to signal
-    // the GPS data may be outdated (>10 min since last update).
-    const borderStyle = isStale ? '2.5px dashed #94a3b8' : `2.5px solid ${config.color}`;
-    const opacity = isStale ? '0.55' : '1';
-    const glowColor = isStale ? '#94a3b8' : config.color;
+    // the GPS data may be outdated (>10 min since last update). Break status
+    // takes priority so the admin sees the same state as the conductor.
+    const markerColor = isOnBreak ? breakColor : isStale ? '#94a3b8' : config.color;
+    const borderStyle = isOnBreak
+      ? `2.5px solid ${breakColor}`
+      : isStale
+        ? '2.5px dashed #94a3b8'
+        : `2.5px solid ${config.color}`;
+    const opacity = isStale && !isOnBreak ? '0.55' : '1';
     return new L.DivIcon({
       className: "custom-jeepney-icon",
-      html: `<div style="width: 44px; height: 44px; background: #071A2E; border-radius: 50%; border: ${borderStyle}; opacity: ${opacity}; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 12px rgba(0,0,0,0.5), 0 0 8px ${glowColor}40;">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${isStale ? '#94a3b8' : config.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      html: `<div style="width: 44px; height: 44px; background: #071A2E; border-radius: 50%; border: ${borderStyle}; opacity: ${opacity}; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 12px rgba(0,0,0,0.5), 0 0 8px ${markerColor}40;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${markerColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H18.75m-7.5-10.5H6.375c-.621 0-1.125.504-1.125 1.125v6.75m12-6.75h-3.375c-.621 0-1.125.504-1.125 1.125v6.75m0 0H5.625m12-6.75h-1.5m-1.5 0h-1.5" />
                 </svg>
               </div>`,
@@ -438,30 +449,41 @@ export default function AdminCommuterMap({
         {liveVehicles.map((vehicle) => {
           // Skip vehicles without valid coordinates.
           if (vehicle.lat === null || vehicle.lng === null) return null;
-          const config = getCapacityConfig(vehicle.capacity);
+          const capacityConfig = getCapacityConfig(vehicle.capacity);
+          const statusConfig = vehicle.is_on_break
+            ? {
+                label: 'On Break',
+                twBg: 'bg-sky-500/10',
+                twText: 'text-sky-500',
+                twBorder: 'border-sky-500/30',
+              }
+            : capacityConfig;
           return (
             <Marker
               key={`live-${vehicle.id}`}
               position={[vehicle.lat, vehicle.lng]}
-              icon={getJeepneyIcon(vehicle.capacity, vehicle.is_stale)}
+              icon={getJeepneyIcon(vehicle.capacity, vehicle.is_stale, vehicle.is_on_break)}
               zIndexOffset={vehicle.is_stale ? 700 : 800}
             >
               <Popup>
                 <div className="space-y-2 min-w-[200px]">
                   <div className="flex items-center justify-between">
                     <div className="font-bold text-[#071A2E]">{vehicle.plate_number}</div>
-                    <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${config.twBg} ${config.twText} ${config.twBorder} border`}>{config.label}</span>
+                    <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${statusConfig.twBg} ${statusConfig.twText} ${statusConfig.twBorder} border`}>{statusConfig.label}</span>
                   </div>
                   <div className="text-xs text-gray-500 space-y-0.5 pt-1 border-t border-gray-100">
                     <p><span className="font-medium text-gray-700">Unit:</span> {vehicle.unit_number}</p>
                     <p><span className="font-medium text-gray-700">Driver:</span> {vehicle.driver_name ?? '—'}</p>
                     <p><span className="font-medium text-gray-700">Conductor:</span> {vehicle.conductor_name ?? '—'}</p>
                     <p><span className="font-medium text-gray-700">Route:</span> {vehicle.route_name ?? '—'}</p>
+                    {vehicle.is_on_break && (
+                      <p><span className="font-medium text-gray-700">Capacity:</span> {capacityConfig.label}</p>
+                    )}
                     {vehicle.speed !== null && (
                       <p><span className="font-medium text-gray-700">Speed:</span> {vehicle.speed} km/h</p>
                     )}
                   </div>
-                  {vehicle.capacity === "FULL" && (
+                  {vehicle.capacity === "FULL" && !vehicle.is_on_break && (
                     <div className="text-[10px] font-medium text-red-500 bg-red-50 p-1.5 rounded text-center border border-red-100">
                       Not accepting passengers
                     </div>

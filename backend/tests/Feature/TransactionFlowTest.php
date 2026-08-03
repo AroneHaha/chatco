@@ -25,6 +25,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Laravel\Sanctum\Sanctum;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
@@ -330,17 +331,48 @@ class TransactionFlowTest extends TestCase
             'dropoff_name' => 'Bustos',
             'idempotency_key' => 'group-cash-test',
             'group_passengers' => [
-                ['type' => 'REGULAR', 'quantity' => 2, 'final_amount' => 15, 'base_fare' => 15, 'discount_amount' => 0],
                 ['type' => 'STUDENT', 'quantity' => 1, 'final_amount' => 12, 'base_fare' => 15, 'discount_amount' => 3],
+                ['type' => 'REGULAR', 'quantity' => 2, 'final_amount' => 15, 'base_fare' => 15, 'discount_amount' => 0],
             ],
         ]);
 
         $this->assertSame(3, $group->passenger_count);
         $this->assertSame(42.0, (float) $group->total_amount);
+        $this->assertStringStartsWith('MP-', $group->reference_number);
         $this->assertCount(3, $group->transactions);
+        $this->assertSame(3, $group->transactions->pluck('transaction_id')->unique()->count());
+        $this->assertTrue($group->transactions->every(fn ($transaction) => $transaction->pickup_name === 'Calumpit' && $transaction->dropoff_name === 'Bustos'));
+        $this->assertSame('STUDENT', $group->transactions->first()->passenger_role);
+        $this->assertSame(12.0, (float) $group->transactions->first()->final_amount);
         $this->assertSame(1, $group->transactions->where('reward_eligible', true)->count());
         $this->assertSame(1, $group->transactions->whereNotNull('qr_token')->count());
         $this->assertTrue($group->transactions->every(fn ($transaction) => $transaction->status === PaymentStatus::PAID));
+    }
+
+    public function test_group_cash_endpoint_is_immediately_visible_in_receipts(): void
+    {
+        Sanctum::actingAs($this->conductor);
+
+        $created = $this->postJson('/api/v1/conductor/transactions', [
+            'payment_method' => 'CASH',
+            'pickup_name' => 'Calumpit',
+            'dropoff_name' => 'Bustos',
+            'idempotency_key' => 'group-cash-http-test',
+            'group_passengers' => [
+                ['type' => 'REGULAR', 'quantity' => 2, 'final_amount' => 15, 'base_fare' => 15, 'discount_amount' => 0],
+                ['type' => 'STUDENT', 'quantity' => 1, 'final_amount' => 12, 'base_fare' => 15, 'discount_amount' => 3],
+            ],
+        ]);
+
+        $created->assertCreated()
+            ->assertJsonCount(3, 'data.transactions')
+            ->assertJsonPath('data.passenger_count', 3);
+        $this->assertStringStartsWith('MP-', $created->json('data.multiple_payment_reference'));
+
+        Sanctum::actingAs($this->admin);
+        $this->getJson('/api/v1/admin/transactions?per_page=10')
+            ->assertOk()
+            ->assertJsonCount(3, 'data.data');
     }
 
     public function test_group_gcash_settles_all_receipts_but_credits_only_the_payer_once(): void
@@ -359,7 +391,11 @@ class TransactionFlowTest extends TestCase
         ]);
 
         $anchor = $result['transaction'];
+        $this->assertSame(42.0, $result['amount']);
         $this->assertCount(3, $result['receipts']);
+        $pending = app(TransactionService::class)->findPendingGcashForConductor($this->conductor);
+        $this->assertSame($anchor->transaction_id, $pending['transaction']->transaction_id);
+        $this->assertSame($anchor->qr_token, $pending['qr_token']);
         app(TransactionService::class)->claimGcash($this->commuter1, $anchor->qr_token);
         app(PaymentService::class)->transitionTo($anchor->fresh(), PaymentStatus::PAID);
 
@@ -367,6 +403,42 @@ class TransactionFlowTest extends TestCase
         $this->assertTrue($receipts->every(fn ($transaction) => $transaction->status === PaymentStatus::PAID));
         $this->assertTrue($receipts->every(fn ($transaction) => $transaction->payer_name === 'Commuter One'));
         $this->assertSame(1, $this->paidRideCountFor($this->commuter1->commuterProfile->id));
+    }
+
+    public function test_group_gcash_claim_reprices_the_verified_discounted_payer(): void
+    {
+        config(['payments.gateways.paymongo.secret' => null]);
+        $this->forgetGateway();
+        $this->createFarePoints();
+        $this->commuter1->commuterProfile->update(['commuter_type' => 'STUDENT']);
+
+        $result = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'final_amount' => 42,
+            'pickup_name' => 'Test Pickup',
+            'dropoff_name' => 'Test Dropoff',
+            'group_passengers' => [
+                ['type' => 'REGULAR', 'quantity' => 2, 'final_amount' => 15, 'base_fare' => 15, 'discount_amount' => 0],
+                ['type' => 'PWD', 'quantity' => 1, 'final_amount' => 12, 'base_fare' => 15, 'discount_amount' => 3],
+            ],
+        ]);
+
+        $anchor = $result['transaction'];
+        $claim = app(TransactionService::class)->claimGcash($this->commuter1, $anchor->qr_token);
+        $anchor->refresh();
+        $group = $anchor->paymentGroup()->firstOrFail();
+
+        $this->assertSame(39.0, $claim['amount']);
+        $this->assertSame(45.0, $claim['regular_amount']);
+        $this->assertSame(6.0, $claim['discount_amount']);
+        $this->assertSame('STUDENT', $claim['passenger_role']);
+        $this->assertSame(12.0, (float) $anchor->final_amount);
+        $this->assertSame(3.0, (float) $anchor->discount_amount);
+        $this->assertSame(39.0, (float) $group->total_amount);
+        $this->assertSame([
+            ['type' => 'REGULAR', 'quantity' => 1, 'final_amount' => 15, 'base_fare' => 15, 'discount_amount' => 0],
+            ['type' => 'PWD', 'quantity' => 1, 'final_amount' => 12, 'base_fare' => 15, 'discount_amount' => 3],
+            ['type' => 'STUDENT', 'quantity' => 1, 'final_amount' => 12, 'base_fare' => 15, 'discount_amount' => 3],
+        ], $group->passenger_breakdown);
     }
 
     public function test_multi_passenger_cash_is_one_transaction_with_server_calculated_breakdown(): void
@@ -642,6 +714,52 @@ class TransactionFlowTest extends TestCase
     public function test_gcash_claim_returns_404_for_missing_qr_token(): void
     {
         $this->assertAbort(404, fn () => app(TransactionService::class)->claimGcash($this->commuter1, 'nonexistent_token'));
+    }
+
+    public function test_conductor_cancel_invalidates_pending_transaction_and_scan_token(): void
+    {
+        $transaction = $this->createPendingGcashTransaction();
+        $qrToken = $transaction->qr_token;
+        Sanctum::actingAs($this->conductor);
+
+        $this->postJson("/api/v1/payments/{$transaction->transaction_id}/cancel")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'CANCELLED');
+
+        $transaction->refresh();
+        $this->assertSame(PaymentStatus::CANCELLED, $transaction->status);
+        $this->assertNull($transaction->qr_token);
+        $this->assertNull($transaction->payment_checkout_url);
+        $this->assertAbort(404, fn () => app(TransactionService::class)->claimGcash($this->commuter1, $qrToken));
+    }
+
+    public function test_conductor_cancel_invalidates_every_group_receipt(): void
+    {
+        config(['payments.gateways.paymongo.secret' => null]);
+        $this->forgetGateway();
+        $result = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'final_amount' => 42,
+            'pickup_name' => 'Calumpit',
+            'dropoff_name' => 'Bustos',
+            'group_passengers' => [
+                ['type' => 'REGULAR', 'quantity' => 2, 'final_amount' => 15, 'base_fare' => 15, 'discount_amount' => 0],
+                ['type' => 'PWD', 'quantity' => 1, 'final_amount' => 12, 'base_fare' => 15, 'discount_amount' => 3],
+            ],
+        ]);
+        $anchor = $result['transaction'];
+        $qrToken = $anchor->qr_token;
+        Sanctum::actingAs($this->conductor);
+
+        $this->postJson("/api/v1/payments/{$anchor->transaction_id}/cancel")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'CANCELLED');
+
+        $receipts = Transaction::where('group_id', $anchor->group_id)->get();
+        $this->assertCount(3, $receipts);
+        $this->assertTrue($receipts->every(fn ($transaction) => $transaction->status === PaymentStatus::CANCELLED));
+        $this->assertTrue($receipts->every(fn ($transaction) => $transaction->qr_token === null));
+        $this->assertTrue($receipts->every(fn ($transaction) => $transaction->payment_checkout_url === null));
+        $this->assertAbort(404, fn () => app(TransactionService::class)->claimGcash($this->commuter1, $qrToken));
     }
 
     // ─── 4. Webhook (provider-agnostic, idempotent, state-machine guarded) ──
