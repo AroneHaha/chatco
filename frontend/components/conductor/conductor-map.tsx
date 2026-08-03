@@ -6,6 +6,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { haversineMeters } from "@/lib/utils/geo";
 import type { ConductorHailRequest } from "@/lib/conductor/types";
+import { useRouteGeometry } from "@/hooks/use-route-geometry";
 
 const RADIUS_M = 1000;
 const ROUTE_COORDS: [number, number][] = [
@@ -50,17 +51,6 @@ const ROUTE_COORDS: [number, number][] = [
   [14.725646764905104, 120.9604838112117]
 ];
 
-const rawBounds = L.latLngBounds(ROUTE_COORDS);
-const mapBounds = L.latLngBounds(
-  [rawBounds.getSouth() - 0.04, rawBounds.getWest() - 0.10],
-  [rawBounds.getNorth() + 0.015, rawBounds.getEast() + 0.10]
-);
-const mapBoundsArray: [[number, number], [number, number]] = [
-  [mapBounds.getSouth(), mapBounds.getWest()],
-  [mapBounds.getNorth(), mapBounds.getEast()]
-];
-const MAP_CENTER: L.LatLngTuple = [rawBounds.getCenter().lat, rawBounds.getCenter().lng];
-
 interface ConductorMapProps {
   unitNumber?: string;
   hails?: ConductorHailRequest[];
@@ -78,8 +68,9 @@ export default function ConductorMap({
   capacityStatus = "Available",
   isOnBreak = false,
 }: ConductorMapProps) {
+  const routeGeometry = useRouteGeometry(ROUTE_COORDS);
   const [isDomReady, setIsDomReady] = useState(false);
-  const [vehiclePosition, setVehiclePosition] = useState<L.LatLngTuple>(MAP_CENTER);
+  const [vehiclePosition, setVehiclePosition] = useState<L.LatLngTuple>(routeGeometry.center);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -107,13 +98,13 @@ export default function ConductorMap({
         setVehiclePosition([position.coords.latitude, position.coords.longitude]);
       },
       () => {
-        setVehiclePosition(MAP_CENTER);
+        setVehiclePosition(routeGeometry.center);
       },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
-  }, []);
+  }, [routeGeometry.center]);
 
   const visibleHails = useMemo(
     () =>
@@ -177,20 +168,20 @@ export default function ConductorMap({
   return (
     <>
       <MapContainer
-        center={MAP_CENTER}
+        center={routeGeometry.center}
         zoom={12}
         zoomControl={false}
         attributionControl={false}
         className="w-full h-full"
         style={{ background: '#050F1A' }}
-        maxBounds={mapBoundsArray}
+        maxBounds={routeGeometry.mapBoundsArray}
         maxBoundsViscosity={1.0}
         minZoom={11}
       >
         <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
 
-        <Polyline positions={ROUTE_COORDS} pathOptions={{ color: '#62A0EA', weight: 8, opacity: 0.2, lineCap: 'round', lineJoin: 'round' }} />
-        <Polyline positions={ROUTE_COORDS} pathOptions={{ color: '#62A0EA', weight: 4, opacity: 0.9, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }} />
+        <Polyline positions={routeGeometry.routeCoords} pathOptions={{ color: '#62A0EA', weight: 8, opacity: 0.2, lineCap: 'round', lineJoin: 'round' }} />
+        <Polyline positions={routeGeometry.routeCoords} pathOptions={{ color: '#62A0EA', weight: 4, opacity: 0.9, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }} />
 
         {/* 1km Radius Circle — conductor's operational pickup zone */}
         <Circle center={vehiclePosition} radius={RADIUS_M} pathOptions={{ color: markerPresentation.color, fillColor: markerPresentation.color, fillOpacity: 0.05, weight: 1.5, opacity: 0.3, dashArray: '8 4' }} />

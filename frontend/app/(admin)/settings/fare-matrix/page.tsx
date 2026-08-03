@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Save, X, MapPin, Search, Route, RefreshCw } from 'lucide-react';
+import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, X, MapPin, Search, Route, RefreshCw } from 'lucide-react';
 import * as farePointService from '@/lib/admin/services/fare-point.service';
 import type { FarePoint as ApiFarePoint } from '@/lib/admin/services/fare-point.service';
 import { formatPeso } from '@/lib/utils/display';
@@ -16,6 +16,8 @@ interface FarePoint {
   discountedFare: number;
   subStops?: string[];
   landmarks?: string;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 function mapApiToLocal(api: ApiFarePoint): FarePoint {
@@ -27,6 +29,8 @@ function mapApiToLocal(api: ApiFarePoint): FarePoint {
     discountedFare: Number(api.discounted_fare),
     subStops: api.sub_stops ? api.sub_stops.split(',').map(s => s.trim()).filter(Boolean) : undefined,
     landmarks: api.landmarks ?? undefined,
+    latitude: api.latitude === null ? null : Number(api.latitude),
+    longitude: api.longitude === null ? null : Number(api.longitude),
   };
 }
 
@@ -51,14 +55,16 @@ export default function FareMatrixPage() {
   const [newRegular, setNewRegular] = useState('18');
   const [newDiscounted, setNewDiscounted] = useState('14.4');
   const [newSubStops, setNewSubStops] = useState('');
+  const [newLatitude, setNewLatitude] = useState('');
+  const [newLongitude, setNewLongitude] = useState('');
 
   // Edit form state
   const [editName, setEditName] = useState('');
   const [editRegular, setEditRegular] = useState('');
   const [editDiscounted, setEditDiscounted] = useState('');
   const [editSubStops, setEditSubStops] = useState('');
-
-  const [isSaved, setIsSaved] = useState(false);
+  const [editLatitude, setEditLatitude] = useState('');
+  const [editLongitude, setEditLongitude] = useState('');
 
   // Fetch fare points from API
   const fetchFarePoints = useCallback(async () => {
@@ -118,11 +124,24 @@ export default function FareMatrixPage() {
     setTimeout(() => setSuccessMsg(null), 4000);
   };
 
+  const parseCoordinatePair = (latitude: string, longitude: string) => {
+    const hasLatitude = latitude.trim() !== '';
+    const hasLongitude = longitude.trim() !== '';
+    if (hasLatitude !== hasLongitude) {
+      throw new Error('Enter both latitude and longitude, or leave both blank.');
+    }
+    return {
+      latitude: hasLatitude ? Number(latitude) : null,
+      longitude: hasLongitude ? Number(longitude) : null,
+    };
+  };
+
   const handleAddPoint = async () => {
     if (!newName.trim()) return;
     setIsSaving(true);
     setError(null);
     try {
+      const coordinates = parseCoordinatePair(newLatitude, newLongitude);
       // Get the first route_id (single corridor for now)
       const routesRes = await fetch('/api/admin/routes', { headers: { Accept: 'application/json' } });
       const routesJson = await routesRes.json();
@@ -137,9 +156,11 @@ export default function FareMatrixPage() {
         regular_fare: parseFloat(newRegular) || 18,
         discounted_fare: parseFloat(newDiscounted) || 14.4,
         sub_stops: newSubStops.trim() || undefined,
+        ...coordinates,
       });
       showSuccess(`Point "${newName}" added successfully.`);
       setNewName(''); setNewRegular('18'); setNewDiscounted('14.4'); setNewSubStops('');
+      setNewLatitude(''); setNewLongitude('');
       setShowAddForm(false);
       await fetchFarePoints();
     } catch (err) {
@@ -156,6 +177,8 @@ export default function FareMatrixPage() {
     setEditRegular(point.regularFare.toString());
     setEditDiscounted(point.discountedFare.toString());
     setEditSubStops(point.subStops ? point.subStops.join(', ') : '');
+    setEditLatitude(point.latitude?.toString() ?? '');
+    setEditLongitude(point.longitude?.toString() ?? '');
     setEditingPoint(pointNumber);
   };
 
@@ -166,11 +189,13 @@ export default function FareMatrixPage() {
     setIsSaving(true);
     setError(null);
     try {
+      const coordinates = parseCoordinatePair(editLatitude, editLongitude);
       await farePointService.update(point.id, {
         name: editName.trim(),
         regular_fare: parseFloat(editRegular) || 18,
         discounted_fare: parseFloat(editDiscounted) || 14.4,
         sub_stops: editSubStops.trim() || undefined,
+        ...coordinates,
       });
       showSuccess(`Point "${editName}" updated successfully.`);
       setEditingPoint(null);
@@ -369,6 +394,14 @@ export default function FareMatrixPage() {
                   <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Discounted Fare (₱)</label>
                   <input type="number" step="0.25" value={newDiscounted} onChange={(e) => setNewDiscounted(e.target.value)} className={inputClasses} />
                 </div>
+                <div>
+                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Latitude</label>
+                  <input type="number" step="0.0000001" value={newLatitude} onChange={(e) => setNewLatitude(e.target.value)} placeholder="14.9254610" className={inputClasses} />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Longitude</label>
+                  <input type="number" step="0.0000001" value={newLongitude} onChange={(e) => setNewLongitude(e.target.value)} placeholder="120.7651224" className={inputClasses} />
+                </div>
               </div>
               <button type="button" onClick={handleAddPoint} disabled={isSaving} className="px-6 py-2.5 bg-[#1A5FB4] text-white text-sm font-bold rounded-xl hover:bg-[#165a9f] transition-colors active:scale-95 disabled:opacity-50">
                 {isSaving ? 'Adding...' : 'Add Point'}
@@ -396,6 +429,14 @@ export default function FareMatrixPage() {
                 <div>
                   <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Discounted Fare (₱)</label>
                   <input type="number" step="0.25" value={editDiscounted} onChange={(e) => setEditDiscounted(e.target.value)} className={inputClasses} />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Latitude</label>
+                  <input type="number" step="0.0000001" value={editLatitude} onChange={(e) => setEditLatitude(e.target.value)} placeholder="14.9254610" className={inputClasses} />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Longitude</label>
+                  <input type="number" step="0.0000001" value={editLongitude} onChange={(e) => setEditLongitude(e.target.value)} placeholder="120.7651224" className={inputClasses} />
                 </div>
               </div>
               <div className="flex gap-3">
@@ -437,7 +478,7 @@ export default function FareMatrixPage() {
             <div className="divide-y divide-white/5 max-h-[60vh] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {filteredPoints.length === 0 ? (
                 <div className="py-12 text-center text-white/20 text-sm">
-                  No fare points found. Click "Add Point Area" to create one.
+                  No fare points found. Click &quot;Add Point Area&quot; to create one.
                 </div>
               ) : filteredPoints.map((point) => {
                 const isExpanded = expandedPoint === point.pointNumber;

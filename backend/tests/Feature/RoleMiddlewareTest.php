@@ -63,14 +63,14 @@ class RoleMiddlewareTest extends TestCase
 
     // ── Admin Role Tests ─────────────────────────────────────────
 
-    public function test_admin_can_access_admin_dashboard_and_gets_501(): void
+    public function test_admin_can_access_admin_dashboard_and_gets_200(): void
     {
         $admin = $this->createUserWithProfile('admin@test.com', UserRole::ADMIN);
 
         $response = $this->withHeader('Authorization', "Bearer {$this->authToken($admin)}")
             ->getJson('/api/v1/admin/dashboard');
 
-        $response->assertStatus(501);
+        $response->assertOk()->assertJsonPath('success', true);
     }
 
     public function test_admin_cannot_access_commuter_profile_and_gets_403(): void

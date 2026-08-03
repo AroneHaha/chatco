@@ -191,6 +191,7 @@ export function useMonitoringData() {
   const [sosAlerts, setSosAlerts] = useState<SosAlert[]>([]);
   const [sosHistory, setSosHistory] = useState<SosHistoryLog[]>([]);
   const [overspeedHistory, setOverspeedHistory] = useState<OverspeedLog[]>([]);
+  const [demandZones, setDemandZones] = useState<DemandZone[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -260,15 +261,43 @@ export function useMonitoringData() {
     }
   }, []);
 
+  const fetchDemandZones = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/monitoring/demand-zones", {
+        credentials: "include",
+      });
+      if (!res.ok) return;
+      const body = await res.json();
+      const raw = (body.data ?? []) as Array<{
+        id: string;
+        lat: number | string;
+        lng: number | string;
+        commuter_count: number;
+        intensity: "LOW" | "MEDIUM" | "HIGH";
+        radius_meters: number;
+      }>;
+      setDemandZones(raw.map((zone) => ({
+        id: zone.id,
+        coords: [Number(zone.lat), Number(zone.lng)],
+        commuterCount: zone.commuter_count,
+        intensity: zone.intensity,
+        radiusMeters: zone.radius_meters,
+      })));
+    } catch {
+      // Demand overlay is best-effort; other monitoring remains live.
+    }
+  }, []);
+
   // Initial fetch + polling.
   useEffect(() => {
-    void Promise.all([fetchActive(), fetchHistory(), fetchOverspeed()]);
+    void Promise.all([fetchActive(), fetchHistory(), fetchOverspeed(), fetchDemandZones()]);
     const id = setInterval(() => {
       void fetchActive();
       void fetchOverspeed();
+      void fetchDemandZones();
     }, POLL_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [fetchActive, fetchHistory, fetchOverspeed]);
+  }, [fetchActive, fetchHistory, fetchOverspeed, fetchDemandZones]);
 
   // ── Actions ──
 
@@ -338,7 +367,7 @@ export function useMonitoringData() {
     sosAlerts,
     sosHistory,
     overspeedHistory,
-    demandZones: [], // No commuter location tracking — empty until that feature exists
+    demandZones,
   };
 
   return {
@@ -349,6 +378,7 @@ export function useMonitoringData() {
       void fetchActive();
       void fetchHistory();
       void fetchOverspeed();
+      void fetchDemandZones();
     },
     acknowledgeSos,
     resolveSos,

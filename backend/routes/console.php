@@ -21,6 +21,13 @@ Artisan::command('inspire', function () {
 // `php artisan schedule:run` every minute.
 Schedule::command('hails:expire')->everyMinute();
 
+// Hostinger shared hosting has no long-running Supervisor process. The
+// one-minute `schedule:run` cron starts this short-lived queue worker and it
+// exits cleanly after delivering queued broadcasts.
+Schedule::command('queue:work --stop-when-empty --tries=3 --timeout=55 --max-time=50')
+    ->everyMinute()
+    ->withoutOverlapping(2);
+
 // ─── Automatic daily vehicle-assignment reset (12:00 AM) ─────────────
 // Per the vehicle-assignment workflow refactor: at midnight every day the
 // CURRENT driver + conductor + active-shift assignment on EVERY vehicle is

@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreRouteRequest;
 use App\Http\Requests\Admin\UpdateRouteRequest;
 use App\Models\ConductorProfile;
+use App\Models\CommuterLocation;
 use App\Models\Driver;
 use App\Models\Remittance;
 use App\Models\Route as RouteModel;
@@ -89,6 +90,51 @@ class AdminController extends Controller
         $history = $this->locationService->getOverspeedHistory();
 
         return $this->successResponse($history, 'Overspeeding history retrieved');
+    }
+
+    public function demandZones(): JsonResponse
+    {
+        $cellSize = 0.005;
+        $locations = CommuterLocation::query()
+            ->where('updated_at', '>=', now()->subMinutes(5))
+            ->get(['latitude', 'longitude']);
+
+        $cells = [];
+        foreach ($locations as $location) {
+            $latBucket = (int) floor(($location->latitude + 90) / $cellSize);
+            $lngBucket = (int) floor(($location->longitude + 180) / $cellSize);
+            $key = "{$latBucket}:{$lngBucket}";
+
+            if (! isset($cells[$key])) {
+                $cells[$key] = [
+                    'id' => "demand-{$latBucket}-{$lngBucket}",
+                    'lat' => ($latBucket * $cellSize) - 90 + ($cellSize / 2),
+                    'lng' => ($lngBucket * $cellSize) - 180 + ($cellSize / 2),
+                    'commuter_count' => 0,
+                ];
+            }
+
+            $cells[$key]['commuter_count']++;
+        }
+
+        $zones = collect($cells)
+            ->map(function (array $cell) {
+                $count = $cell['commuter_count'];
+                $intensity = $count >= 10 ? 'HIGH' : ($count >= 4 ? 'MEDIUM' : 'LOW');
+
+                return $cell + [
+                    'intensity' => $intensity,
+                    'radius_meters' => match ($intensity) {
+                        'HIGH' => 500,
+                        'MEDIUM' => 350,
+                        default => 250,
+                    },
+                ];
+            })
+            ->sortByDesc('commuter_count')
+            ->values();
+
+        return $this->successResponse($zones, 'Demand zones retrieved');
     }
 
     public function drivers(): JsonResponse

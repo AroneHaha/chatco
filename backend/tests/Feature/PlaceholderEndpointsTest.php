@@ -68,32 +68,25 @@ class PlaceholderEndpointsTest extends TestCase
         $this->conductorToken = $conductor->createToken('test')->plainTextToken;
     }
 
-    private function assertNotImplementedResponse(string $method, string $uri, string $token): void
-    {
-        $response = $this->withHeader('Authorization', "Bearer {$token}")
-            ->{$method}($uri);
-
-        $response->assertStatus(501);
-        $response->assertExactJson([
-            'success' => false,
-            'data'    => null,
-            'message' => 'Not Implemented',
-            'errors'  => null,
-            'meta'    => null,
-        ]);
-    }
-
     // ── Commuter Endpoints (2) ───────────────────────────────────
     // /profile implemented in S5-T1 (returns real commuter profile data).
 
-    public function test_commuter_trips_returns_501(): void
+    public function test_commuter_trips_returns_success(): void
     {
-        $this->assertNotImplementedResponse('getJson', '/api/v1/commuter/trips', $this->commuterToken);
+        $this->withHeader('Authorization', "Bearer {$this->commuterToken}")
+            ->getJson('/api/v1/commuter/trips')
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.total', 0);
     }
 
-    public function test_commuter_rewards_returns_501(): void
+    public function test_commuter_rewards_returns_success(): void
     {
-        $this->assertNotImplementedResponse('getJson', '/api/v1/commuter/rewards', $this->commuterToken);
+        $this->withHeader('Authorization', "Bearer {$this->commuterToken}")
+            ->getJson('/api/v1/commuter/rewards')
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.totalRides', 0);
     }
 
     // ── Conductor Endpoints ──────────────────────────────────────
@@ -115,10 +108,8 @@ class PlaceholderEndpointsTest extends TestCase
 
     // ── Total Count Verification ─────────────────────────────────
 
-    public function test_total_placeholder_endpoints_is_2(): void
+    public function test_total_placeholder_endpoints_is_zero(): void
     {
-        // 2 commuter + 0 admin + 0 QR = 2
-        // Remaining stubs: commuter/trips, commuter/rewards = 2.
-        $this->assertEquals(2, 2 + 0);
+        $this->assertSame(0, 0);
     }
 }

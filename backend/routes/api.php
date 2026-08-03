@@ -98,6 +98,7 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
     Route::post('/change-password', [CommuterController::class, 'changePassword'])->middleware('throttle:conductor-write');
     Route::get('/trips', [CommuterController::class, 'trips'])->middleware('throttle:conductor-read');
     Route::get('/rewards', [CommuterController::class, 'rewards'])->middleware('throttle:conductor-read');
+    Route::post('/location', [CommuterController::class, 'updateLocation'])->middleware('throttle:commuter-hail');
 
     // Share Live Location — commuter generates a tracking link
     Route::post('/share-ride', [\App\Http\Controllers\Commuter\ShareRideController::class, 'store'])->middleware('throttle:commuter-hail');
@@ -239,6 +240,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::get('/analytics', [AdminController::class, 'analytics'])->middleware('throttle:conductor-read');
     Route::get('/monitoring', [AdminController::class, 'monitoring'])->middleware('throttle:conductor-read');
     Route::get('/monitoring/overspeed', [AdminController::class, 'overspeed'])->middleware('throttle:conductor-read');
+    Route::get('/monitoring/demand-zones', [AdminController::class, 'demandZones'])->middleware('throttle:conductor-read');
     Route::get('/users', [AdminUserController::class, 'index'])->middleware('throttle:conductor-read');
     Route::get('/users/{id}', [AdminUserController::class, 'show'])->middleware('throttle:conductor-read');
     Route::put('/users/{id}', [AdminUserController::class, 'update'])->middleware('throttle:conductor-write');

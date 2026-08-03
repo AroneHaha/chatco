@@ -102,6 +102,7 @@ export function useCommuterTracking(): CommuterTrackingResult {
 
   const userLocationRef = useRef<[number, number] | null>(null);
   const lastCalcRef = useRef(0);
+  const lastLocationReportRef = useRef(0);
   const hasInitialCenteredRef = useRef(false);
   const userInteractedRef = useRef(false);
 
@@ -160,6 +161,8 @@ export function useCommuterTracking(): CommuterTrackingResult {
       userActualLocation[1]
     );
 
+    // Existing throttled derivation intentionally updates only on GPS samples.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRadiusResult(result);
 
     // Send proximity notifications for newly detected within-radius vehicles
@@ -172,6 +175,25 @@ export function useCommuterTracking(): CommuterTrackingResult {
       clearNotifiedVehicles();
     }
   }, [userActualLocation, vehicleLocations]);
+
+  useEffect(() => {
+    if (!userActualLocation) return;
+    const now = Date.now();
+    if (now - lastLocationReportRef.current < 15_000) return;
+    lastLocationReportRef.current = now;
+
+    void fetch("/api/commuter/location", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        latitude: userActualLocation[0],
+        longitude: userActualLocation[1],
+      }),
+    }).catch(() => {
+      // Tracking and hailing continue if demand reporting is unavailable.
+    });
+  }, [userActualLocation]);
 
   const isWithinAnyRadius = (radiusResult?.withinRadius?.length ?? 0) > 0;
 

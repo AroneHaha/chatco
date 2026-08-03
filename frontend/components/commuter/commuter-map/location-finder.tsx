@@ -13,7 +13,6 @@ import { useEffect } from "react";
 import { useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import type { GpsStatus } from "@/lib/shared/geo/nearby-detector";
-import { routeBounds, mapBounds } from "./commuter-map-constants";
 import { getBearing } from "./commuter-map-icons";
 
 interface LocationFinderProps {
@@ -26,6 +25,8 @@ interface LocationFinderProps {
   hasInitialCenteredRef: React.MutableRefObject<boolean>;
   /** Ref shared with parent to track if the user has manually interacted with the map */
   userInteractedRef: React.MutableRefObject<boolean>;
+  routeBounds: L.LatLngBounds;
+  mapBounds: L.LatLngBounds;
 }
 
 export default function LocationFinder({
@@ -36,6 +37,8 @@ export default function LocationFinder({
   setGpsStatus,
   hasInitialCenteredRef,
   userInteractedRef,
+  routeBounds,
+  mapBounds,
 }: LocationFinderProps) {
   const map = useMap();
 
@@ -74,7 +77,7 @@ export default function LocationFinder({
         hasInitialCenteredRef.current = true;
       }
     },
-    locationerror(e: any) {
+    locationerror(e) {
       const code = e?.code;
       if (code === 1) {
         setGpsStatus("denied");

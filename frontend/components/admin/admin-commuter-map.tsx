@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents,
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { formatElapsedMinutes } from "@/lib/utils/display";
+import { useRouteGeometry } from "@/hooks/use-route-geometry";
 
 // --- 1. TYPES (kept — these define the API contract) ---
 type VehicleCapacity = "AVAILABLE" | "STANDING" | "FULL";
@@ -94,18 +95,6 @@ const ROUTE_COORDS: [number, number][] = [
   [14.725646764905104, 120.9604838112117]
 ];
 
-const rawBounds = L.latLngBounds(ROUTE_COORDS);
-const routeBounds = rawBounds.pad(0.008);
-const mapBounds = L.latLngBounds(
-  [rawBounds.getSouth() - 0.04, rawBounds.getWest() - 0.10],
-  [rawBounds.getNorth() + 0.015, rawBounds.getEast() + 0.10]
-);
-const mapBoundsArray: [[number, number], [number, number]] = [
-  [mapBounds.getSouth(), mapBounds.getWest()],
-  [mapBounds.getNorth(), mapBounds.getEast()]
-];
-const MAP_CENTER: L.LatLngTuple = [rawBounds.getCenter().lat, rawBounds.getCenter().lng];
-
 // --- 3. HELPER FUNCTIONS ---
 function getBearing(start: [number, number], end: [number, number]): number {
   const startLat = start[0] * Math.PI / 180;
@@ -125,12 +114,14 @@ const getCapacityConfig = (capacity: VehicleCapacity) => {
 };
 
 function LocationFinder({
-  userLocationRef, setUserActualLocation, setShowMapPin, setArrowPos
+  userLocationRef, setUserActualLocation, setShowMapPin, setArrowPos, routeBounds, mapBounds
 }: {
   userLocationRef: React.MutableRefObject<[number, number] | null>;
   setUserActualLocation: (loc: [number, number] | null) => void;
   setShowMapPin: (val: boolean) => void;
   setArrowPos: (pos: { x: number; y: number; angle: number } | null) => void;
+  routeBounds: L.LatLngBounds;
+  mapBounds: L.LatLngBounds;
 }) {
   const map = useMap();
 
@@ -352,10 +343,11 @@ export default function AdminCommuterMap({
   /** Bump to re-focus the same coordinates again. */
   focusNonce?: number;
 }) {
+  const routeGeometry = useRouteGeometry(ROUTE_COORDS);
   const [isDomReady, setIsDomReady] = useState(false);
   const [userActualLocation, setUserActualLocation] = useState<[number, number] | null>(null);
   const [showMapPin, setShowMapPin] = useState(false);
-  const [arrowPos, setArrowPos] = useState<{ x: number; y: number; angle: number } | null>(null);
+  const [, setArrowPos] = useState<{ x: number; y: number; angle: number } | null>(null);
   const userLocationRef = useRef<[number, number] | null>(null);
 
   useEffect(() => {
@@ -418,24 +410,24 @@ export default function AdminCommuterMap({
   return (
     <div className="admin-map-wrapper w-full h-full rounded-xl overflow-hidden">
       <MapContainer
-        center={MAP_CENTER}
+        center={routeGeometry.center}
         zoom={12}
         zoomControl={false}
         attributionControl={false}
         className="admin-map-container"
         style={{ background: '#050F1A' }}
-        maxBounds={mapBoundsArray}
+        maxBounds={routeGeometry.mapBoundsArray}
         maxBoundsViscosity={1.0}
         minZoom={11}
         maxZoom={18}
         zoomSnap={1}
       >
-        <LocationFinder userLocationRef={userLocationRef} setUserActualLocation={setUserActualLocation} setShowMapPin={setShowMapPin} setArrowPos={setArrowPos} />
+        <LocationFinder userLocationRef={userLocationRef} setUserActualLocation={setUserActualLocation} setShowMapPin={setShowMapPin} setArrowPos={setArrowPos} routeBounds={routeGeometry.routeBounds} mapBounds={routeGeometry.mapBounds} />
         <MapFocuser target={focusPosition} nonce={focusNonce} />
         <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
 
-        <Polyline positions={ROUTE_COORDS} pathOptions={{ color: '#62A0EA', weight: 8, opacity: 0.2, lineCap: 'round', lineJoin: 'round' }} />
-        <Polyline positions={ROUTE_COORDS} pathOptions={{ color: '#62A0EA', weight: 4, opacity: 0.9, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }} />
+        <Polyline positions={routeGeometry.routeCoords} pathOptions={{ color: '#62A0EA', weight: 8, opacity: 0.2, lineCap: 'round', lineJoin: 'round' }} />
+        <Polyline positions={routeGeometry.routeCoords} pathOptions={{ color: '#62A0EA', weight: 4, opacity: 0.9, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }} />
 
         {/* --- DEMAND HEATMAP CIRCLES --- */}
         {demandZones.map((zone) => {
@@ -514,7 +506,7 @@ export default function AdminCommuterMap({
         {vehicles.map((vehicle) => {
           const config = getCapacityConfig(vehicle.capacity);
           return (
-            <Marker key={vehicle.id} position={ROUTE_COORDS[vehicle.routeIndex]} icon={getJeepneyIcon(vehicle.capacity)} zIndexOffset={800}>
+            <Marker key={vehicle.id} position={routeGeometry.routeCoords[Math.min(vehicle.routeIndex, routeGeometry.routeCoords.length - 1)]} icon={getJeepneyIcon(vehicle.capacity)} zIndexOffset={800}>
               <Popup>
                 <div className="space-y-2 min-w-[180px]">
                   <div className="flex items-center justify-between">
