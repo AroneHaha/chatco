@@ -48,6 +48,64 @@ function mapApiToLocal(api: ApiFarePoint): FarePoint {
   };
 }
 
+function SubDropoffEditor({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [draft, setDraft] = useState('');
+  const items = useMemo(
+    () => value.split(',').map((item) => item.trim()).filter(Boolean),
+    [value]
+  );
+
+  const addItem = () => {
+    const next = draft.trim();
+    if (!next) return;
+    if (!items.some((item) => item.toLowerCase() === next.toLowerCase())) {
+      onChange([...items, next].join(', '));
+    }
+    setDraft('');
+  };
+
+  const removeItem = (index: number) => {
+    onChange(items.filter((_, itemIndex) => itemIndex !== index).join(', '));
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              addItem();
+            }
+          }}
+          placeholder="e.g. Crossing or Public Market"
+          className="block min-w-0 flex-1 rounded-xl border border-white/10 bg-[#050F1A] px-3 py-2.5 text-sm text-white placeholder:text-white/25 focus:border-[#62A0EA] focus:outline-none focus:ring-1 focus:ring-[#62A0EA]/30"
+        />
+        <button type="button" onClick={addItem} className="flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2.5 text-xs font-bold text-white hover:bg-white/15">
+          <Plus size={14} /> Add
+        </button>
+      </div>
+      {items.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {items.map((item, index) => (
+            <span key={`${item}-${index}`} className="flex items-center gap-1.5 rounded-lg border border-[#62A0EA]/20 bg-[#1A5FB4]/10 px-2.5 py-1.5 text-xs text-[#BFDBFE]">
+              {item}
+              <button type="button" onClick={() => removeItem(index)} className="text-white/35 hover:text-red-300" aria-label={`Remove ${item}`}>
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="text-[10px] text-white/25">Optional. These choices appear under the Point Area in the conductor fare calculator and use the same fare.</p>
+      )}
+    </div>
+  );
+}
+
 export default function FareMatrixPage() {
   const [routes, setRoutes] = useState<AdminRoute[]>([]);
   const [selectedRouteId, setSelectedRouteId] = useState<string>('');
@@ -494,9 +552,9 @@ export default function FareMatrixPage() {
                   <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Point Name</label>
                   <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Jollibee Crossing" className={inputClasses} />
                 </div>
-                <div>
-                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Sub-Points / Landmarks (comma-separated)</label>
-                  <input type="text" value={newSubStops} onChange={(e) => setNewSubStops(e.target.value)} placeholder="e.g. Crossing, School, Market" className={inputClasses} />
+                <div className="sm:col-span-2">
+                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Sub Pickup / Drop-off Points</label>
+                  <SubDropoffEditor value={newSubStops} onChange={setNewSubStops} />
                 </div>
                 <div>
                   <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Regular Fare (₱)</label>
@@ -530,9 +588,9 @@ export default function FareMatrixPage() {
                   <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Point Name</label>
                   <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} className={inputClasses} />
                 </div>
-                <div>
-                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Sub-Points / Landmarks (comma-separated)</label>
-                  <input type="text" value={editSubStops} onChange={(e) => setEditSubStops(e.target.value)} placeholder="e.g. Crossing, School, Market" className={inputClasses} />
+                <div className="sm:col-span-2">
+                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Sub Pickup / Drop-off Points</label>
+                  <SubDropoffEditor value={editSubStops} onChange={setEditSubStops} />
                 </div>
                 <div>
                   <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Regular Fare (₱)</label>
@@ -652,7 +710,7 @@ export default function FareMatrixPage() {
                     {/* Expanded Sub-Stops */}
                     {isExpanded && point.subStops && point.subStops.length > 0 && (
                       <div className="bg-[#050F1A]/60 px-4 py-3 mx-4 mb-3 rounded-xl border border-white/5">
-                        <p className="text-[10px] uppercase tracking-wider text-white/30 font-bold mb-2">Sub-Points / landmarks in this area</p>
+                        <p className="text-[10px] uppercase tracking-wider text-white/30 font-bold mb-2">Sub pickup / drop-off points in this area</p>
                         <div className="flex flex-wrap gap-2">
                           {point.subStops.map((stop, idx) => (
                             <div key={idx} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/5">

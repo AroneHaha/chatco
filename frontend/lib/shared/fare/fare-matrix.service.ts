@@ -39,6 +39,8 @@ export interface PointArea {
   name: string;
   code: string;
   landmarks: string[];
+  /** Admin-managed pickup/drop-off choices that share this Point Area's fare. */
+  subStops?: string[];
   coordinates: { lat: number; lng: number };
   regularFare: number;
   discountedFare: number;
@@ -132,6 +134,7 @@ export async function loadFareMatrix(): Promise<void> {
         name: p.name,
         code: p.code,
         landmarks: p.landmarks ?? [],
+        subStops: p.subStops ?? [],
         coordinates: {
           lat: p.latitude ?? 0,
           lng: p.longitude ?? 0,
