@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, X, MapPin, Search, Route, RefreshCw, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, MapPin, Search, Route, RefreshCw, ArrowUp, ArrowDown } from 'lucide-react';
 import * as farePointService from '@/lib/admin/services/fare-point.service';
 import type { FarePoint as ApiFarePoint } from '@/lib/admin/services/fare-point.service';
 import * as routeService from '@/lib/admin/services/route.service';
@@ -34,34 +34,86 @@ interface FarePoint {
   longitude: number | null;
 }
 
+function normalizeStringList(value: string | string[] | null | undefined): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => item.trim()).filter(Boolean);
+  }
+
+  if (!value) return [];
+
+  // Some existing rows contain a JSON-encoded array, while older rows use a
+  // comma-separated string. Accept both so Admin and Conductor render the same
+  // sub-area data regardless of when the row was created.
+  try {
+    const decoded: unknown = JSON.parse(value);
+    if (Array.isArray(decoded)) {
+      return decoded
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+  } catch {
+    // Plain comma-separated value; handled below.
+  }
+
+  return value.split(',').map((item) => item.trim()).filter(Boolean);
+}
+
 function mapApiToLocal(api: ApiFarePoint): FarePoint {
+  const subStops = normalizeStringList(api.sub_stops);
+  const landmarks = normalizeStringList(api.landmarks);
+  const combinedSubStops = [...subStops, ...landmarks].filter(
+    (item, index, items) =>
+      items.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index
+  );
+
   return {
     id: api.id,
     pointNumber: api.point_number,
     name: api.name,
     regularFare: Number(api.regular_fare),
     discountedFare: Number(api.discounted_fare),
-    subStops: api.sub_stops ? api.sub_stops.split(',').map(s => s.trim()).filter(Boolean) : undefined,
-    landmarks: api.landmarks ?? undefined,
+    // Older rows store conductor subpoints in `landmarks`; newer edits use
+    // `sub_stops`. Present one combined list until every row is migrated.
+    subStops: combinedSubStops.length > 0 ? combinedSubStops : undefined,
+    landmarks: landmarks.length > 0 ? landmarks.join(', ') : undefined,
     latitude: api.latitude === null ? null : Number(api.latitude),
     longitude: api.longitude === null ? null : Number(api.longitude),
   };
 }
 
-function SubDropoffEditor({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  const [draft, setDraft] = useState('');
+function mergeSubDropoffs(value: string, draft: string): string {
+  const items = value.split(',').map((item) => item.trim()).filter(Boolean);
+  const next = draft.trim();
+
+  if (next && !items.some((item) => item.toLowerCase() === next.toLowerCase())) {
+    items.push(next);
+  }
+
+  return items.join(', ');
+}
+
+function SubDropoffEditor({
+  value,
+  onChange,
+  draft,
+  onDraftChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  draft: string;
+  onDraftChange: (value: string) => void;
+}) {
   const items = useMemo(
     () => value.split(',').map((item) => item.trim()).filter(Boolean),
     [value]
   );
 
   const addItem = () => {
-    const next = draft.trim();
-    if (!next) return;
-    if (!items.some((item) => item.toLowerCase() === next.toLowerCase())) {
-      onChange([...items, next].join(', '));
-    }
-    setDraft('');
+    const merged = mergeSubDropoffs(value, draft);
+    if (merged === value) return;
+    onChange(merged);
+    onDraftChange('');
   };
 
   const removeItem = (index: number) => {
@@ -74,7 +126,7 @@ function SubDropoffEditor({ value, onChange }: { value: string; onChange: (value
         <input
           type="text"
           value={draft}
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => onDraftChange(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
               event.preventDefault();
@@ -85,7 +137,7 @@ function SubDropoffEditor({ value, onChange }: { value: string; onChange: (value
           className="block min-w-0 flex-1 rounded-xl border border-white/10 bg-[#050F1A] px-3 py-2.5 text-sm text-white placeholder:text-white/25 focus:border-[#62A0EA] focus:outline-none focus:ring-1 focus:ring-[#62A0EA]/30"
         />
         <button type="button" onClick={addItem} className="flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2.5 text-xs font-bold text-white hover:bg-white/15">
-          <Plus size={14} /> Add
+          <Plus size={14} /> Add to list
         </button>
       </div>
       {items.length > 0 ? (
@@ -118,7 +170,6 @@ export default function FareMatrixPage() {
   const [showCreateRoute, setShowCreateRoute] = useState(false);
   const [newRouteName, setNewRouteName] = useState('');
 
-  const [expandedPoint, setExpandedPoint] = useState<number | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingPoint, setEditingPoint] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -132,6 +183,7 @@ export default function FareMatrixPage() {
   const [newRegular, setNewRegular] = useState('18');
   const [newDiscounted, setNewDiscounted] = useState('14.4');
   const [newSubStops, setNewSubStops] = useState('');
+  const [newSubStopDraft, setNewSubStopDraft] = useState('');
   const [newLocation, setNewLocation] = useState<RouteCoordinate | null>(null);
 
   // Edit form state
@@ -139,6 +191,7 @@ export default function FareMatrixPage() {
   const [editRegular, setEditRegular] = useState('');
   const [editDiscounted, setEditDiscounted] = useState('');
   const [editSubStops, setEditSubStops] = useState('');
+  const [editSubStopDraft, setEditSubStopDraft] = useState('');
   const [editLocation, setEditLocation] = useState<RouteCoordinate | null>(null);
 
   const fetchRoutes = useCallback(async () => {
@@ -225,12 +278,45 @@ export default function FareMatrixPage() {
     setTimeout(() => setSuccessMsg(null), 4000);
   };
 
+  const scrollToForm = (id: 'fare-point-add-form' | 'fare-point-edit-form') => {
+    window.setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 0);
+  };
+
+  const handleToggleAddForm = () => {
+    const willOpen = !showAddForm;
+    setShowAddForm(willOpen);
+    setError(null);
+
+    if (willOpen) {
+      setEditingPoint(null);
+      scrollToForm('fare-point-add-form');
+    }
+  };
+
   const handleAddPoint = async () => {
-    if (!newName.trim() || !selectedRouteId) return;
+    if (!selectedRouteId) {
+      setError('Select a managed route before adding a Point Area.');
+      return;
+    }
+    if (!newName.trim()) {
+      setError('Enter a name for the new Point Area.');
+      scrollToForm('fare-point-add-form');
+      return;
+    }
+    if (!newLocation) {
+      setError('Choose the Point Area location on the map before adding it.');
+      scrollToForm('fare-point-add-form');
+      return;
+    }
+
     setIsSaving(true);
     setError(null);
     try {
-      if (!newLocation) throw new Error('Choose the Point Area location on the map.');
+      const normalizedSubStops = mergeSubDropoffs(newSubStops, newSubStopDraft);
+      setNewSubStops(normalizedSubStops);
+      setNewSubStopDraft('');
       await farePointService.create({
         route_id: selectedRouteId,
         point_number: farePoints.length + 1,
@@ -238,12 +324,13 @@ export default function FareMatrixPage() {
         name: newName.trim(),
         regular_fare: parseFloat(newRegular) || 18,
         discounted_fare: parseFloat(newDiscounted) || 14.4,
-        sub_stops: newSubStops.trim() || undefined,
+        landmarks: null,
+        sub_stops: normalizedSubStops || null,
         latitude: newLocation[0],
         longitude: newLocation[1],
       });
       showSuccess(`Point "${newName}" added successfully.`);
-      setNewName(''); setNewRegular('18'); setNewDiscounted('14.4'); setNewSubStops('');
+      setNewName(''); setNewRegular('18'); setNewDiscounted('14.4'); setNewSubStops(''); setNewSubStopDraft('');
       setNewLocation(null);
       setShowAddForm(false);
       await Promise.all([fetchFarePoints(), fetchRoutes()]);
@@ -257,17 +344,18 @@ export default function FareMatrixPage() {
   const handleStartEdit = (pointNumber: number) => {
     const point = farePoints.find(p => p.pointNumber === pointNumber);
     if (!point) return;
+    setShowAddForm(false);
+    setError(null);
     setEditName(point.name);
     setEditRegular(point.regularFare.toString());
     setEditDiscounted(point.discountedFare.toString());
     setEditSubStops(point.subStops ? point.subStops.join(', ') : '');
+    setEditSubStopDraft('');
     setEditLocation(point.latitude !== null && point.longitude !== null
       ? [point.latitude, point.longitude]
       : null);
     setEditingPoint(pointNumber);
-    window.setTimeout(() => {
-      document.getElementById('fare-point-edit-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 0);
+    scrollToForm('fare-point-edit-form');
   };
 
   const handleSaveEdit = async () => {
@@ -278,11 +366,17 @@ export default function FareMatrixPage() {
     setError(null);
     try {
       if (!editLocation) throw new Error('Choose the Point Area location on the map.');
+      const normalizedSubStops = mergeSubDropoffs(editSubStops, editSubStopDraft);
+      setEditSubStops(normalizedSubStops);
+      setEditSubStopDraft('');
       await farePointService.update(point.id, {
         name: editName.trim(),
         regular_fare: parseFloat(editRegular) || 18,
         discounted_fare: parseFloat(editDiscounted) || 14.4,
-        sub_stops: editSubStops.trim() || undefined,
+        // Saving an old row migrates its legacy landmark choices into the
+        // canonical sub_stops field, so removals and additions stay in sync.
+        landmarks: null,
+        sub_stops: normalizedSubStops || null,
         latitude: editLocation[0],
         longitude: editLocation[1],
       });
@@ -305,7 +399,6 @@ export default function FareMatrixPage() {
     try {
       await farePointService.remove(point.id);
       showSuccess(`Point #${pointNumber} deleted.`);
-      if (expandedPoint === pointNumber) setExpandedPoint(null);
       if (previewFrom === pointNumber) setPreviewFrom(null);
       if (previewTo === pointNumber) setPreviewTo(null);
       await Promise.all([fetchFarePoints(), fetchRoutes()]);
@@ -385,7 +478,7 @@ export default function FareMatrixPage() {
             </button>
             <button
               type="button"
-              onClick={() => setShowAddForm(!showAddForm)}
+              onClick={handleToggleAddForm}
               disabled={!selectedRoute}
               className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-[#1A5FB4] text-white font-bold rounded-xl hover:bg-[#165a9f] transition-colors active:scale-95 shadow-lg shadow-[#1A5FB4]/30"
             >
@@ -545,7 +638,7 @@ export default function FareMatrixPage() {
 
           {/* Add Point Form */}
           {showAddForm && (
-            <div id="fare-point-edit-form" className="bg-[#1A5FB4]/5 border border-[#1A5FB4]/30 p-5 rounded-2xl space-y-4">
+            <div id="fare-point-add-form" className="bg-[#1A5FB4]/5 border border-[#1A5FB4]/30 p-5 rounded-2xl space-y-4">
               <h3 className="text-sm font-bold text-white">New Point Area</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -554,7 +647,12 @@ export default function FareMatrixPage() {
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Sub Pickup / Drop-off Points</label>
-                  <SubDropoffEditor value={newSubStops} onChange={setNewSubStops} />
+                  <SubDropoffEditor
+                    value={newSubStops}
+                    onChange={setNewSubStops}
+                    draft={newSubStopDraft}
+                    onDraftChange={setNewSubStopDraft}
+                  />
                 </div>
                 <div>
                   <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Regular Fare (₱)</label>
@@ -581,7 +679,7 @@ export default function FareMatrixPage() {
 
           {/* Edit Point Form */}
           {editingPoint !== null && (
-            <div className="bg-[#1A5FB4]/5 border border-[#1A5FB4]/30 p-5 rounded-2xl space-y-4">
+            <div id="fare-point-edit-form" className="bg-[#1A5FB4]/5 border border-[#1A5FB4]/30 p-5 rounded-2xl space-y-4">
               <h3 className="text-sm font-bold text-white">Edit Point #{editingPoint}</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -590,7 +688,12 @@ export default function FareMatrixPage() {
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Sub Pickup / Drop-off Points</label>
-                  <SubDropoffEditor value={editSubStops} onChange={setEditSubStops} />
+                  <SubDropoffEditor
+                    value={editSubStops}
+                    onChange={setEditSubStops}
+                    draft={editSubStopDraft}
+                    onDraftChange={setEditSubStopDraft}
+                  />
                 </div>
                 <div>
                   <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Regular Fare (₱)</label>
@@ -651,7 +754,6 @@ export default function FareMatrixPage() {
                   No fare points found. Click &quot;Add Point Area&quot; to create one.
                 </div>
               ) : filteredPoints.map((point) => {
-                const isExpanded = expandedPoint === point.pointNumber;
                 const isBaseZone = point.regularFare <= 18;
 
                 return (
@@ -668,13 +770,9 @@ export default function FareMatrixPage() {
                           <MapPin size={12} className={isBaseZone ? 'text-emerald-400/60 flex-shrink-0' : 'text-[#62A0EA]/60 flex-shrink-0'} />
                           <span className="text-sm text-white font-medium truncate">{point.name}</span>
                           {point.subStops && point.subStops.length > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => setExpandedPoint(isExpanded ? null : point.pointNumber)}
-                              className="p-0.5 text-white/30 hover:text-white transition-colors flex-shrink-0"
-                            >
-                              {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                            </button>
+                            <span className="rounded-full border border-[#62A0EA]/20 bg-[#62A0EA]/10 px-2 py-0.5 text-[9px] font-semibold text-[#93C5FD]">
+                              {point.subStops.length} sub-area{point.subStops.length === 1 ? '' : 's'}
+                            </span>
                           )}
                         </div>
                         {isBaseZone && (
@@ -707,8 +805,8 @@ export default function FareMatrixPage() {
                       </div>
                     </div>
 
-                    {/* Expanded Sub-Stops */}
-                    {isExpanded && point.subStops && point.subStops.length > 0 && (
+                    {/* Sub-areas stay visible so Admin sees the same choices as Conductor. */}
+                    {point.subStops && point.subStops.length > 0 && (
                       <div className="bg-[#050F1A]/60 px-4 py-3 mx-4 mb-3 rounded-xl border border-white/5">
                         <p className="text-[10px] uppercase tracking-wider text-white/30 font-bold mb-2">Sub pickup / drop-off points in this area</p>
                         <div className="flex flex-wrap gap-2">

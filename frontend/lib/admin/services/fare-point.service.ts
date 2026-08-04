@@ -15,8 +15,11 @@ export interface FarePoint {
   point_number: number;
   code: string;
   name: string;
-  landmarks: string | null;
-  sub_stops: string | null;
+  // Laravel's array casts return arrays, while older rows/endpoints may still
+  // contain comma-separated or JSON-encoded strings. Keep the response type
+  // compatible with both representations and normalize it in the UI adapter.
+  landmarks: string | string[] | null;
+  sub_stops: string | string[] | null;
   regular_fare: number;
   discounted_fare: number;
   latitude: number | null;
@@ -67,7 +70,10 @@ export async function list(routeId?: string): Promise<FarePoint[]> {
     ? `/api/admin/fare-points?route_id=${encodeURIComponent(routeId)}`
     : "/api/admin/fare-points";
 
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  const res = await fetch(url, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
 
   if (!res.ok) {
     const body = await res.json().catch(() => null);

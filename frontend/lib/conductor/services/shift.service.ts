@@ -66,6 +66,7 @@ export async function startShift(data: {
     conductorName: "Conductor",
     unitNumber: data.unitId,
     route: "",
+    routeId: data.routeId,
     driverName: "Driver",
     timeIn: new Date().toISOString(),
     timeOut: null,

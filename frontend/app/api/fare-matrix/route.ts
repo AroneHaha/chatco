@@ -14,13 +14,16 @@ import { jsonData, jsonError } from "@/lib/conductor/server/response";
  * The admin's /settings/fare-matrix page edits the fare_points table; changes
  * are immediately visible to all consumers on their next fetch.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   const API_URL = process.env.API_URL || "http://localhost:8000";
   const API_V1 = "/api/v1";
+  const routeId = request.nextUrl.searchParams.get("route_id");
+  const query = routeId ? `?route_id=${encodeURIComponent(routeId)}` : "";
 
   try {
-    const res = await fetch(`${API_URL}${API_V1}/fare-matrix`, {
+    const res = await fetch(`${API_URL}${API_V1}/fare-matrix${query}`, {
       headers: { Accept: "application/json" },
+      cache: "no-store",
     });
 
     if (!res.ok) {

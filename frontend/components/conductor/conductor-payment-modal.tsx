@@ -9,6 +9,7 @@ interface FareCalculatorModalProps {
   isOpen: boolean;
   onClose: () => void;
   shiftId: string;
+  routeId?: string;
   conductorName: string;
   unitNumber: string;
   driverName: string;
@@ -52,6 +53,7 @@ export default function ConductorPaymentModal() {
       isOpen={showFareCalc}
       onClose={() => setShowFareCalc(false)}
       shiftId={shift?.shiftId || ""}
+      routeId={shift?.routeId}
       conductorName={shift?.conductorName || "—"}
       unitNumber={shift?.unitNumber || "—"}
       driverName={shift?.driverName || "—"}

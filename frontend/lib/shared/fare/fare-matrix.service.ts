@@ -88,6 +88,7 @@ interface ApiFareMatrixResponse {
 let cachedPoints: FarePoint[] | null = null;
 let cachedPointAreas: PointArea[] | null = null;
 let cachedConfig: FareConfig | null = null;
+let cachedRouteKey: string | null = null;
 let fetchPromise: Promise<void> | null = null;
 
 // ─── Fetch + cache ───
@@ -99,14 +100,37 @@ let fetchPromise: Promise<void> | null = null;
  * On failure, falls back to the hardcoded fare-matrix-data.ts so the UI
  * always has fare data (even if the backend is down).
  */
-export async function loadFareMatrix(): Promise<void> {
-  if (cachedPoints && cachedConfig) return; // already loaded
-  if (fetchPromise) return fetchPromise; // fetch in progress
+interface LoadFareMatrixOptions {
+  force?: boolean;
+  routeId?: string;
+}
+
+export async function loadFareMatrix({
+  force = false,
+  routeId,
+}: LoadFareMatrixOptions = {}): Promise<void> {
+  const routeKey = routeId ?? "__default__";
+
+  if (!force && cachedPoints && cachedConfig && cachedRouteKey === routeKey) {
+    return;
+  }
+
+  // Let an existing request finish before starting a refresh for another
+  // route. This prevents two responses from racing to overwrite the cache.
+  if (fetchPromise) await fetchPromise;
+
+  if (!force && cachedPoints && cachedConfig && cachedRouteKey === routeKey) {
+    return;
+  }
 
   fetchPromise = (async () => {
     try {
-      const res = await fetch("/api/fare-matrix", {
+      const query = routeId
+        ? `?route_id=${encodeURIComponent(routeId)}`
+        : "";
+      const res = await fetch(`/api/fare-matrix${query}`, {
         headers: { Accept: "application/json" },
+        cache: "no-store",
       });
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -152,6 +176,7 @@ export async function loadFareMatrix(): Promise<void> {
         succeedingFareDiscounted: data.config.succeedingFareDiscounted ?? 1.75,
         totalPoints: data.config.totalPoints ?? data.points.length,
       };
+      cachedRouteKey = routeKey;
     } catch {
       // Fallback to the hardcoded data — the UI still works, just with
       // potentially stale fares until the backend is back.
@@ -165,6 +190,7 @@ export async function loadFareMatrix(): Promise<void> {
         succeedingFareDiscounted: HARDCODED_FARE_CONFIG.SUCCEEDING_FARE_DISCOUNTED,
         totalPoints: HARDCODED_FARE_CONFIG.TOTAL_BARANGAYS,
       };
+      cachedRouteKey = routeKey;
     } finally {
       fetchPromise = null;
     }

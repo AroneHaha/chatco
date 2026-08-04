@@ -42,6 +42,7 @@ interface FareCalcModalProps {
   isOpen: boolean;
   onClose: () => void;
   shiftId?: string;
+  routeId?: string;
   conductorName?: string;
   unitNumber?: string;
   driverName?: string;
@@ -68,9 +69,10 @@ function selectedPointName(point: PointArea, subPoint: string | null): string {
   return subPoint ? `${point.name} · ${subPoint}` : point.name;
 }
 
-export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName, unitNumber, driverName }: FareCalcModalProps) {
+export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, conductorName, unitNumber, driverName }: FareCalcModalProps) {
   const [step, setStep] = useState<Step>("method");
   const [selectedMethod, setSelectedMethod] = useState<SelectedPaymentMethod | null>(null);
+  const [pointAreas, setPointAreas] = useState<PointArea[]>(() => getPointAreas());
   const [pickupPoint, setPickupPoint] = useState<PointArea | null>(null);
   const [dropoffPoint, setDropoffPoint] = useState<PointArea | null>(null);
   const [commuterType, setCommuterType] = useState<CommuterType>("REGULAR");
@@ -292,7 +294,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   );
 
   const filteredPoints = searchQuery
-    ? getPointAreas().filter(
+    ? pointAreas.filter(
         (p) =>
           p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           p.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -300,7 +302,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
             l.toLowerCase().includes(searchQuery.toLowerCase())
           )
       )
-    : getPointAreas();
+    : pointAreas;
 
   // ─── Save CASH/VOUCHER transaction to backend ───
   // Used for Cash + Voucher payments. GCash payments are created server-side
@@ -756,15 +758,32 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     }
   }, [selectingField, step, pickupPoint, dropoffPoint]);
 
-  // ─── Load the fare matrix from the backend on first open ───
+  // ─── Refresh the active route's fare matrix whenever the modal opens ───
   // The fare points + config come from GET /api/fare-matrix (the backend's
-  // fare_points table — the single source of truth). Falls back to the
-  // hardcoded data if the API is unreachable. Cached for the session.
+  // fare_points table — the single source of truth). Force-refreshing here
+  // makes admin additions/edits visible without a full conductor-page reload.
   useEffect(() => {
-    if (isOpen) {
-      void loadFareMatrix();
-    }
-  }, [isOpen]);
+    if (!isOpen) return;
+
+    let cancelled = false;
+
+    void loadFareMatrix({ force: true, routeId }).then(() => {
+      if (cancelled) return;
+
+      const latestPoints = getPointAreas();
+      setPointAreas(latestPoints);
+      setPickupPoint((current) =>
+        current ? latestPoints.find((point) => point.id === current.id) ?? null : null
+      );
+      setDropoffPoint((current) =>
+        current ? latestPoints.find((point) => point.id === current.id) ?? null : null
+      );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, routeId]);
 
   // ─── HIDDEN UNTIL CLICKED ──────────────────────────────────────
   if (!isOpen) return null;
