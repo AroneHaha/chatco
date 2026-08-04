@@ -20,12 +20,15 @@ interface RouteEditorProps {
   route: AdminRoute;
   farePoints: FarePoint[];
   onRouteChanged: () => Promise<void> | void;
+  onEditFarePoint?: (pointNumber: number) => void;
 }
 
-function numberedIcon(index: number) {
+function numberedIcon(index: number, needsAttention = false) {
+  const background = needsAttention ? "#DC2626" : "#1A5FB4";
+  const border = needsAttention ? "#FCA5A5" : "#93C5FD";
   return L.divIcon({
     className: "route-editor-marker",
-    html: `<div style="width:28px;height:28px;border-radius:999px;background:#1A5FB4;color:white;border:2px solid #93C5FD;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;box-shadow:0 3px 12px rgba(0,0,0,.45)">${index + 1}</div>`,
+    html: `<div style="width:28px;height:28px;border-radius:999px;background:${background};color:white;border:2px solid ${border};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;box-shadow:0 3px 12px rgba(0,0,0,.45)">${index + 1}</div>`,
     iconSize: [28, 28],
     iconAnchor: [14, 14],
   });
@@ -93,7 +96,7 @@ function insertionIndexFor(coordinates: RouteCoordinate[], point: RouteCoordinat
   return closestIndex;
 }
 
-export default function RouteEditor({ route, farePoints, onRouteChanged }: RouteEditorProps) {
+export default function RouteEditor({ route, farePoints, onRouteChanged, onEditFarePoint }: RouteEditorProps) {
   const activeGeometry = route.active_version?.geometry ?? [];
   const [waypoints, setWaypoints] = useState<RouteCoordinate[]>([]);
   const [previewGeometry, setPreviewGeometry] = useState<RouteCoordinate[]>([]);
@@ -107,6 +110,8 @@ export default function RouteEditor({ route, farePoints, onRouteChanged }: Route
   const [error, setError] = useState<string | null>(null);
   const [hasSavedDraft, setHasSavedDraft] = useState(Boolean(route.draft_version?.geometry?.length));
   const [mapClickMode, setMapClickMode] = useState<"insert" | "append">("insert");
+  const [waypointSource, setWaypointSource] = useState<"route" | "fare_points" | "manual">("route");
+  const [detourWarnings, setDetourWarnings] = useState<Array<{ from_index: number; to_index: number }>>([]);
 
   useEffect(() => {
     const draft = route.draft_version;
@@ -121,6 +126,8 @@ export default function RouteEditor({ route, farePoints, onRouteChanged }: Route
     setPreviewGeometry(nextGeometry);
     setNotes(draft?.notes ?? "");
     setHasSavedDraft(Boolean(draft?.geometry?.length));
+    setWaypointSource(draft && !draft.geometry?.length && draft.notes?.includes("Fare Point") ? "fare_points" : "route");
+    setDetourWarnings([]);
   }, [route]);
 
   useEffect(() => {
@@ -147,9 +154,11 @@ export default function RouteEditor({ route, farePoints, onRouteChanged }: Route
     setHasSavedDraft(false);
     setMessage("Control points changed. Generate the road path, then save the draft.");
     setError(null);
+    setDetourWarnings([]);
   };
 
   const addWaypoint = (coordinate: RouteCoordinate) => {
+    setWaypointSource("manual");
     if (mapClickMode === "append" || waypoints.length < 2) {
       markDirty([...waypoints, coordinate]);
       return;
@@ -161,12 +170,14 @@ export default function RouteEditor({ route, farePoints, onRouteChanged }: Route
   };
 
   const moveWaypoint = (index: number, coordinate: RouteCoordinate) => {
+    setWaypointSource("manual");
     const next = [...waypoints];
     next[index] = coordinate;
     markDirty(next);
   };
 
   const removeWaypoint = (index: number) => {
+    setWaypointSource("manual");
     markDirty(waypoints.filter((_, waypointIndex) => waypointIndex !== index));
   };
 
@@ -174,6 +185,7 @@ export default function RouteEditor({ route, farePoints, onRouteChanged }: Route
     const target = index + direction;
     if (target < 0 || target >= waypoints.length) return;
     const next = [...waypoints];
+    setWaypointSource("manual");
     [next[index], next[target]] = [next[target], next[index]];
     markDirty(next);
   };
@@ -190,6 +202,8 @@ export default function RouteEditor({ route, farePoints, onRouteChanged }: Route
     }
     setMapClickMode("insert");
     markDirty(coordinates);
+    setWaypointSource("fare_points");
+    setMessage("Point Areas loaded. Generate a smart preview; the live route stays safe if any old pin is misplaced.");
   };
 
   const useActiveRoute = () => {
@@ -198,6 +212,8 @@ export default function RouteEditor({ route, farePoints, onRouteChanged }: Route
     setWaypoints(active.waypoints.length >= 2 ? active.waypoints : active.geometry);
     setPreviewGeometry(active.geometry);
     setMapClickMode("insert");
+    setWaypointSource("route");
+    setDetourWarnings([]);
     setHasSavedDraft(false);
     setMessage("Active route loaded as an editable copy.");
     setError(null);
@@ -213,9 +229,17 @@ export default function RouteEditor({ route, farePoints, onRouteChanged }: Route
     try {
       const preview = await previewRoadGeometry(waypoints);
       setWaypoints(preview.snapped_waypoints);
-      setPreviewGeometry(preview.geometry);
+      setDetourWarnings(preview.warnings);
       setHasSavedDraft(false);
-      setMessage(`Road preview generated with ${preview.geometry.length} geometry points. Control points were snapped to nearby roads.`);
+      if (preview.warnings.length > 0 && waypointSource === "fare_points" && activeGeometry.length >= 2) {
+        setPreviewGeometry(activeGeometry);
+        setMessage(null);
+      } else {
+        setPreviewGeometry(preview.geometry);
+        setMessage(preview.warnings.length > 0
+          ? "Preview generated with possible detours highlighted. Review it before saving."
+          : `Road preview generated with ${preview.geometry.length} geometry points. Control points were snapped to nearby roads.`);
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Failed to generate the road path.");
     } finally {
@@ -223,7 +247,22 @@ export default function RouteEditor({ route, farePoints, onRouteChanged }: Route
     }
   };
 
+  const warningWaypointIndexes = useMemo(() => new Set(
+    detourWarnings.flatMap((warning) => [warning.from_index, warning.to_index])
+  ), [detourWarnings]);
+
+  const affectedFarePoints = useMemo(() => {
+    if (waypointSource !== "fare_points") return [];
+    return Array.from(warningWaypointIndexes)
+      .map((index) => farePoints[index])
+      .filter((point): point is FarePoint => Boolean(point));
+  }, [farePoints, warningWaypointIndexes, waypointSource]);
+
   const saveDraft = async () => {
+    if (waypointSource === "fare_points" && detourWarnings.length > 0) {
+      setError("Fix the highlighted Point Area locations or keep the current live route before saving.");
+      return;
+    }
     if (waypoints.length < 2 || previewGeometry.length < 2) {
       setError("Generate a valid route preview before saving.");
       return;
@@ -290,6 +329,37 @@ export default function RouteEditor({ route, farePoints, onRouteChanged }: Route
 
       {error && <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}
       {message && <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{message}</div>}
+      {detourWarnings.length > 0 && (
+        <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3">
+          <p className="text-sm font-bold text-amber-200">
+            {waypointSource === "fare_points"
+              ? "Some old Point Area pins are misplaced. Your live route was kept unchanged."
+              : "The preview contains an unusually long road detour."}
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-amber-100/65">
+            {waypointSource === "fare_points"
+              ? "You can keep using the safe live route now, then correct these locations through the map picker when convenient."
+              : "Check the red control points on the map. If the detour is intentional, you may continue and save the draft."}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {activeGeometry.length >= 2 && (
+              <button type="button" onClick={useActiveRoute} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500">
+                Keep Current Live Route
+              </button>
+            )}
+            {affectedFarePoints.map((point) => (
+              <button
+                key={point.id}
+                type="button"
+                onClick={() => onEditFarePoint?.(point.point_number)}
+                className="rounded-lg border border-amber-300/30 px-3 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-300/10"
+              >
+                Fix {point.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="h-[480px] overflow-hidden rounded-2xl border border-white/10">
@@ -308,7 +378,7 @@ export default function RouteEditor({ route, farePoints, onRouteChanged }: Route
               <Marker
                 key={`${index}-${coordinate[0]}-${coordinate[1]}`}
                 position={coordinate}
-                icon={numberedIcon(index)}
+                icon={numberedIcon(index, warningWaypointIndexes.has(index))}
                 draggable
                 eventHandlers={{
                   dragend(event) {
@@ -347,15 +417,15 @@ export default function RouteEditor({ route, farePoints, onRouteChanged }: Route
           </p>
 
           <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={useFarePoints} className="rounded-xl bg-white/5 px-3 py-2.5 text-xs font-semibold text-white/70 hover:bg-white/10">
-              Use Point Areas
-            </button>
             <button type="button" onClick={useActiveRoute} disabled={!route.active_version} className="rounded-xl bg-white/5 px-3 py-2.5 text-xs font-semibold text-white/70 hover:bg-white/10 disabled:opacity-40">
-              Copy Live Route
+              Edit Live Route
+            </button>
+            <button type="button" onClick={useFarePoints} className="rounded-xl bg-white/5 px-3 py-2.5 text-xs font-semibold text-white/70 hover:bg-white/10">
+              Build from Point Areas
             </button>
           </div>
 
-          <button type="button" onClick={() => { setMapClickMode("append"); markDirty([]); }} className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/20 px-3 py-2.5 text-xs font-semibold text-red-300 hover:bg-red-500/10">
+          <button type="button" onClick={() => { setMapClickMode("append"); setWaypointSource("manual"); markDirty([]); }} className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/20 px-3 py-2.5 text-xs font-semibold text-red-300 hover:bg-red-500/10">
             <Trash2 size={14} /> Clear Control Points
           </button>
 
@@ -380,7 +450,7 @@ export default function RouteEditor({ route, farePoints, onRouteChanged }: Route
 
           <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={2} placeholder="Reason for reroute or revision" className="w-full rounded-xl border border-white/10 bg-[#050F1A] px-3 py-2 text-xs text-white outline-none focus:border-[#62A0EA]" />
 
-          <button type="button" onClick={saveDraft} disabled={isSaving || previewGeometry.length < 2 || waypoints.length < 2} className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#62A0EA]/30 px-4 py-3 text-sm font-bold text-[#93C5FD] hover:bg-[#1A5FB4]/10 disabled:opacity-40">
+          <button type="button" onClick={saveDraft} disabled={isSaving || previewGeometry.length < 2 || waypoints.length < 2 || (waypointSource === "fare_points" && detourWarnings.length > 0)} className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#62A0EA]/30 px-4 py-3 text-sm font-bold text-[#93C5FD] hover:bg-[#1A5FB4]/10 disabled:opacity-40">
             {isSaving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
             Save Draft
           </button>

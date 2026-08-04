@@ -207,6 +207,9 @@ export default function FareMatrixPage() {
       ? [point.latitude, point.longitude]
       : null);
     setEditingPoint(pointNumber);
+    window.setTimeout(() => {
+      document.getElementById('fare-point-edit-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 0);
   };
 
   const handleSaveEdit = async () => {
@@ -383,7 +386,12 @@ export default function FareMatrixPage() {
         )}
 
         {selectedRoute && (
-          <RouteEditor route={selectedRoute} farePoints={apiFarePoints} onRouteChanged={fetchRoutes} />
+          <RouteEditor
+            route={selectedRoute}
+            farePoints={apiFarePoints}
+            onRouteChanged={fetchRoutes}
+            onEditFarePoint={handleStartEdit}
+          />
         )}
 
         {/* Fare Info Banner */}
@@ -479,7 +487,7 @@ export default function FareMatrixPage() {
 
           {/* Add Point Form */}
           {showAddForm && (
-            <div className="bg-[#1A5FB4]/5 border border-[#1A5FB4]/30 p-5 rounded-2xl space-y-4">
+            <div id="fare-point-edit-form" className="bg-[#1A5FB4]/5 border border-[#1A5FB4]/30 p-5 rounded-2xl space-y-4">
               <h3 className="text-sm font-bold text-white">New Point Area</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>

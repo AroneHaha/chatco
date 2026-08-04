@@ -26,6 +26,11 @@ export interface AdminRoute {
 export interface RoadPreview {
   geometry: RouteCoordinate[];
   snapped_waypoints: RouteCoordinate[];
+  warnings: Array<{
+    code: "LARGE_DETOUR";
+    from_index: number;
+    to_index: number;
+  }>;
 }
 
 class RouteServiceError extends Error {

@@ -5,6 +5,12 @@ import { haversineMeters } from "@/lib/utils/geo";
 
 type Coordinate = [number, number];
 
+interface RoadWarning {
+  code: "LARGE_DETOUR";
+  from_index: number;
+  to_index: number;
+}
+
 interface OsrmResponse {
   code?: string;
   message?: string;
@@ -69,7 +75,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const badLegIndex = (route.routes?.[0]?.legs ?? []).findIndex((leg, index) => {
+    const warnings = (route.routes?.[0]?.legs ?? []).flatMap<RoadWarning>((leg, index) => {
       const directDistance = haversineMeters(
         waypoints[index][0],
         waypoints[index][1],
@@ -77,16 +83,13 @@ export async function POST(request: NextRequest) {
         waypoints[index + 1][1]
       );
       const roadDistance = Number(leg.distance ?? 0);
-      return directDistance > 30
+      const hasLargeDetour = directDistance > 30
         && roadDistance > 750
         && roadDistance / directDistance > 4;
+      return hasLargeDetour
+        ? [{ code: "LARGE_DETOUR", from_index: index, to_index: index + 1 }]
+        : [];
     });
-    if (badLegIndex >= 0) {
-      return jsonError(
-        `The road router created a large detour between points ${badLegIndex + 1} and ${badLegIndex + 2}. Move or remove one of those control points.`,
-        422
-      );
-    }
 
     const coordinates = (geometry.coordinates ?? [])
       .filter((coordinate) => Array.isArray(coordinate)
@@ -102,7 +105,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (coordinates.length < 2) return jsonError("The road router returned an empty route.", 422);
-    return jsonData({ geometry: coordinates, snapped_waypoints: snappedWaypoints });
+    return jsonData({ geometry: coordinates, snapped_waypoints: snappedWaypoints, warnings });
   } catch {
     return jsonError("The road routing service is temporarily unavailable.", 502);
   }
