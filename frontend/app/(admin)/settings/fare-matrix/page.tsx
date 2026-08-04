@@ -495,8 +495,8 @@ export default function FareMatrixPage() {
                   <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Jollibee Crossing" className={inputClasses} />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Sub-Stops (comma-separated)</label>
-                  <input type="text" value={newSubStops} onChange={(e) => setNewSubStops(e.target.value)} placeholder="Stop A, Stop B, Stop C" className={inputClasses} />
+                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Sub-Points / Landmarks (comma-separated)</label>
+                  <input type="text" value={newSubStops} onChange={(e) => setNewSubStops(e.target.value)} placeholder="e.g. Crossing, School, Market" className={inputClasses} />
                 </div>
                 <div>
                   <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Regular Fare (₱)</label>
@@ -531,8 +531,8 @@ export default function FareMatrixPage() {
                   <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} className={inputClasses} />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Sub-Stops (comma-separated)</label>
-                  <input type="text" value={editSubStops} onChange={(e) => setEditSubStops(e.target.value)} placeholder="Stop A, Stop B" className={inputClasses} />
+                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Sub-Points / Landmarks (comma-separated)</label>
+                  <input type="text" value={editSubStops} onChange={(e) => setEditSubStops(e.target.value)} placeholder="e.g. Crossing, School, Market" className={inputClasses} />
                 </div>
                 <div>
                   <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Regular Fare (₱)</label>
@@ -652,7 +652,7 @@ export default function FareMatrixPage() {
                     {/* Expanded Sub-Stops */}
                     {isExpanded && point.subStops && point.subStops.length > 0 && (
                       <div className="bg-[#050F1A]/60 px-4 py-3 mx-4 mb-3 rounded-xl border border-white/5">
-                        <p className="text-[10px] uppercase tracking-wider text-white/30 font-bold mb-2">Landmarks in this area</p>
+                        <p className="text-[10px] uppercase tracking-wider text-white/30 font-bold mb-2">Sub-Points / landmarks in this area</p>
                         <div className="flex flex-wrap gap-2">
                           {point.subStops.map((stop, idx) => (
                             <div key={idx} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/5">

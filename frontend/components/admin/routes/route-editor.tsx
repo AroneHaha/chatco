@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { CirclePlus, GitBranch, ListPlus, Loader2, MapPin, Plus, Save, Send, Trash2, WandSparkles } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { CirclePlus, GitBranch, ListPlus, Loader2, LocateFixed, MapPin, Plus, Save, Send, Trash2, WandSparkles } from "lucide-react";
 import { MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -43,14 +43,18 @@ function RouteMapEvents({ onAdd }: { onAdd: (coordinate: RouteCoordinate) => voi
   return null;
 }
 
-function FitGeometry({ coordinates }: { coordinates: RouteCoordinate[] }) {
+function FitGeometry({ coordinates, routeId, request }: { coordinates: RouteCoordinate[]; routeId: string; request: number }) {
   const map = useMap();
+  const lastFit = useRef<{ routeId: string | null; request: number }>({ routeId: null, request: -1 });
 
   useEffect(() => {
-    if (coordinates.length >= 2) {
+    const routeChanged = lastFit.current.routeId !== routeId;
+    const manuallyRequested = lastFit.current.request !== request;
+    if ((routeChanged || manuallyRequested) && coordinates.length >= 2) {
       map.fitBounds(L.latLngBounds(coordinates).pad(0.08), { animate: false });
     }
-  }, [coordinates, map]);
+    if (routeChanged || manuallyRequested) lastFit.current = { routeId, request };
+  }, [coordinates, map, request, routeId]);
 
   return null;
 }
@@ -112,6 +116,7 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
   const [mapClickMode, setMapClickMode] = useState<"insert" | "append">("insert");
   const [waypointSource, setWaypointSource] = useState<"route" | "fare_points" | "manual">("route");
   const [detourWarnings, setDetourWarnings] = useState<Array<{ from_index: number; to_index: number }>>([]);
+  const [fitRequest, setFitRequest] = useState(0);
 
   useEffect(() => {
     const draft = route.draft_version;
@@ -389,7 +394,7 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
               />
             ))}
             <RouteMapEvents onAdd={addWaypoint} />
-            <FitGeometry coordinates={displayedGeometry} />
+            <FitGeometry coordinates={displayedGeometry} routeId={route.id} request={fitRequest} />
           </MapContainer>
         </div>
 
@@ -415,6 +420,10 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
               ? "Click the intended road near a wrong middle segment. The correction is inserted at the closest part of the route."
               : "Click roads in travel order. Each click is added after the current final point."}
           </p>
+
+          <button type="button" onClick={() => setFitRequest((current) => current + 1)} className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 px-3 py-2.5 text-xs font-semibold text-white/60 hover:bg-white/5">
+            <LocateFixed size={14} /> Fit Entire Route
+          </button>
 
           <div className="grid grid-cols-2 gap-2">
             <button type="button" onClick={useActiveRoute} disabled={!route.active_version} className="rounded-xl bg-white/5 px-3 py-2.5 text-xs font-semibold text-white/70 hover:bg-white/10 disabled:opacity-40">
