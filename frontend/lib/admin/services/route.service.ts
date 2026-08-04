@@ -23,6 +23,11 @@ export interface AdminRoute {
   draft_version: RouteVersion | null;
 }
 
+export interface RoadPreview {
+  geometry: RouteCoordinate[];
+  snapped_waypoints: RouteCoordinate[];
+}
+
 class RouteServiceError extends Error {
   constructor(message: string, public status: number) {
     super(message);
@@ -83,8 +88,8 @@ export function listRouteVersions(routeId: string): Promise<RouteVersion[]> {
   return request<RouteVersion[]>(`/api/admin/routes/${routeId}/versions`);
 }
 
-export function previewRoadGeometry(waypoints: RouteCoordinate[]): Promise<RouteCoordinate[]> {
-  return request<RouteCoordinate[]>("/api/admin/routes/preview", {
+export function previewRoadGeometry(waypoints: RouteCoordinate[]): Promise<RoadPreview> {
+  return request<RoadPreview>("/api/admin/routes/preview", {
     method: "POST",
     body: JSON.stringify({ waypoints }),
   });

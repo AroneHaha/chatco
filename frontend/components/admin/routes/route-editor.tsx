@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CirclePlus, GitBranch, Loader2, MapPin, Save, Send, Trash2, WandSparkles } from "lucide-react";
+import { CirclePlus, GitBranch, ListPlus, Loader2, MapPin, Plus, Save, Send, Trash2, WandSparkles } from "lucide-react";
 import { MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -60,6 +60,39 @@ function formatVersionDate(value: string | null) {
   }).format(new Date(value));
 }
 
+function insertionIndexFor(coordinates: RouteCoordinate[], point: RouteCoordinate) {
+  if (coordinates.length < 2) return coordinates.length;
+
+  const latitudeScale = Math.cos((point[0] * Math.PI) / 180);
+  const pointX = point[1] * latitudeScale;
+  const pointY = point[0];
+  let closestIndex = 1;
+  let closestDistance = Number.POSITIVE_INFINITY;
+
+  for (let index = 0; index < coordinates.length - 1; index += 1) {
+    const startX = coordinates[index][1] * latitudeScale;
+    const startY = coordinates[index][0];
+    const endX = coordinates[index + 1][1] * latitudeScale;
+    const endY = coordinates[index + 1][0];
+    const deltaX = endX - startX;
+    const deltaY = endY - startY;
+    const lengthSquared = deltaX * deltaX + deltaY * deltaY;
+    const projection = lengthSquared === 0
+      ? 0
+      : Math.max(0, Math.min(1, ((pointX - startX) * deltaX + (pointY - startY) * deltaY) / lengthSquared));
+    const projectedX = startX + projection * deltaX;
+    const projectedY = startY + projection * deltaY;
+    const distance = (pointX - projectedX) ** 2 + (pointY - projectedY) ** 2;
+
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closestIndex = index + 1;
+    }
+  }
+
+  return closestIndex;
+}
+
 export default function RouteEditor({ route, farePoints, onRouteChanged }: RouteEditorProps) {
   const activeGeometry = route.active_version?.geometry ?? [];
   const [waypoints, setWaypoints] = useState<RouteCoordinate[]>([]);
@@ -73,6 +106,7 @@ export default function RouteEditor({ route, farePoints, onRouteChanged }: Route
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hasSavedDraft, setHasSavedDraft] = useState(Boolean(route.draft_version?.geometry?.length));
+  const [mapClickMode, setMapClickMode] = useState<"insert" | "append">("insert");
 
   useEffect(() => {
     const draft = route.draft_version;
@@ -116,7 +150,14 @@ export default function RouteEditor({ route, farePoints, onRouteChanged }: Route
   };
 
   const addWaypoint = (coordinate: RouteCoordinate) => {
-    markDirty([...waypoints, coordinate]);
+    if (mapClickMode === "append" || waypoints.length < 2) {
+      markDirty([...waypoints, coordinate]);
+      return;
+    }
+
+    const next = [...waypoints];
+    next.splice(insertionIndexFor(waypoints, coordinate), 0, coordinate);
+    markDirty(next);
   };
 
   const moveWaypoint = (index: number, coordinate: RouteCoordinate) => {
@@ -147,6 +188,7 @@ export default function RouteEditor({ route, farePoints, onRouteChanged }: Route
       setError("Add coordinates to at least two Fare Points first.");
       return;
     }
+    setMapClickMode("insert");
     markDirty(coordinates);
   };
 
@@ -155,6 +197,7 @@ export default function RouteEditor({ route, farePoints, onRouteChanged }: Route
     if (!active || active.geometry.length < 2) return;
     setWaypoints(active.waypoints.length >= 2 ? active.waypoints : active.geometry);
     setPreviewGeometry(active.geometry);
+    setMapClickMode("insert");
     setHasSavedDraft(false);
     setMessage("Active route loaded as an editable copy.");
     setError(null);
@@ -168,10 +211,11 @@ export default function RouteEditor({ route, farePoints, onRouteChanged }: Route
     setIsRouting(true);
     setError(null);
     try {
-      const geometry = await previewRoadGeometry(waypoints);
-      setPreviewGeometry(geometry);
+      const preview = await previewRoadGeometry(waypoints);
+      setWaypoints(preview.snapped_waypoints);
+      setPreviewGeometry(preview.geometry);
       setHasSavedDraft(false);
-      setMessage(`Road preview generated with ${geometry.length} geometry points.`);
+      setMessage(`Road preview generated with ${preview.geometry.length} geometry points. Control points were snapped to nearby roads.`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Failed to generate the road path.");
     } finally {
@@ -235,7 +279,7 @@ export default function RouteEditor({ route, farePoints, onRouteChanged }: Route
             <h2 className="font-bold text-white">Published Route Editor</h2>
           </div>
           <p className="mt-1 max-w-2xl text-xs text-white/45">
-            Click the map to add ordered control points. Drag numbered points to reroute. Changes remain drafts until published.
+            Use Insert Correction to fix a middle street, or Extend Route to add at the end. Drag numbered points to fine-tune. Changes remain drafts until published.
           </p>
         </div>
         <div className="rounded-xl border border-white/10 bg-[#050F1A] px-4 py-2 text-xs text-white/60">
@@ -249,8 +293,11 @@ export default function RouteEditor({ route, farePoints, onRouteChanged }: Route
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="h-[480px] overflow-hidden rounded-2xl border border-white/10">
-          <MapContainer center={mapCenter} zoom={12} className="h-full w-full" attributionControl={false}>
-            <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+          <MapContainer center={mapCenter} zoom={12} className="h-full w-full" attributionControl>
+            <TileLayer
+              url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            />
             {activeGeometry.length >= 2 && (
               <Polyline positions={activeGeometry} pathOptions={{ color: "#64748B", weight: 6, opacity: 0.45 }} />
             )}
@@ -277,6 +324,28 @@ export default function RouteEditor({ route, farePoints, onRouteChanged }: Route
         </div>
 
         <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2 rounded-xl border border-white/10 bg-[#050F1A] p-1.5">
+            <button
+              type="button"
+              onClick={() => setMapClickMode("insert")}
+              className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] font-bold transition-colors ${mapClickMode === "insert" ? "bg-[#1A5FB4] text-white" : "text-white/45 hover:bg-white/5"}`}
+            >
+              <ListPlus size={13} /> Insert Correction
+            </button>
+            <button
+              type="button"
+              onClick={() => setMapClickMode("append")}
+              className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] font-bold transition-colors ${mapClickMode === "append" ? "bg-[#1A5FB4] text-white" : "text-white/45 hover:bg-white/5"}`}
+            >
+              <Plus size={13} /> Extend Route
+            </button>
+          </div>
+          <p className="px-1 text-[10px] leading-relaxed text-white/35">
+            {mapClickMode === "insert"
+              ? "Click the intended road near a wrong middle segment. The correction is inserted at the closest part of the route."
+              : "Click roads in travel order. Each click is added after the current final point."}
+          </p>
+
           <div className="grid grid-cols-2 gap-2">
             <button type="button" onClick={useFarePoints} className="rounded-xl bg-white/5 px-3 py-2.5 text-xs font-semibold text-white/70 hover:bg-white/10">
               Use Point Areas
@@ -286,7 +355,7 @@ export default function RouteEditor({ route, farePoints, onRouteChanged }: Route
             </button>
           </div>
 
-          <button type="button" onClick={() => markDirty([])} className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/20 px-3 py-2.5 text-xs font-semibold text-red-300 hover:bg-red-500/10">
+          <button type="button" onClick={() => { setMapClickMode("append"); markDirty([]); }} className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/20 px-3 py-2.5 text-xs font-semibold text-red-300 hover:bg-red-500/10">
             <Trash2 size={14} /> Clear Control Points
           </button>
 

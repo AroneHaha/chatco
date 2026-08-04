@@ -12,6 +12,10 @@ interface OsrmResponse {
     geometry?: { type?: string; coordinates?: Array<[number, number]> };
     legs?: Array<{ distance?: number }>;
   }>;
+  waypoints?: Array<{
+    distance?: number;
+    location?: [number, number];
+  }>;
 }
 
 export async function POST(request: NextRequest) {
@@ -45,8 +49,9 @@ export async function POST(request: NextRequest) {
     .map(([latitude, longitude]) => `${longitude},${latitude}`)
     .join(";");
   const routerBase = (process.env.ROUTING_API_URL || "https://router.project-osrm.org").replace(/\/$/, "");
+  const radiuses = waypoints.map(() => "150").join(";");
   const routeUrl = `${routerBase}/route/v1/driving/${coordinatePath}`
-    + "?overview=full&geometries=geojson&steps=false&continue_straight=true";
+    + `?overview=full&geometries=geojson&steps=false&alternatives=false&continue_straight=false&radiuses=${radiuses}`;
 
   try {
     const response = await fetch(routeUrl, { headers: { Accept: "application/json" }, cache: "no-store" });
@@ -54,6 +59,14 @@ export async function POST(request: NextRequest) {
     const geometry = route.routes?.[0]?.geometry;
     if (!response.ok || route.code !== "Ok" || geometry?.type !== "LineString") {
       return jsonError(route.message ?? "No drivable route was found for those points.", 422);
+    }
+
+    const farWaypointIndex = (route.waypoints ?? []).findIndex((waypoint) => Number(waypoint.distance ?? 0) > 100);
+    if (farWaypointIndex >= 0) {
+      return jsonError(
+        `Point ${farWaypointIndex + 1} is too far from a mapped road. Move it directly onto the intended street.`,
+        422
+      );
     }
 
     const badLegIndex = (route.routes?.[0]?.legs ?? []).findIndex((leg, index) => {
@@ -81,8 +94,15 @@ export async function POST(request: NextRequest) {
         && Number.isFinite(Number(coordinate[1])))
       .map(([longitude, latitude]) => [latitude, longitude] as Coordinate);
 
+    const snappedWaypoints = (route.waypoints ?? []).map((waypoint, index) => {
+      const location = waypoint.location;
+      return location && Number.isFinite(location[0]) && Number.isFinite(location[1])
+        ? [location[1], location[0]] as Coordinate
+        : waypoints[index];
+    });
+
     if (coordinates.length < 2) return jsonError("The road router returned an empty route.", 422);
-    return jsonData(coordinates);
+    return jsonData({ geometry: coordinates, snapped_waypoints: snappedWaypoints });
   } catch {
     return jsonError("The road routing service is temporarily unavailable.", 502);
   }
