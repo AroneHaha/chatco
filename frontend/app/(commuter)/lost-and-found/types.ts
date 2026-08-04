@@ -1,5 +1,5 @@
 export type ItemCategory = "ALL" | "ACCESSORY" | "BAG" | "WALLET" | "GADGET" | "CLOTHING" | "DOCUMENT" | "OTHER";
-export type ClaimStatus = "NONE" | "PENDING" | "VALIDATED" | "REJECTED";
+export type ClaimStatus = "NONE" | "PENDING" | "VALIDATED" | "REJECTED" | "RELEASED";
 export type ClaimFilter = "ALL" | Exclude<ClaimStatus, "NONE">;
 export type ViewTab = "ALL" | "WATCHLIST" | "MY_CLAIMS";
 
@@ -23,6 +23,9 @@ export interface ClaimData {
   proof: string;
   claimDate: string;
   reviewedAt: string | null;
+  approvedAt: string | null;
+  rejectedAt: string | null;
+  releasedAt: string | null;
   rejectionReason: string | null;
   /** The claimed item (eager-loaded by GET /commuter/claims); null if deleted. */
   item: LostItem | null;

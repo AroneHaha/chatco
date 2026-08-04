@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('claim_rejection_audits', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->uuid('claim_id');
-            $table->string('item_id', 20);
+            $table->string('item_id', 36);
             $table->uuid('claimant_id')->nullable();
             $table->foreignUuid('rejected_by')->nullable()->constrained('users')->nullOnDelete();
             $table->string('previous_status', 20);

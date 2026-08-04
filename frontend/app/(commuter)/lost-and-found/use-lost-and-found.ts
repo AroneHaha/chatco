@@ -46,6 +46,7 @@ export function useLostAndFound() {
   const [activeCategory, setActiveCategory] = useState<ItemCategory>("ALL");
   const [claimFilter, setClaimFilter] = useState<ClaimFilter>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedDate, setSelectedDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
   const [showClaimModal, setShowClaimModal] = useState(false);
@@ -68,6 +69,7 @@ export function useLostAndFound() {
   const toUiClaimStatus = (backend: string): Exclude<ClaimStatus, "NONE"> => {
     if (backend === "APPROVED") return "VALIDATED";
     if (backend === "REJECTED") return "REJECTED";
+    if (backend === "RELEASED") return "RELEASED";
     return "PENDING";
   };
 
@@ -75,11 +77,12 @@ export function useLostAndFound() {
     if (filter === "PENDING") return "PENDING";
     if (filter === "VALIDATED") return "APPROVED";
     if (filter === "REJECTED") return "REJECTED";
+    if (filter === "RELEASED") return "RELEASED";
     return undefined;
   };
 
   /** Reload one page of the commuter's own claims from the DB. */
-  const loadClaims = useCallback(async (page = currentPage, filter = claimFilter) => {
+  const loadClaims = useCallback(async (page = currentPage, filter = claimFilter, date = selectedDate, search = searchQuery) => {
     setIsLoading(true);
     setListError(null);
     try {
@@ -87,6 +90,8 @@ export function useLostAndFound() {
         page,
         perPage: CLAIMS_PER_PAGE,
         status: toBackendClaimStatus(filter),
+        date: date || undefined,
+        search: search.trim() || undefined,
       });
       const next = new Map<string, ClaimData>();
       // Rows are newest-first. Keep one visible card state per item on this page.
@@ -98,6 +103,9 @@ export function useLostAndFound() {
           proof: row.proof,
           claimDate: row.claimDate,
           reviewedAt: row.reviewedAt,
+          approvedAt: row.approvedAt,
+          rejectedAt: row.rejectedAt,
+          releasedAt: row.releasedAt,
           rejectionReason: row.rejectionReason,
           item: row.item ? mapServiceItemToViewModel(row.item) : null,
         });
@@ -115,7 +123,7 @@ export function useLostAndFound() {
     } finally {
       setIsLoading(false);
     }
-  }, [claimFilter, currentPage]);
+  }, [claimFilter, currentPage, selectedDate, searchQuery]);
 
   /** Reload the watchlisted item ids from the DB (for the card hearts). */
   const loadWatchlistIds = useCallback(async () => {
@@ -129,7 +137,7 @@ export function useLostAndFound() {
 
   useEffect(() => { void loadWatchlistIds(); }, [loadWatchlistIds]);
 
-  const fetchLostItems = useCallback(async (page: number, limit: number, category: ItemCategory, search: string) => {
+  const fetchLostItems = useCallback(async (page: number, limit: number, category: ItemCategory, search: string, date: string) => {
     setIsLoading(true);
     setListError(null);
     try {
@@ -138,6 +146,7 @@ export function useLostAndFound() {
         perPage: limit,
         category: category === "ALL" ? undefined : category,
         search: search.trim() || undefined,
+        date: date || undefined,
       });
       setApiData({
         items: result.items.map(mapServiceItemToViewModel),
@@ -153,11 +162,16 @@ export function useLostAndFound() {
     }
   }, []);
 
-  const fetchWatchlistItems = useCallback(async (page: number, limit: number) => {
+  const fetchWatchlistItems = useCallback(async (page: number, limit: number, date: string, search: string) => {
     setIsLoading(true);
     setListError(null);
     try {
-      const result = await fetchMyWatchlist({ page, perPage: limit });
+      const result = await fetchMyWatchlist({
+        page,
+        perPage: limit,
+        date: date || undefined,
+        search: search.trim() || undefined,
+      });
       setApiData({
         items: result.items.map(mapServiceItemToViewModel),
         totalPages: result.lastPage,
@@ -180,27 +194,35 @@ export function useLostAndFound() {
 
   useEffect(() => {
     if (activeTab === "MY_CLAIMS") {
-      void loadClaims(currentPage, claimFilter);
+      void loadClaims(currentPage, claimFilter, selectedDate, searchQuery);
       return;
     }
     if (activeTab === "WATCHLIST") {
-      void fetchWatchlistItems(currentPage, ITEMS_PER_PAGE);
+      void fetchWatchlistItems(currentPage, ITEMS_PER_PAGE, selectedDate, searchQuery);
       return;
     }
-    void fetchLostItems(currentPage, ITEMS_PER_PAGE, activeCategory, searchQuery);
-  }, [activeTab, fetchLostItems, fetchWatchlistItems, loadClaims, currentPage, activeCategory, claimFilter, searchQuery]);
+    void fetchLostItems(currentPage, ITEMS_PER_PAGE, activeCategory, searchQuery, selectedDate);
+  }, [activeTab, fetchLostItems, fetchWatchlistItems, loadClaims, currentPage, activeCategory, claimFilter, searchQuery, selectedDate]);
 
-  const handleTabChange = (tab: ViewTab) => { setActiveTab(tab); setActiveCategory("ALL"); setSearchQuery(""); setCurrentPage(1); };
+  const handleTabChange = (tab: ViewTab) => { setActiveTab(tab); setActiveCategory("ALL"); setSearchQuery(""); setSelectedDate(""); setCurrentPage(1); };
   const handleCategoryChange = (cat: ItemCategory) => { setActiveCategory(cat); setCurrentPage(1); };
   const handleClaimFilterChange = (filter: ClaimFilter) => { setClaimFilter(filter); setCurrentPage(1); };
   const handleSearch = (val: string) => { setSearchQuery(val); setCurrentPage(1); };
+  const handleDateChange = (date: string) => { setSelectedDate(date); setCurrentPage(1); };
 
   /** Local category/search filter for tabs whose data isn't server-filtered. */
   const matchesLocalFilters = (item: LostItem): boolean => {
     if (activeCategory !== "ALL" && item.category !== activeCategory) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      if (!item.itemName.toLowerCase().includes(q) && !item.description.toLowerCase().includes(q)) return false;
+      const fields = [
+        item.itemName,
+        item.description,
+        item.plateNumber,
+        item.driverName,
+        item.conductorName,
+      ];
+      if (!fields.some((field) => field.toLowerCase().includes(q))) return false;
     }
     return true;
   };
@@ -230,7 +252,7 @@ export function useLostAndFound() {
       try {
         if (wasWatched) await apiUnwatch(id);
         else await apiWatch(id);
-        if (activeTab === "WATCHLIST") void fetchWatchlistItems(currentPage, ITEMS_PER_PAGE);
+        if (activeTab === "WATCHLIST") void fetchWatchlistItems(currentPage, ITEMS_PER_PAGE, selectedDate, searchQuery);
       } catch {
         // Revert the optimistic flip.
         setWatchlist(prev => { const next = new Set(prev); if (wasWatched) next.add(id); else next.delete(id); return next; });
@@ -301,12 +323,14 @@ export function useLostAndFound() {
       case "PENDING": return "bg-amber-500/20 text-amber-400 border-amber-500/30";
       case "VALIDATED": return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
       case "REJECTED": return "bg-red-500/20 text-red-400 border-red-500/30";
+      case "RELEASED": return "bg-[#62A0EA]/20 text-[#8CB9F0] border-[#62A0EA]/30";
       default: return "";
     }
   };
 
   return {
     activeTab, handleTabChange, activeCategory, handleCategoryChange, claimFilter, handleClaimFilterChange, searchQuery, handleSearch,
+    selectedDate, handleDateChange,
     currentPage, setCurrentPage, apiData, isLoading, listError,
     watchlist, toggleWatchlist, claims, claimPageData,
     openClaimModal, cancelClaim,

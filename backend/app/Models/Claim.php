@@ -35,11 +35,17 @@ class Claim extends Model
         'proof',
         'reviewed_by',
         'reviewed_at',
+        'approved_at',
+        'rejected_at',
+        'released_at',
         'rejection_reason',
     ];
 
     protected $casts = [
         'reviewed_at' => 'datetime',
+        'approved_at' => 'datetime',
+        'rejected_at' => 'datetime',
+        'released_at' => 'datetime',
     ];
 
     protected static function booted(): void

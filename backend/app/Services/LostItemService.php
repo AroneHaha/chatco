@@ -56,6 +56,7 @@ class LostItemService
     private const CLAIM_PENDING = 'PENDING';
     private const CLAIM_APPROVED = 'APPROVED';
     private const CLAIM_REJECTED = 'REJECTED';
+    private const CLAIM_RELEASED = 'RELEASED';
 
     /** Days an AVAILABLE, unclaimed item can sit before lost-items:expire archives it. */
     public const EXPIRY_DAYS = 30;
@@ -72,16 +73,18 @@ class LostItemService
 
     /**
      * Paginated browse list for any authenticated role.
-     * Filters: status, category, search (item_name/description).
+     * Filters: status, category, search (item_name/description/vehicle crew).
      * Eager-loads vehicle. Does NOT expose claimant info (privacy).
      */
     public function listItems(array $filters, int $perPage = 15): LengthAwarePaginator
     {
+        $visibleStatuses = [self::ITEM_AVAILABLE, self::ITEM_CLAIMED];
+
         $query = LostItem::with(['vehicle', 'photos'])
             // Expired items are archived, not deleted — they stay visible to
             // admins under a dedicated filter, but drop out of the commuter
             // browse list entirely (nothing to claim, nothing to see).
-            ->where('status', '!=', self::ITEM_EXPIRED)
+            ->whereIn('status', $visibleStatuses)
             ->orderByDesc('created_at');
 
         if (! empty($filters['status'])) {
@@ -90,11 +93,17 @@ class LostItemService
         if (! empty($filters['category'])) {
             $query->where('category', $filters['category']);
         }
+        if (! empty($filters['date'])) {
+            $query->whereDate('created_at', $filters['date']);
+        }
         if (! empty($filters['search'])) {
             $search = $filters['search'];
             $query->where(function ($q) use ($search) {
                 $q->where('item_name', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%");
+                    ->orWhere('description', 'like', "%{$search}%")
+                    ->orWhere('plate_number', 'like', "%{$search}%")
+                    ->orWhere('driver_name', 'like', "%{$search}%")
+                    ->orWhere('conductor_name', 'like', "%{$search}%");
             });
         }
 
@@ -121,6 +130,9 @@ class LostItemService
         }
         if (! empty($filters['category'])) {
             $query->where('category', $filters['category']);
+        }
+        if (! empty($filters['date'])) {
+            $query->whereDate('created_at', $filters['date']);
         }
         if (! empty($filters['search'])) {
             $search = $filters['search'];
@@ -373,7 +385,7 @@ class LostItemService
      *
      * @throws LostFoundException Commuter profile missing.
      */
-    public function myClaims(User $commuter, int $perPage = 10, ?string $status = null): LengthAwarePaginator
+    public function myClaims(User $commuter, int $perPage = 10, ?string $status = null, ?string $date = null, ?string $search = null): LengthAwarePaginator
     {
         /** @var CommuterProfile $profile */
         $profile = $commuter->commuterProfile;
@@ -387,6 +399,18 @@ class LostItemService
 
         if ($status) {
             $query->where('status', $status);
+        }
+        if ($date) {
+            $query->whereHas('item', fn ($itemQuery) => $itemQuery->whereDate('created_at', $date));
+        }
+        if ($search) {
+            $query->whereHas('item', function ($itemQuery) use ($search) {
+                $itemQuery->where('item_name', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%")
+                    ->orWhere('plate_number', 'like', "%{$search}%")
+                    ->orWhere('driver_name', 'like', "%{$search}%")
+                    ->orWhere('conductor_name', 'like', "%{$search}%");
+            });
         }
 
         return $query->paginate($perPage);
@@ -494,8 +518,10 @@ class LostItemService
     /**
      * List the commuter's watchlist with item details, newest first.
      */
-    public function myWatchlist(User $commuter, int $perPage = 15): LengthAwarePaginator
+    public function myWatchlist(User $commuter, int $perPage = 15, ?string $date = null, ?string $search = null): LengthAwarePaginator
     {
+        $visibleStatuses = [self::ITEM_AVAILABLE, self::ITEM_CLAIMED];
+
         /** @var CommuterProfile $profile */
         $profile = $commuter->commuterProfile;
         if (! $profile) {
@@ -504,6 +530,21 @@ class LostItemService
 
         return LostItemWatchlist::with(['item.vehicle'])
             ->where('commuter_id', $profile->id)
+            ->whereHas('item', function ($query) use ($visibleStatuses, $date, $search) {
+                $query->whereIn('status', $visibleStatuses);
+                if ($date) {
+                    $query->whereDate('created_at', $date);
+                }
+                if ($search) {
+                    $query->where(function ($searchQuery) use ($search) {
+                        $searchQuery->where('item_name', 'like', "%{$search}%")
+                            ->orWhere('description', 'like', "%{$search}%")
+                            ->orWhere('plate_number', 'like', "%{$search}%")
+                            ->orWhere('driver_name', 'like', "%{$search}%")
+                            ->orWhere('conductor_name', 'like', "%{$search}%");
+                    });
+                }
+            })
             ->orderByDesc('created_at')
             ->paginate($perPage);
     }
@@ -551,11 +592,14 @@ class LostItemService
                 );
             }
 
+            $now = now();
+
             // Approve this claim.
             $claim->update([
                 'status' => self::CLAIM_APPROVED,
                 'reviewed_by' => $admin->id,
-                'reviewed_at' => now(),
+                'reviewed_at' => $now,
+                'approved_at' => $now,
             ]);
 
             // Move item to APPROVED stage (awaiting release/handover).
@@ -570,10 +614,12 @@ class LostItemService
                 ->get();
 
             foreach ($autoRejectedClaims as $autoRejectedClaim) {
+                $rejectedAt = now();
                 $autoRejectedClaim->update([
                     'status' => self::CLAIM_REJECTED,
                     'reviewed_by' => $admin->id,
-                    'reviewed_at' => now(),
+                    'reviewed_at' => $rejectedAt,
+                    'rejected_at' => $rejectedAt,
                     'rejection_reason' => 'Another claim was approved',
                 ]);
 
@@ -604,8 +650,8 @@ class LostItemService
      * Admin releases an approved claim (Stage 2 of the 2-stage workflow).
      *
      * Sets item → RELEASED with released_to + released_at. The claim stays
-     * APPROVED (it was already approved in Stage 1). This records the actual
-     * handover to the commuter.
+     * RELEASED with its own released_at timestamp. This records the actual
+     * handover to the commuter on the claim as well as the item.
      *
      * @throws LostFoundException Claim not found, not APPROVED, or item not APPROVED.
      */
@@ -634,10 +680,19 @@ class LostItemService
                 );
             }
 
+            $now = now();
+
             $item->update([
-                'status' => self::ITEM_RELEASED,
+                'status' => self::ITEM_CLOSED,
                 'released_to' => $claim->claimant_id,
-                'released_at' => now(),
+                'released_at' => $now,
+                'closed_by' => $admin->id,
+                'closed_at' => $now,
+            ]);
+
+            $claim->update([
+                'status' => self::CLAIM_RELEASED,
+                'released_at' => $now,
             ]);
 
             if ($claim->claimant_id) {
@@ -696,11 +751,13 @@ class LostItemService
             $resultingStatus = $previousStatus === self::CLAIM_APPROVED
                 ? self::CLAIM_PENDING
                 : self::CLAIM_REJECTED;
+            $now = now();
 
             $claim->update([
                 'status' => $resultingStatus,
                 'reviewed_by' => $resultingStatus === self::CLAIM_REJECTED ? $admin->id : null,
-                'reviewed_at' => $resultingStatus === self::CLAIM_REJECTED ? now() : null,
+                'reviewed_at' => $resultingStatus === self::CLAIM_REJECTED ? $now : null,
+                'rejected_at' => $now,
                 'rejection_reason' => $resultingStatus === self::CLAIM_REJECTED ? $reason : null,
             ]);
 

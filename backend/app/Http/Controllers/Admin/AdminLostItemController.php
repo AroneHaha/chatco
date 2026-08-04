@@ -57,6 +57,7 @@ class AdminLostItemController extends Controller
             'statuses' => is_array($statuses) ? array_values(array_filter($statuses, 'is_string')) : null,
             'category' => $request->string('category')->toString() ?: null,
             'search' => $request->string('search')->toString() ?: null,
+            'date' => $request->string('date')->toString() ?: null,
         ];
         $perPage = (int) $request->integer('per_page', 15);
 

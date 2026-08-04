@@ -113,6 +113,53 @@ class LostFoundSelfServiceTest extends TestCase
             ->assertJsonPath('data.data.0.status', 'APPROVED');
     }
 
+    public function test_my_claims_filter_by_item_posted_date(): void
+    {
+        $targetDate = now()->subDays(4);
+        $oldItem = $this->createItem('Old Posted Item');
+        $newItem = $this->createItem('New Posted Item');
+
+        $oldClaim = $this->claimAs($this->commuter, $oldItem);
+        $this->claimAs($this->commuter, $newItem);
+        LostItem::where('id', $oldItem->id)->update(['created_at' => $targetDate]);
+        LostItem::where('id', $newItem->id)->update(['created_at' => now()]);
+
+        Sanctum::actingAs($this->commuter);
+        $this->getJson('/api/v1/commuter/claims?date='.$targetDate->toDateString())
+            ->assertStatus(200)
+            ->assertJsonCount(1, 'data.data')
+            ->assertJsonPath('data.data.0.id', $oldClaim->id)
+            ->assertJsonPath('data.data.0.item.item_name', 'Old Posted Item');
+    }
+
+    public function test_my_claims_search_item_transport_details(): void
+    {
+        $matchingItem = $this->createItem('Claim Search Match');
+        $otherItem = $this->createItem('Claim Search Other');
+        $matchingItem->update([
+            'plate_number' => 'CLAIM 777',
+            'driver_name' => 'Rafael Reyes',
+            'conductor_name' => 'Mina Lopez',
+        ]);
+        $otherItem->update([
+            'plate_number' => 'OTHER 888',
+            'driver_name' => 'Other Driver',
+            'conductor_name' => 'Other Conductor',
+        ]);
+
+        $matchingClaim = $this->claimAs($this->commuter, $matchingItem);
+        $this->claimAs($this->commuter, $otherItem);
+
+        Sanctum::actingAs($this->commuter);
+        foreach (['CLAIM 777', 'Rafael', 'Mina'] as $term) {
+            $this->getJson('/api/v1/commuter/claims?search='.urlencode($term))
+                ->assertStatus(200)
+                ->assertJsonCount(1, 'data.data')
+                ->assertJsonPath('data.data.0.id', $matchingClaim->id)
+                ->assertJsonPath('data.data.0.item.item_name', 'Claim Search Match');
+        }
+    }
+
     public function test_my_claims_requires_commuter_role(): void
     {
         Sanctum::actingAs($this->admin);
@@ -172,6 +219,71 @@ class LostFoundSelfServiceTest extends TestCase
         $this->deleteJson("/api/v1/lost-found/claims/{$claim->id}")->assertStatus(422);
 
         $this->assertDatabaseHas('claims', ['id' => $claim->id, 'status' => 'APPROVED']);
+    }
+
+    public function test_released_closed_items_are_excluded_from_commuter_watchlist(): void
+    {
+        $item = $this->createItem();
+
+        Sanctum::actingAs($this->commuter);
+        $this->postJson("/api/v1/lost-found/{$item->id}/watchlist")->assertStatus(201);
+        $claim = $this->claimAs($this->commuter, $item);
+
+        Sanctum::actingAs($this->admin);
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/approve")
+            ->assertStatus(200);
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/release")
+            ->assertStatus(200);
+
+        Sanctum::actingAs($this->commuter);
+        $this->getJson('/api/v1/commuter/watchlist')
+            ->assertStatus(200)
+            ->assertJsonCount(0, 'data.data');
+    }
+
+    public function test_commuter_watchlist_filters_by_item_posted_date(): void
+    {
+        $targetDate = now()->subDays(5);
+        $oldItem = $this->createItem('Old Watchlist Item');
+        $newItem = $this->createItem('New Watchlist Item');
+
+        Sanctum::actingAs($this->commuter);
+        $this->postJson("/api/v1/lost-found/{$oldItem->id}/watchlist")->assertStatus(201);
+        $this->postJson("/api/v1/lost-found/{$newItem->id}/watchlist")->assertStatus(201);
+        LostItem::where('id', $oldItem->id)->update(['created_at' => $targetDate]);
+        LostItem::where('id', $newItem->id)->update(['created_at' => now()]);
+
+        $this->getJson('/api/v1/commuter/watchlist?date='.$targetDate->toDateString())
+            ->assertStatus(200)
+            ->assertJsonCount(1, 'data.data')
+            ->assertJsonPath('data.data.0.item.item_name', 'Old Watchlist Item');
+    }
+
+    public function test_commuter_watchlist_searches_item_transport_details(): void
+    {
+        $matchingItem = $this->createItem('Watchlist Search Match');
+        $otherItem = $this->createItem('Watchlist Search Other');
+        $matchingItem->update([
+            'plate_number' => 'WATCH 123',
+            'driver_name' => 'Nico Ramos',
+            'conductor_name' => 'Ana Flores',
+        ]);
+        $otherItem->update([
+            'plate_number' => 'OTHER 999',
+            'driver_name' => 'Other Driver',
+            'conductor_name' => 'Other Conductor',
+        ]);
+
+        Sanctum::actingAs($this->commuter);
+        $this->postJson("/api/v1/lost-found/{$matchingItem->id}/watchlist")->assertStatus(201);
+        $this->postJson("/api/v1/lost-found/{$otherItem->id}/watchlist")->assertStatus(201);
+
+        foreach (['WATCH 123', 'Nico', 'Ana'] as $term) {
+            $this->getJson('/api/v1/commuter/watchlist?search='.urlencode($term))
+                ->assertStatus(200)
+                ->assertJsonCount(1, 'data.data')
+                ->assertJsonPath('data.data.0.item.item_name', 'Watchlist Search Match');
+        }
     }
 
     public function test_admin_cannot_cancel_claims(): void

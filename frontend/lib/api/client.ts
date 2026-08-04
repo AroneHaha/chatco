@@ -18,6 +18,18 @@
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
+/**
+ * App API routes (`/api/...`) must stay same-origin so the Next.js route
+ * handlers can read the httpOnly `chatco_session` cookie and proxy to Laravel's
+ * versioned `/api/v1/...` endpoints. Pointing NEXT_PUBLIC_API_URL at Laravel
+ * would otherwise make the browser call unversioned Laravel routes such as
+ * `/api/lost-found`, which do not exist.
+ */
+function resolveRequestUrl(baseUrl: string, path: string): string {
+  if (path.startsWith("/api/")) return path;
+  return `${baseUrl}${path}`;
+}
+
 interface ApiConfig {
   baseUrl: string;
   credentials: RequestCredentials;
@@ -103,7 +115,7 @@ class ApiClient {
     path: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${this.config.baseUrl}${path}`;
+    const url = resolveRequestUrl(this.config.baseUrl, path);
 
     const headers = {
       ...this.config.defaultHeaders,

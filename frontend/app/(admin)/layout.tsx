@@ -1,7 +1,7 @@
 // app/(admin)/layout.tsx
 'use client';
 
-import { ReactNode, useState, useEffect, Suspense } from 'react';
+import { ReactNode, useState, useEffect, Suspense, useCallback } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { SignOutModal } from '@/components/admin/ui/sign-out-modal';
 import { SettingsDrawerProvider, SettingsDrawer, useSettingsDrawer } from '@/components/admin/ui/settings-drawer';
@@ -19,7 +19,7 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
   const { isLoading: authLoading, isAuthenticated, logout } = useAuth();
   const { closeSettingsDrawer } = useSettingsDrawer();
   const [isMobile, setIsMobile] = useState(false);
-  const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const [moreOpenPathname, setMoreOpenPathname] = useState<string | null>(null);
   const [isSignOutOpen, setIsSignOutOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
 
@@ -33,9 +33,9 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
 
-  // Close "More" menu when route changes
-  useEffect(() => {
-    setIsMoreOpen(false);
+  const isMoreOpen = moreOpenPathname === pathname;
+  const setIsMoreOpen = useCallback((open: boolean) => {
+    setMoreOpenPathname(open ? pathname : null);
   }, [pathname]);
 
   // Close Settings drawer when route changes
@@ -56,7 +56,7 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
       return <MobileSkeleton />;
     }
     return (
-      <div className="flex h-screen bg-[#0B1120]">
+      <div className="admin-shell flex h-screen bg-[#0B1120]">
         <SidebarSkeleton />
         <ContentSkeleton />
       </div>
@@ -92,7 +92,7 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
   const isEmbed = searchParams.get('embed') === '1';
   if (isEmbed) {
     return (
-      <div className="min-h-screen bg-[#0B1120] text-white">
+      <div className="admin-shell min-h-screen bg-[#0B1120] text-white">
         <main className="p-5 lg:p-6 overflow-y-auto h-screen">
           {children}
         </main>
@@ -103,7 +103,7 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
   // DESKTOP
   if (!isMobile) {
     return (
-      <div className="flex h-screen bg-[#0B1120]">
+      <div className="admin-shell flex h-screen bg-[#0B1120]">
         <AdminSidebar onSignOut={() => setIsSignOutOpen(true)} />
         <main className="flex-1 overflow-y-auto p-6 lg:p-8 text-white">
           {children}
@@ -129,7 +129,7 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
     // with the content. Pinning the height makes <main> the real scroller.
     // dvh rather than vh so the mobile browser's collapsing toolbar doesn't
     // leave the bottom nav hanging off-screen.
-    <div className="h-dvh bg-[#0B1120] text-white flex flex-col overflow-hidden">
+    <div className="admin-shell h-dvh bg-[#0B1120] text-white flex flex-col overflow-hidden">
       {/* Notification Bell — fixed top-right for mobile */}
       <div className="fixed top-3 right-3 z-50">
         <NotificationBell />
@@ -155,7 +155,7 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
 export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
     <SettingsDrawerProvider>
-      <Suspense fallback={<div className="min-h-screen bg-[#0B1120]" />}>
+      <Suspense fallback={<div className="admin-shell min-h-screen bg-[#0B1120]" />}>
         <AdminLayoutInner>{children}</AdminLayoutInner>
       </Suspense>
     </SettingsDrawerProvider>

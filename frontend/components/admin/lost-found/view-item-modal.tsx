@@ -1,11 +1,27 @@
 // components/admin/lost-found/view-item-modal.tsx
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import { Badge } from '@/components/admin/ui/badge';
-import { MapPin, User, Truck, Clock, Tag, Calendar, UserCheck, Pencil, RotateCcw, Plus, X, Upload } from 'lucide-react';
-import type { LostFoundItem } from '@/app/(admin)/lost-found/data/lost-found-data';
+import {
+  BadgeCheck,
+  BusFront,
+  CalendarDays,
+  Clock3,
+  FileText,
+  Hash,
+  IdCard,
+  ImagePlus,
+  PackageSearch,
+  Pencil,
+  RotateCcw,
+  Tag,
+  Trash2,
+  Upload,
+  UserRound,
+} from 'lucide-react';
+import { itemCategories, type LostFoundItem } from '@/app/(admin)/lost-found/data/lost-found-data';
 
 const MAX_PHOTOS = 3;
 
@@ -22,26 +38,77 @@ interface ViewItemModalProps {
 
 const getBadgeVariant = (status: LostFoundItem['status']): 'success' | 'warning' | 'danger' | 'info' => {
   switch (status) {
-    case 'Claimed': case 'Returned': return 'info';
-    case 'Released': return 'success';
-    case 'Unmatched': return 'warning';
-    case 'Rejected': case 'Expired': return 'danger';
-    default: return 'info';
+    case 'Released':
+    case 'Returned':
+    case 'Closed':
+      return 'success';
+    case 'Claimed':
+      return 'info';
+    case 'Expired':
+    case 'Rejected':
+      return 'danger';
+    default:
+      return 'warning';
   }
 };
 
-export function ViewItemModal({ isOpen, onClose, item, onEdit, onReactivate, onAddPhoto, onDeletePhoto, isActing }: ViewItemModalProps) {
+const categoryLabels = Object.fromEntries(itemCategories.map((category) => [category.value, category.label]));
+
+function DetailField({
+  icon,
+  label,
+  value,
+  mono = false,
+  tone = 'default',
+}: {
+  icon: ReactNode;
+  label: string;
+  value: ReactNode;
+  mono?: boolean;
+  tone?: 'default' | 'accent' | 'danger';
+}) {
+  const toneClasses = {
+    default: 'border-white/8 bg-white/[0.035]',
+    accent: 'border-[#62A0EA]/25 bg-[#62A0EA]/10',
+    danger: 'border-red-400/25 bg-red-500/10',
+  };
+
+  return (
+    <div className={`flex min-w-0 items-start gap-3 rounded-lg border p-3 ${toneClasses[tone]}`}>
+      <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-black/20 text-[#62A0EA]">
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</p>
+        <p className={`mt-0.5 break-words text-sm font-semibold text-slate-100 ${mono ? 'font-mono' : ''}`}>{value}</p>
+      </div>
+    </div>
+  );
+}
+
+export function ViewItemModal({
+  isOpen,
+  onClose,
+  item,
+  onEdit,
+  onReactivate,
+  onAddPhoto,
+  onDeletePhoto,
+  isActing,
+}: ViewItemModalProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Reset the selected photo whenever a different item is opened.
-  useEffect(() => { setSelectedIndex(0); }, [item?.id]);
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [item?.id]);
 
   if (!item) return null;
 
   const photos = item.photos;
   const activePhoto = photos[selectedIndex] ?? photos[0] ?? null;
+  const categoryLabel = categoryLabels[item.category] ?? item.category;
 
   const formattedDate = new Date(item.datePosted).toLocaleDateString('en-PH', {
     year: 'numeric',
@@ -55,6 +122,7 @@ export function ViewItemModal({ isOpen, onClose, item, onEdit, onReactivate, onA
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
+
     setIsUploading(true);
     try {
       await onAddPhoto(item.id, file);
@@ -69,178 +137,137 @@ export function ViewItemModal({ isOpen, onClose, item, onEdit, onReactivate, onA
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-5xl" rounded="rounded-xl">
-      {/* Mobile: stacked layout. Desktop: side-by-side */}
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* Left — Photo gallery */}
-        <div className="w-full lg:w-[400px] flex-shrink-0">
-          <div className="relative rounded-lg overflow-hidden h-56 sm:h-72 lg:h-[380px] bg-[#0E1628]">
-            {activePhoto ? (
-              <img src={activePhoto.url} alt={item.itemName} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-slate-600">
-                <svg className="w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A1.5 1.5 0 0021.75 19.5V4.5A1.5 1.5 0 0020.25 3H3.75A1.5 1.5 0 002.25 4.5v15A1.5 1.5 0 003.75 21z" /></svg>
-                <span className="text-xs font-semibold uppercase tracking-wider">No photo uploaded yet</span>
-              </div>
-            )}
-            <div className="absolute top-3 right-3">
+    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-6xl" rounded="rounded-xl">
+      <div className="space-y-5">
+        <div className="flex flex-col gap-3 pr-10 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
               <Badge variant={getBadgeVariant(item.status)}>{item.status}</Badge>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-slate-300">
+                <Tag className="h-3.5 w-3.5 text-[#62A0EA]" />
+                {categoryLabel}
+              </span>
             </div>
-            <div className="absolute top-3 left-3">
-              <div className="px-2.5 py-1 bg-black/60 backdrop-blur-sm rounded-full text-xs text-slate-200 font-medium">
-                {item.category}
-              </div>
-            </div>
+            <h2 className="truncate text-xl font-bold leading-tight text-white sm:text-2xl">{item.itemName}</h2>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">{item.description || 'No description provided.'}</p>
           </div>
 
-          {/* Thumbnail strip + add/remove controls */}
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            {photos.map((photo, index) => (
-              <div key={photo.id} className="relative group">
-                <button
-                  type="button"
-                  onClick={() => setSelectedIndex(index)}
-                  className={`w-full aspect-square rounded-md overflow-hidden border-2 transition-colors ${index === selectedIndex ? 'border-[#62A0EA]' : 'border-[#1E2D45] hover:border-[#2A3A55]'}`}
-                >
-                  <img src={photo.url} alt={`Photo ${index + 1}`} className="w-full h-full object-cover" />
-                </button>
-                {index === 0 && (
-                  <span className="absolute bottom-1 left-1 px-1 py-0.5 rounded bg-black/60 text-[8px] font-semibold uppercase tracking-wider text-white pointer-events-none">Thumb</span>
-                )}
-                <button
-                  type="button"
-                  onClick={() => void handleDeletePhoto(photo.id)}
-                  disabled={isActing}
-                  className="absolute -top-1.5 -right-1.5 p-0.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
-                  title="Remove photo"
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            ))}
-            {photos.length < MAX_PHOTOS && (
+          <div className="flex flex-shrink-0 items-center gap-2">
+            {item.status === 'Expired' && (
               <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading}
-                className="aspect-square flex flex-col items-center justify-center gap-1 border-2 border-dashed border-[#1E2D45] rounded-md text-slate-500 hover:text-[#62A0EA] hover:border-[#62A0EA] transition-colors disabled:opacity-50"
+                onClick={() => void onReactivate(item.id)}
+                disabled={isActing}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-200 transition-colors hover:bg-emerald-400/15 disabled:opacity-50"
               >
-                {isUploading ? <Upload size={16} className="animate-pulse" /> : <Plus size={16} />}
-                <span className="text-[9px] font-medium">{isUploading ? 'Uploading…' : 'Add'}</span>
+                <RotateCcw className="h-4 w-4" />
+                Reactivate
               </button>
             )}
-            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelected} />
+            <button
+              onClick={() => onEdit(item)}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#62A0EA]/30 bg-[#62A0EA]/12 px-3 py-2 text-xs font-bold text-[#9CC7F5] transition-colors hover:bg-[#62A0EA]/20"
+            >
+              <Pencil className="h-4 w-4" />
+              Edit
+            </button>
           </div>
         </div>
 
-        {/* Right — Details */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-3 mb-1.5">
-            <h2 className="text-xl sm:text-2xl font-bold text-white">{item.itemName}</h2>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {item.status === 'Expired' && (
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+          <section className="min-w-0">
+            <div className="relative aspect-[4/3] overflow-hidden rounded-xl border border-white/10 bg-[#0B1628]">
+              {activePhoto ? (
+                <img src={activePhoto.url} alt={item.itemName} className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-slate-600">
+                  <PackageSearch className="h-16 w-16" />
+                  <span className="text-xs font-semibold uppercase tracking-wider">No photo uploaded yet</span>
+                </div>
+              )}
+
+              <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/75 via-black/35 to-transparent px-4 pb-4 pt-10">
+                <span className="text-xs font-semibold text-white">{photos.length}/{MAX_PHOTOS} photos</span>
+                {activePhoto && (
+                  <button
+                    type="button"
+                    onClick={() => void handleDeletePhoto(activePhoto.id)}
+                    disabled={isActing}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-red-400/30 bg-red-500/15 px-2.5 py-1.5 text-xs font-semibold text-red-200 transition-colors hover:bg-red-500/25 disabled:opacity-50"
+                    title="Remove selected photo"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Remove
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-4 gap-2">
+              {photos.map((photo, index) => (
+                <div key={photo.id} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedIndex(index)}
+                    className={`aspect-square w-full overflow-hidden rounded-lg border transition-colors ${
+                      index === selectedIndex
+                        ? 'border-[#62A0EA] ring-2 ring-[#62A0EA]/20'
+                        : 'border-white/10 hover:border-[#62A0EA]/45'
+                    }`}
+                  >
+                    <img src={photo.url} alt={`Photo ${index + 1}`} className="h-full w-full object-cover" />
+                  </button>
+                  {index === 0 && (
+                    <span className="pointer-events-none absolute bottom-1 left-1 rounded bg-black/60 px-1 py-0.5 text-[8px] font-semibold uppercase tracking-wider text-white">Thumb</span>
+                  )}
+                </div>
+              ))}
+              {photos.length < MAX_PHOTOS && (
                 <button
-                  onClick={() => void onReactivate(item.id)}
-                  disabled={isActing}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 border border-emerald-500/30 transition-colors disabled:opacity-50"
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  className="flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-white/15 bg-white/[0.03] text-slate-500 transition-colors hover:border-[#62A0EA] hover:text-[#62A0EA] disabled:opacity-50"
                 >
-                  <RotateCcw size={14} /> Reactivate
+                  {isUploading ? <Upload size={18} className="animate-pulse" /> : <ImagePlus size={18} />}
+                  <span className="text-[9px] font-medium">{isUploading ? 'Uploading...' : 'Add'}</span>
                 </button>
               )}
-              <button
-                onClick={() => onEdit(item)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-[#62A0EA]/10 text-[#62A0EA] hover:bg-[#62A0EA]/20 border border-[#62A0EA]/30 transition-colors"
-              >
-                <Pencil size={14} /> Edit
-              </button>
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelected} />
             </div>
-          </div>
-          <p className="text-sm text-slate-400 mb-5">{item.description}</p>
+          </section>
 
-          <div className="space-y-3 max-h-[50vh] lg:max-h-[330px] overflow-y-auto pr-1">
-            <div className="flex items-center gap-3 p-3 bg-[#0E1628] rounded-md border border-[#1E2D45]">
-              <MapPin size={16} className="text-[#62A0EA] flex-shrink-0" />
-              <div>
-                <p className="text-xs text-slate-500">Plate Number</p>
-                <p className="text-sm text-white font-medium">{item.plateNumber}</p>
+          <section className="min-w-0 space-y-4">
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">Item Details</h3>
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <DetailField icon={<IdCard className="h-4 w-4" />} label="Plate Number" value={item.plateNumber || 'Plate unavailable'} />
+                <DetailField icon={<Clock3 className="h-4 w-4" />} label="Estimated Time Lost" value={item.estimatedTimeLost || 'Time unavailable'} />
+                <DetailField icon={<BusFront className="h-4 w-4" />} label="Driver" value={item.driverName || 'Driver unavailable'} />
+                <DetailField icon={<UserRound className="h-4 w-4" />} label="Conductor" value={item.conductorName || 'Conductor unavailable'} />
+                <DetailField icon={<FileText className="h-4 w-4" />} label="Reported By" value={item.reporterName || 'Reporter unavailable'} />
+                <DetailField icon={<CalendarDays className="h-4 w-4" />} label="Date Posted" value={formattedDate} />
               </div>
             </div>
 
-            <div className="flex items-center gap-3 p-3 bg-[#0E1628] rounded-md border border-[#1E2D45]">
-              <Clock size={16} className="text-amber-400 flex-shrink-0" />
-              <div>
-                <p className="text-xs text-slate-500">Estimated Time Lost</p>
-                <p className="text-sm text-white font-medium">{item.estimatedTimeLost}</p>
-              </div>
-            </div>
+            {(item.claimedBy || item.status === 'Expired') && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {item.claimedBy && (
+                  <DetailField icon={<BadgeCheck className="h-4 w-4" />} label="Claimed By" value={item.claimedBy} tone="accent" />
+                )}
 
-            {/* 2-col on tablet+, 1-col on mobile */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="flex items-center gap-3 p-3 bg-[#0E1628] rounded-md border border-[#1E2D45]">
-                <Truck size={16} className="text-sky-400 flex-shrink-0" />
-                <div>
-                  <p className="text-xs text-slate-500">Driver</p>
-                  <p className="text-sm text-white font-medium">{item.driverName}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 p-3 bg-[#0E1628] rounded-md border border-[#1E2D45]">
-                <User size={16} className="text-violet-400 flex-shrink-0" />
-                <div>
-                  <p className="text-xs text-slate-500">Conductor</p>
-                  <p className="text-sm text-white font-medium">{item.conductorName}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="flex items-center gap-3 p-3 bg-[#0E1628] rounded-md border border-[#1E2D45]">
-                <User size={16} className="text-cyan-400 flex-shrink-0" />
-                <div>
-                  <p className="text-xs text-slate-500">Reported By</p>
-                  <p className="text-sm text-white font-medium">{item.reporterName}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 p-3 bg-[#0E1628] rounded-md border border-[#1E2D45]">
-                <Calendar size={16} className="text-orange-400 flex-shrink-0" />
-                <div>
-                  <p className="text-xs text-slate-500">Date Posted</p>
-                  <p className="text-sm text-white font-medium">{formattedDate}</p>
-                </div>
-              </div>
-            </div>
-
-            {item.claimedBy && (
-              <div className="flex items-center gap-3 p-3 bg-[#62A0EA]/10 rounded-md border border-[#62A0EA]/30">
-                <UserCheck size={16} className="text-[#62A0EA] flex-shrink-0" />
-                <div>
-                  <p className="text-xs text-[#62A0EA]/70">Claimed By</p>
-                  <p className="text-sm text-[#62A0EA] font-medium">{item.claimedBy}</p>
-                </div>
+                {item.status === 'Expired' && (
+                  <DetailField
+                    icon={<Clock3 className="h-4 w-4" />}
+                    label="Expired"
+                    value={item.expiredAt ? new Date(item.expiredAt).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }) : '-'}
+                    tone="danger"
+                  />
+                )}
               </div>
             )}
 
-            {item.status === 'Expired' && (
-              <div className="flex items-center gap-3 p-3 bg-red-500/10 rounded-md border border-red-500/30">
-                <Clock size={16} className="text-red-400 flex-shrink-0" />
-                <div>
-                  <p className="text-xs text-red-400/70">Expired</p>
-                  <p className="text-sm text-red-300 font-medium">
-                    {item.expiredAt ? new Date(item.expiredAt).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center gap-3 p-3 bg-[#0E1628] rounded-md border border-[#1E2D45]">
-              <Tag size={16} className="text-slate-500 flex-shrink-0" />
-              <div>
-                <p className="text-xs text-slate-500">Item ID</p>
-                <p className="text-sm text-slate-300 font-mono">{item.id}</p>
-              </div>
-            </div>
-          </div>
+            <DetailField icon={<Hash className="h-4 w-4" />} label="Item ID" value={item.id} mono />
+          </section>
         </div>
       </div>
     </Modal>

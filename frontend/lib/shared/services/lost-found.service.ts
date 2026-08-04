@@ -53,7 +53,7 @@ export type BackendItemStatus =
   | "EXPIRED";
 
 /** Backend claims.status values. */
-export type BackendClaimStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type BackendClaimStatus = "PENDING" | "APPROVED" | "REJECTED" | "RELEASED";
 
 // ─── Raw backend shapes ─────────────────────────────────────────────
 
@@ -107,6 +107,9 @@ interface RawClaim {
   proof: string | null;
   reviewed_by: string | null;
   reviewed_at: string | null;
+  approved_at: string | null;
+  rejected_at: string | null;
+  released_at: string | null;
   rejection_reason: string | null;
   created_at: string;
   // Eager-loaded on GET /commuter/claims (myClaims)
@@ -203,6 +206,9 @@ export interface LostFoundClaim {
   proof: string;
   rejectionReason: string | null;
   reviewedAt: string | null;
+  approvedAt: string | null;
+  rejectedAt: string | null;
+  releasedAt: string | null;
   /** The registered account that filed this claim; null for walk-in claimants. */
   linkedAccount: { id: string; name: string; username: string; accountStatus: string } | null;
 }
@@ -301,6 +307,8 @@ function mapClaimDisplayStatus(status: string): string {
       return "Approved";
     case "REJECTED":
       return "Rejected";
+    case "RELEASED":
+      return "Released";
     default:
       return status;
   }
@@ -346,6 +354,9 @@ function mapClaim(raw: RawClaim): LostFoundClaim {
     proof: raw.proof ?? "",
     rejectionReason: raw.rejection_reason ?? null,
     reviewedAt: raw.reviewed_at,
+    approvedAt: raw.approved_at,
+    rejectedAt: raw.rejected_at,
+    releasedAt: raw.released_at,
     linkedAccount: raw.claimant
       ? {
           id: raw.claimant.id,
@@ -405,6 +416,7 @@ export async function list(params: {
   status?: string;
   category?: string;
   search?: string;
+  date?: string;
   page?: number;
   perPage?: number;
 } = {}): Promise<LostFoundPage> {
@@ -412,6 +424,7 @@ export async function list(params: {
     status: params.status,
     category: params.category === "ALL" ? undefined : params.category,
     search: params.search,
+    date: params.date,
     page: params.page,
     per_page: params.perPage,
   });
@@ -451,6 +464,7 @@ export async function listForAdmin(params: {
   statuses?: string[];
   category?: string;
   search?: string;
+  date?: string;
   page?: number;
   perPage?: number;
 } = {}): Promise<LostFoundPage & { items: (LostFoundItem & { claims: LostFoundClaim[] })[] }> {
@@ -458,6 +472,7 @@ export async function listForAdmin(params: {
     status: params.status,
     category: params.category === "ALL" ? undefined : params.category,
     search: params.search,
+    date: params.date,
     page: params.page,
     per_page: params.perPage,
   });
@@ -555,8 +570,10 @@ export async function unwatch(itemId: string): Promise<void> {
 export async function myWatchlist(params: {
   page?: number;
   perPage?: number;
+  date?: string;
+  search?: string;
 } = {}): Promise<LostFoundPage> {
-  const qs = buildQuery({ page: params.page, per_page: params.perPage });
+  const qs = buildQuery({ page: params.page, per_page: params.perPage, date: params.date, search: params.search });
   try {
     const response = await api.get<ApiResponseEnvelope<PaginatedEnvelope<RawWatchlistEntry>>>(
       `/api/commuter/watchlist${qs}`
@@ -588,8 +605,10 @@ export async function myClaims(params: {
   page?: number;
   perPage?: number;
   status?: BackendClaimStatus;
+  date?: string;
+  search?: string;
 } = {}): Promise<MyClaimsPage> {
-  const qs = buildQuery({ page: params.page, per_page: params.perPage, status: params.status });
+  const qs = buildQuery({ page: params.page, per_page: params.perPage, status: params.status, date: params.date, search: params.search });
   try {
     const response = await api.get<ApiResponseEnvelope<PaginatedEnvelope<RawClaim>>>(`/api/commuter/claims${qs}`);
     const p = response.data;

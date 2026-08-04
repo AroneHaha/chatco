@@ -36,6 +36,9 @@ export interface Claim {
   claimantEmail?: string;
   claimDate: string;
   status: ClaimStatus;
+  approvedAt?: string | null;
+  rejectedAt?: string | null;
+  releasedAt?: string | null;
   /** The commuter's proof-of-ownership description (admin review only). */
   proof?: string;
   /** The registered account that filed this claim; null/undefined for walk-in claimants. */
