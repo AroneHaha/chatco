@@ -16,15 +16,15 @@
 // to be updated to call API endpoints instead of client-side calculations.
 
 import { useState, useEffect, useMemo } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { formatDistance } from "@/lib/shared/geo/nearby-detector";
 import { distanceToPolylineMeters } from "@/lib/utils/geo";
 import { ROUTE_COORDS } from "./commuter-map-constants";
 import { useRouteGeometry } from "@/hooks/use-route-geometry";
-import { getCapacityConfig, createCommuterIcon, createJeepneyIcon } from "./commuter-map-icons";
+import { createCommuterIcon } from "./commuter-map-icons";
 import { useCommuterTracking } from "./use-commuter-tracking";
 import LocationFinder from "./location-finder";
+import VehicleMarker from "./vehicle-marker";
 import DynamicRouteViewport from "@/components/maps/dynamic-route-viewport";
 
 // --- MAIN COMPONENT ---
@@ -145,66 +145,29 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
           </Marker>
         )}
 
-        {/* --- CONDUCTOR 1KM RADIUS CIRCLES --- */}
+        {/* --- CONDUCTOR RADIUS CIRCLES + JEEPNEY MARKERS ---
+            Each vehicle's Circle+Marker+Popup lives in its own memoized
+            VehicleMarker (see vehicle-marker.tsx). Only the vehicle whose
+            lat/lng/capacity/radius-status actually changed value re-renders;
+            React.memo's custom comparator bails out for the rest, so one
+            conductor's location tick no longer touches every other marker. */}
         {activeVehicles.map((vehicle) => {
-          const isWithinRadius = withinRadiusIds.has(vehicle.id);
-          const vehicleCoord: [number, number] = [vehicle.lat, vehicle.lng];
-          return (
-            <Circle
-              key={`radius-${vehicle.id}`}
-              center={vehicleCoord}
-              radius={1000}
-              pathOptions={{
-                color: isWithinRadius ? "#22c55e" : "#62A0EA",
-                weight: 1,
-                opacity: isWithinRadius ? 0.4 : 0.15,
-                fillColor: isWithinRadius ? "#22c55e" : "#62A0EA",
-                fillOpacity: isWithinRadius ? 0.04 : 0.01,
-                dashArray: "4 8",
-              }}
-            />
-          );
-        })}
-
-        {/* --- ALL JEEPNEY MARKERS --- */}
-        {activeVehicles.map((vehicle) => {
-          const config = getCapacityConfig(vehicle.capacity);
           const isWithinRadius = userActualLocation ? withinRadiusIds.has(vehicle.id) : false;
           const withinRadiusInfo = isWithinRadius ? withinRadiusMap.get(vehicle.id) : null;
           const distanceInfo = userActualLocation ? allVehiclesMap.get(vehicle.id) : null;
 
           return (
-            <Marker
+            <VehicleMarker
               key={vehicle.id}
-              position={[vehicle.lat, vehicle.lng]}
-              icon={createJeepneyIcon(vehicle.capacity, isWithinRadius)}
-            >
-              <Popup>
-                <div className="space-y-2 min-w-[180px]">
-                  <div className="flex items-center justify-between">
-                    <div className="font-bold text-[#071A2E]">{vehicle.plateNumber}</div>
-                    <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${config.twBg} ${config.twText} ${config.twBorder} border`}>{config.label}</span>
-                  </div>
-                  <div className="text-xs text-gray-500 space-y-0.5 pt-1 border-t border-gray-100">
-                    <p><span className="font-medium text-gray-700">Route:</span> {vehicle.routeName ?? "—"}</p>
-                    {distanceInfo && (
-                      <p><span className="font-medium text-gray-700">Distance:</span> {formatDistance(distanceInfo.distanceInMeters)}</p>
-                    )}
-                    {isWithinRadius && withinRadiusInfo && (
-                      <p className="text-green-700 font-medium"><span className="font-medium text-gray-700">ETA:</span> ~{withinRadiusInfo.estimatedArrivalMinutes} min</p>
-                    )}
-                    {distanceInfo && !isWithinRadius && vehicle.capacity !== "FULL" && (
-                      <p className="text-yellow-600 text-[10px] italic">Outside pickup radius</p>
-                    )}
-                  </div>
-                  {vehicle.capacity === "FULL" && (
-                    <div className="text-[10px] font-medium text-red-500 bg-red-50 p-1.5 rounded text-center border border-red-100">
-                      Not accepting passengers
-                    </div>
-                  )}
-                </div>
-              </Popup>
-            </Marker>
+              lat={vehicle.lat}
+              lng={vehicle.lng}
+              plateNumber={vehicle.plateNumber}
+              routeName={vehicle.routeName}
+              capacity={vehicle.capacity}
+              isWithinRadius={isWithinRadius}
+              distanceInMeters={distanceInfo?.distanceInMeters ?? null}
+              estimatedArrivalMinutes={withinRadiusInfo?.estimatedArrivalMinutes ?? null}
+            />
           );
         })}
       </MapContainer>
