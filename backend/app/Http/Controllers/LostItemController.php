@@ -41,6 +41,7 @@ class LostItemController extends Controller
             'status'   => $request->string('status')->toString() ?: null,
             'category' => $request->string('category')->toString() ?: null,
             'search'   => $request->string('search')->toString() ?: null,
+            'date'     => $request->string('date')->toString() ?: null,
         ];
         $perPage = (int) $request->integer('per_page', 15);
 
@@ -89,14 +90,16 @@ class LostItemController extends Controller
     public function myClaims(Request $request): JsonResponse
     {
         $status = $request->string('status')->toString() ?: null;
-        if ($status && ! in_array($status, ['PENDING', 'APPROVED', 'REJECTED'], true)) {
+        $date = $request->string('date')->toString() ?: null;
+        $search = $request->string('search')->toString() ?: null;
+        if ($status && ! in_array($status, ['PENDING', 'APPROVED', 'REJECTED', 'RELEASED'], true)) {
             return $this->errorResponse('Invalid claim status filter', 422);
         }
 
         $perPage = min(max((int) $request->integer('per_page', 10), 1), 50);
 
         try {
-            $claims = $this->lostItemService->myClaims($request->user(), $perPage, $status);
+            $claims = $this->lostItemService->myClaims($request->user(), $perPage, $status, $date, $search);
         } catch (LostFoundException $e) {
             return $this->errorResponse($e->getMessage(), 422);
         }
@@ -162,11 +165,15 @@ class LostItemController extends Controller
     public function myWatchlist(Request $request): JsonResponse
     {
         $perPage = (int) $request->integer('per_page', 15);
+        $date = $request->string('date')->toString() ?: null;
+        $search = $request->string('search')->toString() ?: null;
 
         try {
             $watchlist = $this->lostItemService->myWatchlist(
                 $request->user(),
                 $perPage,
+                $date,
+                $search,
             );
         } catch (LostFoundException $e) {
             return $this->errorResponse($e->getMessage(), 422);

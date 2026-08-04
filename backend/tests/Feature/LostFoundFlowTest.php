@@ -156,6 +156,63 @@ class LostFoundFlowTest extends TestCase
 
     // ── Browse (any auth role) ───────────────────────────────────
 
+    public function test_admin_list_filters_by_posted_date(): void
+    {
+        $this->admin();
+        $this->postJson('/api/v1/admin/lost-items', [
+            'item_name' => 'Date Filter Wallet',
+            'description' => 'Wallet for date filter test',
+            'category' => 'WALLET',
+            'vehicle_id' => $this->vehicle->id,
+        ])->assertStatus(201);
+        $this->postJson('/api/v1/admin/lost-items', [
+            'item_name' => 'Date Filter Umbrella',
+            'description' => 'Umbrella for date filter test',
+            'category' => 'OTHER',
+            'vehicle_id' => $this->vehicle->id,
+        ])->assertStatus(201);
+
+        $targetDate = now()->subDays(2);
+        LostItem::where('item_name', 'Date Filter Wallet')->update(['created_at' => $targetDate]);
+        LostItem::where('item_name', 'Date Filter Umbrella')->update(['created_at' => now()]);
+
+        $response = $this->getJson('/api/v1/admin/lost-items?date='.$targetDate->toDateString());
+
+        $response->assertStatus(200);
+        $names = collect($response->json('data.data'))->pluck('item_name');
+        $this->assertTrue($names->contains('Date Filter Wallet'));
+        $this->assertFalse($names->contains('Date Filter Umbrella'));
+    }
+
+    public function test_commuter_browse_filters_by_posted_date(): void
+    {
+        $this->admin();
+        $this->postJson('/api/v1/admin/lost-items', [
+            'item_name' => 'Commuter Date Filter Wallet',
+            'description' => 'Wallet for commuter date filter test',
+            'category' => 'WALLET',
+            'vehicle_id' => $this->vehicle->id,
+        ])->assertStatus(201);
+        $this->postJson('/api/v1/admin/lost-items', [
+            'item_name' => 'Commuter Date Filter Umbrella',
+            'description' => 'Umbrella for commuter date filter test',
+            'category' => 'OTHER',
+            'vehicle_id' => $this->vehicle->id,
+        ])->assertStatus(201);
+
+        $targetDate = now()->subDays(3);
+        LostItem::where('item_name', 'Commuter Date Filter Wallet')->update(['created_at' => $targetDate]);
+        LostItem::where('item_name', 'Commuter Date Filter Umbrella')->update(['created_at' => now()]);
+
+        $this->commuter();
+        $response = $this->getJson('/api/v1/lost-found?date='.$targetDate->toDateString());
+
+        $response->assertStatus(200);
+        $names = collect($response->json('data.data'))->pluck('item_name');
+        $this->assertTrue($names->contains('Commuter Date Filter Wallet'));
+        $this->assertFalse($names->contains('Commuter Date Filter Umbrella'));
+    }
+
     public function test_any_auth_role_can_browse_lost_found(): void
     {
         $this->createItem();
@@ -187,6 +244,75 @@ class LostFoundFlowTest extends TestCase
         $response = $this->getJson('/api/v1/lost-found?status=CLOSED');
         $response->assertStatus(200);
         $this->assertEmpty($response->json('data.data'));
+    }
+
+    public function test_commuter_browse_searches_plate_driver_and_conductor(): void
+    {
+        $this->admin();
+        $this->postJson('/api/v1/admin/lost-items', [
+            'item_name' => 'Searchable Cap',
+            'description' => 'Cap left on a seat',
+            'category' => 'CLOTHING',
+            'vehicle_id' => $this->vehicle->id,
+            'plate_number' => 'CHATCO 123',
+            'driver_name' => 'Mario Santos',
+            'conductor_name' => 'Lina Cruz',
+        ])->assertStatus(201);
+        $this->postJson('/api/v1/admin/lost-items', [
+            'item_name' => 'Plain Wallet',
+            'description' => 'Wallet without matching transport details',
+            'category' => 'WALLET',
+            'vehicle_id' => $this->vehicle->id,
+            'plate_number' => 'OTHER 456',
+            'driver_name' => 'Different Driver',
+            'conductor_name' => 'Different Conductor',
+        ])->assertStatus(201);
+
+        $this->commuter();
+        foreach (['CHATCO 123', 'Mario', 'Lina'] as $term) {
+            $response = $this->getJson('/api/v1/lost-found?search='.urlencode($term));
+
+            $response->assertStatus(200);
+            $names = collect($response->json('data.data'))->pluck('item_name');
+            $this->assertTrue($names->contains('Searchable Cap'));
+            $this->assertFalse($names->contains('Plain Wallet'));
+        }
+    }
+
+    public function test_approved_items_are_excluded_from_commuter_browse(): void
+    {
+        $item = $this->createItem();
+
+        $this->commuter();
+        $this->postJson("/api/v1/lost-found/{$item->id}/claim", ['proof' => 'Has my initials inside']);
+
+        $this->admin();
+        $claim = Claim::where('item_id', $item->id)->first();
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/approve")
+            ->assertStatus(200);
+
+        $this->commuter();
+        $ids = collect($this->getJson('/api/v1/lost-found')->json('data.data'))->pluck('id');
+        $this->assertFalse($ids->contains($item->id));
+    }
+
+    public function test_released_closed_items_are_excluded_from_commuter_browse(): void
+    {
+        $item = $this->createItem();
+
+        $this->commuter();
+        $this->postJson("/api/v1/lost-found/{$item->id}/claim", ['proof' => 'Has my initials inside']);
+
+        $this->admin();
+        $claim = Claim::where('item_id', $item->id)->first();
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/approve")
+            ->assertStatus(200);
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/release")
+            ->assertStatus(200);
+
+        $this->commuter();
+        $ids = collect($this->getJson('/api/v1/lost-found')->json('data.data'))->pluck('id');
+        $this->assertFalse($ids->contains($item->id));
     }
 
     public function test_show_returns_item_detail(): void
@@ -371,6 +497,7 @@ class LostFoundFlowTest extends TestCase
 
         $response->assertStatus(200)
             ->assertJsonPath('data.status', 'APPROVED');
+        $this->assertNotNull($response->json('data.approved_at'));
 
         // Stage 1: approve → item APPROVED (not RELEASED yet)
         $this->assertDatabaseHas('lost_items', [
@@ -395,14 +522,22 @@ class LostFoundFlowTest extends TestCase
         // Stage 2: release → item RELEASED, released_to set
         $response = $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/release");
         $response->assertStatus(200)
-            ->assertJsonPath('data.status', 'APPROVED');
+            ->assertJsonPath('data.status', 'RELEASED');
+        $this->assertNotNull($response->json('data.approved_at'));
+        $this->assertNotNull($response->json('data.released_at'));
 
         $this->assertDatabaseHas('lost_items', [
             'id' => $item->id,
-            'status' => 'RELEASED',
+            'status' => 'CLOSED',
             'released_to' => $this->commuter->commuterProfile->id,
+            'closed_by' => $this->admin->id,
         ]);
-        $this->assertNotNull(LostItem::find($item->id)->released_at);
+        $item->refresh();
+        $claim->refresh();
+        $this->assertNotNull($item->released_at);
+        $this->assertNotNull($item->closed_at);
+        $this->assertSame('RELEASED', $claim->status);
+        $this->assertNotNull($claim->released_at);
     }
 
     public function test_cannot_release_pending_claim(): void
@@ -455,6 +590,7 @@ class LostFoundFlowTest extends TestCase
             ->first();
         $this->assertEquals('REJECTED', $otherClaim->fresh()->status);
         $this->assertEquals('Another claim was approved', $otherClaim->fresh()->rejection_reason);
+        $this->assertNotNull($otherClaim->fresh()->rejected_at);
     }
 
     public function test_admin_can_reject_pending_claim_with_reason(): void
@@ -472,6 +608,7 @@ class LostFoundFlowTest extends TestCase
         $response->assertStatus(200)
             ->assertJsonPath('data.status', 'REJECTED')
             ->assertJsonPath('data.rejection_reason', 'Proof does not match item description');
+        $this->assertNotNull($response->json('data.rejected_at'));
 
         $this->assertDatabaseHas('claim_rejection_audits', [
             'claim_id' => $claim->id,
@@ -590,7 +727,7 @@ class LostFoundFlowTest extends TestCase
         $response->assertStatus(422);
     }
 
-    public function test_admin_can_close_released_item(): void
+    public function test_release_already_closes_item(): void
     {
         $item = $this->createItem();
         $this->commuter();
@@ -599,13 +736,16 @@ class LostFoundFlowTest extends TestCase
         $this->admin();
         $claim = Claim::where('item_id', $item->id)->first();
         $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/approve");
-        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/release");
+        $response = $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/release");
+        $response->assertStatus(200);
 
-        $response = $this->patchJson("/api/v1/admin/lost-items/{$item->id}/close");
-        $response->assertStatus(200)
-            ->assertJsonPath('data.status', 'CLOSED');
-
-        $this->assertNotNull(LostItem::find($item->id)->closed_at);
+        $item->refresh();
+        $claim->refresh();
+        $this->assertSame('CLOSED', $item->status);
+        $this->assertNotNull($item->released_at);
+        $this->assertNotNull($item->closed_at);
+        $this->assertSame('RELEASED', $claim->status);
+        $this->assertNotNull($claim->released_at);
     }
 
     public function test_cannot_close_available_item(): void
