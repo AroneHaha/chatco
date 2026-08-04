@@ -166,6 +166,7 @@ export function mapShiftLog(s: unknown): ConductorShift {
     conductorName: shift.conductor_name,
     unitNumber: shift.unit_number,
     route: shift.route?.name ?? "",
+    routeId: shift.route_id ?? undefined,
     driverName: shift.driver_name,
     timeIn: shift.time_in,
     timeOut: shift.time_out,

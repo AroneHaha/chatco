@@ -4,12 +4,10 @@ namespace App\Http\Controllers\Admin;
 
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Admin\StoreRouteRequest;
-use App\Http\Requests\Admin\UpdateRouteRequest;
+use App\Models\CommuterLocation;
 use App\Models\ConductorProfile;
 use App\Models\Driver;
 use App\Models\Remittance;
-use App\Models\Route as RouteModel;
 use App\Models\ShiftLog;
 use App\Models\TerminatedPersonnel;
 use App\Models\Transaction;
@@ -89,6 +87,51 @@ class AdminController extends Controller
         $history = $this->locationService->getOverspeedHistory();
 
         return $this->successResponse($history, 'Overspeeding history retrieved');
+    }
+
+    public function demandZones(): JsonResponse
+    {
+        $cellSize = 0.005;
+        $locations = CommuterLocation::query()
+            ->where('updated_at', '>=', now()->subMinutes(5))
+            ->get(['latitude', 'longitude']);
+
+        $cells = [];
+        foreach ($locations as $location) {
+            $latBucket = (int) floor(($location->latitude + 90) / $cellSize);
+            $lngBucket = (int) floor(($location->longitude + 180) / $cellSize);
+            $key = "{$latBucket}:{$lngBucket}";
+
+            if (! isset($cells[$key])) {
+                $cells[$key] = [
+                    'id' => "demand-{$latBucket}-{$lngBucket}",
+                    'lat' => ($latBucket * $cellSize) - 90 + ($cellSize / 2),
+                    'lng' => ($lngBucket * $cellSize) - 180 + ($cellSize / 2),
+                    'commuter_count' => 0,
+                ];
+            }
+
+            $cells[$key]['commuter_count']++;
+        }
+
+        $zones = collect($cells)
+            ->map(function (array $cell) {
+                $count = $cell['commuter_count'];
+                $intensity = $count >= 10 ? 'HIGH' : ($count >= 4 ? 'MEDIUM' : 'LOW');
+
+                return $cell + [
+                    'intensity' => $intensity,
+                    'radius_meters' => match ($intensity) {
+                        'HIGH' => 500,
+                        'MEDIUM' => 350,
+                        default => 250,
+                    },
+                ];
+            })
+            ->sortByDesc('commuter_count')
+            ->values();
+
+        return $this->successResponse($zones, 'Demand zones retrieved');
     }
 
     public function drivers(): JsonResponse
@@ -711,53 +754,6 @@ class AdminController extends Controller
     }
 
     // Vehicle CRUD moved to AdminVehicleController — this method removed.
-
-    public function routes(): JsonResponse
-    {
-        $routes = RouteModel::orderBy('name', 'asc')->get();
-
-        return $this->successResponse($routes, 'Routes retrieved');
-    }
-
-    /**
-     * POST /api/v1/admin/routes
-     */
-    public function storeRoute(StoreRouteRequest $request): JsonResponse
-    {
-        $validated = $request->validated();
-
-        $route = RouteModel::create([
-            'name' => $validated['name'],
-            'status' => $validated['status'] ?? 'ACTIVE',
-            'waypoints' => $validated['waypoints'] ?? null,
-        ]);
-
-        return $this->successResponse($route, 'Route created successfully', 201);
-    }
-
-    /**
-     * PUT/PATCH /api/v1/admin/routes/{id}
-     */
-    public function updateRoute(UpdateRouteRequest $request, string $id): JsonResponse
-    {
-        $route = RouteModel::findOrFail($id);
-
-        $validated = $request->validated();
-        $route->update(array_filter($validated, fn ($v) => $v !== null));
-
-        return $this->successResponse($route, 'Route updated successfully');
-    }
-
-    /**
-     * DELETE /api/v1/admin/routes/{id}
-     */
-    public function destroyRoute(string $id): JsonResponse
-    {
-        $route = RouteModel::findOrFail($id);
-        $route->delete();
-
-        return $this->successResponse(null, 'Route deleted successfully');
-    }
 
     public function transactions(Request $request): JsonResponse
     {

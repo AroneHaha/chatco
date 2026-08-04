@@ -19,10 +19,13 @@ import { useState, useEffect, useMemo } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { formatDistance } from "@/lib/shared/geo/nearby-detector";
-import { ROUTE_COORDS, mapBoundsArray, MAP_CENTER } from "./commuter-map-constants";
+import { distanceToPolylineMeters } from "@/lib/utils/geo";
+import { ROUTE_COORDS } from "./commuter-map-constants";
+import { useRouteGeometry } from "@/hooks/use-route-geometry";
 import { getCapacityConfig, createCommuterIcon, createJeepneyIcon } from "./commuter-map-icons";
 import { useCommuterTracking } from "./use-commuter-tracking";
 import LocationFinder from "./location-finder";
+import DynamicRouteViewport from "@/components/maps/dynamic-route-viewport";
 
 // --- MAIN COMPONENT ---
 
@@ -39,6 +42,7 @@ interface CommuterMapProps {
 
 export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange }: CommuterMapProps) {
   const [isDomReady, setIsDomReady] = useState(false);
+  const routeGeometry = useRouteGeometry(ROUTE_COORDS);
 
   const {
     userActualLocation,
@@ -59,17 +63,25 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
   // Notify parent of tracking updates
   useEffect(() => {
     if (gpsStatus === "available") {
-      onNearbyVehiclesChange?.(radiusResult?.withinRadius || [], gpsStatus, userActualLocation);
+      const isInsideRouteCoverage = userActualLocation
+        ? distanceToPolylineMeters(userActualLocation, routeGeometry.routeCoords) <= 1000
+        : false;
+      onNearbyVehiclesChange?.(
+        isInsideRouteCoverage ? radiusResult?.withinRadius || [] : [],
+        gpsStatus,
+        userActualLocation
+      );
     } else {
       onNearbyVehiclesChange?.([], gpsStatus, userActualLocation);
     }
-  }, [radiusResult, gpsStatus, userActualLocation, onNearbyVehiclesChange]);
+  }, [radiusResult, gpsStatus, userActualLocation, onNearbyVehiclesChange, routeGeometry.routeCoords]);
 
   // Double-RAF for DOM readiness (ensures Leaflet gets accurate container dimensions)
   useEffect(() => {
     let cancelled = false;
+    let raf2: number | undefined;
     const raf1 = requestAnimationFrame(() => {
-      const raf2 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
         if (!cancelled && typeof document !== "undefined") {
           setIsDomReady(true);
         }
@@ -78,6 +90,7 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
     return () => {
       cancelled = true;
       cancelAnimationFrame(raf1);
+      if (raf2 !== undefined) cancelAnimationFrame(raf2);
     };
   }, []);
 
@@ -104,7 +117,8 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
         </div>
       )}
 
-      <MapContainer center={MAP_CENTER} zoom={12} zoomControl={false} attributionControl={false} className="commuter-map-container" style={{ background: '#050F1A' }} maxBounds={mapBoundsArray} maxBoundsViscosity={1.0} minZoom={isDesktop ? 13 : 11}>
+      <MapContainer center={routeGeometry.center} zoom={12} zoomControl={false} attributionControl={false} className="commuter-map-container" style={{ background: '#050F1A' }} maxBounds={routeGeometry.mapBoundsArray} maxBoundsViscosity={1.0} minZoom={isDesktop ? 13 : 11}>
+        <DynamicRouteViewport routeBounds={routeGeometry.routeBounds} mapBounds={routeGeometry.mapBounds} />
         <LocationFinder
           userLocationRef={userLocationRef}
           setUserActualLocation={setUserActualLocation}
@@ -113,11 +127,13 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
           setGpsStatus={setGpsStatus}
           hasInitialCenteredRef={hasInitialCenteredRef}
           userInteractedRef={userInteractedRef}
+          routeBounds={routeGeometry.routeBounds}
+          mapBounds={routeGeometry.mapBounds}
         />
         <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
 
-        <Polyline positions={ROUTE_COORDS} pathOptions={{ color: '#62A0EA', weight: 8, opacity: 0.2, lineCap: 'round', lineJoin: 'round' }} />
-        <Polyline positions={ROUTE_COORDS} pathOptions={{ color: '#62A0EA', weight: 4, opacity: 0.9, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }} />
+        <Polyline positions={routeGeometry.routeCoords} pathOptions={{ color: '#62A0EA', weight: 8, opacity: 0.2, lineCap: 'round', lineJoin: 'round' }} />
+        <Polyline positions={routeGeometry.routeCoords} pathOptions={{ color: '#62A0EA', weight: 4, opacity: 0.9, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }} />
 
         {/* --- COMMUTER LOCATION PIN --- */}
         {showMapPin && userActualLocation && (

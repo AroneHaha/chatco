@@ -5,6 +5,7 @@ export interface ConductorShift {
   conductorName: string;
   unitNumber: string;
   route: string;
+  routeId?: string;
   driverName: string;
   timeIn: string;
   timeOut: string | null;
@@ -19,6 +20,7 @@ export function startShift(data: {
   conductorName: string;
   unitNumber: string;
   route: string;
+  routeId?: string;
   driverName: string;
 }): ConductorShift {
   const shift: ConductorShift = {

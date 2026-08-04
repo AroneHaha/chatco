@@ -2,10 +2,24 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Save, X, MapPin, Search, Route, RefreshCw } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import { Plus, Pencil, Trash2, X, MapPin, Search, Route, RefreshCw, ArrowUp, ArrowDown } from 'lucide-react';
 import * as farePointService from '@/lib/admin/services/fare-point.service';
 import type { FarePoint as ApiFarePoint } from '@/lib/admin/services/fare-point.service';
+import * as routeService from '@/lib/admin/services/route.service';
+import type { AdminRoute } from '@/lib/admin/services/route.service';
+import type { RouteCoordinate } from '@/lib/admin/services/route.service';
 import { formatPeso } from '@/lib/utils/display';
+
+const RouteEditor = dynamic(() => import('@/components/admin/routes/route-editor'), {
+  ssr: false,
+  loading: () => <div className="h-[560px] animate-pulse rounded-2xl border border-white/5 bg-[#071A2E]" />,
+});
+
+const FarePointMapPicker = dynamic(() => import('@/components/admin/routes/fare-point-map-picker'), {
+  ssr: false,
+  loading: () => <div className="h-[320px] animate-pulse rounded-2xl border border-white/10 bg-[#050F1A]" />,
+});
 
 // Adapter: convert API fare point to the format the original UI expects
 interface FarePoint {
@@ -16,28 +30,146 @@ interface FarePoint {
   discountedFare: number;
   subStops?: string[];
   landmarks?: string;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+function normalizeStringList(value: string | string[] | null | undefined): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => item.trim()).filter(Boolean);
+  }
+
+  if (!value) return [];
+
+  // Some existing rows contain a JSON-encoded array, while older rows use a
+  // comma-separated string. Accept both so Admin and Conductor render the same
+  // sub-area data regardless of when the row was created.
+  try {
+    const decoded: unknown = JSON.parse(value);
+    if (Array.isArray(decoded)) {
+      return decoded
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+  } catch {
+    // Plain comma-separated value; handled below.
+  }
+
+  return value.split(',').map((item) => item.trim()).filter(Boolean);
 }
 
 function mapApiToLocal(api: ApiFarePoint): FarePoint {
+  const subStops = normalizeStringList(api.sub_stops);
+  const landmarks = normalizeStringList(api.landmarks);
+  const combinedSubStops = [...subStops, ...landmarks].filter(
+    (item, index, items) =>
+      items.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index
+  );
+
   return {
     id: api.id,
     pointNumber: api.point_number,
     name: api.name,
     regularFare: Number(api.regular_fare),
     discountedFare: Number(api.discounted_fare),
-    subStops: api.sub_stops ? api.sub_stops.split(',').map(s => s.trim()).filter(Boolean) : undefined,
-    landmarks: api.landmarks ?? undefined,
+    // Older rows store conductor subpoints in `landmarks`; newer edits use
+    // `sub_stops`. Present one combined list until every row is migrated.
+    subStops: combinedSubStops.length > 0 ? combinedSubStops : undefined,
+    landmarks: landmarks.length > 0 ? landmarks.join(', ') : undefined,
+    latitude: api.latitude === null ? null : Number(api.latitude),
+    longitude: api.longitude === null ? null : Number(api.longitude),
   };
 }
 
+function mergeSubDropoffs(value: string, draft: string): string {
+  const items = value.split(',').map((item) => item.trim()).filter(Boolean);
+  const next = draft.trim();
+
+  if (next && !items.some((item) => item.toLowerCase() === next.toLowerCase())) {
+    items.push(next);
+  }
+
+  return items.join(', ');
+}
+
+function SubDropoffEditor({
+  value,
+  onChange,
+  draft,
+  onDraftChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  draft: string;
+  onDraftChange: (value: string) => void;
+}) {
+  const items = useMemo(
+    () => value.split(',').map((item) => item.trim()).filter(Boolean),
+    [value]
+  );
+
+  const addItem = () => {
+    const merged = mergeSubDropoffs(value, draft);
+    if (merged === value) return;
+    onChange(merged);
+    onDraftChange('');
+  };
+
+  const removeItem = (index: number) => {
+    onChange(items.filter((_, itemIndex) => itemIndex !== index).join(', '));
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={draft}
+          onChange={(event) => onDraftChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              addItem();
+            }
+          }}
+          placeholder="e.g. Crossing or Public Market"
+          className="block min-w-0 flex-1 rounded-xl border border-white/10 bg-[#050F1A] px-3 py-2.5 text-sm text-white placeholder:text-white/25 focus:border-[#62A0EA] focus:outline-none focus:ring-1 focus:ring-[#62A0EA]/30"
+        />
+        <button type="button" onClick={addItem} className="flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2.5 text-xs font-bold text-white hover:bg-white/15">
+          <Plus size={14} /> Add to list
+        </button>
+      </div>
+      {items.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {items.map((item, index) => (
+            <span key={`${item}-${index}`} className="flex items-center gap-1.5 rounded-lg border border-[#62A0EA]/20 bg-[#1A5FB4]/10 px-2.5 py-1.5 text-xs text-[#BFDBFE]">
+              {item}
+              <button type="button" onClick={() => removeItem(index)} className="text-white/35 hover:text-red-300" aria-label={`Remove ${item}`}>
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="text-[10px] text-white/25">Optional. These choices appear under the Point Area in the conductor fare calculator and use the same fare.</p>
+      )}
+    </div>
+  );
+}
+
 export default function FareMatrixPage() {
+  const [routes, setRoutes] = useState<AdminRoute[]>([]);
+  const [selectedRouteId, setSelectedRouteId] = useState<string>('');
+  const [apiFarePoints, setApiFarePoints] = useState<ApiFarePoint[]>([]);
   const [farePoints, setFarePoints] = useState<FarePoint[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [showCreateRoute, setShowCreateRoute] = useState(false);
+  const [newRouteName, setNewRouteName] = useState('');
 
-  const [expandedPoint, setExpandedPoint] = useState<number | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingPoint, setEditingPoint] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -51,32 +183,60 @@ export default function FareMatrixPage() {
   const [newRegular, setNewRegular] = useState('18');
   const [newDiscounted, setNewDiscounted] = useState('14.4');
   const [newSubStops, setNewSubStops] = useState('');
+  const [newSubStopDraft, setNewSubStopDraft] = useState('');
+  const [newLocation, setNewLocation] = useState<RouteCoordinate | null>(null);
 
   // Edit form state
   const [editName, setEditName] = useState('');
   const [editRegular, setEditRegular] = useState('');
   const [editDiscounted, setEditDiscounted] = useState('');
   const [editSubStops, setEditSubStops] = useState('');
+  const [editSubStopDraft, setEditSubStopDraft] = useState('');
+  const [editLocation, setEditLocation] = useState<RouteCoordinate | null>(null);
 
-  const [isSaved, setIsSaved] = useState(false);
+  const fetchRoutes = useCallback(async () => {
+    try {
+      const data = await routeService.listRoutes();
+      setRoutes(data);
+      setSelectedRouteId((current) => {
+        if (current && data.some((route) => route.id === current)) return current;
+        return data.find((route) => route.status === 'ACTIVE')?.id ?? data[0]?.id ?? '';
+      });
+      if (data.length === 0) setIsLoading(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load routes');
+      setIsLoading(false);
+    }
+  }, []);
 
-  // Fetch fare points from API
+  useEffect(() => {
+    void fetchRoutes();
+  }, [fetchRoutes]);
+
+  // Fetch Fare Points only for the selected route.
   const fetchFarePoints = useCallback(async () => {
+    if (!selectedRouteId) return;
     setIsLoading(true);
     setError(null);
     try {
-      const data = await farePointService.list();
+      const data = await farePointService.list(selectedRouteId);
+      setApiFarePoints(data);
       setFarePoints(data.map(mapApiToLocal));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load fare points');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [selectedRouteId]);
 
   useEffect(() => {
-    fetchFarePoints();
+    void fetchFarePoints();
   }, [fetchFarePoints]);
+
+  const selectedRoute = useMemo(
+    () => routes.find((route) => route.id === selectedRouteId) ?? null,
+    [routes, selectedRouteId]
+  );
 
   // Filtered points by search
   const filteredPoints = useMemo(() => {
@@ -118,30 +278,62 @@ export default function FareMatrixPage() {
     setTimeout(() => setSuccessMsg(null), 4000);
   };
 
+  const scrollToForm = (id: 'fare-point-add-form' | 'fare-point-edit-form') => {
+    window.setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 0);
+  };
+
+  const handleToggleAddForm = () => {
+    const willOpen = !showAddForm;
+    setShowAddForm(willOpen);
+    setError(null);
+
+    if (willOpen) {
+      setEditingPoint(null);
+      scrollToForm('fare-point-add-form');
+    }
+  };
+
   const handleAddPoint = async () => {
-    if (!newName.trim()) return;
+    if (!selectedRouteId) {
+      setError('Select a managed route before adding a Point Area.');
+      return;
+    }
+    if (!newName.trim()) {
+      setError('Enter a name for the new Point Area.');
+      scrollToForm('fare-point-add-form');
+      return;
+    }
+    if (!newLocation) {
+      setError('Choose the Point Area location on the map before adding it.');
+      scrollToForm('fare-point-add-form');
+      return;
+    }
+
     setIsSaving(true);
     setError(null);
     try {
-      // Get the first route_id (single corridor for now)
-      const routesRes = await fetch('/api/admin/routes', { headers: { Accept: 'application/json' } });
-      const routesJson = await routesRes.json();
-      const routeId = routesJson.data?.[0]?.id;
-      if (!routeId) throw new Error('No route found. Create a route first.');
-
+      const normalizedSubStops = mergeSubDropoffs(newSubStops, newSubStopDraft);
+      setNewSubStops(normalizedSubStops);
+      setNewSubStopDraft('');
       await farePointService.create({
-        route_id: routeId,
+        route_id: selectedRouteId,
         point_number: farePoints.length + 1,
         code: `P${String(farePoints.length + 1).padStart(2, '0')}`,
         name: newName.trim(),
         regular_fare: parseFloat(newRegular) || 18,
         discounted_fare: parseFloat(newDiscounted) || 14.4,
-        sub_stops: newSubStops.trim() || undefined,
+        landmarks: null,
+        sub_stops: normalizedSubStops || null,
+        latitude: newLocation[0],
+        longitude: newLocation[1],
       });
       showSuccess(`Point "${newName}" added successfully.`);
-      setNewName(''); setNewRegular('18'); setNewDiscounted('14.4'); setNewSubStops('');
+      setNewName(''); setNewRegular('18'); setNewDiscounted('14.4'); setNewSubStops(''); setNewSubStopDraft('');
+      setNewLocation(null);
       setShowAddForm(false);
-      await fetchFarePoints();
+      await Promise.all([fetchFarePoints(), fetchRoutes()]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add fare point');
     } finally {
@@ -152,11 +344,18 @@ export default function FareMatrixPage() {
   const handleStartEdit = (pointNumber: number) => {
     const point = farePoints.find(p => p.pointNumber === pointNumber);
     if (!point) return;
+    setShowAddForm(false);
+    setError(null);
     setEditName(point.name);
     setEditRegular(point.regularFare.toString());
     setEditDiscounted(point.discountedFare.toString());
     setEditSubStops(point.subStops ? point.subStops.join(', ') : '');
+    setEditSubStopDraft('');
+    setEditLocation(point.latitude !== null && point.longitude !== null
+      ? [point.latitude, point.longitude]
+      : null);
     setEditingPoint(pointNumber);
+    scrollToForm('fare-point-edit-form');
   };
 
   const handleSaveEdit = async () => {
@@ -166,15 +365,24 @@ export default function FareMatrixPage() {
     setIsSaving(true);
     setError(null);
     try {
+      if (!editLocation) throw new Error('Choose the Point Area location on the map.');
+      const normalizedSubStops = mergeSubDropoffs(editSubStops, editSubStopDraft);
+      setEditSubStops(normalizedSubStops);
+      setEditSubStopDraft('');
       await farePointService.update(point.id, {
         name: editName.trim(),
         regular_fare: parseFloat(editRegular) || 18,
         discounted_fare: parseFloat(editDiscounted) || 14.4,
-        sub_stops: editSubStops.trim() || undefined,
+        // Saving an old row migrates its legacy landmark choices into the
+        // canonical sub_stops field, so removals and additions stay in sync.
+        landmarks: null,
+        sub_stops: normalizedSubStops || null,
+        latitude: editLocation[0],
+        longitude: editLocation[1],
       });
       showSuccess(`Point "${editName}" updated successfully.`);
       setEditingPoint(null);
-      await fetchFarePoints();
+      await Promise.all([fetchFarePoints(), fetchRoutes()]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update fare point');
     } finally {
@@ -191,12 +399,50 @@ export default function FareMatrixPage() {
     try {
       await farePointService.remove(point.id);
       showSuccess(`Point #${pointNumber} deleted.`);
-      if (expandedPoint === pointNumber) setExpandedPoint(null);
       if (previewFrom === pointNumber) setPreviewFrom(null);
       if (previewTo === pointNumber) setPreviewTo(null);
-      await fetchFarePoints();
+      await Promise.all([fetchFarePoints(), fetchRoutes()]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete fare point');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCreateRoute = async () => {
+    if (!newRouteName.trim()) return;
+    setIsSaving(true);
+    setError(null);
+    try {
+      const created = await routeService.createRoute(newRouteName.trim());
+      setNewRouteName('');
+      setShowCreateRoute(false);
+      await fetchRoutes();
+      setSelectedRouteId(created.id);
+      showSuccess(`Route "${created.name}" created. Add Fare Points and publish its geometry when ready.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create route');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleMovePoint = async (pointNumber: number, direction: -1 | 1) => {
+    if (!selectedRouteId) return;
+    const currentIndex = apiFarePoints.findIndex((point) => point.point_number === pointNumber);
+    const targetIndex = currentIndex + direction;
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= apiFarePoints.length) return;
+
+    const reordered = [...apiFarePoints];
+    [reordered[currentIndex], reordered[targetIndex]] = [reordered[targetIndex], reordered[currentIndex]];
+    setIsSaving(true);
+    setError(null);
+    try {
+      await farePointService.reorder(selectedRouteId, reordered.map((point) => point.id));
+      await Promise.all([fetchFarePoints(), fetchRoutes()]);
+      showSuccess('Fare Point order updated. Review the route draft before publishing.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reorder Fare Points');
     } finally {
       setIsSaving(false);
     }
@@ -224,7 +470,7 @@ export default function FareMatrixPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-white">Fare Matrix Management</h1>
-            <p className="text-sm text-white/40 mt-1">{farePoints.length} point areas along the Calumpit–Meycauayan route</p>
+            <p className="text-sm text-white/40 mt-1">{farePoints.length} point areas on {selectedRoute?.name ?? 'the selected route'}</p>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={fetchFarePoints} title="Refresh" className="p-2.5 text-white/40 hover:text-white bg-[#071A2E] border border-white/[0.06] rounded-xl transition-colors">
@@ -232,13 +478,46 @@ export default function FareMatrixPage() {
             </button>
             <button
               type="button"
-              onClick={() => setShowAddForm(!showAddForm)}
+              onClick={handleToggleAddForm}
+              disabled={!selectedRoute}
               className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-[#1A5FB4] text-white font-bold rounded-xl hover:bg-[#165a9f] transition-colors active:scale-95 shadow-lg shadow-[#1A5FB4]/30"
             >
               {showAddForm ? <X size={18} /> : <Plus size={18} />}
               <span>{showAddForm ? 'Cancel' : 'Add Point Area'}</span>
             </button>
           </div>
+        </div>
+
+        {/* Route selection controls Fare Points, map geometry, and hailing coverage together. */}
+        <div className="rounded-2xl border border-white/[0.06] bg-[#071A2E] p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-white/30">Managed Route</label>
+              <select
+                value={selectedRouteId}
+                onChange={(event) => {
+                  setSelectedRouteId(event.target.value);
+                  setPreviewFrom(null);
+                  setPreviewTo(null);
+                }}
+                className="w-full rounded-xl border border-white/10 bg-[#050F1A] px-3 py-2.5 text-sm text-white outline-none focus:border-[#62A0EA]"
+              >
+                {routes.length === 0 && <option value="">No routes created</option>}
+                {routes.map((route) => (
+                  <option key={route.id} value={route.id}>{route.name} ({route.status})</option>
+                ))}
+              </select>
+            </div>
+            <button type="button" onClick={() => setShowCreateRoute((visible) => !visible)} className="flex items-center justify-center gap-2 rounded-xl border border-[#62A0EA]/30 px-4 py-2.5 text-sm font-semibold text-[#93C5FD] hover:bg-[#1A5FB4]/10">
+              <Plus size={16} /> New Route
+            </button>
+          </div>
+          {showCreateRoute && (
+            <div className="mt-3 flex flex-col gap-2 border-t border-white/5 pt-3 sm:flex-row">
+              <input value={newRouteName} onChange={(event) => setNewRouteName(event.target.value)} placeholder="e.g. Calumpit–Marilao via McArthur Highway" className={inputClasses} />
+              <button type="button" onClick={handleCreateRoute} disabled={isSaving || !newRouteName.trim()} className="whitespace-nowrap rounded-xl bg-[#1A5FB4] px-5 py-2.5 text-sm font-bold text-white disabled:opacity-40">Create Route</button>
+            </div>
+          )}
         </div>
 
         {/* Error Banner */}
@@ -255,6 +534,15 @@ export default function FareMatrixPage() {
             <p className="text-sm text-emerald-400">{successMsg}</p>
             <button onClick={() => setSuccessMsg(null)} className="text-emerald-400 hover:text-emerald-300"><X size={16} /></button>
           </div>
+        )}
+
+        {selectedRoute && (
+          <RouteEditor
+            route={selectedRoute}
+            farePoints={apiFarePoints}
+            onRouteChanged={fetchRoutes}
+            onEditFarePoint={handleStartEdit}
+          />
         )}
 
         {/* Fare Info Banner */}
@@ -350,16 +638,21 @@ export default function FareMatrixPage() {
 
           {/* Add Point Form */}
           {showAddForm && (
-            <div className="bg-[#1A5FB4]/5 border border-[#1A5FB4]/30 p-5 rounded-2xl space-y-4">
+            <div id="fare-point-add-form" className="bg-[#1A5FB4]/5 border border-[#1A5FB4]/30 p-5 rounded-2xl space-y-4">
               <h3 className="text-sm font-bold text-white">New Point Area</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Point Name</label>
                   <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Jollibee Crossing" className={inputClasses} />
                 </div>
-                <div>
-                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Sub-Stops (comma-separated)</label>
-                  <input type="text" value={newSubStops} onChange={(e) => setNewSubStops(e.target.value)} placeholder="Stop A, Stop B, Stop C" className={inputClasses} />
+                <div className="sm:col-span-2">
+                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Sub Pickup / Drop-off Points</label>
+                  <SubDropoffEditor
+                    value={newSubStops}
+                    onChange={setNewSubStops}
+                    draft={newSubStopDraft}
+                    onDraftChange={setNewSubStopDraft}
+                  />
                 </div>
                 <div>
                   <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Regular Fare (₱)</label>
@@ -370,6 +663,14 @@ export default function FareMatrixPage() {
                   <input type="number" step="0.25" value={newDiscounted} onChange={(e) => setNewDiscounted(e.target.value)} className={inputClasses} />
                 </div>
               </div>
+              <div>
+                <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-white/30">Point Location</label>
+                <FarePointMapPicker
+                  value={newLocation}
+                  onChange={setNewLocation}
+                  routeGeometry={selectedRoute?.active_version?.geometry ?? []}
+                />
+              </div>
               <button type="button" onClick={handleAddPoint} disabled={isSaving} className="px-6 py-2.5 bg-[#1A5FB4] text-white text-sm font-bold rounded-xl hover:bg-[#165a9f] transition-colors active:scale-95 disabled:opacity-50">
                 {isSaving ? 'Adding...' : 'Add Point'}
               </button>
@@ -378,16 +679,21 @@ export default function FareMatrixPage() {
 
           {/* Edit Point Form */}
           {editingPoint !== null && (
-            <div className="bg-[#1A5FB4]/5 border border-[#1A5FB4]/30 p-5 rounded-2xl space-y-4">
+            <div id="fare-point-edit-form" className="bg-[#1A5FB4]/5 border border-[#1A5FB4]/30 p-5 rounded-2xl space-y-4">
               <h3 className="text-sm font-bold text-white">Edit Point #{editingPoint}</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Point Name</label>
                   <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} className={inputClasses} />
                 </div>
-                <div>
-                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Sub-Stops (comma-separated)</label>
-                  <input type="text" value={editSubStops} onChange={(e) => setEditSubStops(e.target.value)} placeholder="Stop A, Stop B" className={inputClasses} />
+                <div className="sm:col-span-2">
+                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Sub Pickup / Drop-off Points</label>
+                  <SubDropoffEditor
+                    value={editSubStops}
+                    onChange={setEditSubStops}
+                    draft={editSubStopDraft}
+                    onDraftChange={setEditSubStopDraft}
+                  />
                 </div>
                 <div>
                   <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Regular Fare (₱)</label>
@@ -397,6 +703,14 @@ export default function FareMatrixPage() {
                   <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Discounted Fare (₱)</label>
                   <input type="number" step="0.25" value={editDiscounted} onChange={(e) => setEditDiscounted(e.target.value)} className={inputClasses} />
                 </div>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-white/30">Point Location</label>
+                <FarePointMapPicker
+                  value={editLocation}
+                  onChange={setEditLocation}
+                  routeGeometry={selectedRoute?.active_version?.geometry ?? []}
+                />
               </div>
               <div className="flex gap-3">
                 <button type="button" onClick={handleSaveEdit} disabled={isSaving} className="px-6 py-2.5 bg-[#1A5FB4] text-white text-sm font-bold rounded-xl hover:bg-[#165a9f] transition-colors active:scale-95 disabled:opacity-50">
@@ -429,7 +743,7 @@ export default function FareMatrixPage() {
             <p className="text-[10px] text-white/25">
               {searchQuery.trim() ? `${filteredPoints.length} of ${farePoints.length} point areas` : `${farePoints.length} point areas total`}
             </p>
-            <p className="text-[10px] text-white/25">Meycauayan → Calumpit</p>
+            <p className="text-[10px] text-white/25">{selectedRoute?.name ?? 'No route selected'}</p>
           </div>
 
           {/* Point Areas List */}
@@ -437,10 +751,9 @@ export default function FareMatrixPage() {
             <div className="divide-y divide-white/5 max-h-[60vh] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {filteredPoints.length === 0 ? (
                 <div className="py-12 text-center text-white/20 text-sm">
-                  No fare points found. Click "Add Point Area" to create one.
+                  No fare points found. Click &quot;Add Point Area&quot; to create one.
                 </div>
               ) : filteredPoints.map((point) => {
-                const isExpanded = expandedPoint === point.pointNumber;
                 const isBaseZone = point.regularFare <= 18;
 
                 return (
@@ -457,13 +770,9 @@ export default function FareMatrixPage() {
                           <MapPin size={12} className={isBaseZone ? 'text-emerald-400/60 flex-shrink-0' : 'text-[#62A0EA]/60 flex-shrink-0'} />
                           <span className="text-sm text-white font-medium truncate">{point.name}</span>
                           {point.subStops && point.subStops.length > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => setExpandedPoint(isExpanded ? null : point.pointNumber)}
-                              className="p-0.5 text-white/30 hover:text-white transition-colors flex-shrink-0"
-                            >
-                              {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                            </button>
+                            <span className="rounded-full border border-[#62A0EA]/20 bg-[#62A0EA]/10 px-2 py-0.5 text-[9px] font-semibold text-[#93C5FD]">
+                              {point.subStops.length} sub-area{point.subStops.length === 1 ? '' : 's'}
+                            </span>
                           )}
                         </div>
                         {isBaseZone && (
@@ -480,6 +789,12 @@ export default function FareMatrixPage() {
 
                         {/* Actions */}
                         <div className="flex items-center gap-0.5">
+                          <button type="button" onClick={() => handleMovePoint(point.pointNumber, -1)} disabled={point.pointNumber === 1 || isSaving} className="p-1.5 text-white/20 hover:text-white disabled:opacity-20" title="Move earlier">
+                            <ArrowUp size={13} />
+                          </button>
+                          <button type="button" onClick={() => handleMovePoint(point.pointNumber, 1)} disabled={point.pointNumber === farePoints.length || isSaving} className="p-1.5 text-white/20 hover:text-white disabled:opacity-20" title="Move later">
+                            <ArrowDown size={13} />
+                          </button>
                           <button type="button" onClick={() => handleStartEdit(point.pointNumber)} className="p-1.5 text-white/20 hover:text-[#62A0EA] transition-colors" title="Edit">
                             <Pencil size={14} />
                           </button>
@@ -490,10 +805,10 @@ export default function FareMatrixPage() {
                       </div>
                     </div>
 
-                    {/* Expanded Sub-Stops */}
-                    {isExpanded && point.subStops && point.subStops.length > 0 && (
+                    {/* Sub-areas stay visible so Admin sees the same choices as Conductor. */}
+                    {point.subStops && point.subStops.length > 0 && (
                       <div className="bg-[#050F1A]/60 px-4 py-3 mx-4 mb-3 rounded-xl border border-white/5">
-                        <p className="text-[10px] uppercase tracking-wider text-white/30 font-bold mb-2">Landmarks in this area</p>
+                        <p className="text-[10px] uppercase tracking-wider text-white/30 font-bold mb-2">Sub pickup / drop-off points in this area</p>
                         <div className="flex flex-wrap gap-2">
                           {point.subStops.map((stop, idx) => (
                             <div key={idx} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/5">

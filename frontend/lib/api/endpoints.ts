@@ -97,7 +97,7 @@ export const COMMUTER = {
   /** Re-upload ID for discount verification */
   REUPLOAD_ID: `${API_BASE_URL}/commuter/reupload-id`,
   /** Get ride history for the commuter */
-  RIDE_HISTORY: `${API_BASE_URL}/commuter/rides`,
+  RIDE_HISTORY: `${API_BASE_URL}/commuter/trips`,
   /** Get rewards / voucher data */
   REWARDS: `${API_BASE_URL}/commuter/rewards`,
   /** Redeem a voucher */

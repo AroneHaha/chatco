@@ -42,6 +42,7 @@ interface FareCalcModalProps {
   isOpen: boolean;
   onClose: () => void;
   shiftId?: string;
+  routeId?: string;
   conductorName?: string;
   unitNumber?: string;
   driverName?: string;
@@ -56,9 +57,22 @@ type Step = "method" | "select" | "passengers" | "confirm" | "processing" | "qr_
 type SelectedPaymentMethod = "GCash" | "Cash" | "Voucher";
 type GroupPassengerType = "REGULAR" | "SENIOR_CITIZEN" | "STUDENT" | "PWD";
 
-export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName, unitNumber, driverName }: FareCalcModalProps) {
+function subDropoffPoints(point: PointArea): string[] {
+  return Array.from(new Set(
+    [...(point.subStops ?? []), ...(point.landmarks ?? [])]
+      .map((name) => name.trim())
+      .filter(Boolean)
+  ));
+}
+
+function selectedPointName(point: PointArea, subPoint: string | null): string {
+  return subPoint ? `${point.name} · ${subPoint}` : point.name;
+}
+
+export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, conductorName, unitNumber, driverName }: FareCalcModalProps) {
   const [step, setStep] = useState<Step>("method");
   const [selectedMethod, setSelectedMethod] = useState<SelectedPaymentMethod | null>(null);
+  const [pointAreas, setPointAreas] = useState<PointArea[]>(() => getPointAreas());
   const [pickupPoint, setPickupPoint] = useState<PointArea | null>(null);
   const [dropoffPoint, setDropoffPoint] = useState<PointArea | null>(null);
   const [commuterType, setCommuterType] = useState<CommuterType>("REGULAR");
@@ -280,15 +294,15 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   );
 
   const filteredPoints = searchQuery
-    ? getPointAreas().filter(
+    ? pointAreas.filter(
         (p) =>
           p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           p.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          p.landmarks.some((l) =>
+          subDropoffPoints(p).some((l) =>
             l.toLowerCase().includes(searchQuery.toLowerCase())
           )
       )
-    : getPointAreas();
+    : pointAreas;
 
   // ─── Save CASH/VOUCHER transaction to backend ───
   // Used for Cash + Voucher payments. GCash payments are created server-side
@@ -311,8 +325,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
       passengerName: "Commuter",
       passengerId: "",
       passengerRole: effectiveCommuterType,
-      from: pickupPoint.name,
-      to: dropoffPoint.name,
+      from: selectedPointName(pickupPoint, pickupLandmark),
+      to: selectedPointName(dropoffPoint, dropoffLandmark),
       distance: fareData.barangaysTraveled,
       baseFare: fareData.regularFare,
       succeedingKm: fareData.succeedingCount,
@@ -454,8 +468,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
 
       const initiation = await initiateGcash({
         finalAmount: isGroupMode ? groupTotalFare : regularFare,
-        from: pickupPoint.name,
-        to: dropoffPoint.name,
+        from: selectedPointName(pickupPoint, pickupLandmark),
+        to: selectedPointName(dropoffPoint, dropoffLandmark),
         baseFare: regularFare,
         distance: barangaysTraveled,
         discountAmount: isGroupMode ? regularFare - apiGetFareBetween(pickupPoint.pointNumber, dropoffPoint.pointNumber, true) : 0,
@@ -531,8 +545,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
     try {
       if (isGroupMode) {
         const result = await createGroupCashTransaction(shiftId!, {
-          from: pickupPoint.name,
-          to: dropoffPoint.name,
+          from: selectedPointName(pickupPoint, pickupLandmark),
+          to: selectedPointName(dropoffPoint, dropoffLandmark),
           regularFare: fareInfo.regularFare,
           discountedFare: fareInfo.discountedFare,
           passengers: groupPassengers,
@@ -737,22 +751,39 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
   // so they can directly pick a landmark without the extra click.
   useEffect(() => {
     if (step !== "select") return;
-    if (selectingField === "pickup" && pickupPoint && pickupPoint.landmarks.length > 0) {
+    if (selectingField === "pickup" && pickupPoint && subDropoffPoints(pickupPoint).length > 0) {
       setExpandedBarangay(pickupPoint.pointNumber);
-    } else if (selectingField === "dropoff" && dropoffPoint && dropoffPoint.landmarks.length > 0) {
+    } else if (selectingField === "dropoff" && dropoffPoint && subDropoffPoints(dropoffPoint).length > 0) {
       setExpandedBarangay(dropoffPoint.pointNumber);
     }
   }, [selectingField, step, pickupPoint, dropoffPoint]);
 
-  // ─── Load the fare matrix from the backend on first open ───
+  // ─── Refresh the active route's fare matrix whenever the modal opens ───
   // The fare points + config come from GET /api/fare-matrix (the backend's
-  // fare_points table — the single source of truth). Falls back to the
-  // hardcoded data if the API is unreachable. Cached for the session.
+  // fare_points table — the single source of truth). Force-refreshing here
+  // makes admin additions/edits visible without a full conductor-page reload.
   useEffect(() => {
-    if (isOpen) {
-      void loadFareMatrix();
-    }
-  }, [isOpen]);
+    if (!isOpen) return;
+
+    let cancelled = false;
+
+    void loadFareMatrix({ force: true, routeId }).then(() => {
+      if (cancelled) return;
+
+      const latestPoints = getPointAreas();
+      setPointAreas(latestPoints);
+      setPickupPoint((current) =>
+        current ? latestPoints.find((point) => point.id === current.id) ?? null : null
+      );
+      setDropoffPoint((current) =>
+        current ? latestPoints.find((point) => point.id === current.id) ?? null : null
+      );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, routeId]);
 
   // ─── HIDDEN UNTIL CLICKED ──────────────────────────────────────
   if (!isOpen) return null;
@@ -1119,8 +1150,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
             </div>
             <p className="text-[10px] text-white/30 mt-2">
               {selectingField === "pickup"
-                ? "Tap your boarding barangay — then select a landmark"
-                : "Tap your drop-off barangay — then select a landmark"}
+                ? "Tap your boarding Point Area — then select a sub pickup point"
+                : "Tap your destination Point Area — then select a sub drop-off point"}
               {" "}&middot; Auto-opens after selection
             </p>
           </div>
@@ -1132,6 +1163,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
               const isDropoff = dropoffPoint?.pointNumber === point.pointNumber;
               const isSelected = isPickup || isDropoff;
               const isExpanded = expandedBarangay === point.pointNumber;
+              const pointSubDropoffs = subDropoffPoints(point);
 
               // Color classes for barangay list items (green default, violet when same)
               const itemPickupBg = isSameBarangay ? "bg-violet-500/15 border-violet-500/40" : "bg-emerald-500/15 border-emerald-500/40";
@@ -1149,7 +1181,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                       if (selectingField === "pickup") {
                         setPickupPoint(point);
                         setPickupLandmark(null);
-                        if (point.landmarks.length > 0) {
+                        if (pointSubDropoffs.length > 0) {
                           setExpandedBarangay(point.pointNumber);
                         } else {
                           setSelectingField("dropoff");
@@ -1157,7 +1189,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                       } else {
                         setDropoffPoint(point);
                         setDropoffLandmark(null);
-                        if (point.landmarks.length > 0) {
+                        if (pointSubDropoffs.length > 0) {
                           setExpandedBarangay(point.pointNumber);
                         }
                       }
@@ -1185,9 +1217,9 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                             <span className="text-sm font-semibold text-white truncate">{point.name}</span>
                             <span className="text-[9px] font-semibold text-white/20 flex-shrink-0">Brgy {point.pointNumber}</span>
                           </div>
-                          {point.landmarks.length > 0 && (
+                          {pointSubDropoffs.length > 0 && (
                             <p className="text-[10px] text-white/30 mt-0.5 truncate">
-                              {point.landmarks.join(" · ")}
+                              {pointSubDropoffs.join(" · ")}
                             </p>
                           )}
                         </div>
@@ -1226,13 +1258,13 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                     </div>
                   </div>
 
-                  {/* Expanded landmarks */}
+                  {/* Expanded sub pickup/drop-off points */}
                   {isExpanded && (
                     <div className="ml-11 mt-1 mb-2 space-y-1">
                       <p className="text-[10px] text-white/20 uppercase tracking-wider font-medium mb-1.5">
-                        Landmarks in {point.name} <span className="text-white/10">· tap to select</span>
+                        Sub pickup/drop-off points in {point.name} <span className="text-white/10">· tap to select</span>
                       </p>
-                      {/* Skip landmark button */}
+                      {/* Skip sub-point button */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -1245,10 +1277,10 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, conductorName,
                       >
                         <div className="w-1.5 h-1.5 rounded-full bg-amber-400/50" />
                         <span className="text-[11px] text-amber-400/70">
-                          Skip landmark (use barangay only)
+                          Use Point Area only
                         </span>
                       </button>
-                      {point.landmarks.map((landmark, idx) => {
+                      {pointSubDropoffs.map((landmark, idx) => {
                         const isLandmarkPickup = pickupPoint?.pointNumber === point.pointNumber && pickupLandmark === landmark;
                         const isLandmarkDropoff = dropoffPoint?.pointNumber === point.pointNumber && dropoffLandmark === landmark;
                         const isLandmarkSelected = isLandmarkPickup || isLandmarkDropoff;

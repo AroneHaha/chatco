@@ -47,3 +47,34 @@ export function formatDistance(meters: number): string {
   }
   return `${(meters / 1000).toFixed(1)}km`;
 }
+
+/** Shortest distance from a [lat, lng] point to a route polyline. */
+export function distanceToPolylineMeters(
+  point: [number, number],
+  coordinates: [number, number][]
+): number {
+  if (coordinates.length < 2) return Number.POSITIVE_INFINITY;
+
+  const referenceLatitude = (point[0] * Math.PI) / 180;
+  let minimumDistance = Number.POSITIVE_INFINITY;
+
+  for (let index = 0; index < coordinates.length - 1; index += 1) {
+    const start = coordinates[index];
+    const end = coordinates[index + 1];
+    const startX = ((start[1] - point[1]) * Math.PI / 180) * Math.cos(referenceLatitude) * EARTH_RADIUS_M;
+    const startY = ((start[0] - point[0]) * Math.PI / 180) * EARTH_RADIUS_M;
+    const endX = ((end[1] - point[1]) * Math.PI / 180) * Math.cos(referenceLatitude) * EARTH_RADIUS_M;
+    const endY = ((end[0] - point[0]) * Math.PI / 180) * EARTH_RADIUS_M;
+    const segmentX = endX - startX;
+    const segmentY = endY - startY;
+    const lengthSquared = segmentX ** 2 + segmentY ** 2;
+    const projection = lengthSquared > 0
+      ? Math.max(0, Math.min(1, -(startX * segmentX + startY * segmentY) / lengthSquared))
+      : 0;
+    const closestX = startX + projection * segmentX;
+    const closestY = startY + projection * segmentY;
+    minimumDistance = Math.min(minimumDistance, Math.hypot(closestX, closestY));
+  }
+
+  return minimumDistance;
+}

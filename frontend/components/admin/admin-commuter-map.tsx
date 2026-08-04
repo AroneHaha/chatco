@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents, Circle, Tooltip } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { formatElapsedMinutes } from "@/lib/utils/display";
+import { useRouteGeometry } from "@/hooks/use-route-geometry";
+import DynamicRouteViewport from "@/components/maps/dynamic-route-viewport";
 
 // --- 1. TYPES (kept — these define the API contract) ---
 type VehicleCapacity = "AVAILABLE" | "STANDING" | "FULL";
@@ -94,18 +96,6 @@ const ROUTE_COORDS: [number, number][] = [
   [14.725646764905104, 120.9604838112117]
 ];
 
-const rawBounds = L.latLngBounds(ROUTE_COORDS);
-const routeBounds = rawBounds.pad(0.008);
-const mapBounds = L.latLngBounds(
-  [rawBounds.getSouth() - 0.04, rawBounds.getWest() - 0.10],
-  [rawBounds.getNorth() + 0.015, rawBounds.getEast() + 0.10]
-);
-const mapBoundsArray: [[number, number], [number, number]] = [
-  [mapBounds.getSouth(), mapBounds.getWest()],
-  [mapBounds.getNorth(), mapBounds.getEast()]
-];
-const MAP_CENTER: L.LatLngTuple = [rawBounds.getCenter().lat, rawBounds.getCenter().lng];
-
 // --- 3. HELPER FUNCTIONS ---
 function getBearing(start: [number, number], end: [number, number]): number {
   const startLat = start[0] * Math.PI / 180;
@@ -125,12 +115,14 @@ const getCapacityConfig = (capacity: VehicleCapacity) => {
 };
 
 function LocationFinder({
-  userLocationRef, setUserActualLocation, setShowMapPin, setArrowPos
+  userLocationRef, setUserActualLocation, setShowMapPin, setArrowPos, routeBounds, mapBounds
 }: {
   userLocationRef: React.MutableRefObject<[number, number] | null>;
   setUserActualLocation: (loc: [number, number] | null) => void;
   setShowMapPin: (val: boolean) => void;
   setArrowPos: (pos: { x: number; y: number; angle: number } | null) => void;
+  routeBounds: L.LatLngBounds;
+  mapBounds: L.LatLngBounds;
 }) {
   const map = useMap();
 
@@ -240,6 +232,97 @@ function MapFocuser({ target, nonce }: { target?: [number, number] | null; nonce
   return null;
 }
 
+const VEHICLE_ANIMATION_MS = 4_800;
+const VEHICLE_SNAP_DISTANCE_M = 1_500;
+
+/**
+ * Leaflet normally teleports a marker whenever its `position` prop changes.
+ * Keep that prop stable and move the underlying marker between GPS samples so
+ * the admin sees continuous motion during the five-second polling interval.
+ */
+function SmoothVehicleMarker({
+  position,
+  icon,
+  zIndexOffset,
+  children,
+}: {
+  position: [number, number];
+  icon: L.DivIcon;
+  zIndexOffset: number;
+  children?: ReactNode;
+}) {
+  const markerRef = useRef<L.Marker | null>(null);
+  const [initialPosition] = useState<[number, number]>(() => position);
+  const animationFrameRef = useRef<number | null>(null);
+  const [targetLat, targetLng] = position;
+
+  useEffect(() => {
+    const marker = markerRef.current;
+    if (!marker) return;
+
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+
+    const start = marker.getLatLng();
+    const target = L.latLng(targetLat, targetLng);
+    const distance = start.distanceTo(target);
+
+    if (distance < 0.5) return;
+
+    // A very large change is normally a corrected/bad GPS sample. Snapping is
+    // safer than visibly driving the marker across unrelated roads.
+    if (distance > VEHICLE_SNAP_DISTANCE_M) {
+      marker.setLatLng(target);
+      return;
+    }
+
+    const startedAt = performance.now();
+    const startLat = start.lat;
+    const startLng = start.lng;
+    const latDelta = target.lat - startLat;
+    const lngDelta = target.lng - startLng;
+
+    const animate = (now: number) => {
+      const progress = Math.min((now - startedAt) / VEHICLE_ANIMATION_MS, 1);
+      const eased = progress < 0.5
+        ? 2 * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+      marker.setLatLng([
+        startLat + latDelta * eased,
+        startLng + lngDelta * eased,
+      ]);
+
+      if (progress < 1) {
+        animationFrameRef.current = requestAnimationFrame(animate);
+      } else {
+        animationFrameRef.current = null;
+      }
+    };
+
+    animationFrameRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+    };
+  }, [targetLat, targetLng]);
+
+  return (
+    <Marker
+      ref={markerRef}
+      position={initialPosition}
+      icon={icon}
+      zIndexOffset={zIndexOffset}
+    >
+      {children}
+    </Marker>
+  );
+}
+
 export default function AdminCommuterMap({
   isDesktop = false,
   vehicles = [],
@@ -261,10 +344,11 @@ export default function AdminCommuterMap({
   /** Bump to re-focus the same coordinates again. */
   focusNonce?: number;
 }) {
+  const routeGeometry = useRouteGeometry(ROUTE_COORDS);
   const [isDomReady, setIsDomReady] = useState(false);
   const [userActualLocation, setUserActualLocation] = useState<[number, number] | null>(null);
   const [showMapPin, setShowMapPin] = useState(false);
-  const [arrowPos, setArrowPos] = useState<{ x: number; y: number; angle: number } | null>(null);
+  const [, setArrowPos] = useState<{ x: number; y: number; angle: number } | null>(null);
   const userLocationRef = useRef<[number, number] | null>(null);
 
   useEffect(() => {
@@ -327,24 +411,25 @@ export default function AdminCommuterMap({
   return (
     <div className="admin-map-wrapper w-full h-full rounded-xl overflow-hidden">
       <MapContainer
-        center={MAP_CENTER}
+        center={routeGeometry.center}
         zoom={12}
         zoomControl={false}
         attributionControl={false}
         className="admin-map-container"
         style={{ background: '#050F1A' }}
-        maxBounds={mapBoundsArray}
+        maxBounds={routeGeometry.mapBoundsArray}
         maxBoundsViscosity={1.0}
         minZoom={11}
         maxZoom={18}
         zoomSnap={1}
       >
-        <LocationFinder userLocationRef={userLocationRef} setUserActualLocation={setUserActualLocation} setShowMapPin={setShowMapPin} setArrowPos={setArrowPos} />
+        <DynamicRouteViewport routeBounds={routeGeometry.routeBounds} mapBounds={routeGeometry.mapBounds} />
+        <LocationFinder userLocationRef={userLocationRef} setUserActualLocation={setUserActualLocation} setShowMapPin={setShowMapPin} setArrowPos={setArrowPos} routeBounds={routeGeometry.routeBounds} mapBounds={routeGeometry.mapBounds} />
         <MapFocuser target={focusPosition} nonce={focusNonce} />
         <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
 
-        <Polyline positions={ROUTE_COORDS} pathOptions={{ color: '#62A0EA', weight: 8, opacity: 0.2, lineCap: 'round', lineJoin: 'round' }} />
-        <Polyline positions={ROUTE_COORDS} pathOptions={{ color: '#62A0EA', weight: 4, opacity: 0.9, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }} />
+        <Polyline positions={routeGeometry.routeCoords} pathOptions={{ color: '#62A0EA', weight: 8, opacity: 0.2, lineCap: 'round', lineJoin: 'round' }} />
+        <Polyline positions={routeGeometry.routeCoords} pathOptions={{ color: '#62A0EA', weight: 4, opacity: 0.9, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }} />
 
         {/* --- DEMAND HEATMAP CIRCLES --- */}
         {demandZones.map((zone) => {
@@ -423,7 +508,7 @@ export default function AdminCommuterMap({
         {vehicles.map((vehicle) => {
           const config = getCapacityConfig(vehicle.capacity);
           return (
-            <Marker key={vehicle.id} position={ROUTE_COORDS[vehicle.routeIndex]} icon={getJeepneyIcon(vehicle.capacity)} zIndexOffset={800}>
+            <Marker key={vehicle.id} position={routeGeometry.routeCoords[Math.min(vehicle.routeIndex, routeGeometry.routeCoords.length - 1)]} icon={getJeepneyIcon(vehicle.capacity)} zIndexOffset={800}>
               <Popup>
                 <div className="space-y-2 min-w-[180px]">
                   <div className="flex items-center justify-between">
@@ -459,7 +544,7 @@ export default function AdminCommuterMap({
               }
             : capacityConfig;
           return (
-            <Marker
+            <SmoothVehicleMarker
               key={`live-${vehicle.id}`}
               position={[vehicle.lat, vehicle.lng]}
               icon={getJeepneyIcon(vehicle.capacity, vehicle.is_stale, vehicle.is_on_break)}
@@ -495,7 +580,7 @@ export default function AdminCommuterMap({
                   )}
                 </div>
               </Popup>
-            </Marker>
+            </SmoothVehicleMarker>
           );
         })}
       </MapContainer>

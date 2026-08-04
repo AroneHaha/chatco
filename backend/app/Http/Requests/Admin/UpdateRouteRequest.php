@@ -6,14 +6,20 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateRouteRequest extends FormRequest
 {
-    public function authorize(): bool { return true; }
+    public function authorize(): bool
+    {
+        return true;
+    }
 
     public function rules(): array
     {
         return [
             'name' => ['sometimes', 'string', 'max:100'],
             'status' => ['nullable', 'string', 'in:ACTIVE,INACTIVE'],
-            'waypoints' => ['nullable', 'string', 'max:2000'],
+            'waypoints' => ['nullable', 'array', 'max:100'],
+            'waypoints.*' => ['array', 'size:2'],
+            'waypoints.*.0' => ['numeric', 'between:-90,90'],
+            'waypoints.*.1' => ['numeric', 'between:-180,180'],
         ];
     }
 }

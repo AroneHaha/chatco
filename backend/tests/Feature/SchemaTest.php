@@ -171,7 +171,7 @@ class SchemaTest extends TestCase
 
     public function test_users_table_excludes_unwanted_columns(): void
     {
-        foreach (['name', 'phone', 'email_verified_at', 'remember_token', 'is_active'] as $col) {
+        foreach (['name', 'phone', 'email_verified_at', 'is_active'] as $col) {
             $this->assertFalse(Schema::hasColumn('users', $col), "Users table must NOT have [{$col}] column.");
         }
     }

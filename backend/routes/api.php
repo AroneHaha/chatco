@@ -1,34 +1,37 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Admin\AdminAnnouncementController;
+use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\AdminFaqController;
+use App\Http\Controllers\Admin\AdminFarePointController;
+use App\Http\Controllers\Admin\AdminFeedbackController;
+use App\Http\Controllers\Admin\AdminLostItemController;
+use App\Http\Controllers\Admin\AdminRegistrationController;
+use App\Http\Controllers\Admin\AdminRemittanceOptionController;
+use App\Http\Controllers\Admin\AdminRouteController;
+use App\Http\Controllers\Admin\AdminSettingController;
+use App\Http\Controllers\Admin\AdminSosController;
+use App\Http\Controllers\Admin\AdminUserController;
+use App\Http\Controllers\Admin\AdminVehicleController;
+use App\Http\Controllers\Admin\AdminVoucherController;
+use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Commuter\CommuterController;
 use App\Http\Controllers\Commuter\FeedbackController;
 use App\Http\Controllers\Commuter\HailController;
+use App\Http\Controllers\Commuter\ShareRideController;
 use App\Http\Controllers\Commuter\SosController;
 use App\Http\Controllers\Commuter\VehicleLocationController;
 use App\Http\Controllers\Conductor\ConductorController;
 use App\Http\Controllers\Conductor\ConductorHailController;
-use App\Http\Controllers\Admin\AdminController;
-use App\Http\Controllers\Admin\AdminFarePointController;
-use App\Http\Controllers\Admin\AdminFaqController;
-use App\Http\Controllers\Admin\AdminRemittanceOptionController;
-use App\Http\Controllers\Admin\AdminRegistrationController;
-use App\Http\Controllers\Admin\AdminSettingController;
-use App\Http\Controllers\Admin\AdminUserController;
-use App\Http\Controllers\Admin\AdminVoucherController;
-use App\Http\Controllers\Admin\AdminVehicleController;
-use App\Http\Controllers\Admin\AdminLostItemController;
-use App\Http\Controllers\Admin\AdminAnnouncementController;
-use App\Http\Controllers\Admin\AdminFeedbackController;
-use App\Http\Controllers\Admin\AdminSosController;
-use App\Http\Controllers\LostItemController;
-use App\Http\Controllers\AnnouncementController;
-use App\Http\Controllers\Payment\PaymentController;
-use App\Http\Controllers\Payment\QrController;
 use App\Http\Controllers\FaqController;
 use App\Http\Controllers\FareMatrixController;
+use App\Http\Controllers\LostItemController;
+use App\Http\Controllers\Payment\PaymentController;
+use App\Http\Controllers\Payment\QrController;
+use App\Http\Controllers\RouteGeometryController;
 use App\Http\Controllers\SystemStatusController;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -60,6 +63,7 @@ Route::prefix('auth')->group(function () {
 | immediately visible to all consumers on their next fetch.
 */
 Route::get('/fare-matrix', [FareMatrixController::class, 'index'])->middleware('throttle:commuter-hail');
+Route::get('/routes/active', [RouteGeometryController::class, 'active'])->middleware('throttle:commuter-hail');
 
 /*
 |--------------------------------------------------------------------------
@@ -78,7 +82,7 @@ Route::get('/system-status', [SystemStatusController::class, 'index'])->middlewa
 // Public tracking endpoint — no auth required. Anyone with the token
 // can view the commuter's live position (for the share-ride feature).
 // No throttle — this is a public read-only endpoint that polls every 5s.
-Route::get('/share/{token}', [\App\Http\Controllers\Commuter\ShareRideController::class, 'show']);
+Route::get('/share/{token}', [ShareRideController::class, 'show']);
 
 /*
 |--------------------------------------------------------------------------
@@ -98,10 +102,11 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
     Route::post('/change-password', [CommuterController::class, 'changePassword'])->middleware('throttle:conductor-write');
     Route::get('/trips', [CommuterController::class, 'trips'])->middleware('throttle:conductor-read');
     Route::get('/rewards', [CommuterController::class, 'rewards'])->middleware('throttle:conductor-read');
+    Route::post('/location', [CommuterController::class, 'updateLocation'])->middleware('throttle:commuter-hail');
 
     // Share Live Location — commuter generates a tracking link
-    Route::post('/share-ride', [\App\Http\Controllers\Commuter\ShareRideController::class, 'store'])->middleware('throttle:commuter-hail');
-    Route::delete('/share-ride', [\App\Http\Controllers\Commuter\ShareRideController::class, 'destroy'])->middleware('throttle:commuter-hail');
+    Route::post('/share-ride', [ShareRideController::class, 'store'])->middleware('throttle:commuter-hail');
+    Route::delete('/share-ride', [ShareRideController::class, 'destroy'])->middleware('throttle:commuter-hail');
 
     // Hail lifecycle (commuter-side) — 10 req/min per user
     Route::post('/hail', [HailController::class, 'store'])->middleware('throttle:commuter-hail');
@@ -193,8 +198,8 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->grou
     // the commuter flow (sender_role=CONDUCTOR). Admins acknowledge + resolve
     // via /admin/sos. Mutation-throttled; the poll is read-throttled (60/min)
     // so the modal can poll every 3s. Scoped to the auth conductor in the service.
-    Route::post('/sos', [\App\Http\Controllers\Conductor\SosController::class, 'trigger'])->middleware('throttle:conductor-mutation');
-    Route::get('/sos/{id}', [\App\Http\Controllers\Conductor\SosController::class, 'show'])->middleware('throttle:conductor-read');
+    Route::post('/sos', [App\Http\Controllers\Conductor\SosController::class, 'trigger'])->middleware('throttle:conductor-mutation');
+    Route::get('/sos/{id}', [App\Http\Controllers\Conductor\SosController::class, 'show'])->middleware('throttle:conductor-read');
 
     // GPS updates — allows 5-second cadence with headroom for retries/reconnects
     Route::post('/location', [ConductorController::class, 'updateLocation'])->middleware('throttle:conductor-gps');
@@ -239,6 +244,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::get('/analytics', [AdminController::class, 'analytics'])->middleware('throttle:conductor-read');
     Route::get('/monitoring', [AdminController::class, 'monitoring'])->middleware('throttle:conductor-read');
     Route::get('/monitoring/overspeed', [AdminController::class, 'overspeed'])->middleware('throttle:conductor-read');
+    Route::get('/monitoring/demand-zones', [AdminController::class, 'demandZones'])->middleware('throttle:conductor-read');
     Route::get('/users', [AdminUserController::class, 'index'])->middleware('throttle:conductor-read');
     Route::get('/users/{id}', [AdminUserController::class, 'show'])->middleware('throttle:conductor-read');
     Route::put('/users/{id}', [AdminUserController::class, 'update'])->middleware('throttle:conductor-write');
@@ -273,13 +279,18 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::put('/vehicles/{id}', [AdminVehicleController::class, 'update'])->middleware('throttle:conductor-write');
     Route::patch('/vehicles/{id}', [AdminVehicleController::class, 'update'])->middleware('throttle:conductor-write');
     Route::delete('/vehicles/{id}', [AdminVehicleController::class, 'destroy'])->middleware('throttle:conductor-write');
-    Route::get('/routes', [AdminController::class, 'routes'])->middleware('throttle:conductor-read');
-    Route::post('/routes', [AdminController::class, 'storeRoute'])->middleware('throttle:conductor-write');
-    Route::put('/routes/{id}', [AdminController::class, 'updateRoute'])->middleware('throttle:conductor-write');
-    Route::patch('/routes/{id}', [AdminController::class, 'updateRoute'])->middleware('throttle:conductor-write');
-    Route::delete('/routes/{id}', [AdminController::class, 'destroyRoute'])->middleware('throttle:conductor-write');
+    Route::get('/routes', [AdminRouteController::class, 'index'])->middleware('throttle:conductor-read');
+    Route::post('/routes', [AdminRouteController::class, 'store'])->middleware('throttle:conductor-write');
+    Route::get('/routes/{id}', [AdminRouteController::class, 'show'])->middleware('throttle:conductor-read');
+    Route::put('/routes/{id}', [AdminRouteController::class, 'update'])->middleware('throttle:conductor-write');
+    Route::patch('/routes/{id}', [AdminRouteController::class, 'update'])->middleware('throttle:conductor-write');
+    Route::delete('/routes/{id}', [AdminRouteController::class, 'destroy'])->middleware('throttle:conductor-write');
+    Route::put('/routes/{id}/draft', [AdminRouteController::class, 'saveDraft'])->middleware('throttle:conductor-write');
+    Route::post('/routes/{id}/publish', [AdminRouteController::class, 'publish'])->middleware('throttle:conductor-write');
+    Route::get('/routes/{id}/versions', [AdminRouteController::class, 'versions'])->middleware('throttle:conductor-read');
     Route::get('/fare-points', [AdminFarePointController::class, 'index'])->middleware('throttle:conductor-read');
     Route::post('/fare-points', [AdminFarePointController::class, 'store'])->middleware('throttle:conductor-write');
+    Route::put('/fare-points/reorder', [AdminFarePointController::class, 'reorder'])->middleware('throttle:conductor-write');
     Route::put('/fare-points/{id}', [AdminFarePointController::class, 'update'])->middleware('throttle:conductor-write');
     Route::patch('/fare-points/{id}', [AdminFarePointController::class, 'update'])->middleware('throttle:conductor-write');
     Route::delete('/fare-points/{id}', [AdminFarePointController::class, 'destroy'])->middleware('throttle:conductor-write');

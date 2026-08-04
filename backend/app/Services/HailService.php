@@ -8,11 +8,13 @@ use App\Events\HailStatusChanged;
 use App\Exceptions\OutsideRadiusException;
 use App\Helpers\GeoHelper;
 use App\Models\Hail;
+use App\Models\Route;
 use App\Models\ShiftLog;
 use App\Models\User;
 use App\Models\VehicleLocation;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
  * HailService — sole gatekeeper for the 1KM hail radius rule.
@@ -29,6 +31,8 @@ use Illuminate\Support\Facades\DB;
  */
 class HailService
 {
+    public function __construct(private RouteGeometryService $routeGeometryService) {}
+
     /**
      * Hail TTL in minutes. Each new hail expires 3 minutes after creation
      * unless acted upon. Spec-mandated value.
@@ -38,19 +42,18 @@ class HailService
     /**
      * Create a new hail for a commuter against a specific vehicle.
      *
-     * @param  User    $commuter      The commuter requesting the hail (must be COMMUTER role)
-     * @param  string  $vehicleId     Target vehicle UUID
-     * @param  float   $commuterLat   Commuter's current latitude (degrees)
-     * @param  float   $commuterLng   Commuter's current longitude (degrees)
+     * @param  User  $commuter  The commuter requesting the hail (must be COMMUTER role)
+     * @param  string  $vehicleId  Target vehicle UUID
+     * @param  float  $commuterLat  Commuter's current latitude (degrees)
+     * @param  float  $commuterLng  Commuter's current longitude (degrees)
+     * @return Hail The created hail (status PENDING)
      *
-     * @return Hail                    The created hail (status PENDING)
-     *
-     * @throws OutsideRadiusException  When computed distance > HAIL_RADIUS_M
-     * @throws \Symfony\Component\HttpKernel\Exception\HttpException
-     *         403 if not a commuter
-     *         409 if commuter already has a pending hail
-     *         422 if vehicle is not currently on an active shift
-     *         422 if vehicle has no reported position
+     * @throws OutsideRadiusException When computed distance > HAIL_RADIUS_M
+     * @throws HttpException
+     *                       403 if not a commuter
+     *                       409 if commuter already has a pending hail
+     *                       422 if vehicle is not currently on an active shift
+     *                       422 if vehicle has no reported position
      */
     public function createHail(
         User $commuter,
@@ -97,16 +100,35 @@ class HailService
             abort(422, 'Vehicle is currently on break');
         }
 
+        // The pickup must also be inside the currently published corridor for
+        // the vehicle's assigned route. Routes without a published geometry
+        // keep the legacy vehicle-only check for backwards compatibility.
+        $route = $activeShift->route_id ? Route::find($activeShift->route_id) : null;
+        $activeRouteVersion = $route
+            ? $this->routeGeometryService->activeVersion($route)
+            : null;
+        if ($activeRouteVersion) {
+            $distanceToRoute = GeoHelper::distanceToPolylineMeters(
+                $commuterLat,
+                $commuterLng,
+                $activeRouteVersion->geometry ?? [],
+            );
+
+            if ($distanceToRoute > GeoHelper::HAIL_RADIUS_M) {
+                abort(422, 'Pickup point is outside the active route coverage.');
+            }
+        }
+
         // ─── Persist hail + dispatch broadcast (transactional) ──────
         return DB::transaction(function () use ($commuter, $vehicleId, $commuterLat, $commuterLng, $distanceMeters) {
             $hail = Hail::create([
-                'commuter_id'  => $commuter->id,
-                'vehicle_id'   => $vehicleId,
+                'commuter_id' => $commuter->id,
+                'vehicle_id' => $vehicleId,
                 'commuter_lat' => $commuterLat,
                 'commuter_lng' => $commuterLng,
-                'distance_m'   => $distanceMeters,
-                'status'       => HailStatus::PENDING,
-                'expires_at'   => now()->addMinutes(self::HAIL_TTL_MINUTES),
+                'distance_m' => $distanceMeters,
+                'status' => HailStatus::PENDING,
+                'expires_at' => now()->addMinutes(self::HAIL_TTL_MINUTES),
             ]);
 
             broadcast(new HailCreated($hail));
@@ -118,15 +140,14 @@ class HailService
     /**
      * Cancel a pending hail. Only the owning commuter can cancel.
      *
-     * @param  User    $commuter  The commuter attempting cancellation
-     * @param  string  $hailId    UUID of the hail to cancel
+     * @param  User  $commuter  The commuter attempting cancellation
+     * @param  string  $hailId  UUID of the hail to cancel
+     * @return Hail The cancelled hail
      *
-     * @return Hail                The cancelled hail
-     *
-     * @throws \Symfony\Component\HttpKernel\Exception\HttpException
-     *         403 if commuter is not the hail owner
-     *         422 if hail is not in PENDING status
-     *         404 if hail does not exist
+     * @throws HttpException
+     *                       403 if commuter is not the hail owner
+     *                       422 if hail is not in PENDING status
+     *                       404 if hail does not exist
      */
     public function cancelHail(User $commuter, string $hailId): Hail
     {
@@ -152,15 +173,14 @@ class HailService
      * Accept a pending hail. Only the conductor currently on shift for
      * the hail's vehicle can accept.
      *
-     * @param  User    $conductor  The conductor accepting the hail
-     * @param  string  $hailId     UUID of the hail to accept
+     * @param  User  $conductor  The conductor accepting the hail
+     * @param  string  $hailId  UUID of the hail to accept
+     * @return Hail The accepted hail (status ACCEPTED, conductor_id set)
      *
-     * @return Hail                  The accepted hail (status ACCEPTED, conductor_id set)
-     *
-     * @throws \Symfony\Component\HttpKernel\Exception\HttpException
-     *         403 if conductor is not on active shift for the hail's vehicle
-     *         422 if hail is not pending or has expired
-     *         404 if hail does not exist
+     * @throws HttpException
+     *                       403 if conductor is not on active shift for the hail's vehicle
+     *                       422 if hail is not pending or has expired
+     *                       404 if hail does not exist
      */
     public function acceptHail(User $conductor, string $hailId): Hail
     {
@@ -177,7 +197,7 @@ class HailService
         }
 
         $hail->update([
-            'status'       => HailStatus::ACCEPTED,
+            'status' => HailStatus::ACCEPTED,
             'conductor_id' => $conductor->id,
         ]);
         $hail->refresh();
@@ -191,15 +211,14 @@ class HailService
      * Reject a pending hail. Only the conductor currently on shift for
      * the hail's vehicle can reject.
      *
-     * @param  User    $conductor  The conductor rejecting the hail
-     * @param  string  $hailId     UUID of the hail to reject
+     * @param  User  $conductor  The conductor rejecting the hail
+     * @param  string  $hailId  UUID of the hail to reject
+     * @return Hail The rejected hail (status REJECTED)
      *
-     * @return Hail                  The rejected hail (status REJECTED)
-     *
-     * @throws \Symfony\Component\HttpKernel\Exception\HttpException
-     *         403 if conductor is not on active shift for the hail's vehicle
-     *         422 if hail is not pending
-     *         404 if hail does not exist
+     * @throws HttpException
+     *                       403 if conductor is not on active shift for the hail's vehicle
+     *                       422 if hail is not pending
+     *                       404 if hail does not exist
      */
     public function rejectHail(User $conductor, string $hailId): Hail
     {
@@ -224,8 +243,7 @@ class HailService
      * with the commuter relationship.
      *
      * @param  string  $vehicleId  Target vehicle UUID
-     *
-     * @return Collection<Hail>     Pending hails ordered by created_at desc
+     * @return Collection<Hail> Pending hails ordered by created_at desc
      */
     public function getPendingHailsForVehicle(string $vehicleId): Collection
     {
@@ -249,7 +267,7 @@ class HailService
      * Typically called by the `hails:expire` scheduled command (every
      * minute) or on demand before listing pending hails for a vehicle.
      *
-     * @return int  Number of hails transitioned to EXPIRED
+     * @return int Number of hails transitioned to EXPIRED
      */
     public function expireStaleHails(): int
     {

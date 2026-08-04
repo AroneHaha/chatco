@@ -15,8 +15,11 @@ export interface FarePoint {
   point_number: number;
   code: string;
   name: string;
-  landmarks: string | null;
-  sub_stops: string | null;
+  // Laravel's array casts return arrays, while older rows/endpoints may still
+  // contain comma-separated or JSON-encoded strings. Keep the response type
+  // compatible with both representations and normalize it in the UI adapter.
+  landmarks: string | string[] | null;
+  sub_stops: string | string[] | null;
   regular_fare: number;
   discounted_fare: number;
   latitude: number | null;
@@ -67,7 +70,10 @@ export async function list(routeId?: string): Promise<FarePoint[]> {
     ? `/api/admin/fare-points?route_id=${encodeURIComponent(routeId)}`
     : "/api/admin/fare-points";
 
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  const res = await fetch(url, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
 
   if (!res.ok) {
     const body = await res.json().catch(() => null);
@@ -145,4 +151,18 @@ export async function remove(id: string): Promise<void> {
       res.status
     );
   }
+}
+
+/** Reorder every Fare Point in one route. The backend renumbers them 1..N. */
+export async function reorder(routeId: string, orderedIds: string[]): Promise<FarePoint[]> {
+  const res = await fetch("/api/admin/fare-points/reorder", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ route_id: routeId, ordered_ids: orderedIds }),
+  });
+  const json = await res.json();
+  if (!res.ok) {
+    throw new FarePointError(json.message ?? "Failed to reorder Fare Points.", json.errors ?? {}, res.status);
+  }
+  return json.data as FarePoint[];
 }
