@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import type { ConnectionStatus } from 'laravel-echo';
 import { getEcho } from '@/lib/echo';
 
 /**
@@ -68,12 +69,28 @@ export function useVehicleLocations(): UseVehicleLocationsResult {
   useEffect(() => {
     fetchInitial();
 
-    // Fallback polling — cleared on unmount.
-    const pollId = window.setInterval(fetchInitial, POLL_INTERVAL_MS);
+    // Whether the realtime socket is confirmed connected right now. The 8s
+    // poll below checks this and skips itself while true, so a healthy
+    // Pusher connection doesn't also pay for a redundant REST round-trip +
+    // full-array state replacement every 8s on top of the WebSocket events.
+    // Starts false so the very first tick(s) still poll until the socket
+    // reports in — this is a fallback, not a race with Echo.
+    let isSocketConnected = false;
+    let unsubscribeConnectionChange: (() => void) | null = null;
+
+    const pollId = window.setInterval(() => {
+      if (isSocketConnected) return;
+      fetchInitial();
+    }, POLL_INTERVAL_MS);
 
     let echo: ReturnType<typeof getEcho> | null = null;
     try {
       echo = getEcho();
+      isSocketConnected = echo.connector.connectionStatus() === 'connected';
+      unsubscribeConnectionChange = echo.connector.onConnectionChange((status: ConnectionStatus) => {
+        isSocketConnected = status === 'connected';
+      });
+
       // Leading dot = listen for the exact broadcastAs name
       // ('VehicleLocationUpdated') rather than Echo's namespaced default.
       echo.channel('vehicles').listen('.VehicleLocationUpdated', (event: VehicleLocation) => {
@@ -94,6 +111,7 @@ export function useVehicleLocations(): UseVehicleLocationsResult {
 
     return () => {
       window.clearInterval(pollId);
+      unsubscribeConnectionChange?.();
       if (echo) {
         echo.channel('vehicles').stopListening('.VehicleLocationUpdated');
       }
