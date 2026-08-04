@@ -1,21 +1,37 @@
 "use client";
 
-import { type ChangeEvent, useState } from "react";
+import { type ReactNode, useState } from "react";
 import { useLostAndFound } from "./use-lost-and-found";
 import { categories } from "./data";
 import LostItemCard from "@/components/commuter/lost-and-found/lost-item-card";
-import { ClaimData, ClaimFilter, ClaimStatus, LostItem, ViewTab } from "./types";
-import { BookmarkCheck, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Clock3, ImagePlus, PackageSearch, Search, X, XCircle } from "lucide-react";
-
-interface ProofImage {
-  id: string;
-  file: File;
-  previewUrl: string;
-}
+import { ClaimData, ClaimStatus, ItemCategory, LostItem, ViewTab } from "./types";
+import {
+  AlertTriangle,
+  Bookmark,
+  BookmarkCheck,
+  BusFront,
+  CalendarDays,
+  CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardList,
+  Clock3,
+  FileCheck2,
+  IdCard,
+  PackageSearch,
+  Search,
+  ShieldCheck,
+  Tag,
+  UserRound,
+  X,
+  XCircle,
+} from "lucide-react";
 
 export default function LostAndFoundPage() {
   const {
-    activeTab, handleTabChange, activeCategory, handleCategoryChange, claimFilter, handleClaimFilterChange, searchQuery, handleSearch,
+    activeTab, handleTabChange, activeCategory, handleCategoryChange, searchQuery, handleSearch,
+    selectedDate, handleDateChange,
     setCurrentPage, apiData, isLoading, listError,
     watchlist, toggleWatchlist, claims, claimPageData, openClaimModal, cancelClaim,
     showClaimModal, setShowClaimModal, itemToClaim, proofText, setProofText,
@@ -23,24 +39,19 @@ export default function LostAndFoundPage() {
     displayItems, displayClaims, formatDate, getStatusBadge
   } = useLostAndFound();
   const paginationData = activeTab === "MY_CLAIMS" ? claimPageData : apiData;
-  const visibleTotal = activeTab === "MY_CLAIMS" ? claimPageData.totalItems : apiData.totalItems;
   const pageNumbers = buildVisiblePages(paginationData.currentPage, paginationData.totalPages);
   const tabs: { key: ViewTab; label: string; icon: typeof PackageSearch }[] = [
     { key: "ALL", label: "All Items", icon: PackageSearch },
     { key: "WATCHLIST", label: "Watchlist", icon: BookmarkCheck },
     { key: "MY_CLAIMS", label: "Claims", icon: ClipboardList },
   ];
+  const activeTabLabel = tabs.find((tab) => tab.key === activeTab)?.label ?? "All Items";
+  const activeCategoryLabel = categories.find((cat) => cat.value === activeCategory)?.label ?? "All";
+  const activeFilterCount = Number(Boolean(searchQuery.trim())) + Number(Boolean(selectedDate)) + Number(activeCategory !== "ALL");
 
   // Full-detail view — the card only shows a clamped description and a
   // thumbnail; this surfaces the complete description and a larger photo.
   const [detailItem, setDetailItem] = useState<LostItem | null>(null);
-  const [proofImages, setProofImages] = useState<ProofImage[]>([]);
-  const claimFilters: { label: string; value: ClaimFilter }[] = [
-    { label: "All", value: "ALL" },
-    { label: "Pending", value: "PENDING" },
-    { label: "Validated", value: "VALIDATED" },
-    { label: "Rejected", value: "REJECTED" },
-  ];
   const formatDateTime = (dateStr: string | null) => {
     if (!dateStr) return "Not yet";
     try {
@@ -55,112 +66,120 @@ export default function LostAndFoundPage() {
       return dateStr;
     }
   };
-  const clearProofImages = () => {
-    setProofImages(current => {
-      current.forEach(image => URL.revokeObjectURL(image.previewUrl));
-      return [];
-    });
-  };
   const handleCloseClaimModal = () => {
     setShowClaimModal(false);
-    clearProofImages();
-  };
-  const handleProofImageChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const selected = Array.from(event.target.files ?? []).filter(file => file.type.startsWith("image/"));
-    setProofImages(current => {
-      const slots = Math.max(0, 2 - current.length);
-      const additions = selected.slice(0, slots).map((file, index) => ({
-        id: `${file.name}-${file.lastModified}-${Date.now()}-${index}`,
-        file,
-        previewUrl: URL.createObjectURL(file),
-      }));
-      return [...current, ...additions];
-    });
-    event.target.value = "";
-  };
-  const removeProofImage = (id: string) => {
-    setProofImages(current => {
-      const removed = current.find(image => image.id === id);
-      if (removed) URL.revokeObjectURL(removed.previewUrl);
-      return current.filter(image => image.id !== id);
-    });
   };
   const handleSubmitClaim = async () => {
-    const submitted = await submitClaim();
-    if (submitted) clearProofImages();
+    await submitClaim();
   };
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden bg-[#050F1A] relative">
       
       {/* --- HEADER --- */}
-      <div className="z-10 flex-shrink-0 border-b border-white/10 bg-[#071A2E] p-4 lg:px-8 lg:py-6">
-        <div className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0">
-            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#62A0EA]/20 bg-[#1A5FB4]/15 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#8CB9F0]">
-              <PackageSearch className="h-3.5 w-3.5" />
-              Passenger desk
+      <div className="z-10 flex-shrink-0 border-b border-white/10 bg-[#071A2E]/98 shadow-lg shadow-black/15">
+        <div className="px-4 py-4 lg:px-8 lg:py-5">
+          <div className="mb-4 min-w-0">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#62A0EA]/20 bg-[#1A5FB4]/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[#8CB9F0]">
+                <PackageSearch className="h-3.5 w-3.5" />
+                Passenger desk
+              </span>
+              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white/45">
+                {activeTabLabel}
+              </span>
             </div>
             <h1 className="text-xl font-bold leading-tight text-white lg:text-2xl">Lost & Found</h1>
-            <p className="mt-1 text-xs text-white/45">
-              {visibleTotal} records
-              {paginationData.totalPages > 0 && ` | Page ${paginationData.currentPage} of ${paginationData.totalPages}`}
-            </p>
           </div>
-          <div className="grid w-full grid-cols-3 rounded-xl border border-white/10 bg-[#050F1A] p-1 xl:w-auto">
+
+          <div className="mb-3 grid grid-cols-3 rounded-xl border border-white/10 bg-[#050F1A] p-1">
             {tabs.map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
                 type="button"
                 onClick={() => handleTabChange(key)}
-                className={`inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold transition-all ${
+                className={`relative inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-lg px-2 text-xs font-semibold transition-all sm:px-4 ${
                   activeTab === key
                     ? "bg-[#1A5FB4] text-white shadow-lg shadow-[#1A5FB4]/30"
                     : "text-white/45 hover:bg-white/5 hover:text-white/75"
                 }`}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-4 w-4 flex-shrink-0" />
                 <span className="truncate">{label}</span>
               </button>
             ))}
           </div>
-        </div>
-        <div className="flex flex-col gap-3 lg:flex-row">
-          <div className="relative min-w-0 flex-1">
-            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
-            <input
-              type="text"
-              placeholder={activeTab === "MY_CLAIMS" ? "Search your claims..." : "Search items, plates, driver, conductor..."}
-              value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-[#050F1A] py-3 pl-11 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/30 focus:border-[#62A0EA]"
-            />
-          </div>
-          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar lg:max-w-[52%]">
-            {categories.map(cat => (
-              <button key={cat.value} onClick={() => handleCategoryChange(cat.value)} className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-semibold border transition-colors ${activeCategory === cat.value ? "bg-[#1A5FB4] border-[#1A5FB4] text-white" : "bg-transparent border-white/10 text-white/50 hover:bg-white/5"}`}>
-                {cat.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        {activeTab === "MY_CLAIMS" && (
-          <div className="mt-4 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-            {claimFilters.map(filter => (
-              <button
-                key={filter.value}
-                onClick={() => handleClaimFilterChange(filter.value)}
-                className={`flex-shrink-0 rounded-full border px-4 py-1.5 text-xs font-semibold transition-colors ${
-                  claimFilter === filter.value
-                    ? "border-[#1A5FB4] bg-[#1A5FB4] text-white"
-                    : "border-white/10 bg-transparent text-white/50 hover:bg-white/5"
-                }`}
+
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_13rem_15rem] lg:items-center">
+            <div className="relative min-w-0">
+              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+              <input
+                type="text"
+                placeholder={activeTab === "MY_CLAIMS" ? "Search claims by item, plate, driver, conductor..." : "Search item, plate, driver, or conductor..."}
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+                className="h-11 w-full rounded-xl border border-white/10 bg-[#050F1A] pl-11 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/30 focus:border-[#62A0EA]"
+              />
+            </div>
+            <div className="relative">
+              <CalendarDays className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => handleDateChange(e.target.value)}
+                className="h-11 w-full rounded-xl border border-white/10 bg-[#050F1A] pl-11 pr-10 text-sm font-semibold text-white/70 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
+                aria-label="Filter lost and found items by posted date"
+              />
+              {selectedDate && (
+                <button
+                  type="button"
+                  onClick={() => handleDateChange("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-white/35 transition-colors hover:bg-white/5 hover:text-white/75"
+                  aria-label="Clear date filter"
+                  title="Clear date"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            <div className="relative">
+              <select
+                value={activeCategory}
+                onChange={(e) => handleCategoryChange(e.target.value as ItemCategory)}
+                className="h-11 w-full appearance-none rounded-xl border border-white/10 bg-[#050F1A] px-4 pr-10 text-sm font-semibold text-white/70 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
+                aria-label="Filter lost and found items by category"
               >
-                {filter.label}
-              </button>
-            ))}
+                {categories.map(cat => (
+                  <option key={cat.value} value={cat.value}>{cat.label}</option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+            </div>
           </div>
-        )}
+
+          {activeFilterCount > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {searchQuery.trim() && (
+                <button type="button" onClick={() => handleSearch("")} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/55 hover:bg-white/[0.07] hover:text-white">
+                  Search
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+              {selectedDate && (
+                <button type="button" onClick={() => handleDateChange("")} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/55 hover:bg-white/[0.07] hover:text-white">
+                  {formatDate(selectedDate)}
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+              {activeCategory !== "ALL" && (
+                <button type="button" onClick={() => handleCategoryChange("ALL")} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/55 hover:bg-white/[0.07] hover:text-white">
+                  {activeCategoryLabel}
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* --- GRID --- */}
@@ -283,53 +302,82 @@ export default function LostAndFoundPage() {
 
       {/* --- ITEM DETAIL MODAL --- */}
       {detailItem && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setDetailItem(null)}>
-          <div className="bg-[#071A2E] w-full max-w-lg max-h-[85vh] rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="relative h-56 flex-shrink-0 bg-[#0A1E33]">
-              {detailItem.imageUrl ? (
-                <img src={detailItem.imageUrl} alt={detailItem.itemName} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-white/20">
-                  <PackageSearch className="w-10 h-10" />
-                  <span className="text-[10px] font-semibold uppercase tracking-wider">No photo yet</span>
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setDetailItem(null)}>
+          <div className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#071A2E] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="grid min-h-0 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+              <div className="relative aspect-[4/3] bg-[#0A1E33] lg:aspect-auto lg:min-h-[520px]">
+                {detailItem.imageUrl ? (
+                  <img src={detailItem.imageUrl} alt={detailItem.itemName} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-white/20">
+                    <PackageSearch className="h-12 w-12" />
+                    <span className="text-[10px] font-semibold uppercase tracking-wider">No photo yet</span>
+                  </div>
+                )}
+                <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-4">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-black/50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white backdrop-blur-sm">
+                    <Tag className="h-3 w-3" />
+                    {detailItem.category}
+                  </span>
+                  <button onClick={() => setDetailItem(null)} className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-black/50 text-white transition-colors hover:bg-black/70" aria-label="Close item details">
+                    <X className="h-4 w-4" />
+                  </button>
                 </div>
-              )}
-              <button onClick={() => setDetailItem(null)} className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center bg-black/50 border border-white/20 text-white hover:bg-black/70 transition-colors">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-              <div className="absolute top-3 left-3 bg-black/40 backdrop-blur-sm border border-white/10 text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full">{detailItem.category}</div>
-            </div>
-            <div className="p-6 overflow-y-auto">
-              <h2 className="text-white font-bold text-lg mb-2">{detailItem.itemName}</h2>
-              <p className="text-white/60 text-sm whitespace-pre-wrap mb-5">{detailItem.description}</p>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-3 mb-5 bg-white/5 rounded-xl p-4 border border-white/5">
-                <div><p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold">Plate No.</p><p className="text-xs text-white/80 font-medium">{detailItem.plateNumber}</p></div>
-                <div><p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold">Est. Time</p><p className="text-xs text-white/80 font-medium">{detailItem.estimatedTimeLost}</p></div>
-                <div><p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold">Driver</p><p className="text-xs text-white/80 font-medium">{detailItem.driverName}</p></div>
-                <div><p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold">Conductor</p><p className="text-xs text-white/80 font-medium">{detailItem.conductorName}</p></div>
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent p-4 pt-16">
+                  <p className="text-xs font-semibold text-white/55">Posted {formatDate(detailItem.datePosted)}</p>
+                </div>
               </div>
-              <p className="text-center text-[10px] text-white/20 mb-5">Posted on {formatDate(detailItem.datePosted)}</p>
-              <div className="flex items-center gap-3">
-                {(() => {
-                  const status = claims.get(detailItem.id)?.status || "NONE";
-                  if (status === "PENDING") {
-                    return <button onClick={() => cancelClaim(detailItem.id)} className="flex-1 bg-white/5 hover:bg-white/10 text-white/60 hover:text-white text-sm font-medium py-2.5 rounded-xl border border-white/10 transition-colors">Cancel Claim</button>;
-                  }
-                  if (status === "VALIDATED") {
-                    return <div className="flex-1 bg-white/5 text-sm font-semibold py-2.5 rounded-xl text-center text-emerald-400">Validated - Proceed</div>;
-                  }
-                  return (
-                    <button
-                      onClick={() => { setDetailItem(null); openClaimModal(detailItem); }}
-                      className="flex-1 text-sm font-bold py-2.5 rounded-xl shadow-lg transition-colors bg-[#FF6D3A] hover:bg-[#e55a2b] text-white shadow-[#FF6D3A]/30"
-                    >
-                      {status === "REJECTED" ? "Claim Again" : "Claim Item"}
-                    </button>
-                  );
-                })()}
-                <button onClick={() => toggleWatchlist(detailItem.id)} className={`w-11 h-11 flex-shrink-0 rounded-xl border flex items-center justify-center transition-colors ${watchlist.has(detailItem.id) ? "bg-[#1A5FB4]/20 border-[#62A0EA]/30 text-[#62A0EA]" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}`}>
-                  <svg className="w-5 h-5" fill={watchlist.has(detailItem.id) ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" /></svg>
-                </button>
+
+              <div className="min-h-0 overflow-y-auto p-5 lg:p-6">
+                <div className="mb-5">
+                  <h2 className="text-xl font-bold leading-tight text-white">{detailItem.itemName}</h2>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-white/58">{detailItem.description}</p>
+                </div>
+
+                <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <DetailInfo icon={<IdCard className="h-4 w-4" />} label="Plate Number" value={detailItem.plateNumber || "Plate unavailable"} />
+                  <DetailInfo icon={<Clock3 className="h-4 w-4" />} label="Estimated Time" value={detailItem.estimatedTimeLost || "Time unavailable"} />
+                  <DetailInfo icon={<BusFront className="h-4 w-4" />} label="Driver" value={detailItem.driverName || "Driver unavailable"} />
+                  <DetailInfo icon={<UserRound className="h-4 w-4" />} label="Conductor" value={detailItem.conductorName || "Conductor unavailable"} />
+                </div>
+
+                <div className="mb-5 rounded-xl border border-amber-400/20 bg-amber-400/10 p-3">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
+                    <div>
+                      <p className="text-xs font-bold text-amber-100">Claim reminder</p>
+                      <p className="mt-1 text-xs leading-5 text-amber-100/65">Submit specific proof only if this item is yours. Staff may ask for a valid ID during handover.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {(() => {
+                    const status = claims.get(detailItem.id)?.status || "NONE";
+                    if (status === "PENDING") {
+                      return <button onClick={() => cancelClaim(detailItem.id)} className="h-11 flex-1 rounded-xl border border-white/10 bg-white/5 text-sm font-semibold text-white/65 transition-colors hover:bg-white/10 hover:text-white">Cancel Claim</button>;
+                    }
+                    if (status === "VALIDATED" || status === "RELEASED") {
+                      return (
+                        <div className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-sm font-semibold text-emerald-300">
+                          <ShieldCheck className="h-4 w-4" />
+                          {status === "RELEASED" ? "Released" : "Validated"}
+                        </div>
+                      );
+                    }
+                    return (
+                      <button
+                        onClick={() => { setDetailItem(null); openClaimModal(detailItem); }}
+                        className="h-11 flex-1 rounded-xl bg-[#FF6D3A] text-sm font-bold text-white shadow-lg shadow-[#FF6D3A]/25 transition-colors hover:bg-[#e55a2b]"
+                      >
+                        {status === "REJECTED" ? "Claim Again" : "Claim Item"}
+                      </button>
+                    );
+                  })()}
+                  <button onClick={() => toggleWatchlist(detailItem.id)} className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border transition-colors ${watchlist.has(detailItem.id) ? "border-[#62A0EA]/35 bg-[#1A5FB4]/20 text-[#62A0EA]" : "border-white/10 bg-white/5 text-white/50 hover:bg-white/10 hover:text-white"}`} aria-label={watchlist.has(detailItem.id) ? "Remove from watchlist" : "Add to watchlist"}>
+                    <Bookmark className={`h-5 w-5 ${watchlist.has(detailItem.id) ? "fill-current" : ""}`} />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -338,67 +386,65 @@ export default function LostAndFoundPage() {
 
       {/* --- CLAIM MODAL --- */}
       {showClaimModal && itemToClaim && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="bg-[#071A2E] w-full max-w-lg h-[min(700px,85vh)] rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-hidden">
-            <div className="p-6 border-b border-white/10 flex-shrink-0">
-              <h2 className="text-white font-bold text-lg">Claim this Item?</h2>
-              <p className="text-white/40 text-xs mt-1">You are claiming: <span className="text-[#62A0EA] font-semibold">{itemToClaim.itemName}</span></p>
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="flex h-[min(720px,88vh)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#071A2E] shadow-2xl">
+            <div className="flex flex-shrink-0 items-start justify-between gap-4 border-b border-white/10 p-5">
+              <div className="min-w-0">
+                <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#FF6D3A]/25 bg-[#FF6D3A]/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[#FFB199]">
+                  <FileCheck2 className="h-3.5 w-3.5" />
+                  Claim request
+                </div>
+                <h2 className="text-lg font-bold text-white">Proof of ownership</h2>
+                <p className="mt-1 line-clamp-1 text-xs text-white/45">
+                  {itemToClaim.itemName} on {itemToClaim.plateNumber || "assigned vehicle"}
+                </p>
+              </div>
+              <button onClick={handleCloseClaimModal} className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/50 transition-colors hover:bg-white/10 hover:text-white" aria-label="Close claim modal">
+                <X className="h-4 w-4" />
+              </button>
             </div>
-            <div className="p-6 space-y-4 flex-1 overflow-y-auto">
-              <div>
-                <label className="block text-sm font-semibold text-white/70 mb-2">Proof of Ownership <span className="text-red-400">*</span></label>
-                <textarea rows={6} value={proofText} onChange={(e) => setProofText(e.target.value)} placeholder="Describe a specific detail..." className="w-full bg-[#050F1A] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#62A0EA] transition-colors resize-none" />
-                <p className="text-[10px] text-white/30 mt-2">This will be reviewed by the admin.</p>
-              </div>
-              <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <label className="block text-sm font-semibold text-white/70">Proof Images <span className="text-white/35">(optional)</span></label>
-                  <span className="text-[10px] font-semibold text-white/35">{proofImages.length}/2</span>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {proofImages.map(image => (
-                    <div key={image.id} className="relative overflow-hidden rounded-xl border border-white/10 bg-[#050F1A]">
-                      <img src={image.previewUrl} alt={image.file.name} className="h-28 w-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => removeProofImage(image.id)}
-                        className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-black/60 text-white hover:bg-black/80"
-                        aria-label={`Remove ${image.file.name}`}
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                      <p className="truncate px-2 py-1.5 text-[10px] text-white/50">{image.file.name}</p>
-                    </div>
-                  ))}
-                  {proofImages.length < 2 && (
-                    <label className="flex h-36 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-white/15 bg-white/5 text-center text-white/45 transition-colors hover:border-[#62A0EA]/60 hover:text-white">
-                      <ImagePlus className="mb-2 h-6 w-6" />
-                      <span className="text-xs font-semibold">Add image</span>
-                      <span className="mt-1 text-[10px] text-white/30">JPG, PNG, or WEBP</span>
-                      <input type="file" accept="image/*" multiple onChange={handleProofImageChange} className="sr-only" />
-                    </label>
-                  )}
+
+            <div className="flex-1 space-y-4 overflow-y-auto p-5">
+              <div className="rounded-xl border border-white/8 bg-white/[0.04] p-3">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <DetailInfo icon={<Tag className="h-4 w-4" />} label="Category" value={itemToClaim.category} />
+                  <DetailInfo icon={<Clock3 className="h-4 w-4" />} label="Estimated Time" value={itemToClaim.estimatedTimeLost || "Time unavailable"} />
                 </div>
               </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-white/75">Proof of Ownership <span className="text-red-400">*</span></label>
+                <textarea
+                  rows={6}
+                  value={proofText}
+                  onChange={(e) => setProofText(e.target.value)}
+                  placeholder="Describe a specific detail, where you sat, unique marks, contents, or anything staff can verify."
+                  className="w-full resize-none rounded-xl border border-white/10 bg-[#050F1A] px-4 py-3 text-sm leading-6 text-white outline-none transition-colors placeholder:text-white/30 focus:border-[#62A0EA]"
+                />
+                <p className="mt-2 text-[10px] font-medium text-white/30">This proof is visible to the admin reviewer.</p>
+              </div>
+
               {claimError && (
-                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 flex items-start gap-2">
-                  <svg className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
-                  <p className="text-red-400 text-xs font-medium">{claimError}</p>
+                <div className="flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-400" />
+                  <p className="text-xs font-medium leading-5 text-red-300">{claimError}</p>
                 </div>
               )}
-              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-start gap-3">
-                <svg className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
+
+              <div className="flex items-start gap-3 rounded-xl border border-amber-400/20 bg-amber-400/10 p-3">
+                <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
                 <div>
-                  <p className="text-amber-200 text-xs font-bold">Reminder</p>
-                  <p className="text-amber-200/60 text-[10px]">You must present a valid ID matching this proof when claiming at the office.</p>
+                  <p className="text-xs font-bold text-amber-100">Reminder</p>
+                  <p className="mt-1 text-xs leading-5 text-amber-100/65">Bring a valid ID during handover. Staff may reject claims that do not match the item details.</p>
                 </div>
               </div>
             </div>
-            <div className="p-6 border-t border-white/10 flex gap-3 flex-shrink-0">
-              <button onClick={handleCloseClaimModal} className="flex-1 bg-white/5 hover:bg-white/10 text-white/70 text-sm font-semibold py-3 rounded-xl border border-white/10 transition-colors">Cancel</button>
-              <button onClick={handleSubmitClaim} disabled={!proofText.trim() || isSubmittingClaim} className={`flex-1 text-sm font-bold py-3 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 ${!proofText.trim() || isSubmittingClaim ? "bg-white/10 text-white/30 cursor-not-allowed" : "bg-[#FF6D3A] hover:bg-[#e55a2b] text-white shadow-[#FF6D3A]/30"}`}>
+
+            <div className="grid flex-shrink-0 grid-cols-2 gap-3 border-t border-white/10 p-5">
+              <button onClick={handleCloseClaimModal} className="h-11 rounded-xl border border-white/10 bg-white/5 text-sm font-semibold text-white/70 transition-colors hover:bg-white/10 hover:text-white">Cancel</button>
+              <button onClick={handleSubmitClaim} disabled={!proofText.trim() || isSubmittingClaim} className={`flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-bold shadow-lg transition-colors ${!proofText.trim() || isSubmittingClaim ? "cursor-not-allowed bg-white/10 text-white/30 shadow-none" : "bg-[#FF6D3A] text-white shadow-[#FF6D3A]/30 hover:bg-[#e55a2b]"}`}>
                 {isSubmittingClaim ? (
-                  <span className="inline-flex items-center gap-2"><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Submitting...</span>
+                  <span className="inline-flex items-center gap-2"><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Submitting...</span>
                 ) : "Submit Claim"}
               </button>
             </div>
@@ -429,6 +475,20 @@ function buildVisiblePages(currentPage: number, totalPages: number): (number | "
   }, []);
 }
 
+function DetailInfo({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex min-w-0 items-start gap-3 rounded-xl border border-white/8 bg-white/[0.04] p-3">
+      <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-black/20 text-[#62A0EA]">
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-white/35">{label}</p>
+        <p className="mt-0.5 break-words text-sm font-semibold text-white/85">{value}</p>
+      </div>
+    </div>
+  );
+}
+
 function ClaimRecordCard({
   claim,
   formatDateTime,
@@ -445,30 +505,42 @@ function ClaimRecordCard({
   onOpenDetails: (item: LostItem) => void;
 }) {
   const item = claim.item;
+  const [isTimelineOpen, setIsTimelineOpen] = useState(false);
   const statusMeta = {
     PENDING: {
       icon: <Clock3 className="h-4 w-4" />,
-      title: "Pending review",
-      dateLabel: "Submitted",
+      title: "Claim Submitted",
+      summary: "Waiting for staff review",
       dateValue: formatDateTime(claim.claimDate),
+      panelClass: "border-amber-500/20 bg-amber-500/10 text-amber-100",
     },
     VALIDATED: {
       icon: <CheckCircle2 className="h-4 w-4" />,
-      title: "Validated",
-      dateLabel: "Validated",
-      dateValue: formatDateTime(claim.reviewedAt),
+      title: "Ready for Release",
+      summary: "Your claim was approved. Bring a valid ID for handover.",
+      dateValue: formatDateTime(claim.approvedAt ?? claim.reviewedAt),
+      panelClass: "border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
     },
     REJECTED: {
       icon: <XCircle className="h-4 w-4" />,
       title: "Rejected",
-      dateLabel: "Rejected",
-      dateValue: formatDateTime(claim.reviewedAt),
+      summary: claim.rejectionReason ?? "Staff rejected this claim.",
+      dateValue: formatDateTime(claim.rejectedAt ?? claim.reviewedAt),
+      panelClass: "border-red-500/20 bg-red-500/10 text-red-100",
+    },
+    RELEASED: {
+      icon: <ShieldCheck className="h-4 w-4" />,
+      title: "Released",
+      summary: "The item has been released by staff.",
+      dateValue: formatDateTime(claim.releasedAt),
+      panelClass: "border-[#62A0EA]/20 bg-[#62A0EA]/10 text-[#D7E8FF]",
     },
   }[claim.status];
+  const timelineSteps = buildClaimTimeline(claim, item);
 
   return (
     <div className="rounded-2xl border border-white/10 bg-[#071A2E] p-4 shadow-lg shadow-black/20">
-      <div className="flex gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row">
         <button
           type="button"
           disabled={!item}
@@ -496,24 +568,59 @@ function ClaimRecordCard({
             </span>
           </div>
 
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <div className="rounded-xl border border-white/5 bg-white/5 p-3">
-              <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-white/35">
-                <CalendarDays className="h-3.5 w-3.5" />
-                {statusMeta.dateLabel}
+          <div className={`mt-3 rounded-xl border p-3 ${statusMeta.panelClass}`}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-start gap-3">
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-current/20 bg-black/15">
+                  {statusMeta.icon}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold">{statusMeta.title}</p>
+                  <p className="mt-1 text-xs leading-5 opacity-70">{statusMeta.summary}</p>
+                </div>
               </div>
-              <p className="text-xs font-medium text-white/75">{statusMeta.dateValue}</p>
-            </div>
-            <div className="rounded-xl border border-white/5 bg-white/5 p-3">
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/35">Claim proof</p>
-              <p className="line-clamp-2 text-xs text-white/65">{claim.proof || "No proof text"}</p>
+              <div className="flex flex-shrink-0 items-center gap-2 text-xs font-semibold opacity-80">
+                <CalendarDays className="h-3.5 w-3.5" />
+                {statusMeta.dateValue}
+              </div>
             </div>
           </div>
 
-          {claim.status === "REJECTED" && claim.rejectionReason && (
-            <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/10 p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-red-200/70">Reason</p>
-              <p className="mt-1 text-xs text-red-100/75">{claim.rejectionReason}</p>
+          <button
+            type="button"
+            onClick={() => setIsTimelineOpen((current) => !current)}
+            className="mt-3 flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-left text-xs font-semibold text-white/65 transition-colors hover:bg-white/[0.07] hover:text-white"
+            aria-expanded={isTimelineOpen}
+          >
+            <span>Claim history</span>
+            <ChevronDown className={`h-4 w-4 transition-transform ${isTimelineOpen ? "rotate-180" : ""}`} />
+          </button>
+
+          {isTimelineOpen && (
+            <div className="mt-3 rounded-xl border border-white/8 bg-white/[0.03] p-3">
+              <div className="space-y-0">
+                {timelineSteps.map((step, index) => (
+                  <div key={step.key} className="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-3">
+                    <div className="flex flex-col items-center">
+                      <div className={`flex h-7 w-7 items-center justify-center rounded-full border ${step.tone}`}>
+                        {step.icon}
+                      </div>
+                      {index < timelineSteps.length - 1 && <div className="h-full min-h-6 w-px bg-white/10" />}
+                    </div>
+                    <div className={index < timelineSteps.length - 1 ? "pb-4" : ""}>
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                        <p className="text-sm font-bold text-white">{step.label}</p>
+                        <p className="text-xs font-semibold text-white/45">{formatDateTime(step.date)}</p>
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-white/50">{step.detail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 rounded-lg border border-white/5 bg-black/15 p-3">
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/35">Proof of ownership</p>
+                <p className="text-xs leading-5 text-white/65">{claim.proof || "No proof text"}</p>
+              </div>
             </div>
           )}
 
@@ -533,14 +640,67 @@ function ClaimRecordCard({
                 Claim Again
               </button>
             )}
-            {claim.status === "VALIDATED" && (
-              <span className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300">
-                Ready for staff handover
-              </span>
-            )}
           </div>
         </div>
       </div>
     </div>
   );
+}
+
+interface ClaimTimelineStep {
+  key: string;
+  label: string;
+  date: string | null;
+  detail: string;
+  icon: ReactNode;
+  tone: string;
+}
+
+function buildClaimTimeline(claim: ClaimData, item: LostItem | null): ClaimTimelineStep[] {
+  const itemName = item?.itemName ?? "this item";
+  const steps: ClaimTimelineStep[] = [
+    {
+      key: "submitted",
+      label: "Claim Submitted",
+      date: claim.claimDate,
+      detail: `Your proof for ${itemName} was submitted for staff review.`,
+      icon: <Clock3 className="h-3.5 w-3.5" />,
+      tone: "border-amber-500/35 bg-amber-500/15 text-amber-300",
+    },
+  ];
+
+  if (claim.status === "VALIDATED" || claim.status === "RELEASED") {
+    steps.push({
+      key: "approved",
+      label: "Approved",
+      date: claim.approvedAt ?? claim.reviewedAt,
+      detail: "Staff approved the claim. The item is ready for release once identity is verified.",
+      icon: <CheckCircle2 className="h-3.5 w-3.5" />,
+      tone: "border-emerald-500/35 bg-emerald-500/15 text-emerald-300",
+    });
+  }
+
+  if (claim.status === "RELEASED") {
+    steps.push({
+      key: "released",
+      label: "Released",
+      date: claim.releasedAt,
+      detail: "Staff recorded the item handover and completed this claim.",
+      icon: <ShieldCheck className="h-3.5 w-3.5" />,
+      tone: "border-[#62A0EA]/35 bg-[#62A0EA]/15 text-[#8CB9F0]",
+    });
+  }
+
+  if (claim.status === "REJECTED") {
+    steps.push({
+      key: "rejected",
+      label: "Rejected",
+      date: claim.rejectedAt ?? claim.reviewedAt,
+      detail: claim.rejectionReason ?? "Staff rejected the claim after review.",
+      icon: <XCircle className="h-3.5 w-3.5" />,
+      tone: "border-red-500/35 bg-red-500/15 text-red-300",
+    });
+  }
+
+  return steps;
 }

@@ -32,6 +32,10 @@
   --admin-success: #22C55E;
   --admin-warning: #F59E0B;
   --admin-danger: #EF4444;
+
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: #1A5FB4;
+  --scrollbar-thumb-hover: #62A0EA;
 }
 
 @theme inline {
@@ -54,10 +58,41 @@ body {
   font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
 }
 
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border: 2px solid var(--scrollbar-track);
+  border-radius: 9999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* ─── Admin Scope: apply design tokens inside admin layout ─── */
 .admin-shell {
   --background: var(--admin-bg);
   --foreground: var(--admin-text-primary);
+  --scrollbar-track: #0B1120;
+  --scrollbar-thumb: #24354F;
+  --scrollbar-thumb-hover: #3A5480;
   background: var(--admin-bg);
   color: var(--admin-text-primary);
 }

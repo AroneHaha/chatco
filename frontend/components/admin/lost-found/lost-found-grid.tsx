@@ -16,7 +16,7 @@ import type { LostFoundItem } from '@/app/(admin)/lost-found/data/lost-found-dat
 
 interface LostFoundGridProps {
   items: LostFoundItem[];
-  claimSummaries?: Record<string, { total: number; pending: number; accepted: number }>;
+  claimSummaries?: Record<string, { total: number; pending: number; accepted: number; hasNewPending?: boolean }>;
   onViewClaims: (itemId: string) => void;
   onViewDetails: (itemId: string) => void;
   onEdit: (item: LostFoundItem) => void;
@@ -49,29 +49,12 @@ function getBadgeVariant(status: LostFoundItem['status']): 'success' | 'warning'
   }
 }
 
-function getStatusCopy(status: LostFoundItem['status']): string {
-  switch (status) {
-    case 'Unmatched':
-      return 'Waiting for owner';
-    case 'Claimed':
-      return 'Review claim';
-    case 'Released':
-      return 'Ready to close';
-    case 'Closed':
-      return 'Finalized';
-    case 'Expired':
-      return 'Archived';
-    default:
-      return status;
-  }
-}
-
 export function LostFoundGrid({ items, claimSummaries = {}, onViewClaims, onViewDetails, onEdit, onClose, onReactivate, isActing }: LostFoundGridProps) {
   return (
     <>
       {items.map((item) => {
         const claimSummary = claimSummaries[item.id] ?? { total: 0, pending: 0, accepted: 0 };
-        const hasNewClaims = claimSummary.pending > 0;
+        const hasNewClaims = Boolean(claimSummary.hasNewPending);
         const isClaimed = claimSummary.accepted > 0 || item.status === 'Released' || item.status === 'Closed';
 
         return (
@@ -113,16 +96,6 @@ export function LostFoundGrid({ items, claimSummaries = {}, onViewClaims, onView
                 <span className="mx-1 h-1 w-1 rounded-full bg-white/15" />
                 <span className="min-w-0 truncate">{item.conductorName || 'Conductor unavailable'}</span>
               </div>
-            </div>
-
-            <div className="mb-4 rounded-lg border border-white/8 bg-[#0E1628] p-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Workflow</span>
-                <span className="text-[10px] font-semibold text-[#8CB9F0]">{getStatusCopy(item.status)}</span>
-              </div>
-              <p className="mt-1 text-xs text-slate-400">
-                {item.claimedBy ? `Claimant: ${item.claimedBy}` : `Reported by ${item.reporterName}`}
-              </p>
             </div>
 
             <div className="mt-auto grid grid-cols-3 gap-2">

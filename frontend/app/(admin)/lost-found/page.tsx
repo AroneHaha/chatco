@@ -8,16 +8,18 @@ import { EditLostFoundModal, type EditLostFoundFormData } from '@/components/adm
 import { ViewItemModal } from '@/components/admin/lost-found/view-item-modal';
 import { ClaimsListModal } from '@/components/admin/lost-found/claims-list-modal';
 import {
-  AlertTriangle,
   Archive,
+  CalendarDays,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   ClipboardList,
   History,
   PackageSearch,
   Plus,
   Search,
+  X,
 } from 'lucide-react';
 import {
   itemCategoriesWithAll,
@@ -48,6 +50,29 @@ import {
 
 type AdminTab = 'ALL' | 'PENDING_CLAIMS' | 'TO_RELEASE' | 'HISTORY' | 'EXPIRED';
 type PageMeta = { page: number; lastPage: number; total: number };
+type ViewedClaimMarkers = Record<string, string>;
+
+const VIEWED_CLAIMS_STORAGE_KEY = 'chatco.admin.lostFound.viewedPendingClaims.v1';
+
+function pendingClaimSignature(claims: Claim[]): string {
+  return claims
+    .filter((claim) => claim.status === 'Pending')
+    .map((claim) => claim.id)
+    .sort()
+    .join('|');
+}
+
+function readViewedClaimMarkers(): ViewedClaimMarkers {
+  if (typeof window === 'undefined') return {};
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(VIEWED_CLAIMS_STORAGE_KEY) ?? '{}');
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as ViewedClaimMarkers
+      : {};
+  } catch {
+    return {};
+  }
+}
 
 /**
  * Sprint 6 (S6-T8) — Admin Lost & Found management, wired to the real backend.
@@ -87,10 +112,12 @@ export default function LostFoundPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [isActing, setIsActing] = useState(false);
   const [pageMeta, setPageMeta] = useState<PageMeta>({ page: 1, lastPage: 1, total: 0 });
+  const [viewedClaimMarkers, setViewedClaimMarkers] = useState<ViewedClaimMarkers>(readViewedClaimMarkers);
 
   const [activeTab, setActiveTab] = useState<AdminTab>('ALL');
   const [activeCategory, setActiveCategory] = useState<ItemCategory | 'ALL'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDate, setSelectedDate] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 15;
 
@@ -107,7 +134,8 @@ export default function LostFoundPage() {
         perPage: ITEMS_PER_PAGE,
         category: activeCategory === 'ALL' ? undefined : activeCategory,
         search: searchQuery.trim() || undefined,
-        ...(activeTab === 'ALL' ? { statuses: ['AVAILABLE', 'CLAIMED', 'APPROVED', 'RELEASED', 'EXPIRED'] } : {}),
+        date: selectedDate || undefined,
+        ...(activeTab === 'ALL' ? { statuses: ['AVAILABLE', 'CLAIMED'] } : {}),
         ...(activeTab === 'EXPIRED' ? { status: 'EXPIRED' } : {}),
         ...(activeTab === 'HISTORY' ? { status: 'CLOSED' } : {}),
         ...(activeTab === 'PENDING_CLAIMS' ? { status: 'CLAIMED' } : {}),
@@ -128,7 +156,7 @@ export default function LostFoundPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentPage, activeCategory, activeTab, searchQuery]);
+  }, [currentPage, activeCategory, activeTab, searchQuery, selectedDate]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -167,22 +195,20 @@ export default function LostFoundPage() {
   const displayItems = filteredItems;
   const pageNumbers = buildVisiblePages(pageMeta.page, totalPages);
   const claimSummaries = Object.fromEntries(
-    Object.entries(claimsByItem).map(([itemId, itemClaims]) => [
-      itemId,
-      {
+    Object.entries(claimsByItem).map(([itemId, itemClaims]) => {
+      const pendingSignature = pendingClaimSignature(itemClaims);
+      return [
+        itemId,
+        {
         total: itemClaims.length,
         pending: itemClaims.filter((claim) => claim.status === 'Pending').length,
         approved: itemClaims.filter((claim) => claim.status === 'Approved').length,
         accepted: itemClaims.filter((claim) => claim.status === 'Approved' || claim.status === 'Released' || claim.status === 'Returned').length,
-      },
-    ]),
+          hasNewPending: pendingSignature !== '' && viewedClaimMarkers[itemId] !== pendingSignature,
+        },
+      ];
+    }),
   );
-  const dashboardStats = [
-    { label: 'Shown', value: displayItems.length, icon: PackageSearch },
-    { label: 'New claims', value: Object.values(claimSummaries).filter((summary) => summary.pending > 0).length, icon: ClipboardList },
-    { label: 'To release', value: Object.values(claimSummaries).filter((summary) => summary.approved > 0).length, icon: CheckCircle2 },
-    { label: 'Expired', value: items.filter((item) => item.status === 'Expired').length, icon: AlertTriangle },
-  ];
   const tabs: { key: AdminTab; label: string; description: string; icon: typeof PackageSearch }[] = [
     { key: 'ALL', label: 'All Items', description: 'Open inventory', icon: PackageSearch },
     { key: 'PENDING_CLAIMS', label: 'Claim Review', description: 'New and pending only', icon: ClipboardList },
@@ -193,7 +219,24 @@ export default function LostFoundPage() {
 
   const handleOpenAddModal = () => setIsAddModalOpen(true);
   const handleCloseAddModal = () => setIsAddModalOpen(false);
-  const handleOpenClaimsModal = (itemId: string) => { setSelectedItemId(itemId); setIsClaimsModalOpen(true); };
+  const markClaimsViewed = useCallback((itemId: string) => {
+    const signature = pendingClaimSignature(claimsByItem[itemId] ?? []);
+    setViewedClaimMarkers((prev) => {
+      const next = { ...prev, [itemId]: signature };
+      try {
+        window.localStorage.setItem(VIEWED_CLAIMS_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // Best-effort only; the in-memory state still clears the indicator.
+      }
+      return next;
+    });
+  }, [claimsByItem]);
+
+  const handleOpenClaimsModal = (itemId: string) => {
+    markClaimsViewed(itemId);
+    setSelectedItemId(itemId);
+    setIsClaimsModalOpen(true);
+  };
   const handleCloseClaimsModal = () => { setSelectedItemId(null); setIsClaimsModalOpen(false); };
   const handleOpenDetailModal = (itemId: string) => { setSelectedItemId(itemId); setIsDetailModalOpen(true); };
   const handleCloseDetailModal = () => { setSelectedItemId(null); setIsDetailModalOpen(false); };
@@ -319,7 +362,6 @@ export default function LostFoundPage() {
         setClaimsByItem((prev) => ({ ...prev, [itemId]: fresh.map(mapServiceClaimToAdmin) }));
       } catch { /* claims modal will show stale; non-fatal */ }
       void refresh();
-      setIsClaimsModalOpen(false);
     } catch (err) {
       setActionError(err instanceof LostFoundOperationError ? err.message : 'Unable to process this claim.');
       throw err; // re-throw so the modal stays open on error
@@ -379,18 +421,6 @@ export default function LostFoundPage() {
           </button>
         </div>
 
-        <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
-          {dashboardStats.map(({ label, value, icon: Icon }) => (
-            <div key={label} className="rounded-xl border border-white/10 bg-[#0E1628] p-3">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</span>
-                <Icon className="h-4 w-4 text-[#62A0EA]" />
-              </div>
-              <p className="text-2xl font-bold leading-none text-white">{value}</p>
-            </div>
-          ))}
-        </div>
-
         <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-5">
           {tabs.map(({ key, label, description, icon: Icon }) => (
             <button
@@ -412,8 +442,8 @@ export default function LostFoundPage() {
           ))}
         </div>
 
-        <div className="flex flex-col gap-3 lg:flex-row">
-          <div className="relative min-w-0 flex-1">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,34rem)_13rem_15rem] lg:items-center">
+          <div className="relative min-w-0">
             <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
             <input
               type="text"
@@ -423,20 +453,41 @@ export default function LostFoundPage() {
               className="w-full rounded-xl border border-white/10 bg-[#0E1628] py-3 pl-11 pr-4 text-sm text-white outline-none transition-colors placeholder:text-slate-500 focus:border-[#62A0EA]"
             />
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar lg:max-w-[52%]">
-            {itemCategoriesWithAll.map(cat => (
+          <div className="relative">
+            <CalendarDays className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => { setSelectedDate(e.target.value); setCurrentPage(1); }}
+              className="h-11 w-full rounded-xl border border-white/10 bg-[#0E1628] py-3 pl-11 pr-10 text-sm font-semibold text-slate-300 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
+              aria-label="Filter lost items by posted date"
+            />
+            {selectedDate && (
               <button
-                key={cat.value}
-                onClick={() => { setActiveCategory(cat.value); setCurrentPage(1); }}
-                className={`flex-shrink-0 rounded-full border px-4 py-1.5 text-xs font-semibold transition-colors ${
-                  activeCategory === cat.value
-                    ? 'border-[#62A0EA] bg-[#1A5FB4] text-white'
-                    : 'border-white/10 bg-transparent text-slate-500 hover:bg-white/5 hover:text-slate-300'
-                }`}
+                type="button"
+                onClick={() => { setSelectedDate(''); setCurrentPage(1); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-500 transition-colors hover:bg-white/5 hover:text-slate-200"
+                aria-label="Clear date filter"
+                title="Clear date"
               >
-                {cat.label}
+                <X className="h-3.5 w-3.5" />
               </button>
-            ))}
+            )}
+          </div>
+          <div className="relative">
+            <select
+              value={activeCategory}
+              onChange={(e) => { setActiveCategory(e.target.value as ItemCategory | 'ALL'); setCurrentPage(1); }}
+              className="h-11 w-full appearance-none rounded-xl border border-white/10 bg-[#0E1628] px-4 pr-10 text-sm font-semibold text-slate-300 outline-none transition-colors focus:border-[#62A0EA]"
+              aria-label="Filter lost items by category"
+            >
+              {itemCategoriesWithAll.map(cat => (
+                <option key={cat.value} value={cat.value}>
+                  {cat.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
           </div>
         </div>
       </div>
@@ -609,6 +660,9 @@ function mapServiceClaimToAdmin(claim: ServiceClaim): Claim {
     claimantEmail: claim.claimantEmail ?? undefined,
     claimDate: claim.claimDate,
     status: claim.displayStatus as ClaimStatus,
+    approvedAt: claim.approvedAt,
+    rejectedAt: claim.rejectedAt,
+    releasedAt: claim.releasedAt,
     proof: claim.proof,
     linkedAccount: claim.linkedAccount,
   };
