@@ -6,7 +6,9 @@ use App\Enums\UserRole;
 use App\Exceptions\AccountSuspendedException;
 use App\Exceptions\RegistrationPendingException;
 use App\Models\CommuterProfile;
+use App\Models\ConductorProfile;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -14,6 +16,15 @@ use Illuminate\Validation\ValidationException;
 
 class AuthService
 {
+    /**
+     * A valid (but unused) bcrypt hash to check the submitted password
+     * against when no account was found, so a nonexistent login and a wrong
+     * password take the same amount of time. Without this, Hash::check is
+     * skipped entirely on a miss and the response returns measurably faster,
+     * letting an attacker enumerate valid emails/usernames by timing alone.
+     */
+    private const DUMMY_PASSWORD_HASH = '$2y$12$B.44LXKXybjm672nQTiDeeCEcR.cqHjJAueeBHBI/y.SrDDaIc.FG';
+
     public function __construct(
         private RegistrationGuard $registrationGuard,
         private EmailVerificationService $emailVerification,
@@ -21,7 +32,6 @@ class AuthService
 
     /**
      * Login with email, conductor generated_username, or commuter username.
-     * Single optimized query with eager-loaded profiles.
      *
      * A commuter can sign in with EITHER their email OR the username they
      * chose at sign-up — both resolve to the same account. Conductors use
@@ -31,28 +41,9 @@ class AuthService
      */
     public function login(string $login, string $password): array
     {
-        // Group the identity checks in a single closure so the SoftDeletes
-        // scope (deleted_at IS NULL) wraps the whole OR set — otherwise SQL
-        // precedence (AND binds tighter than OR) would let the orWhereHas
-        // branches match soft-deleted (rejected) accounts.
-        $user = User::with([
-            'adminProfile',
-            'conductorProfile',
-            'commuterProfile',
-            'activeSuspension',
-        ])
-            ->where(function ($q) use ($login) {
-                $q->where('email', $login)
-                    ->orWhereHas('conductorProfile', function ($qq) use ($login) {
-                        $qq->where('generated_username', $login);
-                    })
-                    ->orWhereHas('commuterProfile', function ($qq) use ($login) {
-                        $qq->where('username', $login);
-                    });
-            })
-            ->first();
+        $user = $this->resolveLoginUser($login);
 
-        if (! $user || ! Hash::check($password, $user->password)) {
+        if (! $user || ! Hash::check($password, $user->password ?? self::DUMMY_PASSWORD_HASH)) {
             throw ValidationException::withMessages([
                 'login' => ['The provided credentials are incorrect.'],
             ]);
@@ -111,6 +102,41 @@ class AuthService
             'user' => $user,
             'token' => $token,
         ];
+    }
+
+    /**
+     * Resolve a login identifier (email, conductor generated_username, or
+     * commuter username) to a User with all profile relations eager loaded.
+     *
+     * Deliberately three targeted lookups instead of one query ORing across
+     * `email` and two `whereHas` subqueries: MySQL cannot use the unique
+     * index on `users.email` when it's OR'd against correlated EXISTS
+     * subqueries on other tables, so that shape degrades to a full table
+     * scan of `users` on every login attempt (confirmed via EXPLAIN). Each
+     * branch below hits its own unique index instead — email is checked
+     * first since it's the common case, and the SoftDeletes scope on both
+     * User and the profile models still excludes rejected/removed accounts.
+     */
+    private function resolveLoginUser(string $login): ?User
+    {
+        $with = ['adminProfile', 'conductorProfile', 'commuterProfile', 'activeSuspension'];
+
+        $user = User::with($with)->where('email', $login)->first();
+        if ($user) {
+            return $user;
+        }
+
+        $conductorId = ConductorProfile::where('generated_username', $login)->value('id');
+        if ($conductorId) {
+            return User::with($with)->find($conductorId);
+        }
+
+        $commuterId = CommuterProfile::where('username', $login)->value('id');
+        if ($commuterId) {
+            return User::with($with)->find($commuterId);
+        }
+
+        return null;
     }
 
     /**
@@ -199,37 +225,48 @@ class AuthService
             ]);
         }
 
-        $created = DB::transaction(function () use ($data): array {
-            $user = User::create([
-                'email' => $data['email'],
-                'password' => $data['password'], // 'hashed' cast on User
-                'role' => UserRole::COMMUTER,
-            ]);
+        // The exists() check above is a TOCTOU race: two requests for the same
+        // email submitted close together can both pass it and both reach
+        // User::create(). The DB-level unique index (users.email, and
+        // commuter_profiles.username below it) is the real guard against a
+        // duplicate account — this try/catch just translates that guard's
+        // failure into the same friendly ValidationException the pre-check
+        // throws, instead of letting a raw QueryException surface as a 500.
+        try {
+            $created = DB::transaction(function () use ($data): array {
+                $user = User::create([
+                    'email' => $data['email'],
+                    'password' => $data['password'], // 'hashed' cast on User
+                    'role' => UserRole::COMMUTER,
+                ]);
 
-            $profile = CommuterProfile::create([
-                'id' => $user->id,
-                'first_name' => $data['first_name'],
-                'middle_name' => $data['middle_name'] ?? null,
-                'surname' => $data['surname'],
-                'birthdate' => $data['birthdate'],
-                'gender' => $data['gender'],
-                'email' => $data['email'],
-                'contact_number' => $data['contact_number'],
-                'commuter_type' => $data['applied_type'],
-                'applied_type' => $data['applied_type'],
-                'username' => $data['username'],
-                'language_preference' => $data['language_preference'] ?? 'English',
-                'account_status' => 'PENDING',
-                'id_image_url' => $this->storeIdImage($user, $data['id_image']),
-                'verified_at' => null,
-                'rejection_reason' => null,
-            ]);
+                $profile = CommuterProfile::create([
+                    'id' => $user->id,
+                    'first_name' => $data['first_name'],
+                    'middle_name' => $data['middle_name'] ?? null,
+                    'surname' => $data['surname'],
+                    'birthdate' => $data['birthdate'],
+                    'gender' => $data['gender'],
+                    'email' => $data['email'],
+                    'contact_number' => $data['contact_number'],
+                    'commuter_type' => $data['applied_type'],
+                    'applied_type' => $data['applied_type'],
+                    'username' => $data['username'],
+                    'language_preference' => $data['language_preference'] ?? 'English',
+                    'account_status' => 'PENDING',
+                    'id_image_url' => $this->storeIdImage($user, $data['id_image']),
+                    'verified_at' => null,
+                    'rejection_reason' => null,
+                ]);
 
-            return [
-                'user' => $user,
-                'profile' => $profile,
-            ];
-        });
+                return [
+                    'user' => $user,
+                    'profile' => $profile,
+                ];
+            });
+        } catch (QueryException $e) {
+            throw $this->translateUniqueViolation($e);
+        }
 
         // One account per verification. Burning it here (after the transaction
         // commits) stops a single verified address from being replayed into a
@@ -237,6 +274,41 @@ class AuthService
         $this->emailVerification->consume($data['email']);
 
         return $created;
+    }
+
+    /**
+     * Turn a DB-level unique-index violation into the same friendly
+     * ValidationException the pre-checks throw, so a benign race (two
+     * submissions for the same email/username landing inside the same
+     * few milliseconds) reaches the applicant as a normal form error
+     * instead of a 500.
+     *
+     * SQLSTATE 23000 is "integrity constraint violation" on every driver
+     * Laravel supports (unique, not-null, FK...); we only want to translate
+     * the two unique keys this endpoint can actually hit, so anything else
+     * — including a 23000 from an unrelated constraint — is rethrown as-is.
+     */
+    private function translateUniqueViolation(QueryException $e): \Throwable
+    {
+        if ($e->getCode() !== '23000') {
+            return $e;
+        }
+
+        $message = $e->getMessage();
+
+        if (str_contains($message, 'users_email_unique')) {
+            return ValidationException::withMessages([
+                'email' => ['This email is already registered. Sign in instead, or use "Forgot password" if you can\'t get in.'],
+            ]);
+        }
+
+        if (str_contains($message, 'commuter_profiles_username_unique')) {
+            return ValidationException::withMessages([
+                'username' => ['The username has already been taken.'],
+            ]);
+        }
+
+        return $e;
     }
 
     /**
