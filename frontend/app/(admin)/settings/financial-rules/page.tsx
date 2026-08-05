@@ -157,6 +157,9 @@ export default function FinancialRulesPage() {
                 name="ridesForFreeReward"
                 value={rules.ridesForFreeReward}
                 onChange={handleChange}
+                min={1}
+                max={100}
+                step={1}
                 required
                 className="block w-full px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors"
               />

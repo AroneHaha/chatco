@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers\Commuter;
 
+use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Commuter\ChangePasswordRequest;
 use App\Http\Requests\Commuter\UpdateLocationRequest;
 use App\Http\Requests\Commuter\UpdateProfileRequest;
-use App\Enums\PaymentMethod;
 use App\Models\CommuterLocation;
 use App\Models\Setting;
 use App\Models\Transaction;
@@ -158,8 +158,9 @@ class CommuterController extends Controller
             return $this->errorResponse('Commuter profile required.', 422);
         }
 
-        // Configurable threshold (default 10 rides = 1 free ride).
-        $ridesForFreeReward = (int) (Setting::where('key', 'rides_for_free_reward')->value('value') ?? 10);
+        // Configurable threshold (default 10 rides = 1 free ride). The model
+        // validates legacy/manual values too, guaranteeing a non-zero divisor.
+        $ridesForFreeReward = Setting::ridesForFreeReward();
 
         // Count PAID non-voucher rides (CASH + GCASH only — voucher rides
         // are free and don't count toward the next reward).
@@ -190,7 +191,7 @@ class CommuterController extends Controller
                         'reward_cycle_number' => $cycleNumber,
                     ],
                     [
-                        'code' => 'REWARD-' . strtoupper(Str::random(8)),
+                        'code' => 'REWARD-'.strtoupper(Str::random(8)),
                         'status' => 'AVAILABLE',
                         'amount' => 0,
                         'expires_at' => now()->addDays(30),
@@ -206,21 +207,21 @@ class CommuterController extends Controller
             ->get()
             ->map(function ($v) {
                 return [
-                    'id'          => $v->id,
-                    'code'        => $v->code,
-                    'status'      => $v->status,
-                    'expiresAt'   => $v->expires_at?->toIso8601String(),
-                    'rideOrigin'  => $v->ride_origin ?? 'Reward',
+                    'id' => $v->id,
+                    'code' => $v->code,
+                    'status' => $v->status,
+                    'expiresAt' => $v->expires_at?->toIso8601String(),
+                    'rideOrigin' => $v->ride_origin ?? 'Reward',
                 ];
             });
 
         return $this->successResponse([
-            'totalRides'       => $totalRides,
+            'totalRides' => $totalRides,
             // The cycle threshold (e.g. 10) — the frontend derives progress and
             // "rides remaining" from currentCycleRides against this total.
-            'ridesNeeded'      => $ridesForFreeReward,
-            'currentCycleRides'=> $currentCycleRides,
-            'vouchers'         => $vouchers,
+            'ridesNeeded' => $ridesForFreeReward,
+            'currentCycleRides' => $currentCycleRides,
+            'vouchers' => $vouchers,
         ], 'Rewards retrieved');
     }
 }
