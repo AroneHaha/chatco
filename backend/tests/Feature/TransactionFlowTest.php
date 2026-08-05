@@ -21,7 +21,10 @@ use App\Models\Vehicle;
 use App\Models\Voucher;
 use App\Services\PaymentService;
 use App\Services\TransactionService;
+use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -308,11 +311,7 @@ class TransactionFlowTest extends TestCase
 
     public function test_voucher_ride_mints_no_receipt_token(): void
     {
-        $voucher = Voucher::create([
-            'commuter_id' => $this->commuter1->commuterProfile->id,
-            'code' => 'REWARD-TESTCODE', 'type' => 'REWARD', 'status' => 'AVAILABLE',
-            'amount' => 0, 'expires_at' => now()->addDays(30), 'ride_origin' => 'Test',
-        ]);
+        $voucher = $this->createRewardVoucher($this->commuter1, ['code' => 'REWARD-TESTCODE']);
 
         $txn = app(TransactionService::class)->recordCashFare($this->conductor, [
             'final_amount' => 15.00,
@@ -322,6 +321,138 @@ class TransactionFlowTest extends TestCase
 
         // Already bound to the commuter and free — nothing left to claim.
         $this->assertNull($txn->qr_token);
+    }
+
+    public function test_two_competing_redemption_attempts_create_only_one_free_ride(): void
+    {
+        $voucher = $this->createRewardVoucher($this->commuter1);
+        Sanctum::actingAs($this->conductor);
+
+        $payload = [
+            'payment_method' => PaymentMethod::VOUCHER->value,
+            'final_amount' => 0,
+            'pickup_name' => 'Calumpit',
+            'dropoff_name' => 'Bustos',
+            'voucher_code' => $voucher->code,
+            'passenger_id' => $this->commuter1->commuterProfile->id,
+            'idempotency_key' => 'voucher-attempt-one',
+        ];
+
+        $this->postJson('/api/v1/conductor/transactions', $payload)
+            ->assertCreated();
+
+        $this->postJson('/api/v1/conductor/transactions', array_merge($payload, [
+            'idempotency_key' => 'voucher-attempt-two',
+        ]))
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'This voucher has already been used or is no longer available.');
+
+        $this->assertSame(1, Transaction::where('voucher_id', $voucher->id)->count());
+        $this->assertSame('USED', $voucher->fresh()->status);
+    }
+
+    public function test_voucher_returns_to_available_when_transaction_creation_fails(): void
+    {
+        $voucher = $this->createRewardVoucher($this->commuter1);
+
+        DB::statement(<<<'SQL'
+            CREATE TRIGGER fail_voucher_transaction
+            BEFORE INSERT ON transactions
+            WHEN NEW.voucher_id IS NOT NULL
+            BEGIN
+                SELECT RAISE(ABORT, 'forced voucher transaction failure');
+            END
+        SQL);
+
+        try {
+            app(TransactionService::class)->recordCashFare($this->conductor, [
+                'payment_method' => PaymentMethod::VOUCHER->value,
+                'final_amount' => 0,
+                'voucher_code' => $voucher->code,
+                'passenger_id' => $this->commuter1->commuterProfile->id,
+            ]);
+            $this->fail('The forced transaction insert failure should propagate.');
+        } catch (QueryException) {
+            // Expected: the enclosing DB transaction must roll the voucher back.
+        } finally {
+            DB::statement('DROP TRIGGER IF EXISTS fail_voucher_transaction');
+        }
+
+        $this->assertSame('AVAILABLE', $voucher->fresh()->status);
+        $this->assertSame(0, Transaction::where('voucher_id', $voucher->id)->count());
+    }
+
+    public function test_already_used_voucher_returns_conflict(): void
+    {
+        $voucher = $this->createRewardVoucher($this->commuter1, ['status' => 'USED']);
+
+        $this->assertAbort(409, fn () => app(TransactionService::class)->recordCashFare($this->conductor, [
+            'payment_method' => PaymentMethod::VOUCHER->value,
+            'final_amount' => 0,
+            'voucher_code' => $voucher->code,
+            'passenger_id' => $this->commuter1->commuterProfile->id,
+        ]));
+
+        $this->assertSame(0, Transaction::where('voucher_id', $voucher->id)->count());
+    }
+
+    public function test_expired_voucher_is_rejected_without_consuming_it(): void
+    {
+        $voucher = $this->createRewardVoucher($this->commuter1, [
+            'expires_at' => now()->subMinute(),
+        ]);
+
+        $this->assertAbort(422, fn () => app(TransactionService::class)->recordCashFare($this->conductor, [
+            'payment_method' => PaymentMethod::VOUCHER->value,
+            'final_amount' => 0,
+            'voucher_code' => $voucher->code,
+            'passenger_id' => $this->commuter1->commuterProfile->id,
+        ]));
+
+        $this->assertSame('AVAILABLE', $voucher->fresh()->status);
+        $this->assertSame(0, Transaction::where('voucher_id', $voucher->id)->count());
+    }
+
+    public function test_voucher_belonging_to_another_commuter_is_rejected(): void
+    {
+        $voucher = $this->createRewardVoucher($this->commuter2);
+
+        $this->assertAbort(422, fn () => app(TransactionService::class)->recordCashFare($this->conductor, [
+            'payment_method' => PaymentMethod::VOUCHER->value,
+            'final_amount' => 0,
+            'voucher_code' => $voucher->code,
+            'passenger_id' => $this->commuter1->commuterProfile->id,
+        ]));
+
+        $this->assertSame('AVAILABLE', $voucher->fresh()->status);
+        $this->assertSame(0, Transaction::where('voucher_id', $voucher->id)->count());
+    }
+
+    public function test_unique_voucher_constraint_blocks_duplicate_links_but_allows_normal_null_vouchers(): void
+    {
+        $voucher = $this->createRewardVoucher($this->commuter1);
+        $transaction = app(TransactionService::class)->recordCashFare($this->conductor, [
+            'payment_method' => PaymentMethod::VOUCHER->value,
+            'final_amount' => 0,
+            'voucher_code' => $voucher->code,
+            'passenger_id' => $this->commuter1->commuterProfile->id,
+        ]);
+
+        $duplicate = $transaction->replicate();
+        $duplicate->transaction_id = 'TXN-DUPLICATE-VOUCHER';
+
+        try {
+            $duplicate->save();
+            $this->fail('The database must reject a second transaction for one voucher.');
+        } catch (UniqueConstraintViolationException) {
+            // Expected database backstop.
+        }
+
+        app(TransactionService::class)->recordCashFare($this->conductor, ['final_amount' => 15]);
+        app(TransactionService::class)->recordCashFare($this->conductor, ['final_amount' => 20]);
+
+        $this->assertSame(2, Transaction::whereNull('voucher_id')->count());
+        $this->assertSame(1, Transaction::where('voucher_id', $voucher->id)->count());
     }
 
     public function test_group_cash_creates_one_paid_receipt_per_passenger_and_one_reward_slot(): void
@@ -966,6 +1097,19 @@ class TransactionFlowTest extends TestCase
         }
 
         return $txn;
+    }
+
+    private function createRewardVoucher(User $owner, array $overrides = []): Voucher
+    {
+        return Voucher::create(array_merge([
+            'commuter_id' => $owner->commuterProfile->id,
+            'code' => 'REWARD-'.strtoupper(Str::random(8)),
+            'type' => 'REWARD',
+            'status' => 'AVAILABLE',
+            'amount' => 0,
+            'expires_at' => now()->addDays(30),
+            'ride_origin' => 'Test reward',
+        ], $overrides));
     }
 
     /**

@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Models\Voucher;
 use App\Support\Payments\PaymentGatewayException;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -100,6 +101,11 @@ class TransactionService
         $shift = $this->resolveConductorActiveShift($conductor);
 
         $paymentMethod = $data['payment_method'] ?? 'CASH';
+
+        if ($paymentMethod === PaymentMethod::VOUCHER->value) {
+            return $this->recordVoucherFare($shift, $data);
+        }
+
         $finalAmount = (float) ($data['final_amount'] ?? 0);
         $pickupName = $data['pickup_name'] ?? null;
         $dropoffName = $data['dropoff_name'] ?? null;
@@ -113,50 +119,8 @@ class TransactionService
             }
         }
 
-        // ─── Voucher validation (if payment_method is VOUCHER) ──────
-        // The conductor enters the voucher code shown by the commuter.
-        // We validate it exists, is AVAILABLE, and hasn't expired. On
-        // success: mark it USED + bind the commuter's passenger_id +
-        // set final_amount=0 (free ride).
-        $voucherId = null;
         $passengerId = $data['passenger_id'] ?? null;
         $passengerName = $data['passenger_name'] ?? null;
-
-        if ($paymentMethod === PaymentMethod::VOUCHER->value) {
-            $voucherCode = $data['voucher_code'] ?? null;
-            if (! $voucherCode) {
-                abort(422, 'Voucher code is required for voucher payments.');
-            }
-
-            $voucher = Voucher::where('code', $voucherCode)->first();
-            if (! $voucher) {
-                abort(422, 'Voucher code not found.');
-            }
-
-            if ($voucher->status !== 'AVAILABLE') {
-                abort(422, "This voucher is {$voucher->status} and cannot be used.");
-            }
-
-            if ($voucher->expires_at && $voucher->expires_at->isPast()) {
-                abort(422, 'This voucher has expired.');
-            }
-
-            // Mark the voucher as USED + bind the commuter.
-            $voucher->update(['status' => 'USED']);
-            $voucherId = $voucher->id;
-            $passengerId = $voucher->commuter_id;
-
-            // Look up the commuter's name for the denormalized field.
-            if ($passengerId) {
-                $commuterProfile = CommuterProfile::find($passengerId);
-                if ($commuterProfile) {
-                    $passengerName = trim($commuterProfile->first_name.' '.$commuterProfile->surname);
-                }
-            }
-
-            // Free ride — override the amount to 0.
-            $finalAmount = 0;
-        }
 
         // ─── Receipt binding token (CASH only) ──────────────────────
         // Cash involves no account, so the ride would never reach a commuter's
@@ -194,12 +158,123 @@ class TransactionService
             'conductor_name' => $shift->conductor_name,
             'unit_number' => $shift->unit_number,
             'driver_name' => $shift->driver_name,
-            'voucher_id' => $voucherId,
+            'voucher_id' => null,
             // Cash/voucher has no fare_point UUIDs (S4-T1 made these nullable)
             'pickup_stop_id' => null,
             'dropoff_stop_id' => null,
             'paid_at' => now(),
         ]);
+    }
+
+    /**
+     * Atomically consume one commuter-owned voucher and record its free ride.
+     *
+     * The voucher row is locked before any state is checked. Its USED update
+     * and the associated transaction insert commit together, so a failed
+     * insert restores the voucher to AVAILABLE automatically.
+     */
+    private function recordVoucherFare(ShiftLog $shift, array $data): Transaction
+    {
+        $voucherCode = trim((string) ($data['voucher_code'] ?? ''));
+        if ($voucherCode === '') {
+            abort(422, 'Voucher code is required for voucher payments.');
+        }
+
+        $expectedCommuterId = $data['passenger_id'] ?? null;
+        $idempotencyKey = $data['idempotency_key'] ?? null;
+
+        try {
+            return DB::transaction(function () use ($shift, $data, $voucherCode, $expectedCommuterId, $idempotencyKey): Transaction {
+                $voucher = Voucher::where('code', $voucherCode)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $voucher) {
+                    abort(422, 'Voucher code not found.');
+                }
+
+                if (! $voucher->commuter_id) {
+                    abort(422, 'This voucher is not assigned to a commuter.');
+                }
+
+                if ($expectedCommuterId !== null && $voucher->commuter_id !== $expectedCommuterId) {
+                    abort(422, 'This voucher does not belong to the selected commuter.');
+                }
+
+                // A same-key retry that committed while this request waited for
+                // the voucher lock is safe to return as the original success.
+                if ($idempotencyKey) {
+                    $existing = Transaction::where('idempotency_key', $idempotencyKey)->first();
+                    if ($existing) {
+                        if ($existing->voucher_id === $voucher->id) {
+                            return $existing;
+                        }
+
+                        abort(409, 'The idempotency key has already been used for another transaction.');
+                    }
+                }
+
+                if ($voucher->expires_at && $voucher->expires_at->isPast()) {
+                    abort(422, 'This voucher has expired.');
+                }
+
+                if ($voucher->status !== 'AVAILABLE') {
+                    abort(409, 'This voucher has already been used or is no longer available.');
+                }
+
+                // Defend against legacy/inconsistent data where a transaction
+                // references the voucher but its status was left AVAILABLE.
+                if (Transaction::where('voucher_id', $voucher->id)->exists()) {
+                    abort(409, 'This voucher has already been redeemed.');
+                }
+
+                $commuterProfile = CommuterProfile::find($voucher->commuter_id);
+                if (! $commuterProfile) {
+                    abort(422, 'The commuter assigned to this voucher no longer exists.');
+                }
+
+                $passengerName = trim($commuterProfile->first_name.' '.$commuterProfile->surname);
+
+                // This update and the insert below are in the same transaction.
+                // Any insert failure rolls the USED status back.
+                $voucher->update(['status' => 'USED']);
+
+                return Transaction::create([
+                    'transaction_id' => $this->generateTransactionId(),
+                    'shift_id' => $shift->shift_id,
+                    'payment_method' => PaymentMethod::VOUCHER->value,
+                    'status' => PaymentStatus::PAID->value,
+                    'qr_token' => null,
+                    'idempotency_key' => $idempotencyKey,
+                    'final_amount' => 0,
+                    'total_passengers' => 1,
+                    'gross_amount' => round((float) ($data['discount_amount'] ?? 0), 2),
+                    'base_fare' => isset($data['base_fare']) ? (float) $data['base_fare'] : null,
+                    'distance' => isset($data['distance']) ? (float) $data['distance'] : null,
+                    'discount_amount' => isset($data['discount_amount']) ? (float) $data['discount_amount'] : null,
+                    'pickup_name' => $data['pickup_name'] ?? null,
+                    'dropoff_name' => $data['dropoff_name'] ?? null,
+                    'passenger_name' => $passengerName,
+                    'passenger_role' => strtoupper((string) $commuterProfile->commuter_type),
+                    'passenger_id' => $commuterProfile->id,
+                    'conductor_name' => $shift->conductor_name,
+                    'unit_number' => $shift->unit_number,
+                    'driver_name' => $shift->driver_name,
+                    'voucher_id' => $voucher->id,
+                    'pickup_stop_id' => null,
+                    'dropoff_stop_id' => null,
+                    'paid_at' => now(),
+                ]);
+            }, 3);
+        } catch (UniqueConstraintViolationException $e) {
+            $voucherId = Voucher::where('code', $voucherCode)->value('id');
+
+            if ($voucherId && Transaction::where('voucher_id', $voucherId)->exists()) {
+                abort(409, 'This voucher has already been redeemed.');
+            }
+
+            throw $e;
+        }
     }
 
     /** Record one paid cash receipt per passenger under a shared payment group. */

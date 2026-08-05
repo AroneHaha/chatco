@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
       distance: txnBody.distance,
       discount_amount: txnBody.discountAmount ?? txnBody.discount_amount,
       passenger_name: txnBody.passengerName ?? txnBody.passenger_name,
+      passenger_id: txnBody.passengerId || txnBody.passenger_id || undefined,
       passenger_role: txnBody.passengerRole ?? txnBody.passenger_role,
       idempotency_key: txnBody.idempotencyKey ?? txnBody.idempotency_key,
       voucher_code: txnBody.voucherCode ?? txnBody.voucher_code ?? undefined,
