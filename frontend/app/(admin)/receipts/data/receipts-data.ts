@@ -23,7 +23,10 @@ export interface Receipt {
   // "Unknown" is the explicit fail-safe for a value the backend sent that we
   // don't recognise. It is never guessed at — see mapLaravelTransaction.
   paymentMethod: "Cash" | "Gcash" | "Voucher" | "Unknown";
-  status: "Completed" | "Pending" | "Failed" | "Cancelled" | "Expired" | "Unknown";
+  status: "Completed" | "Pending" | "Failed" | "Cancelled" | "Expired" | "Refunded" | "Unknown";
+  reconciliationStatus: "REFUND_REQUIRED" | "REFUNDED" | null;
+  reconciliationReason: string | null;
+  reconciliationRequiredAt: string | null;
   date: string;
   time: string;
 }
@@ -72,11 +75,8 @@ function mapLaravelTransaction(r: Record<string, unknown>): Receipt {
   // Map backend status to frontend status. Anything unrecognised is
   // surfaced as Unknown rather than assumed paid.
   //
-  // REFUNDED is intentionally absent: the product has no refund flow, so a
-  // refunded row can only originate from a provider-side action outside this
-  // system. Falling through to the neutral "Unknown" badge is the honest
-  // outcome — it flags the row for a human instead of implying the app
-  // manages refunds.
+  // REFUNDED remains distinct from Completed: the payment was real, then the
+  // provider returned it, so it must not be presented as settled fare revenue.
   let status: Receipt["status"];
   switch (rawStatus) {
     case "PAID":       status = "Completed"; break;
@@ -85,6 +85,7 @@ function mapLaravelTransaction(r: Record<string, unknown>): Receipt {
     case "FAILED":     status = "Failed"; break;
     case "CANCELLED":  status = "Cancelled"; break;
     case "EXPIRED":    status = "Expired"; break;
+    case "REFUNDED":   status = "Refunded"; break;
     default:           status = "Unknown"; break;
   }
 
@@ -153,6 +154,16 @@ function mapLaravelTransaction(r: Record<string, unknown>): Receipt {
     passengerBreakdown: breakdown,
     paymentMethod,
     status,
+    reconciliationStatus:
+      r.payment_reconciliation_status === "REFUND_REQUIRED" || r.payment_reconciliation_status === "REFUNDED"
+        ? r.payment_reconciliation_status
+        : null,
+    reconciliationReason: r.payment_reconciliation_reason
+      ? String(r.payment_reconciliation_reason)
+      : null,
+    reconciliationRequiredAt: r.payment_reconciliation_required_at
+      ? String(r.payment_reconciliation_required_at)
+      : null,
     date,
     time,
   };

@@ -53,6 +53,11 @@ class FakeGateway implements PaymentGateway
         return PaymentStatus::PENDING;
     }
 
+    public function cancelIntent(string $reference): PaymentStatus
+    {
+        return PaymentStatus::CANCELLED;
+    }
+
     public function webhookSignatureHeader(): string
     {
         return 'X-Fake-Signature';

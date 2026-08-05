@@ -23,9 +23,8 @@ import type { PaymentMethod, ReceiptStatus } from './receipts-data';
  *              yellow as Pending made admins read it as "still processing".
  *   neutral  — unrecognised. See statusBadge() below.
  *
- * No Refunded entry: the product has no refund flow, so a refunded row can
- * only come from a provider-side action and resolves to the neutral
- * "Unknown" badge, which is the honest signal for "not managed here".
+ * Refunded is neutral because the payment was returned and is no longer fare
+ * revenue, while remaining an explicit provider-audited state.
  */
 const STATUS_VARIANTS: Record<ReceiptStatus, BadgeVariant> = {
   Completed: 'success',
@@ -33,6 +32,7 @@ const STATUS_VARIANTS: Record<ReceiptStatus, BadgeVariant> = {
   Failed: 'danger',
   Cancelled: 'danger',
   Expired: 'danger',
+  Refunded: 'neutral',
   Unknown: 'neutral',
 };
 

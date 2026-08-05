@@ -3,6 +3,7 @@
 namespace App\Contracts\Payments;
 
 use App\Enums\PaymentStatus;
+use App\Support\Payments\PaymentGatewayException;
 use App\Support\Payments\PaymentIntentResult;
 use App\Support\Payments\WebhookEvent;
 
@@ -36,12 +37,12 @@ interface PaymentGateway
     /**
      * Create a payment intent for the given amount.
      *
-     * @param  int    $amountCentavos  Amount in centavos (pesos * 100).
-     * @param  array  $metadata        Correlation data echoed back by the
-     *                                  provider (must include transaction_id).
-     * @param  string $returnUrl       Where the payer is redirected after authorize.
+     * @param  int  $amountCentavos  Amount in centavos (pesos * 100).
+     * @param  array  $metadata  Correlation data echoed back by the
+     *                           provider (must include transaction_id).
+     * @param  string  $returnUrl  Where the payer is redirected after authorize.
      *
-     * @throws \App\Support\Payments\PaymentGatewayException on any failure.
+     * @throws PaymentGatewayException on any failure.
      */
     public function createIntent(int $amountCentavos, array $metadata, string $returnUrl): PaymentIntentResult;
 
@@ -49,9 +50,17 @@ interface PaymentGateway
      * Retrieve the current canonical status of a previously-created intent.
      * Used as a polling fallback when a webhook is delayed.
      *
-     * @throws \App\Support\Payments\PaymentGatewayException on any failure.
+     * @throws PaymentGatewayException on any failure.
      */
     public function retrieveStatus(string $reference): PaymentStatus;
+
+    /**
+     * Cancel a provider payment intent before the application marks its local
+     * transaction cancelled. Returns the provider's resulting canonical state.
+     *
+     * @throws PaymentGatewayException on any failure.
+     */
+    public function cancelIntent(string $reference): PaymentStatus;
 
     /**
      * The HTTP header that carries this provider's webhook signature, so the

@@ -868,6 +868,60 @@ class TransactionFlowTest extends TestCase
         $this->assertAbort(404, fn () => app(TransactionService::class)->claimGcash($this->commuter1, $qrToken));
     }
 
+    public function test_conductor_cancel_confirms_paymongo_cancellation_before_local_update(): void
+    {
+        $this->configurePayMongo();
+        $transaction = $this->createPendingGcashTransaction();
+        $statusAtProviderCall = null;
+        Http::fake(function ($request) use ($transaction, &$statusAtProviderCall) {
+            $statusAtProviderCall = $transaction->fresh()->status;
+
+            return Http::response([
+                'data' => [
+                    'id' => $transaction->payment_reference,
+                    'attributes' => ['status' => 'cancelled'],
+                ],
+            ]);
+        });
+        Sanctum::actingAs($this->conductor);
+
+        $this->postJson("/api/v1/payments/{$transaction->transaction_id}/cancel")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'CANCELLED');
+
+        $this->assertSame(PaymentStatus::PENDING, $statusAtProviderCall);
+        $this->assertSame(PaymentStatus::CANCELLED, $transaction->fresh()->status);
+        Http::assertSent(fn ($request): bool => $request->method() === 'POST'
+            && $request->url() === "https://api.paymongo.com/v1/payment_intents/{$transaction->payment_reference}/cancel");
+    }
+
+    public function test_provider_cancellation_failure_keeps_local_payment_pending(): void
+    {
+        $this->configurePayMongo();
+        $transaction = $this->createPendingGcashTransaction();
+        Http::fake(function ($request) use ($transaction) {
+            if ($request->method() === 'POST') {
+                return Http::response(['errors' => [['detail' => 'Payment cannot be cancelled']]], 500);
+            }
+
+            return Http::response([
+                'data' => [
+                    'id' => $transaction->payment_reference,
+                    'attributes' => ['status' => 'awaiting_next_action'],
+                ],
+            ]);
+        });
+        Sanctum::actingAs($this->conductor);
+
+        $this->postJson("/api/v1/payments/{$transaction->transaction_id}/cancel")
+            ->assertStatus(502);
+
+        $transaction->refresh();
+        $this->assertSame(PaymentStatus::PENDING, $transaction->status);
+        $this->assertNotNull($transaction->qr_token);
+        $this->assertNotNull($transaction->payment_checkout_url);
+    }
+
     public function test_conductor_cancel_invalidates_every_group_receipt(): void
     {
         config(['payments.gateways.paymongo.secret' => null]);
@@ -898,6 +952,43 @@ class TransactionFlowTest extends TestCase
     }
 
     // ─── 4. Webhook (provider-agnostic, idempotent, state-machine guarded) ──
+
+    public function test_late_paid_webhook_flags_every_cancelled_group_receipt_for_refund(): void
+    {
+        config(['payments.gateways.paymongo.secret' => null]);
+        $this->forgetGateway();
+        $result = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'final_amount' => 30,
+            'pickup_name' => 'Calumpit',
+            'dropoff_name' => 'Bustos',
+            'group_passengers' => [
+                ['type' => 'REGULAR', 'quantity' => 2, 'final_amount' => 15, 'base_fare' => 15, 'discount_amount' => 0],
+            ],
+        ]);
+        $anchor = $result['transaction'];
+        app(TransactionService::class)->claimGcash($this->commuter1, $anchor->qr_token);
+        Sanctum::actingAs($this->conductor);
+        $this->postJson("/api/v1/payments/{$anchor->transaction_id}/cancel")->assertOk();
+        $anchor->refresh();
+
+        $this->configurePayMongo();
+        [$payload, $headers] = $this->signedPaymongoWebhook(
+            'payment.paid',
+            $anchor->payment_reference,
+            'evt_cancelled_group_paid_late'
+        );
+        $this->withHeaders($headers)->postJson('/api/v1/payments/webhook', $payload)->assertOk();
+
+        $receipts = Transaction::where('group_id', $anchor->group_id)->get();
+        $this->assertGreaterThan(1, $receipts->count());
+        $this->assertTrue($receipts->every(
+            fn (Transaction $transaction): bool => $transaction->status === PaymentStatus::PAID
+                && $transaction->reward_eligible === false
+                && $transaction->payment_reconciliation_status === 'REFUND_REQUIRED'
+        ));
+        $this->assertSame(0, $this->paidRideCountFor($this->commuter1->commuterProfile->id));
+        $this->assertDatabaseHas('payment_events', ['event_id' => 'evt_cancelled_group_paid_late']);
+    }
 
     public function test_webhook_with_valid_payment_paid_flips_to_paid_and_broadcasts(): void
     {
@@ -1023,12 +1114,14 @@ class TransactionFlowTest extends TestCase
         ])->count());
     }
 
-    public function test_webhook_records_but_does_not_change_an_already_terminal_transaction(): void
+    public function test_late_paid_webhook_after_local_cancellation_requires_refund_and_blocks_rewards(): void
     {
         Event::fake([PaymentStatusUpdated::class]);
         $this->configurePayMongo();
         $txn = $this->createPendingGcashTransaction([
             'status' => PaymentStatus::CANCELLED->value,
+            'passenger_id' => $this->commuter1->commuterProfile->id,
+            'reward_eligible' => true,
         ]);
 
         [$payload, $headers] = $this->signedPaymongoWebhook(
@@ -1038,12 +1131,32 @@ class TransactionFlowTest extends TestCase
         );
         $this->withHeaders($headers)->postJson('/api/v1/payments/webhook', $payload)->assertOk();
 
-        $this->assertSame(PaymentStatus::CANCELLED, $txn->fresh()->status);
+        $txn->refresh();
+        $this->assertSame(PaymentStatus::PAID, $txn->status);
+        $this->assertNotNull($txn->paid_at);
+        $this->assertFalse($txn->reward_eligible);
+        $this->assertSame('REFUND_REQUIRED', $txn->payment_reconciliation_status);
+        $this->assertSame(
+            'Provider reported a successful payment after local cancellation.',
+            $txn->payment_reconciliation_reason
+        );
+        $this->assertNotNull($txn->payment_reconciliation_required_at);
         $this->assertDatabaseHas('payment_events', [
             'event_id' => 'evt_after_cancelled',
             'transaction_id' => $txn->transaction_id,
+            'status' => PaymentStatus::PAID->value,
         ]);
-        Event::assertNotDispatched(PaymentStatusUpdated::class);
+        $this->assertSame(0, $this->paidRideCountFor($this->commuter1->commuterProfile->id));
+        Event::assertDispatched(PaymentStatusUpdated::class);
+
+        Sanctum::actingAs($this->admin);
+        $this->getJson('/api/v1/admin/transactions?per_page=10')
+            ->assertOk()
+            ->assertJsonPath('data.data.0.payment_reconciliation_status', 'REFUND_REQUIRED')
+            ->assertJsonPath(
+                'data.data.0.payment_reconciliation_reason',
+                'Provider reported a successful payment after local cancellation.'
+            );
     }
 
     public function test_webhook_returns_retryable_error_and_rolls_back_on_temporary_database_failure(): void

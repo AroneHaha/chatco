@@ -27,7 +27,9 @@ class Transaction extends Model
     use HasFactory;
 
     public $incrementing = false;
+
     protected $keyType = 'string';
+
     protected $primaryKey = 'transaction_id';
 
     protected $fillable = [
@@ -67,6 +69,10 @@ class Transaction extends Model
         'payment_reference',
         'payment_checkout_url',
         'payment_metadata',
+        'payment_reconciliation_status',
+        'payment_reconciliation_reason',
+        'payment_reconciliation_required_at',
+        'payment_reconciliation_resolved_at',
     ];
 
     protected function casts(): array
@@ -83,6 +89,8 @@ class Transaction extends Model
             'payment_method' => PaymentMethod::class,
             'status' => PaymentStatus::class,
             'payment_metadata' => 'array',
+            'payment_reconciliation_required_at' => 'datetime',
+            'payment_reconciliation_resolved_at' => 'datetime',
             'group_position' => 'integer',
             'reward_eligible' => 'boolean',
         ];

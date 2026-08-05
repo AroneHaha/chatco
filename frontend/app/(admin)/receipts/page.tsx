@@ -5,7 +5,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
 import { SearchBar } from '@/components/admin/ui/search-bar';
-import { CalendarDays, Download, Filter, Wallet, Ticket, Banknote, ChevronLeft, ChevronRight, AlertCircle, RefreshCw, ReceiptText, Smartphone, Coins } from 'lucide-react';
+import { CalendarDays, Download, Filter, Wallet, Ticket, Banknote, ChevronLeft, ChevronRight, AlertCircle, AlertTriangle, RefreshCw, ReceiptText, Smartphone, Coins } from 'lucide-react';
 import { useReceiptsData, type Receipt, type PaymentMethod } from '@/app/(admin)/receipts/data/receipts-data';
 import { statusBadge } from '@/app/(admin)/receipts/data/receipt-status';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
@@ -109,7 +109,7 @@ export default function ReceiptsPage() {
       title: 'CHATCO Fare Receipts',
       fileName: `chatco-receipts-${new Date().toISOString().split('T')[0]}`,
       format,
-      headers: ['Transaction ID', 'Multiple Payment Ref', 'Commuter', 'Role', 'Paid By', 'Plate Number', 'Route', 'Gross Fare', 'Discount', 'Final Fare', 'Payment Method', 'Status', 'Date', 'Time'],
+      headers: ['Transaction ID', 'Multiple Payment Ref', 'Commuter', 'Role', 'Paid By', 'Plate Number', 'Route', 'Gross Fare', 'Discount', 'Final Fare', 'Payment Method', 'Status', 'Reconciliation', 'Date', 'Time'],
       rows: filteredData.map((receipt) => [
         receipt.id,
         receipt.multiplePaymentReference ?? '',
@@ -123,6 +123,7 @@ export default function ReceiptsPage() {
         receipt.fare.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
         receipt.paymentMethod,
         receipt.status,
+        receipt.reconciliationStatus === 'REFUND_REQUIRED' ? 'Refund required' : receipt.reconciliationStatus ?? '',
         receipt.date,
         receipt.time,
       ]),
@@ -142,6 +143,9 @@ export default function ReceiptsPage() {
   const totalFare = settled.reduce((sum: number, item: Receipt) => sum + item.fare, 0);
   const cashCount = settled.filter((item: Receipt) => item.paymentMethod === 'Cash').length;
   const gcashCount = settled.filter((item: Receipt) => item.paymentMethod === 'Gcash').length;
+  const reconciliationRequired = records.filter(
+    (item: Receipt) => item.reconciliationStatus === 'REFUND_REQUIRED'
+  );
 
   const columns = [
     {
@@ -210,9 +214,18 @@ export default function ReceiptsPage() {
       label: 'Status',
       headerClassName: 'w-[13%] px-2 sm:px-3',
       cellClassName: 'px-2 sm:px-3',
-      render: (value: string) => {
+      render: (value: string, row: Receipt) => {
         const { label, variant } = statusBadge(value);
-        return <Badge variant={variant}>{label}</Badge>;
+        return (
+          <div className="space-y-1">
+            <Badge variant={variant}>{label}</Badge>
+            {row.reconciliationStatus === 'REFUND_REQUIRED' && (
+              <p className="text-[10px] font-semibold text-amber-300" title={row.reconciliationReason ?? undefined}>
+                Refund required
+              </p>
+            )}
+          </div>
+        );
       },
     },
     {
@@ -316,6 +329,20 @@ export default function ReceiptsPage() {
         </div>
 
       {/* ── Summary Cards ── */}
+      {reconciliationRequired.length > 0 && (
+        <div className="mb-6 flex items-start gap-3 rounded-xl border border-amber-400/40 bg-amber-500/10 p-4 text-amber-100">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
+          <div>
+            <p className="text-sm font-semibold">
+              {reconciliationRequired.length} late GCash {reconciliationRequired.length === 1 ? 'payment requires' : 'payments require'} refund review
+            </p>
+            <p className="mt-1 text-xs text-amber-100/75">
+              PayMongo confirmed payment after local cancellation. These rides are blocked from rewards until reconciliation is resolved.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-6">
         <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl p-4 flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-slate-500/15 flex items-center justify-center shrink-0">
