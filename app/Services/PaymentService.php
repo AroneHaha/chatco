@@ -180,6 +180,68 @@ class PaymentService
     }
 
     /**
+     * Cancel a payment at the provider before committing the local state.
+     * A provider reference is absent only before a group QR has been claimed,
+     * when no external payment resource exists yet.
+     */
+    public function cancel(Transaction $transaction): Transaction
+    {
+        $providerStatus = PaymentStatus::CANCELLED;
+
+        if ($transaction->payment_reference) {
+            try {
+                $providerStatus = $this->gateway->cancelIntent($transaction->payment_reference);
+            } catch (PaymentGatewayException $cancelError) {
+                // The payment may have settled while cancellation was in
+                // flight. Prefer the provider's truth over marking it unpaid.
+                $fresh = $transaction->fresh();
+                if ($fresh->status !== PaymentStatus::PENDING) {
+                    return $fresh;
+                }
+
+                try {
+                    $providerStatus = $this->gateway->retrieveStatus($transaction->payment_reference);
+                } catch (PaymentGatewayException) {
+                    throw $cancelError;
+                }
+
+                if (in_array($providerStatus, [PaymentStatus::PENDING, PaymentStatus::PROCESSING], true)) {
+                    throw $cancelError;
+                }
+            }
+        }
+
+        $result = DB::transaction(function () use ($transaction, $providerStatus) {
+            $locked = Transaction::query()
+                ->lockForUpdate()
+                ->findOrFail($transaction->transaction_id);
+            $result = $this->transitionLocked($locked, $providerStatus);
+
+            if ($result['transaction']->status === PaymentStatus::CANCELLED) {
+                $query = Transaction::query();
+                if ($result['transaction']->group_id) {
+                    $query->where('group_id', $result['transaction']->group_id);
+                } else {
+                    $query->where('transaction_id', $result['transaction']->transaction_id);
+                }
+                $query->update([
+                    'qr_token' => null,
+                    'payment_checkout_url' => null,
+                ]);
+                $result['transaction'] = $result['transaction']->fresh();
+            }
+
+            return $result;
+        });
+
+        if ($result['changed']) {
+            broadcast(new PaymentStatusUpdated($result['transaction'], $result['transaction']->status->value));
+        }
+
+        return $result['transaction'];
+    }
+
+    /**
      * Transition a transaction to a new payment status, enforcing the state
      * machine (an out-of-order/replayed event cannot regress a settled
      * payment) and broadcasting the change. Same-status is an idempotent no-op.
@@ -272,6 +334,34 @@ class PaymentService
                 ->get()
             : collect([$transaction]);
 
+        // Provider truth wins over an earlier local cancellation. Keep the
+        // payment PAID for financial accuracy, but block rewards and flag the
+        // complete group for explicit refund/reconciliation handling.
+        if ($target === PaymentStatus::PAID
+            && $transactions->contains(fn (Transaction $item): bool => $item->status === PaymentStatus::CANCELLED)
+            && $transactions->every(fn (Transaction $item): bool => in_array(
+                $item->status,
+                [PaymentStatus::CANCELLED, PaymentStatus::PAID],
+                true
+            ))) {
+            Transaction::query()
+                ->whereIn('transaction_id', $transactions->pluck('transaction_id'))
+                ->update([
+                    'status' => PaymentStatus::PAID->value,
+                    'paid_at' => now(),
+                    'reward_eligible' => false,
+                    'payment_reconciliation_status' => 'REFUND_REQUIRED',
+                    'payment_reconciliation_reason' => 'Provider reported a successful payment after local cancellation.',
+                    'payment_reconciliation_required_at' => now(),
+                    'payment_reconciliation_resolved_at' => null,
+                ]);
+
+            return [
+                'transaction' => Transaction::findOrFail($transaction->transaction_id),
+                'changed' => true,
+            ];
+        }
+
         $invalid = $transactions->first(function (Transaction $item) use ($target): bool {
             /** @var PaymentStatus $current */
             $current = $item->status;
@@ -305,6 +395,12 @@ class PaymentService
                 fn (Transaction $item): bool => $item->status === PaymentStatus::PAID && $item->paid_at !== null
             )?->paid_at;
             $attributes['paid_at'] = $existingPaidAt ?? now();
+        }
+        if ($target === PaymentStatus::REFUNDED && $transactions->contains(
+            fn (Transaction $item): bool => $item->payment_reconciliation_status === 'REFUND_REQUIRED'
+        )) {
+            $attributes['payment_reconciliation_status'] = 'REFUNDED';
+            $attributes['payment_reconciliation_resolved_at'] = now();
         }
 
         Transaction::query()
