@@ -17,10 +17,9 @@ use Illuminate\Http\Request;
  *
  * The commuter first scans the unit QR (POST /qr/scan) to resolve today's
  * shift_id + crew, then submits a rating + optional comment here. The
- * service derives vehicle_id/driver_id/conductor_id from the shift_log row
- * and commuter_id from the auth user — client input only provides shift_id,
- * rating, category?, comment?. This prevents impersonation and ensures
- * feedback lands on both the driver's and conductor's profiles.
+ * service verifies a PAID transaction owned by the authenticated commuter,
+ * then derives vehicle_id/driver_id/conductor_id from that ride's shift.
+ * Client-provided identity fields are never trusted.
  */
 class FeedbackController extends Controller
 {
@@ -41,6 +40,7 @@ class FeedbackController extends Controller
             // Duplicate feedback (unique violation) → 409. Other FeedbackExceptions
             // (shift not found) → 422. We detect by message for the 409 case.
             $status = str_contains($e->getMessage(), 'already submitted') ? 409 : 422;
+
             return $this->errorResponse($e->getMessage(), $status);
         }
 
