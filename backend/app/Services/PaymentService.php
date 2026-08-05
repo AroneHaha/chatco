@@ -8,9 +8,9 @@ use App\Enums\PaymentStatus;
 use App\Events\PaymentStatusUpdated;
 use App\Models\PaymentEvent;
 use App\Models\Transaction;
+use App\Support\Payments\PaymentGatewayException;
 use App\Support\Payments\PaymentIntentResult;
 use App\Support\Payments\WebhookEvent;
-use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -45,7 +45,7 @@ class PaymentService
      * Create a payment intent for a transaction. Correlation metadata
      * (transaction_id) is echoed back by the provider for webhook matching.
      *
-     * @throws \App\Support\Payments\PaymentGatewayException
+     * @throws PaymentGatewayException
      */
     public function createIntentFor(Transaction $transaction, int $amountCentavos): PaymentIntentResult
     {
@@ -56,10 +56,10 @@ class PaymentService
         if ($returnUrl === '') {
             // Fallback: derive from APP_URL or APP_FRONTEND_URL.
             $baseUrl = rtrim(env('APP_FRONTEND_URL', env('APP_URL', 'http://localhost:3000')), '/');
-            $returnUrl = $baseUrl . '/gcash/return';
+            $returnUrl = $baseUrl.'/gcash/return';
         }
         $returnUrl .= (str_contains($returnUrl, '?') ? '&' : '?')
-            . 'transaction_id=' . urlencode($transaction->transaction_id);
+            .'transaction_id='.urlencode($transaction->transaction_id);
 
         return $this->gateway->createIntent(
             $amountCentavos,
@@ -93,24 +93,31 @@ class PaymentService
      * event is recorded once and acted on once; concurrent duplicates lose the
      * unique race and are treated as already-processed.
      *
-     * @return Transaction|null  The affected transaction, or null if unknown.
+     * @return Transaction|null The affected transaction, or null if unknown.
      */
     public function applyWebhookEvent(WebhookEvent $event): ?Transaction
     {
         $provider = $this->gateway->name();
-        $transaction = $this->locateTransaction($event);
 
         try {
-            return DB::transaction(function () use ($event, $provider, $transaction) {
+            $result = DB::transaction(function () use ($event, $provider) {
                 // Already processed? (audit row exists) → no-op.
-                $seen = PaymentEvent::where('provider', $provider)
+                $seen = PaymentEvent::query()
+                    ->where('provider', $provider)
                     ->where('event_id', $event->id)
                     ->lockForUpdate()
-                    ->exists();
+                    ->first();
 
                 if ($seen) {
-                    return $transaction;
+                    return [
+                        'transaction' => $seen->transaction_id
+                            ? Transaction::query()->lockForUpdate()->find($seen->transaction_id)
+                            : null,
+                        'changed' => false,
+                    ];
                 }
+
+                $transaction = $this->locateTransactionForUpdate($event);
 
                 PaymentEvent::create([
                     'provider' => $provider,
@@ -121,20 +128,37 @@ class PaymentService
                     'payload' => $event->raw,
                 ]);
 
-                if ($transaction) {
-                    $this->transitionTo($transaction, $event->status);
+                if (! $transaction) {
+                    return ['transaction' => null, 'changed' => false];
                 }
 
-                return $transaction;
+                return $this->transitionLocked($transaction, $event->status);
             });
-        } catch (UniqueConstraintViolationException|QueryException $e) {
+
+            if ($result['changed']) {
+                broadcast(new PaymentStatusUpdated($result['transaction'], $event->status->value));
+            }
+
+            return $result['transaction'];
+        } catch (UniqueConstraintViolationException $e) {
+            $processed = PaymentEvent::query()
+                ->where('provider', $provider)
+                ->where('event_id', $event->id)
+                ->first();
+
+            if (! $processed) {
+                throw $e;
+            }
+
             // Lost the concurrent unique race → another worker handled it.
             Log::info('Payment webhook duplicate suppressed', [
                 'provider' => $provider,
                 'event_id' => $event->id,
             ]);
 
-            return $transaction;
+            return $processed->transaction_id
+                ? Transaction::find($processed->transaction_id)
+                : null;
         }
     }
 
@@ -142,7 +166,7 @@ class PaymentService
      * Poll the provider for the current status and reconcile. Used as a
      * fallback when the webhook is delayed. Safe no-op for non-gateway rows.
      *
-     * @throws \App\Support\Payments\PaymentGatewayException
+     * @throws PaymentGatewayException
      */
     public function syncStatus(Transaction $transaction): Transaction
     {
@@ -162,40 +186,19 @@ class PaymentService
      */
     public function transitionTo(Transaction $transaction, PaymentStatus $target): Transaction
     {
-        /** @var PaymentStatus $current */
-        $current = $transaction->status;
+        $result = DB::transaction(function () use ($transaction, $target) {
+            $locked = Transaction::query()
+                ->lockForUpdate()
+                ->findOrFail($transaction->transaction_id);
 
-        if ($current === $target) {
-            return $transaction;
+            return $this->transitionLocked($locked, $target);
+        });
+
+        if ($result['changed']) {
+            broadcast(new PaymentStatusUpdated($result['transaction'], $target->value));
         }
 
-        if (! $current->canTransitionTo($target)) {
-            Log::info('Payment status transition skipped (not allowed)', [
-                'transaction_id' => $transaction->transaction_id,
-                'from' => $current->value,
-                'to' => $target->value,
-            ]);
-
-            return $transaction;
-        }
-
-        $attributes = ['status' => $target->value];
-        if ($target === PaymentStatus::PAID) {
-            $attributes['paid_at'] = now();
-        }
-
-        $transaction->update($attributes);
-        $transaction->refresh();
-
-        if ($transaction->group_id) {
-            Transaction::where('group_id', $transaction->group_id)
-                ->where('transaction_id', '!=', $transaction->transaction_id)
-                ->update($attributes);
-        }
-
-        broadcast(new PaymentStatusUpdated($transaction, $target->value));
-
-        return $transaction;
+        return $result['transaction'];
     }
 
     /**
@@ -232,17 +235,85 @@ class PaymentService
      * Find the transaction a webhook refers to: primarily by provider
      * reference, falling back to the transaction_id echoed in metadata.
      */
-    private function locateTransaction(WebhookEvent $event): ?Transaction
+    private function locateTransactionForUpdate(WebhookEvent $event): ?Transaction
     {
-        $transaction = Transaction::where('payment_reference', $event->reference)->first();
+        $transaction = Transaction::query()
+            ->where('payment_reference', $event->reference)
+            ->lockForUpdate()
+            ->first();
+
         if ($transaction) {
             return $transaction;
         }
 
         if ($transactionId = $event->transactionId()) {
-            return Transaction::where('transaction_id', $transactionId)->first();
+            return Transaction::query()
+                ->where('transaction_id', $transactionId)
+                ->lockForUpdate()
+                ->first();
         }
 
         return null;
+    }
+
+    /**
+     * Apply a transition to a locked transaction and its complete payment group.
+     * The caller owns the surrounding database transaction and external effects.
+     *
+     * @return array{transaction: Transaction, changed: bool}
+     */
+    private function transitionLocked(Transaction $transaction, PaymentStatus $target): array
+    {
+        $transactions = $transaction->group_id
+            ? Transaction::query()
+                ->where('group_id', $transaction->group_id)
+                ->orderBy('transaction_id')
+                ->lockForUpdate()
+                ->get()
+            : collect([$transaction]);
+
+        $invalid = $transactions->first(function (Transaction $item) use ($target): bool {
+            /** @var PaymentStatus $current */
+            $current = $item->status;
+
+            return $current !== $target && ! $current->canTransitionTo($target);
+        });
+
+        if ($invalid) {
+            Log::info('Payment status transition skipped (not allowed)', [
+                'transaction_id' => $transaction->transaction_id,
+                'group_id' => $transaction->group_id,
+                'blocked_transaction_id' => $invalid->transaction_id,
+                'from' => $invalid->status->value,
+                'to' => $target->value,
+            ]);
+
+            return ['transaction' => $transaction->fresh(), 'changed' => false];
+        }
+
+        $changed = $transactions->contains(
+            fn (Transaction $item): bool => $item->status !== $target
+        );
+
+        if (! $changed) {
+            return ['transaction' => $transaction->fresh(), 'changed' => false];
+        }
+
+        $attributes = ['status' => $target->value];
+        if ($target === PaymentStatus::PAID) {
+            $existingPaidAt = $transactions->first(
+                fn (Transaction $item): bool => $item->status === PaymentStatus::PAID && $item->paid_at !== null
+            )?->paid_at;
+            $attributes['paid_at'] = $existingPaidAt ?? now();
+        }
+
+        Transaction::query()
+            ->whereIn('transaction_id', $transactions->pluck('transaction_id'))
+            ->update($attributes);
+
+        return [
+            'transaction' => Transaction::findOrFail($transaction->transaction_id),
+            'changed' => true,
+        ];
     }
 }

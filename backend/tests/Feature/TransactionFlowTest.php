@@ -954,6 +954,175 @@ class TransactionFlowTest extends TestCase
         Event::assertDispatchedTimes(PaymentStatusUpdated::class, 1);
     }
 
+    public function test_webhook_different_event_ids_for_the_same_transaction_do_not_duplicate_the_transition(): void
+    {
+        Event::fake([PaymentStatusUpdated::class]);
+        $this->configurePayMongo();
+        $txn = $this->createPendingGcashTransaction();
+
+        [$firstPayload, $firstHeaders] = $this->signedPaymongoWebhook(
+            'payment.paid',
+            $txn->payment_reference,
+            'evt_paid_first'
+        );
+        [$secondPayload, $secondHeaders] = $this->signedPaymongoWebhook(
+            'payment.paid',
+            $txn->payment_reference,
+            'evt_paid_second'
+        );
+
+        $this->withHeaders($firstHeaders)->postJson('/api/v1/payments/webhook', $firstPayload)->assertOk();
+        $firstPaidAt = $txn->fresh()->paid_at;
+        $this->withHeaders($secondHeaders)->postJson('/api/v1/payments/webhook', $secondPayload)->assertOk();
+
+        $this->assertSame(PaymentStatus::PAID, $txn->fresh()->status);
+        $this->assertSame($firstPaidAt->toIso8601String(), $txn->fresh()->paid_at->toIso8601String());
+        $this->assertSame(2, PaymentEvent::where('transaction_id', $txn->transaction_id)->count());
+        Event::assertDispatchedTimes(PaymentStatusUpdated::class, 1);
+    }
+
+    public function test_webhook_competing_paid_and_failed_events_preserve_the_first_terminal_state(): void
+    {
+        $this->configurePayMongo();
+
+        $paidFirst = $this->createPendingGcashTransaction();
+        [$paidPayload, $paidHeaders] = $this->signedPaymongoWebhook(
+            'payment.paid',
+            $paidFirst->payment_reference,
+            'evt_competing_paid_first'
+        );
+        [$lateFailedPayload, $lateFailedHeaders] = $this->signedPaymongoWebhook(
+            'payment.failed',
+            $paidFirst->payment_reference,
+            'evt_competing_failed_late'
+        );
+
+        $this->withHeaders($paidHeaders)->postJson('/api/v1/payments/webhook', $paidPayload)->assertOk();
+        $this->withHeaders($lateFailedHeaders)->postJson('/api/v1/payments/webhook', $lateFailedPayload)->assertOk();
+        $this->assertSame(PaymentStatus::PAID, $paidFirst->fresh()->status);
+
+        $failedFirst = $this->createPendingGcashTransaction();
+        [$failedPayload, $failedHeaders] = $this->signedPaymongoWebhook(
+            'payment.failed',
+            $failedFirst->payment_reference,
+            'evt_competing_failed_first'
+        );
+        [$latePaidPayload, $latePaidHeaders] = $this->signedPaymongoWebhook(
+            'payment.paid',
+            $failedFirst->payment_reference,
+            'evt_competing_paid_late'
+        );
+
+        $this->withHeaders($failedHeaders)->postJson('/api/v1/payments/webhook', $failedPayload)->assertOk();
+        $this->withHeaders($latePaidHeaders)->postJson('/api/v1/payments/webhook', $latePaidPayload)->assertOk();
+        $this->assertSame(PaymentStatus::FAILED, $failedFirst->fresh()->status);
+
+        $this->assertSame(4, PaymentEvent::whereIn('transaction_id', [
+            $paidFirst->transaction_id,
+            $failedFirst->transaction_id,
+        ])->count());
+    }
+
+    public function test_webhook_records_but_does_not_change_an_already_terminal_transaction(): void
+    {
+        Event::fake([PaymentStatusUpdated::class]);
+        $this->configurePayMongo();
+        $txn = $this->createPendingGcashTransaction([
+            'status' => PaymentStatus::CANCELLED->value,
+        ]);
+
+        [$payload, $headers] = $this->signedPaymongoWebhook(
+            'payment.paid',
+            $txn->payment_reference,
+            'evt_after_cancelled'
+        );
+        $this->withHeaders($headers)->postJson('/api/v1/payments/webhook', $payload)->assertOk();
+
+        $this->assertSame(PaymentStatus::CANCELLED, $txn->fresh()->status);
+        $this->assertDatabaseHas('payment_events', [
+            'event_id' => 'evt_after_cancelled',
+            'transaction_id' => $txn->transaction_id,
+        ]);
+        Event::assertNotDispatched(PaymentStatusUpdated::class);
+    }
+
+    public function test_webhook_returns_retryable_error_and_rolls_back_on_temporary_database_failure(): void
+    {
+        Event::fake([PaymentStatusUpdated::class]);
+        $this->configurePayMongo();
+        $txn = $this->createPendingGcashTransaction();
+        [$payload, $headers] = $this->signedPaymongoWebhook(
+            'payment.paid',
+            $txn->payment_reference,
+            'evt_temporary_database_failure'
+        );
+
+        DB::unprepared(<<<'SQL'
+CREATE TRIGGER fail_payment_event_insert
+BEFORE INSERT ON payment_events
+BEGIN
+    SELECT RAISE(ABORT, 'temporary database failure');
+END
+SQL);
+
+        try {
+            $this->withHeaders($headers)
+                ->postJson('/api/v1/payments/webhook', $payload)
+                ->assertStatus(503)
+                ->assertJsonPath('error', 'Temporary payment processing failure');
+        } finally {
+            DB::unprepared('DROP TRIGGER IF EXISTS fail_payment_event_insert');
+        }
+
+        $this->assertSame(PaymentStatus::PENDING, $txn->fresh()->status);
+        $this->assertDatabaseMissing('payment_events', ['event_id' => 'evt_temporary_database_failure']);
+        Event::assertNotDispatched(PaymentStatusUpdated::class);
+    }
+
+    public function test_webhook_keeps_every_group_receipt_consistent_under_competing_events(): void
+    {
+        config(['payments.gateways.paymongo.secret' => null]);
+        $this->forgetGateway();
+
+        $result = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'final_amount' => 30,
+            'pickup_name' => 'Calumpit',
+            'dropoff_name' => 'Bustos',
+            'group_passengers' => [
+                ['type' => 'REGULAR', 'quantity' => 2, 'final_amount' => 15, 'base_fare' => 15, 'discount_amount' => 0],
+            ],
+        ]);
+        $anchor = $result['transaction'];
+        app(TransactionService::class)->claimGcash($this->commuter1, $anchor->qr_token);
+        $anchor->refresh();
+
+        $this->configurePayMongo();
+        [$paidPayload, $paidHeaders] = $this->signedPaymongoWebhook(
+            'payment.paid',
+            $anchor->payment_reference,
+            'evt_group_paid'
+        );
+        [$failedPayload, $failedHeaders] = $this->signedPaymongoWebhook(
+            'payment.failed',
+            $anchor->payment_reference,
+            'evt_group_failed_late'
+        );
+
+        $this->withHeaders($paidHeaders)->postJson('/api/v1/payments/webhook', $paidPayload)->assertOk();
+        $this->withHeaders($failedHeaders)->postJson('/api/v1/payments/webhook', $failedPayload)->assertOk();
+
+        $receipts = Transaction::where('group_id', $anchor->group_id)->get();
+        $this->assertGreaterThan(1, $receipts->count());
+        $this->assertTrue($receipts->every(
+            fn (Transaction $transaction): bool => $transaction->status === PaymentStatus::PAID
+                && $transaction->paid_at !== null
+        ));
+        $this->assertSame($this->commuter1->commuterProfile->id, $anchor->fresh()->payer_id);
+        $this->assertTrue($receipts->every(
+            fn (Transaction $transaction): bool => $transaction->payer_name === 'Commuter One'
+        ));
+    }
+
     public function test_webhook_cannot_regress_a_paid_payment(): void
     {
         $this->configurePayMongo();
