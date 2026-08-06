@@ -409,7 +409,7 @@ class TransactionFlowTest extends TestCase
             'passenger_id' => $this->commuter1->commuterProfile->id,
         ]));
 
-        $this->assertSame('AVAILABLE', $voucher->fresh()->status);
+        $this->assertSame('EXPIRED', $voucher->fresh()->status);
         $this->assertSame(0, Transaction::where('voucher_id', $voucher->id)->count());
     }
 

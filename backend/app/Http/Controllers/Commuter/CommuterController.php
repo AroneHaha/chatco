@@ -179,6 +179,12 @@ class CommuterController extends Controller
         $earned = intdiv($totalRides, $ridesForFreeReward);
         DB::transaction(function () use ($profile, $earned) {
             $profile->newQuery()->whereKey($profile->id)->lockForUpdate()->first();
+
+            // Normalize only overdue AVAILABLE rows before any active voucher
+            // count or list is built. Expired reward vouchers still count as
+            // historical cycles, so this does not mint replacements.
+            Voucher::expireAvailableForCommuter($profile->id);
+
             $existingVoucherCount = Voucher::where('commuter_id', $profile->id)
                 ->where('type', 'REWARD')
                 ->count();
@@ -215,12 +221,17 @@ class CommuterController extends Controller
                 ];
             });
 
+        $availableVoucherCount = $vouchers
+            ->where('status', Voucher::STATUS_AVAILABLE)
+            ->count();
+
         return $this->successResponse([
             'totalRides' => $totalRides,
             // The cycle threshold (e.g. 10) — the frontend derives progress and
             // "rides remaining" from currentCycleRides against this total.
             'ridesNeeded' => $ridesForFreeReward,
             'currentCycleRides' => $currentCycleRides,
+            'availableVoucherCount' => $availableVoucherCount,
             'vouchers' => $vouchers,
         ], 'Rewards retrieved');
     }

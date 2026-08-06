@@ -69,18 +69,31 @@ export function RewardsProvider({ children }: { children: React.ReactNode }) {
 
       const json = await res.json();
       const d = json.data;
+      const vouchers: RewardData["vouchers"] = (d.vouchers ?? []).map((v: Record<string, unknown>) => {
+        const expiresAt = String(v.expiresAt ?? "");
+        const providerStatus = (v.status ?? "AVAILABLE") as RewardData["vouchers"][number]["status"];
+        const expiryTime = expiresAt ? new Date(expiresAt).getTime() : Number.NaN;
+        const status = providerStatus === "AVAILABLE"
+          && Number.isFinite(expiryTime)
+          && expiryTime <= Date.now()
+          ? "EXPIRED"
+          : providerStatus;
+
+        return {
+          id: String(v.id ?? ""),
+          code: String(v.code ?? ""),
+          status,
+          expiresAt,
+          rideOrigin: String(v.rideOrigin ?? "Reward"),
+        };
+      });
 
       setData({
         totalRides: d.totalRides ?? 0,
         ridesNeeded: d.ridesNeeded ?? 10,
         currentCycleRides: d.currentCycleRides ?? 0,
-        vouchers: (d.vouchers ?? []).map((v: Record<string, unknown>) => ({
-          id: String(v.id ?? ""),
-          code: String(v.code ?? ""),
-          status: (v.status ?? "AVAILABLE") as RewardData["vouchers"][number]["status"],
-          expiresAt: String(v.expiresAt ?? ""),
-          rideOrigin: String(v.rideOrigin ?? "Reward"),
-        })),
+        availableVoucherCount: vouchers.filter((v) => v.status === "AVAILABLE").length,
+        vouchers,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load rewards.");
@@ -104,10 +117,30 @@ export function RewardsProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(id);
   }, [authLoading, isAuthenticated, refetch]);
 
-  const availableVoucherCount = useMemo(
-    () => (data?.vouchers ?? []).filter((v) => v.status === "AVAILABLE").length,
-    [data]
-  );
+  // Refresh at the next voucher expiry instead of leaving the action/badge
+  // usable until the regular one-minute poll. Long timers are safely capped
+  // and rescheduled when needed.
+  useEffect(() => {
+    if (!data) return;
+
+    const now = Date.now();
+    const nextExpiry = data.vouchers
+      .filter((voucher) => voucher.status === "AVAILABLE" && voucher.expiresAt)
+      .map((voucher) => new Date(voucher.expiresAt).getTime())
+      .filter((expiresAt) => Number.isFinite(expiresAt) && expiresAt > now)
+      .sort((a, b) => a - b)[0];
+
+    if (!nextExpiry) return;
+
+    const id = window.setTimeout(
+      () => void refetch(),
+      Math.min(nextExpiry - now + 100, 2_147_483_647)
+    );
+
+    return () => window.clearTimeout(id);
+  }, [data, refetch]);
+
+  const availableVoucherCount = data?.availableVoucherCount ?? 0;
 
   const value = useMemo(
     () => ({ data, isLoading, error, availableVoucherCount, refetch }),

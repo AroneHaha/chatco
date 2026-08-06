@@ -11,6 +11,7 @@ use App\Models\ShiftLog;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Models\Voucher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -149,6 +150,67 @@ class RewardSettingsTest extends TestCase
             ->assertJsonPath('data.ridesNeeded', 3)
             ->assertJsonPath('data.currentCycleRides', 1)
             ->assertJsonCount(2, 'data.vouchers');
+    }
+
+    public function test_rewards_normalizes_expired_vouchers_before_listing_and_badge_counting(): void
+    {
+        $commuter = User::factory()->commuter()->create();
+        $expired = $this->createVoucher($commuter, 'EXPIRED-LIST', [
+            'expires_at' => now()->subMinute(),
+        ]);
+        $available = $this->createVoucher($commuter, 'VALID-LIST', [
+            'expires_at' => now()->addDay(),
+        ]);
+
+        $this->actingAs($commuter)
+            ->getJson('/api/v1/commuter/rewards')
+            ->assertOk()
+            ->assertJsonPath('data.availableVoucherCount', 1)
+            ->assertJsonFragment([
+                'id' => $expired->id,
+                'status' => Voucher::STATUS_EXPIRED,
+            ])
+            ->assertJsonFragment([
+                'id' => $available->id,
+                'status' => Voucher::STATUS_AVAILABLE,
+            ]);
+
+        $this->assertSame(Voucher::STATUS_EXPIRED, $expired->fresh()->status);
+        $this->assertSame(Voucher::STATUS_AVAILABLE, $available->fresh()->status);
+    }
+
+    public function test_expiration_normalization_does_not_rewrite_other_voucher_states(): void
+    {
+        $commuter = User::factory()->commuter()->create();
+        $used = $this->createVoucher($commuter, 'USED-EXPIRED', [
+            'status' => 'USED',
+            'expires_at' => now()->subMinute(),
+        ]);
+        $alreadyExpired = $this->createVoucher($commuter, 'OLD-EXPIRED', [
+            'status' => Voucher::STATUS_EXPIRED,
+            'expires_at' => now()->subMinute(),
+        ]);
+
+        $this->actingAs($commuter)
+            ->getJson('/api/v1/commuter/rewards')
+            ->assertOk()
+            ->assertJsonPath('data.availableVoucherCount', 0);
+
+        $this->assertSame('USED', $used->fresh()->status);
+        $this->assertSame(Voucher::STATUS_EXPIRED, $alreadyExpired->fresh()->status);
+    }
+
+    private function createVoucher(User $commuter, string $code, array $overrides = []): Voucher
+    {
+        return Voucher::create(array_merge([
+            'code' => $code,
+            'commuter_id' => $commuter->commuterProfile->id,
+            'type' => 'REWARD',
+            'status' => Voucher::STATUS_AVAILABLE,
+            'amount' => 0,
+            'expires_at' => now()->addDays(30),
+            'ride_origin' => 'Reward Test',
+        ], $overrides));
     }
 
     private function createShift(): ShiftLog

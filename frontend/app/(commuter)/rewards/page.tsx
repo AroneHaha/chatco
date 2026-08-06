@@ -213,7 +213,7 @@ export default function RewardsPage() {
               </div>
               <div className="bg-[#050F1A] border border-white/10 rounded-xl px-4 py-3 text-center">
                 <p className="text-[10px] text-white/40 uppercase font-semibold">Vouchers Available</p>
-                <p className="text-lg font-bold text-emerald-400">{data.vouchers.filter(v => v.status === "AVAILABLE").length}</p>
+                <p className="text-lg font-bold text-emerald-400">{data.availableVoucherCount}</p>
               </div>
             </div>
           </div>
@@ -236,7 +236,8 @@ export default function RewardsPage() {
                 </div>
 
                 <div>
-                  {voucher.status === "AVAILABLE" && (
+                  {voucher.status === "AVAILABLE"
+                    && (!voucher.expiresAt || new Date(voucher.expiresAt).getTime() > Date.now()) && (
                     <button 
                       onClick={() => redeemVoucher(voucher.id)}
                       className="bg-[#FF6D3A] hover:bg-[#e55a2b] text-white text-sm font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-[#FF6D3A]/30 transition-colors"
@@ -249,6 +250,9 @@ export default function RewardsPage() {
                   )}
                   {voucher.status === "USED" && (
                     <span className="text-sm font-bold uppercase tracking-wider opacity-50">Redeemed</span>
+                  )}
+                  {voucher.status === "EXPIRED" && (
+                    <span className="text-sm font-bold uppercase tracking-wider opacity-70">Expired</span>
                   )}
                 </div>
               </div>
