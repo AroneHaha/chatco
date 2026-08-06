@@ -18,6 +18,7 @@ interface LostItemCardProps {
   claimStatus: ClaimStatus;
   onToggleWatchlist: (id: string) => void;
   onOpenClaimModal: (item: LostItem) => void;
+  /** Opens the cancel-claim confirmation modal for this item. */
   onCancelClaim: (id: string) => void;
   onOpenDetails: (item: LostItem) => void;
   formatDate: (dateStr: string) => string;
@@ -110,7 +111,10 @@ export default function LostItemCard({
               {claimStatus === "RELEASED" ? "Released" : "Validated"}
             </div>
           ) : (
-            <button onClick={primaryAction?.onClick} className={`h-10 rounded-lg border px-3 text-sm font-bold shadow-lg shadow-black/10 transition-colors ${primaryAction?.className}`}>
+            <button
+              onClick={primaryAction?.onClick}
+              className={`h-10 rounded-lg border px-3 text-sm font-bold shadow-lg shadow-black/10 transition-colors ${primaryAction?.className}`}
+            >
               {primaryAction?.label}
             </button>
           )}

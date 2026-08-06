@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { ItemCategory, ClaimFilter, ClaimStatus, LostItem, ClaimData, PaginatedAPIResponse, ViewTab } from "./types";
 import { CLAIMS_PER_PAGE, ITEMS_PER_PAGE } from "./data";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { RequestCancelledError } from "@/lib/api/client";
 import {
   list as listItems,
   claim as claimItem,
@@ -13,6 +15,14 @@ import {
   type BackendClaimStatus,
   type LostFoundItem,
 } from "@/lib/shared/services/lost-found.service";
+
+/** Server-side cap on `per_page` for Lost & Found list endpoints (see LostItemController). */
+const MAX_PER_PAGE = 50;
+/** Sanity ceiling on how many watchlist pages loadWatchlistIds() will walk, so a
+ *  backend bug (e.g. lastPage that never converges) can't spin this into an
+ *  infinite loop. 500 pages at MAX_PER_PAGE is 25,000 watchlisted items — far
+ *  beyond any realistic commuter's list. */
+const MAX_WATCHLIST_PAGES = 500;
 
 /**
  * Sprint 6 (S6-T8) — Commuter Lost & Found hook, fully DB-backed.
@@ -46,6 +56,10 @@ export function useLostAndFound() {
   const [activeCategory, setActiveCategory] = useState<ItemCategory>("ALL");
   const [claimFilter, setClaimFilter] = useState<ClaimFilter>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  // The input stays bound to `searchQuery` for instant keystroke feedback;
+  // fetches key off the debounced value so typing doesn't fire a request
+  // (and DB query) per keystroke.
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 400);
   const [selectedDate, setSelectedDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -54,6 +68,15 @@ export function useLostAndFound() {
   const [proofText, setProofText] = useState("");
   const [claimError, setClaimError] = useState<string | null>(null);
   const [isSubmittingClaim, setIsSubmittingClaim] = useState(false);
+  // Cancel-claim confirmation flow: `claimToCancel` (an item id) drives the
+  // confirmation modal — non-null means it's open for that item.
+  // `isCancellingClaim` is true only once the user has confirmed and the
+  // DELETE request + claims reload are actually in flight; it gates both
+  // modal buttons so a rapid double-click on "Yes, Cancel Claim" can't fire
+  // two requests. `cancelToast` is the post-success notification.
+  const [claimToCancel, setClaimToCancel] = useState<string | null>(null);
+  const [isCancellingClaim, setIsCancellingClaim] = useState(false);
+  const [cancelToast, setCancelToast] = useState<string | null>(null);
 
   // DB-backed: watchlisted item ids (for the card hearts) + the commuter's
   // current claims page keyed by item id. Claims are loaded page-by-page.
@@ -82,7 +105,7 @@ export function useLostAndFound() {
   };
 
   /** Reload one page of the commuter's own claims from the DB. */
-  const loadClaims = useCallback(async (page = currentPage, filter = claimFilter, date = selectedDate, search = searchQuery) => {
+  const loadClaims = useCallback(async (page = currentPage, filter = claimFilter, date = selectedDate, search = debouncedSearchQuery, signal?: AbortSignal) => {
     setIsLoading(true);
     setListError(null);
     try {
@@ -92,6 +115,7 @@ export function useLostAndFound() {
         status: toBackendClaimStatus(filter),
         date: date || undefined,
         search: search.trim() || undefined,
+        signal,
       });
       const next = new Map<string, ClaimData>();
       // Rows are newest-first. Keep one visible card state per item on this page.
@@ -116,20 +140,35 @@ export function useLostAndFound() {
         totalItems: result.total,
         currentPage: result.page,
       });
-    } catch {
+      setIsLoading(false);
+    } catch (err) {
+      // A stale request cancelled in favor of a newer one — the newer
+      // request owns isLoading/listError/claims from here, don't touch them.
+      if (err instanceof RequestCancelledError) return;
       setListError("Unable to load your claims.");
       setClaims(new Map());
       setClaimPageData({ totalPages: 1, totalItems: 0, currentPage: page });
-    } finally {
       setIsLoading(false);
     }
-  }, [claimFilter, currentPage, selectedDate, searchQuery]);
+  }, [claimFilter, currentPage, selectedDate, debouncedSearchQuery]);
 
-  /** Reload the watchlisted item ids from the DB (for the card hearts). */
+  /**
+   * Reload the watchlisted item ids from the DB (for the card hearts).
+   * Walks every page rather than assuming a fixed ceiling fits everyone —
+   * a commuter with a very large watchlist still gets correct heart state.
+   */
   const loadWatchlistIds = useCallback(async () => {
     try {
-      const result = await fetchMyWatchlist({ perPage: 100 });
-      setWatchlist(new Set(result.items.map((item) => item.id)));
+      const ids = new Set<string>();
+      let page = 1;
+      let lastPage = 1;
+      do {
+        const result = await fetchMyWatchlist({ page, perPage: MAX_PER_PAGE });
+        for (const item of result.items) ids.add(item.id);
+        lastPage = result.lastPage;
+        page += 1;
+      } while (page <= lastPage && page <= MAX_WATCHLIST_PAGES);
+      setWatchlist(ids);
     } catch {
       // Non-fatal: hearts render unfilled until the next reload.
     }
@@ -137,7 +176,7 @@ export function useLostAndFound() {
 
   useEffect(() => { void loadWatchlistIds(); }, [loadWatchlistIds]);
 
-  const fetchLostItems = useCallback(async (page: number, limit: number, category: ItemCategory, search: string, date: string) => {
+  const fetchLostItems = useCallback(async (page: number, limit: number, category: ItemCategory, search: string, date: string, signal?: AbortSignal) => {
     setIsLoading(true);
     setListError(null);
     try {
@@ -147,6 +186,7 @@ export function useLostAndFound() {
         category: category === "ALL" ? undefined : category,
         search: search.trim() || undefined,
         date: date || undefined,
+        signal,
       });
       setApiData({
         items: result.items.map(mapServiceItemToViewModel),
@@ -154,15 +194,16 @@ export function useLostAndFound() {
         totalItems: result.total,
         currentPage: result.page,
       });
+      setIsLoading(false);
     } catch (err) {
+      if (err instanceof RequestCancelledError) return;
       setListError(err instanceof LostFoundOperationError ? err.message : "Unable to load items.");
       setApiData({ items: [], totalPages: 1, totalItems: 0, currentPage: page });
-    } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const fetchWatchlistItems = useCallback(async (page: number, limit: number, date: string, search: string) => {
+  const fetchWatchlistItems = useCallback(async (page: number, limit: number, date: string, search: string, signal?: AbortSignal) => {
     setIsLoading(true);
     setListError(null);
     try {
@@ -171,6 +212,7 @@ export function useLostAndFound() {
         perPage: limit,
         date: date || undefined,
         search: search.trim() || undefined,
+        signal,
       });
       setApiData({
         items: result.items.map(mapServiceItemToViewModel),
@@ -184,25 +226,30 @@ export function useLostAndFound() {
         for (const item of result.items) next.add(item.id);
         return next;
       });
+      setIsLoading(false);
     } catch (err) {
+      if (err instanceof RequestCancelledError) return;
       setListError(err instanceof LostFoundOperationError ? err.message : "Unable to load your watchlist.");
       setApiData({ items: [], totalPages: 1, totalItems: 0, currentPage: page });
-    } finally {
       setIsLoading(false);
     }
   }, []);
 
+  // Cancels the in-flight list request whenever the tab/filters change again
+  // (or the component unmounts) before it resolves, so a slow earlier
+  // response can never land after a faster later one and overwrite it with
+  // stale data.
   useEffect(() => {
+    const controller = new AbortController();
     if (activeTab === "MY_CLAIMS") {
-      void loadClaims(currentPage, claimFilter, selectedDate, searchQuery);
-      return;
+      void loadClaims(currentPage, claimFilter, selectedDate, debouncedSearchQuery, controller.signal);
+    } else if (activeTab === "WATCHLIST") {
+      void fetchWatchlistItems(currentPage, ITEMS_PER_PAGE, selectedDate, debouncedSearchQuery, controller.signal);
+    } else {
+      void fetchLostItems(currentPage, ITEMS_PER_PAGE, activeCategory, debouncedSearchQuery, selectedDate, controller.signal);
     }
-    if (activeTab === "WATCHLIST") {
-      void fetchWatchlistItems(currentPage, ITEMS_PER_PAGE, selectedDate, searchQuery);
-      return;
-    }
-    void fetchLostItems(currentPage, ITEMS_PER_PAGE, activeCategory, searchQuery, selectedDate);
-  }, [activeTab, fetchLostItems, fetchWatchlistItems, loadClaims, currentPage, activeCategory, claimFilter, searchQuery, selectedDate]);
+    return () => controller.abort();
+  }, [activeTab, fetchLostItems, fetchWatchlistItems, loadClaims, currentPage, activeCategory, claimFilter, debouncedSearchQuery, selectedDate]);
 
   const handleTabChange = (tab: ViewTab) => { setActiveTab(tab); setActiveCategory("ALL"); setSearchQuery(""); setSelectedDate(""); setCurrentPage(1); };
   const handleCategoryChange = (cat: ItemCategory) => { setActiveCategory(cat); setCurrentPage(1); };
@@ -252,7 +299,7 @@ export function useLostAndFound() {
       try {
         if (wasWatched) await apiUnwatch(id);
         else await apiWatch(id);
-        if (activeTab === "WATCHLIST") void fetchWatchlistItems(currentPage, ITEMS_PER_PAGE, selectedDate, searchQuery);
+        if (activeTab === "WATCHLIST") void fetchWatchlistItems(currentPage, ITEMS_PER_PAGE, selectedDate, debouncedSearchQuery);
       } catch {
         // Revert the optimistic flip.
         setWatchlist(prev => { const next = new Set(prev); if (wasWatched) next.add(id); else next.delete(id); return next; });
@@ -295,23 +342,49 @@ export function useLostAndFound() {
     }
   };
 
+  // Success toast auto-dismisses so it doesn't linger on screen.
+  useEffect(() => {
+    if (!cancelToast) return;
+    const timer = setTimeout(() => setCancelToast(null), 2500);
+    return () => clearTimeout(timer);
+  }, [cancelToast]);
+
+  /** Open the "Cancel this claim?" confirmation modal for an item. */
+  const requestCancelClaim = (itemId: string) => {
+    if (isCancellingClaim) return;
+    setClaimToCancel(itemId);
+  };
+
+  /** Dismiss the confirmation modal without cancelling anything. */
+  const closeCancelClaimModal = () => {
+    if (isCancellingClaim) return;
+    setClaimToCancel(null);
+  };
+
   /**
    * Withdraw a PENDING claim — DELETE /lost-found/claims/{claimId} deletes
    * the row server-side, then the claims map is reloaded from the DB. If the
    * cancel fails (e.g. the admin approved it moments ago), reload anyway so
    * the card shows the real state.
+   *
+   * Only runs after the confirmation modal's "Yes, Cancel Claim" button.
+   * `isCancellingClaim` gates both modal buttons so a rapid double-click
+   * can't fire two DELETE requests for one claim.
    */
-  const cancelClaim = (itemId: string) => {
-    const existing = claims.get(itemId);
-    if (!existing) return;
-    void (async () => {
-      try {
-        await apiCancelClaim(existing.claimId);
-      } catch {
-        // Fall through — the reload below resyncs to the DB's truth.
-      }
-      await loadClaims(currentPage, claimFilter);
-    })();
+  const confirmCancelClaim = async () => {
+    const itemId = claimToCancel;
+    const existing = itemId ? claims.get(itemId) : undefined;
+    if (!itemId || !existing || isCancellingClaim) return;
+    setIsCancellingClaim(true);
+    try {
+      await apiCancelClaim(existing.claimId);
+    } catch {
+      // Fall through — the reload below resyncs to the DB's truth.
+    }
+    await loadClaims(currentPage, claimFilter);
+    setIsCancellingClaim(false);
+    setClaimToCancel(null);
+    setCancelToast("Claim cancelled successfully.");
   };
 
   const formatDate = (dateStr: string) => {
@@ -333,7 +406,8 @@ export function useLostAndFound() {
     selectedDate, handleDateChange,
     currentPage, setCurrentPage, apiData, isLoading, listError,
     watchlist, toggleWatchlist, claims, claimPageData,
-    openClaimModal, cancelClaim,
+    openClaimModal,
+    claimToCancel, requestCancelClaim, closeCancelClaimModal, confirmCancelClaim, isCancellingClaim, cancelToast,
     showClaimModal, setShowClaimModal, itemToClaim, proofText, setProofText,
     submitClaim, claimError, isSubmittingClaim,
     displayItems, displayClaims, formatDate, getStatusBadge,
