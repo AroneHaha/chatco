@@ -642,23 +642,81 @@ class LostFoundFlowTest extends TestCase
         ]);
 
         $response->assertStatus(200)
-            ->assertJsonPath('data.status', 'PENDING')
-            ->assertJsonPath('data.rejection_reason', null);
+            ->assertJsonPath('data.status', 'REJECTED')
+            ->assertJsonPath('data.rejection_reason', 'Claimant could not provide ID at handover');
 
         $this->assertDatabaseHas('claim_rejection_audits', [
             'claim_id' => $claim->id,
             'item_id' => $item->id,
             'claimant_id' => $this->commuter->commuterProfile->id,
             'previous_status' => 'APPROVED',
-            'resulting_status' => 'PENDING',
+            'resulting_status' => 'REJECTED',
             'rejection_reason' => 'Claimant could not provide ID at handover',
         ]);
 
-        // Item returns to claim review because the reverted claim is pending again.
+        // A post-approval rejection is terminal — the claim is no longer
+        // active, so the item is claimable again rather than stuck "under
+        // review" from a claim that's actually been turned down.
         $this->assertDatabaseHas('lost_items', [
             'id' => $item->id,
-            'status' => 'CLAIMED',
+            'status' => 'AVAILABLE',
         ]);
+    }
+
+    public function test_commuter_can_reclaim_after_approved_claim_is_rejected_and_it_counts_toward_the_cap(): void
+    {
+        $item = $this->createItem();
+
+        // Two full approve → reject (post-approval) cycles, plus one straight
+        // PENDING rejection — post-approval rejections must count toward the
+        // same three-rejection cap as ordinary ones, and each must leave the
+        // item claimable again rather than stuck "under review".
+        for ($attempt = 1; $attempt <= 3; $attempt++) {
+            $this->commuter();
+            $this->postJson("/api/v1/lost-found/{$item->id}/claim", [
+                'proof' => "attempt {$attempt} proof",
+            ])->assertStatus(201);
+
+            $this->admin();
+            $claim = Claim::where('item_id', $item->id)
+                ->where('claimant_id', $this->commuter->commuterProfile->id)
+                ->where('status', 'PENDING')
+                ->latest()
+                ->firstOrFail();
+
+            if ($attempt !== 3) {
+                // Approve, then reverse it — the "reject instead of release" path.
+                $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/approve")
+                    ->assertStatus(200);
+                $this->assertDatabaseHas('lost_items', ['id' => $item->id, 'status' => 'APPROVED']);
+
+                $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/reject", [
+                    'rejection_reason' => "attempt {$attempt} rejected post-approval",
+                ])->assertStatus(200)
+                    ->assertJsonPath('data.status', 'REJECTED');
+
+                // Fresh state — claimable again immediately, not left "Claimed"
+                // by a claim that's already been turned down.
+                $this->assertDatabaseHas('lost_items', ['id' => $item->id, 'status' => 'AVAILABLE']);
+            } else {
+                // An ordinary PENDING rejection, to land in the same terminal
+                // state via the other path and share the same cap.
+                $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/reject", [
+                    'rejection_reason' => 'attempt 3 rejected',
+                ])->assertStatus(200);
+            }
+        }
+
+        $this->assertEquals(3, Claim::where('item_id', $item->id)
+            ->where('claimant_id', $this->commuter->commuterProfile->id)
+            ->where('status', 'REJECTED')
+            ->count());
+
+        $this->commuter();
+        $this->postJson("/api/v1/lost-found/{$item->id}/claim", [
+            'proof' => 'fourth proof should not be accepted',
+        ])->assertStatus(422)
+            ->assertJsonPath('message', 'You have reached the maximum number of rejected claims for this item');
     }
 
     public function test_commuter_cannot_submit_fourth_claim_after_three_rejections_for_same_item(): void
