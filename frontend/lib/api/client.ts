@@ -65,6 +65,20 @@ export class NetworkError extends Error {
   }
 }
 
+/**
+ * Thrown when a request is aborted via an `AbortSignal` (e.g. a caller
+ * cancelling a stale search/filter request superseded by a newer one).
+ * Kept distinct from `NetworkError` so callers can tell "cancelled on
+ * purpose" apart from "actually failed" and skip error-state updates for
+ * the former.
+ */
+export class RequestCancelledError extends Error {
+  constructor() {
+    super("Request was cancelled");
+    this.name = "RequestCancelledError";
+  }
+}
+
 // ─── Response Types ──────────────────────────────────────────────────
 
 export interface ApiResponse<T> {
@@ -148,17 +162,24 @@ class ApiClient {
       return data as T;
     } catch (error) {
       if (error instanceof ApiError) throw error;
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw new RequestCancelledError();
+      }
       throw new NetworkError(
         error instanceof Error ? error.message : "Network request failed"
       );
     }
   }
 
-  async get<T>(path: string, params?: Record<string, string>): Promise<T> {
+  async get<T>(
+    path: string,
+    params?: Record<string, string>,
+    options?: RequestInit
+  ): Promise<T> {
     const searchParams = params
       ? `?${new URLSearchParams(params).toString()}`
       : "";
-    return this.request<T>(`${path}${searchParams}`);
+    return this.request<T>(`${path}${searchParams}`, options);
   }
 
   async post<T>(path: string, body?: unknown): Promise<T> {

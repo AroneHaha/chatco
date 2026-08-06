@@ -2,6 +2,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
+import { RequestCancelledError } from '@/lib/api/client';
 import { LostFoundGrid } from '@/components/admin/lost-found/lost-found-grid';
 import { AddLostFoundModal } from '@/components/admin/lost-found/add-lost-found-modal';
 import { EditLostFoundModal, type EditLostFoundFormData } from '@/components/admin/lost-found/edit-lost-found-modal';
@@ -117,6 +119,10 @@ export default function LostFoundPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>('ALL');
   const [activeCategory, setActiveCategory] = useState<ItemCategory | 'ALL'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  // The input stays bound to `searchQuery` for instant keystroke feedback;
+  // the fetch keys off the debounced value so typing doesn't fire a request
+  // (and DB query) per keystroke.
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 400);
   const [selectedDate, setSelectedDate] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 15;
@@ -124,8 +130,13 @@ export default function LostFoundPage() {
   /** Fetch the admin list (items + claims eager-loaded) and refresh the grid.
    * History (Released+Closed) and Expired are filtered server-side so their
    * pagination is correct — older historical/expired items aren't hidden on
-   * a later page of the unfiltered "All Items" fetch. */
-  const refresh = useCallback(async () => {
+   * a later page of the unfiltered "All Items" fetch.
+   *
+   * Accepts an optional `signal` so the driving effect can cancel a stale
+   * request when the tab/filters change again before it resolves — without
+   * this, a slow earlier response could land after a faster later one and
+   * overwrite the grid with stale data. */
+  const refresh = useCallback(async (signal?: AbortSignal) => {
     setIsLoading(true);
     setListError(null);
     try {
@@ -133,8 +144,9 @@ export default function LostFoundPage() {
         page: currentPage,
         perPage: ITEMS_PER_PAGE,
         category: activeCategory === 'ALL' ? undefined : activeCategory,
-        search: searchQuery.trim() || undefined,
+        search: debouncedSearchQuery.trim() || undefined,
         date: selectedDate || undefined,
+        signal,
         ...(activeTab === 'ALL' ? { statuses: ['AVAILABLE', 'CLAIMED'] } : {}),
         ...(activeTab === 'EXPIRED' ? { status: 'EXPIRED' } : {}),
         ...(activeTab === 'HISTORY' ? { status: 'CLOSED' } : {}),
@@ -149,16 +161,23 @@ export default function LostFoundPage() {
       const next: Record<string, Claim[]> = {};
       for (const it of result.items) next[it.id] = (it.claims ?? []).map(mapServiceClaimToAdmin);
       setClaimsByItem(next);
+      setIsLoading(false);
     } catch (err) {
+      // A stale request cancelled in favor of a newer one — the newer
+      // request owns isLoading/listError/items from here, don't touch them.
+      if (err instanceof RequestCancelledError) return;
       setListError(err instanceof LostFoundOperationError ? err.message : 'Unable to load lost items.');
       setItems([]);
       setPageMeta({ page: currentPage, lastPage: 1, total: 0 });
-    } finally {
       setIsLoading(false);
     }
-  }, [currentPage, activeCategory, activeTab, searchQuery, selectedDate]);
+  }, [currentPage, activeCategory, activeTab, debouncedSearchQuery, selectedDate]);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void refresh(controller.signal);
+    return () => controller.abort();
+  }, [refresh]);
 
   /** Merge a freshly-mutated item (from update/addPhoto/deletePhoto) back into
    * the currently-loaded list without a full refetch — keeps the detail modal

@@ -59,7 +59,7 @@ class AdminLostItemController extends Controller
             'search' => $request->string('search')->toString() ?: null,
             'date' => $request->string('date')->toString() ?: null,
         ];
-        $perPage = (int) $request->integer('per_page', 15);
+        $perPage = min(max((int) $request->integer('per_page', 15), 1), 50);
 
         $items = $this->lostItemService->listForAdmin($filters, $perPage);
 

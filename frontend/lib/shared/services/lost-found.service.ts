@@ -36,7 +36,7 @@
  * Mirrors the pattern established by lib/commuter/services/feedback.service.ts.
  */
 
-import { api, ApiError } from "@/lib/api/client";
+import { api, ApiError, RequestCancelledError } from "@/lib/api/client";
 
 // ─── Backend status enums ────────────────────────────────────────────
 
@@ -419,6 +419,8 @@ export async function list(params: {
   date?: string;
   page?: number;
   perPage?: number;
+  /** Cancels this request if a newer one supersedes it (e.g. rapid filter changes). */
+  signal?: AbortSignal;
 } = {}): Promise<LostFoundPage> {
   const qs = buildQuery({
     status: params.status,
@@ -430,7 +432,9 @@ export async function list(params: {
   });
   try {
     const response = await api.get<ApiResponseEnvelope<PaginatedEnvelope<RawLostItem>>>(
-      `/api/lost-found${qs}`
+      `/api/lost-found${qs}`,
+      undefined,
+      { signal: params.signal }
     );
     const p = response.data;
     return {
@@ -440,6 +444,7 @@ export async function list(params: {
       total: p?.total ?? 0,
     };
   } catch (err) {
+    if (err instanceof RequestCancelledError) throw err;
     if (err instanceof ApiError) {
       throw classifyError(err, "Unable to load lost & found items.");
     }
@@ -467,6 +472,8 @@ export async function listForAdmin(params: {
   date?: string;
   page?: number;
   perPage?: number;
+  /** Cancels this request if a newer one supersedes it (e.g. rapid filter changes). */
+  signal?: AbortSignal;
 } = {}): Promise<LostFoundPage & { items: (LostFoundItem & { claims: LostFoundClaim[] })[] }> {
   const qs = buildQuery({
     status: params.status,
@@ -486,7 +493,9 @@ export async function listForAdmin(params: {
     : qs;
   try {
     const response = await api.get<ApiResponseEnvelope<PaginatedEnvelope<RawLostItem>>>(
-      `/api/admin/lost-items${fullQs}`
+      `/api/admin/lost-items${fullQs}`,
+      undefined,
+      { signal: params.signal }
     );
     const p = response.data;
     return {
@@ -499,6 +508,7 @@ export async function listForAdmin(params: {
       total: p?.total ?? 0,
     };
   } catch (err) {
+    if (err instanceof RequestCancelledError) throw err;
     if (err instanceof ApiError) {
       throw classifyError(err, "Unable to load lost & found items.");
     }
@@ -572,11 +582,15 @@ export async function myWatchlist(params: {
   perPage?: number;
   date?: string;
   search?: string;
+  /** Cancels this request if a newer one supersedes it (e.g. rapid filter changes). */
+  signal?: AbortSignal;
 } = {}): Promise<LostFoundPage> {
   const qs = buildQuery({ page: params.page, per_page: params.perPage, date: params.date, search: params.search });
   try {
     const response = await api.get<ApiResponseEnvelope<PaginatedEnvelope<RawWatchlistEntry>>>(
-      `/api/commuter/watchlist${qs}`
+      `/api/commuter/watchlist${qs}`,
+      undefined,
+      { signal: params.signal }
     );
     const p = response.data;
     return {
@@ -588,6 +602,7 @@ export async function myWatchlist(params: {
       total: p?.total ?? 0,
     };
   } catch (err) {
+    if (err instanceof RequestCancelledError) throw err;
     if (err instanceof ApiError) throw classifyError(err, "Unable to load your watchlist.");
     throw new LostFoundOperationError(
       "network",
@@ -607,10 +622,16 @@ export async function myClaims(params: {
   status?: BackendClaimStatus;
   date?: string;
   search?: string;
+  /** Cancels this request if a newer one supersedes it (e.g. rapid filter changes). */
+  signal?: AbortSignal;
 } = {}): Promise<MyClaimsPage> {
   const qs = buildQuery({ page: params.page, per_page: params.perPage, status: params.status, date: params.date, search: params.search });
   try {
-    const response = await api.get<ApiResponseEnvelope<PaginatedEnvelope<RawClaim>>>(`/api/commuter/claims${qs}`);
+    const response = await api.get<ApiResponseEnvelope<PaginatedEnvelope<RawClaim>>>(
+      `/api/commuter/claims${qs}`,
+      undefined,
+      { signal: params.signal }
+    );
     const p = response.data;
     return {
       claims: (p?.data ?? []).map((raw) => ({
@@ -622,6 +643,7 @@ export async function myClaims(params: {
       total: p?.total ?? 0,
     };
   } catch (err) {
+    if (err instanceof RequestCancelledError) throw err;
     if (err instanceof ApiError) throw classifyError(err, "Unable to load your claims.");
     throw new LostFoundOperationError(
       "network",
