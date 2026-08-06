@@ -11,7 +11,12 @@ class Voucher extends Model
 {
     use HasFactory, SoftDeletes;
 
+    public const STATUS_AVAILABLE = 'AVAILABLE';
+
+    public const STATUS_EXPIRED = 'EXPIRED';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [
@@ -47,5 +52,20 @@ class Voucher extends Model
     public function commuter()
     {
         return $this->belongsTo(CommuterProfile::class);
+    }
+
+    /**
+     * Normalize only this commuter's overdue, still-available vouchers.
+     *
+     * The WHERE clauses keep this as a targeted bulk update; valid, used, and
+     * already-expired vouchers are never rewritten on each rewards request.
+     */
+    public static function expireAvailableForCommuter(string $commuterId): int
+    {
+        return static::where('commuter_id', $commuterId)
+            ->where('status', self::STATUS_AVAILABLE)
+            ->whereNotNull('expires_at')
+            ->where('expires_at', '<=', now())
+            ->update(['status' => self::STATUS_EXPIRED]);
     }
 }

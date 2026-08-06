@@ -184,7 +184,7 @@ class TransactionService
         $idempotencyKey = $data['idempotency_key'] ?? null;
 
         try {
-            return DB::transaction(function () use ($shift, $data, $voucherCode, $expectedCommuterId, $idempotencyKey): Transaction {
+            $transaction = DB::transaction(function () use ($shift, $data, $voucherCode, $expectedCommuterId, $idempotencyKey): ?Transaction {
                 $voucher = Voucher::where('code', $voucherCode)
                     ->lockForUpdate()
                     ->first();
@@ -214,11 +214,19 @@ class TransactionService
                     }
                 }
 
-                if ($voucher->expires_at && $voucher->expires_at->isPast()) {
-                    abort(422, 'This voucher has expired.');
+                if ($voucher->status === Voucher::STATUS_EXPIRED
+                    || ($voucher->status === Voucher::STATUS_AVAILABLE
+                        && $voucher->expires_at?->isPast())) {
+                    if ($voucher->status === Voucher::STATUS_AVAILABLE) {
+                        $voucher->update(['status' => Voucher::STATUS_EXPIRED]);
+                    }
+
+                    // Returning lets the EXPIRED update commit. The validation
+                    // response is raised immediately after the transaction.
+                    return null;
                 }
 
-                if ($voucher->status !== 'AVAILABLE') {
+                if ($voucher->status !== Voucher::STATUS_AVAILABLE) {
                     abort(409, 'This voucher has already been used or is no longer available.');
                 }
 
@@ -266,6 +274,12 @@ class TransactionService
                     'paid_at' => now(),
                 ]);
             }, 3);
+
+            if (! $transaction) {
+                abort(422, 'This voucher has expired.');
+            }
+
+            return $transaction;
         } catch (UniqueConstraintViolationException $e) {
             $voucherId = Voucher::where('code', $voucherCode)->value('id');
 

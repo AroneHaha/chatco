@@ -47,8 +47,12 @@ class AdminSettingController extends Controller
      */
     public function update(Request $request, string $key): JsonResponse
     {
+        $valueRules = $key === Setting::RIDES_FOR_FREE_REWARD_KEY
+            ? ['required', 'integer', 'min:1', 'max:'.Setting::MAX_RIDES_FOR_FREE_REWARD]
+            : ['nullable', 'string'];
+
         $validator = Validator::make($request->all(), [
-            'value' => ['nullable', 'string'],
+            'value' => $valueRules,
             'category' => ['nullable', 'string', 'max:50'],
         ]);
 
@@ -64,11 +68,14 @@ class AdminSettingController extends Controller
 
         $validated = $validator->validated();
         $category = $validated['category'] ?? 'general';
+        $value = $key === Setting::RIDES_FOR_FREE_REWARD_KEY
+            ? (string) $validated['value']
+            : ($validated['value'] ?? null);
 
         $setting = Setting::updateOrCreate(
             ['key' => $key],
             [
-                'value' => $validated['value'] ?? null,
+                'value' => $value,
                 'category' => $category,
                 'updated_by' => $request->user()->id,
             ]
