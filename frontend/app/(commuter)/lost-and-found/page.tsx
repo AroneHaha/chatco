@@ -33,7 +33,8 @@ export default function LostAndFoundPage() {
     activeTab, handleTabChange, activeCategory, handleCategoryChange, searchQuery, handleSearch,
     selectedDate, handleDateChange,
     setCurrentPage, apiData, isLoading, listError,
-    watchlist, toggleWatchlist, claims, claimPageData, openClaimModal, cancelClaim,
+    watchlist, toggleWatchlist, claims, claimPageData, openClaimModal,
+    claimToCancel, requestCancelClaim, closeCancelClaimModal, confirmCancelClaim, isCancellingClaim, cancelToast,
     showClaimModal, setShowClaimModal, itemToClaim, proofText, setProofText,
     submitClaim, claimError, isSubmittingClaim,
     displayItems, displayClaims, formatDate, getStatusBadge
@@ -223,7 +224,7 @@ export default function LostAndFoundPage() {
                     claim={claim}
                     formatDateTime={formatDateTime}
                     getStatusBadge={getStatusBadge}
-                    onCancelClaim={cancelClaim}
+                    onCancelClaim={requestCancelClaim}
                     onClaimAgain={openClaimModal}
                     onOpenDetails={setDetailItem}
                   />
@@ -232,14 +233,14 @@ export default function LostAndFoundPage() {
             ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
               {displayItems.map(item => (
-                <LostItemCard 
-                  key={item.id} 
-                  item={item} 
+                <LostItemCard
+                  key={item.id}
+                  item={item}
                   isWatched={watchlist.has(item.id)}
                   claimStatus={claims.get(item.id)?.status || "NONE"}
                   onToggleWatchlist={toggleWatchlist}
                   onOpenClaimModal={openClaimModal}
-                  onCancelClaim={cancelClaim}
+                  onCancelClaim={requestCancelClaim}
                   onOpenDetails={setDetailItem}
                   formatDate={formatDate}
                   getStatusBadge={getStatusBadge}
@@ -355,7 +356,7 @@ export default function LostAndFoundPage() {
                   {(() => {
                     const status = claims.get(detailItem.id)?.status || "NONE";
                     if (status === "PENDING") {
-                      return <button onClick={() => cancelClaim(detailItem.id)} className="h-11 flex-1 rounded-xl border border-white/10 bg-white/5 text-sm font-semibold text-white/65 transition-colors hover:bg-white/10 hover:text-white">Cancel Claim</button>;
+                      return <button onClick={() => requestCancelClaim(detailItem.id)} className="h-11 flex-1 rounded-xl border border-white/10 bg-white/5 text-sm font-semibold text-white/65 transition-colors hover:bg-white/10 hover:text-white">Cancel Claim</button>;
                     }
                     if (status === "VALIDATED" || status === "RELEASED") {
                       return (
@@ -451,6 +452,58 @@ export default function LostAndFoundPage() {
           </div>
         </div>
       )}
+
+      {/* --- CANCEL CLAIM CONFIRMATION MODAL --- */}
+      {claimToCancel && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-white/10 bg-[#071A2E] shadow-2xl">
+            <div className="flex items-start gap-4 p-5">
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-red-500/30 bg-red-500/10 text-red-400">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-base font-bold text-white">Cancel this claim?</h2>
+                <p className="mt-1.5 text-sm leading-5 text-white/55">
+                  {claims.get(claimToCancel)?.item?.itemName ? (
+                    <>This will cancel your claim on &ldquo;<span className="font-semibold text-white/80">{claims.get(claimToCancel)?.item?.itemName}</span>&rdquo;. </>
+                  ) : (
+                    "This will cancel your claim. "
+                  )}
+                  You can submit a new claim later if the item is still available.
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 border-t border-white/10 p-5">
+              <button
+                onClick={closeCancelClaimModal}
+                disabled={isCancellingClaim}
+                className="h-11 rounded-xl border border-white/10 bg-white/5 text-sm font-semibold text-white/70 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Keep Claim
+              </button>
+              <button
+                onClick={() => void confirmCancelClaim()}
+                disabled={isCancellingClaim}
+                className={`flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-bold shadow-lg transition-colors ${isCancellingClaim ? "cursor-not-allowed bg-white/10 text-white/30 shadow-none" : "bg-red-500 text-white shadow-red-500/25 hover:bg-red-600"}`}
+              >
+                {isCancellingClaim ? (
+                  <span className="inline-flex items-center gap-2"><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Cancelling...</span>
+                ) : "Yes, Cancel Claim"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- CANCEL SUCCESS TOAST --- */}
+      {cancelToast && (
+        <div className="fixed bottom-6 left-1/2 z-[120] flex -translate-x-1/2 items-center gap-2 rounded-full bg-[#071A2E] px-4 py-2.5 text-sm font-medium text-white shadow-lg">
+          <svg className="h-4 w-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+          </svg>
+          {cancelToast}
+        </div>
+      )}
     </div>
   );
 }
@@ -500,6 +553,7 @@ function ClaimRecordCard({
   claim: ClaimData;
   formatDateTime: (dateStr: string | null) => string;
   getStatusBadge: (status: ClaimStatus) => string;
+  /** Opens the cancel-claim confirmation modal for this claim's item. */
   onCancelClaim: (id: string) => void;
   onClaimAgain: (item: LostItem) => void;
   onOpenDetails: (item: LostItem) => void;
