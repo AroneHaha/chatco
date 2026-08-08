@@ -2,6 +2,14 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Loader2, MapPin } from "lucide-react";
+import { haversineMeters } from "@/lib/utils/geo";
+
+// The public tracking page (app/share/[token]/page.tsx) polls every 5s, so
+// pushing position updates more often than that is wasted work. Only push
+// when meaningfully stale (time) or meaningfully moved (distance) — a real
+// position change is still sent immediately regardless of the timer.
+const MIN_UPDATE_INTERVAL_MS = 4000;
+const MIN_UPDATE_DISTANCE_METERS = 8;
 
 interface ShareRideModalProps {
   commuterName: string;
@@ -26,6 +34,8 @@ export default function ShareRideModal({ commuterName, lat: propLat, lng: propLn
   // Track the share token + current position so we can push updates.
   const tokenRef = useRef<string | null>(null);
   const watchIdRef = useRef<number | null>(null);
+  // Last position actually pushed to the backend, for throttling.
+  const lastSentRef = useRef<{ lat: number; lng: number; at: number } | null>(null);
 
   // ── Get current GPS position ──
   const getCurrentPosition = (): Promise<{ lat: number; lng: number }> => {
@@ -45,6 +55,22 @@ export default function ShareRideModal({ commuterName, lat: propLat, lng: propLn
   // ── Push position update to the backend ──
   const updatePosition = useCallback(async (latVal: number, lngVal: number) => {
     if (!tokenRef.current) return;
+
+    // Throttle: skip this push if it's both too soon since the last one AND
+    // the position hasn't moved meaningfully — avoids spamming the backend
+    // on every raw watchPosition tick while still pushing immediately on
+    // real movement or once the interval elapses.
+    const now = Date.now();
+    const last = lastSentRef.current;
+    if (last) {
+      const elapsedMs = now - last.at;
+      const movedMeters = haversineMeters(last.lat, last.lng, latVal, lngVal);
+      if (elapsedMs < MIN_UPDATE_INTERVAL_MS && movedMeters < MIN_UPDATE_DISTANCE_METERS) {
+        return;
+      }
+    }
+    lastSentRef.current = { lat: latVal, lng: lngVal, at: now };
+
     try {
       await fetch("/api/commuter/share-ride", {
         method: "POST",
