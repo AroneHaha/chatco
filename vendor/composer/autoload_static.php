@@ -689,6 +689,7 @@ class ComposerStaticInit1554d9a7755277c7b64a5a5f7daac88e
         'App\\Services\\Payments\\Gateways\\PayMongoGateway' => __DIR__ . '/../..' . '/app/Services/Payments/Gateways/PayMongoGateway.php',
         'App\\Services\\QrTokenService' => __DIR__ . '/../..' . '/app/Services/QrTokenService.php',
         'App\\Services\\RegistrationGuard' => __DIR__ . '/../..' . '/app/Services/RegistrationGuard.php',
+        'App\\Services\\RewardService' => __DIR__ . '/../..' . '/app/Services/RewardService.php',
         'App\\Services\\RouteGeometryService' => __DIR__ . '/../..' . '/app/Services/RouteGeometryService.php',
         'App\\Services\\ShiftService' => __DIR__ . '/../..' . '/app/Services/ShiftService.php',
         'App\\Services\\SosService' => __DIR__ . '/../..' . '/app/Services/SosService.php',

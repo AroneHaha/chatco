@@ -38,6 +38,7 @@ class Transaction extends Model
         'group_id',
         'group_position',
         'reward_eligible',
+        'reward_rule_version',
         'payment_method',
         'final_amount',
         'total_passengers',
@@ -63,6 +64,7 @@ class Transaction extends Model
         'status',
         'qr_token',
         'paid_at',
+        'reward_earned_at',
         'idempotency_key',
         // ─── Provider-agnostic payment columns ────────────────────────
         'payment_provider',
@@ -86,6 +88,7 @@ class Transaction extends Model
             'succeeding_km' => 'decimal:2',
             'discount_amount' => 'decimal:2',
             'paid_at' => 'datetime',
+            'reward_earned_at' => 'datetime',
             'payment_method' => PaymentMethod::class,
             'status' => PaymentStatus::class,
             'payment_metadata' => 'array',
@@ -93,6 +96,7 @@ class Transaction extends Model
             'payment_reconciliation_resolved_at' => 'datetime',
             'group_position' => 'integer',
             'reward_eligible' => 'boolean',
+            'reward_rule_version' => 'integer',
         ];
     }
 

@@ -185,6 +185,7 @@ return array(
     'App\\Services\\Payments\\Gateways\\PayMongoGateway' => $baseDir . '/app/Services/Payments/Gateways/PayMongoGateway.php',
     'App\\Services\\QrTokenService' => $baseDir . '/app/Services/QrTokenService.php',
     'App\\Services\\RegistrationGuard' => $baseDir . '/app/Services/RegistrationGuard.php',
+    'App\\Services\\RewardService' => $baseDir . '/app/Services/RewardService.php',
     'App\\Services\\RouteGeometryService' => $baseDir . '/app/Services/RouteGeometryService.php',
     'App\\Services\\ShiftService' => $baseDir . '/app/Services/ShiftService.php',
     'App\\Services\\SosService' => $baseDir . '/app/Services/SosService.php',

@@ -29,6 +29,7 @@ class PaymentService
 {
     public function __construct(
         private readonly PaymentGateway $gateway,
+        private readonly RewardService $rewardService,
     ) {}
 
     public function gatewayName(): string
@@ -133,7 +134,7 @@ class PaymentService
                 }
 
                 return $this->transitionLocked($transaction, $event->status);
-            });
+            }, 3);
 
             if ($result['changed']) {
                 broadcast(new PaymentStatusUpdated($result['transaction'], $event->status->value));
@@ -232,7 +233,7 @@ class PaymentService
             }
 
             return $result;
-        });
+        }, 3);
 
         if ($result['changed']) {
             broadcast(new PaymentStatusUpdated($result['transaction'], $result['transaction']->status->value));
@@ -254,7 +255,7 @@ class PaymentService
                 ->findOrFail($transaction->transaction_id);
 
             return $this->transitionLocked($locked, $target);
-        });
+        }, 3);
 
         if ($result['changed']) {
             broadcast(new PaymentStatusUpdated($result['transaction'], $target->value));
@@ -406,6 +407,22 @@ class PaymentService
         Transaction::query()
             ->whereIn('transaction_id', $transactions->pluck('transaction_id'))
             ->update($attributes);
+
+        if ($target === PaymentStatus::PAID) {
+            $rewardableTransactions = Transaction::query()
+                ->whereIn('transaction_id', $transactions->pluck('transaction_id'))
+                ->whereNotNull('passenger_id')
+                ->where('reward_eligible', true)
+                ->whereNull('payment_reconciliation_status')
+                ->get();
+
+            foreach ($rewardableTransactions as $rewardableTransaction) {
+                $this->rewardService->issueForRewardableRide(
+                    $rewardableTransaction,
+                    $rewardableTransaction->paid_at ?? now(),
+                );
+            }
+        }
 
         return [
             'transaction' => Transaction::findOrFail($transaction->transaction_id),

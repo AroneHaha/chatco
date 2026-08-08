@@ -11,6 +11,7 @@ use App\Models\LostItemWatchlist;
 use App\Models\User;
 use App\Support\LostFound\LostFoundException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\UploadedFile;
@@ -97,14 +98,7 @@ class LostItemService
             $query->whereDate('created_at', $filters['date']);
         }
         if (! empty($filters['search'])) {
-            $search = $filters['search'];
-            $query->where(function ($q) use ($search) {
-                $q->where('item_name', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%")
-                    ->orWhere('plate_number', 'like', "%{$search}%")
-                    ->orWhere('driver_name', 'like', "%{$search}%")
-                    ->orWhere('conductor_name', 'like', "%{$search}%");
-            });
+            $this->applySearchFilter($query, $filters['search']);
         }
 
         return $query->paginate($perPage);
@@ -135,14 +129,7 @@ class LostItemService
             $query->whereDate('created_at', $filters['date']);
         }
         if (! empty($filters['search'])) {
-            $search = $filters['search'];
-            $query->where(function ($q) use ($search) {
-                $q->where('item_name', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%")
-                    ->orWhere('plate_number', 'like', "%{$search}%")
-                    ->orWhere('driver_name', 'like', "%{$search}%")
-                    ->orWhere('conductor_name', 'like', "%{$search}%");
-            });
+            $this->applySearchFilter($query, $filters['search']);
         }
 
         return $query->paginate($perPage);
@@ -295,7 +282,10 @@ class LostItemService
      */
     public function claim(User $commuter, string $itemId, array $data): Claim
     {
-        $item = $this->show($itemId);
+        // Lean fetch — this only ever reads $item->status/id, not any of
+        // show()'s eager-loaded relations (vehicle, photos, claims.claimant,
+        // releasedTo, closedBy), so there's no reason to pay for them here.
+        $item = $this->findItemOrFail($itemId);
 
         if (! in_array($item->status, [self::ITEM_AVAILABLE, self::ITEM_CLAIMED], true)) {
             throw LostFoundException::itemNotClaimable(
@@ -348,7 +338,8 @@ class LostItemService
      */
     public function createManualClaim(User $admin, string $itemId, array $data): Claim
     {
-        $item = $this->show($itemId);
+        // Lean fetch — see the comment in claim() above.
+        $item = $this->findItemOrFail($itemId);
 
         if (! in_array($item->status, [self::ITEM_AVAILABLE, self::ITEM_CLAIMED], true)) {
             throw LostFoundException::itemNotClaimable(
@@ -404,13 +395,7 @@ class LostItemService
             $query->whereHas('item', fn ($itemQuery) => $itemQuery->whereDate('created_at', $date));
         }
         if ($search) {
-            $query->whereHas('item', function ($itemQuery) use ($search) {
-                $itemQuery->where('item_name', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%")
-                    ->orWhere('plate_number', 'like', "%{$search}%")
-                    ->orWhere('driver_name', 'like', "%{$search}%")
-                    ->orWhere('conductor_name', 'like', "%{$search}%");
-            });
+            $query->whereHas('item', fn ($itemQuery) => $this->applySearchFilter($itemQuery, $search));
         }
 
         return $query->paginate($perPage);
@@ -536,13 +521,7 @@ class LostItemService
                     $query->whereDate('created_at', $date);
                 }
                 if ($search) {
-                    $query->where(function ($searchQuery) use ($search) {
-                        $searchQuery->where('item_name', 'like', "%{$search}%")
-                            ->orWhere('description', 'like', "%{$search}%")
-                            ->orWhere('plate_number', 'like', "%{$search}%")
-                            ->orWhere('driver_name', 'like', "%{$search}%")
-                            ->orWhere('conductor_name', 'like', "%{$search}%");
-                    });
+                    $this->applySearchFilter($query, $search);
                 }
             })
             ->orderByDesc('created_at')
@@ -711,11 +690,14 @@ class LostItemService
     /**
      * Admin rejects a claim. Works on both PENDING and APPROVED claims
      * (post-approval reversal — "if something later invalidates the approval").
+     * Either way the claim ends in a terminal REJECTED state — it is never
+     * treated as active again, so the commuter is free to submit a new claim
+     * on the same item (subject to the MAX_REJECTIONS_PER_COMMUTER_ITEM cap,
+     * which counts REJECTED claims and therefore now also counts a rejection
+     * that happened post-approval).
      *
-     * - Rejecting a PENDING claim: if no pending claims remain, item reverts
-     *   to AVAILABLE.
-     * - Rejecting an APPROVED claim: item reverts to CLAIMED if other pending
-     *   claims exist, or AVAILABLE if none remain.
+     * The item reverts to AVAILABLE if no other PENDING claims remain, or
+     * CLAIMED if other commuters still have a PENDING claim on it.
      *
      * @throws LostFoundException Claim not found, or already REJECTED.
      */
@@ -748,22 +730,23 @@ class LostItemService
             }
 
             $previousStatus = $claim->status;
-            $resultingStatus = $previousStatus === self::CLAIM_APPROVED
-                ? self::CLAIM_PENDING
-                : self::CLAIM_REJECTED;
             $now = now();
 
+            // Terminal in both cases — a PENDING claim rejected outright, or
+            // an APPROVED claim reversed post-approval, both end up REJECTED
+            // and stop being "active" for this commuter/item.
             $claim->update([
-                'status' => $resultingStatus,
-                'reviewed_by' => $resultingStatus === self::CLAIM_REJECTED ? $admin->id : null,
-                'reviewed_at' => $resultingStatus === self::CLAIM_REJECTED ? $now : null,
+                'status' => self::CLAIM_REJECTED,
+                'reviewed_by' => $admin->id,
+                'reviewed_at' => $now,
                 'rejected_at' => $now,
-                'rejection_reason' => $resultingStatus === self::CLAIM_REJECTED ? $reason : null,
+                'rejection_reason' => $reason,
             ]);
 
-            $this->recordRejectionAudit($claim, $admin, $previousStatus, $resultingStatus, $reason);
+            $this->recordRejectionAudit($claim, $admin, $previousStatus, self::CLAIM_REJECTED, $reason);
 
-            // Determine the new item status based on remaining claims.
+            // Determine the new item status based on any other remaining
+            // PENDING claims (the one just rejected no longer counts).
             $pendingCount = Claim::where('item_id', $claim->item_id)
                 ->where('status', self::CLAIM_PENDING)
                 ->count();
@@ -774,7 +757,8 @@ class LostItemService
                     $item->update(['status' => self::ITEM_CLAIMED]);
                 }
             } else {
-                // No pending claims remain → item reverts to AVAILABLE.
+                // No pending claims remain → item reverts to AVAILABLE, so
+                // this (or another) commuter can submit a fresh claim on it.
                 if ($item->status !== self::ITEM_AVAILABLE) {
                     $item->update(['status' => self::ITEM_AVAILABLE]);
                 }
@@ -782,28 +766,19 @@ class LostItemService
 
             if ($claim->claimant_id) {
                 $reasonSuffix = $reason ? " Reason: {$reason}." : '';
-                if ($resultingStatus === self::CLAIM_PENDING) {
-                    $this->announcementService->notifyUser(
-                        $claim->claimant_id,
-                        'claim_reopened',
-                        'Claim Review Reopened',
-                        "Your approved claim on \"{$item->item_name}\" was sent back for review.{$reasonSuffix}"
-                    );
-                } else {
-                    $rejectedCount = Claim::where('item_id', $claim->item_id)
-                        ->where('claimant_id', $claim->claimant_id)
-                        ->where('status', self::CLAIM_REJECTED)
-                        ->count();
-                    $retryText = $rejectedCount >= self::MAX_REJECTIONS_PER_COMMUTER_ITEM
-                        ? ' You have reached the rejection limit for this item.'
-                        : " You're welcome to review the item again and submit a new claim with more specific proof.";
-                    $this->announcementService->notifyUser(
-                        $claim->claimant_id,
-                        'claim_rejected',
-                        'Claim Rejected',
-                        "Your claim on \"{$item->item_name}\" was not approved.{$reasonSuffix}{$retryText}"
-                    );
-                }
+                $rejectedCount = Claim::where('item_id', $claim->item_id)
+                    ->where('claimant_id', $claim->claimant_id)
+                    ->where('status', self::CLAIM_REJECTED)
+                    ->count();
+                $retryText = $rejectedCount >= self::MAX_REJECTIONS_PER_COMMUTER_ITEM
+                    ? ' You have reached the rejection limit for this item.'
+                    : " You're welcome to review the item again and submit a new claim with more specific proof.";
+                $this->announcementService->notifyUser(
+                    $claim->claimant_id,
+                    'claim_rejected',
+                    'Claim Rejected',
+                    "Your claim on \"{$item->item_name}\" was not approved.{$reasonSuffix}{$retryText}"
+                );
             }
 
             return $claim->fresh(['item', 'claimant', 'reviewer']);
@@ -883,6 +858,48 @@ class LostItemService
     }
 
     // ── Private helpers ────────────────────────────────────────
+
+    /**
+     * Lean item fetch for internal guards that only need the row itself
+     * (claim eligibility checks) — avoids show()'s heavy eager loads
+     * (vehicle, photos, claims.claimant, releasedTo, closedBy) when nothing
+     * but status/id is actually needed.
+     */
+    private function findItemOrFail(string $itemId): LostItem
+    {
+        try {
+            return LostItem::findOrFail($itemId);
+        } catch (ModelNotFoundException) {
+            throw LostFoundException::notFound('Item');
+        }
+    }
+
+    /**
+     * Apply the free-text search filter shared by every Lost & Found list
+     * query (browse, admin list, my-claims, my-watchlist) — matches
+     * item_name/description/plate_number/driver_name/conductor_name.
+     *
+     * NOTE — indexing caveat: this uses a leading-wildcard LIKE ('%term%'),
+     * which cannot use a B-tree index on any of these columns no matter
+     * what's indexed, so MySQL falls back to scanning every row the other
+     * filters (status/category/date) leave as candidates. That's fine at
+     * current volumes. If lost_items grows into the hundreds of thousands
+     * of rows and this scan shows up in slow-query logs, the fix is a
+     * dedicated search strategy — e.g. a MySQL FULLTEXT index on these
+     * columns, or Laravel Scout + Meilisearch/Elasticsearch — not another
+     * regular index, since a regular index can't help a leading-wildcard
+     * LIKE.
+     */
+    private function applySearchFilter(Builder $query, string $search): void
+    {
+        $query->where(function (Builder $q) use ($search) {
+            $q->where('item_name', 'like', "%{$search}%")
+                ->orWhere('description', 'like', "%{$search}%")
+                ->orWhere('plate_number', 'like', "%{$search}%")
+                ->orWhere('driver_name', 'like', "%{$search}%")
+                ->orWhere('conductor_name', 'like', "%{$search}%");
+        });
+    }
 
     private function loadClaimForItem(string $itemId, string $claimId): Claim
     {

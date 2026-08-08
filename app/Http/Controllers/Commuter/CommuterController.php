@@ -15,8 +15,6 @@ use App\Services\CommuterService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class CommuterController extends Controller
 {
@@ -145,9 +143,11 @@ class CommuterController extends Controller
      *     default 10) = 1 free ride voucher.
      *   - Only CASH + GCASH PAID rides count toward the reward cycle.
      *     VOUCHER rides (free rides) do NOT count.
-     *   - Vouchers are auto-generated on fetch when the commuter has earned
-     *     a new one (idempotent — checks existing count first).
-     *   - Each voucher expires 30 days after generation.
+     *   - Qualifying payment/receipt events issue vouchers idempotently.
+     *   - Each voucher expires 30 days after its cycle-completing event.
+     *   - Threshold changes are non-retroactive: the new value starts a new
+     *     progress version and never reinterprets rides from older versions.
+     *   - This endpoint only reads progress and issued voucher state.
      */
     public function rewards(): JsonResponse
     {
@@ -160,7 +160,8 @@ class CommuterController extends Controller
 
         // Configurable threshold (default 10 rides = 1 free ride). The model
         // validates legacy/manual values too, guaranteeing a non-zero divisor.
-        $ridesForFreeReward = Setting::ridesForFreeReward();
+        $rewardRule = Setting::rewardRule();
+        $ridesForFreeReward = $rewardRule['threshold'];
 
         // Count PAID non-voucher rides (CASH + GCASH only — voucher rides
         // are free and don't count toward the next reward).
@@ -168,49 +169,49 @@ class CommuterController extends Controller
             ->where('status', 'PAID')
             ->where('payment_method', '!=', PaymentMethod::VOUCHER->value)
             ->where('reward_eligible', true)
+            ->whereNull('payment_reconciliation_status')
             ->count();
 
-        // Current cycle progress (rides since last voucher earned).
-        $currentCycleRides = $totalRides % $ridesForFreeReward;
+        // Only rides assigned to the active rule contribute to its progress.
+        // Changing the threshold therefore starts future progress at zero
+        // without touching lifetime totals, old rides, or issued vouchers.
+        $currentRuleRides = Transaction::where('passenger_id', $profile->id)
+            ->where('status', 'PAID')
+            ->where('payment_method', '!=', PaymentMethod::VOUCHER->value)
+            ->where('reward_eligible', true)
+            ->whereNull('payment_reconciliation_status')
+            ->where('reward_rule_version', $rewardRule['version'])
+            ->whereNotNull('reward_earned_at')
+            ->count();
+        $currentCycleRides = $currentRuleRides % $ridesForFreeReward;
 
-        // Auto-generate missing reward vouchers.
-        // earned = how many vouchers the commuter should have based on ride count.
-        // existing = how many REWARD-type vouchers already exist in the DB.
-        $earned = intdiv($totalRides, $ridesForFreeReward);
-        DB::transaction(function () use ($profile, $earned) {
-            $profile->newQuery()->whereKey($profile->id)->lockForUpdate()->first();
+        // Recover legacy soft-deleted earned cycles before expiry normalization.
+        // This preserves their original identity and never creates a reward.
+        Voucher::restoreDeletedRewardCyclesForCommuter($profile->id);
 
-            // Normalize only overdue AVAILABLE rows before any active voucher
-            // count or list is built. Expired reward vouchers still count as
-            // historical cycles, so this does not mint replacements.
-            Voucher::expireAvailableForCommuter($profile->id);
+        // Expiry normalization remains a targeted status maintenance step;
+        // unlike the former flow, this read endpoint never creates rewards.
+        Voucher::expireAvailableForCommuter($profile->id);
 
-            $existingVoucherCount = Voucher::where('commuter_id', $profile->id)
-                ->where('type', 'REWARD')
-                ->count();
+        // Keep every usable voucher visible, while bounding old USED/EXPIRED
+        // history so this read stays predictable for long-lived accounts.
+        $historyLimit = 50;
+        $availableVouchers = Voucher::where('commuter_id', $profile->id)
+            ->where('status', Voucher::STATUS_AVAILABLE)
+            ->orderByDesc('created_at')
+            ->get();
+        $historyQuery = Voucher::where('commuter_id', $profile->id)
+            ->where('status', '!=', Voucher::STATUS_AVAILABLE);
+        $historyTotal = (clone $historyQuery)->count();
+        $recentHistory = $historyQuery
+            ->orderByDesc('created_at')
+            ->limit($historyLimit)
+            ->get();
 
-            for ($cycleNumber = $existingVoucherCount + 1; $cycleNumber <= $earned; $cycleNumber++) {
-                Voucher::firstOrCreate(
-                    [
-                        'commuter_id' => $profile->id,
-                        'type' => 'REWARD',
-                        'reward_cycle_number' => $cycleNumber,
-                    ],
-                    [
-                        'code' => 'REWARD-'.strtoupper(Str::random(8)),
-                        'status' => 'AVAILABLE',
-                        'amount' => 0,
-                        'expires_at' => now()->addDays(30),
-                        'ride_origin' => "{$cycleNumber}th Ride Reward",
-                    ],
-                );
-            }
-        }, 3);
-
-        // Fetch all the commuter's vouchers (reward + admin-assigned).
-        $vouchers = Voucher::where('commuter_id', $profile->id)
-            ->orderBy('created_at', 'desc')
-            ->get()
+        $vouchers = $availableVouchers
+            ->concat($recentHistory)
+            ->sortByDesc('created_at')
+            ->values()
             ->map(function ($v) {
                 return [
                     'id' => $v->id,
@@ -221,9 +222,7 @@ class CommuterController extends Controller
                 ];
             });
 
-        $availableVoucherCount = $vouchers
-            ->where('status', Voucher::STATUS_AVAILABLE)
-            ->count();
+        $availableVoucherCount = $availableVouchers->count();
 
         return $this->successResponse([
             'totalRides' => $totalRides,
@@ -232,6 +231,7 @@ class CommuterController extends Controller
             'ridesNeeded' => $ridesForFreeReward,
             'currentCycleRides' => $currentCycleRides,
             'availableVoucherCount' => $availableVoucherCount,
+            'archivedVoucherCount' => max(0, $historyTotal - $recentHistory->count()),
             'vouchers' => $vouchers,
         ], 'Rewards retrieved');
     }

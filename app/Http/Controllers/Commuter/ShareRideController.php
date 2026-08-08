@@ -127,7 +127,13 @@ class ShareRideController extends Controller
      */
     public function show(string $token): JsonResponse
     {
-        $link = SharedRideLink::where('token', $token)->first();
+        // Eager-load the commuter relation up front — both branches below
+        // read $link->commuter for the display name, so lazy-loading it
+        // would cost an extra query on every single poll (this endpoint is
+        // unauthenticated and polled every 5s by every open viewer).
+        $link = SharedRideLink::with('commuter:id,first_name,surname')
+            ->where('token', $token)
+            ->first();
 
         if (! $link) {
             return $this->errorResponse('Tracking link not found.', 404);

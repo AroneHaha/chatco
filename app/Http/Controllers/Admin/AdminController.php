@@ -818,10 +818,10 @@ class AdminController extends Controller
         // 2. Active shifts with transactions (Pending)
         $pendingQuery = ShiftLog::where('status', 'ACTIVE');
         if ($request->filled('date_from')) {
-            $pendingQuery->whereDate('time_in', '>=', $request->input('date_from'));
+            $pendingQuery->where('time_in', '>=', Carbon::parse($request->input('date_from'))->startOfDay());
         }
         if ($request->filled('date_to')) {
-            $pendingQuery->whereDate('time_in', '<=', $request->input('date_to'));
+            $pendingQuery->where('time_in', '<=', Carbon::parse($request->input('date_to'))->endOfDay());
         }
         $pendingShifts = $pendingQuery
             ->whereHas('transactions')

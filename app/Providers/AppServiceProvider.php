@@ -42,10 +42,10 @@ class AppServiceProvider extends ServiceProvider
         $rateLimitResponse = function () {
             return response()->json([
                 'success' => false,
-                'data'    => null,
+                'data' => null,
                 'message' => 'Too many requests. Please slow down.',
-                'errors'  => null,
-                'meta'    => null,
+                'errors' => null,
+                'meta' => null,
             ], 429);
         };
 
@@ -103,6 +103,16 @@ class AppServiceProvider extends ServiceProvider
         // Commuter profile update — 20 req/min (form saves don't need more).
         RateLimiter::for('commuter-write', function (Request $request) use ($rateLimitResponse) {
             return Limit::perMinute(20)
+                ->by($request->user()?->id ?: $request->ip())
+                ->response($rateLimitResponse);
+        });
+
+        // Feedback submission — 5 attempts/min per authenticated commuter.
+        // This has its own bucket so invalid/retried feedback cannot consume
+        // limits used by hailing, location updates, or payment/receipt claims,
+        // and those unrelated actions cannot block a legitimate rating.
+        RateLimiter::for('commuter-feedback', function (Request $request) use ($rateLimitResponse) {
+            return Limit::perMinute(5)
                 ->by($request->user()?->id ?: $request->ip())
                 ->response($rateLimitResponse);
         });
