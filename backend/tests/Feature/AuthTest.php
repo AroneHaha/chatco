@@ -207,22 +207,38 @@ class AuthTest extends TestCase
         $this->assertSame(1, $conductor->tokens()->count());
     }
 
-    public function test_commuter_login_keeps_existing_device_sessions(): void
+    public function test_commuter_login_revokes_the_previous_device_token(): void
     {
         $commuter = $this->seedCommuter();
-        $firstDevice = $commuter->createToken('device-one')->plainTextToken;
+        $firstDeviceToken = $commuter->createToken('device-one');
+        $firstDevice = $firstDeviceToken->plainTextToken;
 
-        $this->postJson('/api/v1/auth/login', [
+        $this->assertDatabaseHas('personal_access_tokens', [
+            'id' => $firstDeviceToken->accessToken->id,
+        ]);
+
+        $response = $this->postJson('/api/v1/auth/login', [
             'login'    => 'commuter1@gmail.com',
             'password' => 'password123',
-        ])->assertStatus(200);
+        ]);
+        $response->assertStatus(200);
 
-        // Riders are exempt — phone and tablet can both stay signed in.
+        // The revocation itself: the old device's token row is gone.
+        $this->assertDatabaseMissing('personal_access_tokens', [
+            'id' => $firstDeviceToken->accessToken->id,
+        ]);
+
+        // Old device is now rejected...
         $this->withHeader('Authorization', "Bearer {$firstDevice}")
             ->getJson('/api/v1/user')
-            ->assertStatus(200);
+            ->assertStatus(401);
 
-        $this->assertSame(2, $commuter->tokens()->count());
+        // ...and exactly one token survives: the new device's.
+        $this->assertSame(1, $commuter->tokens()->count());
+
+        $this->withHeader('Authorization', "Bearer {$response->json('data.token')}")
+            ->getJson('/api/v1/user')
+            ->assertStatus(200);
     }
 
     public function test_failed_login_does_not_revoke_an_existing_session(): void
