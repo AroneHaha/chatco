@@ -13,6 +13,7 @@ use App\Services\PaymentService;
 use App\Services\TransactionService;
 use App\Support\Payments\PaymentGatewayException;
 use App\Support\Payments\WebhookEvent;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -322,23 +323,26 @@ class PaymentController extends Controller
             );
         }
 
-        // Transition through the state machine (PENDING → CANCELLED).
-        // This respects the canTransitionTo guard + broadcasts PaymentStatusUpdated.
-        $updated = $this->paymentService->transitionTo($transaction, PaymentStatus::CANCELLED);
+        // Provider cancellation is attempted before the local state changes.
+        // The service also serializes the local transition against webhooks.
+        try {
+            $updated = $this->paymentService->cancel($transaction);
+        } catch (PaymentGatewayException $e) {
+            Log::warning('Payment provider cancellation failed', [
+                'transaction_id' => $transaction->transaction_id,
+                'provider_status' => $e->providerStatus,
+            ]);
 
-        // Invalidate both entry points immediately. A future ChatCo scan can
-        // no longer resolve the token, and the app no longer exposes the
-        // hosted checkout URL. The provider reference is retained strictly
-        // for audit/webhook reconciliation; CANCELLED is terminal, so a late
-        // provider event cannot settle the local transaction.
-        $invalidated = [
-            'qr_token' => null,
-            'payment_checkout_url' => null,
-        ];
-        if ($updated->group_id) {
-            Transaction::where('group_id', $updated->group_id)->update($invalidated);
-        } else {
-            $updated->update($invalidated);
+            return $this->errorResponse('Unable to cancel the provider payment. Please try again.', 502);
+        }
+
+        // A competing provider settlement wins over cancellation and is
+        // returned as a conflict instead of being misreported as unpaid.
+        if ($updated->status !== PaymentStatus::CANCELLED) {
+            return $this->errorResponse(
+                "Payment was not cancelled because its current status is {$updated->status->value}.",
+                409
+            );
         }
 
         return $this->successResponse([
@@ -352,8 +356,8 @@ class PaymentController extends Controller
      * Provider-agnostic: the bound gateway supplies its signature header,
      * verifies the body, and parses it into a canonical WebhookEvent.
      * PaymentService then applies it exactly once (payment_events idempotency)
-     * through the guarded state machine. Always 200 for accepted/ignored
-     * events; 400 only for a bad signature (no state change).
+     * through the guarded state machine. Accepted/ignored events return 200,
+     * while temporary database failures remain non-2xx so providers retry.
      */
     public function webhook(Request $request): JsonResponse
     {
@@ -381,7 +385,18 @@ class PaymentController extends Controller
             return response()->json(['received' => true, 'handled' => false], 200);
         }
 
-        $transaction = $this->paymentService->applyWebhookEvent($event);
+        try {
+            $transaction = $this->paymentService->applyWebhookEvent($event);
+        } catch (QueryException $e) {
+            Log::error('Payment webhook: temporary database failure', [
+                'provider_event_id' => $event->id,
+                'reference' => $event->reference,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json(['error' => 'Temporary payment processing failure'], 503);
+        }
+
         if (! $transaction) {
             Log::warning('Payment webhook: no matching transaction', [
                 'reference' => $event->reference,

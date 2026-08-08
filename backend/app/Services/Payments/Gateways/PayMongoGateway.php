@@ -128,6 +128,23 @@ class PayMongoGateway implements PaymentGateway
         return $this->mapIntentStatus($response->json('data.attributes.status'));
     }
 
+    public function cancelIntent(string $reference): PaymentStatus
+    {
+        $this->assertConfigured();
+
+        try {
+            $response = $this->request()->post("{$this->baseUrl}/payment_intents/{$reference}/cancel");
+        } catch (ConnectionException $e) {
+            throw new PaymentGatewayException(
+                'PayMongo connection failed: '.$e->getMessage(),
+                context: ['operation' => 'cancel_intent']
+            );
+        }
+        $this->ensureSuccess($response, 'cancel payment_intent');
+
+        return $this->mapIntentStatus($response->json('data.attributes.status'));
+    }
+
     public function webhookSignatureHeader(): string
     {
         return 'Paymongo-Signature';

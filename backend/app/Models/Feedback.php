@@ -12,13 +12,15 @@ use Illuminate\Support\Str;
  * Created via POST /api/v1/commuter/feedback. The commuter scans the unit QR
  * (POST /api/v1/qr/scan), which resolves today's shift_id + driver +
  * conductor for that vehicle, then submits a rating + optional comment. The
- * record is visible on both the driver's and conductor's profiles.
+ * paid transaction proves the commuter rode on that shift. The record is
+ * visible on both the driver's and conductor's profiles.
  */
 class Feedback extends Model
 {
     use HasFactory;
 
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [

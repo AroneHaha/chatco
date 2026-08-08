@@ -2,14 +2,18 @@
 
 namespace Tests\Feature;
 
+use App\Enums\PaymentMethod;
+use App\Enums\PaymentStatus;
 use App\Enums\ShiftStatus;
 use App\Models\Driver;
 use App\Models\Feedback;
 use App\Models\ShiftLog;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\QrTokenService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -39,11 +43,17 @@ class FeedbackQrFlowTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private User $commuter;
+
     private User $conductor;
+
     private Vehicle $vehicle;
+
     private Driver $driver;
+
     private ShiftLog $shift;
+
     private QrTokenService $qrTokens;
 
     protected function setUp(): void
@@ -59,22 +69,23 @@ class FeedbackQrFlowTest extends TestCase
         // Today's active shift for the vehicle — the "crew on duty" the QR
         // scan should resolve.
         $this->shift = ShiftLog::create([
-            'shift_id'       => 'SFT-TEST-' . now()->format('YmdHis'),
-            'conductor_id'   => $this->conductor->id,
-            'driver_id'      => $this->driver->id,
-            'vehicle_id'     => $this->vehicle->id,
-            'route_id'       => null,
+            'shift_id' => 'SFT-TEST-'.now()->format('YmdHis'),
+            'conductor_id' => $this->conductor->id,
+            'driver_id' => $this->driver->id,
+            'vehicle_id' => $this->vehicle->id,
+            'route_id' => null,
             'conductor_name' => 'Test Conductor',
-            'driver_name'    => 'Test Driver',
-            'unit_number'    => $this->vehicle->unit_number,
-            'plate_number'   => $this->vehicle->plate_number,
-            'time_in'        => now(),
-            'time_out'       => null,
-            'is_active'      => true,
-            'status'         => ShiftStatus::ACTIVE->value,
+            'driver_name' => 'Test Driver',
+            'unit_number' => $this->vehicle->unit_number,
+            'plate_number' => $this->vehicle->plate_number,
+            'time_in' => now(),
+            'time_out' => null,
+            'is_active' => true,
+            'status' => ShiftStatus::ACTIVE->value,
         ]);
 
         $this->qrTokens = QrTokenService::fromConfig();
+        $this->createRideFor($this->commuter);
     }
 
     private function adminToken(): string
@@ -90,14 +101,35 @@ class FeedbackQrFlowTest extends TestCase
     private function generateTokenForVehicle(): string
     {
         $issued = $this->qrTokens->issue($this->vehicle->id);
+
         return $issued['token'];
+    }
+
+    private function createRideFor(User $commuter, array $overrides = []): Transaction
+    {
+        return Transaction::forceCreate(array_merge([
+            'transaction_id' => 'TXN-FB-'.strtoupper(Str::random(12)),
+            'shift_id' => $this->shift->shift_id,
+            'payment_method' => PaymentMethod::CASH->value,
+            'status' => PaymentStatus::PAID->value,
+            'final_amount' => 15,
+            'passenger_id' => $commuter->commuterProfile->id,
+            'payer_id' => $commuter->commuterProfile->id,
+            'pickup_name' => 'Test Pickup',
+            'dropoff_name' => 'Test Dropoff',
+            'conductor_name' => 'Test Conductor',
+            'driver_name' => 'Test Driver',
+            'unit_number' => $this->vehicle->unit_number,
+            'paid_at' => now(),
+            'reward_eligible' => true,
+        ], $overrides));
     }
 
     // ── POST /qr/generate (ADMIN) ──────────────────────────────
 
     public function test_admin_can_generate_qr_for_vehicle(): void
     {
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->adminToken())
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->adminToken())
             ->postJson('/api/v1/qr/generate', [
                 'vehicle_id' => $this->vehicle->id,
             ]);
@@ -118,7 +150,7 @@ class FeedbackQrFlowTest extends TestCase
 
     public function test_generate_rejects_nonexistent_vehicle(): void
     {
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->adminToken())
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->adminToken())
             ->postJson('/api/v1/qr/generate', [
                 'vehicle_id' => 'nonexistent-uuid',
             ]);
@@ -128,7 +160,7 @@ class FeedbackQrFlowTest extends TestCase
 
     public function test_commuter_cannot_generate_qr(): void
     {
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
             ->postJson('/api/v1/qr/generate', [
                 'vehicle_id' => $this->vehicle->id,
             ]);
@@ -151,7 +183,7 @@ class FeedbackQrFlowTest extends TestCase
     {
         $token = $this->generateTokenForVehicle();
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
             ->postJson('/api/v1/qr/validate', ['token' => $token]);
 
         $response->assertStatus(200)
@@ -168,10 +200,10 @@ class FeedbackQrFlowTest extends TestCase
         // Flip the last char of the signature — breaks HMAC comparison.
         $lastChar = substr($sig, -1);
         $flipped = $lastChar === 'a' ? 'b' : 'a';
-        $tamperedSig = substr($sig, 0, -1) . $flipped;
-        $tamperedToken = $b64 . '.' . $tamperedSig;
+        $tamperedSig = substr($sig, 0, -1).$flipped;
+        $tamperedToken = $b64.'.'.$tamperedSig;
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
             ->postJson('/api/v1/qr/validate', ['token' => $tamperedToken]);
 
         $response->assertStatus(422)
@@ -191,9 +223,9 @@ class FeedbackQrFlowTest extends TestCase
         $payload['vehicle_id'] = 'tampered-vehicle-id';
         $newJson = json_encode($payload, JSON_UNESCAPED_SLASHES);
         $newB64 = rtrim(strtr(base64_encode($newJson), '+/', '-_'), '=');
-        $tamperedToken = $newB64 . '.' . $sig;
+        $tamperedToken = $newB64.'.'.$sig;
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
             ->postJson('/api/v1/qr/validate', ['token' => $tamperedToken]);
 
         $response->assertStatus(422)
@@ -217,9 +249,9 @@ class FeedbackQrFlowTest extends TestCase
         $json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $sig = hash_hmac('sha256', $json, $secret);
         $b64 = rtrim(strtr(base64_encode($json), '+/', '-_'), '=');
-        $expiredToken = $b64 . '.' . $sig;
+        $expiredToken = $b64.'.'.$sig;
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
             ->postJson('/api/v1/qr/validate', ['token' => $expiredToken]);
 
         $response->assertStatus(422)
@@ -228,7 +260,7 @@ class FeedbackQrFlowTest extends TestCase
 
     public function test_validate_rejects_malformed_token(): void
     {
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
             ->postJson('/api/v1/qr/validate', ['token' => 'not-a-valid-token-format']);
 
         $response->assertStatus(422)
@@ -239,7 +271,7 @@ class FeedbackQrFlowTest extends TestCase
     {
         $token = $this->generateTokenForVehicle();
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->adminToken())
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->adminToken())
             ->postJson('/api/v1/qr/validate', ['token' => $token]);
 
         $response->assertStatus(403);
@@ -251,7 +283,7 @@ class FeedbackQrFlowTest extends TestCase
     {
         $token = $this->generateTokenForVehicle();
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
             ->postJson('/api/v1/qr/scan', ['token' => $token]);
 
         $response->assertStatus(200)
@@ -272,7 +304,7 @@ class FeedbackQrFlowTest extends TestCase
         $otherVehicle = Vehicle::factory()->create();
         $issued = $this->qrTokens->issue($otherVehicle->id);
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
             ->postJson('/api/v1/qr/scan', ['token' => $issued['token']]);
 
         $response->assertStatus(404)
@@ -282,7 +314,7 @@ class FeedbackQrFlowTest extends TestCase
 
     public function test_scan_rejects_invalid_token(): void
     {
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
             ->postJson('/api/v1/qr/scan', ['token' => 'garbage.payload']);
 
         $response->assertStatus(422);
@@ -292,15 +324,15 @@ class FeedbackQrFlowTest extends TestCase
 
     public function test_commuter_can_submit_feedback(): void
     {
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
             ->postJson('/api/v1/commuter/feedback', [
-                'shift_id'           => $this->shift->shift_id,
-                'rating'             => 5,
-                'category'           => 'driving',
-                'comment'            => 'Smooth ride, very professional.',
-                'conductor_rating'   => 4,
+                'shift_id' => $this->shift->shift_id,
+                'rating' => 5,
+                'category' => 'driving',
+                'comment' => 'Smooth ride, very professional.',
+                'conductor_rating' => 4,
                 'conductor_category' => 'courtesy',
-                'conductor_comment'  => 'Polite and helpful.',
+                'conductor_comment' => 'Polite and helpful.',
             ]);
 
         $response->assertStatus(201)
@@ -310,26 +342,109 @@ class FeedbackQrFlowTest extends TestCase
         // DB record has the correct crew derived from the shift — NOT from
         // client input (which never included vehicle/driver/conductor IDs).
         $this->assertDatabaseHas('feedback', [
-            'shift_id'     => $this->shift->shift_id,
-            'vehicle_id'   => $this->vehicle->id,
-            'driver_id'    => $this->driver->id,
+            'shift_id' => $this->shift->shift_id,
+            'vehicle_id' => $this->vehicle->id,
+            'driver_id' => $this->driver->id,
             'conductor_id' => $this->conductor->id,
-            'commuter_id'  => $this->commuter->id,
-            'rating'       => 5,
-            'category'     => 'driving',
-            'comment'      => 'Smooth ride, very professional.',
-            'conductor_rating'   => 4,
+            'commuter_id' => $this->commuter->id,
+            'rating' => 5,
+            'category' => 'driving',
+            'comment' => 'Smooth ride, very professional.',
+            'conductor_rating' => 4,
             'conductor_category' => 'courtesy',
-            'conductor_comment'  => 'Polite and helpful.',
+            'conductor_comment' => 'Polite and helpful.',
         ]);
+    }
+
+    public function test_feedback_rejects_commuter_with_no_transaction_for_shift(): void
+    {
+        Transaction::query()->delete();
+
+        $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
+            ->postJson('/api/v1/commuter/feedback', [
+                'shift_id' => $this->shift->shift_id,
+                'rating' => 5,
+                'conductor_rating' => 5,
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Feedback is only available after your completed ride on this shift');
+
+        $this->assertDatabaseCount('feedback', 0);
+    }
+
+    public function test_feedback_rejects_transaction_belonging_to_another_commuter(): void
+    {
+        Transaction::query()->delete();
+        $otherCommuter = User::factory()->commuter()->create();
+        $this->createRideFor($otherCommuter);
+
+        $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
+            ->postJson('/api/v1/commuter/feedback', [
+                'shift_id' => $this->shift->shift_id,
+                'rating' => 4,
+                'conductor_rating' => 4,
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Feedback is only available after your completed ride on this shift');
+
+        $this->assertDatabaseCount('feedback', 0);
+    }
+
+    public function test_feedback_rejects_every_non_paid_transaction_status(): void
+    {
+        Transaction::query()->delete();
+
+        foreach ([
+            PaymentStatus::PENDING,
+            PaymentStatus::PROCESSING,
+            PaymentStatus::FAILED,
+            PaymentStatus::CANCELLED,
+            PaymentStatus::REFUNDED,
+            PaymentStatus::EXPIRED,
+        ] as $status) {
+            $this->createRideFor($this->commuter, [
+                'status' => $status->value,
+                'paid_at' => $status === PaymentStatus::REFUNDED ? now() : null,
+            ]);
+        }
+
+        $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
+            ->postJson('/api/v1/commuter/feedback', [
+                'shift_id' => $this->shift->shift_id,
+                'rating' => 3,
+                'conductor_rating' => 3,
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Feedback is only available after your completed ride on this shift');
+
+        $this->assertDatabaseCount('feedback', 0);
+    }
+
+    public function test_feedback_rejects_paid_transaction_pending_reconciliation(): void
+    {
+        Transaction::query()->update([
+            'payment_reconciliation_status' => 'REFUND_REQUIRED',
+            'reward_eligible' => false,
+        ]);
+
+        $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
+            ->postJson('/api/v1/commuter/feedback', [
+                'shift_id' => $this->shift->shift_id,
+                'rating' => 3,
+                'conductor_rating' => 3,
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Feedback is only available after your completed ride on this shift');
+
+        $this->assertDatabaseCount('feedback', 0);
     }
 
     public function test_feedback_min_rating_accepted(): void
     {
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
             ->postJson('/api/v1/commuter/feedback', [
-                'shift_id'         => $this->shift->shift_id,
-                'rating'           => 1,
+                'shift_id' => $this->shift->shift_id,
+                'rating' => 1,
                 'conductor_rating' => 1,
             ]);
 
@@ -340,10 +455,10 @@ class FeedbackQrFlowTest extends TestCase
     {
         // Since the driver/conductor rating split, the conductor rating is
         // required alongside the driver rating.
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
             ->postJson('/api/v1/commuter/feedback', [
                 'shift_id' => $this->shift->shift_id,
-                'rating'   => 5,
+                'rating' => 5,
             ]);
 
         $response->assertStatus(422)
@@ -353,10 +468,10 @@ class FeedbackQrFlowTest extends TestCase
     public function test_feedback_rejects_rating_out_of_range(): void
     {
         // conductor_rating is valid so the 422 is attributable to `rating`.
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
             ->postJson('/api/v1/commuter/feedback', [
-                'shift_id'         => $this->shift->shift_id,
-                'rating'           => 6,
+                'shift_id' => $this->shift->shift_id,
+                'rating' => 6,
                 'conductor_rating' => 3,
             ]);
 
@@ -366,10 +481,10 @@ class FeedbackQrFlowTest extends TestCase
 
     public function test_feedback_rejects_rating_zero(): void
     {
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
             ->postJson('/api/v1/commuter/feedback', [
-                'shift_id'         => $this->shift->shift_id,
-                'rating'           => 0,
+                'shift_id' => $this->shift->shift_id,
+                'rating' => 0,
                 'conductor_rating' => 3,
             ]);
 
@@ -380,18 +495,18 @@ class FeedbackQrFlowTest extends TestCase
     public function test_duplicate_feedback_returns_409(): void
     {
         // First submission succeeds.
-        $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+        $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
             ->postJson('/api/v1/commuter/feedback', [
-                'shift_id'         => $this->shift->shift_id,
-                'rating'           => 4,
+                'shift_id' => $this->shift->shift_id,
+                'rating' => 4,
                 'conductor_rating' => 4,
             ]);
 
         // Second submission for the same shift → 409 (unique constraint).
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
             ->postJson('/api/v1/commuter/feedback', [
-                'shift_id'         => $this->shift->shift_id,
-                'rating'           => 2,
+                'shift_id' => $this->shift->shift_id,
+                'rating' => 2,
                 'conductor_rating' => 2,
             ]);
 
@@ -406,10 +521,10 @@ class FeedbackQrFlowTest extends TestCase
     public function test_feedback_rejects_nonexistent_shift(): void
     {
         // conductor_rating is valid so the 422 is attributable to the shift.
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
             ->postJson('/api/v1/commuter/feedback', [
-                'shift_id'         => 'SFT-DOES-NOT-EXIST',
-                'rating'           => 3,
+                'shift_id' => 'SFT-DOES-NOT-EXIST',
+                'rating' => 3,
                 'conductor_rating' => 3,
             ]);
 
@@ -419,6 +534,7 @@ class FeedbackQrFlowTest extends TestCase
     public function test_different_commuters_can_submit_feedback_for_same_shift(): void
     {
         $otherCommuter = User::factory()->commuter()->create();
+        $this->createRideFor($otherCommuter);
 
         // Use Sanctum::actingAs() instead of Bearer tokens for multi-user
         // tests: the sanctum guard caches the resolved user on the (reused)
@@ -427,15 +543,15 @@ class FeedbackQrFlowTest extends TestCase
         // user. actingAs() calls setUser() which overwrites the cache.
         Sanctum::actingAs($this->commuter);
         $this->postJson('/api/v1/commuter/feedback', [
-            'shift_id'         => $this->shift->shift_id,
-            'rating'           => 5,
+            'shift_id' => $this->shift->shift_id,
+            'rating' => 5,
             'conductor_rating' => 5,
         ]);
 
         Sanctum::actingAs($otherCommuter);
         $response = $this->postJson('/api/v1/commuter/feedback', [
-            'shift_id'         => $this->shift->shift_id,
-            'rating'           => 3,
+            'shift_id' => $this->shift->shift_id,
+            'rating' => 3,
             'conductor_rating' => 3,
         ]);
 
@@ -445,10 +561,10 @@ class FeedbackQrFlowTest extends TestCase
 
     public function test_admin_cannot_submit_feedback(): void
     {
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->adminToken())
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->adminToken())
             ->postJson('/api/v1/commuter/feedback', [
                 'shift_id' => $this->shift->shift_id,
-                'rating'   => 5,
+                'rating' => 5,
             ]);
 
         $response->assertStatus(403);
@@ -458,7 +574,7 @@ class FeedbackQrFlowTest extends TestCase
     {
         $response = $this->postJson('/api/v1/commuter/feedback', [
             'shift_id' => $this->shift->shift_id,
-            'rating'   => 5,
+            'rating' => 5,
         ]);
 
         $response->assertStatus(401);
@@ -474,7 +590,7 @@ class FeedbackQrFlowTest extends TestCase
      */
     public function test_scan_public_resolves_today_crew(): void
     {
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
             ->postJson('/api/v1/qr/scan-public', [
                 'vehicle_id' => $this->vehicle->id,
             ]);
@@ -496,7 +612,7 @@ class FeedbackQrFlowTest extends TestCase
         // A vehicle with no shift_logs row for today.
         $otherVehicle = Vehicle::factory()->create();
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
             ->postJson('/api/v1/qr/scan-public', [
                 'vehicle_id' => $otherVehicle->id,
             ]);
@@ -508,7 +624,7 @@ class FeedbackQrFlowTest extends TestCase
 
     public function test_scan_public_rejects_missing_vehicle_id(): void
     {
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
             ->postJson('/api/v1/qr/scan-public', []);
 
         $response->assertStatus(422);
@@ -516,7 +632,7 @@ class FeedbackQrFlowTest extends TestCase
 
     public function test_scan_public_rejects_nonexistent_vehicle(): void
     {
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->commuterToken())
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
             ->postJson('/api/v1/qr/scan-public', [
                 'vehicle_id' => '00000000-0000-0000-0000-000000000000',
             ]);
@@ -526,7 +642,7 @@ class FeedbackQrFlowTest extends TestCase
 
     public function test_admin_cannot_scan_public(): void
     {
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->adminToken())
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->adminToken())
             ->postJson('/api/v1/qr/scan-public', [
                 'vehicle_id' => $this->vehicle->id,
             ]);

@@ -27,7 +27,8 @@ export function useRewards() {
   const redeemVoucher = (voucherId: string) => {
     if (!data) return;
     const voucher = data.vouchers.find(v => v.id === voucherId);
-    if (!voucher) return;
+    if (!voucher || voucher.status !== "AVAILABLE") return;
+    if (voucher.expiresAt && new Date(voucher.expiresAt).getTime() <= Date.now()) return;
     setActiveVoucher(voucher.code);
     setShowVoucherModal(true);
   };

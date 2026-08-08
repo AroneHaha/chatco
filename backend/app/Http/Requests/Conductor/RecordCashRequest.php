@@ -41,6 +41,7 @@ class RecordCashRequest extends FormRequest
             'distance' => 'nullable|numeric|min:0',
             'discount_amount' => 'nullable|numeric|min:0',
             'passenger_name' => 'nullable|string|max:100',
+            'passenger_id' => 'nullable|uuid|exists:commuter_profiles,id',
             'passenger_role' => 'nullable|string|max:20',
             'pickup_stop_id' => 'nullable|uuid|exists:fare_points,id',
             'dropoff_stop_id' => 'nullable|uuid|exists:fare_points,id',

@@ -21,7 +21,10 @@ use App\Models\Vehicle;
 use App\Models\Voucher;
 use App\Services\PaymentService;
 use App\Services\TransactionService;
+use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -308,11 +311,7 @@ class TransactionFlowTest extends TestCase
 
     public function test_voucher_ride_mints_no_receipt_token(): void
     {
-        $voucher = Voucher::create([
-            'commuter_id' => $this->commuter1->commuterProfile->id,
-            'code' => 'REWARD-TESTCODE', 'type' => 'REWARD', 'status' => 'AVAILABLE',
-            'amount' => 0, 'expires_at' => now()->addDays(30), 'ride_origin' => 'Test',
-        ]);
+        $voucher = $this->createRewardVoucher($this->commuter1, ['code' => 'REWARD-TESTCODE']);
 
         $txn = app(TransactionService::class)->recordCashFare($this->conductor, [
             'final_amount' => 15.00,
@@ -322,6 +321,138 @@ class TransactionFlowTest extends TestCase
 
         // Already bound to the commuter and free — nothing left to claim.
         $this->assertNull($txn->qr_token);
+    }
+
+    public function test_two_competing_redemption_attempts_create_only_one_free_ride(): void
+    {
+        $voucher = $this->createRewardVoucher($this->commuter1);
+        Sanctum::actingAs($this->conductor);
+
+        $payload = [
+            'payment_method' => PaymentMethod::VOUCHER->value,
+            'final_amount' => 0,
+            'pickup_name' => 'Calumpit',
+            'dropoff_name' => 'Bustos',
+            'voucher_code' => $voucher->code,
+            'passenger_id' => $this->commuter1->commuterProfile->id,
+            'idempotency_key' => 'voucher-attempt-one',
+        ];
+
+        $this->postJson('/api/v1/conductor/transactions', $payload)
+            ->assertCreated();
+
+        $this->postJson('/api/v1/conductor/transactions', array_merge($payload, [
+            'idempotency_key' => 'voucher-attempt-two',
+        ]))
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'This voucher has already been used or is no longer available.');
+
+        $this->assertSame(1, Transaction::where('voucher_id', $voucher->id)->count());
+        $this->assertSame('USED', $voucher->fresh()->status);
+    }
+
+    public function test_voucher_returns_to_available_when_transaction_creation_fails(): void
+    {
+        $voucher = $this->createRewardVoucher($this->commuter1);
+
+        DB::statement(<<<'SQL'
+            CREATE TRIGGER fail_voucher_transaction
+            BEFORE INSERT ON transactions
+            WHEN NEW.voucher_id IS NOT NULL
+            BEGIN
+                SELECT RAISE(ABORT, 'forced voucher transaction failure');
+            END
+        SQL);
+
+        try {
+            app(TransactionService::class)->recordCashFare($this->conductor, [
+                'payment_method' => PaymentMethod::VOUCHER->value,
+                'final_amount' => 0,
+                'voucher_code' => $voucher->code,
+                'passenger_id' => $this->commuter1->commuterProfile->id,
+            ]);
+            $this->fail('The forced transaction insert failure should propagate.');
+        } catch (QueryException) {
+            // Expected: the enclosing DB transaction must roll the voucher back.
+        } finally {
+            DB::statement('DROP TRIGGER IF EXISTS fail_voucher_transaction');
+        }
+
+        $this->assertSame('AVAILABLE', $voucher->fresh()->status);
+        $this->assertSame(0, Transaction::where('voucher_id', $voucher->id)->count());
+    }
+
+    public function test_already_used_voucher_returns_conflict(): void
+    {
+        $voucher = $this->createRewardVoucher($this->commuter1, ['status' => 'USED']);
+
+        $this->assertAbort(409, fn () => app(TransactionService::class)->recordCashFare($this->conductor, [
+            'payment_method' => PaymentMethod::VOUCHER->value,
+            'final_amount' => 0,
+            'voucher_code' => $voucher->code,
+            'passenger_id' => $this->commuter1->commuterProfile->id,
+        ]));
+
+        $this->assertSame(0, Transaction::where('voucher_id', $voucher->id)->count());
+    }
+
+    public function test_expired_voucher_is_rejected_without_consuming_it(): void
+    {
+        $voucher = $this->createRewardVoucher($this->commuter1, [
+            'expires_at' => now()->subMinute(),
+        ]);
+
+        $this->assertAbort(422, fn () => app(TransactionService::class)->recordCashFare($this->conductor, [
+            'payment_method' => PaymentMethod::VOUCHER->value,
+            'final_amount' => 0,
+            'voucher_code' => $voucher->code,
+            'passenger_id' => $this->commuter1->commuterProfile->id,
+        ]));
+
+        $this->assertSame('EXPIRED', $voucher->fresh()->status);
+        $this->assertSame(0, Transaction::where('voucher_id', $voucher->id)->count());
+    }
+
+    public function test_voucher_belonging_to_another_commuter_is_rejected(): void
+    {
+        $voucher = $this->createRewardVoucher($this->commuter2);
+
+        $this->assertAbort(422, fn () => app(TransactionService::class)->recordCashFare($this->conductor, [
+            'payment_method' => PaymentMethod::VOUCHER->value,
+            'final_amount' => 0,
+            'voucher_code' => $voucher->code,
+            'passenger_id' => $this->commuter1->commuterProfile->id,
+        ]));
+
+        $this->assertSame('AVAILABLE', $voucher->fresh()->status);
+        $this->assertSame(0, Transaction::where('voucher_id', $voucher->id)->count());
+    }
+
+    public function test_unique_voucher_constraint_blocks_duplicate_links_but_allows_normal_null_vouchers(): void
+    {
+        $voucher = $this->createRewardVoucher($this->commuter1);
+        $transaction = app(TransactionService::class)->recordCashFare($this->conductor, [
+            'payment_method' => PaymentMethod::VOUCHER->value,
+            'final_amount' => 0,
+            'voucher_code' => $voucher->code,
+            'passenger_id' => $this->commuter1->commuterProfile->id,
+        ]);
+
+        $duplicate = $transaction->replicate();
+        $duplicate->transaction_id = 'TXN-DUPLICATE-VOUCHER';
+
+        try {
+            $duplicate->save();
+            $this->fail('The database must reject a second transaction for one voucher.');
+        } catch (UniqueConstraintViolationException) {
+            // Expected database backstop.
+        }
+
+        app(TransactionService::class)->recordCashFare($this->conductor, ['final_amount' => 15]);
+        app(TransactionService::class)->recordCashFare($this->conductor, ['final_amount' => 20]);
+
+        $this->assertSame(2, Transaction::whereNull('voucher_id')->count());
+        $this->assertSame(1, Transaction::where('voucher_id', $voucher->id)->count());
     }
 
     public function test_group_cash_creates_one_paid_receipt_per_passenger_and_one_reward_slot(): void
@@ -737,6 +868,60 @@ class TransactionFlowTest extends TestCase
         $this->assertAbort(404, fn () => app(TransactionService::class)->claimGcash($this->commuter1, $qrToken));
     }
 
+    public function test_conductor_cancel_confirms_paymongo_cancellation_before_local_update(): void
+    {
+        $this->configurePayMongo();
+        $transaction = $this->createPendingGcashTransaction();
+        $statusAtProviderCall = null;
+        Http::fake(function ($request) use ($transaction, &$statusAtProviderCall) {
+            $statusAtProviderCall = $transaction->fresh()->status;
+
+            return Http::response([
+                'data' => [
+                    'id' => $transaction->payment_reference,
+                    'attributes' => ['status' => 'cancelled'],
+                ],
+            ]);
+        });
+        Sanctum::actingAs($this->conductor);
+
+        $this->postJson("/api/v1/payments/{$transaction->transaction_id}/cancel")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'CANCELLED');
+
+        $this->assertSame(PaymentStatus::PENDING, $statusAtProviderCall);
+        $this->assertSame(PaymentStatus::CANCELLED, $transaction->fresh()->status);
+        Http::assertSent(fn ($request): bool => $request->method() === 'POST'
+            && $request->url() === "https://api.paymongo.com/v1/payment_intents/{$transaction->payment_reference}/cancel");
+    }
+
+    public function test_provider_cancellation_failure_keeps_local_payment_pending(): void
+    {
+        $this->configurePayMongo();
+        $transaction = $this->createPendingGcashTransaction();
+        Http::fake(function ($request) use ($transaction) {
+            if ($request->method() === 'POST') {
+                return Http::response(['errors' => [['detail' => 'Payment cannot be cancelled']]], 500);
+            }
+
+            return Http::response([
+                'data' => [
+                    'id' => $transaction->payment_reference,
+                    'attributes' => ['status' => 'awaiting_next_action'],
+                ],
+            ]);
+        });
+        Sanctum::actingAs($this->conductor);
+
+        $this->postJson("/api/v1/payments/{$transaction->transaction_id}/cancel")
+            ->assertStatus(502);
+
+        $transaction->refresh();
+        $this->assertSame(PaymentStatus::PENDING, $transaction->status);
+        $this->assertNotNull($transaction->qr_token);
+        $this->assertNotNull($transaction->payment_checkout_url);
+    }
+
     public function test_conductor_cancel_invalidates_every_group_receipt(): void
     {
         config(['payments.gateways.paymongo.secret' => null]);
@@ -767,6 +952,43 @@ class TransactionFlowTest extends TestCase
     }
 
     // ─── 4. Webhook (provider-agnostic, idempotent, state-machine guarded) ──
+
+    public function test_late_paid_webhook_flags_every_cancelled_group_receipt_for_refund(): void
+    {
+        config(['payments.gateways.paymongo.secret' => null]);
+        $this->forgetGateway();
+        $result = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'final_amount' => 30,
+            'pickup_name' => 'Calumpit',
+            'dropoff_name' => 'Bustos',
+            'group_passengers' => [
+                ['type' => 'REGULAR', 'quantity' => 2, 'final_amount' => 15, 'base_fare' => 15, 'discount_amount' => 0],
+            ],
+        ]);
+        $anchor = $result['transaction'];
+        app(TransactionService::class)->claimGcash($this->commuter1, $anchor->qr_token);
+        Sanctum::actingAs($this->conductor);
+        $this->postJson("/api/v1/payments/{$anchor->transaction_id}/cancel")->assertOk();
+        $anchor->refresh();
+
+        $this->configurePayMongo();
+        [$payload, $headers] = $this->signedPaymongoWebhook(
+            'payment.paid',
+            $anchor->payment_reference,
+            'evt_cancelled_group_paid_late'
+        );
+        $this->withHeaders($headers)->postJson('/api/v1/payments/webhook', $payload)->assertOk();
+
+        $receipts = Transaction::where('group_id', $anchor->group_id)->get();
+        $this->assertGreaterThan(1, $receipts->count());
+        $this->assertTrue($receipts->every(
+            fn (Transaction $transaction): bool => $transaction->status === PaymentStatus::PAID
+                && $transaction->reward_eligible === false
+                && $transaction->payment_reconciliation_status === 'REFUND_REQUIRED'
+        ));
+        $this->assertSame(0, $this->paidRideCountFor($this->commuter1->commuterProfile->id));
+        $this->assertDatabaseHas('payment_events', ['event_id' => 'evt_cancelled_group_paid_late']);
+    }
 
     public function test_webhook_with_valid_payment_paid_flips_to_paid_and_broadcasts(): void
     {
@@ -821,6 +1043,197 @@ class TransactionFlowTest extends TestCase
         $this->assertSame($firstPaidAt->toIso8601String(), $txn->paid_at->toIso8601String());
         $this->assertSame(1, PaymentEvent::count());
         Event::assertDispatchedTimes(PaymentStatusUpdated::class, 1);
+    }
+
+    public function test_webhook_different_event_ids_for_the_same_transaction_do_not_duplicate_the_transition(): void
+    {
+        Event::fake([PaymentStatusUpdated::class]);
+        $this->configurePayMongo();
+        $txn = $this->createPendingGcashTransaction();
+
+        [$firstPayload, $firstHeaders] = $this->signedPaymongoWebhook(
+            'payment.paid',
+            $txn->payment_reference,
+            'evt_paid_first'
+        );
+        [$secondPayload, $secondHeaders] = $this->signedPaymongoWebhook(
+            'payment.paid',
+            $txn->payment_reference,
+            'evt_paid_second'
+        );
+
+        $this->withHeaders($firstHeaders)->postJson('/api/v1/payments/webhook', $firstPayload)->assertOk();
+        $firstPaidAt = $txn->fresh()->paid_at;
+        $this->withHeaders($secondHeaders)->postJson('/api/v1/payments/webhook', $secondPayload)->assertOk();
+
+        $this->assertSame(PaymentStatus::PAID, $txn->fresh()->status);
+        $this->assertSame($firstPaidAt->toIso8601String(), $txn->fresh()->paid_at->toIso8601String());
+        $this->assertSame(2, PaymentEvent::where('transaction_id', $txn->transaction_id)->count());
+        Event::assertDispatchedTimes(PaymentStatusUpdated::class, 1);
+    }
+
+    public function test_webhook_competing_paid_and_failed_events_preserve_the_first_terminal_state(): void
+    {
+        $this->configurePayMongo();
+
+        $paidFirst = $this->createPendingGcashTransaction();
+        [$paidPayload, $paidHeaders] = $this->signedPaymongoWebhook(
+            'payment.paid',
+            $paidFirst->payment_reference,
+            'evt_competing_paid_first'
+        );
+        [$lateFailedPayload, $lateFailedHeaders] = $this->signedPaymongoWebhook(
+            'payment.failed',
+            $paidFirst->payment_reference,
+            'evt_competing_failed_late'
+        );
+
+        $this->withHeaders($paidHeaders)->postJson('/api/v1/payments/webhook', $paidPayload)->assertOk();
+        $this->withHeaders($lateFailedHeaders)->postJson('/api/v1/payments/webhook', $lateFailedPayload)->assertOk();
+        $this->assertSame(PaymentStatus::PAID, $paidFirst->fresh()->status);
+
+        $failedFirst = $this->createPendingGcashTransaction();
+        [$failedPayload, $failedHeaders] = $this->signedPaymongoWebhook(
+            'payment.failed',
+            $failedFirst->payment_reference,
+            'evt_competing_failed_first'
+        );
+        [$latePaidPayload, $latePaidHeaders] = $this->signedPaymongoWebhook(
+            'payment.paid',
+            $failedFirst->payment_reference,
+            'evt_competing_paid_late'
+        );
+
+        $this->withHeaders($failedHeaders)->postJson('/api/v1/payments/webhook', $failedPayload)->assertOk();
+        $this->withHeaders($latePaidHeaders)->postJson('/api/v1/payments/webhook', $latePaidPayload)->assertOk();
+        $this->assertSame(PaymentStatus::FAILED, $failedFirst->fresh()->status);
+
+        $this->assertSame(4, PaymentEvent::whereIn('transaction_id', [
+            $paidFirst->transaction_id,
+            $failedFirst->transaction_id,
+        ])->count());
+    }
+
+    public function test_late_paid_webhook_after_local_cancellation_requires_refund_and_blocks_rewards(): void
+    {
+        Event::fake([PaymentStatusUpdated::class]);
+        $this->configurePayMongo();
+        $txn = $this->createPendingGcashTransaction([
+            'status' => PaymentStatus::CANCELLED->value,
+            'passenger_id' => $this->commuter1->commuterProfile->id,
+            'reward_eligible' => true,
+        ]);
+
+        [$payload, $headers] = $this->signedPaymongoWebhook(
+            'payment.paid',
+            $txn->payment_reference,
+            'evt_after_cancelled'
+        );
+        $this->withHeaders($headers)->postJson('/api/v1/payments/webhook', $payload)->assertOk();
+
+        $txn->refresh();
+        $this->assertSame(PaymentStatus::PAID, $txn->status);
+        $this->assertNotNull($txn->paid_at);
+        $this->assertFalse($txn->reward_eligible);
+        $this->assertSame('REFUND_REQUIRED', $txn->payment_reconciliation_status);
+        $this->assertSame(
+            'Provider reported a successful payment after local cancellation.',
+            $txn->payment_reconciliation_reason
+        );
+        $this->assertNotNull($txn->payment_reconciliation_required_at);
+        $this->assertDatabaseHas('payment_events', [
+            'event_id' => 'evt_after_cancelled',
+            'transaction_id' => $txn->transaction_id,
+            'status' => PaymentStatus::PAID->value,
+        ]);
+        $this->assertSame(0, $this->paidRideCountFor($this->commuter1->commuterProfile->id));
+        Event::assertDispatched(PaymentStatusUpdated::class);
+
+        Sanctum::actingAs($this->admin);
+        $this->getJson('/api/v1/admin/transactions?per_page=10')
+            ->assertOk()
+            ->assertJsonPath('data.data.0.payment_reconciliation_status', 'REFUND_REQUIRED')
+            ->assertJsonPath(
+                'data.data.0.payment_reconciliation_reason',
+                'Provider reported a successful payment after local cancellation.'
+            );
+    }
+
+    public function test_webhook_returns_retryable_error_and_rolls_back_on_temporary_database_failure(): void
+    {
+        Event::fake([PaymentStatusUpdated::class]);
+        $this->configurePayMongo();
+        $txn = $this->createPendingGcashTransaction();
+        [$payload, $headers] = $this->signedPaymongoWebhook(
+            'payment.paid',
+            $txn->payment_reference,
+            'evt_temporary_database_failure'
+        );
+
+        DB::unprepared(<<<'SQL'
+CREATE TRIGGER fail_payment_event_insert
+BEFORE INSERT ON payment_events
+BEGIN
+    SELECT RAISE(ABORT, 'temporary database failure');
+END
+SQL);
+
+        try {
+            $this->withHeaders($headers)
+                ->postJson('/api/v1/payments/webhook', $payload)
+                ->assertStatus(503)
+                ->assertJsonPath('error', 'Temporary payment processing failure');
+        } finally {
+            DB::unprepared('DROP TRIGGER IF EXISTS fail_payment_event_insert');
+        }
+
+        $this->assertSame(PaymentStatus::PENDING, $txn->fresh()->status);
+        $this->assertDatabaseMissing('payment_events', ['event_id' => 'evt_temporary_database_failure']);
+        Event::assertNotDispatched(PaymentStatusUpdated::class);
+    }
+
+    public function test_webhook_keeps_every_group_receipt_consistent_under_competing_events(): void
+    {
+        config(['payments.gateways.paymongo.secret' => null]);
+        $this->forgetGateway();
+
+        $result = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'final_amount' => 30,
+            'pickup_name' => 'Calumpit',
+            'dropoff_name' => 'Bustos',
+            'group_passengers' => [
+                ['type' => 'REGULAR', 'quantity' => 2, 'final_amount' => 15, 'base_fare' => 15, 'discount_amount' => 0],
+            ],
+        ]);
+        $anchor = $result['transaction'];
+        app(TransactionService::class)->claimGcash($this->commuter1, $anchor->qr_token);
+        $anchor->refresh();
+
+        $this->configurePayMongo();
+        [$paidPayload, $paidHeaders] = $this->signedPaymongoWebhook(
+            'payment.paid',
+            $anchor->payment_reference,
+            'evt_group_paid'
+        );
+        [$failedPayload, $failedHeaders] = $this->signedPaymongoWebhook(
+            'payment.failed',
+            $anchor->payment_reference,
+            'evt_group_failed_late'
+        );
+
+        $this->withHeaders($paidHeaders)->postJson('/api/v1/payments/webhook', $paidPayload)->assertOk();
+        $this->withHeaders($failedHeaders)->postJson('/api/v1/payments/webhook', $failedPayload)->assertOk();
+
+        $receipts = Transaction::where('group_id', $anchor->group_id)->get();
+        $this->assertGreaterThan(1, $receipts->count());
+        $this->assertTrue($receipts->every(
+            fn (Transaction $transaction): bool => $transaction->status === PaymentStatus::PAID
+                && $transaction->paid_at !== null
+        ));
+        $this->assertSame($this->commuter1->commuterProfile->id, $anchor->fresh()->payer_id);
+        $this->assertTrue($receipts->every(
+            fn (Transaction $transaction): bool => $transaction->payer_name === 'Commuter One'
+        ));
     }
 
     public function test_webhook_cannot_regress_a_paid_payment(): void
@@ -966,6 +1379,19 @@ class TransactionFlowTest extends TestCase
         }
 
         return $txn;
+    }
+
+    private function createRewardVoucher(User $owner, array $overrides = []): Voucher
+    {
+        return Voucher::create(array_merge([
+            'commuter_id' => $owner->commuterProfile->id,
+            'code' => 'REWARD-'.strtoupper(Str::random(8)),
+            'type' => 'REWARD',
+            'status' => 'AVAILABLE',
+            'amount' => 0,
+            'expires_at' => now()->addDays(30),
+            'ride_origin' => 'Test reward',
+        ], $overrides));
     }
 
     /**
