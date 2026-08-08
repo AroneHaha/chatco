@@ -8,6 +8,7 @@ use App\Http\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Commuter\ClaimGcashRequest;
 use App\Http\Requests\Commuter\ClaimReceiptRequest;
+use App\Models\Feedback;
 use App\Models\Transaction;
 use App\Services\PaymentService;
 use App\Services\TransactionService;
@@ -138,6 +139,45 @@ class PaymentController extends Controller
             'paymentGroup:id,reference_number,total_amount,passenger_count',
             'paymentGroup.transactions:transaction_id,group_id,group_position,passenger_role,final_amount,status,passenger_name',
         ]);
+
+        // Resolve feedback only for shifts on this page. This remains correct
+        // for old rides without downloading the commuter's full history.
+        $shiftIds = $payments->getCollection()
+            ->pluck('shift_id')
+            ->filter()
+            ->unique()
+            ->values();
+        $feedbackByShift = $shiftIds->isEmpty()
+            ? collect()
+            : Feedback::query()
+                ->where('commuter_id', $commuterProfileId)
+                ->whereIn('shift_id', $shiftIds)
+                ->get([
+                    'id', 'shift_id', 'rating', 'category', 'comment',
+                    'conductor_rating', 'conductor_category', 'conductor_comment',
+                    'created_at', 'updated_at',
+                ])
+                ->keyBy('shift_id');
+
+        $payments->getCollection()->each(function (Transaction $payment) use ($feedbackByShift): void {
+            $feedback = $payment->shift_id ? $feedbackByShift->get($payment->shift_id) : null;
+            $eligibleMethod = in_array($payment->payment_method, [
+                PaymentMethod::CASH,
+                PaymentMethod::GCASH,
+                PaymentMethod::VOUCHER,
+            ], true);
+
+            $payment->setAttribute('feedback', $feedback);
+            $payment->setAttribute('feedback_exists', $feedback !== null);
+            $payment->setAttribute(
+                'can_leave_feedback',
+                $feedback === null
+                    && $payment->shift_id !== null
+                    && $payment->status === PaymentStatus::PAID
+                    && $eligibleMethod
+                    && $payment->payment_reconciliation_status === null,
+            );
+        });
 
         return $this->successResponse($payments, 'Payment history retrieved');
     }

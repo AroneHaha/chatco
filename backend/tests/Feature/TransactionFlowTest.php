@@ -14,6 +14,7 @@ use App\Models\Driver;
 use App\Models\FarePoint;
 use App\Models\PaymentEvent;
 use App\Models\Route;
+use App\Models\Setting;
 use App\Models\ShiftLog;
 use App\Models\Transaction;
 use App\Models\User;
@@ -227,6 +228,11 @@ class TransactionFlowTest extends TestCase
 
     public function test_receipt_claim_is_idempotent_for_the_same_commuter(): void
     {
+        Setting::create([
+            'key' => Setting::RIDES_FOR_FREE_REWARD_KEY,
+            'value' => '1',
+            'category' => 'financial',
+        ]);
         $svc = app(TransactionService::class);
         $txn = $svc->recordCashFare($this->conductor, ['final_amount' => 15.00]);
 
@@ -235,6 +241,7 @@ class TransactionFlowTest extends TestCase
 
         $this->assertTrue($second['already_claimed'], 're-scanning must not double-count');
         $this->assertSame(1, $this->paidRideCountFor($this->commuter1->commuterProfile->id));
+        $this->assertSame(1, Voucher::where('commuter_id', $this->commuter1->commuterProfile->id)->count());
     }
 
     public function test_receipt_claim_rejects_a_second_commuter_with_409(): void
@@ -622,6 +629,11 @@ class TransactionFlowTest extends TestCase
 
     public function test_multi_gcash_snapshots_payer_and_counts_one_reward_after_repeated_settlement(): void
     {
+        Setting::create([
+            'key' => Setting::RIDES_FOR_FREE_REWARD_KEY,
+            'value' => '1',
+            'category' => 'financial',
+        ]);
         config(['payments.gateways.paymongo.secret' => null]);
         $this->forgetGateway();
         [$pickup, $dropoff] = $this->createFarePoints();
@@ -643,6 +655,7 @@ class TransactionFlowTest extends TestCase
         $this->assertSame($this->commuter1->commuterProfile->id, $transaction->payer_id);
         $this->assertSame('Commuter One', $transaction->payer_name_snapshot);
         $this->assertSame(1, $this->paidRideCountFor($this->commuter1->commuterProfile->id));
+        $this->assertSame(1, Voucher::where('commuter_id', $this->commuter1->commuterProfile->id)->count());
 
         $this->actingAs($this->admin, 'sanctum')
             ->getJson('/api/v1/admin/transactions')
@@ -1027,7 +1040,16 @@ class TransactionFlowTest extends TestCase
     {
         Event::fake([PaymentStatusUpdated::class]);
         $this->configurePayMongo();
-        $txn = $this->createPendingGcashTransaction();
+        Setting::create([
+            'key' => Setting::RIDES_FOR_FREE_REWARD_KEY,
+            'value' => '1',
+            'category' => 'financial',
+        ]);
+        $txn = $this->createPendingGcashTransaction([
+            'passenger_id' => $this->commuter1->commuterProfile->id,
+            'payer_id' => $this->commuter1->commuterProfile->id,
+            'reward_eligible' => true,
+        ]);
 
         [$payload, $headers] = $this->signedPaymongoWebhook('payment.paid', $txn->payment_reference, 'evt_fixed_1');
 
@@ -1042,6 +1064,7 @@ class TransactionFlowTest extends TestCase
         $this->assertSame(PaymentStatus::PAID, $txn->status);
         $this->assertSame($firstPaidAt->toIso8601String(), $txn->paid_at->toIso8601String());
         $this->assertSame(1, PaymentEvent::count());
+        $this->assertSame(1, Voucher::where('commuter_id', $this->commuter1->commuterProfile->id)->count());
         Event::assertDispatchedTimes(PaymentStatusUpdated::class, 1);
     }
 
@@ -1334,6 +1357,77 @@ SQL);
         $response->assertOk();
         $response->assertJsonCount(1, 'data.data'); // paginated payload
         $response->assertJsonPath('data.data.0.transaction_id', $txn1->transaction_id);
+    }
+
+    public function test_old_payment_page_includes_exact_feedback_state_beyond_one_hundred_records(): void
+    {
+        $shiftRows = [];
+        $transactionRows = [];
+        $feedbackRows = [];
+        $now = now();
+
+        for ($index = 0; $index < 101; $index++) {
+            $suffix = str_pad((string) $index, 3, '0', STR_PAD_LEFT);
+            $shiftId = "SFT-FBH-{$suffix}";
+            $createdAt = $now->copy()->subMinutes(101 - $index);
+
+            $shiftRows[] = [
+                'shift_id' => $shiftId,
+                'conductor_id' => $this->shift->conductor_id,
+                'conductor_name' => $this->shift->conductor_name,
+                'driver_id' => $this->shift->driver_id,
+                'driver_name' => $this->shift->driver_name,
+                'vehicle_id' => $this->shift->vehicle_id,
+                'unit_number' => $this->shift->unit_number,
+                'plate_number' => $this->shift->plate_number,
+                'route_id' => $this->shift->route_id,
+                'time_in' => $createdAt,
+                'time_out' => $createdAt->copy()->addHour(),
+                'is_active' => false,
+                'status' => 'ENDED',
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+            ];
+            $transactionRows[] = [
+                'transaction_id' => "TXN-FBH-{$suffix}",
+                'shift_id' => $shiftId,
+                'payment_method' => PaymentMethod::GCASH->value,
+                'status' => PaymentStatus::PAID->value,
+                'final_amount' => 20,
+                'passenger_id' => $this->commuter1->id,
+                'pickup_name' => 'Pickup',
+                'dropoff_name' => 'Dropoff',
+                'reward_eligible' => true,
+                'paid_at' => $createdAt,
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+            ];
+            $feedbackRows[] = [
+                'id' => (string) Str::uuid(),
+                'shift_id' => $shiftId,
+                'vehicle_id' => $this->shift->vehicle_id,
+                'driver_id' => $this->shift->driver_id,
+                'conductor_id' => $this->shift->conductor_id,
+                'commuter_id' => $this->commuter1->id,
+                'rating' => 5,
+                'conductor_rating' => 5,
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+            ];
+        }
+
+        DB::table('shift_logs')->insert($shiftRows);
+        DB::table('transactions')->insert($transactionRows);
+        DB::table('feedback')->insert($feedbackRows);
+
+        $this->actingAs($this->commuter1, 'sanctum')
+            ->getJson('/api/v1/commuter/payments?page=6&per_page=20')
+            ->assertOk()
+            ->assertJsonCount(1, 'data.data')
+            ->assertJsonPath('data.data.0.transaction_id', 'TXN-FBH-000')
+            ->assertJsonPath('data.data.0.feedback_exists', true)
+            ->assertJsonPath('data.data.0.can_leave_feedback', false)
+            ->assertJsonPath('data.data.0.feedback.shift_id', 'SFT-FBH-000');
     }
 
     // ─── 8. Schema audit ────────────────────────────────────────────

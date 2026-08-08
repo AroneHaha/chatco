@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
 class Setting extends Model
@@ -13,6 +14,8 @@ class Setting extends Model
 
     public const MAX_RIDES_FOR_FREE_REWARD = 100;
 
+    public const REWARD_RULE_CACHE_KEY = 'settings.reward_rule';
+
     public $incrementing = false;
 
     protected $keyType = 'string';
@@ -21,6 +24,7 @@ class Setting extends Model
         'id',
         'key',
         'value',
+        'reward_rule_version',
         'category',
         'updated_by',
     ];
@@ -29,6 +33,7 @@ class Setting extends Model
     {
         return [
             'updated_by' => 'string',
+            'reward_rule_version' => 'integer',
         ];
     }
 
@@ -37,6 +42,18 @@ class Setting extends Model
         static::creating(function (Setting $setting) {
             if (empty($setting->id)) {
                 $setting->id = (string) Str::uuid();
+            }
+        });
+
+        static::saved(function (Setting $setting): void {
+            if ($setting->key === self::RIDES_FOR_FREE_REWARD_KEY) {
+                self::forgetRewardRuleCache();
+            }
+        });
+
+        static::deleted(function (Setting $setting): void {
+            if ($setting->key === self::RIDES_FOR_FREE_REWARD_KEY) {
+                self::forgetRewardRuleCache();
             }
         });
     }
@@ -49,7 +66,54 @@ class Setting extends Model
      */
     public static function ridesForFreeReward(): int
     {
-        $configured = static::where('key', self::RIDES_FOR_FREE_REWARD_KEY)->value('value');
+        return self::rewardRule()['threshold'];
+    }
+
+    /**
+     * Return the active threshold and its non-retroactive rule version.
+     *
+     * Every real threshold change increments the version. Qualifying rides
+     * remain attached to the version active when they became rewardable, so a
+     * lower threshold never reinterprets historical rides.
+     *
+     * @return array{threshold: int, version: int}
+     */
+    public static function rewardRule(bool $lockForUpdate = false): array
+    {
+        if (! $lockForUpdate) {
+            return Cache::remember(
+                self::REWARD_RULE_CACHE_KEY,
+                now()->addMinutes(5),
+                fn (): array => self::loadRewardRule(),
+            );
+        }
+
+        return self::loadRewardRule(lockForUpdate: true);
+    }
+
+    public static function forgetRewardRuleCache(): void
+    {
+        Cache::forget(self::REWARD_RULE_CACHE_KEY);
+    }
+
+    /** @return array{threshold: int, version: int} */
+    private static function loadRewardRule(bool $lockForUpdate = false): array
+    {
+        $query = static::where('key', self::RIDES_FOR_FREE_REWARD_KEY);
+        if ($lockForUpdate) {
+            $query->lockForUpdate();
+        }
+
+        $setting = $query->first();
+
+        return [
+            'threshold' => self::validatedRewardThreshold($setting?->value),
+            'version' => max(1, (int) ($setting?->reward_rule_version ?? 1)),
+        ];
+    }
+
+    public static function validatedRewardThreshold(mixed $configured): int
+    {
         $validated = filter_var($configured, FILTER_VALIDATE_INT, [
             'options' => [
                 'min_range' => 1,

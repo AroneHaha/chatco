@@ -1,7 +1,7 @@
 // app/(commuter)/rewards/page.tsx
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import dynamic from "next/dynamic";
 import { useRewards } from "./use-rewards";
 import { useAnnouncements } from "@/contexts/announcements-context";
@@ -38,7 +38,7 @@ function formatRelativeTime(iso: string): string {
 export default function RewardsPage() {
   const {
     data, isLoading: rewardsLoading, progressPercent, ridesRemaining,
-    showVoucherModal, setShowVoucherModal, activeVoucher, redeemVoucher, refetch
+    showVoucherModal, setShowVoucherModal, activeVoucher, redeemVoucher
   } = useRewards();
 
   // Paper cash receipt scanner (binds a cash ride to this account).
@@ -47,12 +47,6 @@ export default function RewardsPage() {
   // "How rewards work" explainer, opened from the ? on the progress card.
   const [showRewardsHelp, setShowRewardsHelp] = useState(false);
   const [voucherCopied, setVoucherCopied] = useState(false);
-
-  // Stable identity: an inline arrow here would be a new function on every
-  // render, which the scan modal would otherwise see as a changed prop.
-  const handleReceiptClaimed = useCallback(() => {
-    void refetch();
-  }, [refetch]);
 
   const {
     announcements, isLoading: announcementsLoading, markAsRead, markAllAsRead, unreadCount
@@ -263,6 +257,11 @@ export default function RewardsPage() {
                 <p className="text-white/40 text-sm">No vouchers yet. Keep riding to earn your first free ride!</p>
               </div>
             )}
+            {data.archivedVoucherCount > 0 && (
+              <p className="text-center text-xs text-white/35 pt-2">
+                {data.archivedVoucherCount} older redeemed or expired voucher{data.archivedVoucherCount === 1 ? " is" : "s are"} archived.
+              </p>
+            )}
           </div>
         </div>
 
@@ -273,10 +272,6 @@ export default function RewardsPage() {
       {showReceiptScan && (
         <ReceiptScanModal
           onClose={() => setShowReceiptScan(false)}
-          // A newly claimed ride changes the progress ring, and may have just
-          // completed the cycle — the backend generates the voucher on read,
-          // so refetching is what surfaces it.
-          onClaimed={handleReceiptClaimed}
         />
       )}
 

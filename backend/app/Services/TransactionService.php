@@ -52,6 +52,7 @@ class TransactionService
     public function __construct(
         private PaymentService $paymentService,
         private FareCalculationService $fareCalculationService,
+        private RewardService $rewardService,
     ) {}
 
     /**
@@ -136,34 +137,54 @@ class TransactionService
         }
 
         // ─── Persist with denormalized conductor/vehicle/driver info ──
-        return Transaction::create([
-            'transaction_id' => $this->generateTransactionId(),
-            'shift_id' => $shift->shift_id,
-            'payment_method' => $paymentMethod,
-            'status' => PaymentStatus::PAID->value,
-            'qr_token' => $receiptToken,
-            'idempotency_key' => $idempotencyKey,
-            'final_amount' => $finalAmount,
-            'total_passengers' => 1,
-            'gross_amount' => round($finalAmount + (float) ($data['discount_amount'] ?? 0), 2),
-            'base_fare' => isset($data['base_fare']) ? (float) $data['base_fare'] : null,
-            'distance' => isset($data['distance']) ? (float) $data['distance'] : null,
-            'discount_amount' => isset($data['discount_amount']) ? (float) $data['discount_amount'] : null,
-            'pickup_name' => $pickupName,
-            'dropoff_name' => $dropoffName,
-            'passenger_name' => $passengerName,
-            'passenger_role' => $data['passenger_role'] ?? null,
-            'passenger_id' => $passengerId,
-            // Denormalized from shift_log for fast reporting without JOINs
-            'conductor_name' => $shift->conductor_name,
-            'unit_number' => $shift->unit_number,
-            'driver_name' => $shift->driver_name,
-            'voucher_id' => null,
-            // Cash/voucher has no fare_point UUIDs (S4-T1 made these nullable)
-            'pickup_stop_id' => null,
-            'dropoff_stop_id' => null,
-            'paid_at' => now(),
-        ]);
+        return DB::transaction(function () use (
+            $shift,
+            $paymentMethod,
+            $receiptToken,
+            $idempotencyKey,
+            $finalAmount,
+            $data,
+            $pickupName,
+            $dropoffName,
+            $passengerName,
+            $passengerId,
+        ): Transaction {
+            $paidAt = now();
+            $transaction = Transaction::create([
+                'transaction_id' => $this->generateTransactionId(),
+                'shift_id' => $shift->shift_id,
+                'payment_method' => $paymentMethod,
+                'status' => PaymentStatus::PAID->value,
+                'qr_token' => $receiptToken,
+                'idempotency_key' => $idempotencyKey,
+                'final_amount' => $finalAmount,
+                'total_passengers' => 1,
+                'gross_amount' => round($finalAmount + (float) ($data['discount_amount'] ?? 0), 2),
+                'base_fare' => isset($data['base_fare']) ? (float) $data['base_fare'] : null,
+                'distance' => isset($data['distance']) ? (float) $data['distance'] : null,
+                'discount_amount' => isset($data['discount_amount']) ? (float) $data['discount_amount'] : null,
+                'pickup_name' => $pickupName,
+                'dropoff_name' => $dropoffName,
+                'passenger_name' => $passengerName,
+                'passenger_role' => $data['passenger_role'] ?? null,
+                'passenger_id' => $passengerId,
+                // Denormalized from shift_log for fast reporting without JOINs
+                'conductor_name' => $shift->conductor_name,
+                'unit_number' => $shift->unit_number,
+                'driver_name' => $shift->driver_name,
+                'voucher_id' => null,
+                // Cash/voucher has no fare_point UUIDs (S4-T1 made these nullable)
+                'pickup_stop_id' => null,
+                'dropoff_stop_id' => null,
+                'paid_at' => $paidAt,
+            ]);
+
+            if ($passengerId !== null) {
+                $this->rewardService->issueForRewardableRide($transaction, $paidAt);
+            }
+
+            return $transaction;
+        }, 3);
     }
 
     /**
@@ -1048,12 +1069,10 @@ class TransactionService
     /**
      * Claim a CASH ride by scanning the QR printed on the paper receipt.
      *
-     * Cash rides are recorded as PAID with no passenger_id, so they never
-     * reach anyone's reward cycle. Scanning the receipt binds the ride to the
-     * commuter — and because GET /commuter/rewards counts PAID non-voucher
-     * transactions by passenger_id, that binding IS the "+1": the progress
-     * ring and the auto-generated free-ride voucher at the cycle threshold
-     * both follow from it. No separate points ledger is involved.
+     * Cash rides are recorded as PAID with no passenger_id, so they do not
+     * reach anyone's reward cycle until the receipt is claimed. The successful
+     * binding is the qualifying event: RewardService issues any completed-cycle
+     * voucher in this same transaction. No separate points ledger is involved.
      *
      * Deliberately mirrors claimGcash's guards, with two differences: a cash
      * row is already PAID (so PAID is the valid state here, not PENDING), and
@@ -1125,6 +1144,7 @@ class TransactionService
                 abort(409, 'This receipt has already been claimed');
             }
 
+            $earnedAt = now();
             $transaction->update([
                 'passenger_id' => $commuterProfile->id,
                 'passenger_name' => trim($commuterProfile->first_name.' '.$commuterProfile->surname),
@@ -1142,6 +1162,7 @@ class TransactionService
                 ]);
             }
             $transaction->refresh();
+            $this->rewardService->issueForRewardableRide($transaction, $earnedAt);
 
             return $this->formatReceiptClaimResponse($transaction, alreadyClaimed: false);
         }, 3);

@@ -7,6 +7,7 @@ use App\Http\Requests\Admin\StoreVoucherRequest;
 use App\Models\Voucher;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
 /**
@@ -21,9 +22,11 @@ class AdminVoucherController extends Controller
 {
     use ApiResponse;
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $vouchers = Voucher::orderBy('created_at', 'desc')->get();
+        $perPage = min(max($request->integer('per_page', 20), 1), 100);
+        $vouchers = Voucher::orderByDesc('created_at')->paginate($perPage);
+
         return $this->successResponse($vouchers, 'Vouchers retrieved');
     }
 
@@ -38,7 +41,7 @@ class AdminVoucherController extends Controller
 
         $created = [];
         for ($i = 0; $i < $quantity; $i++) {
-            $code = 'CHATCO-' . Str::upper(Str::random(3)) . '-' . Str::upper(Str::random(6));
+            $code = 'CHATCO-'.Str::upper(Str::random(3)).'-'.Str::upper(Str::random(6));
             $voucher = Voucher::create([
                 'code' => $code,
                 'type' => $type,

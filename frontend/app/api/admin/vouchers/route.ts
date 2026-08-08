@@ -3,7 +3,11 @@ import { jsonError, jsonData, jsonValidationError } from "@/lib/conductor/server
 import { proxyToLaravel } from "@/lib/conductor/server/proxy";
 
 export async function GET(request: NextRequest) {
-  const result = await proxyToLaravel(request, "/admin/vouchers", { method: "GET" });
+  const result = await proxyToLaravel(
+    request,
+    `/admin/vouchers${request.nextUrl.search}`,
+    { method: "GET" }
+  );
   if (!result.ok) return jsonError(result.message ?? "Failed to load vouchers.", result.status);
   return jsonData(result.data);
 }

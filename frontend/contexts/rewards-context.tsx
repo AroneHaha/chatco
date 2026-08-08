@@ -29,13 +29,14 @@ import {
 } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import type { RewardData } from "@/app/(commuter)/rewards/types";
+import { REWARDS_CHANGED_EVENT } from "@/lib/commuter/rewards-events";
 
 /**
  * Longer than the announcement poll: ride totals only move when a fare is
  * recorded, so this is just there to surface a voucher minted mid-session
  * (e.g. the commuter pays by GCash while sitting on the dashboard).
  */
-const POLL_INTERVAL_MS = 60_000;
+const POLL_INTERVAL_MS = 5 * 60_000;
 
 interface RewardsContextValue {
   data: RewardData | null;
@@ -93,6 +94,7 @@ export function RewardsProvider({ children }: { children: React.ReactNode }) {
         ridesNeeded: d.ridesNeeded ?? 10,
         currentCycleRides: d.currentCycleRides ?? 0,
         availableVoucherCount: vouchers.filter((v) => v.status === "AVAILABLE").length,
+        archivedVoucherCount: d.archivedVoucherCount ?? 0,
         vouchers,
       });
     } catch (err) {
@@ -113,8 +115,21 @@ export function RewardsProvider({ children }: { children: React.ReactNode }) {
     }
 
     void refetch();
-    const id = setInterval(() => void refetch(), POLL_INTERVAL_MS);
-    return () => clearInterval(id);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void refetch();
+    };
+    const refreshAfterRewardEvent = () => void refetch();
+    const id = setInterval(refreshWhenVisible, POLL_INTERVAL_MS);
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    window.addEventListener(REWARDS_CHANGED_EVENT, refreshAfterRewardEvent);
+
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.removeEventListener(REWARDS_CHANGED_EVENT, refreshAfterRewardEvent);
+    };
   }, [authLoading, isAuthenticated, refetch]);
 
   // Refresh at the next voucher expiry instead of leaving the action/badge
