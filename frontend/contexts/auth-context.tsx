@@ -98,22 +98,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-    } finally {
-      setUser(null);
-      setCommuterProfile(null);
-
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("chatco_user");
-        localStorage.removeItem("chatco_payment_history");
-        localStorage.removeItem("conductor_active_shift");
-        localStorage.removeItem("conductor_transactions");
-        localStorage.removeItem("remittance_history");
-      }
-
-      window.location.href = "/login";
+    // Fire the server-side revoke in the background instead of awaiting it —
+    // the Next.js route (app/api/auth/logout/route.ts) already clears the
+    // httpOnly session cookie unconditionally and ignores failures from its
+    // own Laravel revocation call, so nothing below needs to wait on or
+    // branch on the outcome. sendBeacon (not fetch) because the immediate
+    // redirect below starts unloading this page right after — a fetch can
+    // get cancelled mid-flight by that navigation, while a beacon is
+    // guaranteed by the browser to still be sent.
+    if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+      navigator.sendBeacon("/api/auth/logout");
+    } else {
+      // Older/uncommon browsers without sendBeacon — best-effort fallback,
+      // not awaited so it can't delay the redirect either.
+      void fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
     }
+
+    setUser(null);
+    setCommuterProfile(null);
+
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("chatco_user");
+      localStorage.removeItem("chatco_payment_history");
+      localStorage.removeItem("conductor_active_shift");
+      localStorage.removeItem("conductor_transactions");
+      localStorage.removeItem("remittance_history");
+    }
+
+    window.location.href = "/login";
   }, []);
 
   useEffect(() => {
