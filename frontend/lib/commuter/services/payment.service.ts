@@ -21,6 +21,30 @@ import { COMMUTER_API } from "@/lib/commuter/endpoints";
 export type PaymentStatus =
   | "pending" | "processing" | "paid" | "failed" | "cancelled" | "expired" | "refunded";
 
+/** One passenger's receipt within a group payment (see CommuterPayment.group). */
+export interface GroupPassenger {
+  id: string;
+  role: string | null;
+  amount: number;
+  status: PaymentStatus;
+  /** Real name only for the payer's own line (backend sets a generic "Passenger" placeholder for the rest — sibling rows are never bound to a commuter account). */
+  name: string | null;
+  /** True for the line that is this commuter's own transaction (matches CommuterPayment.id). */
+  isYou: boolean;
+}
+
+/**
+ * Present only when this payment was part of a conductor-recorded group fare
+ * (multiple passengers, settled by one GCash/cash payer). `passengers`
+ * covers every rider on that payment, including this commuter's own line.
+ */
+export interface GroupPaymentInfo {
+  referenceNumber: string | null;
+  totalAmount: number;
+  passengerCount: number;
+  passengers: GroupPassenger[];
+}
+
 export interface CommuterPayment {
   id: string;
   amount: number;
@@ -39,6 +63,8 @@ export interface CommuterPayment {
   shiftId?: string;
   createdAt: string;
   paidAt: string | null;
+  /** Set when this payment covered other passengers too. */
+  group?: GroupPaymentInfo;
 }
 
 export interface PaymentHistoryPage {
@@ -74,6 +100,25 @@ export interface ReceiptClaimResult {
 
 // ─── Raw backend shapes ──────────────────────────────────────────────
 
+/** One sibling receipt row from PaymentGroup::transactions() (group_id, ordered by group_position). */
+interface RawGroupTransaction {
+  transaction_id: string;
+  group_position: number;
+  passenger_role: string | null;
+  final_amount: number | string;
+  status: string;
+  passenger_name: string | null;
+}
+
+/** PaymentController::history()'s eager-loaded `paymentGroup` relation — null for non-group payments. */
+interface RawPaymentGroup {
+  id: string;
+  reference_number: string | null;
+  total_amount: number | string;
+  passenger_count: number;
+  transactions: RawGroupTransaction[];
+}
+
 interface RawTransaction {
   transaction_id: string;
   final_amount: number | string;
@@ -87,6 +132,7 @@ interface RawTransaction {
   shift_id: string | null;
   created_at: string;
   paid_at: string | null;
+  payment_group: RawPaymentGroup | null;
 }
 
 interface Paginated<T> {
@@ -104,6 +150,22 @@ interface Envelope<T> {
 
 // ─── Mappers ─────────────────────────────────────────────────────────
 
+function mapGroup(raw: RawPaymentGroup, ownTransactionId: string): GroupPaymentInfo {
+  return {
+    referenceNumber: raw.reference_number,
+    totalAmount: Number(raw.total_amount) || 0,
+    passengerCount: raw.passenger_count,
+    passengers: raw.transactions.map((line) => ({
+      id: line.transaction_id,
+      role: line.passenger_role,
+      amount: Number(line.final_amount) || 0,
+      status: (line.status?.toLowerCase() as PaymentStatus) ?? "pending",
+      name: line.passenger_name,
+      isYou: line.transaction_id === ownTransactionId,
+    })),
+  };
+}
+
 function mapPayment(raw: RawTransaction): CommuterPayment {
   return {
     id: raw.transaction_id,
@@ -117,20 +179,30 @@ function mapPayment(raw: RawTransaction): CommuterPayment {
     shiftId: raw.shift_id ?? undefined,
     createdAt: raw.created_at,
     paidAt: raw.paid_at,
+    group: raw.payment_group ? mapGroup(raw.payment_group, raw.transaction_id) : undefined,
   };
 }
 
 // ─── Service ─────────────────────────────────────────────────────────
 
+export type PaymentHistoryFilter = "all" | "today" | "week" | "month";
+
 /**
  * Fetch one page of the commuter's payment history (newest first).
  * Server-side scoped to the authenticated commuter (passenger_id).
+ *
+ * `filter` narrows to a rolling time window server-side (matches the
+ * Today/This Week/This Month tabs) so a narrow filter doesn't require
+ * paging through the commuter's full history to find matching rows.
+ * Omitting it (default "all") is the original, unfiltered query.
  */
 export async function fetchPaymentHistory(
   page = 1,
-  perPage = 20
+  perPage = 20,
+  filter: PaymentHistoryFilter = "all"
 ): Promise<PaymentHistoryPage> {
-  const url = `${COMMUTER_API.payments.history}?page=${page}&per_page=${perPage}`;
+  const filterParam = filter !== "all" ? `&filter=${filter}` : "";
+  const url = `${COMMUTER_API.payments.history}?page=${page}&per_page=${perPage}${filterParam}`;
   const response = await api.get<Envelope<Paginated<RawTransaction>>>(url);
   const p = response.data;
 

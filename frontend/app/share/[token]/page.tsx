@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { MapPin, Clock, AlertCircle, Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 
@@ -39,6 +39,11 @@ export default function ShareTrackingPage({ params }: { params: Promise<{ token:
     if (!token) return;
 
     const fetchData = async () => {
+      // Skip while the tab is backgrounded — nothing is visible to update,
+      // so there's no point polling. The visibilitychange listener below
+      // fires an immediate fetch as soon as the tab is foregrounded again,
+      // so the existing 5s cadence while visible is unaffected.
+      if (typeof document !== "undefined" && document.hidden) return;
       try {
         const res = await fetch(`/api/share/${encodeURIComponent(token)}`, {
           headers: { Accept: "application/json" },
@@ -71,8 +76,16 @@ export default function ShareTrackingPage({ params }: { params: Promise<{ token:
     // Poll every 5 seconds for live updates
     pollRef.current = setInterval(fetchData, 5000);
 
+    // Catch up immediately on returning to the tab instead of waiting up to
+    // 5s for the next tick (fetchData no-ops while hidden, above).
+    const handleVisibilityChange = () => {
+      if (!document.hidden) void fetchData();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [token]);
 
@@ -86,6 +99,31 @@ export default function ShareTrackingPage({ params }: { params: Promise<{ token:
       return "—";
     }
   };
+
+  // Live tracking view with real map
+  const hasPosition = data?.lat != null && data?.lng != null;
+
+  // Render the commuter as a single person marker (NOT a vehicle) — the
+  // share link is meant to show only the commuter's own live location, never
+  // any jeepney units. Using the map's `commuters` prop gives a person pin;
+  // `liveVehicles` is left empty so no unit markers appear.
+  // Memoized so an unchanged position (e.g. a poll tick with identical
+  // lat/lng) doesn't hand the map a brand-new array/object each time —
+  // this hook must run unconditionally, so it's declared before the early
+  // returns below even though its result is only used in the final render.
+  const commuterMarkers = useMemo(
+    () =>
+      hasPosition
+        ? [{
+            id: 1,
+            name: data?.commuter_name ?? "Commuter",
+            latlng: [data!.lat!, data!.lng!] as [number, number],
+            locationDetail: "Live shared location",
+          }]
+        : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [hasPosition, data?.lat, data?.lng, data?.commuter_name]
+  );
 
   if (isLoading) {
     return (
@@ -123,22 +161,6 @@ export default function ShareTrackingPage({ params }: { params: Promise<{ token:
       </div>
     );
   }
-
-  // Live tracking view with real map
-  const hasPosition = data?.lat != null && data?.lng != null;
-
-  // Render the commuter as a single person marker (NOT a vehicle) — the
-  // share link is meant to show only the commuter's own live location, never
-  // any jeepney units. Using the map's `commuters` prop gives a person pin;
-  // `liveVehicles` is left empty so no unit markers appear.
-  const commuterMarkers = hasPosition
-    ? [{
-        id: 1,
-        name: data?.commuter_name ?? "Commuter",
-        latlng: [data!.lat!, data!.lng!] as [number, number],
-        locationDetail: "Live shared location",
-      }]
-    : [];
 
   return (
     <div className="min-h-screen bg-[#050F1A] flex flex-col">
