@@ -83,20 +83,29 @@ class AuthService
             }
         }
 
-        // ─── Single-device enforcement (ADMIN + CONDUCTOR) ──────────
-        // Staff accounts are limited to one active session. Logging in on a
-        // new device revokes every previously issued token, so the old device's
-        // next authenticated request 401s and it is effectively logged out.
+        // ─── Single-device enforcement (all roles) ──────────────────
+        // Every account is limited to one active session. Logging in on a new
+        // device revokes every previously issued token, so the old device's
+        // next authenticated request 401s and the shared API client
+        // (frontend/lib/api/client.ts handleSessionEnded) redirects it to
+        // /login?reason=session_ended — no frontend changes needed, the same
+        // mechanism already in place for staff accounts.
         //
-        // Deliberately BEFORE createToken so the new token survives the purge.
-        //
-        // Commuters are exempt — a rider may legitimately be signed in on a
-        // phone and a tablet at once.
-        if ($user->isAdmin() || $user->isConductor()) {
+        // The revoke + issue happen inside a transaction holding a row lock
+        // on the user, so concurrent login attempts (rapid double-taps, two
+        // devices racing to sign in) serialize instead of interleaving.
+        // Without the lock, two requests could each see "nothing to delete
+        // yet" and both survive, leaving more than one active session; with
+        // it, the second request's delete always runs after the first
+        // request's create has committed, so exactly one token is ever left
+        // standing and each request's own new token always survives its own
+        // delete (never a later request's).
+        $token = DB::transaction(function () use ($user) {
+            User::whereKey($user->id)->lockForUpdate()->first();
             $user->tokens()->delete();
-        }
 
-        $token = $user->createToken('auth-token')->plainTextToken;
+            return $user->createToken('auth-token')->plainTextToken;
+        });
 
         return [
             'user' => $user,

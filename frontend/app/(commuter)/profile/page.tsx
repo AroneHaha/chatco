@@ -36,16 +36,6 @@ export default function ProfilePage() {
     handleLogout,
   } = useProfile();
 
-  // ─── Loading ──────────────────────────────────────────────────────
-  if (loadState === "loading" || !profile) {
-    return (
-      <div className="h-full w-full flex flex-col items-center justify-center bg-[#050F1A]">
-        <div className="w-8 h-8 border-2 border-white/20 border-t-[#62A0EA] rounded-full animate-spin" />
-        <p className="text-white/40 text-xs mt-3">Loading your profile…</p>
-      </div>
-    );
-  }
-
   // ─── Load error ───────────────────────────────────────────────────
   if (loadState === "error") {
     return (
@@ -63,6 +53,16 @@ export default function ProfilePage() {
         >
           Try again
         </button>
+      </div>
+    );
+  }
+
+  // ─── Loading ──────────────────────────────────────────────────────
+  if (!profile) {
+    return (
+      <div className="h-full w-full flex flex-col items-center justify-center bg-[#050F1A]">
+        <div className="w-8 h-8 border-2 border-white/20 border-t-[#62A0EA] rounded-full animate-spin" />
+        <p className="text-white/40 text-xs mt-3">Loading your profile…</p>
       </div>
     );
   }

@@ -107,17 +107,11 @@ export function AnnouncementsProvider({ children }: { children: React.ReactNode 
   // with an in-flight response that was issued before the mark-read landed.
   const pendingWrites = useRef(0);
 
-  const refreshCount = useCallback(async () => {
-    try {
-      const count = await fetchUnreadCount();
-      // A poll that started before an optimistic update would roll the badge
-      // back to the pre-click value; skip it and let the next tick correct.
-      if (pendingWrites.current === 0) setUnreadCount(count);
-    } catch {
-      // Silent — the badge keeps its last known value. A 401 is handled by
-      // the global auth redirect, and the provider unmounts with the layout.
-    }
-  }, []);
+  // Last unread total seen by the count poll — lets it notice a *rise* (a
+  // new announcement, e.g. a claim just got approved) versus a fall (the
+  // user read something), so the feed only gets refetched when there's
+  // actually something new to show.
+  const lastSeenUnreadRef = useRef(0);
 
   const refresh = useCallback(async () => {
     setIsLoading(true);
@@ -136,6 +130,27 @@ export function AnnouncementsProvider({ children }: { children: React.ReactNode 
       setIsLoading(false);
     }
   }, []);
+
+  const refreshCount = useCallback(async () => {
+    try {
+      const count = await fetchUnreadCount();
+      // A poll that started before an optimistic update would roll the badge
+      // back to the pre-click value; skip it and let the next tick correct.
+      if (pendingWrites.current === 0) {
+        setUnreadCount(count);
+        // Unread total went up since the last tick — a new announcement
+        // landed (e.g. an admin just approved a claim). Pull the feed so it
+        // shows up in "Latest Updates" without the commuter reloading.
+        if (count > lastSeenUnreadRef.current) {
+          void refresh();
+        }
+        lastSeenUnreadRef.current = count;
+      }
+    } catch {
+      // Silent — the badge keeps its last known value. A 401 is handled by
+      // the global auth redirect, and the provider unmounts with the layout.
+    }
+  }, [refresh]);
 
   // Only fetch once auth has resolved and the user is signed in — an anonymous
   // request would 401 on every poll.

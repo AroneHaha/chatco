@@ -90,36 +90,47 @@ export default function ShareRideModal({ commuterName, lat: propLat, lng: propLn
       setGpsStatus("requesting");
 
       try {
-        // Get the commuter's current GPS position first.
-        let initLat = propLat;
-        let initLng = propLng;
-
-        if (initLat == null || initLng == null) {
-          try {
-            const pos = await getCurrentPosition();
-            initLat = pos.lat;
-            initLng = pos.lng;
-            setGpsStatus("success");
-          } catch (gpsErr) {
-            setGpsStatus("error");
-            // Create the link anyway without GPS — the commuter can still
-            // share the link and the position will be updated when GPS
-            // becomes available (via the watchPosition below).
-          }
-        } else {
-          setGpsStatus("success");
-        }
-
-        const res = await fetch("/api/commuter/share-ride", {
+        // Fire link creation immediately using whatever position we already
+        // have (if any) — don't block it on acquiring a fresh GPS fix. Once
+        // GPS resolves it's pushed separately via updatePosition, the same
+        // path already used for live tracking below.
+        const linkPromise = fetch("/api/commuter/share-ride", {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
           body: JSON.stringify({
-            lat: initLat ?? undefined,
-            lng: initLng ?? undefined,
+            lat: propLat ?? undefined,
+            lng: propLng ?? undefined,
             rotate: false,
           }),
         });
 
+        if (propLat == null || propLng == null) {
+          getCurrentPosition()
+            .then((pos) => {
+              setGpsStatus("success");
+              void updatePosition(pos.lat, pos.lng);
+            })
+            .catch(() => setGpsStatus("error"));
+        } else {
+          setGpsStatus("success");
+        }
+
+        // Start watching position for live updates in parallel with link
+        // creation instead of waiting for it to finish first.
+        if (typeof navigator !== "undefined" && navigator.geolocation) {
+          watchIdRef.current = navigator.geolocation.watchPosition(
+            (pos) => {
+              setGpsStatus("success");
+              void updatePosition(pos.coords.latitude, pos.coords.longitude);
+            },
+            () => {
+              setGpsStatus((prev) => (prev === "success" ? prev : "error"));
+            },
+            { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+          );
+        }
+
+        const res = await linkPromise;
         if (!res.ok) {
           const body = await res.json().catch(() => null);
           throw new Error(body?.message ?? "Failed to create share link.");
@@ -131,20 +142,6 @@ export default function ShareRideModal({ commuterName, lat: propLat, lng: propLn
         // Always construct the share URL using the frontend's origin (port 3000).
         setShareUrl(`${window.location.origin}/share/${data.token}`);
         setExpiresAt(data.expires_at);
-
-        // Start watching position for live updates.
-        if (typeof navigator !== "undefined" && navigator.geolocation) {
-          watchIdRef.current = navigator.geolocation.watchPosition(
-            (pos) => {
-              setGpsStatus("success");
-              void updatePosition(pos.coords.latitude, pos.coords.longitude);
-            },
-            () => {
-              setGpsStatus("error");
-            },
-            { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
-          );
-        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to create share link.");
       } finally {
@@ -249,7 +246,7 @@ export default function ShareRideModal({ commuterName, lat: propLat, lng: propLn
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
               <Loader2 className="w-8 h-8 text-[#1A5FB4] animate-spin" />
-              <p className="text-sm text-gray-500">Getting your GPS position…</p>
+              <p className="text-sm text-gray-500">Creating your share link…</p>
             </div>
           ) : isStopped ? (
             <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">

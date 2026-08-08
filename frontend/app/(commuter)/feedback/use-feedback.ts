@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   parseUnitQr,
   scanPublic,
@@ -127,9 +127,16 @@ const NEGATIVE_TAGS_CONDUCTOR = [
  * category? } to /commuter/feedback — the backend derives driver_id +
  * conductor_id + vehicle_id from the shift_log, so feedback lands on BOTH
  * the driver's and conductor's profiles for today's ride on that unit.
+ *
+ * `initialToken` — when the commuter already scanned/entered a QR token
+ * elsewhere (the nav-bar scan modal) before landing on this page, it's
+ * passed in via the `?token=` query param so the page skips straight to
+ * verifying it instead of showing the scanner again.
  */
-export function useFeedback() {
-  const [scanStatus, setScanStatus] = useState<ScanStatus>("scanning");
+export function useFeedback(initialToken?: string) {
+  const [scanStatus, setScanStatus] = useState<ScanStatus>(
+    initialToken ? "verifying" : "scanning"
+  );
   const [scanError, setScanError] = useState<ScanError | null>(null);
   const [crew, setCrew] = useState<FeedbackCrewData | null>(null);
 
@@ -217,6 +224,17 @@ export function useFeedback() {
       setScanStatus("error");
     }
   }, []);
+
+  // Consume the token passed in from the nav-bar scan modal exactly once —
+  // a ref guard rather than an empty dep array so it still fires if the
+  // token only becomes available after the initial render (e.g. the page
+  // mounts before the router finishes resolving the query string).
+  const hasConsumedInitialToken = useRef(false);
+  useEffect(() => {
+    if (!initialToken || hasConsumedInitialToken.current) return;
+    hasConsumedInitialToken.current = true;
+    void handleToken(initialToken);
+  }, [initialToken, handleToken]);
 
   /** Reset back to the scanning state — called by "Try another unit" buttons. */
   const resetForNewScan = useCallback(() => {

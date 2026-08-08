@@ -99,7 +99,7 @@ export default function LostAndFoundPage() {
                 key={key}
                 type="button"
                 onClick={() => handleTabChange(key)}
-                className={`relative inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-lg px-2 text-xs font-semibold transition-all sm:px-4 ${
+                className={`relative inline-flex h-9 min-w-0 items-center justify-center gap-2 rounded-lg px-2 text-xs font-semibold transition-all sm:px-4 ${
                   activeTab === key
                     ? "bg-[#1A5FB4] text-white shadow-lg shadow-[#1A5FB4]/30"
                     : "text-white/45 hover:bg-white/5 hover:text-white/75"
@@ -119,7 +119,7 @@ export default function LostAndFoundPage() {
                 placeholder={activeTab === "MY_CLAIMS" ? "Search claims by item, plate, driver, conductor..." : "Search item, plate, driver, or conductor..."}
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
-                className="h-11 w-full rounded-xl border border-white/10 bg-[#050F1A] pl-11 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/30 focus:border-[#62A0EA]"
+                className="h-10 w-full rounded-xl border border-white/10 bg-[#050F1A] pl-11 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/30 focus:border-[#62A0EA]"
               />
             </div>
             <div className="relative">
@@ -128,7 +128,7 @@ export default function LostAndFoundPage() {
                 type="date"
                 value={selectedDate}
                 onChange={(e) => handleDateChange(e.target.value)}
-                className="h-11 w-full rounded-xl border border-white/10 bg-[#050F1A] pl-11 pr-10 text-sm font-semibold text-white/70 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
+                className="h-10 w-full rounded-xl border border-white/10 bg-[#050F1A] pl-11 pr-10 text-sm font-semibold text-white/70 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
                 aria-label="Filter lost and found items by posted date"
               />
               {selectedDate && (
@@ -147,7 +147,7 @@ export default function LostAndFoundPage() {
               <select
                 value={activeCategory}
                 onChange={(e) => handleCategoryChange(e.target.value as ItemCategory)}
-                className="h-11 w-full appearance-none rounded-xl border border-white/10 bg-[#050F1A] px-4 pr-10 text-sm font-semibold text-white/70 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
+                className="h-10 w-full appearance-none rounded-xl border border-white/10 bg-[#050F1A] px-4 pr-10 text-sm font-semibold text-white/70 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
                 aria-label="Filter lost and found items by category"
               >
                 {categories.map(cat => (
@@ -305,8 +305,8 @@ export default function LostAndFoundPage() {
       {detailItem && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setDetailItem(null)}>
           <div className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#071A2E] shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="grid min-h-0 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-              <div className="relative aspect-[4/3] bg-[#0A1E33] lg:aspect-auto lg:min-h-[520px]">
+            <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+              <div className="relative aspect-[4/3] flex-shrink-0 bg-[#0A1E33] lg:aspect-auto lg:min-h-[520px]">
                 {detailItem.imageUrl ? (
                   <img src={detailItem.imageUrl} alt={detailItem.itemName} className="h-full w-full object-cover" />
                 ) : (
@@ -329,30 +329,36 @@ export default function LostAndFoundPage() {
                 </div>
               </div>
 
-              <div className="min-h-0 overflow-y-auto p-5 lg:p-6">
-                <div className="mb-5">
-                  <h2 className="text-xl font-bold leading-tight text-white">{detailItem.itemName}</h2>
-                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-white/58">{detailItem.description}</p>
-                </div>
+              {/* Body scrolls independently of the footer, so the action row
+                  below stays reachable without hunting through a long
+                  description first — same header/body/footer split the
+                  claim modal already uses. */}
+              <div className="flex min-h-0 flex-col">
+                <div className="min-h-0 flex-1 overflow-y-auto p-5 lg:p-6">
+                  <div className="mb-5">
+                    <h2 className="text-xl font-bold leading-tight text-white">{detailItem.itemName}</h2>
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-white/58">{detailItem.description}</p>
+                  </div>
 
-                <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <DetailInfo icon={<IdCard className="h-4 w-4" />} label="Plate Number" value={detailItem.plateNumber || "Plate unavailable"} />
-                  <DetailInfo icon={<Clock3 className="h-4 w-4" />} label="Estimated Time" value={detailItem.estimatedTimeLost || "Time unavailable"} />
-                  <DetailInfo icon={<BusFront className="h-4 w-4" />} label="Driver" value={detailItem.driverName || "Driver unavailable"} />
-                  <DetailInfo icon={<UserRound className="h-4 w-4" />} label="Conductor" value={detailItem.conductorName || "Conductor unavailable"} />
-                </div>
+                  <div className="mb-5 grid grid-cols-2 gap-3">
+                    <DetailInfo icon={<IdCard className="h-4 w-4" />} label="Plate Number" value={detailItem.plateNumber || "Plate unavailable"} />
+                    <DetailInfo icon={<Clock3 className="h-4 w-4" />} label="Estimated Time" value={detailItem.estimatedTimeLost || "Time unavailable"} />
+                    <DetailInfo icon={<BusFront className="h-4 w-4" />} label="Driver" value={detailItem.driverName || "Driver unavailable"} />
+                    <DetailInfo icon={<UserRound className="h-4 w-4" />} label="Conductor" value={detailItem.conductorName || "Conductor unavailable"} />
+                  </div>
 
-                <div className="mb-5 rounded-xl border border-amber-400/20 bg-amber-400/10 p-3">
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
-                    <div>
-                      <p className="text-xs font-bold text-amber-100">Claim reminder</p>
-                      <p className="mt-1 text-xs leading-5 text-amber-100/65">Submit specific proof only if this item is yours. Staff may ask for a valid ID during handover.</p>
+                  <div className="rounded-xl border border-amber-400/20 bg-amber-400/10 p-3">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
+                      <div>
+                        <p className="text-xs font-bold text-amber-100">Claim reminder</p>
+                        <p className="mt-1 text-xs leading-5 text-amber-100/65">Submit specific proof only if this item is yours. Staff may ask for a valid ID during handover.</p>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex flex-shrink-0 items-center gap-3 border-t border-white/10 p-5 lg:p-6">
                   {(() => {
                     const status = claims.get(detailItem.id)?.status || "NONE";
                     if (status === "PENDING") {

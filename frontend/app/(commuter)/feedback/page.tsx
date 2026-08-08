@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useFeedback } from "./use-feedback";
 import { QrScanner } from "@/components/commuter/feedback/qr-scanner";
 import { CrewRatingSection } from "@/components/commuter/feedback/crew-rating-section";
@@ -22,9 +22,18 @@ import { AlertTriangle, Check, RotateCcw } from "lucide-react";
  * success state with a 3-second countdown back to /dashboard. On submit
  * error (409 already-submitted / 422 validation / network), surfaces an
  * inline error banner above the submit button.
+ *
+ * A commuter can also arrive here with `?token=...` already in the URL —
+ * the nav-bar Feedback tab scans/enters the QR in an overlay modal first,
+ * then routes here to verify it and show the rating form, skipping the
+ * in-page scanner below entirely. Without a token (direct visit, "Rescan",
+ * "Try again", "Scan another unit"), the in-page scanner is still the
+ * fallback, unchanged from before.
  */
-export default function FeedbackPage() {
+function FeedbackContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialToken = searchParams.get("token") ?? undefined;
 
   const {
     scanStatus,
@@ -54,7 +63,7 @@ export default function FeedbackPage() {
     isSubmitted,
     submitError,
     submitFeedback,
-  } = useFeedback();
+  } = useFeedback(initialToken);
 
   // Hover preview now lives inside CrewRatingSection, which owns the stars.
   // Both crew members must be fully rated (star + at least one tag) to submit.
@@ -347,6 +356,27 @@ export default function FeedbackPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * useSearchParams() opts this route into client-side rendering, which Next
+ * requires to sit behind a Suspense boundary — same pattern as
+ * gcash/return/page.tsx. The fallback mirrors the page's own "verifying"
+ * spinner so arriving with a token never flashes a blank screen.
+ */
+export default function FeedbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="h-full w-full bg-[#050F1A] flex flex-col items-center justify-center p-6 pb-24 lg:pb-6">
+          <div className="w-14 h-14 rounded-full border-4 border-[#62A0EA] border-t-transparent animate-spin" />
+          <p className="text-white/50 text-sm mt-4">Loading…</p>
+        </div>
+      }
+    >
+      <FeedbackContent />
+    </Suspense>
   );
 }
 

@@ -2,13 +2,14 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { AuthProvider, useAuth } from "@/contexts/auth-context";
 import { AnnouncementsProvider, useAnnouncements } from "@/contexts/announcements-context";
 import { RewardsProvider, useRewardsData } from "@/contexts/rewards-context";
 import MaintenanceGate from "@/components/shared/maintenance-gate";
 import { getCommuterTypeLabel } from "@/types";
+import { QrScanner } from "@/components/commuter/feedback/qr-scanner";
 
 /**
  * Spell out what the Rewards badge is counting for screen readers — the number
@@ -23,7 +24,18 @@ function rewardsBadgeLabel(unread: number, vouchers: number): string {
 
 function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { commuterProfile, isLoading: authLoading } = useAuth();
+  // The Feedback tab opens the QR scanner as an overlay instead of routing to
+  // /feedback directly — scanning/manual entry doesn't need a full page, and
+  // this way it can be launched from wherever the commuter already is. Once a
+  // token is captured, it still routes to /feedback (unchanged) for the
+  // verify/resolve step and the driver+conductor rating form.
+  const [showFeedbackScan, setShowFeedbackScan] = useState(false);
+  const handleFeedbackToken = (token: string) => {
+    setShowFeedbackScan(false);
+    router.push(`/feedback?token=${encodeURIComponent(token)}`);
+  };
   // The Rewards tab covers both announcements and vouchers, so its badge is
   // the sum of the two things worth opening it for: updates you haven't read,
   // and free-ride vouchers you can redeem right now (one per 10 cashless
@@ -64,23 +76,20 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
       {/* --- DESKTOP SIDEBAR --- */}
       <aside className="hidden lg:flex flex-col w-64 xl:w-72 bg-[#071A2E] border-r border-white/10 z-50 flex-shrink-0">
         <div className="h-20 flex items-center px-6 border-b border-white/10">
-          <div className="w-10 h-10 rounded-xl bg-[#1A5FB4] flex items-center justify-center text-white font-black shadow-lg shadow-[#1A5FB4]/30">C</div>
+          <img src="/logo-transparent.png" alt="CHATCO" className="w-10 h-10 rounded-xl object-contain" />
           <span className="ml-3 text-white font-extrabold text-lg tracking-tight">CHATCO</span>
         </div>
 
         <nav className="flex-1 py-6 px-4 space-y-1">
           {navItemsWithBadges.map((item, index) => {
             const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => handleNav(item.href, index)}
-                aria-label={item.badge > 0 ? `${item.label} — ${item.badgeLabel}` : undefined}
-                className={`relative flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 min-w-0 ${
-                  isActive ? "bg-[#1A5FB4] text-white shadow-lg shadow-[#1A5FB4]/30" : "text-white/50 hover:text-white hover:bg-white/5"
-                }`}
-              >
+            const isFeedback = item.href === "/feedback";
+            const className = `relative flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 min-w-0 ${
+              isActive ? "bg-[#1A5FB4] text-white shadow-lg shadow-[#1A5FB4]/30" : "text-white/50 hover:text-white hover:bg-white/5"
+            }`;
+            const label = item.badge > 0 ? `${item.label} — ${item.badgeLabel}` : undefined;
+            const content = (
+              <>
                 <div className="relative flex-shrink-0">
                   <item.icon className="w-5 h-5" />
                   {item.badge > 0 && (
@@ -93,6 +102,27 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
                   )}
                 </div>
                 <span className="truncate">{item.label}</span>
+              </>
+            );
+            return isFeedback ? (
+              <button
+                key={item.href}
+                type="button"
+                onClick={() => setShowFeedbackScan(true)}
+                aria-label={label}
+                className={className}
+              >
+                {content}
+              </button>
+            ) : (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => handleNav(item.href, index)}
+                aria-label={label}
+                className={className}
+              >
+                {content}
               </Link>
             );
           })}
@@ -127,14 +157,10 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
 
               {navItemsWithBadges.map((item, index) => {
                 const isActive = pathname === item.href;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => handleNav(item.href, index)}
-                    aria-label={item.badge > 0 ? `${item.label} — ${item.badgeLabel}` : undefined}
-                    className="flex flex-col items-center justify-center py-1 relative group"
-                  >
+                const isFeedback = item.href === "/feedback";
+                const label = item.badge > 0 ? `${item.label} — ${item.badgeLabel}` : undefined;
+                const content = (
+                  <>
                     <div
                       className={`relative flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-2xl transition-all duration-300 ease-out ${
                         isActive
@@ -159,6 +185,27 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
                     }`}>
                       {item.shortLabel || item.label}
                     </span>
+                  </>
+                );
+                return isFeedback ? (
+                  <button
+                    key={item.href}
+                    type="button"
+                    onClick={() => setShowFeedbackScan(true)}
+                    aria-label={label}
+                    className="flex flex-col items-center justify-center py-1 relative group"
+                  >
+                    {content}
+                  </button>
+                ) : (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => handleNav(item.href, index)}
+                    aria-label={label}
+                    className="flex flex-col items-center justify-center py-1 relative group"
+                  >
+                    {content}
                   </Link>
                 );
               })}
@@ -166,6 +213,17 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
       </main>
+
+      {/* --- FEEDBACK QR SCAN MODAL --- */}
+      {/* No backdrop-click-to-close — a live camera stream is running, same
+          convention as the GCash scan modal. */}
+      {showFeedbackScan && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm max-h-[88vh] rounded-2xl border border-white/10 shadow-2xl overflow-hidden">
+            <QrScanner variant="modal" onToken={handleFeedbackToken} onCancel={() => setShowFeedbackScan(false)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

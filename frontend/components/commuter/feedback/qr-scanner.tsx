@@ -13,6 +13,14 @@ interface QrScannerProps {
   onToken: (token: string) => void;
   /** Clicked when the user wants to cancel out of the scanner. */
   onCancel: () => void;
+  /**
+   * 'page' (default) fills the commuter layout's content area, with bottom
+   * padding clearing the mobile tab bar — used by the in-page fallback
+   * ("Rescan" / "Try again" / "Scan another unit"). 'modal' renders compact
+   * chrome (icon-badge header, no page-height assumptions) for use inside
+   * the nav-bar overlay dialog.
+   */
+  variant?: 'page' | 'modal';
 }
 
 /**
@@ -32,7 +40,7 @@ interface QrScannerProps {
  * The camera is started on mount and STOPPED on unmount to free the
  * device's camera (mobile browsers will otherwise keep the camera light on).
  */
-export function QrScanner({ onToken, onCancel }: QrScannerProps) {
+export function QrScanner({ onToken, onCancel, variant = 'page' }: QrScannerProps) {
   const containerId = 'feedback-qr-reader';
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const [mode, setMode] = useState<'camera' | 'manual'>('camera');
@@ -138,6 +146,154 @@ export function QrScanner({ onToken, onCancel }: QrScannerProps) {
   };
 
   // ─── Render ────────────────────────────────────────────────────
+  // Mode toggle + viewfinder/manual entry — identical in both variants,
+  // only the surrounding chrome (header treatment, outer sizing) differs.
+  const body = (
+    <>
+      {/* Mode toggle */}
+      <div className="flex gap-2 mb-4 bg-[#071A2E] p-1 rounded-lg border border-white/10">
+        <button
+          onClick={() => handleSwitchMode('camera')}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-semibold transition-colors ${
+            mode === 'camera'
+              ? 'bg-[#1A5FB4] text-white shadow'
+              : 'text-white/50 hover:text-white'
+          }`}
+        >
+          <Camera size={14} />
+          Camera
+        </button>
+        <button
+          onClick={() => handleSwitchMode('manual')}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-semibold transition-colors ${
+            mode === 'manual'
+              ? 'bg-[#1A5FB4] text-white shadow'
+              : 'text-white/50 hover:text-white'
+          }`}
+        >
+          <Keyboard size={14} />
+          Manual
+        </button>
+      </div>
+
+      {/* Camera viewfinder OR manual entry */}
+      {mode === 'camera' ? (
+        <div className="space-y-3">
+          <div className="relative w-full aspect-square bg-[#071A2E] rounded-2xl overflow-hidden border border-white/10">
+            {/* html5-qrcode mounts the video element here */}
+            <div id={containerId} className="w-full h-full" />
+
+            {/* Scan frame overlay — visual hint only, the library uses its
+                own qrbox for actual detection. */}
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+              <div className="relative w-48 h-48">
+                <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-[#62A0EA] rounded-tl-lg" />
+                <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-[#62A0EA] rounded-tr-lg" />
+                <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-[#62A0EA] rounded-bl-lg" />
+                <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-[#62A0EA] rounded-br-lg" />
+              </div>
+            </div>
+
+            {/* Loading overlay while the camera is starting */}
+            {isStarting && !cameraError && (
+              <div className="absolute inset-0 flex items-center justify-center bg-[#050F1A]/80">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-8 h-8 border-2 border-[#62A0EA] border-t-transparent rounded-full animate-spin" />
+                  <p className="text-white/60 text-xs">Starting camera…</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {cameraError && (
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 flex items-start gap-2">
+              <AlertTriangle
+                size={16}
+                className="text-amber-400 flex-shrink-0 mt-0.5"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-amber-300 text-xs">{cameraError}</p>
+                <button
+                  onClick={() => handleSwitchMode('manual')}
+                  className="text-amber-400 text-xs font-semibold mt-1 hover:underline"
+                >
+                  Switch to manual entry →
+                </button>
+              </div>
+            </div>
+          )}
+
+          <p className="text-center text-white/30 text-[11px]">
+            The QR is printed inside the jeepney unit, near the conductor.
+          </p>
+        </div>
+      ) : (
+        <form onSubmit={handleManualSubmit} className="space-y-3">
+          <div>
+            <label
+              htmlFor="manual-token"
+              className="block text-xs font-medium text-white/60 mb-2"
+            >
+              Paste QR token
+            </label>
+            <textarea
+              id="manual-token"
+              value={manualValue}
+              onChange={(e) => setManualValue(e.target.value)}
+              placeholder="Paste the token from the QR here…"
+              rows={4}
+              className="w-full bg-[#071A2E] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#62A0EA] transition-colors resize-none font-mono text-xs"
+              autoFocus
+            />
+            <p className="text-white/30 text-[11px] mt-1">
+              The token is a long string like{' '}
+              <code className="text-white/40">eyJ2IjoxLCJ…</code>
+            </p>
+          </div>
+          <button
+            type="submit"
+            disabled={!manualValue.trim()}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-[#1A5FB4] hover:bg-[#164A8F] text-white text-sm font-bold transition-colors shadow-lg shadow-[#1A5FB4]/20 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Keyboard size={16} />
+            Verify Token
+          </button>
+        </form>
+      )}
+    </>
+  );
+
+  if (variant === 'modal') {
+    return (
+      <div className="flex max-h-[88vh] w-full flex-col overflow-hidden bg-[#050F1A]">
+        {/* Header — icon badge + title + border-b, matching the other
+            commuter scan modal (GCash payment claim). */}
+        <div className="flex items-center justify-between gap-4 border-b border-white/10 p-5">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-[#1A5FB4]/15 border border-[#1A5FB4]/25 flex items-center justify-center flex-shrink-0">
+              <Camera size={18} className="text-[#62A0EA]" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-white font-bold text-lg leading-tight">Scan Feedback QR</h2>
+              <p className="text-white/40 text-xs mt-0.5 truncate">
+                Point your camera at the QR inside the jeepney
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onCancel}
+            className="text-white/40 hover:text-white transition-colors flex-shrink-0"
+            aria-label="Cancel scan"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto p-5">{body}</div>
+      </div>
+    );
+  }
+
   return (
     // Scrolls rather than centre-clips: on short viewports the square
     // viewfinder plus header and toggle exceed the height. pb-24 clears the
@@ -161,116 +317,7 @@ export function QrScanner({ onToken, onCancel }: QrScannerProps) {
           </button>
         </div>
 
-        {/* Mode toggle */}
-        <div className="flex gap-2 mb-4 bg-[#071A2E] p-1 rounded-lg border border-white/10">
-          <button
-            onClick={() => handleSwitchMode('camera')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-semibold transition-colors ${
-              mode === 'camera'
-                ? 'bg-[#1A5FB4] text-white shadow'
-                : 'text-white/50 hover:text-white'
-            }`}
-          >
-            <Camera size={14} />
-            Camera
-          </button>
-          <button
-            onClick={() => handleSwitchMode('manual')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-semibold transition-colors ${
-              mode === 'manual'
-                ? 'bg-[#1A5FB4] text-white shadow'
-                : 'text-white/50 hover:text-white'
-            }`}
-          >
-            <Keyboard size={14} />
-            Manual
-          </button>
-        </div>
-
-        {/* Camera viewfinder OR manual entry */}
-        {mode === 'camera' ? (
-          <div className="space-y-3">
-            <div className="relative w-full aspect-square bg-[#071A2E] rounded-2xl overflow-hidden border border-white/10">
-              {/* html5-qrcode mounts the video element here */}
-              <div id={containerId} className="w-full h-full" />
-
-              {/* Scan frame overlay — visual hint only, the library uses its
-                  own qrbox for actual detection. */}
-              <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                <div className="relative w-48 h-48">
-                  <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-[#62A0EA] rounded-tl-lg" />
-                  <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-[#62A0EA] rounded-tr-lg" />
-                  <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-[#62A0EA] rounded-bl-lg" />
-                  <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-[#62A0EA] rounded-br-lg" />
-                </div>
-              </div>
-
-              {/* Loading overlay while the camera is starting */}
-              {isStarting && !cameraError && (
-                <div className="absolute inset-0 flex items-center justify-center bg-[#050F1A]/80">
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-8 h-8 border-2 border-[#62A0EA] border-t-transparent rounded-full animate-spin" />
-                    <p className="text-white/60 text-xs">Starting camera…</p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {cameraError && (
-              <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 flex items-start gap-2">
-                <AlertTriangle
-                  size={16}
-                  className="text-amber-400 flex-shrink-0 mt-0.5"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-amber-300 text-xs">{cameraError}</p>
-                  <button
-                    onClick={() => handleSwitchMode('manual')}
-                    className="text-amber-400 text-xs font-semibold mt-1 hover:underline"
-                  >
-                    Switch to manual entry →
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <p className="text-center text-white/30 text-[11px]">
-              The QR is printed inside the jeepney unit, near the conductor.
-            </p>
-          </div>
-        ) : (
-          <form onSubmit={handleManualSubmit} className="space-y-3">
-            <div>
-              <label
-                htmlFor="manual-token"
-                className="block text-xs font-medium text-white/60 mb-2"
-              >
-                Paste QR token
-              </label>
-              <textarea
-                id="manual-token"
-                value={manualValue}
-                onChange={(e) => setManualValue(e.target.value)}
-                placeholder="Paste the token from the QR here…"
-                rows={4}
-                className="w-full bg-[#071A2E] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#62A0EA] transition-colors resize-none font-mono text-xs"
-                autoFocus
-              />
-              <p className="text-white/30 text-[11px] mt-1">
-                The token is a long string like{' '}
-                <code className="text-white/40">eyJ2IjoxLCJ…</code>
-              </p>
-            </div>
-            <button
-              type="submit"
-              disabled={!manualValue.trim()}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-[#1A5FB4] hover:bg-[#164A8F] text-white text-sm font-bold transition-colors shadow-lg shadow-[#1A5FB4]/20 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <Keyboard size={16} />
-              Verify Token
-            </button>
-          </form>
-        )}
+        {body}
       </div>
     </div>
   );

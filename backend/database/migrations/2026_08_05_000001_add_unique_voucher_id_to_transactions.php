@@ -11,6 +11,7 @@ return new class extends Migration
     {
         $hasDuplicateVoucher = DB::table('transactions')
             ->whereNotNull('voucher_id')
+            ->select('voucher_id')
             ->groupBy('voucher_id')
             ->havingRaw('COUNT(*) > 1')
             ->exists();
