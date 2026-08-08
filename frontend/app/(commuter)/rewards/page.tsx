@@ -37,7 +37,7 @@ function formatRelativeTime(iso: string): string {
 
 export default function RewardsPage() {
   const {
-    data, isLoading: rewardsLoading, progressPercent, ridesRemaining,
+    data, isLoading: rewardsLoading, error: rewardsError, refetch: refetchRewards, progressPercent, ridesRemaining,
     showVoucherModal, setShowVoucherModal, activeVoucher, redeemVoucher
   } = useRewards();
 
@@ -61,10 +61,24 @@ export default function RewardsPage() {
     setSelectedAnnouncement(item);
   };
 
-  if (rewardsLoading || announcementsLoading || !data) {
+  if (rewardsLoading || announcementsLoading) {
     return (
       <div className="h-full w-full flex flex-col items-center justify-center bg-[#050F1A]">
         <div className="w-8 h-8 border-2 border-white/20 border-t-[#62A0EA] rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (rewardsError || !data) {
+    return (
+      <div className="h-full w-full flex flex-col items-center justify-center gap-3 bg-[#050F1A] p-6 text-center">
+        <p className="text-sm text-white/50">{rewardsError ?? "Unable to load rewards right now."}</p>
+        <button
+          onClick={() => void refetchRewards()}
+          className="px-4 py-2 rounded-lg bg-[#1A5FB4] text-white text-sm font-semibold hover:bg-[#164A8F] transition-colors"
+        >
+          Try Again
+        </button>
       </div>
     );
   }
@@ -117,11 +131,17 @@ export default function RewardsPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-white/70 uppercase tracking-wider">Latest Updates</h3>
-            {unreadCount > 0 && (
-              <button onClick={markAllAsRead} className="text-xs font-semibold text-[#62A0EA] hover:text-white transition-colors">
-                Mark all read
-              </button>
-            )}
+            <button
+              onClick={markAllAsRead}
+              disabled={unreadCount === 0}
+              className={`text-xs font-semibold transition-colors ${
+                unreadCount === 0
+                  ? "text-white/25 cursor-not-allowed"
+                  : "text-[#62A0EA] hover:text-white"
+              }`}
+            >
+              Mark all read
+            </button>
           </div>
 
           <div className="space-y-3 max-h-80 overflow-y-auto pr-1 modal-scroll">
@@ -142,7 +162,17 @@ export default function RewardsPage() {
                       {config.label}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h4 className={`text-sm font-bold ${item.isRead ? 'text-white/60' : 'text-white'}`}>{item.title}</h4>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <h4 className={`text-sm font-bold truncate ${item.isRead ? 'text-white/60' : 'text-white'}`}>{item.title}</h4>
+                          {!item.isRead && (
+                            <span className="flex-shrink-0 rounded-full bg-[#62A0EA]/15 border border-[#62A0EA]/30 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-[#62A0EA]">
+                              New
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-white/30 whitespace-nowrap flex-shrink-0">{formatRelativeTime(item.createdAt)}</span>
+                      </div>
                       <p className="text-xs text-white/40 leading-relaxed mt-0.5 line-clamp-2">{item.message}</p>
                     </div>
                   </div>
