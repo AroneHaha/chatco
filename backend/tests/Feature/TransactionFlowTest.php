@@ -14,6 +14,7 @@ use App\Models\Driver;
 use App\Models\FarePoint;
 use App\Models\PaymentEvent;
 use App\Models\Route;
+use App\Models\Setting;
 use App\Models\ShiftLog;
 use App\Models\Transaction;
 use App\Models\User;
@@ -227,6 +228,11 @@ class TransactionFlowTest extends TestCase
 
     public function test_receipt_claim_is_idempotent_for_the_same_commuter(): void
     {
+        Setting::create([
+            'key' => Setting::RIDES_FOR_FREE_REWARD_KEY,
+            'value' => '1',
+            'category' => 'financial',
+        ]);
         $svc = app(TransactionService::class);
         $txn = $svc->recordCashFare($this->conductor, ['final_amount' => 15.00]);
 
@@ -235,6 +241,7 @@ class TransactionFlowTest extends TestCase
 
         $this->assertTrue($second['already_claimed'], 're-scanning must not double-count');
         $this->assertSame(1, $this->paidRideCountFor($this->commuter1->commuterProfile->id));
+        $this->assertSame(1, Voucher::where('commuter_id', $this->commuter1->commuterProfile->id)->count());
     }
 
     public function test_receipt_claim_rejects_a_second_commuter_with_409(): void
@@ -622,6 +629,11 @@ class TransactionFlowTest extends TestCase
 
     public function test_multi_gcash_snapshots_payer_and_counts_one_reward_after_repeated_settlement(): void
     {
+        Setting::create([
+            'key' => Setting::RIDES_FOR_FREE_REWARD_KEY,
+            'value' => '1',
+            'category' => 'financial',
+        ]);
         config(['payments.gateways.paymongo.secret' => null]);
         $this->forgetGateway();
         [$pickup, $dropoff] = $this->createFarePoints();
@@ -643,6 +655,7 @@ class TransactionFlowTest extends TestCase
         $this->assertSame($this->commuter1->commuterProfile->id, $transaction->payer_id);
         $this->assertSame('Commuter One', $transaction->payer_name_snapshot);
         $this->assertSame(1, $this->paidRideCountFor($this->commuter1->commuterProfile->id));
+        $this->assertSame(1, Voucher::where('commuter_id', $this->commuter1->commuterProfile->id)->count());
 
         $this->actingAs($this->admin, 'sanctum')
             ->getJson('/api/v1/admin/transactions')
@@ -1027,7 +1040,16 @@ class TransactionFlowTest extends TestCase
     {
         Event::fake([PaymentStatusUpdated::class]);
         $this->configurePayMongo();
-        $txn = $this->createPendingGcashTransaction();
+        Setting::create([
+            'key' => Setting::RIDES_FOR_FREE_REWARD_KEY,
+            'value' => '1',
+            'category' => 'financial',
+        ]);
+        $txn = $this->createPendingGcashTransaction([
+            'passenger_id' => $this->commuter1->commuterProfile->id,
+            'payer_id' => $this->commuter1->commuterProfile->id,
+            'reward_eligible' => true,
+        ]);
 
         [$payload, $headers] = $this->signedPaymongoWebhook('payment.paid', $txn->payment_reference, 'evt_fixed_1');
 
@@ -1042,6 +1064,7 @@ class TransactionFlowTest extends TestCase
         $this->assertSame(PaymentStatus::PAID, $txn->status);
         $this->assertSame($firstPaidAt->toIso8601String(), $txn->paid_at->toIso8601String());
         $this->assertSame(1, PaymentEvent::count());
+        $this->assertSame(1, Voucher::where('commuter_id', $this->commuter1->commuterProfile->id)->count());
         Event::assertDispatchedTimes(PaymentStatusUpdated::class, 1);
     }
 

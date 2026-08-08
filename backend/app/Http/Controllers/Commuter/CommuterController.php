@@ -15,8 +15,6 @@ use App\Services\CommuterService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class CommuterController extends Controller
 {
@@ -145,9 +143,9 @@ class CommuterController extends Controller
      *     default 10) = 1 free ride voucher.
      *   - Only CASH + GCASH PAID rides count toward the reward cycle.
      *     VOUCHER rides (free rides) do NOT count.
-     *   - Vouchers are auto-generated on fetch when the commuter has earned
-     *     a new one (idempotent — checks existing count first).
-     *   - Each voucher expires 30 days after generation.
+     *   - Qualifying payment/receipt events issue vouchers idempotently.
+     *   - Each voucher expires 30 days after its cycle-completing event.
+     *   - This endpoint only reads progress and issued voucher state.
      */
     public function rewards(): JsonResponse
     {
@@ -168,44 +166,15 @@ class CommuterController extends Controller
             ->where('status', 'PAID')
             ->where('payment_method', '!=', PaymentMethod::VOUCHER->value)
             ->where('reward_eligible', true)
+            ->whereNull('payment_reconciliation_status')
             ->count();
 
         // Current cycle progress (rides since last voucher earned).
         $currentCycleRides = $totalRides % $ridesForFreeReward;
 
-        // Auto-generate missing reward vouchers.
-        // earned = how many vouchers the commuter should have based on ride count.
-        // existing = how many REWARD-type vouchers already exist in the DB.
-        $earned = intdiv($totalRides, $ridesForFreeReward);
-        DB::transaction(function () use ($profile, $earned) {
-            $profile->newQuery()->whereKey($profile->id)->lockForUpdate()->first();
-
-            // Normalize only overdue AVAILABLE rows before any active voucher
-            // count or list is built. Expired reward vouchers still count as
-            // historical cycles, so this does not mint replacements.
-            Voucher::expireAvailableForCommuter($profile->id);
-
-            $existingVoucherCount = Voucher::where('commuter_id', $profile->id)
-                ->where('type', 'REWARD')
-                ->count();
-
-            for ($cycleNumber = $existingVoucherCount + 1; $cycleNumber <= $earned; $cycleNumber++) {
-                Voucher::firstOrCreate(
-                    [
-                        'commuter_id' => $profile->id,
-                        'type' => 'REWARD',
-                        'reward_cycle_number' => $cycleNumber,
-                    ],
-                    [
-                        'code' => 'REWARD-'.strtoupper(Str::random(8)),
-                        'status' => 'AVAILABLE',
-                        'amount' => 0,
-                        'expires_at' => now()->addDays(30),
-                        'ride_origin' => "{$cycleNumber}th Ride Reward",
-                    ],
-                );
-            }
-        }, 3);
+        // Expiry normalization remains a targeted status maintenance step;
+        // unlike the former flow, this read endpoint never creates rewards.
+        Voucher::expireAvailableForCommuter($profile->id);
 
         // Fetch all the commuter's vouchers (reward + admin-assigned).
         $vouchers = Voucher::where('commuter_id', $profile->id)

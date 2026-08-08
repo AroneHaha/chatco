@@ -12,6 +12,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\Voucher;
+use App\Services\RewardService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -128,8 +129,12 @@ class RewardSettingsTest extends TestCase
         ]);
 
         $shift = $this->createShift();
+        $rewardService = app(RewardService::class);
+        $paidAtByRide = [];
         for ($ride = 1; $ride <= 7; $ride++) {
-            Transaction::forceCreate([
+            $paidAt = now()->addMinutes($ride);
+            $paidAtByRide[$ride] = $paidAt;
+            $transaction = Transaction::forceCreate([
                 'transaction_id' => 'TXN-RWD-'.str_pad((string) $ride, 4, '0', STR_PAD_LEFT),
                 'shift_id' => $shift->shift_id,
                 'payment_method' => PaymentMethod::CASH->value,
@@ -138,10 +143,21 @@ class RewardSettingsTest extends TestCase
                 'passenger_id' => $commuter->commuterProfile->id,
                 'pickup_name' => 'Pickup',
                 'dropoff_name' => 'Dropoff',
-                'paid_at' => now(),
+                'paid_at' => $paidAt,
                 'reward_eligible' => true,
             ]);
+            $rewardService->issueForRewardableRide($transaction, $paidAt);
         }
+
+        $this->assertDatabaseCount('vouchers', 2);
+        $this->assertSame(
+            $paidAtByRide[3]->copy()->addDays(RewardService::VOUCHER_VALIDITY_DAYS)->toDateTimeString(),
+            Voucher::where('reward_cycle_number', 1)->firstOrFail()->expires_at->toDateTimeString(),
+        );
+        $this->assertSame(
+            $paidAtByRide[6]->copy()->addDays(RewardService::VOUCHER_VALIDITY_DAYS)->toDateTimeString(),
+            Voucher::where('reward_cycle_number', 2)->firstOrFail()->expires_at->toDateTimeString(),
+        );
 
         $this->actingAs($commuter)
             ->getJson('/api/v1/commuter/rewards')
@@ -150,6 +166,72 @@ class RewardSettingsTest extends TestCase
             ->assertJsonPath('data.ridesNeeded', 3)
             ->assertJsonPath('data.currentCycleRides', 1)
             ->assertJsonCount(2, 'data.vouchers');
+    }
+
+    public function test_rewards_page_does_not_create_historical_rewards(): void
+    {
+        $commuter = User::factory()->commuter()->create();
+        Setting::create([
+            'key' => Setting::RIDES_FOR_FREE_REWARD_KEY,
+            'value' => '3',
+            'category' => 'financial',
+        ]);
+
+        $shift = $this->createShift();
+        for ($ride = 1; $ride <= 3; $ride++) {
+            Transaction::forceCreate([
+                'transaction_id' => 'TXN-HIST-'.str_pad((string) $ride, 4, '0', STR_PAD_LEFT),
+                'shift_id' => $shift->shift_id,
+                'payment_method' => PaymentMethod::CASH->value,
+                'status' => PaymentStatus::PAID->value,
+                'final_amount' => 15,
+                'passenger_id' => $commuter->commuterProfile->id,
+                'paid_at' => now()->subDay(),
+                'reward_eligible' => true,
+            ]);
+        }
+
+        $this->assertDatabaseCount('vouchers', 0);
+
+        $this->actingAs($commuter)
+            ->getJson('/api/v1/commuter/rewards')
+            ->assertOk()
+            ->assertJsonPath('data.totalRides', 3)
+            ->assertJsonCount(0, 'data.vouchers');
+
+        $this->assertDatabaseCount('vouchers', 0);
+    }
+
+    public function test_repeated_reward_events_keep_one_voucher_and_original_expiration(): void
+    {
+        $commuter = User::factory()->commuter()->create();
+        Setting::create([
+            'key' => Setting::RIDES_FOR_FREE_REWARD_KEY,
+            'value' => '1',
+            'category' => 'financial',
+        ]);
+        $shift = $this->createShift();
+        $earnedAt = now();
+        $transaction = Transaction::forceCreate([
+            'transaction_id' => 'TXN-RWD-RETRY',
+            'shift_id' => $shift->shift_id,
+            'payment_method' => PaymentMethod::GCASH->value,
+            'status' => PaymentStatus::PAID->value,
+            'final_amount' => 15,
+            'passenger_id' => $commuter->commuterProfile->id,
+            'paid_at' => $earnedAt,
+            'reward_eligible' => true,
+        ]);
+
+        $service = app(RewardService::class);
+        $service->issueForRewardableRide($transaction, $earnedAt);
+        $service->issueForRewardableRide($transaction, $earnedAt->copy()->addDay());
+
+        $this->assertDatabaseCount('vouchers', 1);
+        $this->assertSame(
+            $earnedAt->copy()->addDays(RewardService::VOUCHER_VALIDITY_DAYS)->toDateTimeString(),
+            Voucher::firstOrFail()->expires_at->toDateTimeString(),
+        );
     }
 
     public function test_rewards_normalizes_expired_vouchers_before_listing_and_badge_counting(): void
