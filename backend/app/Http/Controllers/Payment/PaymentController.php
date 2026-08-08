@@ -74,6 +74,14 @@ class PaymentController extends Controller
      * GET /commuter/payments — the authed commuter's payment history,
      * paginated and newest-first. Only rows bound to this commuter
      * (passenger_id) are returned.
+     *
+     * Optional `filter=today|week|month` narrows to a rolling time window
+     * (matches the "Today / This Week / This Month" tabs in
+     * PaymentHistoryModal) so the frontend no longer has to page through a
+     * commuter's full history and filter client-side to answer e.g. "what
+     * did I pay today". Omitting it (or `filter=all`) is the original,
+     * unfiltered query. Cutoffs use the app timezone (Asia/Manila), matching
+     * what a Philippine commuter's device would compute locally.
      */
     public function history(Request $request): JsonResponse
     {
@@ -85,10 +93,51 @@ class PaymentController extends Controller
 
         $perPage = min(max((int) $request->integer('per_page', 20), 1), 100);
 
-        $payments = Transaction::query()
-            ->where('passenger_id', $commuterProfileId)
-            ->orderByDesc('created_at')
-            ->paginate($perPage);
+        $validated = $request->validate([
+            'filter' => 'nullable|in:all,today,week,month',
+        ]);
+        $filter = $validated['filter'] ?? 'all';
+
+        // Most fields the frontend reads (pickup_name, dropoff_name,
+        // conductor_name, unit_number, etc. — see payment.service.ts's
+        // RawTransaction) are flat columns already on this table, needing no
+        // relation. The one exception is group payments (see below).
+        $query = Transaction::query()->where('passenger_id', $commuterProfileId);
+
+        $cutoff = match ($filter) {
+            'today' => now()->startOfDay(),
+            'week' => now()->subDays(7),
+            'month' => now()->startOfMonth(),
+            default => null,
+        };
+
+        if ($cutoff !== null) {
+            $query->where('created_at', '>=', $cutoff);
+        }
+
+        $payments = $query->orderByDesc('created_at')->paginate($perPage);
+
+        // Group payments (conductor recorded fare for several passengers,
+        // settled by one GCash/cash payer): this commuter's own row is the
+        // only one ever bound to their passenger_id (see
+        // TransactionService::createGroupReceiptRows — sibling rows are
+        // created with passenger_id/qr_token null and can never be claimed),
+        // so without this their history would show their own fare with no
+        // indication anyone else was covered by the same payment. Attach the
+        // sibling receipts + group total/reference for display.
+        //
+        // Batched, not per-row: loadMissing() on the whole page's collection
+        // issues at most 2 extra queries total (one WHERE id IN (...) on
+        // payment_groups, one WHERE group_id IN (...) on transactions) no
+        // matter how many rows are on the page, and zero if none of them are
+        // grouped (an empty IN() short-circuits without a DB round trip).
+        // The transactions lookup is covered by the existing
+        // (group_id, group_position) index from
+        // 2026_08_01_000001_add_group_payment_support — no new index needed.
+        $payments->getCollection()->loadMissing([
+            'paymentGroup:id,reference_number,total_amount,passenger_count',
+            'paymentGroup.transactions:transaction_id,group_id,group_position,passenger_role,final_amount,status,passenger_name',
+        ]);
 
         return $this->successResponse($payments, 'Payment history retrieved');
     }

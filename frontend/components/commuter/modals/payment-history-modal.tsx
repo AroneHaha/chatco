@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   fetchPaymentHistory,
   type CommuterPayment,
@@ -20,29 +20,6 @@ interface PaymentHistoryModalProps {
 type TimeFilter = "all" | "today" | "week" | "month";
 
 const PER_PAGE = 20;
-
-/**
- * The oldest timestamp a time filter still includes; null for "all".
- *
- * Doubles as the completeness test for pagination: the API returns rows
- * newest-first, so once the oldest loaded row predates this cutoff we know
- * every matching row has been fetched and the filter can be trusted.
- */
-function cutoffFor(filter: TimeFilter): Date | null {
-  const now = new Date();
-  if (filter === "today") {
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  }
-  if (filter === "week") {
-    const weekAgo = new Date(now);
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    return weekAgo;
-  }
-  if (filter === "month") {
-    return new Date(now.getFullYear(), now.getMonth(), 1);
-  }
-  return null;
-}
 
 // ─── Status badge (covers the full PaymentStatus lifecycle) ──────────
 function getStatusBadge(status: PaymentStatus) {
@@ -104,61 +81,77 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
     void refreshFeedbackMap();
   }, [refreshFeedbackMap]);
 
-  const loadPage = useCallback(async (target: number) => {
-    target === 1 ? setIsLoading(true) : setIsLoadingMore(true);
+  // Bumped on every page-1 fetch (mount + each filter switch) so a stale
+  // in-flight response from a filter/page the user has since navigated away
+  // from can't land late and corrupt `history` with mismatched rows. Rapid
+  // tab-switching is the case this guards: switching filtering to the
+  // backend means a tab switch is now a real request instead of a re-filter
+  // of already-loaded data, so two requests can race.
+  const requestIdRef = useRef(0);
+
+  const loadPage = useCallback(async (target: number, filter: TimeFilter) => {
+    const requestId = target === 1 ? ++requestIdRef.current : requestIdRef.current;
+    if (target === 1) {
+      setIsLoading(true);
+      // Clear immediately (not just on success) so a filter switch can't
+      // flash the previous filter's rows for a frame before this resolves.
+      setHistory([]);
+    } else {
+      setIsLoadingMore(true);
+    }
     setError(null);
     try {
-      const result = await fetchPaymentHistory(target, PER_PAGE);
+      const result = await fetchPaymentHistory(target, PER_PAGE, filter);
+      if (requestId !== requestIdRef.current) return; // superseded by a newer filter/page-1 fetch
       setHistory((prev) => (target === 1 ? result.items : [...prev, ...result.items]));
       setPage(result.page);
       setLastPage(result.lastPage);
     } catch (err) {
+      if (requestId !== requestIdRef.current) return;
       setError(err instanceof Error ? err.message : "Unable to load payment history.");
     } finally {
-      setIsLoading(false);
-      setIsLoadingMore(false);
+      if (requestId === requestIdRef.current) {
+        setIsLoading(false);
+        setIsLoadingMore(false);
+      }
     }
   }, []);
 
+  // Fetch page 1 for the active filter — on mount, and again whenever the
+  // filter tab changes. The backend now applies the time-window filter
+  // (PaymentController::history's `filter` param), so `history` only ever
+  // holds rows that already match `timeFilter` — no client-side re-filtering.
   useEffect(() => {
-    void loadPage(1);
-  }, [loadPage]);
-
-  const cutoff = cutoffFor(timeFilter);
-  const filteredHistory = cutoff
-    ? history.filter((tx) => new Date(tx.createdAt) >= cutoff)
-    : history;
+    void loadPage(1, timeFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeFilter]);
 
   const hasMore = page < lastPage;
+  const isDateFilter = timeFilter !== "all";
 
-  // A date filter is only trustworthy once we've paged back past its cutoff.
-  // Until then matching rides can still be sitting on an unfetched page, and
-  // the list would claim "No transactions found" while they exist.
-  const oldestLoaded = history.length > 0 ? history[history.length - 1] : null;
-  const filterNeedsMorePages =
-    cutoff !== null &&
-    hasMore &&
-    (!oldestLoaded || new Date(oldestLoaded.createdAt) >= cutoff);
+  // While a date filter (Today/Week/Month) is active, keep auto-paging until
+  // every matching row is loaded (mirrors the old client-filter UX where
+  // narrow filters never showed a "Load more" button) — but now bounded by
+  // the backend's own accurate pagination for the filtered query, not by
+  // walking the commuter's full unfiltered history.
+  const filterNeedsMorePages = isDateFilter && hasMore;
 
   // Stats cover every PAID row the current filter matches. They're complete
   // whenever the filter is complete; under "All" with more pages left they
   // describe only what's loaded, which the caption below makes explicit.
-  const paid = filteredHistory.filter((tx) => tx.status === "paid");
+  const paid = history.filter((tx) => tx.status === "paid");
   const totalSpent = paid.reduce((s, tx) => s + tx.amount, 0);
   const rideCount = paid.length;
   const avgFare = rideCount > 0 ? totalSpent / rideCount : 0;
-  const statsArePartial = filterNeedsMorePages || (cutoff === null && hasMore);
+  const statsArePartial = hasMore;
 
   // Keep pulling pages while the active date filter still has unfetched rows.
-  // Bounded by the cutoff rather than by "load everything": on a newest-first
-  // feed we can stop as soon as one row predates the range, so "Today" costs a
-  // page or two even on an account with years of history.
   useEffect(() => {
     // Bail on error too: a failed fetch leaves `page` unchanged, so without
     // this the condition stays true and the effect re-fires forever.
     if (error || isLoading || isLoadingMore || !filterNeedsMorePages) return;
-    void loadPage(page + 1);
-  }, [filterNeedsMorePages, error, isLoading, isLoadingMore, page, loadPage]);
+    void loadPage(page + 1, timeFilter);
+  }, [filterNeedsMorePages, error, isLoading, isLoadingMore, page, timeFilter, loadPage]);
 
   const formatDateTime = (isoString: string) => {
     const date = new Date(isoString);
@@ -252,19 +245,19 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <p className="text-red-500 font-medium text-sm mb-3">{error}</p>
               <button
-                onClick={() => loadPage(1)}
+                onClick={() => loadPage(1, timeFilter)}
                 className="px-4 py-2 rounded-full text-xs font-semibold bg-[#1A5FB4] text-white"
               >
                 Try again
               </button>
             </div>
-          ) : filteredHistory.length === 0 && (filterNeedsMorePages || isLoadingMore) ? (
+          ) : history.length === 0 && (filterNeedsMorePages || isLoadingMore) ? (
             // Still paging back toward the filter's cutoff — claiming there are
             // none yet would be a lie we'd contradict a moment later.
             <div className="flex items-center justify-center py-16">
               <div className="w-8 h-8 border-2 border-[#1A5FB4] border-t-transparent rounded-full animate-spin" />
             </div>
-          ) : filteredHistory.length === 0 ? (
+          ) : history.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <svg className="w-16 h-16 text-gray-200 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
@@ -277,7 +270,7 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
             </div>
           ) : (
             <div className="mt-1 space-y-2">
-              {filteredHistory.map((tx) => {
+              {history.map((tx) => {
                 const { date, time } = formatDateTime(tx.createdAt);
                 const badge = getStatusBadge(tx.status);
                 const isExpanded = expandedId === tx.id;
@@ -362,6 +355,40 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
                           </div>
                         </div>
 
+                        {/* Group payment — this fare was part of a conductor-recorded
+                            multi-passenger payment (one payer settles for the group).
+                            Shows the shared receipt total/reference and every rider
+                            covered, since the commuter's own row otherwise gives no
+                            indication anyone else was included. Absent entirely for a
+                            normal individual payment. */}
+                        {tx.group && (
+                          <div className="mt-2 bg-[#F0F7FF] rounded-lg p-3 space-y-1.5 text-xs border border-[#DAEEFF]">
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold text-[#071A2E]">
+                                Group Payment · {tx.group.passengerCount} passenger{tx.group.passengerCount === 1 ? "" : "s"}
+                              </span>
+                              {tx.group.referenceNumber && (
+                                <span className="font-mono text-gray-400">{tx.group.referenceNumber}</span>
+                              )}
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-400">Total paid</span>
+                              <span className="font-semibold text-[#071A2E]">{formatPeso(tx.group.totalAmount)}</span>
+                            </div>
+                            <div className="space-y-1 pt-1 border-t border-[#DAEEFF]">
+                              {tx.group.passengers.map((passenger) => (
+                                <div key={passenger.id} className="flex items-center justify-between">
+                                  <span className="text-gray-500">
+                                    {passenger.isYou ? "You" : passenger.name ?? "Passenger"}
+                                    {passenger.role ? ` · ${passenger.role}` : ""}
+                                  </span>
+                                  <span className="font-medium text-[#071A2E]">{formatPeso(passenger.amount)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
                         {/* S6-T7 — Leave / View Feedback. Only on PAID rides that
                             are bound to a shift (shiftId present). Submitted rides
                             show a read-only "View Feedback" + checkmark; others
@@ -398,13 +425,12 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
                 );
               })}
 
-              {/* Only under "All". A date filter back-fills itself to its
-                  cutoff, and every remaining page is older than that cutoff,
-                  so nothing there could match — a button promising more would
-                  just load rows the filter immediately discards. */}
-              {hasMore && cutoff === null && (
+              {/* Only under "All" — a date filter auto-pages itself to
+                  completion above (filterNeedsMorePages), so it never has a
+                  dangling "more" to offer. */}
+              {hasMore && !isDateFilter && (
                 <button
-                  onClick={() => loadPage(page + 1)}
+                  onClick={() => loadPage(page + 1, timeFilter)}
                   disabled={isLoadingMore}
                   className="w-full mt-2 py-2.5 rounded-xl text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-60"
                 >
