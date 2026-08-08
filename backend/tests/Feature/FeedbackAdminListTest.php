@@ -2,14 +2,13 @@
 
 namespace Tests\Feature;
 
-use App\Models\ConductorProfile;
 use App\Models\Driver;
 use App\Models\Feedback;
 use App\Models\ShiftLog;
 use App\Models\User;
 use App\Models\Vehicle;
-use App\Models\CommuterProfile;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -42,10 +41,15 @@ class FeedbackAdminListTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private User $conductor;
+
     private Driver $driver;
+
     private Vehicle $vehicle;
+
     private User $commuter1;
+
     private User $commuter2;
 
     protected function setUp(): void
@@ -80,40 +84,40 @@ class FeedbackAdminListTest extends TestCase
     {
         for ($i = 0; $i < $count; $i++) {
             $commuter = User::factory()->commuter()->create();
-            $shiftId = 'SFT-C-' . $i . '-' . now()->format('YmdHis');
+            $shiftId = 'SFT-C-'.$i.'-'.now()->format('YmdHis');
 
             ShiftLog::create([
-                'shift_id'       => $shiftId,
-                'conductor_id'   => $this->conductor->id,
-                'driver_id'      => $this->driver->id,
-                'vehicle_id'     => $this->vehicle->id,
-                'route_id'       => null,
+                'shift_id' => $shiftId,
+                'conductor_id' => $this->conductor->id,
+                'driver_id' => $this->driver->id,
+                'vehicle_id' => $this->vehicle->id,
+                'route_id' => null,
                 'conductor_name' => 'Test Conductor',
-                'driver_name'    => 'Test Driver',
-                'unit_number'    => $this->vehicle->unit_number,
-                'plate_number'   => $this->vehicle->plate_number,
-                'time_in'        => now(),
-                'time_out'       => null,
-                'is_active'      => true,
-                'status'         => 'ACTIVE',
+                'driver_name' => 'Test Driver',
+                'unit_number' => $this->vehicle->unit_number,
+                'plate_number' => $this->vehicle->plate_number,
+                'time_in' => now(),
+                'time_out' => null,
+                'is_active' => true,
+                'status' => 'ACTIVE',
             ]);
 
             Feedback::create([
-                'id'           => \Illuminate\Support\Str::uuid()->toString(),
-                'shift_id'     => $shiftId,
-                'vehicle_id'   => $this->vehicle->id,
-                'driver_id'    => $this->driver->id,
+                'id' => Str::uuid()->toString(),
+                'shift_id' => $shiftId,
+                'vehicle_id' => $this->vehicle->id,
+                'driver_id' => $this->driver->id,
                 'conductor_id' => $this->conductor->id,
-                'commuter_id'  => $commuter->commuterProfile->id,
-                'rating'       => $ratings[$i] ?? 5,
-                'category'     => 'Cleanliness',
-                'comment'      => 'Test comment ' . $i,
+                'commuter_id' => $commuter->commuterProfile->id,
+                'rating' => $ratings[$i] ?? 5,
+                'category' => 'Cleanliness',
+                'comment' => 'Test comment '.$i,
                 // The conductor listing aggregates over the conductor_*
                 // columns (rows without a conductor_rating are filtered out),
                 // so the conductor's score/category/comment must be stamped.
-                'conductor_rating'   => $ratings[$i] ?? 5,
+                'conductor_rating' => $ratings[$i] ?? 5,
                 'conductor_category' => 'Cleanliness',
-                'conductor_comment'  => 'Test comment ' . $i,
+                'conductor_comment' => 'Test comment '.$i,
             ]);
 
             // Distinct created_at per row — the whole loop runs within one
@@ -134,34 +138,34 @@ class FeedbackAdminListTest extends TestCase
         $otherConductor = User::factory()->conductor()->create();
         for ($i = 0; $i < $count; $i++) {
             $commuter = User::factory()->commuter()->create();
-            $shiftId = 'SFT-D-' . $i . '-' . now()->format('YmdHis');
+            $shiftId = 'SFT-D-'.$i.'-'.now()->format('YmdHis');
 
             ShiftLog::create([
-                'shift_id'       => $shiftId,
-                'conductor_id'   => $otherConductor->id,
-                'driver_id'      => $this->driver->id,
-                'vehicle_id'     => $this->vehicle->id,
-                'route_id'       => null,
+                'shift_id' => $shiftId,
+                'conductor_id' => $otherConductor->id,
+                'driver_id' => $this->driver->id,
+                'vehicle_id' => $this->vehicle->id,
+                'route_id' => null,
                 'conductor_name' => 'Other Conductor',
-                'driver_name'    => 'Test Driver',
-                'unit_number'    => $this->vehicle->unit_number,
-                'plate_number'   => $this->vehicle->plate_number,
-                'time_in'        => now(),
-                'time_out'       => null,
-                'is_active'      => true,
-                'status'         => 'ACTIVE',
+                'driver_name' => 'Test Driver',
+                'unit_number' => $this->vehicle->unit_number,
+                'plate_number' => $this->vehicle->plate_number,
+                'time_in' => now(),
+                'time_out' => null,
+                'is_active' => true,
+                'status' => 'ACTIVE',
             ]);
 
             Feedback::create([
-                'id'           => \Illuminate\Support\Str::uuid()->toString(),
-                'shift_id'     => $shiftId,
-                'vehicle_id'   => $this->vehicle->id,
-                'driver_id'    => $this->driver->id,
+                'id' => Str::uuid()->toString(),
+                'shift_id' => $shiftId,
+                'vehicle_id' => $this->vehicle->id,
+                'driver_id' => $this->driver->id,
                 'conductor_id' => $otherConductor->id,
-                'commuter_id'  => $commuter->commuterProfile->id,
-                'rating'       => $ratings[$i] ?? 5,
-                'category'     => 'Driving',
-                'comment'      => 'Driver test ' . $i,
+                'commuter_id' => $commuter->commuterProfile->id,
+                'rating' => $ratings[$i] ?? 5,
+                'category' => 'Driving',
+                'comment' => 'Driver test '.$i,
             ]);
         }
     }
@@ -248,39 +252,39 @@ class FeedbackAdminListTest extends TestCase
         $otherDriver = Driver::factory()->create();
         for ($i = 0; $i < 3; $i++) {
             $commuter = User::factory()->commuter()->create();
-            $shiftId = 'SFT-ISO-' . $i . '-' . now()->format('YmdHis');
+            $shiftId = 'SFT-ISO-'.$i.'-'.now()->format('YmdHis');
 
             ShiftLog::create([
-                'shift_id'       => $shiftId,
-                'conductor_id'   => $this->conductor->id,
-                'driver_id'      => $otherDriver->id,
-                'vehicle_id'     => $this->vehicle->id,
-                'route_id'       => null,
+                'shift_id' => $shiftId,
+                'conductor_id' => $this->conductor->id,
+                'driver_id' => $otherDriver->id,
+                'vehicle_id' => $this->vehicle->id,
+                'route_id' => null,
                 'conductor_name' => 'Test Conductor',
-                'driver_name'    => 'Other Driver',
-                'unit_number'    => $this->vehicle->unit_number,
-                'plate_number'   => $this->vehicle->plate_number,
-                'time_in'        => now(),
-                'time_out'       => null,
-                'is_active'      => true,
-                'status'         => 'ACTIVE',
+                'driver_name' => 'Other Driver',
+                'unit_number' => $this->vehicle->unit_number,
+                'plate_number' => $this->vehicle->plate_number,
+                'time_in' => now(),
+                'time_out' => null,
+                'is_active' => true,
+                'status' => 'ACTIVE',
             ]);
 
             Feedback::create([
-                'id'           => \Illuminate\Support\Str::uuid()->toString(),
-                'shift_id'     => $shiftId,
-                'vehicle_id'   => $this->vehicle->id,
-                'driver_id'    => $otherDriver->id,
+                'id' => Str::uuid()->toString(),
+                'shift_id' => $shiftId,
+                'vehicle_id' => $this->vehicle->id,
+                'driver_id' => $otherDriver->id,
                 'conductor_id' => $this->conductor->id,
-                'commuter_id'  => $commuter->commuterProfile->id,
-                'rating'       => 5,
-                'category'     => 'Cleanliness',
-                'comment'      => 'Iso test ' . $i,
+                'commuter_id' => $commuter->commuterProfile->id,
+                'rating' => 5,
+                'category' => 'Cleanliness',
+                'comment' => 'Iso test '.$i,
                 // Required so the conductor listing (which filters on
                 // whereNotNull(conductor_rating)) counts these rows.
-                'conductor_rating'   => 5,
+                'conductor_rating' => 5,
                 'conductor_category' => 'Cleanliness',
-                'conductor_comment'  => 'Iso test ' . $i,
+                'conductor_comment' => 'Iso test '.$i,
             ]);
         }
         $this->admin();
@@ -337,6 +341,23 @@ class FeedbackAdminListTest extends TestCase
             ->assertJsonPath('data.pagination.last_page', 3)
             // Summary reflects ALL feedback, not just the current page.
             ->assertJsonPath('data.summary.total_count', 5);
+    }
+
+    public function test_summary_values_cover_all_pages_and_keep_fractional_average(): void
+    {
+        $this->seedDriverFeedback(4, [5, 4, 4, 1]);
+        $this->admin();
+
+        $this->getJson("/api/v1/admin/feedback?driver_id={$this->driver->id}&per_page=1")
+            ->assertOk()
+            ->assertJsonCount(1, 'data.feedback')
+            ->assertJsonPath('data.summary.total_count', 4)
+            ->assertJsonPath('data.summary.average_rating', 3.5)
+            ->assertJsonPath('data.summary.distribution.5', 1)
+            ->assertJsonPath('data.summary.distribution.4', 2)
+            ->assertJsonPath('data.summary.distribution.3', 0)
+            ->assertJsonPath('data.summary.distribution.2', 0)
+            ->assertJsonPath('data.summary.distribution.1', 1);
     }
 
     public function test_pagination_page_2_returns_next_slice(): void

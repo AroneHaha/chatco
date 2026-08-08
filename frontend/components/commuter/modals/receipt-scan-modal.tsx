@@ -5,11 +5,10 @@ import { Html5Qrcode } from "html5-qrcode";
 import { claimCashReceipt, type ReceiptClaimResult } from "@/lib/commuter/services/payment.service";
 import { ApiError, NetworkError } from "@/lib/api/client";
 import { formatPeso } from "@/lib/utils/display";
+import { notifyRewardsChanged } from "@/lib/commuter/rewards-events";
 
 interface ReceiptScanModalProps {
   onClose: () => void;
-  /** Called after a claim that actually credited a ride, so rewards refetch. */
-  onClaimed: () => void;
 }
 
 /**
@@ -33,7 +32,7 @@ interface ReceiptScanModalProps {
  */
 type Step = "scanning" | "verifying" | "success" | "expired" | "failed";
 
-export default function ReceiptScanModal({ onClose, onClaimed }: ReceiptScanModalProps) {
+export default function ReceiptScanModal({ onClose }: ReceiptScanModalProps) {
   const [step, setStep] = useState<Step>("scanning");
   const [result, setResult] = useState<ReceiptClaimResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +76,7 @@ export default function ReceiptScanModal({ onClose, onClaimed }: ReceiptScanModa
       setStep("success");
       // Only refetch when a ride was actually credited. Re-scanning your own
       // receipt is a no-op server-side, so it must not imply new progress.
-      if (!claim.alreadyClaimed) onClaimed();
+      if (!claim.alreadyClaimed) notifyRewardsChanged();
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 410) {
@@ -100,7 +99,7 @@ export default function ReceiptScanModal({ onClose, onClaimed }: ReceiptScanModa
       }
       setStep("failed");
     }
-  }, [onClaimed]);
+  }, []);
 
   // Held in a ref so the scanner effect below does not depend on submitToken's
   // identity. It closes over onClaimed, which callers pass inline, so it changes

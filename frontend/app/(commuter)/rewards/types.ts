@@ -19,5 +19,6 @@ export interface RewardData {
   ridesNeeded: number; // The threshold (e.g., 10)
   currentCycleRides: number; // Rides in the current cycle (e.g., 7)
   availableVoucherCount: number;
+  archivedVoucherCount: number;
   vouchers: Voucher[];
 }

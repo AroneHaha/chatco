@@ -29,6 +29,8 @@ class Voucher extends Model
         'expires_at',
         'ride_origin',
         'reward_cycle_number',
+        'reward_rule_version',
+        'reward_earned_at',
     ];
 
     protected function casts(): array
@@ -37,6 +39,8 @@ class Voucher extends Model
             'amount' => 'decimal:2',
             'expires_at' => 'datetime',
             'reward_cycle_number' => 'integer',
+            'reward_rule_version' => 'integer',
+            'reward_earned_at' => 'datetime',
         ];
     }
 
@@ -67,5 +71,21 @@ class Voucher extends Model
             ->whereNotNull('expires_at')
             ->where('expires_at', '<=', now())
             ->update(['status' => self::STATUS_EXPIRED]);
+    }
+
+    /**
+     * Recover earned reward-cycle rows that were soft-deleted.
+     *
+     * The unique reward-cycle key still reserves a soft-deleted row. Restoring
+     * that original voucher preserves its code, status, expiry, and idempotency
+     * identity instead of attempting to insert a conflicting replacement.
+     */
+    public static function restoreDeletedRewardCyclesForCommuter(string $commuterId): int
+    {
+        return static::onlyTrashed()
+            ->where('commuter_id', $commuterId)
+            ->where('type', 'REWARD')
+            ->whereNotNull('reward_cycle_number')
+            ->restore();
     }
 }

@@ -62,8 +62,13 @@ class FeedbackService
      */
     public function resolveCrewForVehicle(string $vehicleId): ShiftLog
     {
+        $today = today();
+
         $shift = ShiftLog::where('vehicle_id', $vehicleId)
-            ->whereDate('time_in', today())
+            ->whereBetween('time_in', [
+                $today->copy()->startOfDay(),
+                $today->copy()->endOfDay(),
+            ])
             ->latest('time_in')
             ->first();
 
@@ -167,8 +172,7 @@ class FeedbackService
         // Only rows that carry a conductor rating (historical rows predating
         // the driver/conductor split have a null conductor_rating).
         $query = Feedback::where('conductor_id', $conductorId)
-            ->whereNotNull('conductor_rating')
-            ->with(['vehicle:id,unit_number,plate_number', 'commuter:id,first_name,surname']);
+            ->whereNotNull('conductor_rating');
 
         return $this->buildListResponse($query, $perPage, 'CONDUCTOR', $conductorId, 'conductor');
     }
@@ -187,8 +191,7 @@ class FeedbackService
             throw new FeedbackException('Driver not found');
         }
 
-        $query = Feedback::where('driver_id', $driverId)
-            ->with(['vehicle:id,unit_number,plate_number', 'commuter:id,first_name,surname']);
+        $query = Feedback::where('driver_id', $driverId);
 
         return $this->buildListResponse($query, $perPage, 'DRIVER', $driverId);
     }
@@ -196,10 +199,9 @@ class FeedbackService
     /**
      * List the authenticated commuter's OWN feedback, newest first.
      *
-     * Used by GET /commuter/feedback (S6-T7 commuter ride-history flow). The
-     * commuter opens the Payment History modal → the frontend fetches this
-     * list once → builds a {shift_id → feedback} map → marks each PAID ride
-     * row as "Feedback submitted" (read-only) or "Leave Feedback" (submit).
+     * Used by GET /commuter/feedback when the commuter explicitly browses
+     * feedback history. Payment rows receive page-scoped feedback state from
+     * PaymentController instead of downloading this entire history.
      *
      * Lightweight: returns only the feedback columns (no eager-loaded staff
      * names — the ride row already carries conductor_name + unit_number from
@@ -283,12 +285,31 @@ class FeedbackService
         // conductor metrics render the CONDUCTOR's own rating, not the driver's.
         $ratingColumn = $ratee === 'conductor' ? 'conductor_rating' : 'rating';
 
-        // Summary is computed over ALL feedback for this staff member
-        // (ignores pagination), so the modal always shows the true totals.
-        $all = (clone $query)->get();
-        $summary = $this->buildSummary($all, $ratingColumn);
+        // Aggregate in SQL without loading feedback rows or their relations.
+        // The rating column is selected only from this private whitelist.
+        $aggregate = (clone $query)
+            ->toBase()
+            ->selectRaw(implode(', ', [
+                'COUNT(*) as total_count',
+                "AVG({$ratingColumn}) as average_rating",
+                ...array_map(
+                    fn (int $star): string => "SUM(CASE WHEN {$ratingColumn} = {$star} THEN 1 ELSE 0 END) as rating_{$star}",
+                    range(1, 5),
+                ),
+            ]))
+            ->first();
+
+        $total = (int) ($aggregate->total_count ?? 0);
+        $summary = [
+            'average_rating' => $total > 0 ? round((float) $aggregate->average_rating, 2) : 0.0,
+            'total_count' => $total,
+            'distribution' => collect(range(5, 1))->mapWithKeys(fn (int $star): array => [
+                (string) $star => (int) ($aggregate->{"rating_{$star}"} ?? 0),
+            ])->all(),
+        ];
 
         $paginator = $query
+            ->with(['vehicle:id,unit_number,plate_number', 'commuter:id,first_name,surname'])
             ->orderByDesc('created_at')
             ->paginate($perPage);
 
@@ -331,17 +352,4 @@ class FeedbackService
      *   - total_count:    int
      *   - distribution:   array keyed 5→1 with per-star counts
      */
-    private function buildSummary($feedback, string $ratingColumn = 'rating'): array
-    {
-        $total = $feedback->count();
-        $distribution = collect(range(5, 1))->mapWithKeys(fn (int $star) => [
-            (string) $star => $feedback->where($ratingColumn, $star)->count(),
-        ])->all();
-
-        return [
-            'average_rating' => $total > 0 ? round($feedback->avg($ratingColumn), 2) : 0.0,
-            'total_count' => $total,
-            'distribution' => $distribution,
-        ];
-    }
 }

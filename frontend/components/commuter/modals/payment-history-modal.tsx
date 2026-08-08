@@ -6,10 +6,6 @@ import {
   type CommuterPayment,
   type PaymentStatus,
 } from "@/lib/commuter/services/payment.service";
-import {
-  listMy,
-  type Feedback,
-} from "@/lib/commuter/services/feedback.service";
 import FeedbackModal from "@/components/commuter/feedback-modal";
 import { formatPeso } from "@/lib/utils/display";
 
@@ -46,10 +42,6 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // ─── S6-T7 feedback state ─────────────────────────────────────
-  // Map of { shiftId → Feedback } for the commuter's already-submitted
-  // feedback. Fetched once on mount so each PAID ride row can show
-  // "Leave Feedback" (not in map) or "View Feedback" (in map, read-only).
-  const [feedbackMap, setFeedbackMap] = useState<Record<string, Feedback>>({});
   // The ride whose feedback modal is currently open (null = closed).
   const [activeFeedbackRide, setActiveFeedbackRide] = useState<CommuterPayment | null>(null);
   // Transient success toast ("Feedback submitted").
@@ -61,25 +53,6 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
     const t = setTimeout(() => setToast(null), 2500);
     return () => clearTimeout(t);
   }, [toast]);
-
-  /** Fetch the commuter's own feedback and rebuild the {shiftId → Feedback} map. */
-  const refreshFeedbackMap = useCallback(async () => {
-    try {
-      const mine = await listMy();
-      const next: Record<string, Feedback> = {};
-      for (const f of mine) next[f.shiftId] = f;
-      setFeedbackMap(next);
-    } catch {
-      // Non-fatal — if the feedback history can't load (e.g. transient
-      // network), we simply hide the "View Feedback" state; the commuter
-      // can still submit (the backend's 409 catches true duplicates).
-      setFeedbackMap({});
-    }
-  }, []);
-
-  useEffect(() => {
-    void refreshFeedbackMap();
-  }, [refreshFeedbackMap]);
 
   // Bumped on every page-1 fetch (mount + each filter switch) so a stale
   // in-flight response from a filter/page the user has since navigated away
@@ -393,16 +366,16 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
                             are bound to a shift (shiftId present). Submitted rides
                             show a read-only "View Feedback" + checkmark; others
                             show "Leave Feedback" which opens the submit modal. */}
-                        {tx.status === "paid" && tx.shiftId && (
+                        {tx.shiftId && (tx.feedback || tx.canLeaveFeedback) && (
                           <button
                             onClick={() => setActiveFeedbackRide(tx)}
                             className={`w-full mt-2 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${
-                              feedbackMap[tx.shiftId]
+                              tx.feedback
                                 ? "bg-green-50 text-green-700 hover:bg-green-100"
                                 : "bg-[#1A5FB4] text-white hover:bg-[#155a9c]"
                             }`}
                           >
-                            {feedbackMap[tx.shiftId] ? (
+                            {tx.feedback ? (
                               <>
                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
@@ -448,22 +421,35 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
       {activeFeedbackRide && (
         <FeedbackModal
           ride={activeFeedbackRide}
-          existingFeedback={
-            activeFeedbackRide.shiftId
-              ? feedbackMap[activeFeedbackRide.shiftId] ?? null
-              : null
-          }
+          existingFeedback={activeFeedbackRide.feedback}
           onClose={() => setActiveFeedbackRide(null)}
           onSubmitted={(feedback) => {
             // Add to the map so the row instantly flips to "View Feedback".
-            setFeedbackMap((prev) => ({ ...prev, [feedback.shiftId]: feedback }));
+            setHistory((previous) => previous.map((payment) =>
+              payment.shiftId === feedback.shiftId
+                ? {
+                    ...payment,
+                    feedback,
+                    feedbackExists: true,
+                    canLeaveFeedback: false,
+                  }
+                : payment
+            ));
             setActiveFeedbackRide(null);
             setToast("Feedback submitted — thank you!");
           }}
           onAlreadySubmitted={() => {
             // 409 — feedback was created in another session since the map was
             // built. Refetch so the modal flips to read-only with the real row.
-            void refreshFeedbackMap();
+            if (activeFeedbackRide.shiftId) {
+              setHistory((previous) => previous.map((payment) =>
+                payment.shiftId === activeFeedbackRide.shiftId
+                  ? { ...payment, feedbackExists: true, canLeaveFeedback: false }
+                  : payment
+              ));
+            }
+            setActiveFeedbackRide(null);
+            setToast("Feedback was already submitted for this ride.");
           }}
         />
       )}

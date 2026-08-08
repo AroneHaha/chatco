@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const qs = request.nextUrl.search; // e.g. "?per_page=100"
+  const qs = request.nextUrl.search; // e.g. "?page=2&per_page=20"
 
   // ─── Try Laravel first ─────────────────────────────────────────────
   try {

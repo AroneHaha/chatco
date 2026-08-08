@@ -21,20 +21,27 @@ export default function VoucherGeneratorPage() {
   const [amount, setAmount] = useState('1');
   const [quantity, setQuantity] = useState('5');
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
+  const [page, setPage] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const fetchVouchers = useCallback(async () => {
+  const fetchVouchers = useCallback(async (targetPage = 1) => {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/admin/vouchers', { headers: { Accept: 'application/json' } });
+      const res = await fetch(`/api/admin/vouchers?page=${targetPage}&per_page=20`, { headers: { Accept: 'application/json' } });
       if (!res.ok) throw new Error('Failed to load vouchers');
       const json = await res.json();
-      setVouchers(json.data ?? []);
+      const result = json.data ?? {};
+      setVouchers(result.data ?? []);
+      setPage(result.current_page ?? targetPage);
+      setLastPage(result.last_page ?? 1);
+      setTotal(result.total ?? 0);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load vouchers');
     } finally {
@@ -42,7 +49,7 @@ export default function VoucherGeneratorPage() {
     }
   }, []);
 
-  useEffect(() => { fetchVouchers(); }, [fetchVouchers]);
+  useEffect(() => { void fetchVouchers(1); }, [fetchVouchers]);
 
   const showSuccess = (msg: string) => { setSuccessMsg(msg); setTimeout(() => setSuccessMsg(null), 4000); };
 
@@ -63,7 +70,7 @@ export default function VoucherGeneratorPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? 'Failed to generate vouchers');
       showSuccess(`${quantity} voucher(s) generated successfully.`);
-      await fetchVouchers();
+      await fetchVouchers(1);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate vouchers');
     } finally {
@@ -83,7 +90,7 @@ export default function VoucherGeneratorPage() {
       const res = await fetch(`/api/admin/vouchers/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete voucher');
       showSuccess(`Voucher "${code}" deleted.`);
-      await fetchVouchers();
+      await fetchVouchers(vouchers.length === 1 && page > 1 ? page - 1 : page);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete voucher');
     }
@@ -111,7 +118,7 @@ export default function VoucherGeneratorPage() {
             <h1 className="text-2xl sm:text-3xl font-bold text-white">Voucher Generator</h1>
             <p className="text-sm text-white/40 mt-1">Generate and manage commuter vouchers.</p>
           </div>
-          <button onClick={fetchVouchers} title="Refresh" className="p-2.5 text-white/40 hover:text-white bg-[#071A2E] border border-white/[0.06] rounded-xl transition-colors self-start">
+          <button onClick={() => void fetchVouchers(page)} title="Refresh" className="p-2.5 text-white/40 hover:text-white bg-[#071A2E] border border-white/[0.06] rounded-xl transition-colors self-start">
             <RefreshCw size={18} />
           </button>
         </div>
@@ -167,7 +174,7 @@ export default function VoucherGeneratorPage() {
         {/* Voucher List */}
         <div className="bg-[#071A2E] border border-white/[0.06] rounded-2xl overflow-hidden">
           <div className="px-5 py-4 border-b border-white/5">
-            <h3 className="text-sm font-bold text-white">Active Vouchers ({vouchers.length})</h3>
+            <h3 className="text-sm font-bold text-white">Vouchers ({total})</h3>
           </div>
           <div className="divide-y divide-white/5 max-h-[50vh] overflow-y-auto">
             {vouchers.length === 0 ? (
@@ -193,6 +200,27 @@ export default function VoucherGeneratorPage() {
               </div>
             ))}
           </div>
+          {lastPage > 1 && (
+            <div className="px-4 py-3 border-t border-white/5 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => void fetchVouchers(page - 1)}
+                disabled={page <= 1 || isLoading}
+                className="px-3 py-1.5 rounded-lg bg-white/5 text-xs text-white/60 disabled:opacity-30"
+              >
+                Previous
+              </button>
+              <span className="text-xs text-white/40">Page {page} of {lastPage}</span>
+              <button
+                type="button"
+                onClick={() => void fetchVouchers(page + 1)}
+                disabled={page >= lastPage || isLoading}
+                className="px-3 py-1.5 rounded-lg bg-white/5 text-xs text-white/60 disabled:opacity-30"
+              >
+                Next
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

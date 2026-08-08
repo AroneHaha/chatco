@@ -41,62 +41,126 @@ class RewardService
                 return new Collection;
             }
 
+            // A rule version is assigned in the same transaction as voucher
+            // issuance. Its presence makes webhook/claim retries a no-op and
+            // prevents an old ride from moving into a newer threshold version.
+            if ($ride->reward_rule_version !== null) {
+                return new Collection;
+            }
+
+            $commuterId = $ride->passenger_id;
+            if (! CommuterProfile::query()->whereKey($commuterId)->exists()) {
+                return new Collection;
+            }
+
+            $rule = Setting::rewardRule(lockForUpdate: true);
+            $threshold = $rule['threshold'];
+            $ruleVersion = $rule['version'];
+
+            $ride->update([
+                'reward_rule_version' => $ruleVersion,
+                'reward_earned_at' => $earnedAt,
+            ]);
+
+            $rewardableRides = $this->rewardableRides($commuterId, $ruleVersion);
+            $earnedCycles = intdiv((clone $rewardableRides)->count(), $threshold);
+            $issuedCyclesInRule = Voucher::query()
+                ->where('commuter_id', $commuterId)
+                ->where('type', 'REWARD')
+                ->whereNotNull('reward_cycle_number')
+                ->where('reward_rule_version', $ruleVersion)
+                ->count();
+
+            // Most rides do not complete a cycle. Avoid serializing every paid
+            // ride on the commuter profile when no voucher can be generated.
+            if ($earnedCycles < 1 || $issuedCyclesInRule >= $earnedCycles) {
+                return new Collection;
+            }
+
             $commuter = CommuterProfile::query()
-                ->whereKey($ride->passenger_id)
+                ->whereKey($commuterId)
                 ->lockForUpdate()
                 ->first();
-
             if (! $commuter) {
                 return new Collection;
             }
 
-            $threshold = Setting::ridesForFreeReward();
-            $rewardableRides = $this->rewardableRides($commuter->id);
+            // Soft deletion does not release the database unique key. Lock and
+            // restore the original earned vouchers so their identity remains
+            // the idempotency record for those completed cycles.
+            $deletedRewardVouchers = Voucher::onlyTrashed()
+                ->where('commuter_id', $commuterId)
+                ->where('type', 'REWARD')
+                ->whereNotNull('reward_cycle_number')
+                ->lockForUpdate()
+                ->get();
+            foreach ($deletedRewardVouchers as $deletedRewardVoucher) {
+                $deletedRewardVoucher->restore();
+            }
+
+            // Recheck after obtaining the profile lock: another qualifying
+            // request may have issued the cycle while this request waited.
+            $rewardableRides = $this->rewardableRides($commuterId, $ruleVersion);
             $earnedCycles = intdiv((clone $rewardableRides)->count(), $threshold);
 
             if ($earnedCycles < 1) {
                 return new Collection;
             }
 
-            $existingCycles = Voucher::query()
-                ->where('commuter_id', $commuter->id)
+            $issuedCyclesInRule = Voucher::query()
+                ->where('commuter_id', $commuterId)
                 ->where('type', 'REWARD')
                 ->whereNotNull('reward_cycle_number')
-                ->whereBetween('reward_cycle_number', [1, $earnedCycles])
-                ->pluck('reward_cycle_number')
-                ->mapWithKeys(fn ($cycle): array => [(int) $cycle => true]);
+                ->where('reward_rule_version', $ruleVersion)
+                ->count();
+
+            if ($issuedCyclesInRule >= $earnedCycles) {
+                return new Collection;
+            }
+
+            $nextGlobalCycle = ((int) Voucher::query()
+                ->where('commuter_id', $commuterId)
+                ->where('type', 'REWARD')
+                ->whereNotNull('reward_cycle_number')
+                ->max('reward_cycle_number')) + 1;
 
             $created = new Collection;
-            for ($cycle = 1; $cycle <= $earnedCycles; $cycle++) {
-                if ($existingCycles->has($cycle)) {
-                    continue;
-                }
-
+            for ($ruleCycle = $issuedCyclesInRule + 1; $ruleCycle <= $earnedCycles; $ruleCycle++) {
                 $completionRide = (clone $rewardableRides)
-                    ->orderBy('paid_at')
+                    ->orderBy('reward_earned_at')
                     ->orderBy('created_at')
                     ->orderBy('transaction_id')
-                    ->offset(($cycle * $threshold) - 1)
-                    ->first(['transaction_id', 'paid_at', 'created_at']);
+                    ->offset(($ruleCycle * $threshold) - 1)
+                    ->first(['transaction_id', 'reward_earned_at']);
 
-                $cycleEarnedAt = $completionRide?->transaction_id === $ride->transaction_id
-                    ? $earnedAt
-                    : ($completionRide?->paid_at ?? $completionRide?->created_at ?? $earnedAt);
+                $cycleEarnedAt = $completionRide?->reward_earned_at ?? $earnedAt;
+                $globalCycle = $nextGlobalCycle + ($ruleCycle - $issuedCyclesInRule - 1);
 
-                $voucher = Voucher::firstOrCreate(
-                    [
-                        'commuter_id' => $commuter->id,
+                $voucher = Voucher::withTrashed()
+                    ->where('commuter_id', $commuterId)
+                    ->where('type', 'REWARD')
+                    ->where('reward_cycle_number', $globalCycle)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($voucher) {
+                    if ($voucher->trashed()) {
+                        $voucher->restore();
+                    }
+                } else {
+                    $voucher = Voucher::create([
+                        'commuter_id' => $commuterId,
                         'type' => 'REWARD',
-                        'reward_cycle_number' => $cycle,
-                    ],
-                    [
+                        'reward_cycle_number' => $globalCycle,
                         'code' => 'REWARD-'.strtoupper(Str::random(8)),
                         'status' => Voucher::STATUS_AVAILABLE,
                         'amount' => 0,
+                        'reward_rule_version' => $ruleVersion,
+                        'reward_earned_at' => $cycleEarnedAt,
                         'expires_at' => $cycleEarnedAt->copy()->addDays(self::VOUCHER_VALIDITY_DAYS),
-                        'ride_origin' => "{$cycle}th Ride Reward",
-                    ],
-                );
+                        'ride_origin' => "{$globalCycle}th Ride Reward",
+                    ]);
+                }
 
                 if ($voucher->wasRecentlyCreated) {
                     $created->push($voucher);
@@ -116,13 +180,15 @@ class RewardService
             && $transaction->payment_reconciliation_status === null;
     }
 
-    private function rewardableRides(string $commuterId): Builder
+    private function rewardableRides(string $commuterId, int $ruleVersion): Builder
     {
         return Transaction::query()
             ->where('passenger_id', $commuterId)
             ->where('status', PaymentStatus::PAID->value)
             ->where('payment_method', '!=', PaymentMethod::VOUCHER->value)
             ->where('reward_eligible', true)
-            ->whereNull('payment_reconciliation_status');
+            ->whereNull('payment_reconciliation_status')
+            ->where('reward_rule_version', $ruleVersion)
+            ->whereNotNull('reward_earned_at');
     }
 }

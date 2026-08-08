@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { fetchPaymentStatus, type PaymentStatus } from "@/lib/commuter/services/payment.service";
+import { notifyRewardsChanged } from "@/lib/commuter/rewards-events";
 
 /**
  * /gcash/return — PayMongo redirect target
@@ -37,6 +38,7 @@ function GcashReturnContent() {
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   /** Timestamp (ms) when EXPIRED was first observed, or null if not yet seen. */
   const expiredAtRef = useRef<number | null>(null);
+  const rewardRefreshSentRef = useRef(false);
 
   const stopPolling = useCallback(() => {
     if (pollIntervalRef.current) {
@@ -67,6 +69,10 @@ function GcashReturnContent() {
 
         // PAID is always terminal — success regardless of prior EXPIRED state.
         if (result.status === "paid") {
+          if (!rewardRefreshSentRef.current) {
+            rewardRefreshSentRef.current = true;
+            notifyRewardsChanged();
+          }
           stopPolling();
           return;
         }

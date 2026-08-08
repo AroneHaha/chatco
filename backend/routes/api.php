@@ -122,11 +122,10 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
     // it from being brute-forced.
     Route::post('/receipts/claim', [PaymentController::class, 'claimReceipt'])->middleware('throttle:commuter-hail');
 
-    // Feedback submission (S6) — commuter submits a rating for a shift_id
-    // resolved via /qr/scan. Throttled at commuter-hail (10/min) to deter
-    // spam; the (commuter_id, shift_id) unique constraint also enforces
-    // one-feedback-per-shift at the DB level.
-    Route::post('/feedback', [FeedbackController::class, 'store'])->middleware('throttle:commuter-hail');
+    // Feedback submission (S6) — its dedicated 5/min per-user limiter keeps
+    // feedback retries isolated from hail, location, and payment claim limits.
+    // The DB constraint still enforces one feedback per commuter per shift.
+    Route::post('/feedback', [FeedbackController::class, 'store'])->middleware('throttle:commuter-feedback');
 
     // Feedback history (S6-T7) — the commuter's OWN feedback, newest first.
     // Powers the ride-history "Leave Feedback" / "View Feedback" flow: the

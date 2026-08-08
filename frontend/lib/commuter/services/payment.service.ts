@@ -15,6 +15,11 @@
 
 import { api } from "@/lib/api/client";
 import { COMMUTER_API } from "@/lib/commuter/endpoints";
+import {
+  mapFeedback,
+  type Feedback,
+  type RawFeedback,
+} from "@/lib/commuter/services/feedback.service";
 
 // ─── View-model ──────────────────────────────────────────────────────
 
@@ -65,6 +70,9 @@ export interface CommuterPayment {
   paidAt: string | null;
   /** Set when this payment covered other passengers too. */
   group?: GroupPaymentInfo;
+  feedback: Feedback | null;
+  feedbackExists: boolean;
+  canLeaveFeedback: boolean;
 }
 
 export interface PaymentHistoryPage {
@@ -133,6 +141,9 @@ interface RawTransaction {
   created_at: string;
   paid_at: string | null;
   payment_group: RawPaymentGroup | null;
+  feedback: RawFeedback | null;
+  feedback_exists: boolean;
+  can_leave_feedback: boolean;
 }
 
 interface Paginated<T> {
@@ -180,6 +191,9 @@ function mapPayment(raw: RawTransaction): CommuterPayment {
     createdAt: raw.created_at,
     paidAt: raw.paid_at,
     group: raw.payment_group ? mapGroup(raw.payment_group, raw.transaction_id) : undefined,
+    feedback: raw.feedback ? mapFeedback(raw.feedback) : null,
+    feedbackExists: Boolean(raw.feedback_exists),
+    canLeaveFeedback: Boolean(raw.can_leave_feedback),
   };
 }
 

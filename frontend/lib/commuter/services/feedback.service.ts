@@ -5,7 +5,6 @@
  * httpOnly `chatco_session` cookie) — never calls Laravel directly.
  *
  *   POST /api/commuter/feedback          → submit({ shiftId, rating, comment? })
- *   GET  /api/commuter/feedback/history  → listMy()
  *
  * Responsibilities:
  *   - Map snake_case Laravel envelopes → camelCase view-models the UI uses
@@ -36,7 +35,7 @@ import { COMMUTER_API } from "@/lib/commuter/endpoints";
  * attributes (no relations eager-loaded on the write path). We only need a
  * handful of fields for the read-only "View Feedback" state.
  */
-interface RawFeedback {
+export interface RawFeedback {
   id: string;
   shift_id: string;
   rating: number;
@@ -48,7 +47,6 @@ interface RawFeedback {
   created_at: string;
   updated_at: string;
 }
-
 /** Laravel ApiResponse envelope. */
 interface ApiResponseEnvelope<T> {
   success: boolean;
@@ -59,18 +57,6 @@ interface ApiResponseEnvelope<T> {
 }
 
 /** Shape of the listForCommuter() service result. */
-interface RawCommuterFeedbackList {
-  feedback: RawFeedback[];
-  pagination: {
-    current_page: number;
-    per_page: number;
-    total: number;
-    last_page: number;
-    from: number | null;
-    to: number | null;
-  };
-}
-
 // ─── Frontend view-models ──────────────────────────────────────────
 
 /**
@@ -118,7 +104,7 @@ export type FeedbackErrorCode =
   | "network";
 
 /**
- * Thrown by `submit()` and `listMy()` on any non-success response.
+ * Thrown by `submit()` on any non-success response.
  *
  * Carries a stable `code` so the modal UI can branch:
  *   - "already_submitted" → "You already left feedback for this ride" +
@@ -141,7 +127,7 @@ export class FeedbackOperationError extends Error {
 // ─── Helpers ────────────────────────────────────────────────────────
 
 /** Map a raw snake_case Feedback row → the camelCase view-model. */
-function mapFeedback(raw: RawFeedback): Feedback {
+export function mapFeedback(raw: RawFeedback): Feedback {
   return {
     id: raw.id,
     shiftId: raw.shift_id,
@@ -250,51 +236,6 @@ export async function submit(params: {
           throw new FeedbackOperationError("already_submitted", message);
         case 422:
           throw new FeedbackOperationError(classifyValidationMessage(message), message);
-        case 403:
-          throw new FeedbackOperationError("forbidden", message);
-        case 401:
-          throw new FeedbackOperationError("unauthenticated", message);
-        default:
-          throw new FeedbackOperationError("network", message);
-      }
-    }
-    throw new FeedbackOperationError(
-      "network",
-      err instanceof Error ? err.message : "Unable to reach the backend service."
-    );
-  }
-}
-
-/**
- * Fetch the authenticated commuter's own feedback history (newest first).
- *
- * Used once when the Payment History modal opens, to build a
- * `{ shiftId → Feedback }` map. Each PAID ride row is then marked
- * "Feedback submitted" (read-only) if its shiftId is in the map, or
- * "Leave Feedback" (submit) otherwise.
- *
- * Fetches a single large page (per_page=100) — a commuter's lifetime
- * feedback volume is small, so one round-trip is enough and keeps the
- * modal's feedback map complete without pagination plumbing.
- *
- * @throws {FeedbackOperationError}
- *   - 403 → `forbidden`
- *   - 401 → `unauthenticated`
- *   - 5xx → `network`
- */
-export async function listMy(): Promise<Feedback[]> {
-  try {
-    const response = await api.get<ApiResponseEnvelope<RawCommuterFeedbackList>>(
-      `${COMMUTER_API.feedback.history}?per_page=100`
-    );
-
-    const rows = response.data?.feedback ?? [];
-    return rows.map(mapFeedback);
-  } catch (err) {
-    if (err instanceof ApiError) {
-      const message = readMessage(err, "Unable to load your feedback history.");
-
-      switch (err.status) {
         case 403:
           throw new FeedbackOperationError("forbidden", message);
         case 401:

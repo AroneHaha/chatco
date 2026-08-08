@@ -1359,6 +1359,77 @@ SQL);
         $response->assertJsonPath('data.data.0.transaction_id', $txn1->transaction_id);
     }
 
+    public function test_old_payment_page_includes_exact_feedback_state_beyond_one_hundred_records(): void
+    {
+        $shiftRows = [];
+        $transactionRows = [];
+        $feedbackRows = [];
+        $now = now();
+
+        for ($index = 0; $index < 101; $index++) {
+            $suffix = str_pad((string) $index, 3, '0', STR_PAD_LEFT);
+            $shiftId = "SFT-FBH-{$suffix}";
+            $createdAt = $now->copy()->subMinutes(101 - $index);
+
+            $shiftRows[] = [
+                'shift_id' => $shiftId,
+                'conductor_id' => $this->shift->conductor_id,
+                'conductor_name' => $this->shift->conductor_name,
+                'driver_id' => $this->shift->driver_id,
+                'driver_name' => $this->shift->driver_name,
+                'vehicle_id' => $this->shift->vehicle_id,
+                'unit_number' => $this->shift->unit_number,
+                'plate_number' => $this->shift->plate_number,
+                'route_id' => $this->shift->route_id,
+                'time_in' => $createdAt,
+                'time_out' => $createdAt->copy()->addHour(),
+                'is_active' => false,
+                'status' => 'ENDED',
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+            ];
+            $transactionRows[] = [
+                'transaction_id' => "TXN-FBH-{$suffix}",
+                'shift_id' => $shiftId,
+                'payment_method' => PaymentMethod::GCASH->value,
+                'status' => PaymentStatus::PAID->value,
+                'final_amount' => 20,
+                'passenger_id' => $this->commuter1->id,
+                'pickup_name' => 'Pickup',
+                'dropoff_name' => 'Dropoff',
+                'reward_eligible' => true,
+                'paid_at' => $createdAt,
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+            ];
+            $feedbackRows[] = [
+                'id' => (string) Str::uuid(),
+                'shift_id' => $shiftId,
+                'vehicle_id' => $this->shift->vehicle_id,
+                'driver_id' => $this->shift->driver_id,
+                'conductor_id' => $this->shift->conductor_id,
+                'commuter_id' => $this->commuter1->id,
+                'rating' => 5,
+                'conductor_rating' => 5,
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+            ];
+        }
+
+        DB::table('shift_logs')->insert($shiftRows);
+        DB::table('transactions')->insert($transactionRows);
+        DB::table('feedback')->insert($feedbackRows);
+
+        $this->actingAs($this->commuter1, 'sanctum')
+            ->getJson('/api/v1/commuter/payments?page=6&per_page=20')
+            ->assertOk()
+            ->assertJsonCount(1, 'data.data')
+            ->assertJsonPath('data.data.0.transaction_id', 'TXN-FBH-000')
+            ->assertJsonPath('data.data.0.feedback_exists', true)
+            ->assertJsonPath('data.data.0.can_leave_feedback', false)
+            ->assertJsonPath('data.data.0.feedback.shift_id', 'SFT-FBH-000');
+    }
+
     // ─── 8. Schema audit ────────────────────────────────────────────
 
     public function test_no_wallet_table_exists(): void

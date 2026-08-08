@@ -51,11 +51,9 @@ class FeedbackController extends Controller
      * GET /api/v1/commuter/feedback — the authenticated commuter's own
      * feedback history (newest first), paginated.
      *
-     * Sprint 6 (S6-T7) — powers the commuter ride-history "Leave Feedback" /
-     * "View Feedback" flow. The frontend fetches this once when the Payment
-     * History modal opens, builds a {shift_id → feedback} map, and uses it to
-     * (a) mark each PAID ride row as already-feedback-submitted, and (b)
-     * populate the read-only feedback modal when the commuter reopens it.
+     * This remains the authenticated commuter's paginated feedback-history
+     * endpoint. Payment history now embeds feedback state for its own page,
+     * avoiding a separate unbounded history download.
      *
      * The commuter_id is ALWAYS auth()->id() — never read from the query — so
      * a commuter can only ever see their own feedback. Role enforcement

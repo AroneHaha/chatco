@@ -7,6 +7,7 @@ use App\Models\Setting;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 /**
@@ -72,14 +73,44 @@ class AdminSettingController extends Controller
             ? (string) $validated['value']
             : ($validated['value'] ?? null);
 
-        $setting = Setting::updateOrCreate(
-            ['key' => $key],
-            [
-                'value' => $value,
-                'category' => $category,
-                'updated_by' => $request->user()->id,
-            ]
-        );
+        if ($key === Setting::RIDES_FOR_FREE_REWARD_KEY) {
+            $setting = DB::transaction(function () use ($key, $value, $category, $request): Setting {
+                $setting = Setting::where('key', $key)->lockForUpdate()->first();
+                $currentThreshold = $setting
+                    ? Setting::validatedRewardThreshold($setting->value)
+                    : Setting::DEFAULT_RIDES_FOR_FREE_REWARD;
+                $currentVersion = max(1, (int) ($setting?->reward_rule_version ?? 1));
+
+                // Non-retroactive rule: only a real value change starts a new
+                // reward-progress version. Issued vouchers and rides assigned
+                // to earlier versions are never recalculated or rewritten.
+                if ($currentThreshold !== (int) $value) {
+                    $currentVersion++;
+                }
+
+                if (! $setting) {
+                    $setting = new Setting(['key' => $key]);
+                }
+
+                $setting->fill([
+                    'value' => $value,
+                    'reward_rule_version' => $currentVersion,
+                    'category' => $category,
+                    'updated_by' => $request->user()->id,
+                ])->save();
+
+                return $setting;
+            }, 3);
+        } else {
+            $setting = Setting::updateOrCreate(
+                ['key' => $key],
+                [
+                    'value' => $value,
+                    'category' => $category,
+                    'updated_by' => $request->user()->id,
+                ]
+            );
+        }
 
         return $this->successResponse(
             ['key' => $setting->key, 'value' => $setting->value, 'category' => $setting->category],
