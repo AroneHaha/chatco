@@ -29,7 +29,7 @@ const HAIL_DURATION_MS = 3 * 60 * 1000;
 const REMINDER_INTERVAL_MS = 4000;
 
 export default function CommuterHome() {
-  const { user, commuterProfile, isLoading: authLoading } = useAuth();
+  const { user, commuterProfile } = useAuth();
 
   const [showScan, setShowScan] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -245,15 +245,6 @@ export default function CommuterHome() {
       isSos: true,
     },
   ];
-
-  // ─── Auth loading state ─────────────────────────────────────────────
-  if (authLoading) {
-    return (
-      <div className="h-full w-full bg-[#050F1A] flex items-center justify-center">
-        <div className="w-12 h-12 rounded-full border-4 border-[#1A5FB4] border-t-transparent animate-spin" />
-      </div>
-    );
-  }
 
   return (
     <div className="relative h-full w-full bg-[#050F1A]">

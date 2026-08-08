@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { ItemCategory, ClaimFilter, ClaimStatus, LostItem, ClaimData, PaginatedAPIResponse, ViewTab } from "./types";
 import { CLAIMS_PER_PAGE, ITEMS_PER_PAGE } from "./data";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -152,23 +152,31 @@ export function useLostAndFound() {
     }
   }, [claimFilter, currentPage, selectedDate, debouncedSearchQuery]);
 
+  // Flips true once fetchWatchlistItems() has returned a result whose single
+  // page already covers the whole watchlist (lastPage === 1) — at that point
+  // we already hold the complete id set and the walk below would just be
+  // re-fetching the same rows, so it's skipped/stopped instead.
+  const watchlistCompleteRef = useRef(false);
+
   /**
    * Reload the watchlisted item ids from the DB (for the card hearts).
    * Walks every page rather than assuming a fixed ceiling fits everyone —
    * a commuter with a very large watchlist still gets correct heart state.
    */
   const loadWatchlistIds = useCallback(async () => {
+    if (watchlistCompleteRef.current) return;
     try {
       const ids = new Set<string>();
       let page = 1;
       let lastPage = 1;
       do {
+        if (watchlistCompleteRef.current) return;
         const result = await fetchMyWatchlist({ page, perPage: MAX_PER_PAGE });
         for (const item of result.items) ids.add(item.id);
         lastPage = result.lastPage;
         page += 1;
       } while (page <= lastPage && page <= MAX_WATCHLIST_PAGES);
-      setWatchlist(ids);
+      if (!watchlistCompleteRef.current) setWatchlist(ids);
     } catch {
       // Non-fatal: hearts render unfilled until the next reload.
     }
@@ -220,12 +228,21 @@ export function useLostAndFound() {
         totalItems: result.total,
         currentPage: result.page,
       });
-      // Keep the heart id-set in sync with what the server returned.
-      setWatchlist(prev => {
-        const next = new Set(prev);
-        for (const item of result.items) next.add(item.id);
-        return next;
-      });
+      // This page came straight from the watchlist endpoint, so every item
+      // on it is watched by definition — keep the heart id-set in sync.
+      if (result.lastPage === 1) {
+        // This one page IS the entire watchlist — it's now the authoritative
+        // full set, making the separate multi-page walk in loadWatchlistIds()
+        // redundant, so stop/skip it rather than re-fetching the same rows.
+        watchlistCompleteRef.current = true;
+        setWatchlist(new Set(result.items.map(item => item.id)));
+      } else {
+        setWatchlist(prev => {
+          const next = new Set(prev);
+          for (const item of result.items) next.add(item.id);
+          return next;
+        });
+      }
       setIsLoading(false);
     } catch (err) {
       if (err instanceof RequestCancelledError) return;
