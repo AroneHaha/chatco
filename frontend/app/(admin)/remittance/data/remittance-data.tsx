@@ -21,8 +21,18 @@ export type RemittanceRow = RemittanceRecord;
 // Calls the real Laravel backend via the Next.js proxy.
 // No mock data, no localStorage fallback — admin sees only real DB data.
 
-async function fetchRemittances(): Promise<RemittanceRecord[]> {
-  const res = await fetch("/api/admin/remittances?per_page=500", {
+interface RemittancePage {
+  records: RemittanceRecord[];
+  total: number;
+  lastPage: number;
+}
+
+async function fetchRemittances(page: number, search: string, date: string, status: RemittanceStatus | 'All'): Promise<RemittancePage> {
+  const params = new URLSearchParams({ page: String(page), per_page: "10" });
+  if (search) params.set('search', search);
+  if (date) params.set('date', date);
+  if (status !== 'All') params.set('status', status);
+  const res = await fetch(`/api/admin/remittances?${params}`, {
     headers: { Accept: "application/json" },
   });
   if (!res.ok) {
@@ -30,9 +40,13 @@ async function fetchRemittances(): Promise<RemittanceRecord[]> {
   }
   const json = await res.json();
   // The backend now returns a paginator: { data: { data: [...], ... } }
-  const apiRecords = json.data?.data ?? json.data ?? json;
-  if (!Array.isArray(apiRecords)) return [];
-  return apiRecords.map(mapLaravelRemittance);
+  const paginator = json.data ?? {};
+  const apiRecords = paginator.data ?? [];
+  return {
+    records: Array.isArray(apiRecords) ? apiRecords.map(mapLaravelRemittance) : [],
+    total: Number(paginator.total ?? 0),
+    lastPage: Number(paginator.last_page ?? 1),
+  };
 }
 
 /**
@@ -51,6 +65,12 @@ async function fetchRemittances(): Promise<RemittanceRecord[]> {
 function mapLaravelRemittance(r: Record<string, unknown>): RemittanceRecord {
   const cashTotal = Number(r.cash_total ?? r.total_collected ?? 0);
   const gcashTotal = Number(r.gcash_total ?? 0);
+  const rawStatus = String(r.remittance_status ?? "");
+  const remittanceStatus: RemittanceRecord["remittanceStatus"] =
+    rawStatus === "SHORTAGE" ? "Shortage" :
+    rawStatus === "OVERAGE" ? "Overage" :
+    rawStatus === "COMPLETE" || rawStatus === "Remitted" ? "Remitted" :
+    Boolean(r.is_overdue) ? "Overdue" : "Pending";
 
   return {
     shiftId: String(r.shift_id ?? ""),
@@ -68,37 +88,42 @@ function mapLaravelRemittance(r: Record<string, unknown>): RemittanceRecord {
     // The backend doesn't track a separate "declared" amount — the conductor's
     // recorded cash total IS the declared amount. Map it through so the
     // RemittanceTable's "Cash Declared" column shows real data.
-    cashDeclared: cashTotal,
+    cashDeclared: Number(r.remitted_amount ?? r.cash_declared ?? 0),
     // The backend writes remittance_status as 'COMPLETE' (no shortage) or
     // 'SHORTAGE' (cash declared < expected). The admin UI shows both as
     // "Remitted" (the shift WAS ended + the remittance WAS submitted) —
     // the shortage is surfaced separately via the shortage field if present.
     // Pending shifts (active, no remittance yet) show as "Pending".
-    remittanceStatus: (r.remittance_status === "COMPLETE" ||
-                       r.remittance_status === "SHORTAGE" ||
-                       r.remittance_status === "Remitted")
-      ? "Remitted"
-      : "Pending",
+    remittanceStatus,
     timeIn: String(r.time_in ?? ""),
     timeOut: String(r.time_out ?? ""),
     cashTotal,
     gcashTotal,
+    shortage: Number(r.shortage ?? 0),
+    overage: Number(r.overage ?? 0),
+    dueAt: r.remittance_due_at ? String(r.remittance_due_at) : null,
+    remittedAt: r.remitted_at ? String(r.remitted_at) : null,
+    reminderCount: Number(r.reminder_count ?? 0),
   };
 }
 
 // ─── Hook ──────────────────────────────────────────────────────────────
 
-export function useRemittanceData() {
+export function useRemittanceData(page = 1, search = '', date = '', status: RemittanceStatus | 'All' = 'All') {
   const [records, setRecords] = useState<RemittanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [total, setTotal] = useState(0);
+  const [lastPage, setLastPage] = useState(1);
 
   const refresh = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await fetchRemittances();
-      setRecords(data);
+      const data = await fetchRemittances(page, search, date, status);
+      setRecords(data.records);
+      setTotal(data.total);
+      setLastPage(data.lastPage);
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Failed to load remittances";
@@ -106,11 +131,11 @@ export function useRemittanceData() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [date, page, search, status]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  return { records, isLoading, error, refresh };
+  return { records, total, lastPage, isLoading, error, refresh };
 }

@@ -21,6 +21,8 @@ export default function OperationsRulesPage() {
       setRules({
         speedLimitKmh: data.speed_limit_kmh ?? defaultOperationsRules.speedLimitKmh,
         maxShiftHours: data.max_shift_hours ?? defaultOperationsRules.maxShiftHours,
+        remittanceGraceMinutes: data.remittance_grace_minutes ?? defaultOperationsRules.remittanceGraceMinutes,
+        remittanceReminderIntervalMinutes: data.remittance_reminder_interval_minutes ?? defaultOperationsRules.remittanceReminderIntervalMinutes,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load operations rules');
@@ -44,6 +46,8 @@ export default function OperationsRulesPage() {
       await Promise.all([
         updateSetting('speed_limit_kmh', rules.speedLimitKmh, 'operations'),
         updateSetting('max_shift_hours', rules.maxShiftHours, 'operations'),
+        updateSetting('remittance_grace_minutes', rules.remittanceGraceMinutes, 'operations'),
+        updateSetting('remittance_reminder_interval_minutes', rules.remittanceReminderIntervalMinutes, 'operations'),
       ]);
       setIsSaved(true);
       setTimeout(() => setIsSaved(false), 3000);
@@ -108,6 +112,22 @@ export default function OperationsRulesPage() {
                   required
                   className="block w-full px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors"
                 />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-[#131C2E] border border-[#1E2D45] p-4 sm:p-6 rounded-lg">
+            <h2 className="text-lg sm:text-xl font-semibold text-white mb-4">Remittance Reminders</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">Grace Period (Minutes)</label>
+                <p className="text-xs text-slate-500 mb-2">Wait after automatic shift closeout before the first reminder.</p>
+                <input type="number" min="1" max="1440" name="remittanceGraceMinutes" value={rules.remittanceGraceMinutes} onChange={handleChange} required className="block w-full px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white focus:outline-none focus:ring-1 focus:ring-[#62A0EA]" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">Repeat Interval (Minutes)</label>
+                <p className="text-xs text-slate-500 mb-2">Minimum time between reminders for the same pending shift.</p>
+                <input type="number" min="5" max="10080" name="remittanceReminderIntervalMinutes" value={rules.remittanceReminderIntervalMinutes} onChange={handleChange} required className="block w-full px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white focus:outline-none focus:ring-1 focus:ring-[#62A0EA]" />
               </div>
             </div>
           </div>

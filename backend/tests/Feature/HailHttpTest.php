@@ -153,9 +153,11 @@ class HailHttpTest extends TestCase
         // ─── Put vehicle at Manila coordinate ────────────────────────
         VehicleLocation::create([
             'vehicle_id' => $this->vehicle->id,
+            'shift_id' => $this->shift->shift_id,
             'conductor_id' => $this->conductor->id,
             'lat' => $this->vehicleLat,
             'lng' => $this->vehicleLng,
+            'fix_recorded_at' => now(),
         ]);
     }
 

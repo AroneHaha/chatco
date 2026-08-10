@@ -3,9 +3,8 @@
 namespace Tests\Feature;
 
 use App\Events\VehicleLocationUpdated;
-use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Broadcasting\Channel;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class BroadcastTest extends TestCase
@@ -51,16 +50,10 @@ class BroadcastTest extends TestCase
 
     public function test_vehicles_channel_is_public(): void
     {
-        /** @var \App\Models\User $commuter */
-        $commuter = User::factory()->commuter()->create();
+        // Public channels never call the private-channel authentication URL.
+        $channel = (new VehicleLocationUpdated([]))->broadcastOn();
 
-        $response = $this->actingAs($commuter)
-            ->postJson('/broadcasting/auth', [
-                'channel_name' => 'vehicles',
-                'socket_id' => '1234.5678',
-            ]);
-
-        // Public channel returns true (no auth required)
-        $response->assertOk();
+        $this->assertSame(Channel::class, $channel::class);
+        $this->assertSame('vehicles', $channel->name);
     }
 }

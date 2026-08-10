@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { ConductorDashboardSkeleton } from "@/components/conductor/ui/skeleton";
 import HistoryLogModal from "@/components/conductor/modals/history-log-modal";
 import { useDashboardState } from "./dashboard/use-dashboard-state";
@@ -8,6 +10,7 @@ import { DesktopDashboardCard } from "./dashboard/desktop-dashboard-card";
 import { DashboardMapContainer } from "./dashboard/dashboard-map-container";
 
 export default function ConductorDashboard() {
+  const router = useRouter();
   const {
     shift,
     elapsed,
@@ -31,6 +34,14 @@ export default function ConductorDashboard() {
     unitNumber,
     route,
   } = useDashboardState();
+
+  useEffect(() => {
+    if (shiftStatus === "empty") {
+      // The backend is authoritative. This also handles an already-open tab
+      // after an automatic closeout or the Asia/Manila midnight reset.
+      router.replace("/unit-verification");
+    }
+  }, [router, shiftStatus]);
 
   if (shiftStatus === "loading" || txnStatus === "loading") {
     return <ConductorDashboardSkeleton />;

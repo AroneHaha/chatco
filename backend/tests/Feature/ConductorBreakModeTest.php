@@ -23,6 +23,8 @@ class ConductorBreakModeTest extends TestCase
         VehicleLocation::factory()->create([
             'vehicle_id' => $shift->vehicle_id,
             'conductor_id' => $shift->conductor_id,
+            'shift_id' => $shift->shift_id,
+            'fix_recorded_at' => now(),
             'lat' => 14.8527,
             'lng' => 120.8160,
         ]);

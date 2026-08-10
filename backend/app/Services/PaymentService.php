@@ -7,6 +7,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Events\PaymentStatusUpdated;
 use App\Models\PaymentEvent;
+use App\Models\ShiftLog;
 use App\Models\Transaction;
 use App\Support\Payments\PaymentGatewayException;
 use App\Support\Payments\PaymentIntentResult;
@@ -30,6 +31,7 @@ class PaymentService
     public function __construct(
         private readonly PaymentGateway $gateway,
         private readonly RewardService $rewardService,
+        private readonly ShiftCloseoutService $shiftCloseoutService,
     ) {}
 
     public function gatewayName(): string
@@ -213,6 +215,7 @@ class PaymentService
         }
 
         $result = DB::transaction(function () use ($transaction, $providerStatus) {
+            $this->lockPaymentShift($transaction->shift_id);
             $locked = Transaction::query()
                 ->lockForUpdate()
                 ->findOrFail($transaction->transaction_id);
@@ -250,6 +253,7 @@ class PaymentService
     public function transitionTo(Transaction $transaction, PaymentStatus $target): Transaction
     {
         $result = DB::transaction(function () use ($transaction, $target) {
+            $this->lockPaymentShift($transaction->shift_id);
             $locked = Transaction::query()
                 ->lockForUpdate()
                 ->findOrFail($transaction->transaction_id);
@@ -300,20 +304,26 @@ class PaymentService
      */
     private function locateTransactionForUpdate(WebhookEvent $event): ?Transaction
     {
-        $transaction = Transaction::query()
+        $candidate = Transaction::query()
             ->where('payment_reference', $event->reference)
-            ->lockForUpdate()
             ->first();
 
-        if ($transaction) {
-            return $transaction;
+        if ($candidate) {
+            $this->lockPaymentShift($candidate->shift_id);
+
+            return Transaction::query()->lockForUpdate()->find($candidate->transaction_id);
         }
 
         if ($transactionId = $event->transactionId()) {
-            return Transaction::query()
+            $candidate = Transaction::query()
                 ->where('transaction_id', $transactionId)
-                ->lockForUpdate()
                 ->first();
+
+            if ($candidate) {
+                $this->lockPaymentShift($candidate->shift_id);
+
+                return Transaction::query()->lockForUpdate()->find($candidate->transaction_id);
+            }
         }
 
         return null;
@@ -356,6 +366,8 @@ class PaymentService
                     'payment_reconciliation_required_at' => now(),
                     'payment_reconciliation_resolved_at' => null,
                 ]);
+
+            $this->shiftCloseoutService->refreshEndedShiftRemittance($transaction->shift_id);
 
             return [
                 'transaction' => Transaction::findOrFail($transaction->transaction_id),
@@ -422,11 +434,22 @@ class PaymentService
                     $rewardableTransaction->paid_at ?? now(),
                 );
             }
+
+            $this->shiftCloseoutService->refreshEndedShiftRemittance($transaction->shift_id);
         }
 
         return [
             'transaction' => Transaction::findOrFail($transaction->transaction_id),
             'changed' => true,
         ];
+    }
+
+    /** All payment-state writers take the shift lock before transaction locks. */
+    private function lockPaymentShift(string $shiftId): void
+    {
+        ShiftLog::query()
+            ->where('shift_id', $shiftId)
+            ->lockForUpdate()
+            ->firstOrFail();
     }
 }

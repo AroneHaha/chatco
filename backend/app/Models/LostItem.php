@@ -11,6 +11,7 @@ class LostItem extends Model
     use HasFactory;
 
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [
@@ -34,12 +35,14 @@ class LostItem extends Model
         'closed_by',
         'closed_at',
         'expired_at',
+        'available_since',
     ];
 
     protected $casts = [
         'released_at' => 'datetime',
-        'closed_at'   => 'datetime',
-        'expired_at'  => 'datetime',
+        'closed_at' => 'datetime',
+        'expired_at' => 'datetime',
+        'available_since' => 'datetime',
     ];
 
     /**

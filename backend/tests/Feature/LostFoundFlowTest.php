@@ -1231,6 +1231,24 @@ class LostFoundFlowTest extends TestCase
         $this->assertNull($item->expired_at);
     }
 
+    public function test_reactivated_old_item_gets_a_fresh_availability_window(): void
+    {
+        $item = $this->createItem();
+        $item->forceFill([
+            'created_at' => now()->subDays(60),
+            'status' => 'EXPIRED',
+            'expired_at' => now(),
+        ])->save();
+
+        $this->admin();
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/reactivate")->assertOk();
+        $this->artisan('lost-items:expire')->assertSuccessful();
+
+        $item->refresh();
+        $this->assertSame('AVAILABLE', $item->status);
+        $this->assertNotNull($item->available_since);
+    }
+
     public function test_cannot_reactivate_non_expired_item(): void
     {
         $item = $this->createItem();

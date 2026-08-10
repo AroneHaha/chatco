@@ -46,7 +46,7 @@ export default function SettingsPage() {
     if (!shift) return false;
 
     const hasPendingRemit = history.some(
-      (record) => record.remittanceStatus === "Pending" && record.totalCashless > 0
+      (record) => (record.remittanceStatus === "Pending" || record.remittanceStatus === "Overdue") && record.cashTotal > 0
     );
     if (hasPendingRemit) return true;
 

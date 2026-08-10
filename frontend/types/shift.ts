@@ -37,11 +37,16 @@ export interface RemittanceRecord {
   };
   totalCashless: number;
   cashDeclared: number; // legacy — kept for backward compat with old records
-  remittanceStatus: "Pending" | "Remitted";
+  remittanceStatus: "Pending" | "Overdue" | "Remitted" | "Shortage" | "Overage";
   timeIn: string;
   timeOut: string;
   cashTotal: number; // system-tracked cash from Payment module
   gcashTotal: number; // system-tracked GCash from Payment module
+  shortage?: number;
+  overage?: number;
+  dueAt?: string | null;
+  remittedAt?: string | null;
+  reminderCount?: number;
 }
 
 // ─── Remittance Status ───────────────────────────────────────────────

@@ -17,14 +17,14 @@ class ConductorService
      * info the spec requires without N+1 queries.
      *
      * @param  User  $conductor  The authenticated conductor user.
-     * @param  int   $perPage   Page size (defaults to 15, matching the other
-     *                          list endpoints like ShiftService::getShiftLogs).
+     * @param  int  $perPage  Page size (defaults to 15, matching the other
+     *                        list endpoints like ShiftService::getShiftLogs).
      */
     public function listRemittances(User $conductor, int $perPage = 15): LengthAwarePaginator
     {
         $conductorId = $conductor->conductorProfile?->id ?? $conductor->id;
 
-        return Remittance::where('conductor_id', $conductorId)
+        $paginator = Remittance::where('conductor_id', $conductorId)
             ->with([
                 'shift:id,shift_id,conductor_id,driver_id,vehicle_id,route_id,time_in,time_out,status',
                 'vehicle:id,unit_number,plate_number,route_id',
@@ -33,6 +33,18 @@ class ConductorService
             ])
             ->orderBy('date', 'desc')
             ->orderBy('time_in', 'desc')
-            ->paginate($perPage);
+            ->paginate(min(max($perPage, 1), 100));
+
+        $paginator->through(function (Remittance $remittance): Remittance {
+            $remittance->setAttribute(
+                'is_overdue',
+                $remittance->remittance_status === Remittance::STATUS_PENDING
+                    && $remittance->remittance_due_at?->isPast(),
+            );
+
+            return $remittance;
+        });
+
+        return $paginator;
     }
 }

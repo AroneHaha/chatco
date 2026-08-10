@@ -35,24 +35,24 @@ const AdminCommuterMap = dynamic<{
 const SPEED_LIMIT_KMH = 50;
 
 export default function MonitoringPage() {
+  const [overspeedPage, setOverspeedPage] = useState(1);
+  const [filterOverspeedDate, setFilterOverspeedDate] = useState('');
   // Live fleet data (real API, 5s poll)
   const { fleet, isLoading, isRefreshing, error, lastFetchedAt, refetch } = useFleetPoll(5000);
   // Real SOS alerts (polls /api/admin/sos every 5s) + real overspeed feed.
   // The hook exposes its own error/loading state — we surface it as a banner
   // so SOS feed failures don't silently render as an empty active-alerts list.
-  const { data, error: sosError, refetch: refetchSos, acknowledgeSos, resolveSos } = useMonitoringData();
+  const { data, error: sosError, refetch: refetchSos, acknowledgeSos, resolveSos } = useMonitoringData(overspeedPage, filterOverspeedDate);
 
   const sosAlerts = data.sosAlerts;
   const sosHistory = data.sosHistory;
 
   // Pagination States
   const [sosPage, setSosPage] = useState(1);
-  const [overspeedPage, setOverspeedPage] = useState(1);
   const ROWS_PER_PAGE = 10;
 
   // Filter States
   const [filterSosDate, setFilterSosDate] = useState('');
-  const [filterOverspeedDate, setFilterOverspeedDate] = useState('');
   const [filterStaleOnly, setFilterStaleOnly] = useState(false);
 
   // Map focus — clicking a row flies the camera to that unit. This only moves
@@ -110,7 +110,7 @@ export default function MonitoringPage() {
   const handleAcknowledgeSos = (alertId: string) => { void acknowledgeSos(alertId); };
 
   const filteredSosHistory = useMemo(() => filterSosDate ? sosHistory.filter(l => l.triggeredDate === filterSosDate) : sosHistory, [filterSosDate, sosHistory]);
-  const filteredOverspeedHistory = useMemo(() => filterOverspeedDate ? data.overspeedHistory.filter(l => l.loggedDate === filterOverspeedDate) : data.overspeedHistory, [filterOverspeedDate, data.overspeedHistory]);
+  const filteredOverspeedHistory = data.overspeedHistory;
 
   // Both history feeds re-poll every 5s and can shrink under the viewer (an SOS
   // gets resolved, a date filter narrows). The page number is therefore clamped
@@ -122,10 +122,10 @@ export default function MonitoringPage() {
   const goToSosPage = (page: number) => setSosPage(Math.min(Math.max(page, 1), totalSosPages));
   const currentSosData = filteredSosHistory.slice((safeSosPage - 1) * ROWS_PER_PAGE, safeSosPage * ROWS_PER_PAGE);
 
-  const totalOverspeedPages = Math.max(1, Math.ceil(filteredOverspeedHistory.length / ROWS_PER_PAGE));
+  const totalOverspeedPages = Math.max(1, data.overspeedLastPage);
   const safeOverspeedPage = Math.min(Math.max(overspeedPage, 1), totalOverspeedPages);
   const goToOverspeedPage = (page: number) => setOverspeedPage(Math.min(Math.max(page, 1), totalOverspeedPages));
-  const currentOverspeedData = filteredOverspeedHistory.slice((safeOverspeedPage - 1) * ROWS_PER_PAGE, safeOverspeedPage * ROWS_PER_PAGE);
+  const currentOverspeedData = filteredOverspeedHistory;
 
   // ── Loading State ──
   if (isLoading) {
@@ -417,7 +417,7 @@ export default function MonitoringPage() {
               </div>
               <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#1E2D45]">
                 <p className="text-xs text-slate-500">
-                  Page {safeOverspeedPage} of {totalOverspeedPages} · {filteredOverspeedHistory.length} total
+                  Page {safeOverspeedPage} of {totalOverspeedPages} · {data.overspeedTotal} total
                 </p>
                 <div className="flex items-center gap-2">
                   <button disabled={safeOverspeedPage === 1} onClick={() => goToOverspeedPage(safeOverspeedPage - 1)} className="px-3 py-1.5 rounded-md text-xs font-medium bg-[#0E1628] border border-[#1E2D45] text-slate-400 hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-all">Previous</button>

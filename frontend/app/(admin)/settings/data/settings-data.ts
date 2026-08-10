@@ -39,6 +39,8 @@ export interface FinancialRulesConfig {
 export interface OperationsRulesConfig {
   speedLimitKmh: string;
   maxShiftHours: string;
+  remittanceGraceMinutes: string;
+  remittanceReminderIntervalMinutes: string;
 }
 
 export interface AppConfiguration {
@@ -139,6 +141,8 @@ export const defaultOperationsRules: OperationsRulesConfig = {
   // what Operations Rules shows before an admin has saved an explicit limit.
   speedLimitKmh: '50',
   maxShiftHours: '12',
+  remittanceGraceMinutes: '30',
+  remittanceReminderIntervalMinutes: '60',
 };
 
 export const defaultAppConfiguration: AppConfiguration = {
