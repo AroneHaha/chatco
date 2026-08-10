@@ -42,6 +42,8 @@ export function useConductorLocationBroadcast(active: boolean): void {
         lng: pos.coords.longitude,
         speed: speedKmh,
         heading: pos.coords.heading ?? null,
+        accuracy: pos.coords.accuracy,
+        fix_timestamp: new Date(pos.timestamp).toISOString(),
       }).catch(() => {
         // best-effort — ignore (no active shift yet, offline, etc.)
       });

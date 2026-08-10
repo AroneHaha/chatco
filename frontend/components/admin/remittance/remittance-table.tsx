@@ -25,8 +25,8 @@ interface RemittanceTableProps {
 const ROWS_PER_PAGE = 10;
 
 export function RemittanceTable({ searchQuery, selectedDate, statusFilter }: RemittanceTableProps) {
-  const { records, isLoading, error, refresh } = useRemittanceData();
   const [currentPage, setCurrentPage] = useState(1);
+  const { records, total, lastPage, isLoading, error, refresh } = useRemittanceData(currentPage, searchQuery, selectedDate, statusFilter);
   const [selectedRecord, setSelectedRecord] = useState<RemittanceRow | null>(null);
   const [conductorFilter, setConductorFilter] = useState('');
   const [driverFilter, setDriverFilter] = useState('');
@@ -46,13 +46,13 @@ export function RemittanceTable({ searchQuery, selectedDate, statusFilter }: Rem
       label: 'Remitted Amount',
       // Computed column — grand total of cash + GCash
       render: (_: unknown, row: RemittanceRow) =>
-        fmtPHP(row.cashTotal + row.gcashTotal),
+        fmtPHP(row.cashDeclared + row.gcashTotal),
     },
     {
       key: 'remittanceStatus',
       label: 'Status',
       render: (value: RemittanceStatus) => (
-        <Badge variant={value === 'Remitted' ? 'success' : 'warning'}>{value}</Badge>
+        <Badge variant={value === 'Remitted' ? 'success' : value === 'Pending' || value === 'Overdue' ? 'warning' : 'danger'}>{value}</Badge>
       ),
     },
   ];
@@ -95,13 +95,10 @@ export function RemittanceTable({ searchQuery, selectedDate, statusFilter }: Rem
   }
 
   // Pagination
-  const totalPages = Math.max(1, Math.ceil(filteredData.length / ROWS_PER_PAGE));
+  const totalPages = Math.max(1, lastPage);
   const safeCurrentPage = Math.min(currentPage, totalPages);
 
-  const paginatedData = useMemo(() => {
-    const startIndex = (safeCurrentPage - 1) * ROWS_PER_PAGE;
-    return filteredData.slice(startIndex, startIndex + ROWS_PER_PAGE);
-  }, [filteredData, safeCurrentPage]);
+  const paginatedData = filteredData;
 
   const handlePrevPage = () => {
     if (safeCurrentPage > 1) setCurrentPage(safeCurrentPage - 1);
@@ -181,7 +178,7 @@ export function RemittanceTable({ searchQuery, selectedDate, statusFilter }: Rem
       <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-4 text-xs text-slate-400">
         <div>
           Showing {paginatedData.length > 0 ? (safeCurrentPage - 1) * ROWS_PER_PAGE + 1 : 0} to{' '}
-          {(safeCurrentPage - 1) * ROWS_PER_PAGE + paginatedData.length} of <span className="text-slate-300 font-medium">{filteredData.length}</span> results
+          {(safeCurrentPage - 1) * ROWS_PER_PAGE + paginatedData.length} of <span className="text-slate-300 font-medium">{total}</span> results
         </div>
 
         <div className="flex items-center gap-2">

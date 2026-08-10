@@ -12,6 +12,7 @@ class Vehicle extends Model
     use HasFactory, SoftDeletes;
 
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [
@@ -28,11 +29,15 @@ class Vehicle extends Model
         'longitude',
         'last_location_update',
         'active_shift_id',
+        'assignment_date',
+        'assignment_approved_at',
     ];
 
     protected function casts(): array
     {
         return [
+            'assignment_date' => 'date',
+            'assignment_approved_at' => 'datetime',
             'speed' => 'integer',
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
@@ -71,12 +76,10 @@ class Vehicle extends Model
         return $this->belongsTo(ConductorProfile::class, 'conductor_id');
     }
 
-
     public function activeShift()
     {
         return $this->belongsTo(ShiftLog::class, 'active_shift_id', 'shift_id');
     }
-
 
     public function currentLocation()
     {

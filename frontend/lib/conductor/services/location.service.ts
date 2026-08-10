@@ -6,6 +6,8 @@ export interface ConductorLocationInput {
   lng: number;
   speed?: number | null;
   heading?: number | null;
+  accuracy?: number | null;
+  fix_timestamp?: string | null;
 }
 
 /**

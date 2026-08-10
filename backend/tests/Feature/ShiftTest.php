@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Enums\ShiftStatus;
-use App\Enums\UserRole;
 use App\Models\Driver;
 use App\Models\Route;
 use App\Models\ShiftLog;
@@ -17,8 +16,11 @@ class ShiftTest extends TestCase
     use RefreshDatabase;
 
     private User $conductor;
+
     private Vehicle $vehicle;
+
     private Driver $driver;
+
     private Route $route;
 
     protected function setUp(): void
@@ -29,6 +31,13 @@ class ShiftTest extends TestCase
         $this->vehicle = Vehicle::factory()->create();
         $this->driver = Driver::factory()->create();
         $this->route = Route::factory()->create();
+        $this->vehicle->update([
+            'route_id' => $this->route->id,
+            'driver_id' => $this->driver->id,
+            'conductor_id' => $this->conductor->conductorProfile->id,
+            'assignment_date' => now('Asia/Manila')->toDateString(),
+            'assignment_approved_at' => now(),
+        ]);
     }
 
     public function test_conductor_can_start_shift(): void

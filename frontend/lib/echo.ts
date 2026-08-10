@@ -13,9 +13,9 @@ if (typeof window !== 'undefined') {
   window.Pusher = Pusher;
 }
 
-let echoInstance: Echo<any> | null = null;
+let echoInstance: Echo<'pusher'> | null = null;
 
-export function getEcho(): Echo<any> {
+export function getEcho(): Echo<'pusher'> {
   if (echoInstance) {
     return echoInstance;
   }
@@ -29,13 +29,16 @@ export function getEcho(): Echo<any> {
     );
   }
 
-  echoInstance = new Echo<any>({
+  echoInstance = new Echo<'pusher'>({
     broadcaster: 'pusher',
     key: pusherKey,
     cluster: pusherCluster,
     forceTLS: true,
     encrypted: true,
     enabledTransports: ['ws', 'wss'],
+    // Private hail channels authenticate through the same-origin Next proxy,
+    // which can safely read the httpOnly Sanctum token cookie.
+    authEndpoint: '/api/broadcasting/auth',
   });
 
   return echoInstance;

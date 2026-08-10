@@ -12,11 +12,16 @@ export interface RemittanceRecord {
   };
   totalCashless: number;
   cashDeclared: number;
-  remittanceStatus: "Pending" | "Remitted";
+  remittanceStatus: "Pending" | "Overdue" | "Remitted" | "Shortage" | "Overage";
   timeIn: string;
   timeOut: string;
   cashTotal: number;
   gcashTotal: number;
+  shortage?: number;
+  overage?: number;
+  dueAt?: string | null;
+  remittedAt?: string | null;
+  reminderCount?: number;
 }
 
 const KEY = "conductor_remittance_history";

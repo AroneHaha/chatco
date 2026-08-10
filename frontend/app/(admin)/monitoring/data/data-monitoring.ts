@@ -63,6 +63,8 @@ export interface MonitoringData {
   sosAlerts: SosAlert[];
   sosHistory: SosHistoryLog[];
   overspeedHistory: OverspeedLog[];
+  overspeedTotal: number;
+  overspeedLastPage: number;
   demandZones: DemandZone[];
 }
 
@@ -187,10 +189,12 @@ function mapHistory(raw: BackendAlert): SosHistoryLog {
 
 const POLL_INTERVAL_MS = 5000;
 
-export function useMonitoringData() {
+export function useMonitoringData(overspeedPage = 1, overspeedDate = "") {
   const [sosAlerts, setSosAlerts] = useState<SosAlert[]>([]);
   const [sosHistory, setSosHistory] = useState<SosHistoryLog[]>([]);
   const [overspeedHistory, setOverspeedHistory] = useState<OverspeedLog[]>([]);
+  const [overspeedTotal, setOverspeedTotal] = useState(0);
+  const [overspeedLastPage, setOverspeedLastPage] = useState(1);
   const [demandZones, setDemandZones] = useState<DemandZone[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -235,12 +239,15 @@ export function useMonitoringData() {
 
   const fetchOverspeed = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/monitoring/overspeed", {
+      const params = new URLSearchParams({ page: String(overspeedPage), per_page: "10" });
+      if (overspeedDate) params.set("date", overspeedDate);
+      const res = await fetch(`/api/admin/monitoring/overspeed?${params}`, {
         credentials: "include",
       });
       if (!res.ok) return;
       const data = await res.json();
-      const raw = (data.data ?? []) as Array<{
+      const paginator = data.data ?? {};
+      const raw = (paginator.data ?? []) as Array<{
         id: string; unit: string; plate: string; speed: number;
         driver: string | null; conductor: string | null;
         date: string | null; last_update: string | null;
@@ -256,10 +263,12 @@ export function useMonitoringData() {
         loggedDate: v.date ?? (v.last_update ? new Date(v.last_update).toISOString().split('T')[0] : ''),
       }));
       setOverspeedHistory(mapped);
+      setOverspeedTotal(Number(paginator.total ?? mapped.length));
+      setOverspeedLastPage(Number(paginator.last_page ?? 1));
     } catch {
       // Overspeed is best-effort
     }
-  }, []);
+  }, [overspeedDate, overspeedPage]);
 
   const fetchDemandZones = useCallback(async () => {
     try {
@@ -367,6 +376,8 @@ export function useMonitoringData() {
     sosAlerts,
     sosHistory,
     overspeedHistory,
+    overspeedTotal,
+    overspeedLastPage,
     demandZones,
   };
 

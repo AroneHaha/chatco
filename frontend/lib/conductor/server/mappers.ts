@@ -193,6 +193,11 @@ export function mapRemittance(r: unknown): RemittanceRecord {
   const shift = (row.shift ?? null) as Record<string, unknown> | null;
   const num = (v: unknown) => Number(v) || 0;
   const status = String(row.remittance_status ?? "");
+  const displayStatus: RemittanceRecord["remittanceStatus"] =
+    status === "SHORTAGE" ? "Shortage" :
+    status === "OVERAGE" ? "Overage" :
+    status === "COMPLETE" || status === "Remitted" ? "Remitted" :
+    Boolean(row.is_overdue) ? "Overdue" : "Pending";
 
   return {
     shiftId: String(row.shift_id ?? ""),
@@ -207,15 +212,17 @@ export function mapRemittance(r: unknown): RemittanceRecord {
       voucher: num(row.voucher_total),
     },
     totalCashless: num(row.total_cashless ?? row.gcash_total),
-    cashDeclared: num(row.cash_declared ?? row.total_collected),
+    cashDeclared: num(row.remitted_amount ?? row.cash_declared),
     cashTotal: num(row.cash_total),
     gcashTotal: num(row.gcash_total),
-    remittanceStatus:
-      status === "COMPLETE" || status === "SHORTAGE" || status === "Remitted"
-        ? "Remitted"
-        : "Pending",
+    remittanceStatus: displayStatus,
     timeIn: String(shift?.time_in ?? ""),
     timeOut: String(shift?.time_out ?? ""),
+    shortage: num(row.shortage),
+    overage: num(row.overage),
+    dueAt: row.remittance_due_at ? String(row.remittance_due_at) : null,
+    remittedAt: row.remitted_at ? String(row.remitted_at) : null,
+    reminderCount: num(row.reminder_count),
   };
 }
 

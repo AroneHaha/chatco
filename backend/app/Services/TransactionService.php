@@ -53,6 +53,7 @@ class TransactionService
         private PaymentService $paymentService,
         private FareCalculationService $fareCalculationService,
         private RewardService $rewardService,
+        private ShiftCloseoutService $shiftCloseoutService,
     ) {}
 
     /**
@@ -149,6 +150,7 @@ class TransactionService
             $passengerName,
             $passengerId,
         ): Transaction {
+            $shift = $this->shiftCloseoutService->lockActiveShift($shift->shift_id);
             $paidAt = now();
             $transaction = Transaction::create([
                 'transaction_id' => $this->generateTransactionId(),
@@ -206,6 +208,7 @@ class TransactionService
 
         try {
             $transaction = DB::transaction(function () use ($shift, $data, $voucherCode, $expectedCommuterId, $idempotencyKey): ?Transaction {
+                $shift = $this->shiftCloseoutService->lockActiveShift($shift->shift_id);
                 $voucher = Voucher::where('code', $voucherCode)
                     ->lockForUpdate()
                     ->first();
@@ -326,6 +329,7 @@ class TransactionService
         }
 
         return DB::transaction(function () use ($shift, $data, $idempotencyKey) {
+            $shift = $this->shiftCloseoutService->lockActiveShift($shift->shift_id);
             $passengers = $this->expandGroupPassengers($data['group_passengers']);
             $group = PaymentGroup::create([
                 'id' => (string) Str::uuid(),
@@ -367,6 +371,7 @@ class TransactionService
         );
 
         return DB::transaction(function () use ($shift, $fare, $idempotencyKey) {
+            $shift = $this->shiftCloseoutService->lockActiveShift($shift->shift_id);
             $transaction = Transaction::create([
                 'transaction_id' => $this->generateTransactionId(),
                 'shift_id' => $shift->shift_id,
@@ -452,28 +457,32 @@ class TransactionService
 
         // Persist the PENDING transaction first so its id can be sent to the
         // gateway as correlation metadata.
-        $transaction = Transaction::create([
-            'transaction_id' => $this->generateTransactionId(),
-            'shift_id' => $shift->shift_id,
-            'payment_method' => PaymentMethod::GCASH->value,
-            'status' => PaymentStatus::PENDING->value,
-            'final_amount' => $finalAmount,
-            'total_passengers' => 1,
-            'gross_amount' => $finalAmount,
-            'base_fare' => isset($data['base_fare']) ? (float) $data['base_fare'] : null,
-            'distance' => isset($data['distance']) ? (float) $data['distance'] : null,
-            'discount_amount' => isset($data['discount_amount']) ? (float) $data['discount_amount'] : null,
-            'pickup_name' => $data['pickup_name'] ?? null,
-            'dropoff_name' => $data['dropoff_name'] ?? null,
-            'passenger_name' => $data['passenger_name'] ?? null,
-            'conductor_name' => $shift->conductor_name,
-            'unit_number' => $shift->unit_number,
-            'driver_name' => $shift->driver_name,
-            'pickup_stop_id' => null,
-            'dropoff_stop_id' => null,
-            'qr_token' => $qrToken,
-            'payment_provider' => $this->paymentService->gatewayName(),
-        ]);
+        $transaction = DB::transaction(function () use ($shift, $data, $finalAmount, $qrToken) {
+            $shift = $this->shiftCloseoutService->lockActiveShift($shift->shift_id);
+
+            return Transaction::create([
+                'transaction_id' => $this->generateTransactionId(),
+                'shift_id' => $shift->shift_id,
+                'payment_method' => PaymentMethod::GCASH->value,
+                'status' => PaymentStatus::PENDING->value,
+                'final_amount' => $finalAmount,
+                'total_passengers' => 1,
+                'gross_amount' => $finalAmount,
+                'base_fare' => isset($data['base_fare']) ? (float) $data['base_fare'] : null,
+                'distance' => isset($data['distance']) ? (float) $data['distance'] : null,
+                'discount_amount' => isset($data['discount_amount']) ? (float) $data['discount_amount'] : null,
+                'pickup_name' => $data['pickup_name'] ?? null,
+                'dropoff_name' => $data['dropoff_name'] ?? null,
+                'passenger_name' => $data['passenger_name'] ?? null,
+                'conductor_name' => $shift->conductor_name,
+                'unit_number' => $shift->unit_number,
+                'driver_name' => $shift->driver_name,
+                'pickup_stop_id' => null,
+                'dropoff_stop_id' => null,
+                'qr_token' => $qrToken,
+                'payment_provider' => $this->paymentService->gatewayName(),
+            ]);
+        }, 3);
 
         // Create the gateway intent. The bound gateway is real when keys are
         // configured, otherwise the FakeGateway (no checkout URL). A real
@@ -510,6 +519,7 @@ class TransactionService
         );
         $qrToken = Str::random(32);
         $transaction = DB::transaction(function () use ($shift, $fare, $qrToken) {
+            $shift = $this->shiftCloseoutService->lockActiveShift($shift->shift_id);
             $transaction = Transaction::create([
                 'transaction_id' => $this->generateTransactionId(),
                 'shift_id' => $shift->shift_id,
@@ -655,6 +665,7 @@ class TransactionService
         ], $companions);
 
         $group = DB::transaction(function () use ($shift, $data, $companions, $receiptRows) {
+            $shift = $this->shiftCloseoutService->lockActiveShift($shift->shift_id);
             $group = PaymentGroup::create([
                 'id' => (string) Str::uuid(),
                 'reference_number' => $this->generateMultiplePaymentReference(),

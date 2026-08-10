@@ -20,6 +20,8 @@ export async function POST(request: NextRequest) {
     lng?: unknown;
     speed?: unknown;
     heading?: unknown;
+    accuracy?: unknown;
+    fix_timestamp?: unknown;
   };
 
   try {
@@ -28,7 +30,7 @@ export async function POST(request: NextRequest) {
     return jsonError("Invalid request body.", 400);
   }
 
-  const { lat, lng, speed, heading } = body;
+  const { lat, lng, speed, heading, accuracy, fix_timestamp } = body;
 
   if (!Number.isFinite(lat as number) || !Number.isFinite(lng as number)) {
     return jsonError("lat and lng are required.", 422);
@@ -41,6 +43,8 @@ export async function POST(request: NextRequest) {
       lng,
       speed: Number.isFinite(speed as number) ? speed : null,
       heading: Number.isFinite(heading as number) ? heading : null,
+      accuracy: Number.isFinite(accuracy as number) ? accuracy : null,
+      fix_timestamp: typeof fix_timestamp === "string" ? fix_timestamp : null,
     },
   });
 

@@ -3,12 +3,11 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { clearShift, formatTime } from "@/lib/conductor/services/shift.service";
+import { clearShift } from "@/lib/conductor/services/shift.service";
 import { submitRemittance, type RemittanceRecord } from "@/lib/conductor/services/remittance.service";
 import {
   fetchShiftEarnings,
   clearShiftTransactions,
-  type Transaction,
 } from "@/lib/conductor/services/transactions.service";
 import { useRemittanceData } from "@/app/(conductor)/hooks/use-remittance-data";
 import { EndOfDaySkeleton } from "@/components/conductor/ui/skeleton";
@@ -22,7 +21,7 @@ import OfficialReportModal, { buildPrintHTML } from "@/components/conductor/remi
 
 export default function EndOfDayPage() {
   const router = useRouter();
-  const { shift, transactions, earnings, history, status, error, refresh } = useRemittanceData();
+  const { shift, transactions, earnings, history, status, error } = useRemittanceData();
 
   const [showConfirm, setShowConfirm] = useState(false);
   const [isRemitting, setIsRemitting] = useState(false);
@@ -33,6 +32,10 @@ export default function EndOfDayPage() {
   const [reportForRecord, setReportForRecord] = useState<RemittanceRecord | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const pendingRemittance = useMemo(
+    () => history.find((record) => record.remittanceStatus === "Pending" || record.remittanceStatus === "Overdue") ?? null,
+    [history],
+  );
 
   // Captured totals for the SuccessOverlay. We must store these in state
   // (not just local vars) because the overlay renders AFTER handleRemit
@@ -45,13 +48,13 @@ export default function EndOfDayPage() {
   } | null>(null);
 
   const shiftInfo = {
-    conductorName: shift?.conductorName || "—",
-    driverName: shift?.driverName || "—",
-    unitNumber: shift?.unitNumber || "—",
+    conductorName: shift?.conductorName || pendingRemittance?.conductorName || "—",
+    driverName: shift?.driverName || pendingRemittance?.driverName || "—",
+    unitNumber: shift?.unitNumber || pendingRemittance?.unitNumber || "—",
     route: shift?.route || "—",
-    shiftId: shift?.shiftId || "",
-    timeIn: shift?.timeIn || new Date().toISOString(),
-    timeOut: shift?.timeOut || new Date().toISOString(),
+    shiftId: shift?.shiftId || pendingRemittance?.shiftId || "",
+    timeIn: shift?.timeIn || pendingRemittance?.timeIn || new Date().toISOString(),
+    timeOut: shift?.timeOut || pendingRemittance?.timeOut || new Date().toISOString(),
   };
   // ─── Computed breakdown from system-tracked transactions ───
   // S4-T9: Prefer the API-backed `earnings` (from the DB) for the
@@ -66,21 +69,21 @@ export default function EndOfDayPage() {
     }
 
     // Use API-backed earnings if available; otherwise compute from transactions
-    const cashTotal = earnings?.cash_total ?? (breakdown["Cash"]?.amount ?? 0);
-    const gcashTotal = earnings?.gcash_total ??
+    const cashTotal = earnings?.cash_total ?? pendingRemittance?.cashTotal ?? (breakdown["Cash"]?.amount ?? 0);
+    const gcashTotal = earnings?.gcash_total ?? pendingRemittance?.gcashTotal ??
       ((breakdown["GCash_Scanned"]?.amount ?? 0) + (breakdown["GCash_Direct"]?.amount ?? 0));
-    const grandTotal = earnings?.total ?? transactions.reduce((s, t) => s + t.finalAmount, 0);
+    const grandTotal = earnings?.total ?? (pendingRemittance ? cashTotal + gcashTotal : transactions.reduce((s, t) => s + t.finalAmount, 0));
 
     return {
       breakdown,
-      totalPassengers: transactions.reduce((sum, transaction) => sum + (transaction.totalPassengers ?? 1), 0),
+      totalPassengers: pendingRemittance?.totalPassengers ?? transactions.reduce((sum, transaction) => sum + (transaction.totalPassengers ?? 1), 0),
       gcashTotal,
       cashTotal,
       grandTotal,
     };
-  }, [transactions, earnings]);
+  }, [transactions, earnings, pendingRemittance]);
 
-  const canRemit = transactions.length > 0 && !hasRemittedToday;
+  const canRemit = (transactions.length > 0 || pendingRemittance !== null) && !hasRemittedToday;
 
   const filteredHistory = useMemo(() => { const now = new Date(); return history.filter((r) => { const d = new Date(r.date + "T00:00:00"); if (historyFilter === "week") return d >= new Date(now.getTime() - 7 * 86400000); if (historyFilter === "month") return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); return true; }); }, [history, historyFilter]);
 
@@ -152,7 +155,7 @@ export default function EndOfDayPage() {
       const finalBreakdown = summary.breakdown;
       // The conductor's physically-counted cash. May differ from the
       // system-tracked total — the backend computes shortage from this.
-      const finalCashDeclared = cashDeclared || finalCashTotal;
+      const finalCashDeclared = Number.isFinite(cashDeclared) ? cashDeclared : finalCashTotal;
       const finalShortage = Math.max(0, finalCashTotal - finalCashDeclared);
 
       await new Promise((resolve) => setTimeout(resolve, 1800));
@@ -175,7 +178,7 @@ export default function EndOfDayPage() {
         cashDeclared: finalCashDeclared,
         gcashTotal: finalGcashTotal,
         cashTotal: finalCashTotal,
-        remittanceStatus: finalShortage > 0 ? "Pending" as const : "Remitted" as const,
+        remittanceStatus: finalShortage > 0 ? "Shortage" as const : "Remitted" as const,
         timeIn: shiftInfo.timeIn,
         timeOut: new Date().toISOString(),
       };
@@ -212,7 +215,7 @@ export default function EndOfDayPage() {
       setHasRemittedToday(true);
       setTimeout(() => {
         setShowSuccess(false);
-        router.replace("/login");
+        router.replace("/unit-verification");
       }, 3000);
     } catch (err) {
       setSubmitError(
@@ -352,7 +355,7 @@ export default function EndOfDayPage() {
                   : "bg-white/5 text-white/20 cursor-not-allowed border border-white/5"
               }`}
             >
-              {transactions.length === 0 ? "No transactions to remit" : "Remit to Admin"}
+              {!canRemit ? "No pending remittance" : pendingRemittance ? "Complete Pending Remittance" : "Remit to Admin"}
             </button>
           </div>
         ) : (

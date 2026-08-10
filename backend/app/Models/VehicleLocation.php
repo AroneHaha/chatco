@@ -22,11 +22,14 @@ class VehicleLocation extends Model
 
     protected $fillable = [
         'vehicle_id',
+        'shift_id',
         'conductor_id',
         'lat',
         'lng',
         'speed',
         'heading',
+        'accuracy_m',
+        'fix_recorded_at',
         'capacity_status',
     ];
 
@@ -37,6 +40,8 @@ class VehicleLocation extends Model
             'lng' => 'decimal:7',
             'speed' => 'decimal:2',
             'heading' => 'decimal:2',
+            'accuracy_m' => 'decimal:2',
+            'fix_recorded_at' => 'datetime',
             'capacity_status' => CapacityStatus::class,
             'updated_at' => 'datetime',
         ];

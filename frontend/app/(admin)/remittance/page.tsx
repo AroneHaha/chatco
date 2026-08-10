@@ -14,7 +14,7 @@ export default function RemittancePage() {
   const [selectedDate, setSelectedDate] = useState('');
   const [statusFilter, setStatusFilter] = useState<RemittanceStatus | 'All'>('All'); // Quick Filter State
 
-  const quickFilters: (RemittanceStatus | 'All')[] = ['All', 'Pending', 'Remitted'];
+  const quickFilters: (RemittanceStatus | 'All')[] = ['All', 'Pending', 'Overdue', 'Remitted', 'Shortage', 'Overage'];
 
   return (
     // touch-action: manipulation prevents mobile double-tap ghost clicks

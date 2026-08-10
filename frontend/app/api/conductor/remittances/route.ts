@@ -63,14 +63,16 @@ export async function POST(request: NextRequest) {
   // This is the `total_collected` — the backend computes shortage as
   // max(0, total_collected - remitted_amount). The system-tracked cash
   // total is the `remitted_amount` (what the DB says was collected).
-  const cashDeclared = Number(record.cashDeclared) || cashTotal;
+  const cashDeclared = Number.isFinite(Number(record.cashDeclared))
+    ? Number(record.cashDeclared)
+    : cashTotal;
 
   const result = await proxyToLaravel(request, "/conductor/remittances", {
     method: "POST",
     body: {
       shift_id: record.shiftId,
-      total_collected: cashDeclared,
-      remitted_amount: cashTotal,
+      total_collected: cashTotal,
+      remitted_amount: cashDeclared,
       cash_total: cashTotal,
       gcash_total: gcashTotal,
     },

@@ -21,6 +21,9 @@ class OverspeedEvent extends Model
         'plate_number',
         'top_speed',
         'threshold',
+        'latitude',
+        'longitude',
+        'accuracy_m',
         'date',
         'last_logged_at',
     ];
