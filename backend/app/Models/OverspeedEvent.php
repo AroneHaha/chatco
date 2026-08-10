@@ -5,8 +5,10 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * A recorded overspeeding incident for the admin monitoring history.
- * One row per shift, tracking the top speed reached over the limit.
+ * A recorded overspeeding episode for the admin monitoring history.
+ * One row per continuous stretch above the limit within a shift — a shift
+ * can have multiple rows. `ended_at` is null while the episode is still
+ * open (conductor still over the limit as of `last_logged_at`).
  */
 class OverspeedEvent extends Model
 {
@@ -26,6 +28,7 @@ class OverspeedEvent extends Model
         'accuracy_m',
         'date',
         'last_logged_at',
+        'ended_at',
     ];
 
     protected function casts(): array
@@ -35,6 +38,7 @@ class OverspeedEvent extends Model
             'threshold' => 'integer',
             'date' => 'date',
             'last_logged_at' => 'datetime',
+            'ended_at' => 'datetime',
         ];
     }
 }

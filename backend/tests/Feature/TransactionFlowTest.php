@@ -513,6 +513,35 @@ class TransactionFlowTest extends TestCase
             ->assertJsonCount(3, 'data.data');
     }
 
+    public function test_admin_transactions_date_filters_scope_by_created_at(): void
+    {
+        $svc = app(TransactionService::class);
+        $todayTxn = $svc->recordCashFare($this->conductor, ['final_amount' => 15.00, 'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos']);
+        $oldTxn = $svc->recordCashFare($this->conductor, ['final_amount' => 20.00, 'pickup_name' => 'Pulilan', 'dropoff_name' => 'Plaridel']);
+
+        DB::table('transactions')
+            ->where('transaction_id', $oldTxn->transaction_id)
+            ->update(['created_at' => now()->subDays(10)]);
+
+        Sanctum::actingAs($this->admin);
+
+        // Exact-date match (the receipts page's date picker) returns only today's row.
+        $this->getJson('/api/v1/admin/transactions?date='.now()->toDateString())
+            ->assertOk()
+            ->assertJsonCount(1, 'data.data')
+            ->assertJsonPath('data.data.0.transaction_id', $todayTxn->transaction_id);
+
+        // Lower-bound match (the "Today"/"Last 7 Days"/"This Month" presets) excludes the backdated row.
+        $this->getJson('/api/v1/admin/transactions?date_from='.now()->toDateString())
+            ->assertOk()
+            ->assertJsonCount(1, 'data.data');
+
+        // No date filter ("All Time") still returns every transaction, unfiltered.
+        $this->getJson('/api/v1/admin/transactions')
+            ->assertOk()
+            ->assertJsonCount(2, 'data.data');
+    }
+
     public function test_group_gcash_settles_all_receipts_but_credits_only_the_payer_once(): void
     {
         config(['payments.gateways.paymongo.secret' => null]);

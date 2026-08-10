@@ -19,8 +19,7 @@ interface MobileDashboardCardProps {
   onHistoryClick: () => void;
   isOnBreak: boolean;
   breakBusy: boolean;
-  breakError: string | null;
-  onToggleBreak: () => void;
+  onOpenBreakModal: () => void;
 }
 
 export function MobileDashboardCard({
@@ -39,8 +38,7 @@ export function MobileDashboardCard({
   onHistoryClick,
   isOnBreak,
   breakBusy,
-  breakError,
-  onToggleBreak,
+  onOpenBreakModal,
 }: MobileDashboardCardProps) {
   return (
     <div className="lg:hidden flex-shrink-0 bg-[#071A2E]/95 backdrop-blur-xl z-20 border-b border-white/10">
@@ -74,7 +72,7 @@ export function MobileDashboardCard({
       <div className="px-4 pb-3">
         <button
           type="button"
-          onClick={onToggleBreak}
+          onClick={onOpenBreakModal}
           disabled={breakBusy}
           aria-pressed={isOnBreak}
           className={`flex min-h-11 w-full items-center justify-center rounded-xl border px-4 py-2.5 text-sm font-bold shadow-lg transition-colors active:scale-[0.99] disabled:cursor-wait disabled:opacity-60 ${
@@ -85,11 +83,6 @@ export function MobileDashboardCard({
         >
           {breakBusy ? "Updating..." : isOnBreak ? "Resume Duty" : "Take a Break"}
         </button>
-        {breakError && (
-          <p role="alert" className="mt-1.5 rounded-lg bg-red-950/90 px-3 py-2 text-center text-xs text-red-300">
-            {breakError}
-          </p>
-        )}
       </div>
 
       <div

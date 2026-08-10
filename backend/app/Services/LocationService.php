@@ -175,15 +175,25 @@ class LocationService
         ?float $accuracy,
     ): void {
         $threshold = $this->speedLimitKmh();
-        if ($threshold < 1 || $threshold > 120 || $speed <= $threshold) {
+        if ($threshold < 1 || $threshold > 120) {
+            return;
+        }
+
+        $openEvent = OverspeedEvent::query()
+            ->where('shift_id', $shift->shift_id)
+            ->whereNull('ended_at')
+            ->lockForUpdate()
+            ->first();
+
+        if ($speed <= $threshold) {
+            // Speed is back at/under the limit — close the open episode, if any.
+            $openEvent?->update(['ended_at' => now()]);
+
             return;
         }
 
         $roundedSpeed = (int) round($speed);
-        $event = OverspeedEvent::query()
-            ->where('shift_id', $shift->shift_id)
-            ->lockForUpdate()
-            ->first() ?? new OverspeedEvent(['shift_id' => $shift->shift_id]);
+        $event = $openEvent ?? new OverspeedEvent(['shift_id' => $shift->shift_id]);
 
         $event->fill([
             'conductor_id' => $shift->conductor_id,
@@ -215,11 +225,12 @@ class LocationService
     }
 
     /**
-     * Record/refresh the overspeeding history row for a shift.
+     * Record/refresh the overspeeding history for a shift.
      *
-     * One row per shift: the row keeps the HIGHEST speed reached over the
-     * limit. A faster ping raises top_speed; a slower (still-over) ping only
-     * refreshes last_logged_at. Speeds at or under the limit are ignored.
+     * One row per episode (a continuous stretch above the limit). While a
+     * ping stays over the limit, the open episode's top_speed is raised and
+     * last_logged_at refreshed. A ping at/under the limit closes the open
+     * episode (sets ended_at); the next ping over the limit starts a new one.
      */
     /**
      * Get all active vehicle locations for the commuter map.
@@ -274,7 +285,9 @@ class LocationService
      * Returns all vehicles with an ACTIVE shift, their latest GPS position,
      * capacity status, speed, and a `is_stale` flag (true if the last
      * location update was more than 10 minutes ago — the unit may have
-     * lost connectivity or the conductor forgot to broadcast).
+     * lost connectivity or the conductor forgot to broadcast). A unit on
+     * an active break is never flagged stale — the conductor deliberately
+     * paused broadcasting, so a quiet GPS feed is expected, not a fault.
      *
      * Includes driver + conductor names from the active shift log.
      *
@@ -351,7 +364,7 @@ class LocationService
                     'last_update' => $lastUpdate?->toDateTimeString(),
                     'minutes_since_update' => $minutesSinceUpdate,
                     'has_gps' => $hasGps,
-                    'is_stale' => $minutesSinceUpdate !== null && $minutesSinceUpdate > $staleThresholdMinutes,
+                    'is_stale' => $minutesSinceUpdate !== null && $minutesSinceUpdate > $staleThresholdMinutes && ! $row->is_on_break,
                 ];
             });
     }
@@ -453,8 +466,8 @@ class LocationService
 
     /**
      * Persisted overspeeding history for the admin monitoring module.
-     * Returns one recorded incident per shift (its top speed over the limit),
-     * most recent first. Recorded live by recordOverspeed() on each GPS ping.
+     * Returns one row per overspeeding episode (a shift may have several),
+     * most recent first. Recorded live by recordOverspeedAtomic() on each GPS ping.
      */
     public function getOverspeedHistory(int $perPage = 25, ?string $shiftId = null, ?string $date = null): LengthAwarePaginator
     {

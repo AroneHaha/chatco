@@ -16,8 +16,14 @@ export async function GET(request: NextRequest) {
   const params = new URLSearchParams();
   const shiftId = request.nextUrl.searchParams.get("shift_id");
   const perPage = request.nextUrl.searchParams.get("per_page");
+  const date = request.nextUrl.searchParams.get("date");
+  const dateFrom = request.nextUrl.searchParams.get("date_from");
+  const dateTo = request.nextUrl.searchParams.get("date_to");
   if (shiftId) params.set("shift_id", shiftId);
   if (perPage) params.set("per_page", perPage);
+  if (date) params.set("date", date);
+  if (dateFrom) params.set("date_from", dateFrom);
+  if (dateTo) params.set("date_to", dateTo);
 
   const query = params.toString();
   const path = query ? `/admin/transactions?${query}` : "/admin/transactions";

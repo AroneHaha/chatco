@@ -290,6 +290,26 @@ class OperationalLifecycleTest extends TestCase
         $service->updateLocation($conductor, 14.9, 120.8, 60, null, null, 10, now()->subMinutes(5)->toIso8601String());
     }
 
+    public function test_overspeed_events_track_separate_episodes_per_shift(): void
+    {
+        [$conductor, , , , $shift] = $this->activeShift();
+        Setting::create(['key' => 'speed_limit_kmh', 'value' => '50', 'category' => 'operations']);
+        $service = app(LocationService::class);
+
+        // First episode: over the limit, then back under it.
+        $service->updateLocation($conductor, 14.9, 120.8, 80, null, null, 10, now()->subSeconds(4)->toIso8601String());
+        $service->updateLocation($conductor, 14.9, 120.8, 40, null, null, 10, now()->subSeconds(3)->toIso8601String());
+        // Second, independent episode: over the limit again.
+        $service->updateLocation($conductor, 14.9, 120.8, 90, null, null, 10, now()->subSeconds(2)->toIso8601String());
+
+        $events = OverspeedEvent::where('shift_id', $shift->shift_id)->orderBy('id')->get();
+        $this->assertCount(2, $events);
+        $this->assertSame(80, $events[0]->top_speed);
+        $this->assertNotNull($events[0]->ended_at);
+        $this->assertSame(90, $events[1]->top_speed);
+        $this->assertNull($events[1]->ended_at);
+    }
+
     public function test_admin_overspeed_history_is_paginated_and_filters_chatco_shift_ids(): void
     {
         $admin = User::factory()->admin()->create();

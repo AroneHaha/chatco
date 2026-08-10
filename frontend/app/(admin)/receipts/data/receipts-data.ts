@@ -4,7 +4,7 @@
 // Calls the real Laravel backend via the Next.js proxy.
 // No mock data — admin sees only real DB data.
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 export interface Receipt {
   id: string;
@@ -36,8 +36,21 @@ export type PaymentMethod = Receipt["paymentMethod"];
 
 // ─── API fetch helper ──────────────────────────────────────────────────
 
-async function fetchTransactions(): Promise<Receipt[]> {
-  const res = await fetch("/api/admin/transactions?per_page=500", {
+/** Server-side date scope for the fetch — keeps the default view (Today)
+ * from pulling the entire transactions table on every page load/poll. */
+export interface ReceiptsDateFilter {
+  /** Exact-date match, from the date picker. */
+  date?: string;
+  /** Inclusive lower bound, from the range presets (Today/7 Days/Month). */
+  dateFrom?: string;
+}
+
+async function fetchTransactions(filter: ReceiptsDateFilter = {}): Promise<Receipt[]> {
+  const params = new URLSearchParams({ per_page: "500" });
+  if (filter.date) params.set("date", filter.date);
+  if (filter.dateFrom) params.set("date_from", filter.dateFrom);
+
+  const res = await fetch(`/api/admin/transactions?${params.toString()}`, {
     headers: { Accept: "application/json" },
   });
   if (!res.ok) {
@@ -171,11 +184,16 @@ function mapLaravelTransaction(r: Record<string, unknown>): Receipt {
 
 // ─── Hook ──────────────────────────────────────────────────────────────
 
-export function useReceiptsData() {
+export function useReceiptsData(date?: string, dateFrom?: string) {
   const [records, setRecords] = useState<Receipt[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Only the very first fetch should block the whole page behind the
+  // skeleton. A later refetch triggered by changing a filter re-fires this
+  // same effect (date/dateFrom changed `refresh`'s identity) — that one
+  // should update the table in place, the same as the background poll.
+  const hasLoadedOnceRef = useRef(false);
 
   const refresh = useCallback(async (isBackground = false) => {
     if (isBackground) {
@@ -186,7 +204,7 @@ export function useReceiptsData() {
     setError(null);
 
     try {
-      const data = await fetchTransactions();
+      const data = await fetchTransactions({ date, dateFrom });
       setRecords(data);
     } catch (err: unknown) {
       const message =
@@ -199,11 +217,11 @@ export function useReceiptsData() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, []);
+  }, [date, dateFrom]);
 
   useEffect(() => {
-    // Initial load (shows skeleton)
-    refresh(false);
+    refresh(hasLoadedOnceRef.current);
+    hasLoadedOnceRef.current = true;
 
     // Background auto-poll every 10 seconds (no flicker)
     const interval = setInterval(() => {

@@ -78,8 +78,8 @@ class AdminController extends Controller
 
     /**
      * GET /api/v1/admin/monitoring/overspeed
-     * Returns the persisted overspeeding history (one incident per shift,
-     * recorded live as vehicles exceed the speed limit).
+     * Returns the persisted overspeeding history (one row per overspeeding
+     * episode, recorded live as vehicles exceed the speed limit).
      */
     public function overspeed(Request $request): JsonResponse
     {
@@ -772,7 +772,30 @@ class AdminController extends Controller
             ->orderBy('created_at', 'desc');
 
         if ($request->has('shift_id')) {
-            $query->where('shift_id', $request->input('shift_id'));
+            // Comma-separated shift_id batches multiple shifts into one request
+            // (e.g. the admin remittance conductor modal's Transactions tab)
+            // instead of one round trip per shift.
+            $shiftIds = array_filter(array_map('trim', explode(',', (string) $request->input('shift_id'))));
+            if (count($shiftIds) > 1) {
+                $query->whereIn('shift_id', $shiftIds);
+            } else {
+                $query->where('shift_id', $request->input('shift_id'));
+            }
+        }
+        // Plain range comparisons on created_at (not whereDate(), which wraps
+        // the column in a function and blocks index use) so this resolves as
+        // an index range scan against transactions_created_at_index as the
+        // table grows, instead of a full scan.
+        if ($request->filled('date')) {
+            $day = Carbon::parse($request->input('date'))->startOfDay();
+            $query->where('created_at', '>=', $day)
+                ->where('created_at', '<', $day->copy()->addDay());
+        }
+        if ($request->filled('date_from')) {
+            $query->where('created_at', '>=', Carbon::parse($request->input('date_from'))->startOfDay());
+        }
+        if ($request->filled('date_to')) {
+            $query->where('created_at', '<', Carbon::parse($request->input('date_to'))->addDay()->startOfDay());
         }
 
         $transactions = $query->paginate($perPage);
@@ -797,11 +820,14 @@ class AdminController extends Controller
 
         $completedQuery = Remittance::query()
             ->with(['shift:shift_id,status,time_in,time_out', 'vehicle:id,unit_number,plate_number', 'driver:id,first_name,last_name']);
+        // Plain comparisons, not whereDate() — `date` is already a native DATE
+        // column, so wrapping it in whereDate()'s CAST(...) still blocks the
+        // remittances_date_index range scan and forces a full table scan.
         if ($request->filled('date_from')) {
-            $completedQuery->whereDate('date', '>=', $request->input('date_from'));
+            $completedQuery->where('date', '>=', $request->input('date_from'));
         }
         if ($request->filled('date_to')) {
-            $completedQuery->whereDate('date', '<=', $request->input('date_to'));
+            $completedQuery->where('date', '<=', $request->input('date_to'));
         }
         if ($request->filled('date')) {
             $completedQuery->where('date', $request->input('date'));
@@ -829,6 +855,16 @@ class AdminController extends Controller
                     ->orWhere('driver_name', 'like', $search)
                     ->orWhere('shift_id', 'like', $search);
             });
+        }
+        // Exact-name filters from the admin's Conductor/Driver dropdowns. Applied
+        // server-side (not just to the current page in memory) so switching to a
+        // specific conductor/driver returns every matching shift, not only
+        // whichever ones happened to land on the currently loaded page.
+        if ($request->filled('conductor')) {
+            $completedQuery->where('conductor_name', $request->input('conductor'));
+        }
+        if ($request->filled('driver')) {
+            $completedQuery->where('driver_name', $request->input('driver'));
         }
         $remittances = $completedQuery
             ->orderBy('date', 'desc')

@@ -5,12 +5,13 @@ import { useState, useMemo, useCallback } from 'react';
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
 import { SearchBar } from '@/components/admin/ui/search-bar';
-import { CalendarDays, Download, Filter, Wallet, Ticket, Banknote, ChevronLeft, ChevronRight, AlertCircle, AlertTriangle, RefreshCw, ReceiptText, Smartphone, Coins } from 'lucide-react';
+import { CalendarDays, Download, Wallet, Ticket, Banknote, ChevronLeft, ChevronRight, AlertCircle, AlertTriangle, RefreshCw, ReceiptText, Smartphone, Coins } from 'lucide-react';
 import { useReceiptsData, type Receipt, type PaymentMethod } from '@/app/(admin)/receipts/data/receipts-data';
-import { statusBadge } from '@/app/(admin)/receipts/data/receipt-status';
+import { statusBadge, methodStyle } from '@/app/(admin)/receipts/data/receipt-status';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 import { exportReport, type ReportFormat } from '@/lib/utils/export-report';
 import { formatPeso } from '@/lib/utils/display';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
 const ROWS_PER_PAGE = 20;
 
@@ -18,10 +19,10 @@ const ROWS_PER_PAGE = 20;
 type RangePreset = 'all' | 'today' | '7days' | 'month';
 
 const RANGE_OPTIONS: { value: RangePreset; label: string }[] = [
-  { value: 'all', label: 'All Time' },
   { value: 'today', label: 'Today' },
-  { value: '7days', label: 'Past 7 Days' },
+  { value: '7days', label: 'Last 7 Days' },
   { value: 'month', label: 'This Month' },
+  { value: 'all', label: 'All Time' },
 ];
 
 /** Local YYYY-MM-DD, matching how Receipt.date is built in receipts-data.ts. */
@@ -30,12 +31,13 @@ function toLocalISODate(d: Date): string {
 }
 
 export default function ReceiptsPage() {
-  const { records, isLoading, isRefreshing, error, refresh } = useReceiptsData();
   const [searchQuery, setSearchQuery] = useState('');
   // The exact-date picker and the range presets are mutually exclusive —
   // choosing one clears the other, so the active date filter is never ambiguous.
   const [specificDate, setSpecificDate] = useState('');
-  const [rangePreset, setRangePreset] = useState<RangePreset>('all');
+  // Defaults to "Today" so the initial load — and the default fetch below —
+  // scopes to today's receipts instead of pulling the entire table.
+  const [rangePreset, setRangePreset] = useState<RangePreset>('today');
   const [paymentFilter, setPaymentFilter] = useState<PaymentMethod | 'All'>('All');
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -47,13 +49,20 @@ export default function ReceiptsPage() {
   };
 
   const handlePickRange = (value: RangePreset) => {
+    // Clicking the already-active preset resets to the default view
+    // ("Today") instead of requiring a separate "Clear Filters" action.
+    if (!specificDate && rangePreset === value) {
+      setRangePreset('today');
+      return;
+    }
     setRangePreset(value);
     setSpecificDate('');
   };
 
   // Inclusive lower bound for the active preset, as a YYYY-MM-DD string.
   // Comparing the strings directly avoids re-parsing dates (and any timezone
-  // drift) for every row.
+  // drift) for every row. Also sent to the backend so the fetch itself is
+  // scoped — "All Time" is the only preset that still pulls everything.
   const rangeStart = useMemo(() => {
     if (rangePreset === 'all') return '';
     const now = new Date();
@@ -64,10 +73,20 @@ export default function ReceiptsPage() {
     return toLocalISODate(sevenDaysAgo);
   }, [rangePreset]);
 
+  const { records, isLoading, isRefreshing, error, refresh } = useReceiptsData(
+    specificDate || undefined,
+    specificDate ? undefined : rangeStart || undefined
+  );
+
+  // The SearchBar updates `searchQuery` immediately (for responsive typing),
+  // but the filtering below keys off the debounced value so every keystroke
+  // doesn't re-filter and re-render the table.
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 400);
+
   // Reset to page 1 when filters change — uses the "adjust state during
   // render" pattern instead of useEffect to avoid cascading renders.
   const [prevFilterKey, setPrevFilterKey] = useState('');
-  const filterKey = `${searchQuery}|${specificDate}|${rangePreset}|${paymentFilter}`;
+  const filterKey = `${debouncedSearchQuery}|${specificDate}|${rangePreset}|${paymentFilter}`;
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
     setCurrentPage(1);
@@ -75,7 +94,7 @@ export default function ReceiptsPage() {
 
   // Filtered data
   const filteredData = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
+    const query = debouncedSearchQuery.trim().toLowerCase();
     return records.filter((item: Receipt) => {
       const matchesPayment = paymentFilter === 'All' || item.paymentMethod === paymentFilter;
       const matchesSearch =
@@ -90,7 +109,7 @@ export default function ReceiptsPage() {
         : !rangeStart || item.date >= rangeStart;
       return matchesPayment && matchesSearch && matchesDate;
     });
-  }, [records, searchQuery, specificDate, rangeStart, paymentFilter]);
+  }, [records, debouncedSearchQuery, specificDate, rangeStart, paymentFilter]);
 
   // Pagination. currentPage is clamped rather than reset to 1 — if the row
   // count shrinks under you (a filter change, or the 10s background poll),
@@ -196,11 +215,7 @@ export default function ReceiptsPage() {
         <div className="space-y-1">
           <p className="text-slate-200 font-semibold">{formatPeso(value)}</p>
           {row.discountAmount > 0 && <p className="text-[10px] text-emerald-400">-{formatPeso(row.discountAmount)} discount</p>}
-          <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
-            row.paymentMethod === 'Gcash' ? 'bg-[#62A0EA]/15 text-[#62A0EA]'
-            : row.paymentMethod === 'Voucher' ? 'bg-pink-500/15 text-pink-400'
-            : 'bg-emerald-500/15 text-emerald-400'
-          }`}>
+          <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${methodStyle(row.paymentMethod)}`}>
             {row.paymentMethod === 'Gcash' && <Wallet size={10} />}
             {row.paymentMethod === 'Voucher' && <Ticket size={10} />}
             {row.paymentMethod === 'Cash' && <Banknote size={10} />}
@@ -241,8 +256,6 @@ export default function ReceiptsPage() {
       ),
     },
   ];
-
-  const hasActiveFilters = searchQuery || specificDate || rangePreset !== 'all' || paymentFilter !== 'All';
 
   // ─── Initial Loading State (Skeleton) ───
   if (isLoading) {
@@ -293,27 +306,25 @@ export default function ReceiptsPage() {
   }
 
   return (
-    <div style={{ touchAction: 'manipulation' }}>
-      {/* ── Header. Title pins on phones (matches remittance/analytics); the
-             refresh + export controls stay in the scroll flow below. ── */}
-      <StickyPageHeader className="mb-6">
+    <div style={{ touchAction: 'manipulation' }} className="flex h-full min-h-0 flex-col">
+      {/* ── Header. Title + export actions share one row (matches Live
+             Monitoring's header). Data refreshes automatically via the 10s
+             background poll, so there's no manual refresh control here —
+             just a quiet indicator while a refresh is in flight. ── */}
+      <StickyPageHeader className="flex flex-wrap items-center justify-between gap-3 mb-4 shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-lg bg-[#62A0EA]/15 flex items-center justify-center shrink-0">
             <ReceiptText size={22} className="text-[#62A0EA]" />
           </div>
           <h1 className="text-2xl font-bold text-white leading-tight">Fare Receipts</h1>
         </div>
-      </StickyPageHeader>
-      <div className="flex items-center justify-end gap-2 mb-6 -mt-4 md:mt-0">
-          {/* Manual Refresh Button */}
-          <button
-            onClick={() => refresh(false)}
-            disabled={isRefreshing}
-            className="flex items-center gap-2 px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#1A2540] hover:text-white transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Refresh data"
-          >
-            <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
-          </button>
+        <div className="flex items-center gap-2">
+          {isRefreshing && (
+            <span className="flex items-center gap-1.5 text-xs text-[#62A0EA]">
+              <RefreshCw size={12} className="animate-spin" />
+              Refreshing…
+            </span>
+          )}
           {(['pdf', 'excel', 'word'] as const).map((format) => (
             <button
               key={format}
@@ -327,10 +338,11 @@ export default function ReceiptsPage() {
             </button>
           ))}
         </div>
+      </StickyPageHeader>
 
       {/* ── Summary Cards ── */}
       {reconciliationRequired.length > 0 && (
-        <div className="mb-6 flex items-start gap-3 rounded-xl border border-amber-400/40 bg-amber-500/10 p-4 text-amber-100">
+        <div className="mb-4 flex shrink-0 items-start gap-3 rounded-xl border border-amber-400/40 bg-amber-500/10 p-3 text-amber-100">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
           <div>
             <p className="text-sm font-semibold">
@@ -343,8 +355,8 @@ export default function ReceiptsPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-6">
-        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl p-4 flex items-center gap-3">
+      <div className="grid shrink-0 grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl p-3 flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-slate-500/15 flex items-center justify-center shrink-0">
             <ReceiptText size={18} className="text-slate-300" />
           </div>
@@ -353,7 +365,7 @@ export default function ReceiptsPage() {
             <p className="text-xl font-bold text-white truncate">{filteredData.length}</p>
           </div>
         </div>
-        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl p-4 flex items-center gap-3">
+        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl p-3 flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-[#62A0EA]/15 flex items-center justify-center shrink-0">
             <Wallet size={18} className="text-[#62A0EA]" />
           </div>
@@ -362,7 +374,7 @@ export default function ReceiptsPage() {
             <p className="text-xl font-bold text-[#62A0EA] truncate">{formatPeso(totalFare)}</p>
           </div>
         </div>
-        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl p-4 flex items-center gap-3">
+        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl p-3 flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
             <Coins size={18} className="text-emerald-400" />
           </div>
@@ -371,7 +383,7 @@ export default function ReceiptsPage() {
             <p className="text-xl font-bold text-emerald-400 truncate">{cashCount}</p>
           </div>
         </div>
-        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl p-4 flex items-center gap-3">
+        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl p-3 flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-[#62A0EA]/15 flex items-center justify-center shrink-0">
             <Smartphone size={18} className="text-[#62A0EA]" />
           </div>
@@ -385,100 +397,82 @@ export default function ReceiptsPage() {
       {/* ── Filters ──
           Search, date picker, range presets and payment method share one card
           and one control height so everything lines up on a single baseline. */}
-      <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl p-4 mb-6 flex flex-col gap-3">
+      <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl p-3 mb-4 flex shrink-0 flex-col gap-3">
 
-        {/* Row 1 — search + date */}
+        {/* Row 1 — search + payment (left), date picker + range presets (right) */}
         <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
           <SearchBar
             placeholder="Search by Commuter, reference, or receipt ID..."
             value={searchQuery}
             onChange={setSearchQuery}
-            className="w-full sm:flex-1 sm:min-w-56"
+            className="w-full sm:w-72"
           />
 
-          <div className="relative w-full sm:w-48">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <CalendarDays className="h-4 w-4 text-slate-400" />
-            </div>
-            <input
-              type="date"
-              value={specificDate}
-              onChange={(e) => handlePickDate(e.target.value)}
-              aria-label="Show transactions on a specific date"
-              className="block w-full h-9.5 pl-10 pr-3 bg-[#0E1628] border border-[#1E2D45] rounded-lg text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] focus:border-[#62A0EA] scheme-dark"
-            />
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {RANGE_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => handlePickRange(opt.value)}
-                className={`h-9.5 px-4 rounded-lg text-sm font-medium transition-colors ${
-                  !specificDate && rangePreset === opt.value
-                    ? 'bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/25'
-                    : 'bg-[#0E1628] border border-[#1E2D45] text-slate-300 hover:bg-[#1A2540]'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Row 2 — payment method */}
-        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
-          <div className="flex items-center gap-2 text-xs text-slate-500 uppercase tracking-wider shrink-0">
-            <Filter size={14} />
-            <span>Payment</span>
-          </div>
-          <div className="flex flex-wrap gap-2">
+          <select
+            value={paymentFilter}
+            onChange={(e) => setPaymentFilter(e.target.value as PaymentMethod | 'All')}
+            aria-label="Filter by payment method"
+            className="h-9.5 w-full sm:w-40 px-3 bg-[#0E1628] border border-[#1E2D45] rounded-lg text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] focus:border-[#62A0EA] [color-scheme:dark]"
+          >
             {paymentOptions.map((filter) => (
-              <button
-                key={filter}
-                onClick={() => setPaymentFilter(filter)}
-                className={`h-9.5 px-4 rounded-lg text-sm font-medium transition-colors ${
-                  paymentFilter === filter
-                    ? 'bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/25'
-                    : 'bg-[#0E1628] border border-[#1E2D45] text-slate-300 hover:bg-[#1A2540]'
-                }`}
-              >
-                {filter}
-              </button>
+              <option key={filter} value={filter} className="bg-gray-800">
+                {filter === 'All' ? 'All Payments' : filter}
+              </option>
             ))}
-          </div>
+          </select>
 
-          {hasActiveFilters && (
-            <button
-              onClick={() => {
-                setSpecificDate('');
-                setRangePreset('all');
-                setSearchQuery('');
-                setPaymentFilter('All');
-              }}
-              className="h-9.5 px-4 sm:ml-auto bg-[#0E1628] border border-[#1E2D45] rounded-lg text-slate-300 hover:bg-[#1A2540] transition-colors text-sm"
-            >
-              Clear Filters
-            </button>
-          )}
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:ml-auto">
+            <div className="relative w-full sm:w-48">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <CalendarDays className="h-4 w-4 text-slate-400" />
+              </div>
+              <input
+                type="date"
+                value={specificDate}
+                onChange={(e) => handlePickDate(e.target.value)}
+                aria-label="Show transactions on a specific date"
+                className="block w-full h-9.5 pl-10 pr-3 bg-[#0E1628] border border-[#1E2D45] rounded-lg text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] focus:border-[#62A0EA] scheme-dark"
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {RANGE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => handlePickRange(opt.value)}
+                  className={`h-9.5 px-4 rounded-lg text-sm font-medium transition-colors ${
+                    !specificDate && rangePreset === opt.value
+                      ? 'bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/25'
+                      : 'bg-[#0E1628] border border-[#1E2D45] text-slate-300 hover:bg-[#1A2540]'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Table card */}
-      <div className="bg-[#0B1220] border border-[#1E2D45] rounded-xl p-4 sm:p-5">
-        <DataTable
-          data={paginatedData}
-          columns={columns}
-          searchQuery=""
-          emptyMessage="No receipts match your filters."
-          height="32rem"
-          stickyHeader
-          allowHorizontalScroll={false}
-          tableClassName="table-fixed"
-        />
+      {/* Table card — fills whatever vertical space is left below the
+          header/summary/filters, on every screen size, instead of a fixed
+          height that either clips or leaves a gap. */}
+      <div className="flex flex-1 min-h-0 flex-col bg-[#0B1220] border border-[#1E2D45] rounded-xl p-3 sm:p-4">
+        <div className="flex-1 min-h-0">
+          <DataTable
+            data={paginatedData}
+            columns={columns}
+            searchQuery=""
+            emptyMessage="No receipts match your filters."
+            height="100%"
+            stickyHeader
+            allowHorizontalScroll={false}
+            tableClassName="table-fixed"
+          />
+        </div>
 
       {/* Pagination Controls */}
-      <div className="flex flex-col sm:flex-row justify-between items-center mt-4 pt-4 border-t border-[#1E2D45] gap-4 text-xs text-slate-400">
+      <div className="shrink-0 flex flex-col sm:flex-row justify-between items-center mt-3 pt-3 border-t border-[#1E2D45] gap-4 text-xs text-slate-400">
         <div>
           Showing {paginatedData.length > 0 ? (safeCurrentPage - 1) * ROWS_PER_PAGE + 1 : 0} to{' '}
           {(safeCurrentPage - 1) * ROWS_PER_PAGE + paginatedData.length} of{' '}

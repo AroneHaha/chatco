@@ -59,6 +59,17 @@ export function useDashboardState() {
   const [mobileCardExpanded, setMobileCardExpanded] = useState(true);
   const [breakBusy, setBreakBusy] = useState(false);
   const [breakError, setBreakError] = useState<string | null>(null);
+  const [showBreakModal, setShowBreakModal] = useState(false);
+
+  const openBreakModal = useCallback(() => {
+    setBreakError(null);
+    setShowBreakModal(true);
+  }, []);
+
+  const closeBreakModal = useCallback(() => {
+    if (breakBusy) return;
+    setShowBreakModal(false);
+  }, [breakBusy]);
 
   const toggleBreak = useCallback(async () => {
     if (!shift || breakBusy) return;
@@ -76,6 +87,7 @@ export function useDashboardState() {
         throw new Error(body?.message ?? `Unable to update break status (HTTP ${res.status}).`);
       }
       await refreshShift();
+      setShowBreakModal(false);
     } catch (error) {
       setBreakError(error instanceof Error ? error.message : "Unable to update break status.");
     } finally {
@@ -103,6 +115,9 @@ export function useDashboardState() {
     breakBusy,
     breakError,
     toggleBreak,
+    showBreakModal,
+    openBreakModal,
+    closeBreakModal,
     showHistory,
     setShowHistory,
     mobileCardExpanded,

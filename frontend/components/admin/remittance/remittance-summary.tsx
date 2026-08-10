@@ -22,7 +22,7 @@ interface StatCardProps {
 
 function StatCard({ label, value, icon, accent, ring }: StatCardProps) {
   return (
-    <div className="relative overflow-hidden bg-[#0E1628] border border-[#1E2D45] rounded-xl p-4 flex items-center gap-4">
+    <div className="relative overflow-hidden bg-[#0E1628] border border-[#1E2D45] rounded-xl p-3 flex items-center gap-4">
       <div className={`w-11 h-11 rounded-lg flex items-center justify-center ${ring}`}>
         <span className={accent}>{icon}</span>
       </div>
