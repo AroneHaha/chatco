@@ -13,7 +13,7 @@ import { proxyToLaravel } from "@/lib/conductor/server/proxy";
  * Powers the "Separated Personnel" section of the Records & History tab.
  */
 export async function GET(request: NextRequest) {
-  const result = await proxyToLaravel(request, "/admin/terminated-personnel", {
+  const result = await proxyToLaravel(request, `/admin/terminated-personnel${request.nextUrl.search}`, {
     method: "GET",
   });
 

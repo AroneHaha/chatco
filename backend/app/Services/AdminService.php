@@ -15,6 +15,7 @@ use App\Models\Vehicle;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Pagination\LengthAwarePaginator as Paginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -207,12 +208,6 @@ class AdminService
         $totalFares = $cashTotal + $gcashTotal;
         $paidCount = $current['paid_count'];
 
-        // ── Pending transactions (PENDING + PROCESSING) ────────────────────
-        $pendingCount = (int) DB::table('transactions')
-            ->whereIn('status', ['PENDING', 'PROCESSING'])
-            ->whereBetween('created_at', [$dateFrom, $dateTo])
-            ->count();
-
         // ── Full status breakdown ──────────────────────────────────────────
         // Drives the GCash settlement-success metric. Previously only
         // PENDING was surfaced, so FAILED/EXPIRED/CANCELLED payments — the
@@ -240,6 +235,7 @@ class AdminService
                 $statusBreakdown[$status] = (int) $count;
             }
         }
+        $pendingCount = $statusBreakdown['PENDING'] + $statusBreakdown['PROCESSING'];
 
         // Gateway-settled attempts only — cash never goes through this
         // lifecycle, so including it would flatter the success rate.
@@ -332,10 +328,17 @@ class AdminService
         $remittanceBase = Remittance::query()
             ->whereBetween('date', [$dateFrom->toDateString(), $dateTo->toDateString()]);
 
-        $remittanceCount = (int) (clone $remittanceBase)->count();
-        $totalRemitted = (float) (clone $remittanceBase)->sum('remitted_amount');
-        $totalCollected = (float) (clone $remittanceBase)->sum('total_collected');
-        $totalShortage = (float) (clone $remittanceBase)->sum('shortage');
+        $remittanceTotals = $remittanceBase
+            ->selectRaw('COUNT(*) as remittance_count')
+            ->selectRaw('COALESCE(SUM(remitted_amount), 0) as total_remitted')
+            ->selectRaw('COALESCE(SUM(total_collected), 0) as total_collected')
+            ->selectRaw('COALESCE(SUM(shortage), 0) as total_shortage')
+            ->first();
+
+        $remittanceCount = (int) ($remittanceTotals->remittance_count ?? 0);
+        $totalRemitted = (float) ($remittanceTotals->total_remitted ?? 0);
+        $totalCollected = (float) ($remittanceTotals->total_collected ?? 0);
+        $totalShortage = (float) ($remittanceTotals->total_shortage ?? 0);
 
         // ── Fleet counts ───────────────────────────────────────────────────
         // Active = currently on an active shift (active_shift_id IS NOT NULL).
@@ -527,6 +530,188 @@ class AdminService
             'paid_count' => $countFor('CASH') + $countFor('GCASH') + $countFor('VOUCHER'),
             'passenger_count' => $passengersFor('CASH') + $passengersFor('GCASH') + $passengersFor('VOUCHER'),
         ];
+    }
+
+    /**
+     * Paginated Fleet Management personnel view.
+     *
+     * Combines drivers and conductors as the UI has always shown them, but
+     * performs the merge in SQL so large personnel tables are never fully
+     * loaded into PHP or the browser.
+     */
+    public function listFleetPersonnel(int $perPage = 25, int $page = 1, ?string $search = null): Paginator
+    {
+        $driverNameExpr = DB::connection()->getDriverName() === 'sqlite'
+            ? "first_name || ' ' || last_name"
+            : "CONCAT(first_name, ' ', last_name)";
+
+        $drivers = DB::table('drivers')
+            ->select([
+                'id',
+                DB::raw("{$driverNameExpr} as name"),
+                DB::raw("'Driver' as role"),
+                'contact',
+                'profile_picture_url',
+                DB::raw('0 as role_order'),
+                'last_name as sort_last_name',
+                'first_name as sort_first_name',
+            ])
+            ->whereNull('deleted_at');
+
+        $conductors = DB::table('conductor_profiles')
+            ->select([
+                'id',
+                DB::raw("{$driverNameExpr} as name"),
+                DB::raw("'Conductor' as role"),
+                DB::raw("'-' as contact"),
+                'profile_picture_url',
+                DB::raw('1 as role_order'),
+                'last_name as sort_last_name',
+                'first_name as sort_first_name',
+            ])
+            ->whereNull('deleted_at');
+
+        if ($search !== null && trim($search) !== '') {
+            $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], trim($search)).'%';
+            $drivers->where(function ($query) use ($term): void {
+                $query->where('first_name', 'like', $term)
+                    ->orWhere('last_name', 'like', $term)
+                    ->orWhere('contact', 'like', $term)
+                    ->orWhereRaw("'Driver' like ?", [$term]);
+            });
+            $conductors->where(function ($query) use ($term): void {
+                $query->where('first_name', 'like', $term)
+                    ->orWhere('last_name', 'like', $term)
+                    ->orWhereRaw("'Conductor' like ?", [$term]);
+            });
+        }
+
+        $union = $drivers->unionAll($conductors);
+        $base = DB::query()->fromSub($union, 'fleet_personnel');
+        $total = (clone $base)->count();
+        $items = (clone $base)
+            ->orderBy('role_order')
+            ->orderBy('sort_last_name')
+            ->orderBy('sort_first_name')
+            ->orderBy('id')
+            ->forPage($page, $perPage)
+            ->get()
+            ->map(fn ($row) => [
+                'id' => (string) $row->id,
+                'name' => trim((string) $row->name),
+                'role' => (string) $row->role,
+                'contact' => (string) $row->contact,
+                'profile_picture_url' => $row->profile_picture_url,
+            ]);
+
+        return new Paginator(
+            $items,
+            $total,
+            $perPage,
+            $page,
+            ['path' => request()->url(), 'query' => request()->query()],
+        );
+    }
+
+    /**
+     * Paginated Fleet Management shift-history personnel entries.
+     *
+     * One shift has one driver and one conductor. The UI displays those as
+     * separate history rows, so this query builds that split at the database
+     * layer and paginates the final row set.
+     */
+    public function listFleetShiftHistoryEntries(int $perPage = 25, int $page = 1, ?string $search = null): Paginator
+    {
+        $driverIdExpr = DB::connection()->getDriverName() === 'sqlite'
+            ? "shift_id || ':driver'"
+            : "CONCAT(shift_id, ':driver')";
+        $conductorIdExpr = DB::connection()->getDriverName() === 'sqlite'
+            ? "shift_id || ':conductor'"
+            : "CONCAT(shift_id, ':conductor')";
+
+        $driverEntries = DB::table('shift_logs')
+            ->select([
+                DB::raw("{$driverIdExpr} as id"),
+                'driver_name as personnel_name',
+                DB::raw("'Driver' as role"),
+                DB::raw('COALESCE(unit_number, plate_number) as vehicle'),
+                'time_in',
+                'time_out',
+                'status',
+                'notes',
+            ])
+            ->whereNull('deleted_at')
+            ->whereNotNull('driver_name')
+            ->where('driver_name', '!=', '');
+
+        $conductorEntries = DB::table('shift_logs')
+            ->select([
+                DB::raw("{$conductorIdExpr} as id"),
+                'conductor_name as personnel_name',
+                DB::raw("'Conductor' as role"),
+                DB::raw('COALESCE(unit_number, plate_number) as vehicle'),
+                'time_in',
+                'time_out',
+                'status',
+                'notes',
+            ])
+            ->whereNull('deleted_at')
+            ->whereNotNull('conductor_name')
+            ->where('conductor_name', '!=', '');
+
+        if ($search !== null && trim($search) !== '') {
+            $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], trim($search)).'%';
+            $applySearch = function ($query, string $personnelColumn, string $role) use ($term): void {
+                $query->where(function ($searchQuery) use ($term, $personnelColumn, $role): void {
+                    $searchQuery->where($personnelColumn, 'like', $term)
+                        ->orWhere('unit_number', 'like', $term)
+                        ->orWhere('plate_number', 'like', $term)
+                        ->orWhere('status', 'like', $term)
+                        ->orWhere('notes', 'like', $term)
+                        ->orWhereRaw('? like ?', [$role, $term]);
+                });
+            };
+
+            $applySearch($driverEntries, 'driver_name', 'Driver');
+            $applySearch($conductorEntries, 'conductor_name', 'Conductor');
+        }
+
+        $union = $driverEntries->unionAll($conductorEntries);
+        $base = DB::query()->fromSub($union, 'fleet_shift_entries');
+        $total = (clone $base)->count();
+        $rows = (clone $base)
+            ->orderBy('time_in', 'desc')
+            ->orderBy('id')
+            ->forPage($page, $perPage)
+            ->get();
+
+        $items = $rows->map(function ($row) {
+            $timeIn = $row->time_in ? Carbon::parse($row->time_in)->format('H:i:s') : '-';
+            $timeOut = $row->time_out ? Carbon::parse($row->time_out)->format('H:i:s') : '-';
+            $details = "Time in: {$timeIn} | Time out: {$timeOut} | Status: {$row->status}";
+            if ($row->notes) {
+                $details .= " | Notes: {$row->notes}";
+            }
+
+            return [
+                'id' => (string) $row->id,
+                'personnelName' => (string) $row->personnel_name,
+                'role' => (string) $row->role,
+                'vehicle' => (string) $row->vehicle,
+                'shiftDate' => $row->time_in
+                    ? Carbon::parse($row->time_in)->format('M j, Y')
+                    : '-',
+                'details' => $details,
+            ];
+        });
+
+        return new Paginator(
+            $items,
+            $total,
+            $perPage,
+            $page,
+            ['path' => request()->url(), 'query' => request()->query()],
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════════

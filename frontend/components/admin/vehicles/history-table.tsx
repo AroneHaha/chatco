@@ -1,75 +1,49 @@
 'use client';
 
-import { useMemo, useState } from 'react';
 import { Clock, UserX } from 'lucide-react';
 import { Badge } from '@/components/admin/ui/badge';
 import { DataTable } from '@/components/admin/ui/data-table';
 import { TablePagination } from '@/components/admin/ui/table-pagination';
-import type { ShiftLog, TerminatedPersonnel } from '@/app/(admin)/vehicles/data/vehicles-data';
+import { SearchBar } from '@/components/admin/ui/search-bar';
+import type { FleetHistoryTab, PageMeta, ShiftLog, TerminatedPersonnel } from '@/app/(admin)/vehicles/data/vehicles-data';
 
 interface HistoryTableProps {
   terminatedPersonnel: TerminatedPersonnel[];
   shiftHistoryLog: ShiftLog[];
   searchQuery: string;
+  historyTab: FleetHistoryTab;
+  onHistoryTabChange: (tab: FleetHistoryTab) => void;
+  terminatedPage: PageMeta;
+  shiftPage: PageMeta;
+  onTerminatedPageChange: (page: number) => void;
+  onShiftPageChange: (page: number) => void;
+  onSearchChange: (value: string) => void;
+  counts: {
+    terminated: number;
+    shifts: number;
+  };
 }
-
-const ROWS_PER_PAGE = 10;
 
 export function HistoryTable({
   terminatedPersonnel,
   shiftHistoryLog,
   searchQuery,
+  historyTab,
+  onHistoryTabChange,
+  terminatedPage,
+  shiftPage,
+  onTerminatedPageChange,
+  onShiftPageChange,
+  onSearchChange,
+  counts,
 }: HistoryTableProps) {
-  const [historyTab, setHistoryTab] = useState<'terminated' | 'shifts'>('terminated');
-  const [terminatedPage, setTerminatedPage] = useState(1);
-  const [shiftPage, setShiftPage] = useState(1);
   const query = searchQuery.trim().toLowerCase();
-
-  const filteredPersonnel = useMemo(
-    () =>
-      terminatedPersonnel.filter((person) =>
-        [person.name, person.role, person.lastVehicle, person.reason, person.status].some((value) =>
-          value.toLowerCase().includes(query),
-        ),
-      ),
-    [terminatedPersonnel, query],
-  );
-  const filteredLogs = useMemo(
-    () =>
-      shiftHistoryLog.filter((log) =>
-        [log.personnelName, log.role, log.vehicle, log.shiftDate, log.details].some((value) =>
-          value.toLowerCase().includes(query),
-        ),
-      ),
-    [shiftHistoryLog, query],
-  );
-
-  const filterKey = `${historyTab}|${query}`;
-  const [previousFilterKey, setPreviousFilterKey] = useState(filterKey);
-  if (filterKey !== previousFilterKey) {
-    setPreviousFilterKey(filterKey);
-    setTerminatedPage(1);
-    setShiftPage(1);
-  }
-
-  const terminatedPages = Math.max(1, Math.ceil(filteredPersonnel.length / ROWS_PER_PAGE));
-  const safeTerminatedPage = Math.min(terminatedPage, terminatedPages);
-  const terminatedRows = filteredPersonnel.slice(
-    (safeTerminatedPage - 1) * ROWS_PER_PAGE,
-    safeTerminatedPage * ROWS_PER_PAGE,
-  );
-
-  const shiftPages = Math.max(1, Math.ceil(filteredLogs.length / ROWS_PER_PAGE));
-  const safeShiftPage = Math.min(shiftPage, shiftPages);
-  const shiftRows = filteredLogs.slice(
-    (safeShiftPage - 1) * ROWS_PER_PAGE,
-    safeShiftPage * ROWS_PER_PAGE,
-  );
 
   const terminatedColumns = [
     {
       key: 'name',
       label: 'Personnel',
+      cellClassName: 'min-w-0',
       render: (value: string, person: TerminatedPersonnel) => (
         <div className="min-w-0">
           <p className="truncate font-medium text-white">{value}</p>
@@ -82,8 +56,8 @@ export function HistoryTable({
       label: 'Role',
       render: (value: string) => <Badge variant="info">{value}</Badge>,
     },
-    { key: 'lastVehicle', label: 'Last Unit' },
-    { key: 'terminatedDate', label: 'Separated On' },
+    { key: 'lastVehicle', label: 'Last Unit', cellClassName: 'truncate' },
+    { key: 'terminatedDate', label: 'Separated On', cellClassName: 'truncate' },
     {
       key: 'reason',
       label: 'Reason',
@@ -96,6 +70,8 @@ export function HistoryTable({
     {
       key: 'status',
       label: 'Status',
+      headerClassName: 'w-28',
+      cellClassName: 'w-28',
       render: (value: TerminatedPersonnel['status']) => (
         <Badge variant={value === 'Terminated' ? 'danger' : 'warning'}>{value}</Badge>
       ),
@@ -103,14 +79,14 @@ export function HistoryTable({
   ];
 
   const shiftColumns = [
-    { key: 'personnelName', label: 'Personnel' },
+    { key: 'personnelName', label: 'Personnel', cellClassName: 'truncate' },
     {
       key: 'role',
       label: 'Role',
       render: (value: string) => <Badge variant={value === 'Driver' ? 'info' : 'warning'}>{value}</Badge>,
     },
-    { key: 'vehicle', label: 'Unit Number' },
-    { key: 'shiftDate', label: 'Shift Date' },
+    { key: 'vehicle', label: 'Unit Number', cellClassName: 'truncate' },
+    { key: 'shiftDate', label: 'Shift Date', cellClassName: 'truncate' },
     {
       key: 'details',
       label: 'Activity',
@@ -123,89 +99,86 @@ export function HistoryTable({
   ];
 
   const isTerminated = historyTab === 'terminated';
-  const activeRows = isTerminated ? terminatedRows : shiftRows;
-  const activeTotal = isTerminated ? filteredPersonnel.length : filteredLogs.length;
-  const activePage = isTerminated ? safeTerminatedPage : safeShiftPage;
-  const activePages = isTerminated ? terminatedPages : shiftPages;
+  const activePage = isTerminated ? terminatedPage : shiftPage;
 
   return (
-    <div className="space-y-4">
-      <div className="inline-flex rounded-lg border border-[#1E2D45] bg-[#0E1628] p-1">
+    <div className="min-w-0 space-y-3 rounded-lg border border-[#1E2D45] bg-[#111A2B] p-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="inline-flex max-w-full overflow-x-auto rounded-lg border border-[#1E2D45] bg-[#0E1628] p-1 scrollbar-themed">
         <button
           type="button"
-          onClick={() => setHistoryTab('terminated')}
+          onClick={() => onHistoryTabChange('terminated')}
           className={`flex items-center gap-2 rounded-md px-4 py-2 text-xs font-semibold transition-colors ${
             isTerminated ? 'bg-red-400/15 text-red-300' : 'text-slate-500 hover:text-slate-300'
           }`}
         >
           <UserX size={14} />
           Terminated History
-          <span className="rounded bg-black/20 px-1.5 py-0.5">{filteredPersonnel.length}</span>
+          <span className="rounded bg-black/20 px-1.5 py-0.5">{counts.terminated}</span>
         </button>
         <button
           type="button"
-          onClick={() => setHistoryTab('shifts')}
+          onClick={() => onHistoryTabChange('shifts')}
           className={`flex items-center gap-2 rounded-md px-4 py-2 text-xs font-semibold transition-colors ${
             !isTerminated ? 'bg-[#62A0EA]/15 text-[#62A0EA]' : 'text-slate-500 hover:text-slate-300'
           }`}
         >
           <Clock size={14} />
           Recent Shift History
-          <span className="rounded bg-black/20 px-1.5 py-0.5">{filteredLogs.length}</span>
+          <span className="rounded bg-black/20 px-1.5 py-0.5">{counts.shifts}</span>
         </button>
+      </div>
+        <SearchBar
+          placeholder="Search records..."
+          value={searchQuery}
+          onChange={onSearchChange}
+          className="min-w-0 flex-1 lg:max-w-md"
+        />
       </div>
 
       <div className="space-y-4">
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {isTerminated ? (
-              <UserX size={18} className="text-red-400" />
-            ) : (
-              <Clock size={18} className="text-[#62A0EA]" />
-            )}
-            <h2 className="text-sm font-semibold text-white">
-              {isTerminated ? 'Separated Personnel' : 'Recent Shift History'}
-            </h2>
-          </div>
+        <div className="mb-4 flex justify-end">
           <span
             className={`rounded-md px-2 py-1 text-xs font-bold ${
               isTerminated ? 'bg-red-400/10 text-red-400' : 'bg-[#62A0EA]/10 text-[#62A0EA]'
             }`}
           >
-            {activeTotal} Records
+            {activePage.total} Records
           </span>
         </div>
 
         {isTerminated ? (
           <DataTable
-            data={terminatedRows}
+            data={terminatedPersonnel}
             columns={terminatedColumns}
             searchQuery=""
             emptyMessage={query ? 'No separated personnel match your search.' : 'No terminated personnel records found.'}
-            height="32rem"
+            height="calc(100dvh - 22rem)"
             stickyHeader
+            allowHorizontalScroll={false}
             tableClassName="table-fixed"
           />
         ) : (
           <DataTable
-            data={shiftRows}
+            data={shiftHistoryLog}
             columns={shiftColumns}
             searchQuery=""
             emptyMessage={query ? 'No shift records match your search.' : 'No shift history records found.'}
-            height="32rem"
+            height="calc(100dvh - 22rem)"
             stickyHeader
+            allowHorizontalScroll={false}
             tableClassName="table-fixed"
           />
         )}
 
         <TablePagination
-          currentPage={activePage}
-          totalPages={activePages}
-          from={activeRows.length ? (activePage - 1) * ROWS_PER_PAGE + 1 : 0}
-          to={(activePage - 1) * ROWS_PER_PAGE + activeRows.length}
-          total={activeTotal}
+          currentPage={activePage.currentPage}
+          totalPages={activePage.totalPages}
+          from={activePage.from}
+          to={activePage.to}
+          total={activePage.total}
           label="records"
-          onPageChange={isTerminated ? setTerminatedPage : setShiftPage}
+          onPageChange={isTerminated ? onTerminatedPageChange : onShiftPageChange}
         />
       </div>
     </div>

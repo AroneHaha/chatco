@@ -44,7 +44,7 @@ class AdminVehicleController extends Controller
             'route_id' => $request->string('route_id')->toString() ?: null,
             'search'   => $request->string('search')->toString() ?: null,
         ];
-        $perPage = (int) $request->integer('per_page', 15);
+        $perPage = max(1, min((int) $request->integer('per_page', 15), 100));
 
         $vehicles = $this->adminService->listVehicles($filters, $perPage);
 

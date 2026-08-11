@@ -151,6 +151,23 @@ class AdminController extends Controller
     }
 
     /**
+     * GET /api/v1/admin/personnel
+     *
+     * Paginated Fleet Management personnel view. Combines drivers and
+     * conductors without loading either full table into the browser.
+     */
+    public function personnel(Request $request): JsonResponse
+    {
+        $perPage = max(1, min((int) $request->integer('per_page', 25), 100));
+        $page = max(1, (int) $request->integer('page', 1));
+        $search = $request->string('search')->toString() ?: null;
+
+        $personnel = $this->adminService->listFleetPersonnel($perPage, $page, $search);
+
+        return $this->successResponse($personnel, 'Personnel retrieved');
+    }
+
+    /**
      * POST /api/v1/admin/drivers
      * Creates a new driver.
      *
@@ -555,12 +572,24 @@ class AdminController extends Controller
      */
     public function terminatedPersonnel(Request $request): JsonResponse
     {
-        $perPage = (int) $request->integer('per_page', 50);
+        $perPage = max(1, min((int) $request->integer('per_page', 50), 100));
 
         $records = TerminatedPersonnel::query()
+            ->when($request->string('search')->toString(), function ($query, string $search): void {
+                $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], trim($search)).'%';
+                $query->where(function ($subQuery) use ($term): void {
+                    $subQuery->where('name', 'like', $term)
+                        ->orWhere('role', 'like', $term)
+                        ->orWhere('contact', 'like', $term)
+                        ->orWhere('reason', 'like', $term)
+                        ->orWhere('last_vehicle', 'like', $term)
+                        ->orWhere('termination_type', 'like', $term);
+                });
+            })
             ->orderBy('terminated_date', 'desc')
             ->orderBy('created_at', 'desc')
-            ->paginate($perPage);
+            ->paginate($perPage)
+            ->withQueryString();
 
         return $this->successResponse($records, 'Terminated personnel retrieved');
     }
@@ -886,6 +915,19 @@ class AdminController extends Controller
 
     public function shiftLogs(Request $request): JsonResponse
     {
+        $perPage = max(1, min((int) $request->integer('per_page', 100), 100));
+        $page = max(1, (int) $request->integer('page', 1));
+
+        if ($request->query('entry_view') === 'personnel') {
+            $entries = $this->adminService->listFleetShiftHistoryEntries(
+                $perPage,
+                $page,
+                $request->string('search')->toString() ?: null,
+            );
+
+            return $this->successResponse($entries, 'Shift history entries retrieved');
+        }
+
         $query = ShiftLog::with(['vehicle', 'driver', 'route'])
             ->orderBy('time_in', 'desc');
 
@@ -901,9 +943,19 @@ class AdminController extends Controller
             $query->where('driver_id', $request->input('driver_id'));
         }
 
-        $perPage = (int) $request->integer('per_page', 100);
+        if ($request->filled('search')) {
+            $search = '%'.str_replace(['%', '_'], ['\\%', '\\_'], (string) $request->input('search')).'%';
+            $query->where(function ($searchQuery) use ($search): void {
+                $searchQuery->where('driver_name', 'like', $search)
+                    ->orWhere('conductor_name', 'like', $search)
+                    ->orWhere('unit_number', 'like', $search)
+                    ->orWhere('plate_number', 'like', $search)
+                    ->orWhere('status', 'like', $search)
+                    ->orWhere('notes', 'like', $search);
+            });
+        }
 
-        $shiftLogs = $query->paginate($perPage);
+        $shiftLogs = $query->paginate($perPage)->withQueryString();
 
         return $this->successResponse($shiftLogs, 'Shift logs retrieved');
     }

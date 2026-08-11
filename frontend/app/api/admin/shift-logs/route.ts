@@ -10,19 +10,7 @@ import { proxyToLaravel } from "@/lib/conductor/server/proxy";
  * Returns matching shift logs with vehicle, driver, and route relationships.
  */
 export async function GET(request: NextRequest) {
-  const url = new URL(request.url);
-  const vehicleId = url.searchParams.get("vehicle_id");
-  const conductorId = url.searchParams.get("conductor_id");
-  const driverId = url.searchParams.get("driver_id");
-
-  let laravelPath = "/admin/shift-logs";
-  const params = new URLSearchParams();
-  if (vehicleId) params.append("vehicle_id", vehicleId);
-  if (conductorId) params.append("conductor_id", conductorId);
-  if (driverId) params.append("driver_id", driverId);
-  if (params.toString()) laravelPath += `?${params.toString()}`;
-
-  const result = await proxyToLaravel(request, laravelPath, {
+  const result = await proxyToLaravel(request, `/admin/shift-logs${request.nextUrl.search}`, {
     method: "GET",
   });
 

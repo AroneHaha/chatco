@@ -27,6 +27,12 @@ const STATUS_FROM_LARAVEL: Record<string, Vehicle['status']> = {
   'INACTIVE': 'Out of Service / Damaged',
 };
 
+const STATUS_TO_LARAVEL: Record<Vehicle['status'], string> = {
+  'Operating': 'ACTIVE',
+  'Under Maintenance': 'MAINTENANCE',
+  'Out of Service / Damaged': 'INACTIVE',
+};
+
 /**
  * Edit Vehicle modal.
  *
@@ -43,12 +49,6 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
     status: 'ACTIVE' as string,
   });
 
-  // Hold the raw API record (with nested driver/conductor/route objects) so
-  // we can display the current assignment read-only and source the canonical
-  // UUID for the PUT.
-  const [rawVehicle, setRawVehicle] = useState<Record<string, unknown> | null>(null);
-  const [canonicalId, setCanonicalId] = useState<string>('');
-
   // Current assignment display values (read-only).
   const [currentDriverName, setCurrentDriverName] = useState<string | null>(null);
   const [currentConductorName, setCurrentConductorName] = useState<string | null>(null);
@@ -59,72 +59,31 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
-  // Fetch routes + the raw vehicle record (for canonical ID + current
-  // assignment display). Drivers/conductors are no longer fetched —
-  // assignment is read-only and managed by the conductor workflow.
+  // Fetch only the route options. The table row already carries the vehicle
+  // fields and read-only assignment names from the paged vehicle API response.
   useEffect(() => {
     if (!isOpen || !editingVehicle) return;
 
     setIsLoadingMeta(true);
     setError(null);
-
-    Promise.all([
-      fetch('/api/admin/routes').then(r => r.json()),
-      fetch('/api/admin/vehicles').then(r => r.json()),
-    ]).then(([routesRes, vehiclesRes]) => {
-      setRoutes(routesRes.data ?? []);
-
-      const allVehicles: Record<string, unknown>[] = (vehiclesRes.data?.data ?? vehiclesRes.data ?? []) as Record<string, unknown>[];
-
-      // Find the matching raw vehicle. Try by ID first, then fall back to
-      // plate_number (which is also unique).
-      let currentVehicleRaw = allVehicles.find(
-        v => String(v.id) === editingVehicle.id
-      ) ?? null;
-
-      if (!currentVehicleRaw && editingVehicle.plateNumber) {
-        currentVehicleRaw = allVehicles.find(
-          v => String(v.plate_number) === editingVehicle.plateNumber
-        ) ?? null;
-      }
-
-      setRawVehicle(currentVehicleRaw);
-
-      const rawId = currentVehicleRaw ? String(currentVehicleRaw.id ?? '') : '';
-      setCanonicalId(rawId);
-
-      // Extract current assignment names (read-only display).
-      const drv = currentVehicleRaw?.driver as Record<string, unknown> | null | undefined;
-      const con = currentVehicleRaw?.conductor as Record<string, unknown> | null | undefined;
-      setCurrentDriverName(
-        drv ? `${drv.first_name ?? ''} ${drv.last_name ?? ''}`.trim() || null : null
-      );
-      setCurrentConductorName(
-        con ? `${con.first_name ?? ''} ${con.last_name ?? ''}`.trim() || null : null
-      );
-
-      // Pre-populate editable form fields from raw API record.
-      if (currentVehicleRaw) {
-        const rte = currentVehicleRaw.route as Record<string, unknown> | null;
-        setFormData({
-          unit_number: String(currentVehicleRaw.unit_number ?? ''),
-          plate_number: String(currentVehicleRaw.plate_number ?? ''),
-          route_id: rte ? String(rte.id) : '',
-          status: String(currentVehicleRaw.status ?? 'ACTIVE'),
-        });
-      } else {
-        setError(
-          `Could not find this vehicle in the database. ` +
-          `editingVehicle.id="${editingVehicle.id}", ` +
-          `plateNumber="${editingVehicle.plateNumber}". ` +
-          `Please refresh the page and try again.`
-        );
-      }
-    }).catch(() => {
-      setError('Failed to load form data. Please try again.');
-    }).finally(() => {
-      setIsLoadingMeta(false);
+    setFormData({
+      unit_number: editingVehicle.unitNumber === '-' ? '' : editingVehicle.unitNumber,
+      plate_number: editingVehicle.plateNumber === '-' ? '' : editingVehicle.plateNumber,
+      route_id: editingVehicle.routeId,
+      status: STATUS_TO_LARAVEL[editingVehicle.status] ?? 'ACTIVE',
     });
+    setCurrentDriverName(editingVehicle.driver);
+    setCurrentConductorName(editingVehicle.conductor);
+
+    fetch('/api/admin/routes')
+      .then(r => r.json())
+      .then((routesRes) => {
+        setRoutes(routesRes.data ?? []);
+      }).catch(() => {
+        setError('Failed to load form data. Please try again.');
+      }).finally(() => {
+        setIsLoadingMeta(false);
+      });
   }, [isOpen, editingVehicle]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -137,12 +96,11 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
 
     if (!editingVehicle) return;
 
-    const vehicleId = canonicalId || editingVehicle.id;
+    const vehicleId = editingVehicle.id;
 
     if (!vehicleId || vehicleId === 'undefined') {
       setError(
-        `Vehicle ID is missing. canonicalId="${canonicalId}", ` +
-        `editingVehicle.id="${editingVehicle.id}". ` +
+        `Vehicle ID is missing. editingVehicle.id="${editingVehicle.id}". ` +
         `Close this modal, refresh the page, and try again.`
       );
       return;
@@ -208,7 +166,7 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
     <Modal isOpen={isOpen} onClose={onClose}>
       <h2 className="text-lg sm:text-xl font-bold text-white mb-1">Edit Vehicle</h2>
       <p className="text-xs text-slate-400 mb-5">
-        Unit {rawVehicle ? String((rawVehicle as Record<string, unknown>).unit_number ?? '—') : editingVehicle.plateNumber} • ID: <span className="font-mono">{canonicalId || editingVehicle.id || '— MISSING —'}</span>
+        Unit {editingVehicle.unitNumber} • ID: <span className="font-mono">{editingVehicle.id || '— MISSING —'}</span>
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
