@@ -6,44 +6,86 @@ import { type RemittanceRecord } from "@/lib/conductor/services/remittance.servi
 import { fmtDate, fmt } from "@/app/(conductor)/conductor-dashboard/end-of-day/helpers";
 
 const RECORDS_PER_PAGE = 5;
+export type RemittanceHistoryFilter = "today" | "last7" | "week" | "month" | "all" | "date";
+
+const FILTER_OPTIONS: { key: Exclude<RemittanceHistoryFilter, "date">; label: string }[] = [
+  { key: "week", label: "This Week" },
+  { key: "today", label: "Today" },
+  { key: "last7", label: "Last 7 Days" },
+  { key: "month", label: "This Month" },
+  { key: "all", label: "All" },
+];
 
 interface HistorySectionProps {
   showHistory: boolean;
   setShowHistory: (v: boolean) => void;
   filteredHistory: RemittanceRecord[];
-  historyFilter: "all" | "week" | "month";
-  setHistoryFilter: (v: "all" | "week" | "month") => void;
+  historyFilter: RemittanceHistoryFilter;
+  setHistoryFilter: (v: RemittanceHistoryFilter) => void;
+  historyDate: string;
+  setHistoryDate: (v: string) => void;
   openOfficialReport: (record?: RemittanceRecord) => void;
   onPrintReport: (record: RemittanceRecord) => void;
 }
 
-export default function HistorySection({ showHistory, setShowHistory, filteredHistory, historyFilter, setHistoryFilter, openOfficialReport, onPrintReport }: HistorySectionProps) {
+export default function HistorySection({ showHistory, setShowHistory, filteredHistory, historyFilter, setHistoryFilter, historyDate, setHistoryDate, openOfficialReport, onPrintReport }: HistorySectionProps) {
   const [currentPage, setCurrentPage] = useState(1);
 
   const totalPages = Math.max(1, Math.ceil(filteredHistory.length / RECORDS_PER_PAGE));
+  const activePage = Math.min(currentPage, totalPages);
   const paginatedHistory = filteredHistory.slice(
-    (currentPage - 1) * RECORDS_PER_PAGE,
-    currentPage * RECORDS_PER_PAGE
+    (activePage - 1) * RECORDS_PER_PAGE,
+    activePage * RECORDS_PER_PAGE
   );
+  const activeFilterLabel = historyFilter === "date"
+    ? historyDate || "Custom Date"
+    : FILTER_OPTIONS.find((option) => option.key === historyFilter)?.label ?? "This Week";
 
-  // Reset to page 1 when filter changes
-  const handleFilterChange = (filter: "all" | "week" | "month") => {
+  const handleFilterChange = (filter: RemittanceHistoryFilter) => {
     setHistoryFilter(filter);
+    if (filter !== "date") setHistoryDate("");
+    setCurrentPage(1);
+  };
+
+  const handleDateChange = (date: string) => {
+    setHistoryDate(date);
+    setHistoryFilter(date ? "date" : "week");
     setCurrentPage(1);
   };
 
   return (
     <div className="space-y-3">
       <button onClick={() => setShowHistory(!showHistory)} className="w-full bg-[#071A2E] border border-white/[0.06] rounded-2xl p-4 flex items-center justify-between hover:border-white/[0.1] transition-all active:scale-[0.99]">
-        <div className="flex items-center gap-3"><div className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center"><svg className="w-4.5 h-4.5 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg></div><div className="text-left"><p className="text-xs font-semibold text-white/60">Remittance History</p><p className="text-[10px] text-white/25 mt-0.5">{filteredHistory.length} record{filteredHistory.length !== 1 ? "s" : ""} total</p></div></div>
+        <div className="flex items-center gap-3"><div className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center"><svg className="w-4.5 h-4.5 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg></div><div className="text-left"><p className="text-xs font-semibold text-white/60">Remittance History <span className="text-white/35">({activeFilterLabel})</span></p><p className="text-[10px] text-white/25 mt-0.5">{filteredHistory.length} record{filteredHistory.length !== 1 ? "s" : ""} total</p></div></div>
         <svg className={`w-5 h-5 text-white/20 transition-transform duration-300 ${showHistory ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
       </button>
       <div className="overflow-hidden transition-all duration-300 ease-in-out" style={{ maxHeight: showHistory ? "2000px" : "0px", opacity: showHistory ? 1 : 0 }}>
         <div className="space-y-3 pt-1">
-          <div className="flex gap-2">
-            {([ { key: "all", label: "All" }, { key: "week", label: "This Week" }, { key: "month", label: "This Month" }] as const).map((f) => (
-              <button key={f.key} onClick={() => handleFilterChange(f.key)} className={`px-3.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 ${historyFilter === f.key ? "bg-[#1A5FB4] text-white shadow-md shadow-[#1A5FB4]/20" : "bg-white/5 text-white/35 border border-white/5 hover:bg-white/8 hover:text-white/50"}`}>{f.label}</button>
-            ))}
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              aria-label="Filter remittance history period"
+              value={historyFilter}
+              onChange={(event) => handleFilterChange(event.target.value as RemittanceHistoryFilter)}
+              className="h-8 min-w-[142px] rounded-lg border border-white/10 bg-[#071A2E] px-2.5 text-[11px] font-semibold text-white/80 outline-none transition-all [color-scheme:dark] hover:bg-[#0A2038] focus:border-[#1A5FB4]/70 focus:bg-[#0A2038]"
+            >
+              {historyFilter === "date" && <option className="bg-[#071A2E] text-white" value="date">Selected Date</option>}
+              {FILTER_OPTIONS.map((option) => (
+                <option className="bg-[#071A2E] text-white" key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <input
+              type="date"
+              aria-label="Filter remittance history by date"
+              value={historyDate}
+              onChange={(event) => handleDateChange(event.target.value)}
+              className={`h-8 min-w-[136px] rounded-lg border px-2.5 text-[11px] font-semibold outline-none transition-all [color-scheme:dark] ${
+                historyFilter === "date"
+                  ? "border-[#1A5FB4]/70 bg-[#1A5FB4]/20 text-white shadow-md shadow-[#1A5FB4]/15"
+                  : "border-white/5 bg-white/5 text-white/45 hover:bg-white/8 hover:text-white/60"
+              }`}
+            />
           </div>
           {filteredHistory.length === 0 ? (
             <div className="bg-[#071A2E] border border-white/[0.04] rounded-2xl p-8 flex flex-col items-center"><div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-3"><svg className="w-6 h-6 text-white/15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg></div><p className="text-xs font-medium text-white/20">No records yet</p><p className="text-[10px] text-white/15 mt-0.5">Remittances will appear here after each shift</p></div>
@@ -69,9 +111,9 @@ export default function HistorySection({ showHistory, setShowHistory, filteredHi
                 <div className="flex items-center justify-between bg-[#071A2E] border border-white/[0.06] rounded-xl px-4 py-3">
                   <button
                     onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
+                    disabled={activePage === 1}
                     className={`flex items-center gap-1.5 text-[11px] font-semibold transition-all ${
-                      currentPage === 1
+                      activePage === 1
                         ? "text-white/15 cursor-not-allowed"
                         : "text-white/50 hover:text-white active:scale-95"
                     }`}
@@ -86,7 +128,7 @@ export default function HistorySection({ showHistory, setShowHistory, filteredHi
                         key={page}
                         onClick={() => setCurrentPage(page)}
                         className={`w-7 h-7 rounded-lg text-[11px] font-bold transition-all ${
-                          currentPage === page
+                          activePage === page
                             ? "bg-[#1A5FB4] text-white shadow-md shadow-[#1A5FB4]/25"
                             : "text-white/30 hover:text-white/60 hover:bg-white/5"
                         }`}
@@ -98,9 +140,9 @@ export default function HistorySection({ showHistory, setShowHistory, filteredHi
 
                   <button
                     onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
+                    disabled={activePage === totalPages}
                     className={`flex items-center gap-1.5 text-[11px] font-semibold transition-all ${
-                      currentPage === totalPages
+                      activePage === totalPages
                         ? "text-white/15 cursor-not-allowed"
                         : "text-white/50 hover:text-white active:scale-95"
                     }`}

@@ -9,6 +9,7 @@ import { Edit, Trash, IdCard, Plus, UserPlus } from "lucide-react";
 import type { PageMeta, Personnel } from "@/app/(admin)/vehicles/data/vehicles-data";
 import { DriverDetailModal } from "@/components/admin/vehicles/driver-detail-modal";
 import { ConductorDetailModal } from "@/components/admin/vehicles/conductor-detail-modal";
+import { SkeletonTable } from "@/components/admin/ui/skeleton";
 
 interface PersonnelTableProps {
   personnel: Personnel[];
@@ -20,6 +21,7 @@ interface PersonnelTableProps {
   onCreateConductor: () => void;
   onEdit: (personnel: Personnel) => void;
   onDelete: (personnel: Personnel) => void;
+  isLoading?: boolean;
   // Kept for backwards compatibility — no longer used by the new detail modals
   // (they fetch their own data from the API). Will be removed in a future cleanup.
   driverProfiles?: Record<string, import("@/app/(admin)/vehicles/data/vehicles-data").DriverProfile>;
@@ -36,6 +38,7 @@ export function PersonnelTable({
   onCreateConductor,
   onEdit,
   onDelete,
+  isLoading = false,
 }: PersonnelTableProps) {
   const [selectedDriver, setSelectedDriver] = useState<Personnel | null>(null);
   const [selectedConductor, setSelectedConductor] = useState<Personnel | null>(null);
@@ -145,24 +148,30 @@ export function PersonnelTable({
           </div>
         </div>
 
-        <DataTable
-          data={personnel}
-          columns={columns}
-          searchQuery=""
-          emptyMessage="No personnel records found."
-          height="calc(100dvh - 19rem)"
-          stickyHeader
-          allowHorizontalScroll={false}
-          tableClassName="table-fixed"
-          onRowDoubleClick={(item) => {
-            const p = item as Personnel;
-            if (p.role === "Driver") {
-              setSelectedDriver(p);
-            } else if (p.role === "Conductor") {
-              setSelectedConductor(p);
-            }
-          }}
-        />
+        {isLoading ? (
+          <div className="h-[calc(100dvh-19rem)] min-h-64 overflow-hidden rounded-lg">
+            <SkeletonTable rows={8} columns={4} />
+          </div>
+        ) : (
+          <DataTable
+            data={personnel}
+            columns={columns}
+            searchQuery=""
+            emptyMessage="No personnel records found."
+            height="calc(100dvh - 19rem)"
+            stickyHeader
+            allowHorizontalScroll={false}
+            tableClassName="table-fixed"
+            onRowDoubleClick={(item) => {
+              const p = item as Personnel;
+              if (p.role === "Driver") {
+                setSelectedDriver(p);
+              } else if (p.role === "Conductor") {
+                setSelectedConductor(p);
+              }
+            }}
+          />
+        )}
 
         <TablePagination
           currentPage={page.currentPage}

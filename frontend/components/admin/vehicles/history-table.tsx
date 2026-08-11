@@ -6,6 +6,7 @@ import { DataTable } from '@/components/admin/ui/data-table';
 import { TablePagination } from '@/components/admin/ui/table-pagination';
 import { SearchBar } from '@/components/admin/ui/search-bar';
 import type { FleetHistoryTab, PageMeta, ShiftLog, TerminatedPersonnel } from '@/app/(admin)/vehicles/data/vehicles-data';
+import { SkeletonTable } from '@/components/admin/ui/skeleton';
 
 interface HistoryTableProps {
   terminatedPersonnel: TerminatedPersonnel[];
@@ -22,6 +23,7 @@ interface HistoryTableProps {
     terminated: number;
     shifts: number;
   };
+  isLoading?: boolean;
 }
 
 export function HistoryTable({
@@ -36,6 +38,7 @@ export function HistoryTable({
   onShiftPageChange,
   onSearchChange,
   counts,
+  isLoading = false,
 }: HistoryTableProps) {
   const query = searchQuery.trim().toLowerCase();
 
@@ -147,7 +150,11 @@ export function HistoryTable({
           </span>
         </div>
 
-        {isTerminated ? (
+        {isLoading ? (
+          <div className="h-[calc(100dvh-22rem)] min-h-64 overflow-hidden rounded-lg">
+            <SkeletonTable rows={8} columns={isTerminated ? 6 : 5} />
+          </div>
+        ) : isTerminated ? (
           <DataTable
             data={terminatedPersonnel}
             columns={terminatedColumns}

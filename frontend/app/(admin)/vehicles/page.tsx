@@ -17,7 +17,6 @@ import { HistoryTable } from '@/components/admin/vehicles/history-table';
 import { Users, Car, Archive, AlertCircle, RefreshCw } from 'lucide-react';
 import { useVehiclesData } from './data/vehicles-data';
 import type { FleetHistoryTab, Vehicle, Personnel } from './data/vehicles-data';
-import { SkeletonTable } from '@/components/admin/ui/skeleton';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 
 export default function VehiclesPage() {
@@ -80,23 +79,6 @@ export default function VehiclesPage() {
     { id: 'personnel' as const, label: 'Personnel', count: counts.personnel, icon: Users },
     { id: 'history' as const, label: 'Records', count: historyRecords, icon: Archive },
   ];
-
-  // ─── Loading State ───
-  if (isLoading) {
-    return (
-      <>
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-          <h1 className="text-2xl font-bold text-white">Fleet Management</h1>
-        </div>
-        <div className="flex space-x-1 mb-6 border-b border-[#1E2D45]">
-          <div className="py-2 px-4"><span className="text-sm text-slate-500">Vehicles</span></div>
-          <div className="py-2 px-4"><span className="text-sm text-slate-500">Personnel</span></div>
-          <div className="py-2 px-4"><span className="text-sm text-slate-500">History</span></div>
-        </div>
-        <SkeletonTable rows={5} columns={5} />
-      </>
-    );
-  }
 
   // ─── Error State ───
   if (error) {
@@ -307,6 +289,7 @@ export default function VehiclesPage() {
           onEdit={handleOpenEditModal}
           onEditShift={handleOpenShiftHistory}
           onRowDoubleClick={handleOpenDetails}
+          isLoading={isLoading}
         />
       ) : activeTab === 'personnel' ? (
         <PersonnelTable 
@@ -321,6 +304,7 @@ export default function VehiclesPage() {
           onDelete={handleOpenDeletePersonnel}
           driverProfiles={data.driverProfiles}
           driverRatings={data.driverRatings}
+          isLoading={isLoading}
         />
       ) : (
         <HistoryTable 
@@ -338,6 +322,7 @@ export default function VehiclesPage() {
             terminated: counts.terminatedPersonnel,
             shifts: counts.shiftHistoryLog,
           }}
+          isLoading={isLoading}
         />
       )}
 

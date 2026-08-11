@@ -22,9 +22,21 @@ export async function GET(request: NextRequest) {
     return jsonError("shift_id query parameter is required.");
   }
 
+  const page = request.nextUrl.searchParams.get("page");
+  const perPage = request.nextUrl.searchParams.get("per_page");
+  const paymentMethod = request.nextUrl.searchParams.get("payment_method");
+  const dateFrom = request.nextUrl.searchParams.get("date_from");
+  const dateTo = request.nextUrl.searchParams.get("date_to");
+  const params = new URLSearchParams({ shift_id: shiftId });
+  if (page) params.set("page", page);
+  if (perPage) params.set("per_page", perPage);
+  if (paymentMethod) params.set("payment_method", paymentMethod);
+  if (dateFrom) params.set("date_from", dateFrom);
+  if (dateTo) params.set("date_to", dateTo);
+
   const result = await proxyToLaravel(
     request,
-    `/conductor/transactions?shift_id=${encodeURIComponent(shiftId)}`,
+    `/conductor/transactions?${params.toString()}`,
     { method: "GET" }
   );
 
@@ -32,7 +44,32 @@ export async function GET(request: NextRequest) {
     return jsonError(result.message ?? "Failed to load transactions.", result.status);
   }
 
-  const transactions = mapArray<Transaction>(result.data, mapTransaction);
+  const raw = result.data as {
+    data?: unknown;
+    current_page?: number;
+    per_page?: number;
+    total?: number;
+    last_page?: number;
+    total_amount?: number;
+  } | unknown[] | null;
+  const rows = Array.isArray(raw)
+    ? raw
+    : Array.isArray(raw?.data)
+      ? raw.data
+      : [];
+  const transactions = mapArray<Transaction>(rows, mapTransaction);
+
+  if (!Array.isArray(raw)) {
+    return jsonData({
+      transactions,
+      currentPage: Number(raw?.current_page) || 1,
+      perPage: Number(raw?.per_page) || transactions.length,
+      total: Number(raw?.total) || transactions.length,
+      totalPages: Number(raw?.last_page) || 1,
+      totalAmount: Number(raw?.total_amount) || 0,
+    });
+  }
+
   return jsonData(transactions);
 }
 
@@ -63,7 +100,8 @@ export async function POST(request: NextRequest) {
     // Strip shiftId — Laravel resolves the shift from the conductor's
     // active shift (not from the request body). This prevents a conductor
     // from recording fares on another conductor's shift.
-    const { shiftId: _ignored, ...txnBody } = body;
+    const txnBody = { ...body };
+    delete txnBody.shiftId;
 
     // Laravel expects snake_case field names. payment_method can be CASH or
     // VOUCHER (RecordCashRequest validates `in:CASH,VOUCHER`). GCash goes

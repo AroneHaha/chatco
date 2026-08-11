@@ -30,6 +30,13 @@ const formatLogTime = (iso: string) => {
   });
 };
 
+const formatClockTime = (iso?: string | null) => {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleTimeString('en-PH', {
+    hour: '2-digit', minute: '2-digit', hour12: true,
+  });
+};
+
 // ─── Real Transaction type (from API) ──────────────────────────────────
 interface ApiTransaction {
   transaction_id: string;
@@ -164,7 +171,6 @@ export function ConductorDetailModal({ isOpen, onClose, record }: ConductorDetai
   const totalPending = conductorRecords
     .filter(r => r.remittanceStatus === 'Pending')
     .reduce((s, r) => s + r.gcashTotal + r.cashTotal, 0);
-  const allTxns = Object.values(shiftTransactions).flat();
 
   // ─── Remittance History: filter + paginate ───────────────────────────
   const search = remitSearch.trim().toLowerCase();
@@ -238,7 +244,7 @@ export function ConductorDetailModal({ isOpen, onClose, record }: ConductorDetai
 
       <div className="flex bg-[#0E1628] rounded-md p-1 border border-[#1E2D45] mb-5">
         <button onClick={() => setActiveTab('remittance')} className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all text-center ${activeTab==='remittance'?'bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/30':'text-slate-500 hover:text-slate-300'}`}>Remittance History ({conductorRecords.length})</button>
-        <button onClick={() => setActiveTab('transactions')} className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all text-center ${activeTab==='transactions'?'bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/30':'text-slate-500 hover:text-slate-300'}`}>Transactions ({allTxns.length})</button>
+        <button onClick={() => setActiveTab('transactions')} className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all text-center ${activeTab==='transactions'?'bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/30':'text-slate-500 hover:text-slate-300'}`}>Transactions</button>
       </div>
 
       {activeTab === 'remittance' && (
@@ -314,7 +320,12 @@ export function ConductorDetailModal({ isOpen, onClose, record }: ConductorDetai
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-lg bg-[#62A0EA]/15 flex items-center justify-center"><Hash size={16} className="text-[#62A0EA]" /></div>
-                  <div><p className="text-sm text-white font-medium">{rec.shiftId}</p><p className="text-xs text-slate-500 flex items-center gap-1"><Calendar size={11} />{rec.date}</p></div>
+                  <div>
+                    <p className="text-sm text-white font-medium">{rec.shiftId}</p>
+                    <p className="text-xs text-slate-500 flex items-center gap-1"><Calendar size={11} />{rec.date}</p>
+                    <p className="text-xs text-slate-500 flex items-center gap-1"><User size={11} />Driver {rec.driverName || '—'}</p>
+                    <p className="text-xs text-slate-500 flex items-center gap-1"><Clock size={11} />Remitted {formatClockTime(rec.remittedAt)}</p>
+                  </div>
                 </div>
                 <Badge variant={rec.remittanceStatus==='Remitted'?'success':'warning'}>{rec.remittanceStatus}</Badge>
               </div>

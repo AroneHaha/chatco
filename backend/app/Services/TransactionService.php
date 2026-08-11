@@ -13,6 +13,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Voucher;
 use App\Support\Payments\PaymentGatewayException;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -1216,6 +1217,50 @@ class TransactionService
             ->where('shift_id', $shift->shift_id)
             ->orderBy('created_at', 'desc')
             ->get();
+    }
+
+    /**
+     * Paginated transaction history for the conductor modal.
+     *
+     * @param  array{payment_method?: string|null, date_from?: string|null, date_to?: string|null}  $filters
+     *
+     * @return array{paginator: LengthAwarePaginator, total_amount: float}
+     */
+    public function getShiftTransactionsPage(
+        User $conductor,
+        string $shiftId,
+        int $perPage = 25,
+        array $filters = [],
+    ): array {
+        $shift = $this->verifyShiftOwnership($conductor, $shiftId);
+
+        $query = Transaction::with(['passengerBreakdown', 'paymentGroup:id,reference_number'])
+            ->where('shift_id', $shift->shift_id);
+
+        $method = $filters['payment_method'] ?? null;
+        if (is_string($method) && in_array($method, PaymentMethod::values(), true)) {
+            $query->where('payment_method', $method);
+        }
+
+        $dateFrom = $filters['date_from'] ?? null;
+        if (is_string($dateFrom) && $dateFrom !== '') {
+            $query->where('created_at', '>=', "{$dateFrom} 00:00:00");
+        }
+
+        $dateTo = $filters['date_to'] ?? null;
+        if (is_string($dateTo) && $dateTo !== '') {
+            $query->where('created_at', '<=', "{$dateTo} 23:59:59");
+        }
+
+        $totalAmount = (float) (clone $query)->sum('final_amount');
+        $paginator = $query
+            ->orderBy('created_at', 'desc')
+            ->paginate(min(max($perPage, 1), 100));
+
+        return [
+            'paginator' => $paginator,
+            'total_amount' => round($totalAmount, 2),
+        ];
     }
 
     /**

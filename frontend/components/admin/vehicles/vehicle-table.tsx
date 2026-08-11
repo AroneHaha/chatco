@@ -7,6 +7,7 @@ import { Badge } from '@/components/admin/ui/badge';
 import { SearchBar } from '@/components/admin/ui/search-bar';
 import { Pencil, Clock, Car, Plus } from 'lucide-react'; // Added icons
 import type { PageMeta, Vehicle } from '@/app/(admin)/vehicles/data/vehicles-data';
+import { SkeletonTable } from '@/components/admin/ui/skeleton';
 
 // REMOVED the hardcoded mockVehicles array since we are getting it from the page now
 
@@ -21,6 +22,7 @@ interface VehicleTableProps {
   onEditShift: (vehicle: Vehicle) => void;
   /** Double-clicking a row opens the vehicle details (incl. permanent QR). */
   onRowDoubleClick?: (vehicle: Vehicle) => void;
+  isLoading?: boolean;
 }
 
 export function VehicleTable({
@@ -33,6 +35,7 @@ export function VehicleTable({
   onEdit,
   onEditShift,
   onRowDoubleClick,
+  isLoading = false,
 }: VehicleTableProps) {
   const columns = [
     {
@@ -131,17 +134,23 @@ export function VehicleTable({
         </span>
         </div>
       </div>
-      <DataTable
-        data={vehicles}
-        columns={columns}
-        searchQuery=""
-        emptyMessage="No vehicles match your search."
-        height="calc(100dvh - 19rem)"
-        stickyHeader
-        allowHorizontalScroll={false}
-        tableClassName="table-fixed"
-        onRowDoubleClick={onRowDoubleClick}
-      />
+      {isLoading ? (
+        <div className="h-[calc(100dvh-19rem)] min-h-64 overflow-hidden rounded-lg">
+          <SkeletonTable rows={8} columns={6} />
+        </div>
+      ) : (
+        <DataTable
+          data={vehicles}
+          columns={columns}
+          searchQuery=""
+          emptyMessage="No vehicles match your search."
+          height="calc(100dvh - 19rem)"
+          stickyHeader
+          allowHorizontalScroll={false}
+          tableClassName="table-fixed"
+          onRowDoubleClick={onRowDoubleClick}
+        />
+      )}
       <TablePagination
         currentPage={page.currentPage}
         totalPages={page.totalPages}

@@ -50,11 +50,20 @@ class ShiftService
             }
 
             $operationalDate = now('Asia/Manila')->toDateString();
-            if ($vehicle->conductor_id !== $profileId
-                || $vehicle->driver_id !== $driverId
-                || $vehicle->assignment_date?->toDateString() !== $operationalDate
-                || $vehicle->assignment_approved_at === null) {
-                abort(403, 'No valid Admin-approved assignment exists for the current operational day.');
+            if ($vehicle->conductor_id !== null && $vehicle->conductor_id !== $profileId) {
+                abort(403, 'Vehicle is assigned to another conductor.');
+            }
+            if ($vehicle->driver_id !== null && $vehicle->driver_id !== $driverId) {
+                abort(403, 'Vehicle is assigned to another driver.');
+            }
+            $driverAssignedToAnotherConductor = Vehicle::query()
+                ->where('driver_id', $driverId)
+                ->where('id', '!=', $vehicleId)
+                ->whereNotNull('conductor_id')
+                ->where('conductor_id', '!=', $profileId)
+                ->exists();
+            if ($driverAssignedToAnotherConductor) {
+                abort(403, 'Driver is assigned to another conductor.');
             }
 
             if ($routeId !== null && $vehicle->route_id !== null && $routeId !== $vehicle->route_id) {
@@ -78,7 +87,13 @@ class ShiftService
                 'plate_number' => $vehicle->plate_number,
             ]);
 
-            $vehicle->update(['active_shift_id' => $shiftId]);
+            $vehicle->update([
+                'active_shift_id' => $shiftId,
+                'driver_id' => $driverId,
+                'conductor_id' => $profileId,
+                'assignment_date' => $operationalDate,
+                'assignment_approved_at' => now(),
+            ]);
             $driver->update(['active_shift_id' => $shiftId]);
 
             return $shift;

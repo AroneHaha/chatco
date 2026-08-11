@@ -5,7 +5,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
 import { SearchBar } from '@/components/admin/ui/search-bar';
-import { CalendarDays, Download, Wallet, Ticket, Banknote, ChevronLeft, ChevronRight, AlertCircle, AlertTriangle, RefreshCw, ReceiptText, Smartphone, Coins } from 'lucide-react';
+import { CalendarDays, Download, Wallet, Ticket, Banknote, ChevronLeft, ChevronRight, ChevronDown, AlertCircle, AlertTriangle, RefreshCw, ReceiptText, Smartphone, Coins, SlidersHorizontal } from 'lucide-react';
 import { useReceiptsData, type Receipt, type PaymentMethod } from '@/app/(admin)/receipts/data/receipts-data';
 import { statusBadge, methodStyle } from '@/app/(admin)/receipts/data/receipt-status';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
@@ -40,6 +40,7 @@ export default function ReceiptsPage() {
   const [rangePreset, setRangePreset] = useState<RangePreset>('today');
   const [paymentFilter, setPaymentFilter] = useState<PaymentMethod | 'All'>('All');
   const [currentPage, setCurrentPage] = useState(1);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   const paymentOptions: (PaymentMethod | 'All')[] = ['All', 'Cash', 'Gcash', 'Voucher'];
 
@@ -165,6 +166,15 @@ export default function ReceiptsPage() {
   const reconciliationRequired = records.filter(
     (item: Receipt) => item.reconciliationStatus === 'REFUND_REQUIRED'
   );
+  const activeRangeLabel = specificDate
+    ? `Date: ${specificDate}`
+    : RANGE_OPTIONS.find((option) => option.value === rangePreset)?.label ?? 'Today';
+  const activePaymentLabel = paymentFilter === 'All' ? 'All Payments' : paymentFilter;
+  const mobileFilterSummary = [
+    searchQuery.trim() ? 'Search on' : null,
+    activePaymentLabel,
+    activeRangeLabel,
+  ].filter(Boolean).join(' | ');
 
   const columns = [
     {
@@ -173,10 +183,10 @@ export default function ReceiptsPage() {
       headerClassName: 'w-[18%] px-2 sm:px-3',
       cellClassName: 'px-2 sm:px-3 min-w-0',
       render: (value: string, row: Receipt) => (
-        <div className="min-w-0">
-          <span className="block truncate font-mono text-xs text-slate-400" title={value}>{value}</span>
+        <div className="min-w-0 leading-tight">
+          <span className="block truncate font-mono text-[11px] text-slate-400" title={value}>{value}</span>
           {row.multiplePaymentReference && (
-            <span className="block truncate font-mono text-[10px] text-blue-400">{row.multiplePaymentReference}</span>
+            <span className="block truncate font-mono text-[9px] text-blue-400" title={row.multiplePaymentReference}>{row.multiplePaymentReference}</span>
           )}
         </div>
       ),
@@ -187,10 +197,15 @@ export default function ReceiptsPage() {
       headerClassName: 'w-[20%] px-2 sm:px-3',
       cellClassName: 'px-2 sm:px-3 min-w-0',
       render: (value: string, row: Receipt) => (
-        <div className="min-w-0">
-          <p className="truncate text-sm text-slate-200" title={value}>{value}</p>
-          <p className="truncate text-[10px] text-slate-500">{row.commuterRole}</p>
-          {row.paidBy && <p className="truncate text-[10px] text-blue-400" title={row.paidBy}>Paid by: {row.paidBy}</p>}
+        <div className="min-w-0 leading-tight">
+          <p className="truncate text-xs text-slate-200" title={value}>{value}</p>
+          <p
+            className="truncate text-[9px] text-slate-500"
+            title={row.paidBy ? `${row.commuterRole} | Paid by: ${row.paidBy}` : row.commuterRole}
+          >
+            {row.commuterRole}
+            {row.paidBy && <span className="text-blue-400"> | Paid by: {row.paidBy}</span>}
+          </p>
         </div>
       ),
     },
@@ -200,9 +215,9 @@ export default function ReceiptsPage() {
       headerClassName: 'w-[20%] px-2 sm:px-3',
       cellClassName: 'px-2 sm:px-3 min-w-0',
       render: (value: string, row: Receipt) => (
-        <div className="min-w-0">
-          <p className="truncate font-medium text-slate-200" title={value}>{value}</p>
-          <p className="truncate text-[10px] text-slate-500" title={row.route}>{row.route}</p>
+        <div className="min-w-0 leading-tight">
+          <p className="truncate text-xs font-medium text-slate-200" title={value}>{value}</p>
+          <p className="truncate text-[9px] text-slate-500" title={row.route}>{row.route}</p>
         </div>
       ),
     },
@@ -212,13 +227,13 @@ export default function ReceiptsPage() {
       headerClassName: 'w-[16%] px-2 sm:px-3',
       cellClassName: 'px-2 sm:px-3',
       render: (value: number, row: Receipt) => (
-        <div className="space-y-1">
-          <p className="text-slate-200 font-semibold">{formatPeso(value)}</p>
-          {row.discountAmount > 0 && <p className="text-[10px] text-emerald-400">-{formatPeso(row.discountAmount)} discount</p>}
-          <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${methodStyle(row.paymentMethod)}`}>
-            {row.paymentMethod === 'Gcash' && <Wallet size={10} />}
-            {row.paymentMethod === 'Voucher' && <Ticket size={10} />}
-            {row.paymentMethod === 'Cash' && <Banknote size={10} />}
+        <div className="space-y-0.5 leading-tight">
+          <p className="text-xs font-semibold text-slate-200">{formatPeso(value)}</p>
+          {row.discountAmount > 0 && <p className="text-[9px] text-emerald-400">-{formatPeso(row.discountAmount)} discount</p>}
+          <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0 text-[9px] font-medium ${methodStyle(row.paymentMethod)}`}>
+            {row.paymentMethod === 'Gcash' && <Wallet size={9} />}
+            {row.paymentMethod === 'Voucher' && <Ticket size={9} />}
+            {row.paymentMethod === 'Cash' && <Banknote size={9} />}
             {row.paymentMethod}
           </span>
         </div>
@@ -232,10 +247,10 @@ export default function ReceiptsPage() {
       render: (value: string, row: Receipt) => {
         const { label, variant } = statusBadge(value);
         return (
-          <div className="space-y-1">
+          <div className="space-y-0.5 leading-tight">
             <Badge variant={variant}>{label}</Badge>
             {row.reconciliationStatus === 'REFUND_REQUIRED' && (
-              <p className="text-[10px] font-semibold text-amber-300" title={row.reconciliationReason ?? undefined}>
+              <p className="text-[9px] font-semibold text-amber-300" title={row.reconciliationReason ?? undefined}>
                 Refund required
               </p>
             )}
@@ -249,13 +264,80 @@ export default function ReceiptsPage() {
       headerClassName: 'w-[13%] px-2 sm:px-3',
       cellClassName: 'px-2 sm:px-3',
       render: (value: string, row: Receipt) => (
-        <div>
-          <p className="text-xs text-slate-300">{value}</p>
-          <p className="text-[10px] text-slate-500">{row.time}</p>
+        <div className="leading-tight">
+          <p className="text-[11px] text-slate-300">{value}</p>
+          <p className="text-[9px] text-slate-500">{row.time}</p>
         </div>
       ),
     },
   ];
+
+  const renderMobileReceipt = (receipt: Receipt) => {
+    const { label, variant } = statusBadge(receipt.status);
+
+    return (
+      <article
+        key={`${receipt.id}-${receipt.date}-${receipt.time}`}
+        className="rounded-lg border border-[#1E2D45] bg-[#0E1628] p-2.5 text-xs text-slate-300"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="break-all font-mono text-[11px] leading-tight text-slate-300">{receipt.id}</p>
+            {receipt.multiplePaymentReference && (
+              <p className="mt-0.5 break-all font-mono text-[9px] leading-tight text-blue-400">
+                {receipt.multiplePaymentReference}
+              </p>
+            )}
+          </div>
+          <Badge variant={variant}>{label}</Badge>
+        </div>
+
+        <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
+          <div className="min-w-0">
+            <p className="text-[9px] uppercase text-slate-500">Commuter</p>
+            <p className="break-words text-[11px] font-medium leading-tight text-slate-100">{receipt.commuterName}</p>
+            <p className="break-words text-[9px] leading-tight text-slate-500">
+              {receipt.commuterRole}
+              {receipt.paidBy && <span className="text-blue-400"> | Paid by: {receipt.paidBy}</span>}
+            </p>
+          </div>
+
+          <div className="min-w-0 text-right">
+            <p className="text-[9px] uppercase text-slate-500">Fare</p>
+            <p className="text-[11px] font-semibold leading-tight text-slate-100">{formatPeso(receipt.fare)}</p>
+            {receipt.discountAmount > 0 && (
+              <p className="text-[9px] leading-tight text-emerald-400">-{formatPeso(receipt.discountAmount)} discount</p>
+            )}
+          </div>
+
+          <div className="min-w-0">
+            <p className="text-[9px] uppercase text-slate-500">Vehicle / Route</p>
+            <p className="break-words text-[11px] font-medium leading-tight text-slate-100">{receipt.plateNumber}</p>
+            <p className="break-words text-[9px] leading-tight text-slate-500">{receipt.route}</p>
+          </div>
+
+          <div className="min-w-0 text-right">
+            <p className="text-[9px] uppercase text-slate-500">Payment</p>
+            <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0 text-[9px] font-medium ${methodStyle(receipt.paymentMethod)}`}>
+              {receipt.paymentMethod === 'Gcash' && <Wallet size={9} />}
+              {receipt.paymentMethod === 'Voucher' && <Ticket size={9} />}
+              {receipt.paymentMethod === 'Cash' && <Banknote size={9} />}
+              {receipt.paymentMethod}
+            </span>
+            <p className="mt-0.5 text-[9px] leading-tight text-slate-500">
+              {receipt.date} | {receipt.time}
+            </p>
+          </div>
+        </div>
+
+        {receipt.reconciliationStatus === 'REFUND_REQUIRED' && (
+          <p className="mt-2 rounded-md bg-amber-500/10 px-2 py-1 text-[9px] font-semibold text-amber-300">
+            Refund required
+          </p>
+        )}
+      </article>
+    );
+  };
 
   // ─── Initial Loading State (Skeleton) ───
   if (isLoading) {
@@ -397,10 +479,30 @@ export default function ReceiptsPage() {
       {/* ── Filters ──
           Search, date picker, range presets and payment method share one card
           and one control height so everything lines up on a single baseline. */}
-      <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl p-3 mb-4 flex shrink-0 flex-col gap-3">
+      <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl p-2.5 sm:p-3 mb-3 sm:mb-4 flex shrink-0 flex-col gap-3">
+        <button
+          type="button"
+          onClick={() => setShowMobileFilters((value) => !value)}
+          className="flex w-full items-center justify-between gap-3 rounded-lg border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-left transition-colors active:scale-[0.99] sm:hidden"
+          aria-expanded={showMobileFilters}
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#62A0EA]/15">
+              <SlidersHorizontal size={15} className="text-[#62A0EA]" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-xs font-semibold text-slate-200">Search & Filters</span>
+              <span className="block truncate text-[10px] text-slate-500">{mobileFilterSummary}</span>
+            </span>
+          </span>
+          <ChevronDown
+            size={16}
+            className={`shrink-0 text-slate-500 transition-transform duration-200 ${showMobileFilters ? 'rotate-180' : ''}`}
+          />
+        </button>
 
         {/* Row 1 — search + payment (left), date picker + range presets (right) */}
-        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
+        <div className={`${showMobileFilters ? 'flex' : 'hidden'} flex-col gap-3 sm:flex sm:flex-row sm:flex-wrap sm:items-center`}>
           <SearchBar
             placeholder="Search by Commuter, reference, or receipt ID..."
             value={searchQuery}
@@ -422,6 +524,24 @@ export default function ReceiptsPage() {
           </select>
 
           <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:ml-auto">
+            <select
+              value={specificDate ? 'date' : rangePreset}
+              onChange={(e) => {
+                const value = e.target.value as RangePreset | 'date';
+                if (value === 'date') return;
+                handlePickRange(value);
+              }}
+              aria-label="Filter by date range"
+              className="h-9.5 w-full px-3 bg-[#0E1628] border border-[#1E2D45] rounded-lg text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] focus:border-[#62A0EA] [color-scheme:dark] sm:hidden"
+            >
+              {specificDate && <option value="date" className="bg-gray-800">Selected Date</option>}
+              {RANGE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value} className="bg-gray-800">
+                  {option.label}
+                </option>
+              ))}
+            </select>
+
             <div className="relative w-full sm:w-48">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <CalendarDays className="h-4 w-4 text-slate-400" />
@@ -435,7 +555,7 @@ export default function ReceiptsPage() {
               />
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="hidden flex-wrap gap-2 sm:flex">
               {RANGE_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
@@ -459,16 +579,31 @@ export default function ReceiptsPage() {
           height that either clips or leaves a gap. */}
       <div className="flex flex-1 min-h-0 flex-col bg-[#0B1220] border border-[#1E2D45] rounded-xl p-3 sm:p-4">
         <div className="flex-1 min-h-0">
-          <DataTable
-            data={paginatedData}
-            columns={columns}
-            searchQuery=""
-            emptyMessage="No receipts match your filters."
-            height="100%"
-            stickyHeader
-            allowHorizontalScroll={false}
-            tableClassName="table-fixed"
-          />
+          <div className="hidden h-full sm:block">
+            <DataTable
+              data={paginatedData}
+              columns={columns}
+              searchQuery=""
+              emptyMessage="No receipts match your filters."
+              height="100%"
+              stickyHeader
+              allowHorizontalScroll={false}
+              tableClassName="table-fixed"
+              density="compact"
+            />
+          </div>
+
+          <div className="flex h-full flex-col overflow-y-auto rounded-lg border border-[#23344F] bg-[#0E1628] p-2 sm:hidden scrollbar-themed">
+            {paginatedData.length === 0 ? (
+              <div className="flex min-h-0 flex-1 items-center justify-center px-4 text-center">
+                <p className="text-sm text-slate-500">No receipts match your filters.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {paginatedData.map(renderMobileReceipt)}
+              </div>
+            )}
+          </div>
         </div>
 
       {/* Pagination Controls */}

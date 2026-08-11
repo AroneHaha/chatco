@@ -137,6 +137,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
     DEFAULT_RECEIPT_SETTINGS
   );
   const [receiptSettingsLoaded, setReceiptSettingsLoaded] = useState(false);
+  const [showReceiptDetails, setShowReceiptDetails] = useState(false);
   const autoPrintTriggeredRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -391,6 +392,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
             timestamp: Date.now(),
           });
           setReceiptTransactions(payment.receipts);
+          setShowReceiptDetails(false);
           setStep("success");
           return;
         }
@@ -567,6 +569,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
             : null
         );
       }
+      setShowReceiptDetails(false);
       setStep("success");
     } catch (err) {
       setGcashError(err instanceof Error ? err.message : "Unable to record cash payment.");
@@ -594,6 +597,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
           ? { transactionId: transaction.transactionId, timestamp: transaction.timestamp }
           : null
       );
+      setShowReceiptDetails(false);
       setStep("success");
     } catch (err) {
       setGcashError(err instanceof Error ? err.message : "Voucher validation failed.");
@@ -687,6 +691,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
     setCashReceiptToken(null);
     setReceiptTransaction(null);
     setReceiptTransactions([]);
+    setShowReceiptDetails(false);
     onClose();
   };
 
@@ -1359,7 +1364,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
           {/* ── Bottom Action Area ── */}
           {/* GCash mode: Show "Generate QR Code" button when both locations selected, NO fare display */}
           {isGCash && bothLocationsSelected && (
-            <div className="flex-shrink-0 p-4 border-t border-white/10 bg-[#050F1A] pb-safe">
+            <div className="flex-shrink-0 border-t border-white/10 bg-[#050F1A] px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
               {/* Route confirmation only, NO fare */}
               <div className="mb-3 flex items-center gap-2 flex-wrap">
                 <div className="flex items-center gap-1.5">
@@ -1389,7 +1394,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
           {/* Cash mode: Show fare summary & pay button (existing behavior) */}
           {!isGCash && fareInfo && (
-            <div className="flex-shrink-0 p-4 border-t border-white/10 bg-[#050F1A] pb-safe">
+            <div className="flex-shrink-0 border-t border-white/10 bg-[#050F1A] px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
               {/* Route confirmation with dynamic color indicators */}
               <div className="mb-2 flex items-center gap-2 flex-wrap">
                 <div className="flex items-center gap-1.5">
@@ -1448,7 +1453,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
           {/* No locations selected yet — show hint */}
           {isGCash && !bothLocationsSelected && (
-            <div className="flex-shrink-0 p-4 border-t border-white/10 bg-[#050F1A] pb-safe">
+            <div className="flex-shrink-0 border-t border-white/10 bg-[#050F1A] px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
               <div className="text-center py-2">
                 <p className="text-[11px] text-white/30">Select both pickup and drop-off locations to generate QR code</p>
               </div>
@@ -1456,7 +1461,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
           )}
 
           {!isGCash && !fareInfo && (
-            <div className="flex-shrink-0 p-4 border-t border-white/10 bg-[#050F1A] pb-safe">
+            <div className="flex-shrink-0 border-t border-white/10 bg-[#050F1A] px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
               <div className="text-center py-2">
                 <p className="text-[11px] text-white/30">Select both pickup and drop-off to calculate fare</p>
               </div>
@@ -2022,6 +2027,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
     const successPassengerCount = isGroupMode && receiptTransactions.length > 0
       ? receiptTransactions.length
       : finalGroupPassengerCount;
+    const receiptCount = Math.max(receiptTransactions.length, 1);
     const activeFareInfo = isGroupMode && fareInfo
       ? {
           ...fareInfo,
@@ -2112,7 +2118,50 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
               )}
             </div>
 
-            <div className={`mb-6 ${isGroupMode ? "max-h-[48vh] space-y-4 overflow-y-auto rounded-xl pr-1" : ""}`}>
+            <button
+              type="button"
+              onClick={() => setShowReceiptDetails((open) => !open)}
+              className="mb-3 flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left transition-colors hover:bg-white/10"
+            >
+              <span>
+                <span className="block text-sm font-bold text-white">Receipt Details</span>
+                <span className="text-[10px] text-white/35">
+                  {showReceiptDetails
+                    ? `${receiptCount} receipt${receiptCount !== 1 ? "s" : ""} shown`
+                    : `Tap to view ${receiptCount} receipt${receiptCount !== 1 ? "s" : ""}`}
+                </span>
+              </span>
+              <svg
+                className={`h-4 w-4 text-white/45 transition-transform ${showReceiptDetails ? "rotate-180" : ""}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+              </svg>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="mb-3 w-full rounded-xl border border-white/15 bg-white/10 py-3 text-sm font-bold text-white transition-colors hover:bg-white/15"
+            >
+              Print {isGroupMode ? "All Receipts" : "Receipt"}
+            </button>
+
+            <button
+              onClick={handleClose}
+              className={`w-full py-3 rounded-xl text-white text-sm font-bold transition-colors ${
+                selectedMethod === "GCash"
+                  ? "bg-[#1A5FB4] hover:bg-[#164A8F]"
+                  : "bg-emerald-600 hover:bg-emerald-700"
+              }`}
+            >
+              Done
+            </button>
+
+            <div className={`${showReceiptDetails ? "mt-4 block" : "hidden print:block"} ${isGroupMode ? "max-h-[48vh] space-y-4 overflow-y-auto rounded-xl pr-1" : ""}`}>
               {(receiptTransactions.length > 0 ? receiptTransactions : [null]).map((transaction, index) => (
                 <div key={transaction?.transactionId ?? "single"} className={isGroupMode ? "rounded-xl border border-white/15 bg-white/5 p-2" : ""}>
                   {isGroupMode && (
@@ -2148,25 +2197,6 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                 </div>
               ))}
             </div>
-
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="mb-3 w-full rounded-xl border border-white/15 bg-white/10 py-3 text-sm font-bold text-white transition-colors hover:bg-white/15"
-            >
-              Print {isGroupMode ? "All Receipts" : "Receipt"}
-            </button>
-
-            <button
-              onClick={handleClose}
-              className={`w-full py-3 rounded-xl text-white text-sm font-bold transition-colors ${
-                selectedMethod === "GCash"
-                  ? "bg-[#1A5FB4] hover:bg-[#164A8F]"
-                  : "bg-emerald-600 hover:bg-emerald-700"
-              }`}
-            >
-              Done
-            </button>
           </div>
         </div>
       </div>

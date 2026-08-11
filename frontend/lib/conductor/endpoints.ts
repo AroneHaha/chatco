@@ -16,6 +16,26 @@ export const CONDUCTOR_API = {
   transactions: {
     list: (shiftId: string) =>
       `/api/conductor/transactions?shift_id=${encodeURIComponent(shiftId)}`,
+    page: (
+      shiftId: string,
+      params: {
+        page: number;
+        perPage: number;
+        paymentMethod?: string;
+        dateFrom?: string;
+        dateTo?: string;
+      }
+    ) => {
+      const search = new URLSearchParams({
+        shift_id: shiftId,
+        page: String(params.page),
+        per_page: String(params.perPage),
+      });
+      if (params.paymentMethod) search.set("payment_method", params.paymentMethod);
+      if (params.dateFrom) search.set("date_from", params.dateFrom);
+      if (params.dateTo) search.set("date_to", params.dateTo);
+      return `/api/conductor/transactions?${search.toString()}`;
+    },
     create: "/api/conductor/transactions",
   },
   earnings: {

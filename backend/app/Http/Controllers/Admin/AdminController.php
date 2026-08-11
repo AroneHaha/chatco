@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\PaymentMethod;
+use App\Enums\PaymentStatus;
+use App\Enums\ShiftStatus;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\CommuterLocation;
@@ -845,7 +848,11 @@ class AdminController extends Controller
      */
     public function remittances(Request $request): JsonResponse
     {
-        $perPage = (int) $request->integer('per_page', 100);
+        $perPage = max(1, min((int) $request->integer('per_page', 100), 100));
+        $page = max(1, (int) $request->integer('page', 1));
+        $statusFilter = $request->filled('status')
+            ? strtoupper((string) $request->input('status'))
+            : null;
 
         $completedQuery = Remittance::query()
             ->with(['shift:shift_id,status,time_in,time_out', 'vehicle:id,unit_number,plate_number', 'driver:id,first_name,last_name']);
@@ -861,20 +868,19 @@ class AdminController extends Controller
         if ($request->filled('date')) {
             $completedQuery->where('date', $request->input('date'));
         }
-        if ($request->filled('status')) {
-            $status = strtoupper((string) $request->input('status'));
-            if ($status === 'REMITTED') {
+        if ($statusFilter) {
+            if ($statusFilter === 'REMITTED') {
                 $completedQuery->whereIn('remittance_status', [
                     Remittance::STATUS_COMPLETE,
                     Remittance::STATUS_SHORTAGE,
                     Remittance::STATUS_OVERAGE,
                     'Remitted',
                 ]);
-            } elseif ($status === 'OVERDUE') {
+            } elseif ($statusFilter === 'OVERDUE') {
                 $completedQuery->where('remittance_status', Remittance::STATUS_PENDING)
                     ->where('remittance_due_at', '<', now());
             } else {
-                $completedQuery->where('remittance_status', $status);
+                $completedQuery->where('remittance_status', $statusFilter);
             }
         }
         if ($request->filled('search')) {
@@ -895,22 +901,123 @@ class AdminController extends Controller
         if ($request->filled('driver')) {
             $completedQuery->where('driver_name', $request->input('driver'));
         }
-        $remittances = $completedQuery
-            ->orderBy('date', 'desc')
-            ->orderBy('time_in', 'desc')
-            ->paginate(max(1, min($perPage, 100)));
 
-        $remittances->getCollection()->transform(function (Remittance $remittance): Remittance {
-            $remittance->setAttribute(
-                'is_overdue',
-                $remittance->remittance_status === Remittance::STATUS_PENDING
-                    && $remittance->remittance_due_at?->isPast(),
-            );
+        $completedRows = $completedQuery
+            ->get()
+            ->map(function (Remittance $remittance): array {
+                $remittance->setAttribute(
+                    'is_overdue',
+                    $remittance->remittance_status === Remittance::STATUS_PENDING
+                        && $remittance->remittance_due_at?->isPast(),
+                );
 
-            return $remittance;
-        });
+                return $remittance->toArray();
+            });
 
-        return $this->successResponse($remittances, 'Remittances retrieved');
+        $activeRows = collect();
+        if ($statusFilter === null || $statusFilter === Remittance::STATUS_PENDING) {
+            $activeQuery = ShiftLog::query()
+                ->where('status', ShiftStatus::ACTIVE->value)
+                ->whereDoesntHave('remittance');
+
+            if ($request->filled('date_from')) {
+                $activeQuery->where('time_in', '>=', Carbon::parse($request->input('date_from'))->startOfDay());
+            }
+            if ($request->filled('date_to')) {
+                $activeQuery->where('time_in', '<=', Carbon::parse($request->input('date_to'))->endOfDay());
+            }
+            if ($request->filled('date')) {
+                $activeQuery
+                    ->where('time_in', '>=', Carbon::parse($request->input('date'))->startOfDay())
+                    ->where('time_in', '<=', Carbon::parse($request->input('date'))->endOfDay());
+            }
+            if ($request->filled('search')) {
+                $search = '%'.str_replace(['%', '_'], ['\\%', '\\_'], (string) $request->input('search')).'%';
+                $activeQuery->where(function ($query) use ($search): void {
+                    $query->where('conductor_name', 'like', $search)
+                        ->orWhere('driver_name', 'like', $search)
+                        ->orWhere('shift_id', 'like', $search);
+                });
+            }
+            if ($request->filled('conductor')) {
+                $activeQuery->where('conductor_name', $request->input('conductor'));
+            }
+            if ($request->filled('driver')) {
+                $activeQuery->where('driver_name', $request->input('driver'));
+            }
+
+            $activeShifts = $activeQuery
+                ->get(['shift_id', 'conductor_id', 'driver_id', 'vehicle_id', 'conductor_name', 'driver_name', 'unit_number', 'time_in', 'time_out']);
+            $shiftIds = $activeShifts->pluck('shift_id');
+            $totalsByShift = $shiftIds->isEmpty()
+                ? collect()
+                : Transaction::query()
+                    ->whereIn('shift_id', $shiftIds)
+                    ->where('status', PaymentStatus::PAID->value)
+                    ->select('shift_id')
+                    ->selectRaw("COALESCE(SUM(CASE WHEN payment_method = ? THEN final_amount ELSE 0 END), 0) AS cash_total", [PaymentMethod::CASH->value])
+                    ->selectRaw("COALESCE(SUM(CASE WHEN payment_method = ? THEN final_amount ELSE 0 END), 0) AS gcash_total", [PaymentMethod::GCASH->value])
+                    ->selectRaw('COALESCE(SUM(total_passengers), 0) AS total_passengers')
+                    ->groupBy('shift_id')
+                    ->get()
+                    ->keyBy('shift_id');
+
+            $activeRows = $activeShifts->map(function (ShiftLog $shift) use ($totalsByShift): array {
+                $totals = $totalsByShift->get($shift->shift_id);
+                $cashTotal = (float) ($totals->cash_total ?? 0);
+                $gcashTotal = (float) ($totals->gcash_total ?? 0);
+
+                return [
+                    'shift_id' => $shift->shift_id,
+                    'conductor_id' => $shift->conductor_id,
+                    'driver_id' => $shift->driver_id,
+                    'vehicle_id' => $shift->vehicle_id,
+                    'date' => $shift->time_in?->toDateString(),
+                    'conductor_name' => $shift->conductor_name,
+                    'driver_name' => $shift->driver_name,
+                    'unit_number' => $shift->unit_number,
+                    'total_passengers' => (int) ($totals->total_passengers ?? 0),
+                    'time_in' => $shift->time_in,
+                    'time_out' => $shift->time_out,
+                    'total_collected' => $cashTotal,
+                    'remitted_amount' => 0,
+                    'shortage' => 0,
+                    'overage' => 0,
+                    'cash_total' => $cashTotal,
+                    'gcash_total' => $gcashTotal,
+                    'remittance_status' => Remittance::STATUS_PENDING,
+                    'remittance_due_at' => null,
+                    'remitted_at' => null,
+                    'reminder_count' => 0,
+                    'is_overdue' => false,
+                ];
+            });
+        }
+
+        $rows = $completedRows
+            ->concat($activeRows)
+            ->sort(function (array $a, array $b): int {
+                $dateCompare = strcmp((string) ($b['date'] ?? ''), (string) ($a['date'] ?? ''));
+                if ($dateCompare !== 0) {
+                    return $dateCompare;
+                }
+
+                return strcmp((string) ($b['time_in'] ?? ''), (string) ($a['time_in'] ?? ''));
+            })
+            ->values();
+
+        $total = $rows->count();
+        $items = $rows->forPage($page, $perPage)->values();
+
+        return $this->successResponse([
+            'current_page' => $page,
+            'data' => $items,
+            'from' => $items->isEmpty() ? null : (($page - 1) * $perPage) + 1,
+            'last_page' => max(1, (int) ceil($total / $perPage)),
+            'per_page' => $perPage,
+            'to' => $items->isEmpty() ? null : (($page - 1) * $perPage) + $items->count(),
+            'total' => $total,
+        ], 'Remittances retrieved');
     }
 
     public function shiftLogs(Request $request): JsonResponse

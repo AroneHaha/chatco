@@ -51,10 +51,10 @@ export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFil
     { key: 'date', label: 'Date' },
     {
       key: '_totalAmount' as const,
-      label: 'Remitted Amount',
+      label: 'Amount',
       // Computed column — grand total of cash + GCash
       render: (_: unknown, row: RemittanceRow) =>
-        fmtPHP(row.cashDeclared + row.gcashTotal),
+        fmtPHP(row.cashTotal + row.gcashTotal),
     },
     {
       key: 'remittanceStatus',

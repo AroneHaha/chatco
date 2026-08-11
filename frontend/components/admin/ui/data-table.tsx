@@ -25,6 +25,7 @@ interface DataTableProps<T> {
   /** Disable horizontal overflow for compact, screen-fitting tables. */
   allowHorizontalScroll?: boolean;
   tableClassName?: string;
+  density?: 'default' | 'compact';
 }
 
 export function DataTable<T extends object>({
@@ -38,8 +39,10 @@ export function DataTable<T extends object>({
   stickyHeader = false,
   allowHorizontalScroll = true,
   tableClassName = '',
+  density = 'default',
 }: DataTableProps<T>) {
   const tableHeight = height ?? maxHeight ?? '32rem';
+  const isCompact = density === 'compact';
   const filteredData = useMemo(() => {
     if (!searchQuery) {
       return data;
@@ -73,7 +76,7 @@ export function DataTable<T extends object>({
                 <th
                   key={col.key}
                   scope="col"
-                  className={`px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider ${
+                  className={`px-4 ${isCompact ? 'py-2' : 'py-3'} text-xs font-medium text-slate-400 uppercase tracking-wider ${
                     col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'
                   } ${
                     // The <tr> border doesn't travel with sticky cells, so the
@@ -90,7 +93,7 @@ export function DataTable<T extends object>({
             {filteredData.map((item, idx) => (
               <tr
                 key={idx}
-                className={`h-12 hover:bg-[#172238] transition-colors ${onRowDoubleClick ? 'cursor-pointer' : ''}`}
+                className={`${isCompact ? 'h-9' : 'h-12'} hover:bg-[#172238] transition-colors ${onRowDoubleClick ? 'cursor-pointer' : ''}`}
                 onDoubleClick={() => onRowDoubleClick?.(item)}
               >
                 {columns.map((col) => {
@@ -98,7 +101,7 @@ export function DataTable<T extends object>({
                   return (
                     <td
                       key={col.key}
-                      className={`min-w-0 px-4 py-3 text-sm text-slate-300 ${
+                      className={`min-w-0 px-4 ${isCompact ? 'py-1.5' : 'py-3'} text-sm text-slate-300 ${
                         col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'
                       } ${col.cellClassName ?? ''}`}
                     >
