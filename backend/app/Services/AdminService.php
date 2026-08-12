@@ -47,8 +47,39 @@ class AdminService
      */
     public function listVehicles(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
-        return Vehicle::query()
+        return $this->vehicleListQuery($filters)
             ->with(['route', 'driver', 'conductor'])
+            ->orderBy('unit_number', 'asc')
+            ->paginate($perPage);
+    }
+
+    /**
+     * Count vehicles using the same filters as listVehicles(), without eager
+     * loading relations or fetching a page row.
+     *
+     * @param  array{status?: string, route_id?: string, search?: string}  $filters
+     */
+    public function countVehicles(array $filters = []): int
+    {
+        return (int) $this->vehicleListQuery($filters)->count();
+    }
+
+    /**
+     * Fetch one vehicle with the same relations used by the Fleet list.
+     *
+     * @throws ModelNotFoundException If the vehicle doesn't exist.
+     */
+    public function getVehicle(string $id): Vehicle
+    {
+        return Vehicle::with(['route', 'driver', 'conductor'])->findOrFail($id);
+    }
+
+    /**
+     * @param  array{status?: string, route_id?: string, search?: string}  $filters
+     */
+    private function vehicleListQuery(array $filters = []): Builder
+    {
+        return Vehicle::query()
             ->when($filters['status'] ?? null, function (Builder $q, string $status) {
                 $q->where('status', $status);
             })
@@ -56,14 +87,12 @@ class AdminService
                 $q->where('route_id', $routeId);
             })
             ->when($filters['search'] ?? null, function (Builder $q, string $search) {
-                $term = "%{$search}%";
+                $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], trim($search)).'%';
                 $q->where(function (Builder $sub) use ($term) {
                     $sub->where('plate_number', 'like', $term)
                         ->orWhere('unit_number', 'like', $term);
                 });
-            })
-            ->orderBy('unit_number', 'asc')
-            ->paginate($perPage);
+            });
     }
 
     /**
@@ -539,8 +568,47 @@ class AdminService
      * performs the merge in SQL so large personnel tables are never fully
      * loaded into PHP or the browser.
      */
-    public function listFleetPersonnel(int $perPage = 25, int $page = 1, ?string $search = null): Paginator
+    public function listFleetPersonnel(int $perPage = 25, int $page = 1, ?string $search = null, ?string $role = null): Paginator
     {
+        $base = $this->fleetPersonnelBaseQuery($search, $role);
+        $total = (clone $base)->count();
+        $items = (clone $base)
+            ->orderBy('role_order')
+            ->orderBy('sort_last_name')
+            ->orderBy('sort_first_name')
+            ->orderBy('id')
+            ->forPage($page, $perPage)
+            ->get()
+            ->map(fn ($row) => [
+                'id' => (string) $row->id,
+                'name' => trim((string) $row->name),
+                'role' => (string) $row->role,
+                'contact' => (string) $row->contact,
+                'profile_picture_url' => $row->profile_picture_url,
+            ]);
+
+        return new Paginator(
+            $items,
+            $total,
+            $perPage,
+            $page,
+            ['path' => request()->url(), 'query' => request()->query()],
+        );
+    }
+
+    public function countFleetPersonnel(?string $search = null, ?string $role = null): int
+    {
+        return (int) $this->fleetPersonnelBaseQuery($search, $role)->count();
+    }
+
+    private function fleetPersonnelBaseQuery(?string $search = null, ?string $role = null): \Illuminate\Database\Query\Builder
+    {
+        $normalizedRole = match (strtoupper(trim((string) $role))) {
+            'DRIVER' => 'Driver',
+            'CONDUCTOR' => 'Conductor',
+            default => null,
+        };
+
         $driverNameExpr = DB::connection()->getDriverName() === 'sqlite'
             ? "first_name || ' ' || last_name"
             : "CONCAT(first_name, ' ', last_name)";
@@ -586,23 +654,57 @@ class AdminService
             });
         }
 
-        $union = $drivers->unionAll($conductors);
-        $base = DB::query()->fromSub($union, 'fleet_personnel');
+        if ($normalizedRole === 'Driver') {
+            return DB::query()->fromSub($drivers, 'fleet_personnel');
+        }
+
+        if ($normalizedRole === 'Conductor') {
+            return DB::query()->fromSub($conductors, 'fleet_personnel');
+        }
+
+        return DB::query()->fromSub($drivers->unionAll($conductors), 'fleet_personnel');
+    }
+
+    /**
+     * Paginated Fleet Management shift-history personnel entries.
+     *
+     * One shift has one driver and one conductor. The UI displays those as
+     * separate history rows, so this query builds that split at the database
+     * layer and paginates the final row set.
+     */
+    public function listFleetShiftHistoryEntries(int $perPage = 25, int $page = 1, ?string $search = null, ?string $shiftRange = null): Paginator
+    {
+        $base = $this->fleetShiftHistoryEntriesBaseQuery($search, $shiftRange);
         $total = (clone $base)->count();
-        $items = (clone $base)
-            ->orderBy('role_order')
-            ->orderBy('sort_last_name')
-            ->orderBy('sort_first_name')
+        $rows = (clone $base)
+            ->orderBy('time_in', 'desc')
             ->orderBy('id')
             ->forPage($page, $perPage)
-            ->get()
-            ->map(fn ($row) => [
+            ->get();
+
+        $items = $rows->map(function ($row) {
+            $timeIn = $row->time_in ? Carbon::parse($row->time_in)->format('H:i:s') : '-';
+            $timeOut = $row->time_out ? Carbon::parse($row->time_out)->format('H:i:s') : '-';
+            $details = "Time in: {$timeIn} | Time out: {$timeOut} | Status: {$row->status}";
+            if ($row->notes) {
+                $details .= " | Notes: {$row->notes}";
+            }
+
+            return [
                 'id' => (string) $row->id,
-                'name' => trim((string) $row->name),
+                'personnelName' => (string) $row->personnel_name,
                 'role' => (string) $row->role,
-                'contact' => (string) $row->contact,
-                'profile_picture_url' => $row->profile_picture_url,
-            ]);
+                'vehicle' => (string) $row->vehicle,
+                'shiftDate' => $row->time_in
+                    ? Carbon::parse($row->time_in)->format('M j, Y')
+                    : '-',
+                'timeIn' => $timeIn,
+                'timeOut' => $timeOut,
+                'status' => (string) $row->status,
+                'notes' => $row->notes ? (string) $row->notes : null,
+                'details' => $details,
+            ];
+        });
 
         return new Paginator(
             $items,
@@ -613,14 +715,12 @@ class AdminService
         );
     }
 
-    /**
-     * Paginated Fleet Management shift-history personnel entries.
-     *
-     * One shift has one driver and one conductor. The UI displays those as
-     * separate history rows, so this query builds that split at the database
-     * layer and paginates the final row set.
-     */
-    public function listFleetShiftHistoryEntries(int $perPage = 25, int $page = 1, ?string $search = null): Paginator
+    public function countFleetShiftHistoryEntries(?string $search = null, ?string $shiftRange = null): int
+    {
+        return (int) $this->fleetShiftHistoryEntriesBaseQuery($search, $shiftRange)->count();
+    }
+
+    private function fleetShiftHistoryEntriesBaseQuery(?string $search = null, ?string $shiftRange = null): \Illuminate\Database\Query\Builder
     {
         $driverIdExpr = DB::connection()->getDriverName() === 'sqlite'
             ? "shift_id || ':driver'"
@@ -659,6 +759,13 @@ class AdminService
             ->whereNotNull('conductor_name')
             ->where('conductor_name', '!=', '');
 
+        $rangeBounds = $this->fleetShiftHistoryRangeBounds($shiftRange);
+        if ($rangeBounds !== null) {
+            [$start, $end] = $rangeBounds;
+            $driverEntries->whereBetween('time_in', [$start, $end]);
+            $conductorEntries->whereBetween('time_in', [$start, $end]);
+        }
+
         if ($search !== null && trim($search) !== '') {
             $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], trim($search)).'%';
             $applySearch = function ($query, string $personnelColumn, string $role) use ($term): void {
@@ -676,42 +783,28 @@ class AdminService
             $applySearch($conductorEntries, 'conductor_name', 'Conductor');
         }
 
-        $union = $driverEntries->unionAll($conductorEntries);
-        $base = DB::query()->fromSub($union, 'fleet_shift_entries');
-        $total = (clone $base)->count();
-        $rows = (clone $base)
-            ->orderBy('time_in', 'desc')
-            ->orderBy('id')
-            ->forPage($page, $perPage)
-            ->get();
+        return DB::query()->fromSub($driverEntries->unionAll($conductorEntries), 'fleet_shift_entries');
+    }
 
-        $items = $rows->map(function ($row) {
-            $timeIn = $row->time_in ? Carbon::parse($row->time_in)->format('H:i:s') : '-';
-            $timeOut = $row->time_out ? Carbon::parse($row->time_out)->format('H:i:s') : '-';
-            $details = "Time in: {$timeIn} | Time out: {$timeOut} | Status: {$row->status}";
-            if ($row->notes) {
-                $details .= " | Notes: {$row->notes}";
-            }
+    private function fleetShiftHistoryRangeBounds(?string $shiftRange): ?array
+    {
+        $now = Carbon::now();
 
-            return [
-                'id' => (string) $row->id,
-                'personnelName' => (string) $row->personnel_name,
-                'role' => (string) $row->role,
-                'vehicle' => (string) $row->vehicle,
-                'shiftDate' => $row->time_in
-                    ? Carbon::parse($row->time_in)->format('M j, Y')
-                    : '-',
-                'details' => $details,
-            ];
-        });
-
-        return new Paginator(
-            $items,
-            $total,
-            $perPage,
-            $page,
-            ['path' => request()->url(), 'query' => request()->query()],
-        );
+        return match ($shiftRange) {
+            'today' => [
+                $now->copy()->startOfDay(),
+                $now->copy()->endOfDay(),
+            ],
+            'last_7_days' => [
+                $now->copy()->subDays(6)->startOfDay(),
+                $now->copy()->endOfDay(),
+            ],
+            'this_month' => [
+                $now->copy()->startOfMonth(),
+                $now->copy()->endOfMonth(),
+            ],
+            default => null,
+        };
     }
 
     // ═══════════════════════════════════════════════════════════════════

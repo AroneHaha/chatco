@@ -119,7 +119,7 @@ export function VehicleTable({
           placeholder="Search vehicles..."
           value={searchQuery}
           onChange={onSearchChange}
-          className="min-w-0 flex-1"
+          className="min-w-0 w-full lg:max-w-sm"
         />
         <div className="flex items-center gap-2">
           <button

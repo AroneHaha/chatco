@@ -164,8 +164,15 @@ class AdminController extends Controller
         $perPage = max(1, min((int) $request->integer('per_page', 25), 100));
         $page = max(1, (int) $request->integer('page', 1));
         $search = $request->string('search')->toString() ?: null;
+        $role = $request->string('role')->toString() ?: null;
 
-        $personnel = $this->adminService->listFleetPersonnel($perPage, $page, $search);
+        if ($request->boolean('count_only')) {
+            return $this->successResponse([
+                'total' => $this->adminService->countFleetPersonnel($search, $role),
+            ], 'Personnel count retrieved');
+        }
+
+        $personnel = $this->adminService->listFleetPersonnel($perPage, $page, $search, $role);
 
         return $this->successResponse($personnel, 'Personnel retrieved');
     }
@@ -369,6 +376,7 @@ class AdminController extends Controller
                 'termination_type' => $validated['termination_type'],
                 'terminated_date' => now()->toDateString(),
                 'last_vehicle' => $lastVehicle,
+                'date_joined' => $driver->hire_date?->toDateString(),
             ]);
             $driver->delete();
         });
@@ -448,6 +456,7 @@ class AdminController extends Controller
                 'termination_type' => $validated['termination_type'],
                 'terminated_date' => now()->toDateString(),
                 'last_vehicle' => $lastVehicle,
+                'date_joined' => $conductor->created_at?->toDateString(),
             ]);
             // Revoke ALL tokens BEFORE soft-deleting — so the conductor is
             // instantly logged out everywhere and can't use the account.
@@ -577,7 +586,7 @@ class AdminController extends Controller
     {
         $perPage = max(1, min((int) $request->integer('per_page', 50), 100));
 
-        $records = TerminatedPersonnel::query()
+        $query = TerminatedPersonnel::query()
             ->when($request->string('search')->toString(), function ($query, string $search): void {
                 $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], trim($search)).'%';
                 $query->where(function ($subQuery) use ($term): void {
@@ -588,7 +597,15 @@ class AdminController extends Controller
                         ->orWhere('last_vehicle', 'like', $term)
                         ->orWhere('termination_type', 'like', $term);
                 });
-            })
+            });
+
+        if ($request->boolean('count_only')) {
+            return $this->successResponse([
+                'total' => (int) $query->count(),
+            ], 'Terminated personnel count retrieved');
+        }
+
+        $records = $query
             ->orderBy('terminated_date', 'desc')
             ->orderBy('created_at', 'desc')
             ->paginate($perPage)
@@ -1026,17 +1043,28 @@ class AdminController extends Controller
         $page = max(1, (int) $request->integer('page', 1));
 
         if ($request->query('entry_view') === 'personnel') {
+            $shiftRange = $request->string('shift_range')->toString() ?: null;
+
+            if ($request->boolean('count_only')) {
+                return $this->successResponse([
+                    'total' => $this->adminService->countFleetShiftHistoryEntries(
+                        $request->string('search')->toString() ?: null,
+                        $shiftRange,
+                    ),
+                ], 'Shift history count retrieved');
+            }
+
             $entries = $this->adminService->listFleetShiftHistoryEntries(
                 $perPage,
                 $page,
                 $request->string('search')->toString() ?: null,
+                $shiftRange,
             );
 
             return $this->successResponse($entries, 'Shift history entries retrieved');
         }
 
-        $query = ShiftLog::with(['vehicle', 'driver', 'route'])
-            ->orderBy('time_in', 'desc');
+        $query = ShiftLog::query();
 
         if ($request->has('vehicle_id')) {
             $query->where('vehicle_id', $request->input('vehicle_id'));
@@ -1062,7 +1090,17 @@ class AdminController extends Controller
             });
         }
 
-        $shiftLogs = $query->paginate($perPage)->withQueryString();
+        if ($request->boolean('count_only')) {
+            return $this->successResponse([
+                'total' => (int) $query->count(),
+            ], 'Shift log count retrieved');
+        }
+
+        $shiftLogs = $query
+            ->with(['vehicle', 'driver', 'route'])
+            ->orderBy('time_in', 'desc')
+            ->paginate($perPage)
+            ->withQueryString();
 
         return $this->successResponse($shiftLogs, 'Shift logs retrieved');
     }

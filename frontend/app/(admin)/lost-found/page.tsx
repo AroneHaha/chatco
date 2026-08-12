@@ -461,8 +461,8 @@ export default function LostFoundPage() {
           ))}
         </div>
 
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,34rem)_13rem_15rem] lg:items-center">
-          <div className="relative min-w-0">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative min-w-0 lg:w-[34rem]">
             <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
             <input
               type="text"
@@ -472,41 +472,43 @@ export default function LostFoundPage() {
               className="w-full rounded-xl border border-white/10 bg-[#0E1628] py-3 pl-11 pr-4 text-sm text-white outline-none transition-colors placeholder:text-slate-500 focus:border-[#62A0EA]"
             />
           </div>
-          <div className="relative">
-            <CalendarDays className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => { setSelectedDate(e.target.value); setCurrentPage(1); }}
-              className="h-11 w-full rounded-xl border border-white/10 bg-[#0E1628] py-3 pl-11 pr-10 text-sm font-semibold text-slate-300 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
-              aria-label="Filter lost items by posted date"
-            />
-            {selectedDate && (
-              <button
-                type="button"
-                onClick={() => { setSelectedDate(''); setCurrentPage(1); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-500 transition-colors hover:bg-white/5 hover:text-slate-200"
-                aria-label="Clear date filter"
-                title="Clear date"
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:justify-end">
+            <div className="relative sm:w-52">
+              <CalendarDays className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => { setSelectedDate(e.target.value); setCurrentPage(1); }}
+                className="h-11 w-full rounded-xl border border-white/10 bg-[#0E1628] py-3 pl-11 pr-10 text-sm font-semibold text-slate-300 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
+                aria-label="Filter lost items by posted date"
+              />
+              {selectedDate && (
+                <button
+                  type="button"
+                  onClick={() => { setSelectedDate(''); setCurrentPage(1); }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-500 transition-colors hover:bg-white/5 hover:text-slate-200"
+                  aria-label="Clear date filter"
+                  title="Clear date"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            <div className="relative sm:w-60">
+              <select
+                value={activeCategory}
+                onChange={(e) => { setActiveCategory(e.target.value as ItemCategory | 'ALL'); setCurrentPage(1); }}
+                className="h-11 w-full appearance-none rounded-xl border border-white/10 bg-[#0E1628] px-4 pr-10 text-sm font-semibold text-slate-300 outline-none transition-colors focus:border-[#62A0EA]"
+                aria-label="Filter lost items by category"
               >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-          <div className="relative">
-            <select
-              value={activeCategory}
-              onChange={(e) => { setActiveCategory(e.target.value as ItemCategory | 'ALL'); setCurrentPage(1); }}
-              className="h-11 w-full appearance-none rounded-xl border border-white/10 bg-[#0E1628] px-4 pr-10 text-sm font-semibold text-slate-300 outline-none transition-colors focus:border-[#62A0EA]"
-              aria-label="Filter lost items by category"
-            >
-              {itemCategoriesWithAll.map(cat => (
-                <option key={cat.value} value={cat.value}>
-                  {cat.label}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                {itemCategoriesWithAll.map(cat => (
+                  <option key={cat.value} value={cat.value}>
+                    {cat.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            </div>
           </div>
         </div>
       </div>

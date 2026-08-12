@@ -9,7 +9,6 @@ import {
   Car,
   User,
   Phone,
-  Route as RouteIcon,
   Hash,
   Download,
   Printer,
@@ -19,7 +18,7 @@ import {
   Users,
 } from 'lucide-react';
 import {
-  list as listVehicles,
+  get as getVehicle,
   type AdminVehicle,
   type VehiclePerson,
 } from '@/lib/admin/services/vehicle.service';
@@ -109,23 +108,13 @@ export function VehicleDetailsModal({ isOpen, vehicleId, onClose }: VehicleDetai
   const [error, setError] = useState<string | null>(null);
   const qrWrapperRef = useRef<HTMLDivElement>(null);
 
-  // We fetch via the LIST endpoint (GET /api/admin/vehicles) and find the
-  // matching record by id, because the backend doesn't expose a dedicated
-  // GET /admin/vehicles/{id} (show) route yet — only list/create/update/
-  // delete. The list response already eager-loads route + driver +
-  // conductor, so it has everything the modal needs. For a typical fleet
-  // (tens of vehicles) this is a single fast request.
+  // Fetch the single vehicle record so details scale with fleet size.
   const load = useCallback(async (id: string) => {
     setIsLoading(true);
     setError(null);
     setVehicle(null);
     try {
-      const result = await listVehicles({ perPage: 200 });
-      const found = result.vehicles.find((v) => v.id === id);
-      if (!found) {
-        throw new Error('Vehicle not found. It may have been removed.');
-      }
-      setVehicle(found);
+      setVehicle(await getVehicle(id));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load vehicle details.');
     } finally {
@@ -174,15 +163,13 @@ export function VehicleDetailsModal({ isOpen, vehicleId, onClose }: VehicleDetai
     if (!win) return;
     const unit = vehicle.unitNumber || '—';
     const plate = vehicle.plateNumber || '—';
-    const route = vehicle.route?.name ?? '—';
     win.document.write(`<!doctype html><html><head><title>Unit QR — ${unit}</title>
       <style>
         * { box-sizing: border-box; }
         body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 32px; text-align: center; color: #0B1120; }
         h1 { font-size: 20px; margin: 0 0 4px; }
         .unit { font-size: 30px; font-weight: 800; margin: 8px 0 2px; letter-spacing: 1px; }
-        .plate { font-size: 16px; color: #475569; margin: 0 0 4px; }
-        .route { font-size: 13px; color: #64748b; margin: 0 0 20px; }
+        .plate { font-size: 16px; color: #475569; margin: 0 0 20px; }
         img { width: 300px; height: 300px; }
         .hint { margin-top: 16px; font-size: 13px; font-weight: 600; color: #1d4ed8; }
         .sub { margin-top: 4px; font-size: 11px; color: #94a3b8; }
@@ -191,7 +178,6 @@ export function VehicleDetailsModal({ isOpen, vehicleId, onClose }: VehicleDetai
       <h1>Chatco — Feedback QR</h1>
       <div class="unit">UNIT ${unit}</div>
       <div class="plate">Plate: ${plate}</div>
-      <div class="route">Route: ${route}</div>
       <img src="${dataUrl}" alt="Unit QR code" />
       <div class="hint">Scan to rate today&apos;s driver &amp; conductor</div>
       <div class="sub">This QR is permanent — keep it inside the unit.</div>
@@ -267,16 +253,6 @@ export function VehicleDetailsModal({ isOpen, vehicleId, onClose }: VehicleDetai
             <div className="divide-y divide-[#1A2540]">
               <DetailRow icon={Hash} label="Unit Number" value={vehicle.unitNumber || '—'} />
               <DetailRow icon={Car} label="Plate Number" value={vehicle.plateNumber || '—'} />
-              <DetailRow
-                icon={Car}
-                label="Vehicle Type"
-                value={vehicle.vehicleType || '—'}
-              />
-              <DetailRow
-                icon={RouteIcon}
-                label="Route"
-                value={vehicle.route?.name ?? '—'}
-              />
             </div>
           </section>
 
@@ -305,9 +281,9 @@ export function VehicleDetailsModal({ isOpen, vehicleId, onClose }: VehicleDetai
               </p>
             </div>
 
-            <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
+            <div className="flex flex-col items-center gap-4">
               {/* QR (white quiet-zone wrapper so it scans reliably) */}
-              <div className="rounded-xl bg-white p-3 shadow-sm">
+              <div className="rounded-lg bg-white p-3 shadow-sm">
                 <div ref={qrWrapperRef}>
                   <QRCodeCanvas
                     value={qrPayload}
@@ -319,7 +295,7 @@ export function VehicleDetailsModal({ isOpen, vehicleId, onClose }: VehicleDetai
               </div>
 
               {/* Actions */}
-              <div className="flex w-full flex-col gap-2 sm:w-auto sm:pt-2">
+              <div className="grid w-full max-w-xs grid-cols-1 gap-2 sm:grid-cols-2">
                 <button
                   onClick={handleDownload}
                   className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#62A0EA] text-white text-sm font-medium rounded-md hover:bg-[#4A8BD4] transition-colors"
@@ -334,10 +310,10 @@ export function VehicleDetailsModal({ isOpen, vehicleId, onClose }: VehicleDetai
                   <Printer size={16} />
                   Print
                 </button>
-                <p className="mt-1 text-center text-[10px] text-slate-500 sm:text-left">
-                  Unit {vehicle.unitNumber || '—'} · {vehicle.plateNumber || '—'}
-                </p>
               </div>
+              <p className="text-center text-[10px] text-slate-500">
+                Unit {vehicle.unitNumber || '—'} · {vehicle.plateNumber || '—'}
+              </p>
             </div>
           </section>
         </div>

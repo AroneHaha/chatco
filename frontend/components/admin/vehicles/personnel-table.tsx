@@ -6,7 +6,7 @@ import { DataTable } from "@/components/admin/ui/data-table";
 import { TablePagination } from "@/components/admin/ui/table-pagination";
 import { SearchBar } from "@/components/admin/ui/search-bar";
 import { Edit, Trash, IdCard, Plus, UserPlus } from "lucide-react";
-import type { PageMeta, Personnel } from "@/app/(admin)/vehicles/data/vehicles-data";
+import type { PageMeta, Personnel, PersonnelRoleFilter } from "@/app/(admin)/vehicles/data/vehicles-data";
 import { DriverDetailModal } from "@/components/admin/vehicles/driver-detail-modal";
 import { ConductorDetailModal } from "@/components/admin/vehicles/conductor-detail-modal";
 import { SkeletonTable } from "@/components/admin/ui/skeleton";
@@ -14,9 +14,11 @@ import { SkeletonTable } from "@/components/admin/ui/skeleton";
 interface PersonnelTableProps {
   personnel: Personnel[];
   searchQuery: string;
+  roleFilter: PersonnelRoleFilter;
   page: PageMeta;
   onPageChange: (page: number) => void;
   onSearchChange: (value: string) => void;
+  onRoleFilterChange: (role: PersonnelRoleFilter) => void;
   onAddDriver: () => void;
   onCreateConductor: () => void;
   onEdit: (personnel: Personnel) => void;
@@ -31,9 +33,11 @@ interface PersonnelTableProps {
 export function PersonnelTable({
   personnel,
   searchQuery,
+  roleFilter,
   page,
   onPageChange,
   onSearchChange,
+  onRoleFilterChange,
   onAddDriver,
   onCreateConductor,
   onEdit,
@@ -121,23 +125,35 @@ export function PersonnelTable({
     <>
       <div className="flex min-w-0 flex-col gap-3 rounded-lg border border-[#1E2D45] bg-[#111A2B] p-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <SearchBar
-            placeholder="Search personnel..."
-            value={searchQuery}
-            onChange={onSearchChange}
-            className="min-w-0 flex-1"
-          />
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+            <SearchBar
+              placeholder="Search personnel..."
+              value={searchQuery}
+              onChange={onSearchChange}
+              className="min-w-0 w-full sm:w-80"
+            />
+            <select
+              value={roleFilter}
+              onChange={(event) => onRoleFilterChange(event.target.value as PersonnelRoleFilter)}
+              aria-label="Filter personnel by role"
+              className="h-10 rounded-lg border border-[#1E2D45] bg-[#0E1628] px-3 text-sm text-slate-200 outline-none transition-colors focus:border-[#62A0EA]/50 focus:ring-1 focus:ring-[#62A0EA]/30"
+            >
+              <option value="all">All personnel</option>
+              <option value="driver">Drivers</option>
+              <option value="conductor">Conductors</option>
+            </select>
+          </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <button
               onClick={onCreateConductor}
-              className="flex items-center justify-center gap-2 rounded-md bg-[#62A0EA] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4]"
+              className="flex w-full items-center justify-center gap-2 rounded-md bg-[#62A0EA] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4] sm:w-44"
             >
               <UserPlus size={18} />
-              <span>Conductor Account</span>
+              <span>Conductor</span>
             </button>
             <button
               onClick={onAddDriver}
-              className="flex items-center justify-center gap-2 rounded-md bg-[#62A0EA] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4]"
+              className="flex w-full items-center justify-center gap-2 rounded-md bg-[#62A0EA] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4] sm:w-44"
             >
               <Plus size={18} />
               <span>Add Driver</span>

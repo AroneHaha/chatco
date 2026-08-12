@@ -18,8 +18,19 @@ interface DeletePersonnelModalProps {
 export function DeletePersonnelModal({ isOpen, onClose, onConfirm, personnelData }: DeletePersonnelModalProps) {
   const [terminationType, setTerminationType] = useState('Terminated');
   const [reason, setReason] = useState('');
+  const [otherReason, setOtherReason] = useState('');
+  const [confirmText, setConfirmText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const terminationReasons = [
+    'Repeated policy violations',
+    'Gross negligence',
+    'Misconduct',
+    'Attendance issues',
+    'Failed to meet operational standards',
+    'Other',
+  ];
 
   // Reset the form whenever the modal transitions to open or the target
   // personnel changes. Uses the React-recommended "adjust state during
@@ -34,6 +45,8 @@ export function DeletePersonnelModal({ isOpen, onClose, onConfirm, personnelData
     if (isOpen) {
       setTerminationType('Terminated');
       setReason('');
+      setOtherReason('');
+      setConfirmText('');
       setSubmitError(null);
       setIsSubmitting(false);
     }
@@ -41,14 +54,19 @@ export function DeletePersonnelModal({ isOpen, onClose, onConfirm, personnelData
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!personnelData || !reason.trim() || isSubmitting) return;
+    const finalReason = terminationType === 'Resigned'
+      ? 'Resigned'
+      : reason === 'Other'
+        ? otherReason.trim()
+        : reason;
+    if (!personnelData || !finalReason.trim() || confirmText !== 'Confirm' || isSubmitting) return;
 
     setIsSubmitting(true);
     setSubmitError(null);
     try {
       await onConfirm({
         id: personnelData.id,
-        reason: reason.trim(),
+        reason: finalReason.trim(),
         terminationType,
       });
       // onConfirm resolved — close the modal. The parent will refetch.
@@ -103,19 +121,57 @@ export function DeletePersonnelModal({ isOpen, onClose, onConfirm, personnelData
           </select>
         </div>
 
-        {/* Reason Textarea */}
+        {terminationType === 'Terminated' && (
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1.5">
+              Reason for Removal <span className="text-red-400">*</span>
+            </label>
+            <select
+              value={reason}
+              onChange={(e) => {
+                setReason(e.target.value);
+                if (e.target.value !== 'Other') setOtherReason('');
+              }}
+              required
+              disabled={isSubmitting}
+              className="block w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white focus:outline-none focus:ring-1 focus:ring-red-400 transition-colors [color-scheme:dark] disabled:opacity-50"
+            >
+              <option value="" className="bg-gray-800">Select a reason</option>
+              {terminationReasons.map((item) => (
+                <option key={item} value={item} className="bg-gray-800">{item}</option>
+              ))}
+            </select>
+            {reason === 'Other' && (
+              <textarea
+                value={otherReason}
+                onChange={(e) => setOtherReason(e.target.value)}
+                required
+                disabled={isSubmitting}
+                rows={3}
+                placeholder="Type the specific reason..."
+                className="mt-3 block w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-400 transition-colors resize-none leading-relaxed disabled:opacity-50"
+              />
+            )}
+            <p className="text-xs text-slate-600 mt-1">This will be recorded in the Records & History tab.</p>
+          </div>
+        )}
+
+        {/* Confirmation guard */}
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1.5">Reason for Removal <span className="text-red-400">*</span></label>
-          <textarea
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
+          <label className="block text-sm font-medium text-slate-300 mb-1.5">
+            Type <span className="font-semibold text-white">Confirm</span> to continue <span className="text-red-400">*</span>
+          </label>
+          <input
+            type="text"
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
             required
             disabled={isSubmitting}
-            rows={4}
-            placeholder="e.g., Repeated policy violations, Gross negligence, Health reasons..."
-            className="block w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-400 transition-colors resize-none leading-relaxed disabled:opacity-50"
+            autoComplete="off"
+            placeholder="Confirm"
+            className="block w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-400 transition-colors disabled:opacity-50"
           />
-          <p className="text-xs text-slate-600 mt-1">This will be recorded in the Records & History tab.</p>
+          <p className="text-xs text-slate-600 mt-1">This prevents accidental personnel removals.</p>
         </div>
 
         {/* Action Buttons */}
@@ -130,7 +186,11 @@ export function DeletePersonnelModal({ isOpen, onClose, onConfirm, personnelData
           </button>
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={
+              isSubmitting ||
+              confirmText !== 'Confirm' ||
+              (terminationType === 'Terminated' && (!reason || (reason === 'Other' && !otherReason.trim())))
+            }
             className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-red-600 text-white font-medium rounded-md hover:bg-red-700 transition-colors active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {isSubmitting ? (

@@ -1,7 +1,7 @@
 // app/(admin)/vehicles/page.tsx
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { VehicleTable } from '@/components/admin/vehicles/vehicle-table';
 import { AddVehicleModal } from '@/components/admin/vehicles/add-vehicle-modal';
 import { EditVehicleModal } from '@/components/admin/vehicles/edit-vehicle-modal';
@@ -16,7 +16,7 @@ import { ConductorAccountSuccessModal } from '@/components/admin/vehicles/conduc
 import { HistoryTable } from '@/components/admin/vehicles/history-table';
 import { Users, Car, Archive, AlertCircle, RefreshCw } from 'lucide-react';
 import { useVehiclesData } from './data/vehicles-data';
-import type { FleetHistoryTab, Vehicle, Personnel } from './data/vehicles-data';
+import type { FleetHistoryTab, FleetShiftHistoryRange, PersonnelRoleFilter, Vehicle, Personnel } from './data/vehicles-data';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 
 export default function VehiclesPage() {
@@ -43,9 +43,12 @@ export default function VehiclesPage() {
   const [editingPersonnelData, setEditingPersonnelData] = useState<Personnel | null>(null);
   const [deletingPersonnelData, setDeletingPersonnelData] = useState<Personnel | null>(null);
   
+  const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'vehicles' | 'personnel' | 'history'>('vehicles');
-  const [historyTab, setHistoryTab] = useState<FleetHistoryTab>('terminated');
+  const [historyTab, setHistoryTab] = useState<FleetHistoryTab>('shifts');
+  const [personnelRole, setPersonnelRole] = useState<PersonnelRoleFilter>('all');
+  const [shiftHistoryRange, setShiftHistoryRange] = useState<FleetShiftHistoryRange>('today');
   const [vehiclePage, setVehiclePage] = useState(1);
   const [personnelPage, setPersonnelPage] = useState(1);
   const [terminatedPage, setTerminatedPage] = useState(1);
@@ -55,23 +58,52 @@ export default function VehiclesPage() {
     activeTab,
     historyTab,
     searchQuery,
+    personnelRole,
+    shiftHistoryRange,
     vehiclePage,
     personnelPage,
     terminatedPage,
     shiftPage,
-  }), [activeTab, historyTab, searchQuery, vehiclePage, personnelPage, terminatedPage, shiftPage]);
+  }), [activeTab, historyTab, searchQuery, personnelRole, shiftHistoryRange, vehiclePage, personnelPage, terminatedPage, shiftPage]);
 
   const { data, counts, pages, isLoading, error, refetch } = useVehiclesData(queryState);
   
   const vehicles = data.vehicles;
   const historyRecords = counts.terminatedPersonnel + counts.shiftHistoryLog;
 
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      setSearchQuery(searchInput);
+      setVehiclePage(1);
+      setPersonnelPage(1);
+      setTerminatedPage(1);
+      setShiftPage(1);
+    }, 350);
+
+    return () => window.clearTimeout(id);
+  }, [searchInput]);
+
   const handleSearchChange = (value: string) => {
-    setSearchQuery(value);
-    setVehiclePage(1);
+    setSearchInput(value);
+  };
+
+  const handlePersonnelRoleChange = (role: PersonnelRoleFilter) => {
+    setPersonnelRole(role);
     setPersonnelPage(1);
-    setTerminatedPage(1);
+  };
+
+  const handleShiftHistoryRangeChange = (range: FleetShiftHistoryRange) => {
+    setShiftHistoryRange(range);
     setShiftPage(1);
+  };
+
+  const handleHistoryTabChange = (tab: FleetHistoryTab) => {
+    setHistoryTab(tab);
+    if (tab === 'terminated') {
+      setTerminatedPage(1);
+    } else {
+      setShiftPage(1);
+    }
   };
 
   const tabs = [
@@ -281,7 +313,7 @@ export default function VehiclesPage() {
       {activeTab === 'vehicles' ? (
         <VehicleTable
           vehicles={vehicles}
-          searchQuery={searchQuery}
+          searchQuery={searchInput}
           page={pages.vehicles}
           onPageChange={setVehiclePage}
           onSearchChange={handleSearchChange}
@@ -294,10 +326,12 @@ export default function VehiclesPage() {
       ) : activeTab === 'personnel' ? (
         <PersonnelTable 
           personnel={data.personnel}
-          searchQuery={searchQuery} 
+          searchQuery={searchInput} 
+          roleFilter={personnelRole}
           page={pages.personnel}
           onPageChange={setPersonnelPage}
           onSearchChange={handleSearchChange}
+          onRoleFilterChange={handlePersonnelRoleChange}
           onAddDriver={handleOpenPersonnelModal}
           onCreateConductor={handleOpenCreateConductor}
           onEdit={handleOpenEditPersonnel}
@@ -310,9 +344,11 @@ export default function VehiclesPage() {
         <HistoryTable 
           terminatedPersonnel={data.terminatedPersonnel} 
           shiftHistoryLog={data.shiftHistoryLog}
-          searchQuery={searchQuery}
+          searchQuery={searchInput}
           historyTab={historyTab}
-          onHistoryTabChange={setHistoryTab}
+          onHistoryTabChange={handleHistoryTabChange}
+          shiftHistoryRange={shiftHistoryRange}
+          onShiftHistoryRangeChange={handleShiftHistoryRangeChange}
           terminatedPage={pages.terminatedPersonnel}
           shiftPage={pages.shiftHistoryLog}
           onTerminatedPageChange={setTerminatedPage}

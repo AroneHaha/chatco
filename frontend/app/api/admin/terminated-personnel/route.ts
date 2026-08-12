@@ -24,7 +24,6 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // The backend returns a flat Collection (non-paginated) → { data: [...] }.
-  // Pass it through directly.
+  // Pass through the backend's paginator or count-only payload directly.
   return jsonData(result.data);
 }

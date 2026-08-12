@@ -44,11 +44,30 @@ class AdminVehicleController extends Controller
             'route_id' => $request->string('route_id')->toString() ?: null,
             'search'   => $request->string('search')->toString() ?: null,
         ];
+
+        if ($request->boolean('count_only')) {
+            return $this->successResponse([
+                'total' => $this->adminService->countVehicles($filters),
+            ], 'Vehicle count retrieved');
+        }
+
         $perPage = max(1, min((int) $request->integer('per_page', 15), 100));
 
         $vehicles = $this->adminService->listVehicles($filters, $perPage);
 
         return $this->successResponse($vehicles, 'Vehicles retrieved');
+    }
+
+    /**
+     * GET /api/v1/admin/vehicles/{id}
+     * Single vehicle details with the same route/driver/conductor relations
+     * returned by the paginated list.
+     */
+    public function show(string $id): JsonResponse
+    {
+        $vehicle = $this->adminService->getVehicle($id);
+
+        return $this->successResponse($vehicle, 'Vehicle retrieved');
     }
 
     /**

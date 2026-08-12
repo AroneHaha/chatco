@@ -30,7 +30,7 @@ export interface TerminatedPersonnel {
   status: 'Terminated' | 'Resigned';
   reason: string;
   terminatedDate: string;
-  lastVehicle: string;
+  dateJoined: string;
 }
 
 export interface ShiftLog {
@@ -39,6 +39,10 @@ export interface ShiftLog {
   role: string;
   vehicle: string;
   shiftDate: string;
+  timeIn: string;
+  timeOut: string;
+  status: string;
+  notes: string;
   details: string;
 }
 
@@ -88,11 +92,15 @@ export interface FleetCounts {
 
 export type FleetTab = 'vehicles' | 'personnel' | 'history';
 export type FleetHistoryTab = 'terminated' | 'shifts';
+export type PersonnelRoleFilter = 'all' | 'driver' | 'conductor';
+export type FleetShiftHistoryRange = 'today' | 'last_7_days' | 'this_month' | 'all_time';
 
 export interface VehiclesQueryState {
   activeTab: FleetTab;
   historyTab: FleetHistoryTab;
   searchQuery: string;
+  personnelRole: PersonnelRoleFilter;
+  shiftHistoryRange: FleetShiftHistoryRange;
   vehiclePage: number;
   personnelPage: number;
   terminatedPage: number;
@@ -178,6 +186,20 @@ function buildPagedUrl(
   return `${path}?${params.toString()}`;
 }
 
+function buildCountUrl(
+  path: string,
+  searchQuery: string,
+  extra?: Record<string, string>,
+): string {
+  const params = new URLSearchParams({
+    count_only: '1',
+    ...extra,
+  });
+  const query = searchQuery.trim();
+  if (query) params.set('search', query);
+  return `${path}?${params.toString()}`;
+}
+
 function mapVehicles(apiVehicles: Record<string, unknown>[]): Vehicle[] {
   return apiVehicles.map((v) => {
     const status = String(v.status ?? 'ACTIVE');
@@ -229,7 +251,7 @@ function mapTerminatedPersonnel(apiTerminated: Record<string, unknown>[]): Termi
     status: (t.termination_type === 'RESIGNED' ? 'Resigned' : 'Terminated') as TerminatedPersonnel['status'],
     reason: String(t.reason ?? '-'),
     terminatedDate: String(t.terminated_date ?? ''),
-    lastVehicle: String(t.last_vehicle ?? '-'),
+    dateJoined: String(t.date_joined ?? ''),
   }));
 }
 
@@ -240,12 +262,18 @@ function mapShiftHistory(apiShiftEntries: Record<string, unknown>[]): ShiftLog[]
     role: String(entry.role ?? '-'),
     vehicle: String(entry.vehicle ?? '-'),
     shiftDate: String(entry.shiftDate ?? entry.shift_date ?? '-'),
+    timeIn: String(entry.timeIn ?? entry.time_in ?? '-'),
+    timeOut: String(entry.timeOut ?? entry.time_out ?? '-'),
+    status: String(entry.status ?? '-'),
+    notes: String(entry.notes ?? ''),
     details: String(entry.details ?? '-'),
   }));
 }
 
 async function fetchCount(url: string, signal?: AbortSignal): Promise<number> {
   const json = await fetchJson(url, signal);
+  const envelope = json as { data?: { total?: unknown } };
+  if (envelope.data?.total !== undefined) return Number(envelope.data.total);
   return paginatedMeta(json).total;
 }
 
@@ -262,13 +290,19 @@ async function fetchVehiclesData(
     shiftHistoryLog: PageMeta;
   };
 }> {
+  const personnelExtra = query.personnelRole === 'all'
+    ? undefined
+    : { role: query.personnelRole };
+  const shiftExtra = {
+    entry_view: 'personnel',
+    ...(query.shiftHistoryRange === 'all_time' ? {} : { shift_range: query.shiftHistoryRange }),
+  };
+
   const urls = {
     vehicles: buildPagedUrl('/api/admin/vehicles', query.vehiclePage, query.searchQuery),
-    personnel: buildPagedUrl('/api/admin/personnel', query.personnelPage, query.searchQuery),
+    personnel: buildPagedUrl('/api/admin/personnel', query.personnelPage, query.searchQuery, personnelExtra),
     terminatedPersonnel: buildPagedUrl('/api/admin/terminated-personnel', query.terminatedPage, query.searchQuery),
-    shiftHistoryLog: buildPagedUrl('/api/admin/shift-logs', query.shiftPage, query.searchQuery, {
-      entry_view: 'personnel',
-    }),
+    shiftHistoryLog: buildPagedUrl('/api/admin/shift-logs', query.shiftPage, query.searchQuery, shiftExtra),
   };
 
   const activeKey = query.activeTab === 'history'
@@ -279,12 +313,12 @@ async function fetchVehiclesData(
 
   const [activeJson, vehicleCount, personnelCount, terminatedCount, shiftCount] = await Promise.all([
     fetchJson(urls[activeKey], signal),
-    activeKey === 'vehicles' ? Promise.resolve(null) : fetchCount(buildPagedUrl('/api/admin/vehicles', 1, query.searchQuery, undefined, 1), signal),
-    activeKey === 'personnel' ? Promise.resolve(null) : fetchCount(buildPagedUrl('/api/admin/personnel', 1, query.searchQuery, undefined, 1), signal),
-    activeKey === 'terminatedPersonnel' ? Promise.resolve(null) : fetchCount(buildPagedUrl('/api/admin/terminated-personnel', 1, query.searchQuery, undefined, 1), signal),
+    activeKey === 'vehicles' ? Promise.resolve(null) : fetchCount(buildCountUrl('/api/admin/vehicles', query.searchQuery), signal),
+    activeKey === 'personnel' ? Promise.resolve(null) : fetchCount(buildCountUrl('/api/admin/personnel', query.searchQuery, personnelExtra), signal),
+    activeKey === 'terminatedPersonnel' ? Promise.resolve(null) : fetchCount(buildCountUrl('/api/admin/terminated-personnel', query.searchQuery), signal),
     activeKey === 'shiftHistoryLog'
       ? Promise.resolve(null)
-      : fetchCount(buildPagedUrl('/api/admin/shift-logs', 1, query.searchQuery, { entry_view: 'personnel' }, 1), signal),
+      : fetchCount(buildCountUrl('/api/admin/shift-logs', query.searchQuery, shiftExtra), signal),
   ]);
 
   const activeRows = paginatedRows(activeJson);
