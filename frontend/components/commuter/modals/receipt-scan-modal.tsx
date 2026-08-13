@@ -279,7 +279,7 @@ export default function ReceiptScanModal({ onClose }: ReceiptScanModalProps) {
               </h3>
               <p className="text-white/50 text-xs mt-1.5 leading-relaxed">
                 {result.alreadyClaimed
-                  ? "You already claimed this receipt, so it wasn't counted twice."
+                  ? "You have already claimed this receipt."
                   : "This cash ride now counts toward your next free ride."}
               </p>
 
