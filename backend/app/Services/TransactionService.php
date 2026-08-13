@@ -1386,6 +1386,19 @@ class TransactionService
             $discountAmount = (float) (clone $groupReceipts)->sum('discount_amount');
         }
 
+        // Only offer voucher redemption while there is still something to
+        // redeem it against — a still-PENDING GCash ride, with an AVAILABLE,
+        // unexpired voucher on the claiming commuter's account.
+        $voucherAvailable = $transaction->payment_method === PaymentMethod::GCASH
+            && $transaction->status === PaymentStatus::PENDING
+            && $transaction->passenger_id !== null
+            && Voucher::where('commuter_id', $transaction->passenger_id)
+                ->where('status', Voucher::STATUS_AVAILABLE)
+                ->where(function ($q) {
+                    $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
+                })
+                ->exists();
+
         return [
             'transaction_id' => $transaction->transaction_id,
             'checkout_url' => $transaction->payment_checkout_url,
@@ -1395,6 +1408,125 @@ class TransactionService
             'passenger_role' => $transaction->passenger_role,
             'pickup_name' => $transaction->pickup_name,
             'dropoff_name' => $transaction->dropoff_name,
+            'voucher_available' => $voucherAvailable,
+            // Lets the frontend clarify that a voucher only ever covers the
+            // caller's own seat, not the whole group's fare.
+            'is_group' => $transaction->group_id !== null,
         ];
+    }
+
+    /**
+     * Redeem the claiming commuter's own available voucher to cover THEIR OWN
+     * portion of an already-claimed, still-PENDING GCash transaction — never
+     * the whole ride. For a solo (non-grouped) transaction this fully settles
+     * it at ₱0 immediately, no PayMongo charge needed. For a grouped ride,
+     * only the payer's own row is covered; the companions still owe their
+     * fares, so a smaller GCash intent is issued for just their remaining
+     * total.
+     *
+     * The voucher is marked USED immediately (so it can't be redeemed twice
+     * while a remaining group charge is still in flight), but the payer's row
+     * is only flipped to PAID once that remaining charge actually settles —
+     * until then it rides along PENDING with the rest of the group, and
+     * PaymentService::transitionLocked() flips it PAID together with the
+     * companions when the webhook confirms. If that charge instead fails,
+     * expires, or is cancelled, transitionLocked() hands the voucher back
+     * automatically — see the comment there.
+     *
+     * @throws HttpException 404 (transaction not found), 403 (not this
+     *                        commuter's transaction), 422 (not GCash, or no
+     *                        eligible voucher), 409 (no longer redeemable —
+     *                        already paid or otherwise past PENDING)
+     */
+    public function redeemVoucherForGcash(User $commuter, string $transactionId): array
+    {
+        $commuterProfile = $commuter->commuterProfile;
+        if (! $commuterProfile) {
+            abort(422, 'Commuter profile required to redeem a voucher.');
+        }
+
+        Voucher::expireAvailableForCommuter($commuterProfile->id);
+
+        return DB::transaction(function () use ($commuterProfile, $transactionId): array {
+            $transaction = Transaction::query()->lockForUpdate()->find($transactionId);
+            if (! $transaction) {
+                abort(404, 'Transaction not found.');
+            }
+
+            if ($transaction->payment_method !== PaymentMethod::GCASH) {
+                abort(422, 'Only a GCash ride can be covered by a voucher this way.');
+            }
+            if ($transaction->passenger_id !== $commuterProfile->id) {
+                abort(403, 'This ride does not belong to you.');
+            }
+            if ($transaction->status !== PaymentStatus::PENDING) {
+                abort(409, 'This ride can no longer be covered by a voucher.');
+            }
+
+            $voucher = Voucher::where('commuter_id', $commuterProfile->id)
+                ->where('status', Voucher::STATUS_AVAILABLE)
+                ->where(function ($q) {
+                    $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
+                })
+                ->orderBy('expires_at')
+                ->lockForUpdate()
+                ->first();
+
+            if (! $voucher) {
+                abort(422, 'No available voucher to redeem.');
+            }
+
+            $group = $transaction->group_id
+                ? PaymentGroup::whereKey($transaction->group_id)->lockForUpdate()->first()
+                : null;
+
+            $payerAmount = (float) $transaction->final_amount;
+
+            $voucher->update(['status' => 'USED']);
+
+            $updates = [
+                'payment_method' => PaymentMethod::VOUCHER->value,
+                'voucher_id' => $voucher->id,
+                'final_amount' => 0,
+                'discount_amount' => (float) ($transaction->base_fare ?? $payerAmount),
+                'reward_eligible' => false,
+            ];
+
+            if ($group) {
+                $remaining = round((float) $group->total_amount - $payerAmount, 2);
+
+                if ($remaining > 0) {
+                    try {
+                        $intent = $this->paymentService->createIntentFor(
+                            $transaction,
+                            (int) round($remaining * 100),
+                        );
+                    } catch (PaymentGatewayException $e) {
+                        report($e);
+                        abort(502, 'Unable to prepare the remaining GCash payment. Please try again.');
+                    }
+
+                    $updates['payment_reference'] = $intent->reference;
+                    $updates['payment_checkout_url'] = $intent->checkoutUrl;
+                } else {
+                    // Companions' total was already zero (shouldn't normally
+                    // happen) — settle the whole group now instead of leaving
+                    // a dangling ₱0 intent.
+                    $updates['status'] = PaymentStatus::PAID->value;
+                    $updates['paid_at'] = now();
+                }
+
+                $group->update(['total_amount' => max($remaining, 0)]);
+            } else {
+                // Solo ride — the voucher covers the whole fare, settle now.
+                $updates['status'] = PaymentStatus::PAID->value;
+                $updates['paid_at'] = now();
+            }
+
+            $transaction->update($updates);
+            $transaction->refresh();
+
+            return $this->formatClaimResponse($transaction);
+        }, 3);
     }
 }

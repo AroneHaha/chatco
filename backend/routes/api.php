@@ -122,6 +122,11 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
     // it from being brute-forced.
     Route::post('/receipts/claim', [PaymentController::class, 'claimReceipt'])->middleware('throttle:commuter-hail');
 
+    // Cover the commuter's own portion of a claimed, still-PENDING GCash ride
+    // with one of their available vouchers. Same throttle as the other
+    // claim-adjacent, money-affecting commuter actions above.
+    Route::post('/payments/{id}/redeem-voucher', [PaymentController::class, 'redeemVoucher'])->middleware('throttle:commuter-hail');
+
     // Feedback submission (S6) — its dedicated 5/min per-user limiter keeps
     // feedback retries isolated from hail, location, and payment claim limits.
     // The DB constraint still enforces one feedback per commuter per shift.

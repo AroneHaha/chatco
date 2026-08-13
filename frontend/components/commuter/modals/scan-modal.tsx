@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import {
   claimGcash,
+  redeemVoucherForGcash,
   simulatePayment,
   type ClaimResult,
 } from "@/lib/commuter/services/payment.service";
@@ -16,7 +17,7 @@ interface ScanModalProps {
   commuterName: string;
 }
 
-type Step = "scanning" | "verifying" | "confirm" | "redirecting" | "success" | "failed";
+type Step = "scanning" | "verifying" | "confirm" | "voucher_offer" | "redeeming_voucher" | "redirecting" | "success" | "failed";
 
 /**
  * Commuter Scan Modal — Real GCash Payment Flow
@@ -136,6 +137,33 @@ export default function ScanModal({ onClose }: ScanModalProps) {
     };
   }, [stopScanner]);
 
+  // ─── Proceed to actually pay for a claim result (real fare or the
+  // remaining companions-only total after a group voucher redemption) ───
+  // A checkout_url redirects to PayMongo; a ₱0 amount (solo voucher
+  // redemption) is already settled — nothing left to pay; otherwise (dev
+  // mode, no real gateway) the scan simulates PAID like it always has.
+  const proceedToPayment = useCallback(async (result: ClaimResult) => {
+    if (result.checkoutUrl) {
+      setStep("redirecting");
+      window.location.href = result.checkoutUrl;
+      return;
+    }
+
+    if (result.amount <= 0) {
+      setStep("success");
+      return;
+    }
+
+    setStep("redirecting");
+    try {
+      await simulatePayment(result.transactionId, "PAID");
+      setStep("success");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to complete the simulated payment.");
+      setStep("failed");
+    }
+  }, []);
+
   // ─── Handle successful QR scan ───
   // The decoded text IS the qr_token. Call claimGcash() to bind this
   // commuter to the transaction + get the PayMongo checkout_url.
@@ -147,15 +175,15 @@ export default function ScanModal({ onClose }: ScanModalProps) {
       const result = await claimGcash(qrToken.trim());
       setClaimResult(result);
 
-      if (result.checkoutUrl) {
-        setStep("redirecting");
-        window.location.href = result.checkoutUrl;
+      // A voucher can cover this commuter's own seat — offer the choice
+      // before committing to a GCash charge, instead of assuming they want
+      // to pay. Declining falls through to the normal payment path below.
+      if (result.voucherAvailable) {
+        setStep("voucher_offer");
         return;
       }
 
-      setStep("redirecting");
-      await simulatePayment(result.transactionId, "PAID");
-      setStep("success");
+      await proceedToPayment(result);
     } catch (err) {
       // Extract the backend's specific error message. The ApiError.body
       // contains the Laravel envelope { success, data, message, errors }.
@@ -186,7 +214,35 @@ export default function ScanModal({ onClose }: ScanModalProps) {
       setError(msg);
       setStep("failed");
     }
-  }, []);
+  }, [proceedToPayment]);
+
+  // ─── Voucher offer: use it, or decline and pay normally ───
+  const handleUseVoucher = useCallback(async () => {
+    if (!claimResult) return;
+    setStep("redeeming_voucher");
+    setError(null);
+
+    try {
+      const redeemed = await redeemVoucherForGcash(claimResult.transactionId);
+      setClaimResult(redeemed);
+      await proceedToPayment(redeemed);
+    } catch (err) {
+      let msg = "Unable to redeem your voucher for this ride.";
+      if (err instanceof ApiError) {
+        const body = err.body as { message?: string } | null;
+        msg = body?.message ?? msg;
+      } else if (err instanceof Error) {
+        msg = err.message;
+      }
+      setError(msg);
+      setStep("failed");
+    }
+  }, [claimResult, proceedToPayment]);
+
+  const handleDeclineVoucher = useCallback(() => {
+    if (!claimResult) return;
+    void proceedToPayment(claimResult);
+  }, [claimResult, proceedToPayment]);
 
   // ─── Handle manual token entry (fallback when camera unavailable) ───
   const handleManualSubmit = useCallback(async (e: React.FormEvent) => {
@@ -313,6 +369,80 @@ export default function ScanModal({ onClose }: ScanModalProps) {
           </h2>
           <p className="text-sm text-white/40">
             Claiming this payment + binding it to your account…
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── STEP: Voucher offer ─────────────────────────────────────
+  // Shown once, right after claim, only when the commuter has an eligible
+  // voucher. Declining falls straight through to the normal GCash flow.
+
+  if (step === "voucher_offer" && claimResult) {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
+        <div className="w-full sm:max-w-sm bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-white/10 shadow-2xl max-h-[95vh] sm:max-h-none overflow-y-auto">
+          <div className="p-5 sm:p-6 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+              <svg className="w-8 h-8 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.745 3.745 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z" />
+              </svg>
+            </div>
+            <h2 className="text-lg font-bold text-white mb-1">
+              Use Your Free-Ride Voucher?
+            </h2>
+            <p className="text-sm text-white/40 mb-5">
+              {claimResult.isGroup
+                ? "You have a voucher available. It can cover your own seat for free — your companions will still need to pay their share via GCash."
+                : "You have a voucher available. It can cover this entire ride for free."}
+            </p>
+
+            <div className="bg-white/5 rounded-xl p-4 space-y-2 mb-5 text-left">
+              <div className="flex justify-between text-sm">
+                <span className="text-white/40">{claimResult.isGroup ? "Group total (GCash)" : "Amount due"}</span>
+                <span className="text-white font-bold">{formatCurrency(claimResult.amount)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-white/40">Route</span>
+                <span className="text-white text-right max-w-[60%] truncate">
+                  {claimResult.pickupName ?? "—"} → {claimResult.dropoffName ?? "—"}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={handleUseVoucher}
+                className="w-full py-3 rounded-xl text-white text-sm font-bold transition-colors shadow-lg bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/30"
+              >
+                Use My Voucher
+              </button>
+              <button
+                onClick={handleDeclineVoucher}
+                className="w-full py-3 rounded-xl border border-white/10 text-white/60 text-sm font-semibold hover:bg-white/5 transition-colors"
+              >
+                Pay with GCash Instead
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── STEP: Redeeming voucher ─────────────────────────────────
+
+  if (step === "redeeming_voucher") {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="w-full max-w-xs bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl p-8 text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" />
+          <h2 className="text-lg font-bold text-white mb-2">
+            Redeeming Voucher
+          </h2>
+          <p className="text-sm text-white/40">
+            Applying your free-ride voucher to this ride…
           </p>
         </div>
       </div>
@@ -459,10 +589,12 @@ export default function ScanModal({ onClose }: ScanModalProps) {
               </svg>
             </div>
             <h2 className="text-lg font-bold text-white mb-1">
-              Payment Claimed
+              {claimResult.amount <= 0 ? "Ride Covered by Voucher" : "Payment Claimed"}
             </h2>
             <p className="text-sm text-white/40 mb-4">
-              Your payment is being processed. Check your payment history for the final status.
+              {claimResult.amount <= 0
+                ? "Your voucher covered this ride in full — nothing left to pay."
+                : "Your payment is being processed. Check your payment history for the final status."}
             </p>
 
             <div className="bg-white/5 rounded-xl p-4 text-left space-y-2 mb-5">

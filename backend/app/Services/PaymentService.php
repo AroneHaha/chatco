@@ -9,6 +9,7 @@ use App\Events\PaymentStatusUpdated;
 use App\Models\PaymentEvent;
 use App\Models\ShiftLog;
 use App\Models\Transaction;
+use App\Models\Voucher;
 use App\Support\Payments\PaymentGatewayException;
 use App\Support\Payments\PaymentIntentResult;
 use App\Support\Payments\WebhookEvent;
@@ -414,6 +415,26 @@ class PaymentService
         )) {
             $attributes['payment_reconciliation_status'] = 'REFUNDED';
             $attributes['payment_reconciliation_resolved_at'] = now();
+        }
+
+        // A row can carry a voucher_id before the group's GCash charge actually
+        // settles — TransactionService::redeemVoucherForGcash() applies the
+        // voucher to the payer's own portion of a grouped ride immediately (so
+        // it can't be double-spent) while the remaining companions' charge is
+        // still PENDING. If that charge never completes (FAILED/CANCELLED/
+        // EXPIRED instead of PAID), the voucher must be handed back — otherwise
+        // a commuter loses a real reward for a ride that never happened.
+        if (in_array($target, [PaymentStatus::FAILED, PaymentStatus::CANCELLED, PaymentStatus::EXPIRED], true)) {
+            $voucherIdsToRelease = $transactions
+                ->filter(fn (Transaction $item): bool => $item->voucher_id !== null && $item->status !== PaymentStatus::PAID)
+                ->pluck('voucher_id');
+
+            if ($voucherIdsToRelease->isNotEmpty()) {
+                Voucher::query()
+                    ->whereIn('id', $voucherIdsToRelease)
+                    ->where('status', 'USED')
+                    ->update(['status' => Voucher::STATUS_AVAILABLE]);
+            }
         }
 
         Transaction::query()

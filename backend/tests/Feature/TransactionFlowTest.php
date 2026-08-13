@@ -612,6 +612,149 @@ class TransactionFlowTest extends TestCase
         ], $group->passenger_breakdown);
     }
 
+    // ─── GCash voucher redemption (commuter covers their own seat) ──
+
+    public function test_solo_gcash_voucher_redemption_settles_immediately_at_zero_pesos(): void
+    {
+        config(['payments.gateways.paymongo.secret' => null]);
+        $this->forgetGateway();
+        $voucher = $this->createRewardVoucher($this->commuter1);
+
+        $result = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'final_amount' => 15,
+            'pickup_name' => 'Calumpit',
+            'dropoff_name' => 'Bustos',
+        ]);
+        $transaction = $result['transaction'];
+        $claim = app(TransactionService::class)->claimGcash($this->commuter1, $transaction->qr_token);
+        $this->assertTrue($claim['voucher_available']);
+
+        $redeemed = app(TransactionService::class)->redeemVoucherForGcash($this->commuter1, $transaction->transaction_id);
+
+        $this->assertSame(0.0, $redeemed['amount']);
+        $transaction->refresh();
+        $this->assertSame(PaymentMethod::VOUCHER, $transaction->payment_method);
+        $this->assertSame(PaymentStatus::PAID, $transaction->status);
+        $this->assertSame(0.0, (float) $transaction->final_amount);
+        $this->assertSame($voucher->id, $transaction->voucher_id);
+        $this->assertNotNull($transaction->paid_at);
+        $this->assertSame('USED', $voucher->fresh()->status);
+        // A voucher-paid ride must never count toward earning another voucher.
+        $this->assertSame(0, $this->paidRideCountFor($this->commuter1->commuterProfile->id));
+    }
+
+    public function test_group_gcash_voucher_redemption_covers_only_the_payer(): void
+    {
+        config(['payments.gateways.paymongo.secret' => null]);
+        $this->forgetGateway();
+        $voucher = $this->createRewardVoucher($this->commuter1);
+
+        $result = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'final_amount' => 42,
+            'pickup_name' => 'Calumpit',
+            'dropoff_name' => 'Bustos',
+            'group_passengers' => [
+                ['type' => 'REGULAR', 'quantity' => 2, 'final_amount' => 15, 'base_fare' => 15, 'discount_amount' => 0],
+                ['type' => 'PWD', 'quantity' => 1, 'final_amount' => 12, 'base_fare' => 15, 'discount_amount' => 3],
+            ],
+        ]);
+        $anchor = $result['transaction'];
+        $claim = app(TransactionService::class)->claimGcash($this->commuter1, $anchor->qr_token);
+        $this->assertSame(57.0, $claim['amount']); // 42 companions + 15 payer's own regular fare
+        $this->assertTrue($claim['voucher_available']);
+        $group = $anchor->fresh()->paymentGroup()->firstOrFail();
+        $originalReference = $anchor->fresh()->payment_reference;
+
+        $redeemed = app(TransactionService::class)->redeemVoucherForGcash($this->commuter1, $anchor->transaction_id);
+
+        // Only the payer's own ₱15 seat is covered — the response amount now
+        // reflects just the remaining companions' total.
+        $this->assertSame(42.0, $redeemed['amount']);
+
+        $anchor->refresh();
+        $this->assertSame(PaymentMethod::VOUCHER, $anchor->payment_method);
+        $this->assertSame(0.0, (float) $anchor->final_amount);
+        $this->assertSame($voucher->id, $anchor->voucher_id);
+        $this->assertSame('USED', $voucher->fresh()->status);
+        // Group is not settled yet — companions still owe their fares via a
+        // freshly re-issued (smaller) GCash intent.
+        $this->assertSame(PaymentStatus::PENDING, $anchor->status);
+        $this->assertNotSame($originalReference, $anchor->payment_reference);
+        $this->assertSame(42.0, (float) $group->fresh()->total_amount);
+
+        $companions = Transaction::where('group_id', $anchor->group_id)
+            ->where('transaction_id', '!=', $anchor->transaction_id)
+            ->get();
+        $this->assertCount(3, $companions);
+        $this->assertTrue($companions->every(fn ($t) => $t->status === PaymentStatus::PENDING && $t->payment_method === PaymentMethod::GCASH));
+
+        // Companions' payment settles the rest of the group — the voucher row
+        // rides along to PAID with them, still labeled VOUCHER/₱0.
+        app(PaymentService::class)->transitionTo($anchor->fresh(), PaymentStatus::PAID);
+        $anchor->refresh();
+        $this->assertSame(PaymentStatus::PAID, $anchor->status);
+        $this->assertSame(PaymentMethod::VOUCHER, $anchor->payment_method);
+        $this->assertSame(0.0, (float) $anchor->final_amount);
+        $this->assertTrue(Transaction::where('group_id', $anchor->group_id)->get()->every(fn ($t) => $t->status === PaymentStatus::PAID));
+        // Still no reward progress from a voucher-covered ride.
+        $this->assertSame(0, $this->paidRideCountFor($this->commuter1->commuterProfile->id));
+    }
+
+    public function test_voucher_redemption_rejects_a_transaction_that_is_not_the_caller_s(): void
+    {
+        $this->createRewardVoucher($this->commuter1);
+        $result = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'final_amount' => 15, 'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+        ]);
+        app(TransactionService::class)->claimGcash($this->commuter2, $result['transaction']->qr_token);
+
+        $this->assertAbort(403, fn () => app(TransactionService::class)->redeemVoucherForGcash(
+            $this->commuter1, $result['transaction']->transaction_id
+        ));
+    }
+
+    public function test_voucher_redemption_requires_an_available_voucher(): void
+    {
+        $result = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'final_amount' => 15, 'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+        ]);
+        $claim = app(TransactionService::class)->claimGcash($this->commuter1, $result['transaction']->qr_token);
+        $this->assertFalse($claim['voucher_available']);
+
+        $this->assertAbort(422, fn () => app(TransactionService::class)->redeemVoucherForGcash(
+            $this->commuter1, $result['transaction']->transaction_id
+        ));
+    }
+
+    public function test_failed_group_gcash_after_voucher_redemption_returns_the_voucher(): void
+    {
+        config(['payments.gateways.paymongo.secret' => null]);
+        $this->forgetGateway();
+        $voucher = $this->createRewardVoucher($this->commuter1);
+
+        $result = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'final_amount' => 42,
+            'pickup_name' => 'Calumpit',
+            'dropoff_name' => 'Bustos',
+            'group_passengers' => [
+                ['type' => 'REGULAR', 'quantity' => 2, 'final_amount' => 15, 'base_fare' => 15, 'discount_amount' => 0],
+                ['type' => 'PWD', 'quantity' => 1, 'final_amount' => 12, 'base_fare' => 15, 'discount_amount' => 3],
+            ],
+        ]);
+        $anchor = $result['transaction'];
+        app(TransactionService::class)->claimGcash($this->commuter1, $anchor->qr_token);
+        app(TransactionService::class)->redeemVoucherForGcash($this->commuter1, $anchor->transaction_id);
+
+        $this->assertSame('USED', $voucher->fresh()->status);
+
+        // The companions' remaining GCash charge never completes.
+        app(PaymentService::class)->transitionTo($anchor->fresh(), PaymentStatus::FAILED);
+
+        $this->assertSame('AVAILABLE', $voucher->fresh()->status);
+        $anchor->refresh();
+        $this->assertSame(PaymentStatus::FAILED, $anchor->status);
+    }
+
     public function test_multi_passenger_cash_is_one_transaction_with_server_calculated_breakdown(): void
     {
         [$pickup, $dropoff] = $this->createFarePoints();

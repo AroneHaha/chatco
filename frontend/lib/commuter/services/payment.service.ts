@@ -91,6 +91,12 @@ export interface ClaimResult {
   passengerRole: string | null;
   pickupName: string | null;
   dropoffName: string | null;
+  /** True when this commuter has an available voucher that could cover their
+   * own portion of this ride (their own seat only — never the whole group). */
+  voucherAvailable: boolean;
+  /** True when this ride is part of a multi-passenger group payment — a
+   * voucher only ever covers the caller's own seat, never the companions'. */
+  isGroup: boolean;
 }
 
 /** Result of binding a scanned paper cash receipt to the commuter. */
@@ -242,6 +248,8 @@ export async function claimGcash(qrToken: string): Promise<ClaimResult> {
     passenger_role: string | null;
     pickup_name: string | null;
     dropoff_name: string | null;
+    voucher_available: boolean;
+    is_group: boolean;
   }>>(COMMUTER_API.payments.claim, { qr_token: qrToken });
 
   const d = response.data;
@@ -254,6 +262,52 @@ export async function claimGcash(qrToken: string): Promise<ClaimResult> {
     passengerRole: d.passenger_role,
     pickupName: d.pickup_name,
     dropoffName: d.dropoff_name,
+    voucherAvailable: Boolean(d.voucher_available),
+    isGroup: Boolean(d.is_group),
+  };
+}
+
+/**
+ * Cover this commuter's own portion of an already-claimed, still-PENDING
+ * GCash transaction with one of their available vouchers.
+ *
+ * For a solo ride this settles the whole transaction at ₱0 — `checkoutUrl`
+ * comes back null and there is nothing left to pay. For a grouped ride, only
+ * the caller's own seat is covered; `amount`/`checkoutUrl` are updated to
+ * reflect just the remaining companions' total, which is what the frontend
+ * should redirect to next (or skip entirely if it becomes null/0).
+ *
+ * @throws {ApiError} 403 (not this commuter's transaction) / 404 (not found)
+ *                    / 409 (no longer redeemable) / 422 (not GCash, or no
+ *                    eligible voucher) / 502 (gateway error re-issuing the
+ *                    reduced companions-only intent)
+ */
+export async function redeemVoucherForGcash(transactionId: string): Promise<ClaimResult> {
+  const response = await api.post<Envelope<{
+    transaction_id: string;
+    checkout_url: string | null;
+    amount: number;
+    regular_amount: number;
+    discount_amount: number;
+    passenger_role: string | null;
+    pickup_name: string | null;
+    dropoff_name: string | null;
+    voucher_available: boolean;
+    is_group: boolean;
+  }>>(COMMUTER_API.payments.redeemVoucher(transactionId), {});
+
+  const d = response.data;
+  return {
+    transactionId: d.transaction_id,
+    checkoutUrl: d.checkout_url,
+    amount: Number(d.amount) || 0,
+    regularAmount: Number(d.regular_amount) || Number(d.amount) || 0,
+    discountAmount: Number(d.discount_amount) || 0,
+    passengerRole: d.passenger_role,
+    pickupName: d.pickup_name,
+    dropoffName: d.dropoff_name,
+    voucherAvailable: Boolean(d.voucher_available),
+    isGroup: Boolean(d.is_group),
   };
 }
 
