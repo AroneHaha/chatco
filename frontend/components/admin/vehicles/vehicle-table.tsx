@@ -135,7 +135,7 @@ export function VehicleTable({
         </div>
       </div>
       {isLoading ? (
-        <div className="h-[calc(100dvh-19rem)] min-h-64 overflow-hidden rounded-lg">
+        <div className="h-[calc(100dvh-18rem)] min-h-64 overflow-hidden rounded-lg">
           <SkeletonTable rows={8} columns={6} />
         </div>
       ) : (
@@ -144,7 +144,7 @@ export function VehicleTable({
           columns={columns}
           searchQuery=""
           emptyMessage="No vehicles match your search."
-          height="calc(100dvh - 19rem)"
+          height="calc(100dvh - 18rem)"
           stickyHeader
           allowHorizontalScroll={false}
           tableClassName="table-fixed"

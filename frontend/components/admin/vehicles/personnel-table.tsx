@@ -165,7 +165,7 @@ export function PersonnelTable({
         </div>
 
         {isLoading ? (
-          <div className="h-[calc(100dvh-19rem)] min-h-64 overflow-hidden rounded-lg">
+          <div className="h-[calc(100dvh-18rem)] min-h-64 overflow-hidden rounded-lg">
             <SkeletonTable rows={8} columns={4} />
           </div>
         ) : (
@@ -174,7 +174,7 @@ export function PersonnelTable({
             columns={columns}
             searchQuery=""
             emptyMessage="No personnel records found."
-            height="calc(100dvh - 19rem)"
+            height="calc(100dvh - 18rem)"
             stickyHeader
             allowHorizontalScroll={false}
             tableClassName="table-fixed"

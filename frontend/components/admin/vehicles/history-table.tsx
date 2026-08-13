@@ -223,7 +223,7 @@ export function HistoryTable({
 
       <div className="space-y-3">
         {isLoading ? (
-          <div className="h-[calc(100dvh-19rem)] min-h-64 overflow-hidden rounded-lg">
+          <div className="h-[calc(100dvh-18rem)] min-h-64 overflow-hidden rounded-lg">
             <SkeletonTable rows={8} columns={isTerminated ? 6 : 7} />
           </div>
         ) : isTerminated ? (
@@ -233,7 +233,7 @@ export function HistoryTable({
             searchQuery=""
             emptyMessage={query ? 'No separated personnel match your search.' : 'No terminated personnel records found.'}
             onRowDoubleClick={setSelectedRecord}
-            height="calc(100dvh - 19rem)"
+            height="calc(100dvh - 18rem)"
             stickyHeader
             allowHorizontalScroll={false}
             tableClassName="table-fixed"
@@ -244,7 +244,7 @@ export function HistoryTable({
             columns={shiftColumns}
             searchQuery=""
             emptyMessage={query ? 'No shift records match your search.' : 'No shift history records found.'}
-            height="calc(100dvh - 19rem)"
+            height="calc(100dvh - 18rem)"
             stickyHeader
             allowHorizontalScroll={false}
             tableClassName="table-fixed"
