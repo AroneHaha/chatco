@@ -48,15 +48,23 @@ use Illuminate\Support\Str;
 class LostItemService
 {
     private const ITEM_AVAILABLE = 'AVAILABLE';
+
     private const ITEM_CLAIMED = 'CLAIMED';
+
     private const ITEM_APPROVED = 'APPROVED';
+
     private const ITEM_RELEASED = 'RELEASED';
+
     private const ITEM_CLOSED = 'CLOSED';
+
     private const ITEM_EXPIRED = 'EXPIRED';
 
     private const CLAIM_PENDING = 'PENDING';
+
     private const CLAIM_APPROVED = 'APPROVED';
+
     private const CLAIM_REJECTED = 'REJECTED';
+
     private const CLAIM_RELEASED = 'RELEASED';
 
     /** Days an AVAILABLE, unclaimed item can sit before lost-items:expire archives it. */
@@ -209,12 +217,12 @@ class LostItemService
         $existing = $item->photos()->count();
 
         if ($existing >= self::MAX_PHOTOS) {
-            throw LostFoundException::invalid('This item already has the maximum of ' . self::MAX_PHOTOS . ' photos');
+            throw LostFoundException::invalid('This item already has the maximum of '.self::MAX_PHOTOS.' photos');
         }
 
         $mediaDisk = config('filesystems.uploads.public_media_disk', 'r2_public');
         $extension = $file->getClientOriginalExtension() ?: 'jpg';
-        $filename = "{$itemId}-" . time() . "-" . Str::random(8) . ".{$extension}";
+        $filename = "{$itemId}-".time().'-'.Str::random(8).".{$extension}";
         $path = $file->storeAs('lost-items', $filename, $mediaDisk);
         $url = Storage::disk($mediaDisk)->url($path);
 
@@ -828,7 +836,7 @@ class LostItemService
         $cutoff = now()->subDays(self::EXPIRY_DAYS);
 
         return LostItem::where('status', self::ITEM_AVAILABLE)
-            ->where('created_at', '<', $cutoff)
+            ->whereRaw('COALESCE(available_since, created_at) < ?', [$cutoff])
             ->update([
                 'status' => self::ITEM_EXPIRED,
                 'expired_at' => now(),
@@ -852,6 +860,7 @@ class LostItemService
         $item->update([
             'status' => self::ITEM_AVAILABLE,
             'expired_at' => null,
+            'available_since' => now(),
         ]);
 
         return $item->fresh(['vehicle', 'photos']);

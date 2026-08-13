@@ -19,7 +19,6 @@ use App\Traits\ApiResponse;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -84,7 +83,17 @@ class AdminController extends Controller
      */
     public function overspeed(Request $request): JsonResponse
     {
-        $history = $this->locationService->getOverspeedHistory();
+        $validated = $request->validate([
+            'page' => ['sometimes', 'integer', 'min:1'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
+            'shift_id' => ['sometimes', 'string', 'max:20', 'exists:shift_logs,shift_id'],
+            'date' => ['sometimes', 'date_format:Y-m-d'],
+        ]);
+        $history = $this->locationService->getOverspeedHistory(
+            (int) ($validated['per_page'] ?? 25),
+            $validated['shift_id'] ?? null,
+            $validated['date'] ?? null,
+        );
 
         return $this->successResponse($history, 'Overspeeding history retrieved');
     }
@@ -785,101 +794,58 @@ class AdminController extends Controller
     public function remittances(Request $request): JsonResponse
     {
         $perPage = (int) $request->integer('per_page', 100);
-        $page = (int) $request->integer('page', 1);
 
-        // 1. Completed remittances
-        $completedQuery = Remittance::query();
+        $completedQuery = Remittance::query()
+            ->with(['shift:shift_id,status,time_in,time_out', 'vehicle:id,unit_number,plate_number', 'driver:id,first_name,last_name']);
         if ($request->filled('date_from')) {
             $completedQuery->whereDate('date', '>=', $request->input('date_from'));
         }
         if ($request->filled('date_to')) {
             $completedQuery->whereDate('date', '<=', $request->input('date_to'));
         }
-        $completedRemittances = $completedQuery
+        if ($request->filled('date')) {
+            $completedQuery->where('date', $request->input('date'));
+        }
+        if ($request->filled('status')) {
+            $status = strtoupper((string) $request->input('status'));
+            if ($status === 'REMITTED') {
+                $completedQuery->whereIn('remittance_status', [
+                    Remittance::STATUS_COMPLETE,
+                    Remittance::STATUS_SHORTAGE,
+                    Remittance::STATUS_OVERAGE,
+                    'Remitted',
+                ]);
+            } elseif ($status === 'OVERDUE') {
+                $completedQuery->where('remittance_status', Remittance::STATUS_PENDING)
+                    ->where('remittance_due_at', '<', now());
+            } else {
+                $completedQuery->where('remittance_status', $status);
+            }
+        }
+        if ($request->filled('search')) {
+            $search = '%'.str_replace(['%', '_'], ['\\%', '\\_'], (string) $request->input('search')).'%';
+            $completedQuery->where(function ($query) use ($search): void {
+                $query->where('conductor_name', 'like', $search)
+                    ->orWhere('driver_name', 'like', $search)
+                    ->orWhere('shift_id', 'like', $search);
+            });
+        }
+        $remittances = $completedQuery
             ->orderBy('date', 'desc')
             ->orderBy('time_in', 'desc')
-            ->get()
-            ->map(function ($r) {
-                return [
-                    'shift_id' => $r->shift_id,
-                    'conductor_name' => $r->conductor_name,
-                    'driver_name' => $r->driver_name,
-                    'unit_number' => $r->unit_number,
-                    'date' => $r->date,
-                    'time_in' => $r->time_in,
-                    'time_out' => $r->time_out,
-                    'cash_total' => (float) $r->cash_total,
-                    'gcash_total' => (float) $r->gcash_total,
-                    'total_passengers' => $r->total_passengers,
-                    'remittance_status' => 'Remitted',
-                ];
-            });
+            ->paginate(max(1, min($perPage, 100)));
 
-        // 2. Active shifts with transactions (Pending)
-        $pendingQuery = ShiftLog::where('status', 'ACTIVE');
-        if ($request->filled('date_from')) {
-            $pendingQuery->where('time_in', '>=', Carbon::parse($request->input('date_from'))->startOfDay());
-        }
-        if ($request->filled('date_to')) {
-            $pendingQuery->where('time_in', '<=', Carbon::parse($request->input('date_to'))->endOfDay());
-        }
-        $pendingShifts = $pendingQuery
-            ->whereHas('transactions')
-            ->with(['vehicle', 'driver'])
-            ->get()
-            ->map(function ($s) {
-                $cashTotal = (float) DB::table('transactions')
-                    ->where('shift_id', $s->shift_id)
-                    ->where('payment_method', 'CASH')
-                    ->where('status', 'PAID')
-                    ->sum('final_amount');
+        $remittances->getCollection()->transform(function (Remittance $remittance): Remittance {
+            $remittance->setAttribute(
+                'is_overdue',
+                $remittance->remittance_status === Remittance::STATUS_PENDING
+                    && $remittance->remittance_due_at?->isPast(),
+            );
 
-                $gcashTotal = (float) DB::table('transactions')
-                    ->where('shift_id', $s->shift_id)
-                    ->where('payment_method', 'GCASH')
-                    ->where('status', 'PAID')
-                    ->sum('final_amount');
+            return $remittance;
+        });
 
-                $totalPassengers = (int) DB::table('transactions')
-                    ->where('shift_id', $s->shift_id)
-                    ->where('status', 'PAID')
-                    ->sum('total_passengers');
-
-                return [
-                    'shift_id' => $s->shift_id,
-                    'conductor_name' => $s->conductor_name,
-                    'driver_name' => $s->driver_name,
-                    'unit_number' => $s->unit_number,
-                    'date' => $s->time_in ? $s->time_in->toDateString() : null,
-                    'time_in' => $s->time_in,
-                    'time_out' => null, // Still active
-                    'cash_total' => $cashTotal,
-                    'gcash_total' => $gcashTotal,
-                    'total_passengers' => $totalPassengers,
-                    'remittance_status' => 'Pending',
-                ];
-            });
-
-        // Merge: Pending first, then Remitted
-        $unified = $pendingShifts->concat($completedRemittances);
-
-        // Manual pagination on the merged collection (can't use ->paginate()
-        // because we're merging two separate queries).
-        $total = $unified->count();
-        $offset = ($page - 1) * $perPage;
-        $items = $unified->slice($offset, $perPage)->values();
-
-        // Return in the same shape as Laravel's paginator so the frontend
-        // can use the same extraction logic.
-        $paginated = new LengthAwarePaginator(
-            $items,
-            $total,
-            $perPage,
-            $page,
-            ['path' => $request->url(), 'query' => $request->query()]
-        );
-
-        return $this->successResponse($paginated, 'Remittances retrieved');
+        return $this->successResponse($remittances, 'Remittances retrieved');
     }
 
     public function shiftLogs(Request $request): JsonResponse

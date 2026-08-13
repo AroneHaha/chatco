@@ -5,14 +5,16 @@ namespace App\Services;
 use App\Enums\UserRole;
 use App\Mail\AccountApprovedMail;
 use App\Mail\AccountRejectedMail;
+use App\Models\RegistrationRejection;
 use App\Models\Remittance;
-use App\Models\ShiftLog;
 use App\Models\Setting;
+use App\Models\ShiftLog;
 use App\Models\User;
 use App\Models\UserSuspension;
 use App\Models\Vehicle;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -28,6 +30,7 @@ class AdminService
     public function __construct(
         private RegistrationGuard $registrationGuard
     ) {}
+
     /**
      * List vehicles with optional filters + pagination.
      *
@@ -73,15 +76,19 @@ class AdminService
     public function createVehicle(array $data): Vehicle
     {
         return DB::transaction(function () use ($data) {
+            $approved = ! empty($data['driver_id']) && ! empty($data['conductor_id']);
+
             return Vehicle::create([
-                'unit_number'     => $data['unit_number'],
-                'plate_number'    => $data['plate_number'],
-                'vehicle_type'    => $data['vehicle_type'] ?? null,
-                'route_id'        => $data['route_id'] ?? null,
-                'driver_id'       => $data['driver_id'] ?? null,
-                'conductor_id'    => $data['conductor_id'] ?? null,
-                'status'          => $data['status'] ?? 'ACTIVE',
+                'unit_number' => $data['unit_number'],
+                'plate_number' => $data['plate_number'],
+                'vehicle_type' => $data['vehicle_type'] ?? null,
+                'route_id' => $data['route_id'] ?? null,
+                'driver_id' => $data['driver_id'] ?? null,
+                'conductor_id' => $data['conductor_id'] ?? null,
+                'status' => $data['status'] ?? 'ACTIVE',
                 'capacity_status' => $data['capacity_status'] ?? 'AVAILABLE',
+                'assignment_date' => $approved ? now('Asia/Manila')->toDateString() : null,
+                'assignment_approved_at' => $approved ? now() : null,
             ])->fresh(['route', 'driver', 'conductor']);
         });
     }
@@ -90,26 +97,46 @@ class AdminService
      * Update an existing vehicle's mutable fields.
      *
      * @param  array  $data  Validated payload from UpdateVehicleRequest.
-     * @throws \Illuminate\Database\Eloquent\ModelNotFoundException  If the vehicle doesn't exist.
+     *
+     * @throws ModelNotFoundException If the vehicle doesn't exist.
      */
     public function updateVehicle(string $id, array $data): Vehicle
     {
-        $vehicle = Vehicle::findOrFail($id);
+        return DB::transaction(function () use ($id, $data) {
+            $vehicle = Vehicle::query()->whereKey($id)->lockForUpdate()->firstOrFail();
+            $assignmentIsChanging = array_key_exists('driver_id', $data)
+                || array_key_exists('conductor_id', $data);
 
-        DB::transaction(function () use ($vehicle, $data) {
-            $vehicle->update(array_filter([
-                'unit_number'     => $data['unit_number'] ?? null,
-                'plate_number'    => $data['plate_number'] ?? null,
-                'vehicle_type'    => array_key_exists('vehicle_type', $data) ? $data['vehicle_type'] : null,
-                'route_id'        => array_key_exists('route_id', $data) ? $data['route_id'] : null,
-                'driver_id'       => array_key_exists('driver_id', $data) ? $data['driver_id'] : null,
-                'conductor_id'    => array_key_exists('conductor_id', $data) ? $data['conductor_id'] : null,
-                'status'          => $data['status'] ?? null,
-                'capacity_status' => $data['capacity_status'] ?? null,
-            ], fn ($value) => $value !== null));
-        });
+            if ($assignmentIsChanging && $vehicle->active_shift_id) {
+                throw ValidationException::withMessages([
+                    'assignment' => ['End the active shift before changing its approved crew assignment.'],
+                ]);
+            }
 
-        return $vehicle->fresh(['route', 'driver', 'conductor']);
+            $allowed = [
+                'unit_number',
+                'plate_number',
+                'vehicle_type',
+                'route_id',
+                'driver_id',
+                'conductor_id',
+                'status',
+                'capacity_status',
+            ];
+            $changes = array_intersect_key($data, array_flip($allowed));
+
+            if ($assignmentIsChanging) {
+                $driverId = array_key_exists('driver_id', $changes) ? $changes['driver_id'] : $vehicle->driver_id;
+                $conductorId = array_key_exists('conductor_id', $changes) ? $changes['conductor_id'] : $vehicle->conductor_id;
+                $approved = $driverId !== null && $conductorId !== null;
+                $changes['assignment_date'] = $approved ? now('Asia/Manila')->toDateString() : null;
+                $changes['assignment_approved_at'] = $approved ? now() : null;
+            }
+
+            $vehicle->update($changes);
+
+            return $vehicle->fresh(['route', 'driver', 'conductor']);
+        }, 3);
     }
 
     /**
@@ -117,8 +144,8 @@ class AdminService
      * reject with a 409 Conflict so the conductor's active shift is never
      * orphaned.
      *
-     * @throws ValidationException  When the vehicle has an active shift.
-     * @throws \Illuminate\Database\Eloquent\ModelNotFoundException  If the vehicle doesn't exist.
+     * @throws ValidationException When the vehicle has an active shift.
+     * @throws ModelNotFoundException If the vehicle doesn't exist.
      */
     public function deleteVehicle(string $id): void
     {
@@ -127,7 +154,7 @@ class AdminService
         if ($vehicle->active_shift_id) {
             throw ValidationException::withMessages([
                 'vehicle' => [
-                    'Cannot delete a vehicle that is currently on an active shift. ' .
+                    'Cannot delete a vehicle that is currently on an active shift. '.
                     'End the shift (via conductor remittance) before deleting.',
                 ],
             ]);
@@ -257,8 +284,8 @@ class AdminService
             $key = $d->toDateString();
             $row = $dailyRows->get($key);
             $dailySeries[] = [
-                'date'  => $key,
-                'cash'  => $row ? (float) $row->cash : 0.0,
+                'date' => $key,
+                'cash' => $row ? (float) $row->cash : 0.0,
                 'gcash' => $row ? (float) $row->gcash : 0.0,
                 'total' => $row ? (float) $row->total : 0.0,
                 'count' => $row ? (int) $row->count : 0,
@@ -274,8 +301,8 @@ class AdminService
         $driver = DB::connection()->getDriverName();
         $hourExpr = match ($driver) {
             'sqlite' => "CAST(strftime('%H', created_at) AS INTEGER)",
-            'pgsql'  => 'EXTRACT(HOUR FROM created_at)',
-            default  => 'HOUR(created_at)',
+            'pgsql' => 'EXTRACT(HOUR FROM created_at)',
+            default => 'HOUR(created_at)',
         };
 
         $hourRows = DB::table('transactions')
@@ -290,8 +317,8 @@ class AdminService
         for ($h = 0; $h < 24; $h++) {
             $row = $hourRows->get($h);
             $hourlySeries[] = [
-                'hour'    => $h,
-                'count'   => $row ? (int) $row->ride_count : 0,
+                'hour' => $h,
+                'count' => $row ? (int) $row->ride_count : 0,
                 'revenue' => $row ? (float) $row->revenue : 0.0,
             ];
         }
@@ -336,7 +363,7 @@ class AdminService
             ->limit(10)
             ->get()
             ->map(fn ($row) => [
-                'name'  => $row->pickup_name,
+                'name' => $row->pickup_name,
                 'count' => (int) $row->pickup_count,
             ])
             ->toArray();
@@ -369,13 +396,14 @@ class AdminService
                 $count = (int) $row->commuter_count;
                 $intensity = $count >= 50 ? 'Critical' : ($count >= 20 ? 'High' : ($count >= 5 ? 'Moderate' : 'Low'));
                 $color = $count >= 50 ? 'bg-red-500' : ($count >= 20 ? 'bg-orange-500' : ($count >= 5 ? 'bg-yellow-500' : 'bg-green-500'));
+
                 return [
-                    'zone'      => $row->zone_name,
+                    'zone' => $row->zone_name,
                     'commuters' => $count,
                     'intensity' => $intensity,
-                    'color'     => $color,
-                    'lat'       => (float) $row->latitude,
-                    'lng'       => (float) $row->longitude,
+                    'color' => $color,
+                    'lat' => (float) $row->latitude,
+                    'lng' => (float) $row->longitude,
                 ];
             })
             ->toArray();
@@ -385,30 +413,30 @@ class AdminService
         return [
             'date_range' => [
                 'from' => $dateFrom->toDateString(),
-                'to'   => $dateTo->toDateString(),
+                'to' => $dateTo->toDateString(),
                 'days' => $windowDays,
             ],
             // The window immediately before this one, so the UI can label
             // what the deltas are actually being compared against.
             'previous_range' => [
                 'from' => $prevFrom->toDateString(),
-                'to'   => $prevTo->toDateString(),
+                'to' => $prevTo->toDateString(),
             ],
             'totals' => [
-                'total_fares'      => $totalFares,
-                'cash_total'       => $cashTotal,
-                'gcash_total'      => $gcashTotal,
+                'total_fares' => $totalFares,
+                'cash_total' => $cashTotal,
+                'gcash_total' => $gcashTotal,
                 // Rides settled for money (excludes free voucher rides), so
                 // this is directly comparable to cash_count + gcash_count.
-                'paid_count'       => $current['cash_count'] + $current['gcash_count'],
+                'paid_count' => $current['cash_count'] + $current['gcash_count'],
                 // Every PAID row including voucher rides = bodies carried.
                 'total_passengers' => $current['passenger_count'],
-                'pending_count'    => $pendingCount,
-                'voucher_count'    => $voucherCount,
+                'pending_count' => $pendingCount,
+                'voucher_count' => $voucherCount,
                 // Mean revenue per paying ride. Normalises the headline total
                 // so a busy-but-cheap window is distinguishable from a quiet
                 // one. Guarded against divide-by-zero on an empty window.
-                'avg_fare'         => $current['cash_count'] + $current['gcash_count'] > 0
+                'avg_fare' => $current['cash_count'] + $current['gcash_count'] > 0
                     ? round($totalFares / ($current['cash_count'] + $current['gcash_count']), 2)
                     : 0.0,
             ],
@@ -416,45 +444,45 @@ class AdminService
             // derives percentage deltas from these rather than the backend
             // pre-computing them, so it can format "no prior data" itself.
             'previous_totals' => [
-                'total_fares'   => $prevTotalFares,
-                'cash_total'    => $previous['cash_total'],
-                'gcash_total'   => $previous['gcash_total'],
-                'paid_count'    => $previous['cash_count'] + $previous['gcash_count'],
-                'avg_fare'      => $previous['cash_count'] + $previous['gcash_count'] > 0
+                'total_fares' => $prevTotalFares,
+                'cash_total' => $previous['cash_total'],
+                'gcash_total' => $previous['gcash_total'],
+                'paid_count' => $previous['cash_count'] + $previous['gcash_count'],
+                'avg_fare' => $previous['cash_count'] + $previous['gcash_count'] > 0
                     ? round($prevTotalFares / ($previous['cash_count'] + $previous['gcash_count']), 2)
                     : 0.0,
             ],
             'payment_split' => $paymentSplit,
-            'daily_series'  => $dailySeries,
+            'daily_series' => $dailySeries,
             'hourly_series' => $hourlySeries,
             'status_breakdown' => $statusBreakdown,
             'gcash_health' => [
-                'attempts'     => $gcashAttempts,
-                'settled'      => $gcashSettled,
-                'failed'       => $statusBreakdown['FAILED'],
-                'expired'      => $statusBreakdown['EXPIRED'],
-                'cancelled'    => $statusBreakdown['CANCELLED'],
+                'attempts' => $gcashAttempts,
+                'settled' => $gcashSettled,
+                'failed' => $statusBreakdown['FAILED'],
+                'expired' => $statusBreakdown['EXPIRED'],
+                'cancelled' => $statusBreakdown['CANCELLED'],
                 'success_rate' => $gcashAttempts > 0
                     ? round(($gcashSettled / $gcashAttempts) * 100, 1)
                     : null,
             ],
             'remittances' => [
-                'total_remitted'   => $totalRemitted,
-                'total_collected'  => $totalCollected,
-                'total_shortage'   => $totalShortage,
-                'count'            => $remittanceCount,
+                'total_remitted' => $totalRemitted,
+                'total_collected' => $totalCollected,
+                'total_shortage' => $totalShortage,
+                'count' => $remittanceCount,
                 // Shortage as a share of what was collected. An absolute peso
                 // figure alone can't distinguish ₱500 short on ₱600 from ₱500
                 // short on ₱600,000.
-                'shortage_rate'    => $totalCollected > 0
+                'shortage_rate' => $totalCollected > 0
                     ? round(($totalShortage / $totalCollected) * 100, 2)
                     : 0.0,
             ],
             'fleet' => [
-                'active_vehicles'   => $activeVehicles,
-                'total_vehicles'    => $totalVehicles,
+                'active_vehicles' => $activeVehicles,
+                'total_vehicles' => $totalVehicles,
                 'active_conductors' => $activeConductors,
-                'total_conductors'  => $totalConductors,
+                'total_conductors' => $totalConductors,
             ],
             'pickup_points' => $pickupPoints,
             'heatmap_zones' => $heatmapZones,
@@ -491,12 +519,12 @@ class AdminService
         $passengersFor = fn (string $m) => (int) ($rows->get($m)->passenger_count ?? 0);
 
         return [
-            'cash_total'    => $totalFor('CASH'),
-            'gcash_total'   => $totalFor('GCASH'),
-            'cash_count'    => $countFor('CASH'),
-            'gcash_count'   => $countFor('GCASH'),
+            'cash_total' => $totalFor('CASH'),
+            'gcash_total' => $totalFor('GCASH'),
+            'cash_count' => $countFor('CASH'),
+            'gcash_count' => $countFor('GCASH'),
             'voucher_count' => $countFor('VOUCHER'),
-            'paid_count'    => $countFor('CASH') + $countFor('GCASH') + $countFor('VOUCHER'),
+            'paid_count' => $countFor('CASH') + $countFor('GCASH') + $countFor('VOUCHER'),
             'passenger_count' => $passengersFor('CASH') + $passengersFor('GCASH') + $passengersFor('VOUCHER'),
         ];
     }
@@ -554,11 +582,11 @@ class AdminService
             $query->orderBy('created_at', 'asc');
         } elseif ($sort === 'alphabetical') {
             $query
-                ->orderByRaw("COALESCE(
+                ->orderByRaw('COALESCE(
                     (SELECT surname FROM commuter_profiles WHERE commuter_profiles.id = users.id),
                     (SELECT last_name FROM conductor_profiles WHERE conductor_profiles.id = users.id),
                     users.email
-                ) ASC")
+                ) ASC')
                 ->orderBy('email', 'asc');
         } else {
             $query->orderBy('created_at', 'desc');
@@ -575,6 +603,7 @@ class AdminService
     public function getUser(string $id): ?array
     {
         $user = User::with($this->profileEagerLoads())->find($id);
+
         return $user ? $this->present($user) : null;
     }
 
@@ -755,7 +784,7 @@ class AdminService
 
     private function applySearch($query, string $term): void
     {
-        $like = '%' . $term . '%';
+        $like = '%'.$term.'%';
 
         $query->where(function ($q) use ($like) {
             $q->where('email', 'like', $like)
@@ -799,16 +828,16 @@ class AdminService
         $suspension = $user->activeSuspension;
 
         return [
-            'id'             => $user->id,
-            'email'          => $user->email,
-            'role'           => $user->role->value,
-            'name'           => $user->getDisplayName(),
+            'id' => $user->id,
+            'email' => $user->email,
+            'role' => $user->role->value,
+            'name' => $user->getDisplayName(),
             'account_status' => $suspension ? 'SUSPENDED' : $commuter?->account_status,
-            'commuter_type'  => $commuter?->commuter_type,
+            'commuter_type' => $commuter?->commuter_type,
             'contact_number' => $commuter?->contact_number,
-            'verified_at'    => optional($commuter?->verified_at)->toIso8601String(),
-            'created_at'     => optional($user->created_at)->toIso8601String(),
-            'suspension'     => $suspension ? $this->presentSuspension($suspension) : null,
+            'verified_at' => optional($commuter?->verified_at)->toIso8601String(),
+            'created_at' => optional($user->created_at)->toIso8601String(),
+            'suspension' => $suspension ? $this->presentSuspension($suspension) : null,
         ];
     }
 
@@ -861,22 +890,23 @@ class AdminService
             ->through(function (User $user) {
                 $c = $user->commuterProfile;
                 $history = $this->registrationHistoryPayload($user->email, $c?->contact_number);
+
                 return [
-                    'id'              => $user->id,
-                    'email'           => $user->email,
-                    'first_name'      => $c?->first_name,
-                    'middle_name'     => $c?->middle_name,
-                    'surname'         => $c?->surname,
-                    'birthdate'       => $c?->birthdate?->toDateString(),
-                    'gender'          => $c?->gender,
-                    'contact_number'  => $c?->contact_number,
-                    'username'        => $c?->username,
-                    'applied_type'    => $c?->applied_type,
-                    'id_image_url'    => $this->registrationIdUrl($c?->id_image_url),
-                    'account_status'  => $c?->account_status,
+                    'id' => $user->id,
+                    'email' => $user->email,
+                    'first_name' => $c?->first_name,
+                    'middle_name' => $c?->middle_name,
+                    'surname' => $c?->surname,
+                    'birthdate' => $c?->birthdate?->toDateString(),
+                    'gender' => $c?->gender,
+                    'contact_number' => $c?->contact_number,
+                    'username' => $c?->username,
+                    'applied_type' => $c?->applied_type,
+                    'id_image_url' => $this->registrationIdUrl($c?->id_image_url),
+                    'account_status' => $c?->account_status,
                     'language_preference' => $c?->language_preference,
-                    'verified_at'     => $c?->verified_at?->toIso8601String(),
-                    'rejection_reason'=> $c?->rejection_reason,
+                    'verified_at' => $c?->verified_at?->toIso8601String(),
+                    'rejection_reason' => $c?->rejection_reason,
                     // How many times this applicant's identity (email/contact)
                     // has previously been rejected — surfaced so admins can spot
                     // repeat submissions approaching the cooldown threshold.
@@ -886,7 +916,7 @@ class AdminService
                     ),
                     'rejection_history' => $history['history'],
                     'blocked_until' => $history['blocked_until'],
-                    'created_at'      => optional($user->created_at)->toIso8601String(),
+                    'created_at' => optional($user->created_at)->toIso8601String(),
                 ];
             });
     }
@@ -914,7 +944,7 @@ class AdminService
                 $query->whereHas('commuterProfile', fn (Builder $profile) => $profile->where('applied_type', $type));
             })
             ->when($filters['search'] ?? null, function (Builder $query, string $search) {
-                $term = '%' . trim($search) . '%';
+                $term = '%'.trim($search).'%';
                 $query->whereHas('commuterProfile', fn (Builder $profile) => $profile
                     ->where('first_name', 'like', $term)
                     ->orWhere('surname', 'like', $term)
@@ -928,27 +958,28 @@ class AdminService
             ->through(function (User $user) {
                 $c = $user->commuterProfile;
                 $history = $this->registrationHistoryPayload($c?->email, $c?->contact_number);
+
                 return [
-                    'id'              => $user->id,
-                    'email'           => $c?->email ?? $user->email,
-                    'first_name'      => $c?->first_name,
-                    'middle_name'     => $c?->middle_name,
-                    'surname'         => $c?->surname,
-                    'birthdate'       => $c?->birthdate?->toDateString(),
-                    'gender'          => $c?->gender,
-                    'contact_number'  => $c?->contact_number,
-                    'username'        => $c?->username,
-                    'applied_type'    => $c?->applied_type,
-                    'id_image_url'    => $this->registrationIdUrl($c?->id_image_url),
-                    'account_status'  => $c?->account_status,
+                    'id' => $user->id,
+                    'email' => $c?->email ?? $user->email,
+                    'first_name' => $c?->first_name,
+                    'middle_name' => $c?->middle_name,
+                    'surname' => $c?->surname,
+                    'birthdate' => $c?->birthdate?->toDateString(),
+                    'gender' => $c?->gender,
+                    'contact_number' => $c?->contact_number,
+                    'username' => $c?->username,
+                    'applied_type' => $c?->applied_type,
+                    'id_image_url' => $this->registrationIdUrl($c?->id_image_url),
+                    'account_status' => $c?->account_status,
                     'language_preference' => $c?->language_preference,
-                    'verified_at'     => $c?->verified_at?->toIso8601String(),
-                    'rejection_reason'=> $c?->rejection_reason,
+                    'verified_at' => $c?->verified_at?->toIso8601String(),
+                    'rejection_reason' => $c?->rejection_reason,
                     'rejection_count' => count($history['history']),
                     'rejection_history' => $history['history'],
                     'blocked_until' => $history['blocked_until'],
-                    'created_at'      => optional($user->created_at)->toIso8601String(),
-                    'rejected_at'     => optional($user->deleted_at)->toIso8601String(),
+                    'created_at' => optional($user->created_at)->toIso8601String(),
+                    'rejected_at' => optional($user->deleted_at)->toIso8601String(),
                 ];
             });
     }
@@ -1017,10 +1048,10 @@ class AdminService
 
         // Account creation
         $events[] = [
-            'id'        => 'created',
+            'id' => 'created',
             'timestamp' => optional($user->created_at)->toIso8601String(),
-            'action'    => 'Account Created',
-            'details'   => "Role: {$user->role->value}",
+            'action' => 'Account Created',
+            'details' => "Role: {$user->role->value}",
         ];
 
         // Commuter-specific events
@@ -1029,19 +1060,19 @@ class AdminService
 
             if ($c->verified_at) {
                 $events[] = [
-                    'id'        => 'verified',
+                    'id' => 'verified',
                     'timestamp' => $c->verified_at->toIso8601String(),
-                    'action'    => 'Account Verified',
-                    'details'   => "Commuter type: {$c->commuter_type}",
+                    'action' => 'Account Verified',
+                    'details' => "Commuter type: {$c->commuter_type}",
                 ];
             }
 
             if ($c->account_status === 'REJECTED' && $c->rejection_reason) {
                 $events[] = [
-                    'id'        => 'rejected',
+                    'id' => 'rejected',
                     'timestamp' => optional($user->deleted_at)->toIso8601String(),
-                    'action'    => 'Registration Rejected',
-                    'details'   => "Reason: {$c->rejection_reason}",
+                    'action' => 'Registration Rejected',
+                    'details' => "Reason: {$c->rejection_reason}",
                 ];
             }
 
@@ -1053,10 +1084,10 @@ class AdminService
 
             foreach ($transactions as $txn) {
                 $events[] = [
-                    'id'        => "txn-{$txn->transaction_id}",
+                    'id' => "txn-{$txn->transaction_id}",
                     'timestamp' => optional($txn->created_at)->toIso8601String(),
-                    'action'    => 'Payment',
-                    'details'   => "{$txn->payment_method} ₱{$txn->final_amount} — {$txn->pickup_name} → {$txn->dropoff_name} ({$txn->status})",
+                    'action' => 'Payment',
+                    'details' => "{$txn->payment_method} ₱{$txn->final_amount} — {$txn->pickup_name} → {$txn->dropoff_name} ({$txn->status})",
                 ];
             }
         }
@@ -1070,10 +1101,10 @@ class AdminService
 
             foreach ($shiftLogs as $log) {
                 $events[] = [
-                    'id'        => "shift-{$log->shift_id}",
+                    'id' => "shift-{$log->shift_id}",
                     'timestamp' => optional($log->time_in)->toIso8601String(),
-                    'action'    => $log->status === 'ACTIVE' ? 'Shift Started' : 'Shift Ended',
-                    'details'   => "Unit: {$log->unit_number} — {$log->driver_name}",
+                    'action' => $log->status === 'ACTIVE' ? 'Shift Started' : 'Shift Ended',
+                    'details' => "Unit: {$log->unit_number} — {$log->driver_name}",
                 ];
             }
         }
@@ -1082,6 +1113,7 @@ class AdminService
         usort($events, function ($a, $b) {
             $ta = $a['timestamp'] ? strtotime($a['timestamp']) : 0;
             $tb = $b['timestamp'] ? strtotime($b['timestamp']) : 0;
+
             return $tb - $ta;
         });
 
@@ -1112,15 +1144,15 @@ class AdminService
 
         if ($profile->account_status !== 'PENDING') {
             throw ValidationException::withMessages([
-                'account_status' => ['This registration has already been processed (status: ' . $profile->account_status . ').'],
+                'account_status' => ['This registration has already been processed (status: '.$profile->account_status.').'],
             ]);
         }
 
         $profile->update([
-            'commuter_type'     => $profile->applied_type ?? 'REGULAR',
-            'account_status'    => 'APPROVED',
-            'verified_at'       => now(),
-            'rejection_reason'  => null,
+            'commuter_type' => $profile->applied_type ?? 'REGULAR',
+            'account_status' => 'APPROVED',
+            'verified_at' => now(),
+            'rejection_reason' => null,
         ]);
 
         $fresh = $profile->fresh();
@@ -1130,14 +1162,14 @@ class AdminService
         $this->sendApprovalEmail($user, $fresh);
 
         return [
-            'id'              => $user->id,
-            'email'           => $user->email,
-            'name'            => $user->getDisplayName(),
-            'commuter_type'   => $fresh->commuter_type,
-            'applied_type'    => $fresh->applied_type,
-            'account_status'  => 'APPROVED',
-            'verified_at'     => $fresh->verified_at?->toIso8601String(),
-            'rejection_reason'=> null,
+            'id' => $user->id,
+            'email' => $user->email,
+            'name' => $user->getDisplayName(),
+            'commuter_type' => $fresh->commuter_type,
+            'applied_type' => $fresh->applied_type,
+            'account_status' => 'APPROVED',
+            'verified_at' => $fresh->verified_at?->toIso8601String(),
+            'rejection_reason' => null,
         ];
     }
 
@@ -1162,7 +1194,7 @@ class AdminService
 
         if ($profile->account_status !== 'PENDING') {
             throw ValidationException::withMessages([
-                'account_status' => ['This registration has already been processed (status: ' . $profile->account_status . ').'],
+                'account_status' => ['This registration has already been processed (status: '.$profile->account_status.').'],
             ]);
         }
 
@@ -1192,7 +1224,7 @@ class AdminService
         // timestamp — the same applicant can be rejected several times in quick
         // succession (they re-register between rejections), and a second-
         // precision timestamp would collide against the unique index.
-        $placeholderEmail = 'rejected+' . $user->id . '@chatco.local';
+        $placeholderEmail = 'rejected+'.$user->id.'@chatco.local';
         $user->update(['email' => $placeholderEmail]);
 
         // Free the username too. commuter_profiles.username has a DB-level
@@ -1203,24 +1235,24 @@ class AdminService
         // user id (guaranteed unique, fits the 50-char column). The original
         // username isn't needed on a dead account — admins identify rejected
         // applicants by name/contact in the Rejected tab.
-        $placeholderUsername = 'rejected_' . $user->id;
+        $placeholderUsername = 'rejected_'.$user->id;
 
         $profile->update([
-            'account_status'   => 'REJECTED',
+            'account_status' => 'REJECTED',
             'rejection_reason' => $reason,
-            'username'         => $placeholderUsername,
+            'username' => $placeholderUsername,
         ]);
 
         // Soft-delete the user (cascades to commuter_profile via shared PK).
         $user->delete();
 
         return [
-            'id'               => $user->id,
-            'email'            => $user->email, // placeholder
-            'account_status'   => 'REJECTED',
+            'id' => $user->id,
+            'email' => $user->email, // placeholder
+            'account_status' => 'REJECTED',
             'rejection_reason' => $reason,
-            'attempt_number'   => $strike->attempt_number,
-            'blocked_until'    => $strike->blocked_until?->toIso8601String(),
+            'attempt_number' => $strike->attempt_number,
+            'blocked_until' => $strike->blocked_until?->toIso8601String(),
         ];
     }
 
@@ -1238,14 +1270,14 @@ class AdminService
      */
     private const DEFAULT_APPROVED_TEMPLATE =
         "Hi {name},\n\n"
-        . "Great news — we've reviewed the ID you submitted and your CHATCO commuter account is now approved and active.\n\n"
-        . "Log in with the email and password you registered with, and you're ready to ride.";
+        ."Great news — we've reviewed the ID you submitted and your CHATCO commuter account is now approved and active.\n\n"
+        ."Log in with the email and password you registered with, and you're ready to ride.";
 
     /** Default body copy for the rejection email. See DEFAULT_APPROVED_TEMPLATE. */
     private const DEFAULT_REJECTED_TEMPLATE =
         "Hi {name},\n\n"
-        . "Thanks for signing up with CHATCO. We've finished reviewing the ID attached to your commuter registration, "
-        . "and unfortunately we weren't able to approve it this time.";
+        ."Thanks for signing up with CHATCO. We've finished reviewing the ID attached to your commuter registration, "
+        ."and unfortunately we weren't able to approve it this time.";
 
     /**
      * Send an approval notification email to the commuter.
@@ -1265,7 +1297,7 @@ class AdminService
                 ?: self::DEFAULT_APPROVED_TEMPLATE;
 
             $commuterType = $this->commuterTypeLabel($profile->commuter_type ?? 'REGULAR');
-            $name = trim($profile->first_name . ' ' . $profile->surname);
+            $name = trim($profile->first_name.' '.$profile->surname);
 
             // {commuterName} / {rejectionReason} are the names the admin
             // settings page advertises; {name} / {reason} are the originals.
@@ -1273,10 +1305,10 @@ class AdminService
             // still renders — an unsubstituted "{commuterName}" would otherwise
             // ship straight to the commuter's inbox.
             $body = strtr($template, [
-                '{name}'          => $name,
-                '{commuterName}'  => $name,
+                '{name}' => $name,
+                '{commuterName}' => $name,
                 '{commuter_type}' => $commuterType,
-                '{commuterType}'  => $commuterType,
+                '{commuterType}' => $commuterType,
             ]);
 
             Mail::to($user->email)->send(new AccountApprovedMail(
@@ -1307,7 +1339,7 @@ class AdminService
      *
      * Best-effort: errors are logged but never thrown.
      */
-    private function sendRejectionEmail(User $user, $profile, string $reason, ?\App\Models\RegistrationRejection $strike = null): void
+    private function sendRejectionEmail(User $user, $profile, string $reason, ?RegistrationRejection $strike = null): void
     {
         try {
             $template = Setting::where('key', 'account_rejected_template')->value('value')
@@ -1322,23 +1354,23 @@ class AdminService
                     ->timezone(config('app.timezone'))
                     ->format('M j, Y \a\t g:i A');
                 $nextSteps = "Because this registration has now been rejected {$strike->attempt_number} times, "
-                    . "new sign-ups with this email or contact number are temporarily paused until {$retryDate} "
-                    . "for security. Please try again after that date.";
+                    ."new sign-ups with this email or contact number are temporarily paused until {$retryDate} "
+                    .'for security. Please try again after that date.';
             } else {
                 $nextSteps = 'Fix what the reason above points to, then sign up again — there is no waiting period.';
             }
 
-            $name = trim($profile->first_name . ' ' . $profile->surname);
+            $name = trim($profile->first_name.' '.$profile->surname);
 
             // See sendApprovalEmail() for why both placeholder vocabularies
             // are substituted.
             $body = strtr($template, [
-                '{name}'            => $name,
-                '{commuterName}'    => $name,
-                '{reason}'          => $reason,
+                '{name}' => $name,
+                '{commuterName}' => $name,
+                '{reason}' => $reason,
                 '{rejectionReason}' => $reason,
-                '{next_steps}'      => $nextSteps,
-                '{nextSteps}'       => $nextSteps,
+                '{next_steps}' => $nextSteps,
+                '{nextSteps}' => $nextSteps,
             ]);
 
             Mail::to($user->email)->send(new AccountRejectedMail(
@@ -1369,7 +1401,7 @@ class AdminService
     private function templateMentions(string $template, array $placeholders): bool
     {
         foreach ($placeholders as $placeholder) {
-            if (str_contains($template, '{' . $placeholder . '}')) {
+            if (str_contains($template, '{'.$placeholder.'}')) {
                 return true;
             }
         }
@@ -1382,9 +1414,9 @@ class AdminService
     {
         return match (strtoupper($type)) {
             'STUDENT' => 'Student',
-            'SENIOR'  => 'Senior citizen',
-            'PWD'     => 'PWD',
-            default   => 'Regular',
+            'SENIOR' => 'Senior citizen',
+            'PWD' => 'PWD',
+            default => 'Regular',
         };
     }
 }

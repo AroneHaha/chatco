@@ -212,6 +212,8 @@ class ConductorController extends Controller
             isset($validated['speed']) ? (float) $validated['speed'] : null,
             isset($validated['heading']) ? (float) $validated['heading'] : null,
             $validated['capacity_status'] ?? null,
+            isset($validated['accuracy']) ? (float) $validated['accuracy'] : null,
+            $validated['fix_timestamp'] ?? null,
         );
 
         return $this->successResponse($location, 'Location updated');
@@ -445,10 +447,14 @@ class ConductorController extends Controller
      * `drivers()`) — the UI should only show vehicles a conductor can
      * actually select.
      */
-    public function units(): JsonResponse
+    public function units(Request $request): JsonResponse
     {
+        $profileId = $request->user()->conductorProfile?->id;
         $units = Vehicle::with('route')
             ->where('status', 'ACTIVE')
+            ->where('conductor_id', $profileId)
+            ->whereDate('assignment_date', now('Asia/Manila')->toDateString())
+            ->whereNotNull('assignment_approved_at')
             ->whereDoesntHave('activeShift')
             ->get();
 
@@ -459,9 +465,20 @@ class ConductorController extends Controller
      * GET /api/conductor/drivers
      * Returns drivers not currently on an active shift.
      */
-    public function drivers(): JsonResponse
+    public function drivers(Request $request): JsonResponse
     {
-        $drivers = Driver::whereDoesntHave('activeShift')->get();
+        $profileId = $request->user()->conductorProfile?->id;
+        $driverIds = Vehicle::query()
+            ->where('conductor_id', $profileId)
+            ->whereDate('assignment_date', now('Asia/Manila')->toDateString())
+            ->whereNotNull('assignment_approved_at')
+            ->whereNotNull('driver_id')
+            ->pluck('driver_id');
+        $drivers = Driver::query()
+            ->whereIn('id', $driverIds)
+            ->where('status', 'ACTIVE')
+            ->whereDoesntHave('activeShift')
+            ->get();
 
         return $this->successResponse($drivers, 'Available drivers retrieved');
     }

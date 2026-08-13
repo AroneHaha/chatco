@@ -3,8 +3,8 @@
 namespace App\Events;
 
 use App\Models\Hail;
-use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -17,8 +17,8 @@ use Illuminate\Queue\SerializesModels;
  * Broadcasts on the commuter-scoped channel so the owning commuter
  * receives the status change in real time, reducing polling dependence.
  *
- * Channel: commuter.{commuter_id}.hails  (public — matches existing
- * `vehicles` channel convention)
+ * Channel: private-commuter.{commuter_id}.hails. Authorization is restricted
+ * to the commuter who owns the hail.
  *
  * Triggered by:
  *   - HailService::cancelHail()
@@ -37,9 +37,9 @@ class HailStatusChanged implements ShouldBroadcast
         $this->hail = $hail;
     }
 
-    public function broadcastOn(): Channel
+    public function broadcastOn(): PrivateChannel
     {
-        return new Channel('commuter.' . $this->hail->commuter_id . '.hails');
+        return new PrivateChannel('commuter.'.$this->hail->commuter_id.'.hails');
     }
 
     public function broadcastAs(): string
@@ -50,10 +50,8 @@ class HailStatusChanged implements ShouldBroadcast
     public function broadcastWith(): array
     {
         return [
-            'hail_id'      => $this->hail->id,
-            'status'       => $this->hail->status->value,
-            'conductor_id' => $this->hail->conductor_id,
-            'vehicle_id'   => $this->hail->vehicle_id,
+            'hail_id' => $this->hail->id,
+            'status' => $this->hail->status->value,
         ];
     }
 }

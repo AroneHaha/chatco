@@ -7,6 +7,7 @@ use App\Models\Setting;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
@@ -48,9 +49,14 @@ class AdminSettingController extends Controller
      */
     public function update(Request $request, string $key): JsonResponse
     {
-        $valueRules = $key === Setting::RIDES_FOR_FREE_REWARD_KEY
-            ? ['required', 'integer', 'min:1', 'max:'.Setting::MAX_RIDES_FOR_FREE_REWARD]
-            : ['nullable', 'string'];
+        $valueRules = match ($key) {
+            Setting::RIDES_FOR_FREE_REWARD_KEY => ['required', 'integer', 'min:1', 'max:'.Setting::MAX_RIDES_FOR_FREE_REWARD],
+            'speed_limit_kmh' => ['required', 'integer', 'min:10', 'max:120'],
+            'max_shift_hours' => ['required', 'integer', 'min:1', 'max:48'],
+            'remittance_grace_minutes' => ['required', 'integer', 'min:1', 'max:1440'],
+            'remittance_reminder_interval_minutes' => ['required', 'integer', 'min:5', 'max:10080'],
+            default => ['nullable', 'string'],
+        };
 
         $validator = Validator::make($request->all(), [
             'value' => $valueRules,
@@ -69,7 +75,14 @@ class AdminSettingController extends Controller
 
         $validated = $validator->validated();
         $category = $validated['category'] ?? 'general';
-        $value = $key === Setting::RIDES_FOR_FREE_REWARD_KEY
+        $integerKeys = [
+            Setting::RIDES_FOR_FREE_REWARD_KEY,
+            'speed_limit_kmh',
+            'max_shift_hours',
+            'remittance_grace_minutes',
+            'remittance_reminder_interval_minutes',
+        ];
+        $value = in_array($key, $integerKeys, true)
             ? (string) $validated['value']
             : ($validated['value'] ?? null);
 
@@ -110,6 +123,10 @@ class AdminSettingController extends Controller
                     'updated_by' => $request->user()->id,
                 ]
             );
+        }
+
+        if ($key === 'speed_limit_kmh') {
+            Cache::forget('overspeed.limit_kmh');
         }
 
         return $this->successResponse(

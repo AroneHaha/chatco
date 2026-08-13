@@ -16,8 +16,10 @@ class UpdateLocationRequest extends FormRequest
         return [
             'lat' => 'required|numeric|between:-90,90',
             'lng' => 'required|numeric|between:-180,180',
-            'speed' => 'nullable|numeric|min:0',
+            'speed' => 'nullable|numeric|between:0,160',
             'heading' => 'nullable|numeric|between:0,360',
+            'accuracy' => 'nullable|numeric|between:0,1000',
+            'fix_timestamp' => 'nullable|date',
             'capacity_status' => 'nullable|string|in:AVAILABLE,STANDING,FULL',
         ];
     }

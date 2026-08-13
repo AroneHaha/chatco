@@ -3,8 +3,8 @@
 namespace App\Services;
 
 use App\Enums\ShiftStatus;
+use App\Models\ConductorProfile;
 use App\Models\Driver;
-use App\Models\Remittance;
 use App\Models\ShiftLog;
 use App\Models\User;
 use App\Models\Vehicle;
@@ -14,75 +14,80 @@ use Illuminate\Support\Str;
 
 class ShiftService
 {
-    /**
-     * Start a new shift for a conductor.
-     */
+    public function __construct(
+        private ShiftCloseoutService $closeoutService,
+    ) {}
+
+    /** Start a shift only from the Admin-approved current-day assignment. */
     public function startShift(User $conductor, string $vehicleId, string $driverId, ?string $routeId = null): ShiftLog
     {
         if (! $conductor->isConductor()) {
             abort(403, 'Forbidden');
         }
 
-        if (ShiftLog::where('conductor_id', $conductor->id)->active()->exists()) {
-            abort(409, 'Already on active shift');
+        $profileId = $conductor->conductorProfile?->id;
+        if (! $profileId) {
+            abort(422, 'Conductor profile required');
         }
 
-        if (ShiftLog::where('driver_id', $driverId)->active()->exists()) {
-            abort(409, 'Driver already on active shift');
-        }
+        return DB::transaction(function () use ($profileId, $vehicleId, $driverId, $routeId) {
+            // Locking the profile serializes simultaneous starts by one conductor.
+            $profile = ConductorProfile::query()->whereKey($profileId)->lockForUpdate()->firstOrFail();
+            $vehicle = Vehicle::query()->whereKey($vehicleId)->lockForUpdate()->firstOrFail();
+            $driver = Driver::query()->whereKey($driverId)->lockForUpdate()->firstOrFail();
 
-        if (ShiftLog::where('vehicle_id', $vehicleId)->active()->exists()) {
-            abort(409, 'Vehicle already on active shift');
-        }
+            if (ShiftLog::query()->where('conductor_id', $profileId)->active()->exists()) {
+                abort(409, 'Already on active shift');
+            }
+            if ($driver->active_shift_id || ShiftLog::query()->where('driver_id', $driverId)->active()->exists()) {
+                abort(409, 'Driver already on active shift');
+            }
+            if ($vehicle->active_shift_id || ShiftLog::query()->where('vehicle_id', $vehicleId)->active()->exists()) {
+                abort(409, 'Vehicle already on active shift');
+            }
+            if ($vehicle->status !== 'ACTIVE' || $driver->status !== 'ACTIVE') {
+                abort(422, 'The assigned vehicle and driver must both be active.');
+            }
 
-        $vehicle = Vehicle::findOrFail($vehicleId);
-        $driver = Driver::findOrFail($driverId);
-        $conductorProfile = $conductor->conductorProfile;
+            $operationalDate = now('Asia/Manila')->toDateString();
+            if ($vehicle->conductor_id !== $profileId
+                || $vehicle->driver_id !== $driverId
+                || $vehicle->assignment_date?->toDateString() !== $operationalDate
+                || $vehicle->assignment_approved_at === null) {
+                abort(403, 'No valid Admin-approved assignment exists for the current operational day.');
+            }
 
-        $shiftId = 'SHF-' . strtoupper(Str::random(14));
+            if ($routeId !== null && $vehicle->route_id !== null && $routeId !== $vehicle->route_id) {
+                abort(422, 'The selected route does not match the approved vehicle assignment.');
+            }
 
-        return DB::transaction(function () use ($conductor, $vehicleId, $driverId, $routeId, $vehicle, $driver, $conductorProfile, $shiftId) {
-            $shiftLog = ShiftLog::create([
+            $shiftId = 'SHF-'.strtoupper(Str::random(14));
+            $shift = ShiftLog::create([
                 'shift_id' => $shiftId,
-                'conductor_id' => $conductor->id,
+                'conductor_id' => $profileId,
                 'driver_id' => $driverId,
                 'vehicle_id' => $vehicleId,
-                'route_id' => $routeId,
+                'route_id' => $routeId ?? $vehicle->route_id,
                 'time_in' => now(),
                 'time_out' => null,
                 'is_active' => true,
                 'status' => ShiftStatus::ACTIVE->value,
-                'conductor_name' => $conductorProfile
-                    ? trim($conductorProfile->first_name . ' ' . $conductorProfile->last_name)
-                    : $conductor->email,
-                'driver_name' => trim($driver->first_name . ' ' . $driver->last_name),
+                'conductor_name' => trim($profile->first_name.' '.$profile->last_name),
+                'driver_name' => trim($driver->first_name.' '.$driver->last_name),
                 'unit_number' => $vehicle->unit_number,
                 'plate_number' => $vehicle->plate_number,
             ]);
 
-            // ─── Auto-assign driver + conductor to the vehicle ─────────────
-            // Per the vehicle-assignment refactor: the conductor login (shift
-            // start) is the ONLY place where a vehicle's CURRENT driver +
-            // conductor are set. The assignment is immediately visible across
-            // the system (admin fleet table, monitoring, etc.).
-            //
-            // vehicle.driver_id  → the selected driver
-            // vehicle.conductor_id → the logged-in conductor's profile
-            // vehicle.active_shift_id → the new shift (for quick "on shift" lookup)
-            $vehicle->update([
-                'active_shift_id' => $shiftId,
-                'driver_id'       => $driverId,
-                'conductor_id'    => $conductorProfile?->id,
-            ]);
+            $vehicle->update(['active_shift_id' => $shiftId]);
             $driver->update(['active_shift_id' => $shiftId]);
 
-            return $shiftLog;
-        });
+            return $shift;
+        }, 3);
     }
 
     /**
-     * End a shift via remittance submission.
-     * Shift ends ONLY when remittance is submitted.
+     * Submit physical cash and end an active shift, or resolve the PENDING
+     * obligation created earlier by stale/midnight automatic closeout.
      */
     public function endShiftViaRemittance(
         User $conductor,
@@ -94,90 +99,22 @@ class ShiftService
             abort(403, 'Forbidden');
         }
 
-        $shiftLog = ShiftLog::where('shift_id', $shiftId)->firstOrFail();
-
-        if ($shiftLog->conductor_id !== $conductor->id) {
-            abort(403, 'Forbidden');
+        $profileId = $conductor->conductorProfile?->id;
+        if (! $profileId) {
+            abort(422, 'Conductor profile required');
         }
 
-        if ($shiftLog->status !== ShiftStatus::ACTIVE) {
-            abort(422, 'Shift is not active');
-        }
+        // Expected cash is intentionally never trusted from the request.
+        unset($totalCollected);
 
-        $shortage = max(0, $totalCollected - $remittedAmount);
-
-        // ─── Compute cash_total and gcash_total DIRECTLY from the DB ───
-        $shiftIdValue = $shiftLog->getRawOriginal('shift_id');
-
-        $cashTotal = (float) DB::selectOne(
-            "SELECT COALESCE(SUM(final_amount), 0) as total FROM transactions WHERE shift_id = ? AND payment_method = 'CASH' AND status = 'PAID'",
-            [$shiftIdValue]
-        )->total;
-
-        $gcashTotal = (float) DB::selectOne(
-            "SELECT COALESCE(SUM(final_amount), 0) as total FROM transactions WHERE shift_id = ? AND payment_method = 'GCASH' AND status = 'PAID'",
-            [$shiftIdValue]
-        )->total;
-
-        $totalPassengers = (int) DB::selectOne(
-            "SELECT COALESCE(SUM(total_passengers), 0) as cnt FROM transactions WHERE shift_id = ? AND status = 'PAID'",
-            [$shiftIdValue]
-        )->cnt;
-
-        $timeOut = now();
-
-        return DB::transaction(function () use ($shiftLog, $totalCollected, $remittedAmount, $shortage, $timeOut, $cashTotal, $gcashTotal, $totalPassengers) {
-            Remittance::create([
-                'shift_id' => $shiftLog->shift_id,
-                'conductor_id' => $shiftLog->conductor_id,
-                'driver_id' => $shiftLog->driver_id,
-                'vehicle_id' => $shiftLog->vehicle_id,
-                'date' => $shiftLog->time_in->toDateString(),
-                'conductor_name' => $shiftLog->conductor_name,
-                'driver_name' => $shiftLog->driver_name,
-                'unit_number' => $shiftLog->unit_number,
-                'total_passengers' => $totalPassengers,
-                'time_in' => $shiftLog->time_in,
-                'time_out' => $timeOut,
-                'total_collected' => $totalCollected,
-                'remitted_amount' => $remittedAmount,
-                'shortage' => $shortage,
-                'cash_total' => $cashTotal,
-                'gcash_total' => $gcashTotal,
-                'remittance_status' => $shortage > 0 ? 'SHORTAGE' : 'COMPLETE',
-            ]);
-
-            $shiftLog->update([
-                'status' => ShiftStatus::ENDED->value,
-                'is_active' => false,
-                'time_out' => $timeOut,
-            ]);
-
-            if ($shiftLog->vehicle_id) {
-                // ─── Clear the vehicle's CURRENT active assignment ───────────
-                // Per the refactor: a successful End-of-Day / Remittance removes
-                // the current assigned driver AND conductor from the vehicle so
-                // it becomes available again. Historical records (this shift_log
-                // row, the remittance row, transactions) are NEVER deleted —
-                // only the CURRENT assignment is cleared.
-                Vehicle::where('id', $shiftLog->vehicle_id)->update([
-                    'active_shift_id' => null,
-                    'driver_id'       => null,
-                    'conductor_id'    => null,
-                ]);
-            }
-
-            if ($shiftLog->driver_id) {
-                Driver::where('id', $shiftLog->driver_id)->update(['active_shift_id' => null]);
-            }
-
-            return $shiftLog->fresh();
-        });
+        return $this->closeoutService->close(
+            $shiftId,
+            $remittedAmount,
+            ShiftCloseoutService::REASON_MANUAL,
+            $profileId,
+        );
     }
 
-    /**
-     * Pause or resume the authenticated conductor's active shift.
-     */
     public function setBreakStatus(User $conductor, bool $isOnBreak): ShiftLog
     {
         if (! $conductor->isConductor()) {
@@ -185,7 +122,8 @@ class ShiftService
         }
 
         return DB::transaction(function () use ($conductor, $isOnBreak) {
-            $shift = ShiftLog::where('conductor_id', $conductor->id)
+            $shift = ShiftLog::query()
+                ->where('conductor_id', $conductor->conductorProfile?->id)
                 ->active()
                 ->lockForUpdate()
                 ->first();
@@ -200,43 +138,38 @@ class ShiftService
             ]);
 
             return $shift->fresh(['vehicle', 'driver', 'route']);
-        });
+        }, 3);
     }
-    /**
-     * Get the conductor's current active shift.
-     */
+
     public function getActiveShift(User $conductor): ?ShiftLog
     {
-        return ShiftLog::where('conductor_id', $conductor->id)
+        return ShiftLog::query()
+            ->where('conductor_id', $conductor->conductorProfile?->id)
             ->active()
             ->with(['vehicle', 'driver', 'route'])
             ->first();
     }
 
-    /**
-     * Get paginated shift history for the conductor.
-     */
     public function getShiftLogs(User $conductor, int $perPage = 15): LengthAwarePaginator
     {
-        return ShiftLog::where('conductor_id', $conductor->id)
+        return ShiftLog::query()
+            ->where('conductor_id', $conductor->conductorProfile?->id)
             ->with(['vehicle', 'driver', 'route'])
-            ->orderBy('time_in', 'desc')
+            ->orderByDesc('time_in')
             ->paginate($perPage);
     }
 
-    /**
-     * Get a single shift detail with all relationships.
-     */
     public function getShiftDetail(User $conductor, string $shiftId): ShiftLog
     {
-        $shiftLog = ShiftLog::where('shift_id', $shiftId)
+        $shift = ShiftLog::query()
+            ->where('shift_id', $shiftId)
             ->with(['vehicle', 'driver', 'route', 'remittance', 'transactions'])
             ->firstOrFail();
 
-        if ($shiftLog->conductor_id !== $conductor->id) {
+        if ($shift->conductor_id !== $conductor->conductorProfile?->id) {
             abort(403, 'Forbidden');
         }
 
-        return $shiftLog;
+        return $shift;
     }
 }
