@@ -27,6 +27,15 @@ export async function POST(request: NextRequest) {
     path: "/",
     maxAge: 0,
   });
+  // Login also sets this readable role cookie (see app/api/auth/login/route.ts)
+  // — clear it too, or it lingers for up to 24h after sign-out.
+  response.cookies.set("chatco_role", "", {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  });
 
   return response;
 }
