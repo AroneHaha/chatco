@@ -6,6 +6,7 @@ use App\Models\Announcement;
 use App\Models\AnnouncementRead;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 
@@ -71,17 +72,85 @@ class AnnouncementService
 
     /**
      * Admin list: ALL announcements (incl. ARCHIVED) for QA review.
+     * Supports ?search= (matches title or message) so search stays correct
+     * across pages instead of being limited to whatever page is loaded;
+     * ?date= (an exact Y-m-d) for the date-picker; and ?date_range=
+     * (today/last_7_days/this_month/all) for the quick-range dropdown. The
+     * two date filters are mutually exclusive on the frontend, but if both
+     * somehow arrive, the exact ?date= wins since it's the more specific ask.
      */
     public function listForAdmin(array $filters, int $perPage = 15): LengthAwarePaginator
     {
-        $query = Announcement::with('creator')
-            ->orderByDesc('created_at');
+        return $this->adminListQuery($filters)
+            ->with('creator')
+            ->paginate($perPage);
+    }
+
+    /**
+     * Count admin-list rows using the same filters as listForAdmin(), without
+     * eager-loading the creator relation or fetching a page of rows — powers
+     * the admin header's Active/Archived totals, which previously ran a full
+     * paginate(1) (count query + row query + creator eager-load) per number.
+     */
+    public function countForAdmin(array $filters): int
+    {
+        return $this->adminListQuery($filters)->count();
+    }
+
+    /**
+     * Shared filter logic for the admin list + its count. Supports ?search=
+     * (matches title or message) so search stays correct across pages
+     * instead of being limited to whatever page is loaded; ?date= (an exact
+     * Y-m-d) for the date-picker; and ?date_range= (today/last_7_days/
+     * this_month/all) for the quick-range dropdown. The two date filters are
+     * mutually exclusive on the frontend, but if both somehow arrive, the
+     * exact ?date= wins since it's the more specific ask.
+     */
+    private function adminListQuery(array $filters): Builder
+    {
+        $query = Announcement::query()->orderByDesc('created_at');
 
         if (! empty($filters['status'])) {
             $query->where('status', $filters['status']);
         }
 
-        return $query->paginate($perPage);
+        if (! empty($filters['search'])) {
+            $search = $filters['search'];
+            $query->where(function ($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%")
+                  ->orWhere('message', 'like', "%{$search}%");
+            });
+        }
+
+        if (! empty($filters['date'])) {
+            $query->whereDate('created_at', $filters['date']);
+        } else {
+            $bounds = $this->dateRangeBounds($filters['date_range'] ?? null);
+            if ($bounds !== null) {
+                $query->whereBetween('created_at', $bounds);
+            }
+        }
+
+        return $query;
+    }
+
+    /**
+     * Resolve a named date-range filter (as used by the admin announcements
+     * dropdown) into a [start, end] Carbon pair for whereBetween. Mirrors
+     * AdminService::fleetShiftHistoryRangeBounds()'s today/last_7_days/
+     * this_month semantics. Returns null for 'all' (or anything unrecognized)
+     * so the caller applies no filter.
+     */
+    private function dateRangeBounds(?string $range): ?array
+    {
+        $now = now();
+
+        return match ($range) {
+            'today' => [$now->copy()->startOfDay(), $now->copy()->endOfDay()],
+            'last_7_days' => [$now->copy()->subDays(6)->startOfDay(), $now->copy()->endOfDay()],
+            'this_month' => [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()],
+            default => null,
+        };
     }
 
     public function show(string $id): Announcement

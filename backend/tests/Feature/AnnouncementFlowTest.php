@@ -136,6 +136,61 @@ class AnnouncementFlowTest extends TestCase
         $this->assertEquals('Archived One', $items[0]['title']);
     }
 
+    public function test_admin_count_only_returns_total_without_page_rows(): void
+    {
+        $this->createAnnouncement('Active One', 'ACTIVE');
+        $this->createAnnouncement('Active Two', 'ACTIVE');
+        $this->createAnnouncement('Archived One', 'ARCHIVED');
+
+        $this->admin();
+
+        $response = $this->getJson('/api/v1/admin/announcements?status=ACTIVE&count_only=1');
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.total', 2)
+            ->assertJsonMissingPath('data.data');
+    }
+
+    public function test_admin_list_filters_by_date_range(): void
+    {
+        $recent = $this->createAnnouncement('Recent One');
+        $old = $this->createAnnouncement('Old One');
+        // created_at isn't fillable (mass-assignment guarded), so force it directly.
+        $old->forceFill(['created_at' => now()->subMonths(2)])->save();
+
+        $this->admin();
+
+        $today = $this->getJson('/api/v1/admin/announcements?date_range=this_month');
+        $today->assertStatus(200);
+        $titles = collect($today->json('data.data'))->pluck('title');
+        $this->assertTrue($titles->contains('Recent One'));
+        $this->assertFalse($titles->contains('Old One'));
+
+        $all = $this->getJson('/api/v1/admin/announcements?date_range=all');
+        $all->assertStatus(200);
+        $allTitles = collect($all->json('data.data'))->pluck('title');
+        $this->assertTrue($allTitles->contains('Recent One'));
+        $this->assertTrue($allTitles->contains('Old One'));
+    }
+
+    public function test_admin_list_filters_by_exact_date(): void
+    {
+        $onDay = $this->createAnnouncement('On The Day');
+        $otherDay = $this->createAnnouncement('Other Day');
+        $onDay->forceFill(['created_at' => '2026-01-15 10:00:00'])->save();
+        $otherDay->forceFill(['created_at' => '2026-01-16 10:00:00'])->save();
+
+        $this->admin();
+
+        // An exact ?date= should win even if a ?date_range= is also present.
+        $response = $this->getJson('/api/v1/admin/announcements?date=2026-01-15&date_range=this_month');
+
+        $response->assertStatus(200);
+        $titles = collect($response->json('data.data'))->pluck('title');
+        $this->assertTrue($titles->contains('On The Day'));
+        $this->assertFalse($titles->contains('Other Day'));
+    }
+
     public function test_admin_show_returns_announcement(): void
     {
         $announcement = $this->createAnnouncement();

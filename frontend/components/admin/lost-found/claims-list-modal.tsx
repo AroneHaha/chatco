@@ -24,6 +24,9 @@ interface ClaimsListModalProps {
   onClose: () => void;
   itemId: string;
   claims: Claim[];
+  /** Admin who released/closed the item — the "Released" timeline step lives
+   * on the item (closed_by), not the claim, since release closes the item. */
+  releasedByName?: string | null;
   onClaimAction: (itemId: string, action: ClaimAction, claimId: string) => Promise<void>;
   onRecordManualClaim: (itemId: string, input: {
     name: string;
@@ -62,12 +65,15 @@ function formatClaimDate(dateStr: string): string {
   }
 }
 
-function getProcessTimeline(claim: Claim): { label: string; date: string | null; tone: string }[] {
+function getProcessTimeline(
+  claim: Claim,
+  releasedByName: string | null | undefined
+): { label: string; date: string | null; tone: string; by: string | null }[] {
   return [
-    { label: 'Submitted', date: claim.claimDate, tone: 'text-slate-300' },
-    { label: 'Approved', date: claim.approvedAt ?? null, tone: 'text-emerald-300' },
-    { label: 'Rejected', date: claim.rejectedAt ?? null, tone: 'text-red-300' },
-    { label: 'Released', date: claim.releasedAt ?? null, tone: 'text-[#8CB9F0]' },
+    { label: 'Submitted', date: claim.claimDate, tone: 'text-slate-300', by: null },
+    { label: 'Approved', date: claim.approvedAt ?? null, tone: 'text-emerald-300', by: claim.reviewedByName ?? null },
+    { label: 'Rejected', date: claim.rejectedAt ?? null, tone: 'text-red-300', by: claim.reviewedByName ?? null },
+    { label: 'Released', date: claim.releasedAt ?? null, tone: 'text-[#8CB9F0]', by: releasedByName ?? null },
   ].filter((step) => Boolean(step.date));
 }
 
@@ -97,7 +103,7 @@ function getActionIcon(action: ClaimAction) {
   }
 }
 
-export function ClaimsListModal({ isOpen, onClose, itemId, claims, onClaimAction, onRecordManualClaim }: ClaimsListModalProps) {
+export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByName, onClaimAction, onRecordManualClaim }: ClaimsListModalProps) {
   const [pendingAction, setPendingAction] = useState<{ claimId: string; action: ClaimAction } | null>(null);
   const [showManualForm, setShowManualForm] = useState(false);
   const [manualForm, setManualForm] = useState({ name: '', contact: '', email: '', proof: '' });
@@ -193,7 +199,7 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, onClaimAction
         {orderedClaims.length > 0 ? orderedClaims.map((claim) => {
           const actions = availableActions(claim.status);
           const isAccepted = isAcceptedStatus(claim.status);
-          const timeline = getProcessTimeline(claim);
+          const timeline = getProcessTimeline(claim, releasedByName);
           return (
             <article key={claim.id} className={`rounded-xl border p-4 ${
               isAccepted ? 'border-emerald-500/25 bg-emerald-500/10' : 'border-white/10 bg-[#0E1628]'
@@ -262,7 +268,10 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, onClaimAction
                   {timeline.map((step) => (
                     <div key={`${claim.id}-${step.label}`} className="flex items-start justify-between gap-3 rounded-md bg-black/15 px-2.5 py-2">
                       <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{step.label}</span>
-                      <span className={`text-right text-xs font-semibold ${step.tone}`}>{step.date ? formatClaimDate(step.date) : '-'}</span>
+                      <span className="text-right">
+                        <span className={`block text-xs font-semibold ${step.tone}`}>{step.date ? formatClaimDate(step.date) : '-'}</span>
+                        {step.by && <span className="block text-[10px] text-slate-500">by {step.by}</span>}
+                      </span>
                     </div>
                   ))}
                 </div>

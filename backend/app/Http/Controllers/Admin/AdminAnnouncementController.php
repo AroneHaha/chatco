@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
  * Sprint 6 (T4) — Admin announcement management.
  *
  *   GET    /api/v1/admin/announcements             — list (incl. ARCHIVED)
+ *   GET    /api/v1/admin/announcements?count_only=1 — total only (same filters), for header counts
  *   POST   /api/v1/admin/announcements             — create
  *   GET    /api/v1/admin/announcements/{id}        — detail
  *   PUT    /api/v1/admin/announcements/{id}        — update title/message/type
@@ -34,7 +35,17 @@ class AdminAnnouncementController extends Controller
     {
         $filters = [
             'status' => $request->string('status')->toString() ?: null,
+            'search' => $request->string('search')->toString() ?: null,
+            'date' => $request->string('date')->toString() ?: null,
+            'date_range' => $request->string('date_range')->toString() ?: null,
         ];
+
+        if ($request->boolean('count_only')) {
+            return $this->successResponse([
+                'total' => $this->announcementService->countForAdmin($filters),
+            ], 'Announcement count retrieved');
+        }
+
         $perPage = (int) $request->integer('per_page', 15);
 
         $announcements = $this->announcementService->listForAdmin($filters, $perPage);

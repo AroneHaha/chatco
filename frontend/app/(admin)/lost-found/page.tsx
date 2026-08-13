@@ -623,6 +623,7 @@ export default function LostFoundPage() {
         onClose={handleCloseClaimsModal}
         itemId={selectedItemId || ''}
         claims={selectedItemId ? (claimsByItem[selectedItemId] ?? []) : []}
+        releasedByName={items.find((i) => i.id === selectedItemId)?.closedByName ?? null}
         onClaimAction={handleClaimAction}
         onRecordManualClaim={handleRecordManualClaim}
       />
@@ -667,6 +668,7 @@ function mapServiceItemToAdmin(item: ServiceItem): LostFoundItem {
     reporterName: item.reporterName,
     status: item.displayStatus as ItemStatus,
     claimedBy: item.claimedBy,
+    closedByName: item.closedByName,
     expiredAt: item.expiredAt,
     photos: item.photos,
   };
@@ -684,6 +686,7 @@ function mapServiceClaimToAdmin(claim: ServiceClaim): Claim {
     approvedAt: claim.approvedAt,
     rejectedAt: claim.rejectedAt,
     releasedAt: claim.releasedAt,
+    reviewedByName: claim.reviewedByName,
     proof: claim.proof,
     linkedAccount: claim.linkedAccount,
   };

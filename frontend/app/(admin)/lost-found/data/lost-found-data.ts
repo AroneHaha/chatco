@@ -22,6 +22,8 @@ export interface LostFoundItem {
   reporterName: string;
   status: ItemStatus;
   claimedBy: string | null;
+  /** Admin who released/closed this item (admin-only); null until released. */
+  closedByName: string | null;
   /** When this item was auto-expired; null if never expired. */
   expiredAt: string | null;
   /** Up to 3 photos, position 0 first (the thumbnail — same URL as imageUrl). */
@@ -39,6 +41,8 @@ export interface Claim {
   approvedAt?: string | null;
   rejectedAt?: string | null;
   releasedAt?: string | null;
+  /** Admin who approved/rejected this claim; null until reviewed. */
+  reviewedByName?: string | null;
   /** The commuter's proof-of-ownership description (admin review only). */
   proof?: string;
   /** The registered account that filed this claim; null/undefined for walk-in claimants. */

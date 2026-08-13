@@ -36,7 +36,7 @@
  * Mirrors the pattern established by lib/shared/services/lost-found.service.ts.
  */
 
-import { api, ApiError } from "@/lib/api/client";
+import { api, ApiError, RequestCancelledError } from "@/lib/api/client";
 
 // ─── Backend status enums ────────────────────────────────────────────
 
@@ -340,17 +340,31 @@ export async function markRead(id: string): Promise<void> {
  */
 export async function listForAdmin(params: {
   status?: string;
+  search?: string;
+  /** An exact Y-m-d from the date picker. Wins over dateRange if both are set. */
+  date?: string;
+  /** 'today' | 'last_7_days' | 'this_month' | 'all' — scopes by created_at server-side. */
+  dateRange?: string;
   page?: number;
   perPage?: number;
+  /** Cancels a stale request superseded by a newer search/page/filter change. */
+  signal?: AbortSignal;
 } = {}): Promise<AnnouncementPage> {
   const qs = buildQuery({
     status: params.status,
+    search: params.search,
+    date: params.date || undefined,
+    // The exact date picker and the range dropdown are mutually exclusive in
+    // the UI — only send the range when there's no specific date selected.
+    date_range: !params.date && params.dateRange && params.dateRange !== "all" ? params.dateRange : undefined,
     page: params.page,
     per_page: params.perPage,
   });
   try {
     const response = await api.get<ApiResponseEnvelope<PaginatedEnvelope<RawAnnouncement>>>(
-      `/api/admin/announcements${qs}`
+      `/api/admin/announcements${qs}`,
+      undefined,
+      { signal: params.signal }
     );
     const p = response.data;
     return {
@@ -360,8 +374,51 @@ export async function listForAdmin(params: {
       total: p?.total ?? 0,
     };
   } catch (err) {
+    if (err instanceof RequestCancelledError) throw err;
     if (err instanceof ApiError) {
       throw classifyError(err, "Unable to load announcements.");
+    }
+    throw new AnnouncementOperationError(
+      "network",
+      err instanceof Error ? err.message : "Unable to reach the backend service."
+    );
+  }
+}
+
+/**
+ * Count admin-list announcements matching the given filters, without paging
+ * through rows or eager-loading the creator relation — powers the header's
+ * Active/Archived totals far more cheaply than listForAdmin({ perPage: 1 }),
+ * which still runs a full paginator (count query + a row query + a creator
+ * eager-load) just to read `.total`.
+ *
+ * @throws {AnnouncementOperationError} 401/403/5xx
+ */
+export async function countForAdmin(params: {
+  status?: string;
+  search?: string;
+  date?: string;
+  dateRange?: string;
+  signal?: AbortSignal;
+} = {}): Promise<number> {
+  const qs = buildQuery({
+    status: params.status,
+    search: params.search,
+    date: params.date || undefined,
+    date_range: !params.date && params.dateRange && params.dateRange !== "all" ? params.dateRange : undefined,
+    count_only: 1,
+  });
+  try {
+    const response = await api.get<ApiResponseEnvelope<{ total: number }>>(
+      `/api/admin/announcements${qs}`,
+      undefined,
+      { signal: params.signal }
+    );
+    return response.data?.total ?? 0;
+  } catch (err) {
+    if (err instanceof RequestCancelledError) throw err;
+    if (err instanceof ApiError) {
+      throw classifyError(err, "Unable to load announcement counts.");
     }
     throw new AnnouncementOperationError(
       "network",

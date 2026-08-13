@@ -77,6 +77,8 @@ interface RawLostItem {
   released_to: string | null;
   released_at: string | null;
   closed_by: string | null;
+  /** Resolved admin display name for closed_by (see LostItem::getClosedByNameAttribute). Also who released it — releaseClaim() stamps closed_by too. */
+  closed_by_name: string | null;
   closed_at: string | null;
   expired_at: string | null;
   created_at: string;
@@ -106,6 +108,8 @@ interface RawClaim {
   status: string;
   proof: string | null;
   reviewed_by: string | null;
+  /** Resolved admin display name for reviewed_by (see Claim::getReviewedByNameAttribute). */
+  reviewed_by_name: string | null;
   reviewed_at: string | null;
   approved_at: string | null;
   rejected_at: string | null;
@@ -185,6 +189,8 @@ export interface LostFoundItem {
   releasedTo: string | null;
   releasedAt: string | null;
   closedAt: string | null;
+  /** Admin who released/closed this item (admin-only); null until released. */
+  closedByName: string | null;
   /** When lost-items:expire auto-archived this item; null if never expired. */
   expiredAt: string | null;
   /** Up to 3 photos, position 0 first (the thumbnail — same URL as imageUrl). */
@@ -205,6 +211,8 @@ export interface LostFoundClaim {
   displayStatus: string;
   proof: string;
   rejectionReason: string | null;
+  /** Admin who approved/rejected this claim; null until reviewed. */
+  reviewedByName: string | null;
   reviewedAt: string | null;
   approvedAt: string | null;
   rejectedAt: string | null;
@@ -336,6 +344,7 @@ function mapItem(raw: RawLostItem): LostFoundItem {
     releasedTo: raw.released_to,
     releasedAt: raw.released_at,
     closedAt: raw.closed_at,
+    closedByName: raw.closed_by_name ?? null,
     expiredAt: raw.expired_at,
     photos: (raw.photos ?? []).map((p) => ({ id: p.id, url: p.url })),
   };
@@ -353,6 +362,7 @@ function mapClaim(raw: RawClaim): LostFoundClaim {
     displayStatus: mapClaimDisplayStatus(raw.status),
     proof: raw.proof ?? "",
     rejectionReason: raw.rejection_reason ?? null,
+    reviewedByName: raw.reviewed_by_name ?? null,
     reviewedAt: raw.reviewed_at,
     approvedAt: raw.approved_at,
     rejectedAt: raw.rejected_at,
