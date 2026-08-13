@@ -340,6 +340,7 @@ export async function markRead(id: string): Promise<void> {
  */
 export async function listForAdmin(params: {
   status?: string;
+  type?: string;
   search?: string;
   /** An exact Y-m-d from the date picker. Wins over dateRange if both are set. */
   date?: string;
@@ -352,6 +353,7 @@ export async function listForAdmin(params: {
 } = {}): Promise<AnnouncementPage> {
   const qs = buildQuery({
     status: params.status,
+    type: params.type,
     search: params.search,
     date: params.date || undefined,
     // The exact date picker and the range dropdown are mutually exclusive in

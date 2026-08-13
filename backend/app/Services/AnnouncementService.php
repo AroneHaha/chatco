@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\AnnouncementCreated;
 use App\Models\Announcement;
 use App\Models\AnnouncementRead;
 use App\Models\User;
@@ -32,6 +33,9 @@ class AnnouncementService
 {
     private const STATUS_ACTIVE   = 'ACTIVE';
     private const STATUS_ARCHIVED = 'ARCHIVED';
+
+    /** How long an ARCHIVED announcement stays before pruneArchived() soft-deletes it. */
+    private const ARCHIVE_RETENTION_DAYS = 30;
 
     /**
      * User-facing feed: ACTIVE announcements, newest first, with is_read.
@@ -114,6 +118,10 @@ class AnnouncementService
             $query->where('status', $filters['status']);
         }
 
+        if (! empty($filters['type'])) {
+            $query->where('type', $filters['type']);
+        }
+
         if (! empty($filters['search'])) {
             $search = $filters['search'];
             $query->where(function ($q) use ($search) {
@@ -164,13 +172,22 @@ class AnnouncementService
 
     public function create(User $admin, array $data): Announcement
     {
-        return Announcement::create([
+        $announcement = Announcement::create([
             'title'      => $data['title'],
             'message'    => $data['message'],
             'type'       => $data['type'] ?? null,
             'status'     => $data['status'] ?? self::STATUS_ACTIVE,
             'created_by' => $admin->id,
         ]);
+
+        // Only ACTIVE, broadcast-to-everyone announcements are worth pushing
+        // in real time — an admin creating one pre-archived (rare, but the
+        // 'status' field allows it) shouldn't ping every commuter's feed.
+        if ($announcement->status === self::STATUS_ACTIVE) {
+            event(new AnnouncementCreated($announcement));
+        }
+
+        return $announcement;
     }
 
     /**
@@ -200,17 +217,37 @@ class AnnouncementService
 
     /**
      * Archive an announcement (status=ARCHIVED). Idempotent — archiving an
-     * already-archived item is a no-op.
+     * already-archived item is a no-op, so `archived_at` keeps its original
+     * timestamp rather than resetting the 30-day retention clock.
      */
     public function archive(string $id): Announcement
     {
         $announcement = $this->show($id);
 
         if ($announcement->status !== self::STATUS_ARCHIVED) {
-            $announcement->update(['status' => self::STATUS_ARCHIVED]);
+            $announcement->update([
+                'status' => self::STATUS_ARCHIVED,
+                'archived_at' => now(),
+            ]);
         }
 
         return $announcement->fresh('creator');
+    }
+
+    /**
+     * Soft-delete ARCHIVED announcements whose 30-day retention window has
+     * passed. Called by the `announcements:prune-archived` scheduled command
+     * (daily). Soft-delete only — rows stay recoverable in the database, they
+     * just drop out of every query (admin list included) via the model's
+     * SoftDeletes trait.
+     */
+    public function pruneArchived(): int
+    {
+        $cutoff = now()->subDays(self::ARCHIVE_RETENTION_DAYS);
+
+        return Announcement::where('status', self::STATUS_ARCHIVED)
+            ->where('archived_at', '<', $cutoff)
+            ->delete();
     }
 
     /**

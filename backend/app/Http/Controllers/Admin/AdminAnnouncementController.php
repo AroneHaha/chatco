@@ -35,6 +35,7 @@ class AdminAnnouncementController extends Controller
     {
         $filters = [
             'status' => $request->string('status')->toString() ?: null,
+            'type' => $request->string('type')->toString() ?: null,
             'search' => $request->string('search')->toString() ?: null,
             'date' => $request->string('date')->toString() ?: null,
             'date_range' => $request->string('date_range')->toString() ?: null,

@@ -265,6 +265,77 @@ class AnnouncementFlowTest extends TestCase
         $response->assertStatus(403);
     }
 
+    public function test_archiving_stamps_archived_at(): void
+    {
+        $announcement = $this->createAnnouncement();
+
+        $this->admin();
+        $this->patchJson("/api/v1/admin/announcements/{$announcement->id}/archive")->assertOk();
+
+        $announcement->refresh();
+        $this->assertNotNull($announcement->archived_at);
+    }
+
+    public function test_re_archiving_does_not_reset_archived_at(): void
+    {
+        $announcement = $this->createAnnouncement();
+        $this->admin();
+        $this->patchJson("/api/v1/admin/announcements/{$announcement->id}/archive")->assertOk();
+        $announcement->refresh();
+        $originalArchivedAt = $announcement->archived_at;
+
+        $this->travel(1)->days();
+        $this->patchJson("/api/v1/admin/announcements/{$announcement->id}/archive")->assertOk();
+
+        $announcement->refresh();
+        $this->assertTrue($originalArchivedAt->equalTo($announcement->archived_at));
+    }
+
+    // ── Prune: archived announcements past the 30-day retention window ──
+
+    public function test_prune_command_soft_deletes_stale_archived_announcements(): void
+    {
+        $announcement = $this->createAnnouncement('Old Notice', 'ARCHIVED');
+        $announcement->forceFill(['archived_at' => now()->subDays(31)])->save();
+
+        $this->artisan('announcements:prune-archived')->assertExitCode(0);
+
+        $this->assertSoftDeleted('announcements', ['id' => $announcement->id]);
+    }
+
+    public function test_prune_command_ignores_recently_archived_announcements(): void
+    {
+        $announcement = $this->createAnnouncement('Recent Notice', 'ARCHIVED');
+        $announcement->forceFill(['archived_at' => now()->subDays(10)])->save();
+
+        $this->artisan('announcements:prune-archived')->assertExitCode(0);
+
+        $this->assertDatabaseHas('announcements', ['id' => $announcement->id, 'deleted_at' => null]);
+    }
+
+    public function test_prune_command_ignores_active_announcements(): void
+    {
+        $announcement = $this->createAnnouncement('Still Active', 'ACTIVE');
+        $announcement->forceFill(['created_at' => now()->subDays(60)])->save();
+
+        $this->artisan('announcements:prune-archived')->assertExitCode(0);
+
+        $this->assertDatabaseHas('announcements', ['id' => $announcement->id, 'deleted_at' => null]);
+    }
+
+    public function test_pruned_announcement_disappears_from_admin_list(): void
+    {
+        $announcement = $this->createAnnouncement('Long Gone', 'ARCHIVED');
+        $announcement->forceFill(['archived_at' => now()->subDays(31)])->save();
+
+        $this->artisan('announcements:prune-archived')->assertExitCode(0);
+
+        $this->admin();
+        $response = $this->getJson('/api/v1/admin/announcements?status=ARCHIVED');
+        $titles = collect($response->json('data.data'))->pluck('title');
+        $this->assertFalse($titles->contains('Long Gone'));
+    }
+
     // ── User-facing: feed + is_read ─────────────────────────────
 
     public function test_any_auth_role_can_view_announcements(): void

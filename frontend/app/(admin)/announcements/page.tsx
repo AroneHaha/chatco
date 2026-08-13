@@ -13,7 +13,7 @@ import {
   AnnouncementOperationError,
   type Announcement,
 } from '@/lib/shared/services/announcement.service';
-import { AnnouncementFormModal, type AnnouncementFormData } from '@/components/admin/announcements/announcement-form-modal';
+import { AnnouncementFormModal, TYPE_SUGGESTIONS, type AnnouncementFormData } from '@/components/admin/announcements/announcement-form-modal';
 import { AnnouncementDetailModal } from '@/components/shared/announcement-detail-modal';
 import { Modal } from '@/components/admin/ui/modal';
 import { TablePagination } from '@/components/admin/ui/table-pagination';
@@ -58,6 +58,7 @@ export default function AnnouncementsPage() {
   // Status filter + search are resolved server-side so pagination stays
   // correct across the whole dataset, not just the currently loaded page.
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'ARCHIVED'>('ALL');
+  const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   // Mutually exclusive: picking an exact date clears the range dropdown back
@@ -98,6 +99,11 @@ export default function AnnouncementsPage() {
     setPage(1);
   };
 
+  const handleCategoryFilterChange = (type: string) => {
+    setCategoryFilter(type);
+    setPage(1);
+  };
+
   const handleDateRangeChange = (range: DateRange) => {
     setDateRange(range);
     setSelectedDate('');
@@ -120,7 +126,11 @@ export default function AnnouncementsPage() {
     setListError(null);
     try {
       const result = await listForAdmin({
-        status: statusFilter === 'ALL' ? undefined : statusFilter,
+        // "All" means all active announcements, not literally every status —
+        // archived items should only surface when the Archived tab is picked,
+        // never mixed into the default view.
+        status: statusFilter === 'ALL' ? 'ACTIVE' : statusFilter,
+        type: categoryFilter === 'ALL' ? undefined : categoryFilter,
         search: searchQuery || undefined,
         date: selectedDate || undefined,
         dateRange,
@@ -146,7 +156,7 @@ export default function AnnouncementsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [statusFilter, searchQuery, selectedDate, dateRange, page]);
+  }, [statusFilter, categoryFilter, searchQuery, selectedDate, dateRange, page]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -307,49 +317,31 @@ export default function AnnouncementsPage() {
           </div>
           <button
             onClick={handleOpenCreate}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-[#62A0EA] text-white text-xs font-semibold rounded-md hover:bg-[#4A8BD4] transition-colors shadow-lg shadow-[#62A0EA]/30 flex-shrink-0"
+            className="inline-flex h-11 w-full flex-shrink-0 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-4 text-sm font-bold text-white shadow-lg shadow-[#62A0EA]/25 transition-colors hover:bg-[#4A8BD4] sm:w-auto"
           >
             <Plus size={16} />
             <span>New Announcement</span>
           </button>
         </div>
 
-        {/* Filters — search + status on the left, the two date controls
+        {/* Filters — search on the left, date picker/dropdown/status filter
             pushed to the right edge via justify-between (sm:+; they just
-            stack after the left group on mobile). */}
+            stack after the search on mobile). */}
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            {/* Search — capped width so it doesn't stretch across the whole header.
-                Nudged right on desktop (md:) so the focus ring isn't clipped by
-                the header's flush-left edge (md:px-0 on the parent). */}
-            <div className="relative w-full sm:w-64 sm:flex-none md:ml-1">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-              </svg>
-              <input
-                type="text"
-                placeholder="Search title or message…"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                className={searchInputClasses}
-              />
-            </div>
-            {/* Status filter */}
-            <div className="flex bg-[#0E1628] rounded-md p-1 border border-[#1E2D45]">
-              {([['ALL', 'All'], ['ACTIVE', 'Active'], ['ARCHIVED', 'Archived']] as const).map(([key, label]) => (
-                <button
-                  key={key}
-                  onClick={() => handleStatusFilterChange(key)}
-                  className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                    statusFilter === key
-                      ? 'bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/30'
-                      : 'text-slate-500 hover:text-slate-300 hover:bg-[#1A2540]'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+          {/* Search — capped width so it doesn't stretch across the whole header.
+              Nudged right on desktop (md:) so the focus ring isn't clipped by
+              the header's flush-left edge (md:px-0 on the parent). */}
+          <div className="relative w-full sm:w-80 sm:flex-none md:ml-1">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search title or message…"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className={searchInputClasses}
+            />
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -393,6 +385,38 @@ export default function AnnouncementsPage() {
                 </option>
               ))}
             </select>
+            {/* Category filter — same suggested categories offered when creating
+                a new announcement (TYPE_SUGGESTIONS), so this list can't drift
+                from what an admin can actually assign. */}
+            <select
+              value={categoryFilter}
+              onChange={(e) => handleCategoryFilterChange(e.target.value)}
+              aria-label="Filter announcements by category"
+              className="rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2.5 text-sm text-slate-200 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]/50 focus:ring-1 focus:ring-[#62A0EA]/30"
+            >
+              <option value="ALL" className="bg-[#0E1628]">All Categories</option>
+              {TYPE_SUGGESTIONS.map((type) => (
+                <option key={type} value={type} className="bg-[#0E1628]">
+                  {type}
+                </option>
+              ))}
+            </select>
+            {/* Status filter */}
+            <div className="flex bg-[#0E1628] rounded-md p-1 border border-[#1E2D45]">
+              {([['ALL', 'All'], ['ACTIVE', 'Active'], ['ARCHIVED', 'Archived']] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => handleStatusFilterChange(key)}
+                  className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                    statusFilter === key
+                      ? 'bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/30'
+                      : 'text-slate-500 hover:text-slate-300 hover:bg-[#1A2540]'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -414,7 +438,7 @@ export default function AnnouncementsPage() {
       {/* Table — bounded height; only the rows scroll internally so the
           header row and the pagination bar stay put instead of scrolling
           away with the content. */}
-      <div className="flex-1 min-h-0 flex flex-col pb-28 lg:pb-8 px-4 md:px-0">
+      <div className="flex-1 min-h-0 flex flex-col px-4 md:px-0">
         {isLoading ? (
           <div className="h-full flex flex-col items-center justify-center">
             <div className="w-8 h-8 border-2 border-[#1E2D45] border-t-[#62A0EA] rounded-full animate-spin" />
@@ -582,7 +606,7 @@ export default function AnnouncementsPage() {
             </div>
 
             {/* Pagination — outside the scrollable areas above, so it never scrolls out of view. */}
-            <div className="flex-shrink-0 bg-[#131C2E] border border-[#1E2D45] rounded-lg px-3">
+            <div className="flex-shrink-0 bg-[#131C2E] border border-[#1E2D45] rounded-lg px-3 pb-3">
               <TablePagination
                 currentPage={pageMeta.page}
                 totalPages={pageMeta.lastPage}

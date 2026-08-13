@@ -31,6 +31,7 @@ import {
   useState,
 } from "react";
 import { useAuth } from "@/contexts/auth-context";
+import { getEcho } from "@/lib/echo";
 import type { Announcement, AnnouncementType } from "@/types";
 import {
   list as listAnnouncements,
@@ -50,9 +51,16 @@ const FEED_PAGE_SIZE = 15;
  * Map the backend's free-form `type` string (max 20, e.g. 'holiday', 'route',
  * 'system', 'safety', 'promo', 'maintenance', 'claim_approved') to a canonical
  * AnnouncementType values the rewards panel's announcementConfig expects.
+ * An empty/blank type, or one that explicitly says "system", is SYSTEM; a
+ * non-empty type that doesn't match any known bucket (e.g. a custom category
+ * typed via the admin's "Other" option) falls to CUSTOM, which the UI shows
+ * using the original raw text rather than a generic label.
  */
 function mapType(rawType: string): AnnouncementType {
-  const t = (rawType ?? "").toLowerCase();
+  const t = (rawType ?? "").toLowerCase().trim();
+  if (!t || t.includes("system")) {
+    return "SYSTEM";
+  }
   if (["claim_approved", "claim_rejected", "claim_released"].some((type) => t.includes(type))) {
     return "CLAIM_UPDATE";
   }
@@ -69,7 +77,7 @@ function mapType(rawType: string): AnnouncementType {
   ) {
     return "MAINTENANCE";
   }
-  return "SYSTEM";
+  return "CUSTOM";
 }
 
 /** Map a service Announcement → the canonical Announcement the UI consumes. */
@@ -77,6 +85,7 @@ function toCanonical(a: ServiceAnnouncement): Announcement {
   return {
     id: a.id,
     type: mapType(a.type),
+    rawType: a.type ?? "",
     title: a.title,
     message: a.message,
     createdAt: a.createdAt,
@@ -166,7 +175,27 @@ export function AnnouncementsProvider({ children }: { children: React.ReactNode 
     void refresh();
     void refreshCount();
     const id = setInterval(() => void refreshCount(), POLL_INTERVAL_MS);
-    return () => clearInterval(id);
+
+    // Real-time: the instant an admin publishes a new announcement, refresh
+    // the feed + badge immediately instead of waiting for the next poll tick.
+    // The 30s poll above stays as a fallback if the socket is unavailable.
+    let echo: ReturnType<typeof getEcho> | null = null;
+    try {
+      echo = getEcho();
+      // Leading dot = listen for the exact broadcastAs name
+      // ('AnnouncementCreated') rather than Echo's namespaced default.
+      echo.channel("announcements").listen(".AnnouncementCreated", () => {
+        void refresh();
+        void refreshCount();
+      });
+    } catch (err) {
+      console.warn("Echo subscription failed for announcements, falling back to polling:", err);
+    }
+
+    return () => {
+      clearInterval(id);
+      echo?.channel("announcements").stopListening(".AnnouncementCreated");
+    };
   }, [authLoading, isAuthenticated, refresh, refreshCount]);
 
   const markAsRead = useCallback(
