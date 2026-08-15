@@ -106,7 +106,6 @@ export function useProfile() {
     setEditData({
       email: profile.email,
       contactNumber: profile.contactNumber,
-      languagePreference: profile.languagePreference,
     });
     setSaveError(null);
     setIsEditing(true);
@@ -125,7 +124,6 @@ export function useProfile() {
     try {
       const updated = await updateProfile({
         contactNumber: editData.contactNumber,
-        languagePreference: editData.languagePreference,
       });
       setProfile(updated);
       setIsEditing(false);

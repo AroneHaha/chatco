@@ -4,7 +4,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
 import { useRef, useState } from "react";
-import { Hand, QrCode, MapPin, MousePointer2 } from "lucide-react";
+import { Hand, QrCode, MapPin, MousePointer2, Bus } from "lucide-react";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
@@ -69,7 +69,7 @@ function HailVisual() {
 function PayVisual() {
   return (
     <div className="relative w-full aspect-square max-w-[420px] rounded-[2rem] bg-white/[0.04] border border-white/15 overflow-hidden shadow-2xl shadow-black/40 backdrop-blur-sm flex items-center justify-center p-8">
-      <div className="absolute top-6 right-6 px-3 py-1.5 rounded-full bg-white/10 text-[11px] font-semibold text-white/70">GCash</div>
+      <div className="absolute top-6 right-6 px-3 py-1.5 rounded-full bg-white/10 text-[10px] font-semibold text-white/70">GCash</div>
       <div className="text-center">
         <div className="mx-auto grid grid-cols-7 gap-[3px] w-40 h-40 p-3 bg-white rounded-2xl shadow-2xl">
           {QR.map((v, i) => (
@@ -87,13 +87,15 @@ function PayVisual() {
 function TrackVisual() {
   return (
     <div className="relative w-full aspect-square max-w-[420px] rounded-[2rem] bg-[#EAF7EE] border border-white/10 overflow-hidden shadow-2xl shadow-black/40">
-      <div className="absolute inset-0 opacity-20" style={{ backgroundImage: "linear-gradient(#16A34A 1px, transparent 1px), linear-gradient(90deg, #16A34A 1px, transparent 1px)", backgroundSize: "30px 30px" }} />
+      <div className="absolute inset-0 opacity-20" style={{ backgroundImage: "linear-gradient(#22C55E 1px, transparent 1px), linear-gradient(90deg, #22C55E 1px, transparent 1px)", backgroundSize: "30px 30px" }} />
       <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-        <path d="M12,80 C35,70 40,35 60,32 S85,20 90,14" fill="none" stroke="#16A34A" strokeWidth="1.5" strokeDasharray="3 3" strokeLinecap="round" opacity="0.7" />
+        <path d="M12,80 C35,70 40,35 60,32 S85,20 90,14" fill="none" stroke="#22C55E" strokeWidth="1.5" strokeDasharray="3 3" strokeLinecap="round" opacity="0.7" />
       </svg>
-      <span className="absolute left-[12%] top-[80%] w-3 h-3 rounded-full bg-white border-2 border-[#16A34A]" />
+      <span className="absolute left-[12%] top-[80%] w-3 h-3 rounded-full bg-white border-2 border-[#22C55E]" />
       <div className="absolute left-[58%] top-[30%] -translate-x-1/2 -translate-y-1/2">
-        <span className="flex w-6 h-6 rounded-lg bg-[#16A34A] shadow-lg shadow-green-500/40 items-center justify-center text-white text-[9px] font-bold">🚐</span>
+        <span className="flex w-6 h-6 rounded-lg bg-[#22C55E] shadow-lg shadow-green-500/40 items-center justify-center text-white">
+          <Bus size={13} strokeWidth={2.5} />
+        </span>
         <span className="absolute inset-0 -m-2 rounded-full bg-green-500/20 animate-ping" />
       </div>
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[82%] bg-white rounded-2xl shadow-xl p-3 flex items-center justify-between border border-green-100">
@@ -102,7 +104,7 @@ function TrackVisual() {
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
           </span>
           <div>
-            <p className="text-[11px] font-bold text-gray-800">Payment Success</p>
+            <p className="text-[10px] font-bold text-gray-800">Payment Success</p>
             <p className="text-[10px] text-gray-400">Digital receipt sent</p>
           </div>
         </div>
@@ -137,7 +139,7 @@ function StepInner({ s, index }: { s: Step; index: number }) {
             Step {s.step}
           </span>
         </div>
-        <h3 className="mt-7 text-4xl md:text-5xl xl:text-6xl font-extrabold tracking-tight text-white leading-[1.05]">
+        <h3 className="mt-7 font-editorial-serif font-medium text-4xl md:text-5xl xl:text-6xl tracking-tight text-white leading-[1.05]">
           {s.title}
         </h3>
         <span className="mt-6 block h-1 w-16 rounded-full" style={{ background: s.accent }} />
@@ -147,14 +149,12 @@ function StepInner({ s, index }: { s: Step; index: number }) {
       </div>
       {/* Visual with accent glow */}
       <div className="order-1 lg:order-2 flex justify-center lg:justify-end">
-        <div className="relative">
+        <div className="relative w-full max-w-105">
           <div
             className="absolute -inset-8 rounded-full blur-3xl opacity-60"
             style={{ background: `radial-gradient(circle, ${s.accent}55, transparent 70%)` }}
           />
-          <div className="relative">
-            <StepVisual index={index} />
-          </div>
+          <StepVisual index={index} />
         </div>
       </div>
     </div>
@@ -232,23 +232,26 @@ export default function HowItWorks() {
   const activeAccent = STEPS[active].accent;
 
   return (
-    <section id="how-it-works" className="relative bg-[#071A2E] text-white">
+    <section id="how-it-works" className="relative bg-[#0C2A52] text-white">
       {/* ── Desktop: pinned sequential showcase (motion-safe only) ── */}
       <div ref={stageRef} className="hidden motion-safe:lg:block relative h-screen overflow-hidden">
-        {/* ambient grid */}
-        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.5) 1px, transparent 1px)", backgroundSize: "64px 64px" }} />
-        {/* accent glow that follows the active step */}
+        {/* A brighter, more saturated blue than the Hero's deep navy — same
+            family, clearly a different room. The active step's own color
+            still lights the stage as a spotlight, and the edges fall back
+            to this base tone rather than to black. No grid texture either;
+            that pattern stays the Hero's signature. */}
         <div
-          className="absolute top-1/2 left-1/4 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[600px] rounded-full blur-[160px] transition-colors duration-700"
-          style={{ background: `${activeAccent}22` }}
+          className="absolute inset-0 transition-[background] duration-700"
+          style={{ background: `radial-gradient(ellipse 70% 60% at 78% 45%, ${activeAccent}55 0%, transparent 60%)` }}
+        />
+        <div
+          className="absolute inset-0 opacity-70"
+          style={{ background: "radial-gradient(ellipse 90% 70% at 50% 50%, transparent 40%, #0C2A52 100%)" }}
         />
 
         {/* top bar: kicker/title + counter */}
-        <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between max-w-6xl mx-auto px-10 pt-10">
-          <div>
-            <span className="text-xs font-semibold uppercase tracking-[0.35em] text-white/50">How It Works</span>
-            <h2 className="mt-2 text-2xl font-extrabold tracking-tight">Three steps to smarter commuting</h2>
-          </div>
+        <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between max-w-6xl mx-auto px-10 pt-28">
+          <h2 className="font-editorial-serif font-medium text-2xl tracking-tight">Three steps to smarter commuting</h2>
           <span className="font-extrabold tabular-nums text-lg">
             <span style={{ color: activeAccent }}>{STEPS[active].step}</span>
             <span className="text-white/25"> / {String(STEPS.length).padStart(2, "0")}</span>
@@ -313,7 +316,7 @@ export default function HowItWorks() {
       <div className="motion-safe:lg:hidden py-20 md:py-28">
         <div className="text-center px-6">
           <span className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">How It Works</span>
-          <h2 className="mt-3 text-3xl md:text-4xl font-extrabold tracking-tight">Three steps to smarter commuting</h2>
+          <h2 className="mt-3 font-editorial-serif font-medium text-3xl md:text-4xl tracking-tight">Three steps to smarter commuting</h2>
         </div>
         <div className="mt-16 space-y-24">
           {STEPS.map((s, i) => (

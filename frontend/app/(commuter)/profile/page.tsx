@@ -322,8 +322,8 @@ export default function ProfilePage() {
               />
               {isEditing && (
                 <p className="text-[10px] text-white/30 mt-1">
-                  Email changes are not saved — only contact number and
-                  language preference are editable.
+                  Email changes are not saved — only contact number is
+                  editable.
                 </p>
               )}
             </div>
@@ -344,27 +344,6 @@ export default function ProfilePage() {
                 disabled={!isEditing}
                 className={isEditing ? enabledInputClasses : disabledInputClasses}
               />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-white/50 mb-1.5">
-                Language Preference
-              </label>
-              <select
-                value={
-                  isEditing
-                    ? (editData.languagePreference ??
-                      profile.languagePreference)
-                    : profile.languagePreference
-                }
-                onChange={(e) =>
-                  handleEditChange("languagePreference", e.target.value)
-                }
-                disabled={!isEditing}
-                className={isEditing ? enabledInputClasses : disabledInputClasses}
-              >
-                <option value="English">English</option>
-                <option value="Filipino">Filipino</option>
-              </select>
             </div>
           </div>
 

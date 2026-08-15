@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  Wallet,
   QrCode,
   MapPin,
   Calculator,
@@ -10,176 +9,193 @@ import {
   ShieldCheck,
   Gift,
   Bell,
+  type LucideIcon,
 } from "lucide-react";
 
-const row1 = [
+type Feature = {
+  icon: LucideIcon;
+  title: string;
+  desc: string;
+  hex: string;
+};
+
+const FEATURES: Feature[] = [
   {
     icon: QrCode,
     title: "GCash Cashless Payment",
     desc: "Show your QR to the conductor — they scan it and fare is paid directly via GCash. No wallet needed.",
-    color: "bg-blue-50 text-blue-600",
+    hex: "#2563EB",
   },
   {
     icon: MapPin,
     title: "Live GPS Tracking",
     desc: "See nearby jeepneys on the map when they're within 1km. Get a sound alert when one approaches.",
-    color: "bg-green-50 text-green-600",
+    hex: "#16A34A",
   },
   {
     icon: Calculator,
     title: "Point-Area Fare Calculator",
     desc: "Fares based on 34 official CHATCO stop points — same rates whether you pay GCash or cash.",
-    color: "bg-purple-50 text-purple-600",
+    hex: "#9333EA",
   },
   {
     icon: Megaphone,
     title: "Pick Me Up Signal",
     desc: "Waiting in the dark or rain? Tap to send an alert straight to the conductor.",
-    color: "bg-orange-50 text-orange-600",
+    hex: "#EA580C",
   },
-];
-
-const row2 = [
   {
     icon: Bell,
     title: "Ride Notifications",
     desc: "Get real-time alerts when a CHATCO jeep is nearby, when your ride is confirmed, and when you arrive at your drop-off.",
-    color: "bg-cyan-50 text-cyan-600",
+    hex: "#0891B2",
   },
   {
     icon: ShieldCheck,
     title: "Share My Ride",
     desc: "Generate a live tracking link for family and friends to ensure you arrive safely.",
-    color: "bg-red-50 text-red-600",
+    hex: "#DC2626",
   },
   {
     icon: Gift,
     title: "Ride & Earn Rewards",
     desc: "Every cashless ride earns points. Hit the threshold and unlock free ride vouchers.",
-    color: "bg-yellow-50 text-yellow-600",
+    hex: "#CA8A04",
   },
 ];
 
-function FeatureCard({ f }: { f: any }) {
-  const Icon = f.icon;
-
-  return (
-    <div className="group flex-shrink-0 w-[280px] p-6 rounded-2xl border border-gray-100 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-[#1A5FB4]/30 hover:shadow-[0_0_20px_rgba(26,95,180,0.12),0_8px_30px_rgba(0,0,0,0.06)]">
-      <div
-        className={`w-14 h-14 rounded-2xl ${f.color} flex items-center justify-center mb-5 transition-transform group-hover:scale-110`}
-      >
-        <Icon size={24} strokeWidth={1.5} />
-      </div>
-      <h3 className="text-lg font-bold text-gray-900 mb-2">{f.title}</h3>
-      <p className="text-sm text-gray-500 leading-relaxed">{f.desc}</p>
-    </div>
-  );
-}
-
-function MarqueeRow({
-  items,
-  direction,
-}: {
-  items: any[];
-  direction: "left" | "right";
-}) {
-  const [isVisible, setIsVisible] = useState(false);
-  const rowRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = rowRef.current;
-    if (!el) return;
-
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-          obs.disconnect();
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
-
-  const loopItems = [...items, ...items, ...items];
-
-  return (
-    <div
-      ref={rowRef}
-      className="relative mb-6"
-      style={{
-        transform:
-          direction === "left" ? "rotate(-1.5deg)" : "rotate(1.5deg)",
-      }}
-    >
-      <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-24 z-10 bg-gradient-to-r from-white to-transparent" />
-      <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-24 z-10 bg-gradient-to-l from-white to-transparent" />
-
-      <div className="overflow-hidden">
-        <div
-          className="flex gap-6 w-max"
-          style={{
-            animation: isVisible
-              ? direction === "left"
-                ? "marquee-left 22s linear infinite"
-                : "marquee-right 22s linear infinite"
-              : "none",
-            willChange: "transform",
-          }}
-        >
-          {loopItems.map((f, i) => (
-            <FeatureCard key={`${direction}-${i}`} f={f} />
-          ))}
-        </div>
-      </div>
-
-      <style jsx>{`
-        @keyframes marquee-left {
-          0% {
-            transform: translateX(0);
-          }
-          100% {
-            transform: translateX(-33.333%);
-          }
-        }
-
-        @keyframes marquee-right {
-          0% {
-            transform: translateX(-33.333%);
-          }
-          100% {
-            transform: translateX(0);
-          }
-        }
-      `}</style>
-    </div>
-  );
-}
+const AUTOPLAY_MS = 4500;
 
 export default function CommuterFeatures() {
+  const [active, setActive] = useState(0);
+  const [autoplay, setAutoplay] = useState(true);
+  const [hovered, setHovered] = useState(false);
+
+  useEffect(() => {
+    if (!autoplay || hovered) return;
+    const id = setInterval(() => setActive((a) => (a + 1) % FEATURES.length), AUTOPLAY_MS);
+    return () => clearInterval(id);
+  }, [autoplay, hovered]);
+
+  const select = (i: number) => {
+    setActive(i);
+    setAutoplay(false);
+  };
+
+  const current = FEATURES[active];
+  const CurrentIcon = current.icon;
+
   return (
-    <section className="py-24 bg-white overflow-hidden">
+    <section id="features" className="py-24 bg-white overflow-hidden">
       <div className="max-w-7xl mx-auto px-5 md:px-8">
         <div className="text-center mb-16 max-w-2xl mx-auto">
-          <span className="text-xs font-bold text-[#1A5FB4] uppercase tracking-widest">
-            Built for Commuters
-          </span>
-          <h2 className="mt-4 text-3xl md:text-5xl font-extrabold tracking-tight text-gray-900">
+          <h2 className="font-editorial-serif font-medium text-3xl md:text-5xl tracking-tight text-gray-900">
             Everything you need, <br />
             in one tap.
           </h2>
           <p className="mt-4 text-lg text-gray-500">
-            From hailing to payment to safety — we've digitized every step of
+            From hailing to payment to safety — we&apos;ve digitized every step of
             your jeepney journey.
           </p>
         </div>
-      </div>
 
-      <MarqueeRow items={row1} direction="left" />
-      <MarqueeRow items={row2} direction="right" />
+        {/* Desktop — index + detail explorer, auto-advances until you pick one */}
+        <div
+          className="hidden lg:grid grid-cols-[320px_1fr] gap-8"
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+        >
+          <div className="space-y-1">
+            {FEATURES.map((f, i) => {
+              const on = active === i;
+              const Icon = f.icon;
+              return (
+                <button
+                  key={f.title}
+                  type="button"
+                  onMouseEnter={() => select(i)}
+                  onFocus={() => select(i)}
+                  className={`w-full flex items-center gap-3 text-left px-4 py-3.5 rounded-xl transition-colors duration-200 ${
+                    on ? "bg-gray-50" : "hover:bg-gray-50/70"
+                  }`}
+                >
+                  <span
+                    className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-300"
+                    style={{ background: on ? `${f.hex}17` : "#F3F4F6", color: on ? f.hex : "#6B7280" }}
+                  >
+                    <Icon size={17} strokeWidth={1.8} />
+                  </span>
+                  <span className={`text-sm font-semibold transition-colors duration-200 ${on ? "text-gray-900" : "text-gray-500"}`}>
+                    {f.title}
+                  </span>
+                  <span
+                    className="ml-auto w-1.5 h-1.5 rounded-full shrink-0 transition-opacity duration-300"
+                    style={{ background: f.hex, opacity: on ? 1 : 0 }}
+                  />
+                </button>
+              );
+            })}
+          </div>
+
+          <div
+            className="relative min-h-104 rounded-3xl overflow-hidden p-10 md:p-12 flex flex-col justify-end border border-gray-100 transition-colors duration-500"
+            style={{ background: `linear-gradient(150deg, ${current.hex}0d, #FAFAFA 65%)` }}
+          >
+            <CurrentIcon
+              aria-hidden
+              className="pointer-events-none absolute -right-8 -top-10 transition-colors duration-500"
+              style={{ color: `${current.hex}14`, width: 280, height: 280 }}
+              strokeWidth={1}
+            />
+            <div className="relative">
+              <span
+                className="inline-flex w-16 h-16 rounded-2xl items-center justify-center transition-colors duration-500"
+                style={{ background: `${current.hex}17`, color: current.hex }}
+              >
+                <CurrentIcon size={30} strokeWidth={1.6} />
+              </span>
+              <h3 className="mt-7 font-editorial-serif font-medium text-3xl md:text-4xl tracking-tight text-gray-900">
+                {current.title}
+              </h3>
+              <p className="mt-3 max-w-md text-base text-gray-500 leading-relaxed">
+                {current.desc}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile — accordion */}
+        <div className="lg:hidden space-y-2">
+          {FEATURES.map((f, i) => {
+            const on = active === i;
+            const Icon = f.icon;
+            return (
+              <div key={f.title} className="rounded-2xl border border-gray-100 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => select(on ? -1 : i)}
+                  aria-expanded={on}
+                  className="w-full flex items-center gap-3 text-left px-4 py-4"
+                >
+                  <span
+                    className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                    style={{ background: `${f.hex}17`, color: f.hex }}
+                  >
+                    <Icon size={18} strokeWidth={1.8} />
+                  </span>
+                  <span className="text-sm font-bold text-gray-900">{f.title}</span>
+                  <span className={`ml-auto text-gray-300 transition-transform duration-300 ${on ? "rotate-45" : ""}`}>+</span>
+                </button>
+                <div className={`grid transition-all duration-300 ${on ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+                  <div className="overflow-hidden">
+                    <p className="px-4 pb-4 pl-15 text-sm text-gray-500 leading-relaxed">{f.desc}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </section>
   );
 }
