@@ -25,6 +25,7 @@ interface DataTableProps<T> {
   /** Disable horizontal overflow for compact, screen-fitting tables. */
   allowHorizontalScroll?: boolean;
   tableClassName?: string;
+  density?: 'default' | 'compact';
 }
 
 export function DataTable<T extends object>({
@@ -38,8 +39,10 @@ export function DataTable<T extends object>({
   stickyHeader = false,
   allowHorizontalScroll = true,
   tableClassName = '',
+  density = 'default',
 }: DataTableProps<T>) {
   const tableHeight = height ?? maxHeight ?? '32rem';
+  const isCompact = density === 'compact';
   const filteredData = useMemo(() => {
     if (!searchQuery) {
       return data;
@@ -55,7 +58,7 @@ export function DataTable<T extends object>({
 
   return (
     <div
-      className={`flex w-full flex-col overflow-hidden rounded-lg border border-[#1E2D45] bg-[#131C2E] ${
+      className={`flex w-full flex-col overflow-hidden rounded-lg border border-[#23344F] bg-[#0E1628] ${
         allowHorizontalScroll ? 'overflow-x-auto' : 'overflow-x-hidden'
       } scrollbar-themed`}
       style={{ height: tableHeight }}
@@ -66,19 +69,19 @@ export function DataTable<T extends object>({
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto scrollbar-themed">
-        <table className={`min-w-full ${tableClassName}`}>
+        <table className={`${allowHorizontalScroll ? 'min-w-full' : 'w-full'} ${tableClassName}`}>
           <thead className={stickyHeader ? 'sticky top-0 z-10' : ''}>
             <tr className="border-b border-[#1E2D45]">
               {columns.map((col) => (
                 <th
                   key={col.key}
                   scope="col"
-                  className={`px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider ${
+                  className={`px-4 ${isCompact ? 'py-2' : 'py-3'} text-xs font-medium text-slate-400 uppercase tracking-wider ${
                     col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'
                   } ${
                     // The <tr> border doesn't travel with sticky cells, so the
                     // divider is redrawn as an inset shadow on each header cell.
-                    stickyHeader ? 'bg-[#131C2E] shadow-[inset_0_-1px_0_#1E2D45]' : 'bg-[#131C2E]'
+                    stickyHeader ? 'bg-[#111A2B] shadow-[inset_0_-1px_0_#23344F]' : 'bg-[#111A2B]'
                   } ${col.headerClassName ?? ''}`}
                 >
                   {col.label}
@@ -90,7 +93,7 @@ export function DataTable<T extends object>({
             {filteredData.map((item, idx) => (
               <tr
                 key={idx}
-                className={`h-12 hover:bg-[#162033] transition-colors ${onRowDoubleClick ? 'cursor-pointer' : ''}`}
+                className={`${isCompact ? 'h-9' : 'h-12'} hover:bg-[#172238] transition-colors ${onRowDoubleClick ? 'cursor-pointer' : ''}`}
                 onDoubleClick={() => onRowDoubleClick?.(item)}
               >
                 {columns.map((col) => {
@@ -98,7 +101,7 @@ export function DataTable<T extends object>({
                   return (
                     <td
                       key={col.key}
-                      className={`px-4 py-3 text-sm text-slate-300 ${
+                      className={`min-w-0 px-4 ${isCompact ? 'py-1.5' : 'py-3'} text-sm text-slate-300 ${
                         col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'
                       } ${col.cellClassName ?? ''}`}
                     >

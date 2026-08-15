@@ -1,7 +1,7 @@
 // app/(conductor)/conductor-dashboard/end-of-day/page.tsx
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { clearShift } from "@/lib/conductor/services/shift.service";
 import { submitRemittance, type RemittanceRecord } from "@/lib/conductor/services/remittance.service";
@@ -14,7 +14,7 @@ import { EndOfDaySkeleton } from "@/components/conductor/ui/skeleton";
 import { fmt, methodConfig } from "./helpers";
 
 // Extracted UI Components
-import HistorySection from "@/components/conductor/remittance/HistorySection";
+import HistorySection, { type RemittanceHistoryFilter } from "@/components/conductor/remittance/HistorySection";
 import ConfirmModal from "@/components/conductor/remittance/ConfirmModal";
 import SuccessOverlay from "@/components/conductor/remittance/SuccessOverlay";
 import OfficialReportModal, { buildPrintHTML } from "@/components/conductor/remittance/OfficialReportModal";
@@ -27,11 +27,13 @@ export default function EndOfDayPage() {
   const [isRemitting, setIsRemitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [hasRemittedToday, setHasRemittedToday] = useState(false);
-  const [historyFilter, setHistoryFilter] = useState<"all" | "week" | "month">("all");
+  const [historyFilter, setHistoryFilter] = useState<RemittanceHistoryFilter>("week");
+  const [historyDate, setHistoryDate] = useState("");
   const [showOfficialReport, setShowOfficialReport] = useState(false);
   const [reportForRecord, setReportForRecord] = useState<RemittanceRecord | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const isLoggingOutAfterRemit = useRef(false);
   const pendingRemittance = useMemo(
     () => history.find((record) => record.remittanceStatus === "Pending" || record.remittanceStatus === "Overdue") ?? null,
     [history],
@@ -85,7 +87,44 @@ export default function EndOfDayPage() {
 
   const canRemit = (transactions.length > 0 || pendingRemittance !== null) && !hasRemittedToday;
 
-  const filteredHistory = useMemo(() => { const now = new Date(); return history.filter((r) => { const d = new Date(r.date + "T00:00:00"); if (historyFilter === "week") return d >= new Date(now.getTime() - 7 * 86400000); if (historyFilter === "month") return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); return true; }); }, [history, historyFilter]);
+  const logoutAfterRemittance = async () => {
+    if (isLoggingOutAfterRemit.current) return;
+    isLoggingOutAfterRemit.current = true;
+    setShowSuccess(false);
+
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+      });
+    } finally {
+      window.location.replace("/login");
+    }
+  };
+
+  const filteredHistory = useMemo(() => {
+    const today = new Date();
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const daysFromMonday = (startOfToday.getDay() + 6) % 7;
+    const weekStart = new Date(startOfToday);
+    weekStart.setDate(startOfToday.getDate() - daysFromMonday);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    const monthStart = new Date(startOfToday.getFullYear(), startOfToday.getMonth(), 1);
+
+    return history.filter((record) => {
+      const recordDate = String(record.date).slice(0, 10);
+      const date = new Date(`${recordDate}T00:00:00`);
+      if (Number.isNaN(date.getTime())) return false;
+      if (historyFilter === "today") return recordDate === startOfToday.toISOString().slice(0, 10);
+      if (historyFilter === "last7") return date >= new Date(startOfToday.getTime() - 6 * 86400000) && date <= startOfToday;
+      if (historyFilter === "week") return date >= weekStart && date <= weekEnd;
+      if (historyFilter === "month") return date >= monthStart && date <= startOfToday;
+      if (historyFilter === "date") return historyDate ? recordDate === historyDate : true;
+      return true;
+    });
+  }, [history, historyFilter, historyDate]);
 
   const activeReport = reportForRecord || {
     shiftId: shiftInfo.shiftId,
@@ -214,8 +253,7 @@ export default function EndOfDayPage() {
       setShowSuccess(true);
       setHasRemittedToday(true);
       setTimeout(() => {
-        setShowSuccess(false);
-        router.replace("/unit-verification");
+        void logoutAfterRemittance();
       }, 3000);
     } catch (err) {
       setSubmitError(
@@ -372,7 +410,7 @@ export default function EndOfDayPage() {
           </div>
         )}
 
-        <HistorySection showHistory={showHistory} setShowHistory={setShowHistory} filteredHistory={filteredHistory} historyFilter={historyFilter} setHistoryFilter={setHistoryFilter} openOfficialReport={openOfficialReport} onPrintReport={printReport} />
+        <HistorySection showHistory={showHistory} setShowHistory={setShowHistory} filteredHistory={filteredHistory} historyFilter={historyFilter} setHistoryFilter={setHistoryFilter} historyDate={historyDate} setHistoryDate={setHistoryDate} openOfficialReport={openOfficialReport} onPrintReport={printReport} />
       </div>
 
       {submitError && (
@@ -387,7 +425,7 @@ export default function EndOfDayPage() {
           after endShift() clears the live shift data. */}
       <SuccessOverlay
         show={showSuccess}
-        onClose={() => { setShowSuccess(false); router.replace("/login"); }}
+        onClose={() => { void logoutAfterRemittance(); }}
         gcashTotal={capturedTotals?.gcashTotal ?? summary.gcashTotal}
         cashTotal={capturedTotals?.cashTotal ?? summary.cashTotal}
         grandTotal={capturedTotals?.grandTotal ?? summary.grandTotal}

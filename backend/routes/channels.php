@@ -9,6 +9,12 @@ Broadcast::channel('vehicles', function () {
     return true;
 });
 
+// Public channel — carries AnnouncementCreated events so every signed-in
+// user's "Latest Updates" feed + unread badge update in real time.
+Broadcast::channel('announcements', function () {
+    return true;
+});
+
 Broadcast::channel('vehicle.{vehicleId}.hails', function (User $user, string $vehicleId): bool {
     return $user->isConductor()
         && ShiftLog::query()

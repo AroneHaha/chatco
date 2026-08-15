@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ConductorDashboardSkeleton } from "@/components/conductor/ui/skeleton";
 import HistoryLogModal from "@/components/conductor/modals/history-log-modal";
+import BreakConfirmModal from "@/components/conductor/modals/break-confirm-modal";
 import { useDashboardState } from "./dashboard/use-dashboard-state";
 import { MobileDashboardCard } from "./dashboard/mobile-dashboard-card";
 import { DesktopDashboardCard } from "./dashboard/desktop-dashboard-card";
@@ -26,6 +27,9 @@ export default function ConductorDashboard() {
     breakBusy,
     breakError,
     toggleBreak,
+    showBreakModal,
+    openBreakModal,
+    closeBreakModal,
     showHistory,
     setShowHistory,
     mobileCardExpanded,
@@ -75,7 +79,7 @@ export default function ConductorDashboard() {
       <div className="absolute right-4 top-4 z-30 hidden flex-col items-end gap-1 lg:flex">
         <button
           type="button"
-          onClick={() => void toggleBreak()}
+          onClick={openBreakModal}
           disabled={breakBusy}
           className={`rounded-xl border px-4 py-2 text-xs font-bold shadow-lg transition-colors disabled:cursor-wait disabled:opacity-60 ${
             isOnBreak
@@ -85,11 +89,6 @@ export default function ConductorDashboard() {
         >
           {breakBusy ? "Updating..." : isOnBreak ? "Resume Duty" : "Take a Break"}
         </button>
-        {breakError && (
-          <p className="max-w-56 rounded bg-red-950/90 px-2 py-1 text-right text-[10px] text-red-300">
-            {breakError}
-          </p>
-        )}
       </div>
 
       <MobileDashboardCard
@@ -108,8 +107,7 @@ export default function ConductorDashboard() {
         onHistoryClick={() => setShowHistory(true)}
         isOnBreak={isOnBreak}
         breakBusy={breakBusy}
-        breakError={breakError}
-        onToggleBreak={() => void toggleBreak()}
+        onOpenBreakModal={openBreakModal}
       />
 
       <DesktopDashboardCard
@@ -141,6 +139,16 @@ export default function ConductorDashboard() {
       />
 
       <HistoryLogModal isOpen={showHistory} onClose={() => setShowHistory(false)} shiftId={shift?.shiftId || ""} />
+
+      {showBreakModal && (
+        <BreakConfirmModal
+          isOnBreak={isOnBreak}
+          busy={breakBusy}
+          error={breakError}
+          onClose={closeBreakModal}
+          onConfirm={() => void toggleBreak()}
+        />
+      )}
     </div>
   );
 }

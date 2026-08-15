@@ -29,8 +29,8 @@ interface EditPersonnelModalProps {
 /**
  * Role-aware edit modal for the Fleet → Personnel tab.
  *
- * Drivers (from /admin/drivers):
- *   - Fetches the raw driver record from GET /api/admin/drivers and finds by ID
+ * Drivers:
+ *   - Fetches the raw driver record from GET /api/admin/drivers/{id}
  *   - Fields: first_name, middle_name, last_name, birthday, contact, license_number, profile_picture_url
  *   - PUTs to /api/admin/drivers/{id}
  *
@@ -72,8 +72,8 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
   // (birthday, middle_name, profile_picture_url, and for drivers: license_number,
   // contact) that aren't in the table row's Personnel object.
   //
-  // Drivers: GET /api/admin/drivers returns a flat array — find by ID.
-  // Conductors: GET /api/admin/conductors/{id} returns a single record.
+  // Drivers and conductors both use single-record endpoints so the modal
+  // never loads the full personnel dataset.
   useEffect(() => {
     if (!isOpen || !editingData) return;
 
@@ -84,36 +84,19 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
       try {
         let raw: Record<string, unknown> | null = null;
 
-        if (isConductor) {
-          // Conductor: use the show endpoint (returns a single record).
-          const res = await fetch(`/api/admin/conductors/${editingData.id}`, {
-            headers: { Accept: 'application/json' },
-          });
-          if (!res.ok) {
-            const body = await res.json().catch(() => ({}));
-            throw new Error(body?.message ?? `Failed to load conductor (HTTP ${res.status}).`);
-          }
-          const json = await res.json();
-          raw = json.data ?? null;
-        } else {
-          // Driver: list endpoint returns a flat array — find by ID.
-          const res = await fetch('/api/admin/drivers', {
-            headers: { Accept: 'application/json' },
-          });
-          if (!res.ok) {
-            throw new Error(`Failed to load drivers (HTTP ${res.status}).`);
-          }
-          const json = await res.json();
-          const allDrivers: Record<string, unknown>[] = Array.isArray(json.data) ? json.data : [];
-          raw = allDrivers.find(d => String(d.id) === editingData.id) ?? null;
-          // Fallback: find by name if ID match fails (defensive).
-          if (!raw) {
-            raw = allDrivers.find(d => {
-              const fullName = `${d.first_name ?? ''} ${d.last_name ?? ''}`.trim();
-              return fullName === editingData.name;
-            }) ?? null;
-          }
+        const detailEndpoint = isConductor
+          ? `/api/admin/conductors/${editingData.id}`
+          : `/api/admin/drivers/${editingData.id}`;
+
+        const res = await fetch(detailEndpoint, {
+          headers: { Accept: 'application/json' },
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body?.message ?? `Failed to load ${roleLabel.toLowerCase()} (HTTP ${res.status}).`);
         }
+        const json = await res.json();
+        raw = json.data ?? null;
 
         if (raw) {
           setFormData({

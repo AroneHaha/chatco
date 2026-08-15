@@ -48,6 +48,9 @@ class Claim extends Model
         'released_at' => 'datetime',
     ];
 
+    /** Always include the resolved admin name in JSON — see getReviewedByNameAttribute(). */
+    protected $appends = ['reviewed_by_name'];
+
     protected static function booted(): void
     {
         static::creating(function (Claim $claim) {
@@ -70,6 +73,16 @@ class Claim extends Model
     public function reviewer()
     {
         return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    /**
+     * The admin's display name for whoever approved/rejected this claim —
+     * blank in the admin UI otherwise, since `reviewed_by` on its own is
+     * just a raw user id.
+     */
+    public function getReviewedByNameAttribute(): ?string
+    {
+        return $this->reviewer?->getDisplayName();
     }
 
     public function rejectionAudits()

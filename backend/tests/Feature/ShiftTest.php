@@ -3,9 +3,12 @@
 namespace Tests\Feature;
 
 use App\Enums\ShiftStatus;
+use App\Enums\PaymentMethod;
+use App\Enums\PaymentStatus;
 use App\Models\Driver;
 use App\Models\Route;
 use App\Models\ShiftLog;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -172,6 +175,10 @@ class ShiftTest extends TestCase
         $this->vehicle->refresh();
         $this->driver->refresh();
         $this->assertNull($this->vehicle->active_shift_id);
+        $this->assertNull($this->vehicle->driver_id);
+        $this->assertNull($this->vehicle->conductor_id);
+        $this->assertNull($this->vehicle->assignment_date);
+        $this->assertNull($this->vehicle->assignment_approved_at);
         $this->assertNull($this->driver->active_shift_id);
     }
 
@@ -224,6 +231,46 @@ class ShiftTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonPath('data.status', ShiftStatus::ACTIVE->value);
+    }
+
+    public function test_conductor_transactions_are_paginated_at_twenty_five_per_page(): void
+    {
+        $this->actingAs($this->conductor)
+            ->postJson('/api/v1/conductor/shifts/start', [
+                'vehicle_id' => $this->vehicle->id,
+                'driver_id' => $this->driver->id,
+                'route_id' => $this->route->id,
+            ]);
+
+        $shift = ShiftLog::where('conductor_id', $this->conductor->id)->firstOrFail();
+
+        foreach (range(1, 30) as $i) {
+            Transaction::create([
+                'transaction_id' => 'TXN-PAGE-'.$i,
+                'shift_id' => $shift->shift_id,
+                'payment_method' => PaymentMethod::CASH->value,
+                'final_amount' => 20,
+                'passenger_name' => 'Passenger '.$i,
+                'status' => PaymentStatus::PAID->value,
+                'created_at' => now()->subMinutes($i),
+                'updated_at' => now()->subMinutes($i),
+            ]);
+        }
+
+        $this->actingAs($this->conductor)
+            ->getJson("/api/v1/conductor/transactions?shift_id={$shift->shift_id}&per_page=25&page=1")
+            ->assertOk()
+            ->assertJsonPath('data.current_page', 1)
+            ->assertJsonPath('data.per_page', 25)
+            ->assertJsonPath('data.total', 30)
+            ->assertJsonPath('data.last_page', 2)
+            ->assertJsonCount(25, 'data.data');
+
+        $this->actingAs($this->conductor)
+            ->getJson("/api/v1/conductor/transactions?shift_id={$shift->shift_id}&per_page=25&page=2")
+            ->assertOk()
+            ->assertJsonPath('data.current_page', 2)
+            ->assertJsonCount(5, 'data.data');
     }
 
     public function test_conductor_gets_null_data_when_no_active_shift(): void

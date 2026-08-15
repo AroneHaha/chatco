@@ -35,11 +35,13 @@ class Announcement extends Model
         'created_by',
         'status',
         'user_id',
+        'archived_at',
     ];
 
     protected $casts = [
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'archived_at' => 'datetime',
     ];
 
     protected static function booted(): void

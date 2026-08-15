@@ -4,8 +4,9 @@
 import { useState, useEffect } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import { Badge } from '@/components/admin/ui/badge';
-import type {
-  RemittanceRecord,
+import {
+  fetchRemittances,
+  type RemittanceRecord,
 } from '@/app/(admin)/remittance/data/remittance-data';
 import {
   User, Truck, Calendar, Clock, Banknote,
@@ -15,7 +16,7 @@ import {
 import { formatPeso } from '@/lib/utils/display';
 
 // ─── Remittance History pagination ─────────────────────────────────────
-const REMIT_PAGE_SIZE = 5;
+const REMIT_PAGE_SIZE = 15;
 type RemitFilter = 'All' | 'Remitted' | 'Pending';
 
 // ─── Helper ────────────────────────────────────────────────────────────
@@ -29,9 +30,17 @@ const formatLogTime = (iso: string) => {
   });
 };
 
+const formatClockTime = (iso?: string | null) => {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleTimeString('en-PH', {
+    hour: '2-digit', minute: '2-digit', hour12: true,
+  });
+};
+
 // ─── Real Transaction type (from API) ──────────────────────────────────
 interface ApiTransaction {
   transaction_id: string;
+  shift_id: string;
   payment_method: string;
   status: string;
   final_amount: string | number;
@@ -45,16 +54,25 @@ interface ApiTransaction {
   created_at: string;
 }
 
+// The remittances endpoint caps per_page at 100 server-side (see
+// AdminController::remittances()) — this is the "complete history" the
+// modal fetches, independent of whatever page/date filter is active on the
+// table underneath it.
+const CONDUCTOR_HISTORY_PAGE_SIZE = 100;
+// Matches the per_page the receipts module already requests against this
+// same endpoint — comfortably covers every PAID transaction across a
+// conductor's fetched shifts in one batched call.
+const TRANSACTIONS_BATCH_PAGE_SIZE = 500;
+
 // ─── Props ─────────────────────────────────────────────────────────────
 interface ConductorDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   record: RemittanceRecord | null;
-  allRecords?: RemittanceRecord[];
 }
 
 // ─── Component ─────────────────────────────────────────────────────────
-export function ConductorDetailModal({ isOpen, onClose, record, allRecords }: ConductorDetailModalProps) {
+export function ConductorDetailModal({ isOpen, onClose, record }: ConductorDetailModalProps) {
   const [activeTab, setActiveTab] = useState<'remittance' | 'transactions'>('remittance');
   const [expandedShift, setExpandedShift] = useState<string | null>(null);
   const [shiftTransactions, setShiftTransactions] = useState<Record<string, ApiTransaction[]>>({});
@@ -63,11 +81,19 @@ export function ConductorDetailModal({ isOpen, onClose, record, allRecords }: Co
   const [remitSearch, setRemitSearch] = useState('');
   const [remitDate, setRemitDate] = useState('');
   const [remitPage, setRemitPage] = useState(1);
+  const [txnPage, setTxnPage] = useState(1);
 
-  const conductorRecords = allRecords?.filter(r => r.conductorName === record?.conductorName) ?? (record ? [record] : []);
+  // The conductor's complete record set, fetched fresh when the modal opens —
+  // independent of the table's active date filter/pagination, which only
+  // ever holds a slice of the conductor's real history.
+  const [conductorRecords, setConductorRecords] = useState<RemittanceRecord[]>([]);
+  const [conductorRecordsTotal, setConductorRecordsTotal] = useState(0);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   useEffect(() => {
     if (!record || !isOpen) {
+      setConductorRecords([]);
+      setConductorRecordsTotal(0);
       setShiftTransactions({});
       setActiveTab('remittance');
       setExpandedShift(null);
@@ -75,49 +101,76 @@ export function ConductorDetailModal({ isOpen, onClose, record, allRecords }: Co
       setRemitSearch('');
       setRemitDate('');
       setRemitPage(1);
+      setTxnPage(1);
       return;
     }
 
+    let cancelled = false;
+    setIsLoadingHistory(true);
     setIsLoadingTxns(true);
-    const shiftIds = conductorRecords.map(r => r.shiftId);
 
-    Promise.all(
-      shiftIds.map(shiftId =>
-        fetch(`/api/admin/transactions?shift_id=${encodeURIComponent(shiftId)}`, {
-          headers: { Accept: 'application/json' },
-        })
+    fetchRemittances(1, '', '', 'All', '', record.conductorName, '', CONDUCTOR_HISTORY_PAGE_SIZE)
+      .then(({ records, total }) => {
+        if (cancelled) return;
+        setConductorRecords(records);
+        setConductorRecordsTotal(total);
+        setIsLoadingHistory(false);
+
+        const shiftIds = records.map(r => r.shiftId);
+        if (shiftIds.length === 0) {
+          setShiftTransactions({});
+          setIsLoadingTxns(false);
+          return;
+        }
+
+        // One batched request (shift_id as a comma-separated list) instead of
+        // one fetch per shift.
+        return fetch(
+          `/api/admin/transactions?shift_id=${encodeURIComponent(shiftIds.join(','))}&per_page=${TRANSACTIONS_BATCH_PAGE_SIZE}`,
+          { headers: { Accept: 'application/json' } }
+        )
           .then(res => res.json())
           .then(json => {
+            if (cancelled) return;
             // The proxy returns Laravel's paginator, so the transaction array
             // is nested at json.data.data (json.data is the paginator object).
             const rows = (json.data?.data ?? json.data ?? []) as ApiTransaction[];
-            // Only PAID transactions actually count toward the shift's
-            // cash/GCash totals. The admin transactions endpoint returns every
-            // transaction (including PENDING/EXPIRED/FAILED GCash attempts that
-            // were never collected), so filter to PAID here — otherwise the
-            // list shows fares that legitimately don't appear in the totals.
-            const txns = Array.isArray(rows) ? rows.filter(t => t.status === 'PAID') : [];
-            return { shiftId, txns };
-          })
-          .catch(() => ({ shiftId, txns: [] as ApiTransaction[] }))
-      )
-    )
-      .then(results => {
-        const map: Record<string, ApiTransaction[]> = {};
-        results.forEach(({ shiftId, txns }) => {
-          map[shiftId] = txns;
-        });
-        setShiftTransactions(map);
+            // Only PAID transactions actually count toward a shift's cash/GCash
+            // totals. The admin transactions endpoint returns every transaction
+            // (including PENDING/EXPIRED/FAILED GCash attempts that were never
+            // collected), so filter to PAID here — otherwise the list shows
+            // fares that legitimately don't appear in the totals.
+            const map: Record<string, ApiTransaction[]> = {};
+            for (const shiftId of shiftIds) map[shiftId] = [];
+            for (const txn of rows) {
+              if (txn.status !== 'PAID') continue;
+              (map[txn.shift_id] ??= []).push(txn);
+            }
+            setShiftTransactions(map);
+          });
       })
-      .finally(() => setIsLoadingTxns(false));
-  }, [record, isOpen, conductorRecords.length]);
+      .catch(() => {
+        if (cancelled) return;
+        setConductorRecords([]);
+        setConductorRecordsTotal(0);
+        setShiftTransactions({});
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setIsLoadingHistory(false);
+        setIsLoadingTxns(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [record, isOpen]);
 
   if (!record) return null;
 
   const totalPending = conductorRecords
     .filter(r => r.remittanceStatus === 'Pending')
     .reduce((s, r) => s + r.gcashTotal + r.cashTotal, 0);
-  const allTxns = Object.values(shiftTransactions).flat();
 
   // ─── Remittance History: filter + paginate ───────────────────────────
   const search = remitSearch.trim().toLowerCase();
@@ -135,12 +188,33 @@ export function ConductorDetailModal({ isOpen, onClose, record, allRecords }: Co
   );
   const applyRemitFilter = (f: RemitFilter) => { setRemitFilter(f); setRemitPage(1); };
 
+  // ─── Transactions: paginate the shift list (same page size as Remittance
+  // History, for consistency) ────────────────────────────────────────────
+  const txnTotalPages = Math.max(1, Math.ceil(conductorRecords.length / REMIT_PAGE_SIZE));
+  const safeTxnPage = Math.min(txnPage, txnTotalPages);
+  const pagedTxnRecords = conductorRecords.slice(
+    (safeTxnPage - 1) * REMIT_PAGE_SIZE,
+    safeTxnPage * REMIT_PAGE_SIZE
+  );
+
   const getBadge = (m: string) => {
     if (m === 'GCASH' || m === 'GCash_Scanned' || m === 'GCash_Direct')
       return <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400">GCash</span>;
     if (m === 'VOUCHER' || m === 'Voucher')
       return <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400">Voucher</span>;
     return <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">Cash</span>;
+  };
+
+  // Per-shift Cash/GCash/Voucher breakdown, shown in the collapsed row so an
+  // admin doesn't have to expand every shift just to see the payment mix.
+  const countByMethod = (txns: ApiTransaction[]) => {
+    let cash = 0, gcash = 0, voucher = 0;
+    for (const txn of txns) {
+      if (txn.payment_method === 'GCASH' || txn.payment_method === 'GCash_Scanned' || txn.payment_method === 'GCash_Direct') gcash++;
+      else if (txn.payment_method === 'VOUCHER' || txn.payment_method === 'Voucher') voucher++;
+      else cash++;
+    }
+    return { cash, gcash, voucher };
   };
 
   return (
@@ -152,14 +226,25 @@ export function ConductorDetailModal({ isOpen, onClose, record, allRecords }: Co
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
           <div className="flex items-center gap-2.5 p-3 bg-[#0E1628] rounded-lg border border-[#1E2D45]"><Truck size={16} className="text-[#62A0EA]" /><div><p className="text-[10px] text-slate-500 uppercase">Vehicle</p><p className="text-sm text-white font-medium">{record.unitNumber}</p></div></div>
-          <div className="flex items-center gap-2.5 p-3 bg-[#0E1628] rounded-lg border border-[#1E2D45]"><Calendar size={16} className="text-sky-400" /><div><p className="text-[10px] text-slate-500 uppercase">Shifts</p><p className="text-sm text-white font-medium">{conductorRecords.length}</p></div></div>
-          <div className="flex items-center gap-2.5 p-3 bg-[#0E1628] rounded-lg border border-[#1E2D45]"><Clock size={16} className="text-amber-400" /><div><p className="text-[10px] text-slate-500 uppercase">Pending (Today)</p><p className="text-sm text-orange-400 font-medium">{fmt(totalPending)}</p></div></div>
+          <div className="flex items-center gap-2.5 p-3 bg-[#0E1628] rounded-lg border border-[#1E2D45]">
+            <Calendar size={16} className="text-sky-400" />
+            <div>
+              <p className="text-[10px] text-slate-500 uppercase">Shifts</p>
+              <p className="text-sm text-white font-medium">
+                {conductorRecords.length}
+                {conductorRecordsTotal > conductorRecords.length && (
+                  <span className="text-slate-500 font-normal"> of {conductorRecordsTotal}</span>
+                )}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5 p-3 bg-[#0E1628] rounded-lg border border-[#1E2D45]"><Clock size={16} className="text-amber-400" /><div><p className="text-[10px] text-slate-500 uppercase">Total Pending</p><p className="text-sm text-orange-400 font-medium">{fmt(totalPending)}</p></div></div>
         </div>
       </div>
 
       <div className="flex bg-[#0E1628] rounded-md p-1 border border-[#1E2D45] mb-5">
         <button onClick={() => setActiveTab('remittance')} className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all text-center ${activeTab==='remittance'?'bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/30':'text-slate-500 hover:text-slate-300'}`}>Remittance History ({conductorRecords.length})</button>
-        <button onClick={() => setActiveTab('transactions')} className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all text-center ${activeTab==='transactions'?'bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/30':'text-slate-500 hover:text-slate-300'}`}>Transactions ({allTxns.length})</button>
+        <button onClick={() => setActiveTab('transactions')} className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all text-center ${activeTab==='transactions'?'bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/30':'text-slate-500 hover:text-slate-300'}`}>Transactions</button>
       </div>
 
       {activeTab === 'remittance' && (
@@ -220,15 +305,27 @@ export function ConductorDetailModal({ isOpen, onClose, record, allRecords }: Co
             <span className="ml-auto text-xs text-slate-500">{filteredRecords.length} shift(s)</span>
           </div>
 
-          <div className="space-y-3 max-h-[42vh] overflow-y-auto">
-          {filteredRecords.length === 0 ? (
+          {/* Fixed height (not max-height) so the modal doesn't shrink when
+              the last page has fewer than REMIT_PAGE_SIZE rows. */}
+          <div className="space-y-3 h-[42vh] overflow-y-auto">
+          {isLoadingHistory ? (
+            <div className="text-center py-12">
+              <div className="w-8 h-8 border-2 border-[#62A0EA] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+              <p className="text-sm text-slate-400">Loading remittance history...</p>
+            </div>
+          ) : filteredRecords.length === 0 ? (
             <div className="text-center py-12"><Banknote size={32} className="mx-auto text-slate-600 mb-3" /><p className="text-sm text-slate-500">No records found.</p></div>
           ) : pagedRecords.map((rec) => (
             <div key={rec.shiftId} className="bg-[#0E1628] border border-[#1E2D45] rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-lg bg-[#62A0EA]/15 flex items-center justify-center"><Hash size={16} className="text-[#62A0EA]" /></div>
-                  <div><p className="text-sm text-white font-medium">{rec.shiftId}</p><p className="text-xs text-slate-500 flex items-center gap-1"><Calendar size={11} />{rec.date}</p></div>
+                  <div>
+                    <p className="text-sm text-white font-medium">{rec.shiftId}</p>
+                    <p className="text-xs text-slate-500 flex items-center gap-1"><Calendar size={11} />{rec.date}</p>
+                    <p className="text-xs text-slate-500 flex items-center gap-1"><User size={11} />Driver {rec.driverName || '—'}</p>
+                    <p className="text-xs text-slate-500 flex items-center gap-1"><Clock size={11} />Remitted {formatClockTime(rec.remittedAt)}</p>
+                  </div>
                 </div>
                 <Badge variant={rec.remittanceStatus==='Remitted'?'success':'warning'}>{rec.remittanceStatus}</Badge>
               </div>
@@ -245,33 +342,36 @@ export function ConductorDetailModal({ isOpen, onClose, record, allRecords }: Co
           ))}
           </div>
 
-          {/* Pagination */}
-          {remitTotalPages > 1 && (
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#1E2D45]">
-              <span className="text-xs text-slate-500">Page {safeRemitPage} of {remitTotalPages}</span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setRemitPage(p => Math.max(1, p - 1))}
-                  disabled={safeRemitPage === 1}
-                  className="p-1.5 rounded-md bg-[#0E1628] border border-[#1E2D45] hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronLeft size={16} className="text-slate-400" />
-                </button>
-                <button
-                  onClick={() => setRemitPage(p => Math.min(remitTotalPages, p + 1))}
-                  disabled={safeRemitPage === remitTotalPages}
-                  className="p-1.5 rounded-md bg-[#0E1628] border border-[#1E2D45] hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronRight size={16} className="text-slate-400" />
-                </button>
-              </div>
+          {/* Pagination — always shown (not just once there are multiple
+              pages) so the modal's footer stays consistent; prev/next simply
+              disable themselves when there's nowhere to go. */}
+          <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#1E2D45]">
+            <span className="text-xs text-slate-500">Page {safeRemitPage} of {remitTotalPages}</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setRemitPage(p => Math.max(1, p - 1))}
+                disabled={safeRemitPage === 1}
+                className="p-1.5 rounded-md bg-[#0E1628] border border-[#1E2D45] hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft size={16} className="text-slate-400" />
+              </button>
+              <button
+                onClick={() => setRemitPage(p => Math.min(remitTotalPages, p + 1))}
+                disabled={safeRemitPage === remitTotalPages}
+                className="p-1.5 rounded-md bg-[#0E1628] border border-[#1E2D45] hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight size={16} className="text-slate-400" />
+              </button>
             </div>
-          )}
+          </div>
         </div>
       )}
 
       {activeTab === 'transactions' && (
-        <div className="space-y-3 max-h-[50vh] overflow-y-auto">
+        <div>
+          {/* Fixed height (not max-height), same as Remittance History, so
+              the modal doesn't shrink when the last page has fewer rows. */}
+          <div className="space-y-3 h-[50vh] overflow-y-auto">
           {isLoadingTxns ? (
             <div className="text-center py-12">
               <div className="w-8 h-8 border-2 border-[#62A0EA] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
@@ -282,9 +382,10 @@ export function ConductorDetailModal({ isOpen, onClose, record, allRecords }: Co
               <Banknote size={32} className="mx-auto text-slate-600 mb-3" />
               <p className="text-sm text-slate-500">No shift records found.</p>
             </div>
-          ) : conductorRecords.map((rec) => {
+          ) : pagedTxnRecords.map((rec) => {
             const isExp = expandedShift === rec.shiftId;
             const txns = shiftTransactions[rec.shiftId] || [];
+            const counts = countByMethod(txns);
             return (
               <div key={rec.shiftId} className="bg-[#0E1628] border border-[#1E2D45] rounded-lg overflow-hidden">
                 <button onClick={() => setExpandedShift(isExp ? null : rec.shiftId)} className="w-full flex items-center justify-between p-4 text-left hover:bg-[#131C2E]">
@@ -293,6 +394,19 @@ export function ConductorDetailModal({ isOpen, onClose, record, allRecords }: Co
                     <div className="min-w-0">
                       <p className="text-sm text-white font-medium truncate">{rec.shiftId}</p>
                       <p className="text-xs text-slate-500">{formatLogTime(rec.timeIn)}{rec.timeOut ? ` → ${rec.timeOut.split('T')[1]?.slice(0,5)||''}` : ' (active)'}</p>
+                      {txns.length > 0 && (
+                        <div className="flex items-center gap-2 mt-1">
+                          {counts.cash > 0 && (
+                            <span className="flex items-center gap-1 text-[10px] text-emerald-400"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />{counts.cash} Cash</span>
+                          )}
+                          {counts.gcash > 0 && (
+                            <span className="flex items-center gap-1 text-[10px] text-blue-400"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />{counts.gcash} GCash</span>
+                          )}
+                          {counts.voucher > 0 && (
+                            <span className="flex items-center gap-1 text-[10px] text-amber-400"><span className="w-1.5 h-1.5 rounded-full bg-amber-400" />{counts.voucher} Voucher</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">
@@ -339,6 +453,28 @@ export function ConductorDetailModal({ isOpen, onClose, record, allRecords }: Co
               </div>
             );
           })}
+          </div>
+
+          {/* Pagination — always shown, matching Remittance History. */}
+          <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#1E2D45]">
+            <span className="text-xs text-slate-500">Page {safeTxnPage} of {txnTotalPages}</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setTxnPage(p => Math.max(1, p - 1))}
+                disabled={safeTxnPage === 1}
+                className="p-1.5 rounded-md bg-[#0E1628] border border-[#1E2D45] hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft size={16} className="text-slate-400" />
+              </button>
+              <button
+                onClick={() => setTxnPage(p => Math.min(txnTotalPages, p + 1))}
+                disabled={safeTxnPage === txnTotalPages}
+                className="p-1.5 rounded-md bg-[#0E1628] border border-[#1E2D45] hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight size={16} className="text-slate-400" />
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </Modal>

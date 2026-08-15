@@ -7,7 +7,7 @@ import { proxyToLaravel } from "@/lib/conductor/server/proxy";
  * POST /api/admin/drivers
  */
 export async function GET(request: NextRequest) {
-  const result = await proxyToLaravel(request, "/admin/drivers", { method: "GET" });
+  const result = await proxyToLaravel(request, `/admin/drivers${request.nextUrl.search}`, { method: "GET" });
   if (!result.ok) return jsonError(result.message ?? "Failed to load drivers.", result.status);
   return jsonData(result.data);
 }

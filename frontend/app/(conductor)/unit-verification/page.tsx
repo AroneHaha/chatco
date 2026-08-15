@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { LogOut } from "lucide-react";
 import { startShift, fetchActiveShift } from "@/lib/conductor/services/shift.service";
 import { fetchRemittanceHistory, type RemittanceRecord } from "@/lib/conductor/services/remittance.service";
 import type { ConductorDriver, ConductorUnit } from "@/lib/conductor/types";
@@ -25,6 +26,7 @@ export default function ConductorLoginPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isCheckingShift, setIsCheckingShift] = useState(true);
   const [pendingRemittance, setPendingRemittance] = useState<RemittanceRecord | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     void Promise.all([fetchActiveShift(), fetchRemittanceHistory()]).then(([shift, remittances]) => {
@@ -82,18 +84,44 @@ export default function ConductorLoginPage() {
     }
   };
 
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+      });
+    } finally {
+      router.replace("/login");
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-[#050F1A] flex flex-col">
+    <div className="h-[100dvh] overflow-hidden bg-[#050F1A] flex flex-col">
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[500px] h-[400px] bg-[#1A5FB4]/5 rounded-full blur-[120px] pointer-events-none" />
 
-      <div className="relative flex-1 flex flex-col justify-center px-4 py-10 max-w-md mx-auto w-full">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-extrabold text-white tracking-tight">
-            CHATCO<span className="text-[#62A0EA]">.</span>
-          </h1>
-          <p className="text-[10px] text-white/25 uppercase tracking-[0.2em] font-semibold mt-1">
-            Conductor Portal
-          </p>
+      <div className="relative flex min-h-0 flex-1 flex-col px-4 py-4 sm:py-6 max-w-md lg:max-w-lg mx-auto w-full">
+        <div className="mb-4 flex shrink-0 items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-extrabold text-white tracking-tight">
+              CHATCO<span className="text-[#62A0EA]">.</span>
+            </h1>
+            <p className="text-[10px] text-white/25 uppercase tracking-[0.2em] font-semibold mt-1">
+              Conductor Portal
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white/55 transition-all hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <LogOut size={15} />
+            {isLoggingOut ? "Signing out" : "Logout"}
+          </button>
         </div>
 
         {status === "error" && error && (
@@ -128,14 +156,14 @@ export default function ConductorLoginPage() {
           <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] px-6 py-10 text-center">
             <p className="text-sm font-semibold text-white/70">No units available</p>
             <p className="text-xs text-white/35 mt-2 leading-relaxed">
-              Assigned units will appear here once the backend connection is active.
+              Active units will appear here when they are not assigned to another conductor or already on shift.
             </p>
           </div>
         )}
 
         {step === "select-unit" && units.length > 0 && (
-          <div className="space-y-4 animate-fade-in">
-            <div className="text-center space-y-2 mb-6">
+          <div className="flex min-h-0 flex-1 flex-col space-y-4 animate-fade-in">
+            <div className="text-center space-y-2 mb-4">
               <h1 className="text-white font-bold text-xl">Select Your Unit</h1>
               <p className="text-white/40 text-xs leading-relaxed max-w-xs mx-auto">
                 Choose the vehicle unit assigned to you for this shift.
@@ -146,17 +174,17 @@ export default function ConductorLoginPage() {
         )}
 
         {step === "select-driver" && (
-          <div className="space-y-4 animate-fade-in">
+          <div className="flex min-h-0 flex-1 flex-col space-y-4 animate-fade-in">
             <button
               onClick={goBack}
-              className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white transition-all active:scale-95 mb-4"
+              className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white transition-all active:scale-95"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
               </svg>
             </button>
 
-            <div className="text-center space-y-2 mb-6">
+            <div className="text-center space-y-2">
               <h1 className="text-white font-bold text-xl">Select Your Driver</h1>
               <p className="text-white/40 text-xs leading-relaxed max-w-xs mx-auto">
                 Choose the driver you will be assisting for today&apos;s shift.

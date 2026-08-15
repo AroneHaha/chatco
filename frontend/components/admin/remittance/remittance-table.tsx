@@ -1,7 +1,7 @@
 // components/admin/remittance/remittance-table.tsx
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -19,17 +19,25 @@ const fmtPHP = (n: number) =>
 interface RemittanceTableProps {
   searchQuery: string;
   selectedDate: string;
+  /** Inclusive lower bound for the range presets (Today/7 Days/Month) — used
+   * only when `selectedDate` (the exact-date picker) is empty. */
+  dateFrom: string;
   statusFilter: RemittanceStatus | 'All';
+  /** Conductor/driver dropdowns now render in the page header, alongside
+   * search + date, so their value is a controlled prop instead of local state. */
+  conductorFilter: string;
+  driverFilter: string;
+  /** Reports the current page's conductor/driver name lists up to the page
+   * header so it can render the dropdown options without duplicating the fetch. */
+  onOptionsChange: (conductorOptions: string[], driverOptions: string[]) => void;
 }
 
-const ROWS_PER_PAGE = 10;
+const ROWS_PER_PAGE = 20;
 
-export function RemittanceTable({ searchQuery, selectedDate, statusFilter }: RemittanceTableProps) {
+export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFilter, conductorFilter, driverFilter, onOptionsChange }: RemittanceTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
-  const { records, total, lastPage, isLoading, error, refresh } = useRemittanceData(currentPage, searchQuery, selectedDate, statusFilter);
+  const { records, total, lastPage, isLoading, error, refresh } = useRemittanceData(currentPage, searchQuery, selectedDate, statusFilter, dateFrom, conductorFilter, driverFilter);
   const [selectedRecord, setSelectedRecord] = useState<RemittanceRow | null>(null);
-  const [conductorFilter, setConductorFilter] = useState('');
-  const [driverFilter, setDriverFilter] = useState('');
 
   const handleRowClick = useCallback((item: RemittanceRow) => {
     setSelectedRecord(item);
@@ -43,10 +51,10 @@ export function RemittanceTable({ searchQuery, selectedDate, statusFilter }: Rem
     { key: 'date', label: 'Date' },
     {
       key: '_totalAmount' as const,
-      label: 'Remitted Amount',
+      label: 'Amount',
       // Computed column — grand total of cash + GCash
       render: (_: unknown, row: RemittanceRow) =>
-        fmtPHP(row.cashDeclared + row.gcashTotal),
+        fmtPHP(row.cashTotal + row.gcashTotal),
     },
     {
       key: 'remittanceStatus',
@@ -70,13 +78,16 @@ export function RemittanceTable({ searchQuery, selectedDate, statusFilter }: Rem
         item.driverName.toLowerCase().includes(q) ||
         item.shiftId.toLowerCase().includes(q);
 
-      const matchesDate = !selectedDate || item.date === selectedDate;
+      // Exact date wins when set; otherwise fall back to the range preset's lower bound.
+      const matchesDate = selectedDate
+        ? item.date === selectedDate
+        : !dateFrom || item.date >= dateFrom;
       const matchesConductor = !conductorFilter || item.conductorName === conductorFilter;
       const matchesDriver = !driverFilter || item.driverName === driverFilter;
 
       return matchesStatus && matchesSearch && matchesDate && matchesConductor && matchesDriver;
     });
-  }, [records, searchQuery, selectedDate, statusFilter, conductorFilter, driverFilter]);
+  }, [records, searchQuery, selectedDate, dateFrom, statusFilter, conductorFilter, driverFilter]);
 
   const conductorOptions = useMemo(
     () => [...new Set(records.map((record) => record.conductorName).filter((name) => name && name !== '—'))].sort(),
@@ -87,7 +98,13 @@ export function RemittanceTable({ searchQuery, selectedDate, statusFilter }: Rem
     [records],
   );
 
-  const filterKey = `${searchQuery}|${selectedDate}|${statusFilter}|${conductorFilter}|${driverFilter}`;
+  // The dropdowns themselves render in the page header now; just report the
+  // current option lists up so it can populate them without a second fetch.
+  useEffect(() => {
+    onOptionsChange(conductorOptions, driverOptions);
+  }, [conductorOptions, driverOptions, onOptionsChange]);
+
+  const filterKey = `${searchQuery}|${selectedDate}|${dateFrom}|${statusFilter}|${conductorFilter}|${driverFilter}`;
   const [previousFilterKey, setPreviousFilterKey] = useState(filterKey);
   if (filterKey !== previousFilterKey) {
     setPreviousFilterKey(filterKey);
@@ -132,50 +149,28 @@ export function RemittanceTable({ searchQuery, selectedDate, statusFilter }: Rem
   }
 
   return (
-    <div>
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <label className="space-y-1">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Conductor</span>
-          <select
-            value={conductorFilter}
-            onChange={(event) => setConductorFilter(event.target.value)}
-            className="w-full rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white [color-scheme:dark]"
-          >
-            <option value="">All conductors</option>
-            {conductorOptions.map((name) => <option key={name} value={name}>{name}</option>)}
-          </select>
-        </label>
-        <label className="space-y-1">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Driver</span>
-          <select
-            value={driverFilter}
-            onChange={(event) => setDriverFilter(event.target.value)}
-            className="w-full rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white [color-scheme:dark]"
-          >
-            <option value="">All drivers</option>
-            {driverOptions.map((name) => <option key={name} value={name}>{name}</option>)}
-          </select>
-        </label>
-      </div>
+    <div className="flex h-full min-h-0 flex-col">
       {/* Click hint */}
-      <p className="text-xs text-slate-600 mb-3 flex items-center gap-1.5">
+      <p className="shrink-0 text-xs text-slate-600 mb-3 flex items-center gap-1.5">
         <span className="px-1.5 py-0.5 bg-[#0E1628] rounded text-[10px] text-slate-500 border border-[#1E2D45] font-mono">click</span>
         Click a row to view conductor details &amp; transaction history
       </p>
 
-      <DataTable
-        data={paginatedData}
-        columns={columns}
-        searchQuery=""
-        emptyMessage="No remittance records match your filters."
-        height="32rem"
-        stickyHeader
-        tableClassName="table-fixed"
-        onRowDoubleClick={handleRowClick}
-      />
+      <div className="flex-1 min-h-0">
+        <DataTable
+          data={paginatedData}
+          columns={columns}
+          searchQuery=""
+          emptyMessage="No remittance records match your filters."
+          height="100%"
+          stickyHeader
+          tableClassName="table-fixed"
+          onRowDoubleClick={handleRowClick}
+        />
+      </div>
 
       {/* Pagination Controls */}
-      <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-4 text-xs text-slate-400">
+      <div className="shrink-0 flex flex-col sm:flex-row justify-between items-center mt-4 pt-4 border-t border-[#1E2D45] gap-4 text-xs text-slate-400">
         <div>
           Showing {paginatedData.length > 0 ? (safeCurrentPage - 1) * ROWS_PER_PAGE + 1 : 0} to{' '}
           {(safeCurrentPage - 1) * ROWS_PER_PAGE + paginatedData.length} of <span className="text-slate-300 font-medium">{total}</span> results
@@ -209,7 +204,6 @@ export function RemittanceTable({ searchQuery, selectedDate, statusFilter }: Rem
         isOpen={selectedRecord !== null}
         onClose={() => setSelectedRecord(null)}
         record={selectedRecord}
-        allRecords={records}
       />
     </div>
   );

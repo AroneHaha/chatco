@@ -9,7 +9,7 @@ export default function DriverList({
   onSelect: (driver: ConductorDriver) => void;
 }) {
   return (
-    <div className="space-y-2.5">
+    <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain rounded-2xl border border-white/[0.04] bg-white/[0.015] p-1 pr-2 sm:max-h-[64dvh] lg:max-h-[70dvh]">
       {drivers.map((driver) => {
         const isAvailable = driver.status === "available";
         return (

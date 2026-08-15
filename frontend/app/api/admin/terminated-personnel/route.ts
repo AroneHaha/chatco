@@ -13,7 +13,7 @@ import { proxyToLaravel } from "@/lib/conductor/server/proxy";
  * Powers the "Separated Personnel" section of the Records & History tab.
  */
 export async function GET(request: NextRequest) {
-  const result = await proxyToLaravel(request, "/admin/terminated-personnel", {
+  const result = await proxyToLaravel(request, `/admin/terminated-personnel${request.nextUrl.search}`, {
     method: "GET",
   });
 
@@ -24,7 +24,6 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // The backend returns a flat Collection (non-paginated) → { data: [...] }.
-  // Pass it through directly.
+  // Pass through the backend's paginator or count-only payload directly.
   return jsonData(result.data);
 }

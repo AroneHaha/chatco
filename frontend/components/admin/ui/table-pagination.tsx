@@ -22,7 +22,7 @@ export function TablePagination({
   onPageChange,
 }: TablePaginationProps) {
   return (
-    <div className="flex min-h-14 flex-col items-center justify-between gap-3 border-t border-[#1E2D45] pt-4 text-xs text-slate-500 sm:flex-row">
+    <div className="flex min-h-10 flex-col items-center justify-between gap-2 border-t border-[#1E2D45] pt-2 text-xs text-slate-500 sm:flex-row">
       <p>
         Showing <span className="font-medium text-slate-300">{from}–{to}</span> of{' '}
         <span className="font-medium text-slate-300">{total}</span> {label}
@@ -38,7 +38,7 @@ export function TablePagination({
         >
           <ChevronLeft size={16} />
         </button>
-        <span className="min-w-28 rounded-md bg-[#62A0EA]/15 px-4 py-2 text-center font-medium text-[#62A0EA]">
+        <span className="min-w-24 rounded-md bg-[#62A0EA]/15 px-3 py-1.5 text-center font-medium text-[#62A0EA]">
           Page {currentPage} of {Math.max(totalPages, 1)}
         </span>
         <button

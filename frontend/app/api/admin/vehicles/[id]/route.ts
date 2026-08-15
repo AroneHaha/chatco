@@ -3,6 +3,28 @@ import { jsonError, jsonData, jsonValidationError } from "@/lib/conductor/server
 import { proxyToLaravel } from "@/lib/conductor/server/proxy";
 
 /**
+ * GET /api/admin/vehicles/{id}
+ * Proxies to Laravel GET /api/v1/admin/vehicles/{id}.
+ */
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
+  if (!id || id === "undefined") {
+    return jsonError("Vehicle ID is missing.", 400);
+  }
+
+  const result = await proxyToLaravel(request, `/admin/vehicles/${id}`, {
+    method: "GET",
+  });
+
+  if (!result.ok) return jsonError(result.message ?? "Failed to load vehicle.", result.status);
+  return jsonData(result.data);
+}
+
+/**
  * PUT/PATCH /api/admin/vehicles/{id}
  * Proxies to Laravel PUT/PATCH /api/v1/admin/vehicles/{id}.
  *

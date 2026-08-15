@@ -2,6 +2,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Check, PenLine } from 'lucide-react';
 import { Modal } from '@/components/admin/ui/modal';
 import type { Announcement } from '@/lib/shared/services/announcement.service';
 
@@ -36,7 +37,7 @@ const emptyForm: AnnouncementFormData = {
 // The backend `type` column is a free-form string (max 20). These are
 // common categories the admin can click to pre-fill, or they can type
 // their own. Kept short to fit the 20-char backend cap.
-const TYPE_SUGGESTIONS = ['SYSTEM', 'SAFETY', 'PROMO', 'MAINTENANCE', 'ROUTE', 'HOLIDAY'];
+export const TYPE_SUGGESTIONS = ['SYSTEM', 'SAFETY', 'PROMO', 'MAINTENANCE', 'ROUTE', 'HOLIDAY'];
 
 // ─── Component ───────────────────────────────────────────────────────
 
@@ -60,6 +61,9 @@ export function AnnouncementFormModal({
   isSubmitting = false,
 }: AnnouncementFormModalProps) {
   const [formData, setFormData] = useState<AnnouncementFormData>(emptyForm);
+  // Whether the free-form "Other" category textbox is showing. Only relevant
+  // while the modal is open; derived from the loaded type on open (see below).
+  const [isOtherMode, setIsOtherMode] = useState(false);
   // Track the previous open-state + target so we can reset the form whenever
   // the modal opens or switches target. Per the React docs, this "adjust state
   // during render" pattern is preferred over syncing via useEffect (which
@@ -70,11 +74,13 @@ export function AnnouncementFormModal({
   if (openKey !== prevOpenKey) {
     setPrevOpenKey(openKey);
     if (isOpen) {
-      setFormData(
-        initial
-          ? { title: initial.title, message: initial.message, type: initial.type }
-          : emptyForm
-      );
+      const nextForm = initial
+        ? { title: initial.title, message: initial.message, type: initial.type }
+        : emptyForm;
+      setFormData(nextForm);
+      // A saved type that isn't one of the suggested chips (e.g. a custom
+      // category typed in a previous edit) means "Other" was in effect.
+      setIsOtherMode(!!nextForm.type && !TYPE_SUGGESTIONS.includes(nextForm.type));
     }
   }
 
@@ -86,9 +92,20 @@ export function AnnouncementFormModal({
   };
 
   const handleTypeChip = (type: string) => {
+    setIsOtherMode(false);
     setFormData((prev) => ({
       ...prev,
       type: prev.type === type ? '' : type,
+    }));
+  };
+
+  const handleOtherChip = () => {
+    setIsOtherMode(true);
+    // Clear a previously-selected suggestion chip so the textbox starts blank
+    // for a genuinely custom category; keep an already-custom value as-is.
+    setFormData((prev) => ({
+      ...prev,
+      type: TYPE_SUGGESTIONS.includes(prev.type) ? '' : prev.type,
     }));
   };
 
@@ -141,44 +158,73 @@ export function AnnouncementFormModal({
           </div>
         </div>
 
-        {/* Type (optional, free-form with suggested chips) */}
+        {/* Type (optional) — pick a suggested category chip, or "Other" to type a custom one. */}
         <div>
-          <label htmlFor="type" className="block text-xs font-medium text-slate-300 mb-1.5">
+          <label className="block text-xs font-medium text-slate-300 mb-1.5">
             Category <span className="text-slate-600">(optional)</span>
           </label>
-          <input
-            type="text"
-            id="type"
-            name="type"
-            value={formData.type}
-            onChange={handleChange}
-            maxLength={20}
-            placeholder="e.g., SAFETY, PROMO, ROUTE"
-            className={inputClasses}
-            aria-invalid={!!fieldErrors?.type}
-          />
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {TYPE_SUGGESTIONS.map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => handleTypeChip(t)}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors ${
-                  formData.type === t
-                    ? 'bg-[#62A0EA] border-[#62A0EA] text-white'
-                    : 'bg-transparent border-[#1E2D45] text-slate-500 hover:bg-[#1A2540]'
-                }`}
-              >
-                {t}
-              </button>
-            ))}
+          <p className="text-[11px] text-slate-500 mb-2">
+            Pick one, or choose <span className="text-slate-400 font-medium">Other</span> to type your own.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {TYPE_SUGGESTIONS.map((t) => {
+              const selected = !isOtherMode && formData.type === t;
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => handleTypeChip(t)}
+                  aria-pressed={selected}
+                  className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-3 py-1.5 text-[11px] font-semibold transition-colors ${
+                    selected
+                      ? 'border-[#62A0EA] bg-[#62A0EA] text-white'
+                      : 'border-[#1E2D45] bg-[#0E1628] text-slate-400 hover:border-[#62A0EA]/50 hover:bg-[#62A0EA]/10 hover:text-white'
+                  }`}
+                >
+                  {selected && <Check className="h-3 w-3" />}
+                  {t}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={handleOtherChip}
+              aria-pressed={isOtherMode}
+              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-3 py-1.5 text-[11px] font-semibold transition-colors ${
+                isOtherMode
+                  ? 'border-[#62A0EA] bg-[#62A0EA] text-white'
+                  : 'border-dashed border-[#334155] bg-transparent text-slate-500 hover:border-[#62A0EA]/50 hover:bg-[#62A0EA]/10 hover:text-white'
+              }`}
+            >
+              {isOtherMode ? <Check className="h-3 w-3" /> : <PenLine className="h-3 w-3" />}
+              Other
+            </button>
           </div>
-          <div className="flex items-center justify-between mt-1">
-            <p className="text-[11px] text-red-400">
-              {fieldErrors?.type?.[0] ?? ''}
-            </p>
-            <p className="text-[10px] text-slate-600">{typeLen}/20</p>
-          </div>
+          {isOtherMode && (
+            <div className="mt-2 border-l-2 border-[#62A0EA]/40 pl-3">
+              <input
+                type="text"
+                id="type"
+                name="type"
+                value={formData.type}
+                onChange={handleChange}
+                maxLength={20}
+                placeholder="Type a custom category"
+                className={inputClasses}
+                aria-invalid={!!fieldErrors?.type}
+                autoFocus
+              />
+              <div className="flex items-center justify-between mt-1">
+                <p className="text-[11px] text-red-400">
+                  {fieldErrors?.type?.[0] ?? ''}
+                </p>
+                <p className="text-[10px] text-slate-600">{typeLen}/20</p>
+              </div>
+            </div>
+          )}
+          {!isOtherMode && fieldErrors?.type?.[0] && (
+            <p className="text-[11px] text-red-400 mt-1">{fieldErrors.type[0]}</p>
+          )}
         </div>
 
         {/* Message */}

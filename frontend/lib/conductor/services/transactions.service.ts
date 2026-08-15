@@ -1,9 +1,26 @@
-import { api, ApiError, NetworkError } from "@/lib/api/client";
+import { api, NetworkError } from "@/lib/api/client";
 import { CONDUCTOR_API } from "@/lib/conductor/endpoints";
 import * as transactionsStore from "@/lib/conductor/persistence/transactions.store";
 
 export type { Transaction } from "@/lib/conductor/persistence/transactions.store";
 export type { PaymentMethodType } from "@/types";
+
+export interface PaginatedTransactions {
+  transactions: transactionsStore.Transaction[];
+  currentPage: number;
+  perPage: number;
+  total: number;
+  totalPages: number;
+  totalAmount: number;
+}
+
+interface TransactionPageOptions {
+  page: number;
+  perPage: number;
+  paymentMethod?: "CASH" | "GCASH" | "VOUCHER";
+  dateFrom?: string;
+  dateTo?: string;
+}
 
 /**
  * S4-T8: Conductor fare recording wired to the real backend.
@@ -56,6 +73,54 @@ export async function fetchShiftTransactions(
     }
 
     // Re-throw ApiError and other unexpected errors
+    throw error;
+  }
+}
+
+export async function fetchShiftTransactionsPage(
+  shiftId: string,
+  options: TransactionPageOptions
+): Promise<PaginatedTransactions> {
+  try {
+    const response = await api.get<{ data: PaginatedTransactions }>(
+      CONDUCTOR_API.transactions.page(shiftId, {
+        page: options.page,
+        perPage: options.perPage,
+        paymentMethod: options.paymentMethod,
+        dateFrom: options.dateFrom,
+        dateTo: options.dateTo,
+      })
+    );
+
+    const page = response.data ?? {
+      transactions: [],
+      currentPage: options.page,
+      perPage: options.perPage,
+      total: 0,
+      totalPages: 1,
+      totalAmount: 0,
+    };
+
+    for (const txn of page.transactions) {
+      transactionsStore.cacheTransaction(shiftId, txn);
+    }
+
+    return page;
+  } catch (error) {
+    if (error instanceof NetworkError) {
+      const cached = transactionsStore.getShiftTransactions(shiftId);
+      const start = (options.page - 1) * options.perPage;
+      const rows = cached.slice(start, start + options.perPage);
+      return {
+        transactions: rows,
+        currentPage: options.page,
+        perPage: options.perPage,
+        total: cached.length,
+        totalPages: Math.max(1, Math.ceil(cached.length / options.perPage)),
+        totalAmount: cached.reduce((sum, txn) => sum + txn.finalAmount, 0),
+      };
+    }
+
     throw error;
   }
 }

@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
-// ─── Interfaces (kept as API contracts) ───
-
 export interface Personnel {
   id: string;
   name: string;
@@ -16,6 +14,7 @@ export interface Vehicle {
   id: string;
   unitNumber: string;
   plateNumber: string;
+  routeId: string;
   route: string;
   driver: string | null;
   conductor: string | null;
@@ -31,7 +30,7 @@ export interface TerminatedPersonnel {
   status: 'Terminated' | 'Resigned';
   reason: string;
   terminatedDate: string;
-  lastVehicle: string;
+  dateJoined: string;
 }
 
 export interface ShiftLog {
@@ -40,6 +39,10 @@ export interface ShiftLog {
   role: string;
   vehicle: string;
   shiftDate: string;
+  timeIn: string;
+  timeOut: string;
+  status: string;
+  notes: string;
   details: string;
 }
 
@@ -71,44 +74,135 @@ export interface VehiclesData {
   driverRatings: Record<string, DriverRating[]>;
 }
 
-// ─── API fetch helper ──────────────────────────────────────────────────
+export interface PageMeta {
+  currentPage: number;
+  totalPages: number;
+  from: number;
+  to: number;
+  total: number;
+  perPage: number;
+}
 
-async function fetchVehiclesData(): Promise<VehiclesData> {
-  const [vehiclesRes, driversRes, conductorsRes, shiftLogsRes, terminatedRes] = await Promise.all([
-    fetch("/api/admin/vehicles", { headers: { Accept: "application/json" } }),
-    fetch("/api/admin/drivers", { headers: { Accept: "application/json" } }),
-    fetch("/api/admin/conductors", { headers: { Accept: "application/json" } }),
-    // Shift logs + terminated personnel are best-effort — if either endpoint
-    // is unavailable (e.g. older backend), the History tab just shows "no
-    // records" instead of failing the entire fleet page.
-    fetch("/api/admin/shift-logs?per_page=500", { headers: { Accept: "application/json" } }).catch(() => null),
-    fetch("/api/admin/terminated-personnel?per_page=500", { headers: { Accept: "application/json" } }).catch(() => null),
-  ]);
+export interface FleetCounts {
+  vehicles: number;
+  personnel: number;
+  terminatedPersonnel: number;
+  shiftHistoryLog: number;
+}
 
-  if (!vehiclesRes.ok) throw new Error("Failed to fetch vehicles");
-  if (!driversRes.ok) throw new Error("Failed to fetch drivers");
+export type FleetTab = 'vehicles' | 'personnel' | 'history';
+export type FleetHistoryTab = 'terminated' | 'shifts';
+export type PersonnelRoleFilter = 'all' | 'driver' | 'conductor';
+export type FleetShiftHistoryRange = 'today' | 'last_7_days' | 'this_month' | 'all_time';
 
-  const vehiclesJson = await vehiclesRes.json();
-  const driversJson = await driversRes.json();
-  // Conductors endpoint may fail if the server is older — fall back to
-  // extracting conductors from vehicle relationships.
-  const conductorsJson = conductorsRes.ok ? await conductorsRes.json() : { data: [] };
-  const shiftLogsJson = shiftLogsRes?.ok ? await shiftLogsRes.json() : { data: [] };
-  const terminatedJson = terminatedRes?.ok ? await terminatedRes.json() : { data: [] };
+export interface VehiclesQueryState {
+  activeTab: FleetTab;
+  historyTab: FleetHistoryTab;
+  searchQuery: string;
+  personnelRole: PersonnelRoleFilter;
+  shiftHistoryRange: FleetShiftHistoryRange;
+  vehiclePage: number;
+  personnelPage: number;
+  terminatedPage: number;
+  shiftPage: number;
+}
 
-  // Drivers + conductors return flat arrays (non-paginated — used in
-  // assignment dropdowns). Shift-logs + terminated-personnel now return
-  // paginators: { data: { data: [...], current_page, total, ... } }.
-  // We extract the inner data array for all, with fallbacks for both shapes.
-  const apiVehicles = vehiclesJson.data?.data ?? vehiclesJson.data ?? [];
-  const apiDrivers = driversJson.data ?? [];
-  const apiConductors = conductorsJson.data ?? [];
-  const apiShiftLogs = shiftLogsJson.data?.data ?? (Array.isArray(shiftLogsJson.data) ? shiftLogsJson.data : []);
-  const apiTerminated = terminatedJson.data?.data ?? (Array.isArray(terminatedJson.data) ? terminatedJson.data : []);
+const PAGE_SIZE = 25;
+const VEHICLES_POLL_INTERVAL_MS = 30_000;
 
-  // Map Laravel Vehicles to frontend Vehicle type
-  const vehicles: Vehicle[] = apiVehicles.map((v: Record<string, unknown>) => {
-    const status = String(v.status ?? "ACTIVE");
+const EMPTY_PAGE_META: PageMeta = {
+  currentPage: 1,
+  totalPages: 1,
+  from: 0,
+  to: 0,
+  total: 0,
+  perPage: PAGE_SIZE,
+};
+
+const EMPTY_DATA: VehiclesData = {
+  personnel: [],
+  vehicles: [],
+  terminatedPersonnel: [],
+  shiftHistoryLog: [],
+  driverProfiles: {},
+  driverRatings: {},
+};
+
+function pageMetaFrom(raw: Record<string, unknown> | undefined | null): PageMeta {
+  if (!raw) return EMPTY_PAGE_META;
+
+  const total = Number(raw.total ?? 0);
+  const perPage = Number(raw.per_page ?? PAGE_SIZE);
+  const currentPage = Number(raw.current_page ?? 1);
+
+  return {
+    currentPage,
+    totalPages: Math.max(1, Number((raw.last_page ?? Math.ceil(total / perPage)) || 1)),
+    from: Number(raw.from ?? 0),
+    to: Number(raw.to ?? 0),
+    total,
+    perPage,
+  };
+}
+
+async function fetchJson(url: string, signal?: AbortSignal): Promise<unknown> {
+  const res = await fetch(url, {
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch ${url} (HTTP ${res.status})`);
+  }
+
+  return res.json();
+}
+
+function paginatedRows(json: unknown): Record<string, unknown>[] {
+  const envelope = json as { data?: unknown };
+  const paginator = envelope.data as { data?: unknown } | undefined;
+  return Array.isArray(paginator?.data) ? (paginator.data as Record<string, unknown>[]) : [];
+}
+
+function paginatedMeta(json: unknown): PageMeta {
+  const envelope = json as { data?: Record<string, unknown> };
+  return pageMetaFrom(envelope.data);
+}
+
+function buildPagedUrl(
+  path: string,
+  page: number,
+  searchQuery: string,
+  extra?: Record<string, string>,
+  perPage = PAGE_SIZE,
+): string {
+  const params = new URLSearchParams({
+    per_page: String(perPage),
+    page: String(page),
+    ...extra,
+  });
+  const query = searchQuery.trim();
+  if (query) params.set('search', query);
+  return `${path}?${params.toString()}`;
+}
+
+function buildCountUrl(
+  path: string,
+  searchQuery: string,
+  extra?: Record<string, string>,
+): string {
+  const params = new URLSearchParams({
+    count_only: '1',
+    ...extra,
+  });
+  const query = searchQuery.trim();
+  if (query) params.set('search', query);
+  return `${path}?${params.toString()}`;
+}
+
+function mapVehicles(apiVehicles: Record<string, unknown>[]): Vehicle[] {
+  return apiVehicles.map((v) => {
+    const status = String(v.status ?? 'ACTIVE');
     let vehicleStatus: Vehicle['status'] = 'Operating';
     if (status === 'MAINTENANCE') vehicleStatus = 'Under Maintenance';
     else if (status === 'INACTIVE') vehicleStatus = 'Out of Service / Damaged';
@@ -118,196 +212,196 @@ async function fetchVehiclesData(): Promise<VehiclesData> {
     const route = v.route as Record<string, unknown> | null;
 
     return {
-      id: String(v.id ?? ""),
-      unitNumber: String(v.unit_number ?? "—"),
-      plateNumber: String(v.plate_number ?? "—"),
-      route: route?.name ? String(route.name) : "—",
+      id: String(v.id ?? ''),
+      unitNumber: String(v.unit_number ?? '-'),
+      plateNumber: String(v.plate_number ?? '-'),
+      routeId: route?.id ? String(route.id) : '',
+      route: route?.name ? String(route.name) : '-',
       driver: driver ? `${driver.first_name ?? ''} ${driver.last_name ?? ''}`.trim() : null,
       conductor: conductor ? `${conductor.first_name ?? ''} ${conductor.last_name ?? ''}`.trim() : null,
       status: vehicleStatus,
       speed: Number(v.speed ?? 0),
     };
   });
-
-  // Map Laravel Drivers to frontend Personnel type
-  const driverPersonnel: Personnel[] = apiDrivers.map((d: Record<string, unknown>) => {
-    return {
-      id: String(d.id ?? ""),
-      name: `${d.first_name ?? ''} ${d.last_name ?? ''}`.trim(),
-      role: 'Driver',
-      contact: String(d.contact ?? "—"),
-      profilePic: `https://placehold.co/150x150/0A1E33/62A0EA?text=${String(d.first_name ?? 'D')[0]}`,
-    };
-  });
-
-  // Map Laravel ConductorProfiles to frontend Personnel type.
-  // Uses the dedicated /admin/conductors endpoint (Batch 4) — no longer
-  // extracted from vehicle relationships, so unassigned conductors appear too.
-  const conductorPersonnel: Personnel[] = apiConductors.map((c: Record<string, unknown>) => ({
-    id: String(c.id ?? ""),
-    name: `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim(),
-    role: 'Conductor' as const,
-    contact: "—",
-    profilePic: c.profile_picture_url
-      ? String(c.profile_picture_url)
-      : `https://placehold.co/150x150/0A1E33/F59E0B?text=${String(c.first_name ?? 'C')[0]}`,
-  }));
-
-  // ── Map Laravel ShiftLogs to frontend ShiftLog entries ──
-  // Each backend shift log has BOTH a driver_name and conductor_name (a
-  // shift involves two people). We split each backend row into TWO frontend
-  // entries — one for the driver, one for the conductor — so the HistoryTable
-  // can filter by `log.personnelName === person.name` and find the right
-  // person's shifts.
-  //
-  // Backend ShiftLog fields: shift_id, conductor_id, driver_id, vehicle_id,
-  // route_id, conductor_name, driver_name, unit_number, plate_number,
-  // time_in, time_out, is_active, notes, status + relations (vehicle, driver,
-  // route). We use the denormalized *_name / unit_number / plate_number
-  // columns (they're stored on the row at shift-start time so the log is
-  // immutable even if the person is later renamed).
-  const formatShiftDate = (iso: string | null): string => {
-    if (!iso) return '—';
-    try {
-      return new Date(iso).toLocaleDateString('en-US', {
-        year: 'numeric', month: 'short', day: 'numeric',
-      });
-    } catch {
-      return '—';
-    }
-  };
-
-  const buildDetails = (log: Record<string, unknown>): string => {
-    const timeIn = log.time_in ? String(log.time_in).slice(11, 19) : '—';
-    const timeOut = log.time_out ? String(log.time_out).slice(11, 19) : '—';
-    const status = String(log.status ?? '—');
-    const notes = log.notes ? String(log.notes) : '';
-    let details = `Time in: ${timeIn} · Time out: ${timeOut} · Status: ${status}`;
-    if (notes) details += ` · Notes: ${notes}`;
-    return details;
-  };
-
-  const shiftHistoryLog: ShiftLog[] = [];
-  for (const log of apiShiftLogs as Record<string, unknown>[]) {
-    const shiftId = String(log.shift_id ?? '');
-    const vehicleLabel = String(log.unit_number ?? log.plate_number ?? '—');
-    const shiftDate = formatShiftDate((log.time_in as string | null) ?? null);
-    const details = buildDetails(log);
-
-    // Driver entry (skip if the shift has no driver_name)
-    const driverName = String(log.driver_name ?? '').trim();
-    if (driverName) {
-      shiftHistoryLog.push({
-        id: `${shiftId}:driver`,
-        personnelName: driverName,
-        role: 'Driver',
-        vehicle: vehicleLabel,
-        shiftDate,
-        details,
-      });
-    }
-
-    // Conductor entry (skip if the shift has no conductor_name)
-    const conductorName = String(log.conductor_name ?? '').trim();
-    if (conductorName) {
-      shiftHistoryLog.push({
-        id: `${shiftId}:conductor`,
-        personnelName: conductorName,
-        role: 'Conductor',
-        vehicle: vehicleLabel,
-        shiftDate,
-        details,
-      });
-    }
-  }
-
-  return {
-    personnel: [...driverPersonnel, ...conductorPersonnel],
-    vehicles,
-    // ── Terminated Personnel ──
-    // Mapped from the terminated_personnel table (populated by the
-    // destroyDriver/destroyConductor backend methods when an admin removes
-    // someone via the "Remove Personnel" flow). Each record is immutable —
-    // name/contact/last_vehicle are captured at termination time so the
-    // history is preserved even if the underlying driver/user row is purged.
-    terminatedPersonnel: (apiTerminated as Record<string, unknown>[]).map(t => ({
-      id: String(t.id ?? ''),
-      name: String(t.name ?? 'Unknown'),
-      role: String(t.role ?? '—'),
-      contact: String(t.contact ?? '—'),
-      // Backend stores TERMINATED/RESIGNED; the UI label matches the modal's
-      // termination_type values directly (the modal already uses these
-      // exact strings as option values).
-      status: (t.termination_type === 'RESIGNED' ? 'Resigned' : 'Terminated') as TerminatedPersonnel['status'],
-      reason: String(t.reason ?? '—'),
-      terminatedDate: String(t.terminated_date ?? ''),
-      lastVehicle: String(t.last_vehicle ?? '—'),
-    })),
-    shiftHistoryLog,
-    // driverProfiles + driverRatings: the PersonnelTable no longer uses
-    // these — the DriverDetailModal fetches its own data from
-    // /api/admin/drivers/{id} (which includes shift_logs). Kept in the
-    // interface for backwards compatibility; always empty.
-    driverProfiles: {},
-    driverRatings: {},
-  };
 }
 
-// ─── Hook ──────────────────────────────────────────────────────────────
+function mapPersonnel(apiPersonnel: Record<string, unknown>[]): Personnel[] {
+  return apiPersonnel.map((p) => {
+    const role: Personnel['role'] = p.role === 'Conductor' ? 'Conductor' : 'Driver';
+    const name = String(p.name ?? '').trim() || 'Unknown';
 
-/** How often the fleet page re-pulls assignments in the background. */
-const VEHICLES_POLL_INTERVAL_MS = 30_000;
+    return {
+      id: String(p.id ?? ''),
+      name,
+      role,
+      contact: String(p.contact ?? '-'),
+      profilePic: p.profile_picture_url
+        ? String(p.profile_picture_url)
+        : `https://placehold.co/150x150/0A1E33/${role === 'Driver' ? '62A0EA' : 'F59E0B'}?text=${name[0] ?? role[0]}`,
+    };
+  });
+}
 
-export function useVehiclesData() {
-  const [data, setData] = useState<VehiclesData>({
-    personnel: [],
-    vehicles: [],
-    terminatedPersonnel: [],
-    shiftHistoryLog: [],
-    driverProfiles: {},
-    driverRatings: {},
+function mapTerminatedPersonnel(apiTerminated: Record<string, unknown>[]): TerminatedPersonnel[] {
+  return apiTerminated.map((t) => ({
+    id: String(t.id ?? ''),
+    name: String(t.name ?? 'Unknown'),
+    role: String(t.role ?? '-'),
+    contact: String(t.contact ?? '-'),
+    status: (t.termination_type === 'RESIGNED' ? 'Resigned' : 'Terminated') as TerminatedPersonnel['status'],
+    reason: String(t.reason ?? '-'),
+    terminatedDate: String(t.terminated_date ?? ''),
+    dateJoined: String(t.date_joined ?? ''),
+  }));
+}
+
+function mapShiftHistory(apiShiftEntries: Record<string, unknown>[]): ShiftLog[] {
+  return apiShiftEntries.map((entry) => ({
+    id: String(entry.id ?? ''),
+    personnelName: String(entry.personnelName ?? entry.personnel_name ?? '-'),
+    role: String(entry.role ?? '-'),
+    vehicle: String(entry.vehicle ?? '-'),
+    shiftDate: String(entry.shiftDate ?? entry.shift_date ?? '-'),
+    timeIn: String(entry.timeIn ?? entry.time_in ?? '-'),
+    timeOut: String(entry.timeOut ?? entry.time_out ?? '-'),
+    status: String(entry.status ?? '-'),
+    notes: String(entry.notes ?? ''),
+    details: String(entry.details ?? '-'),
+  }));
+}
+
+async function fetchCount(url: string, signal?: AbortSignal): Promise<number> {
+  const json = await fetchJson(url, signal);
+  const envelope = json as { data?: { total?: unknown } };
+  if (envelope.data?.total !== undefined) return Number(envelope.data.total);
+  return paginatedMeta(json).total;
+}
+
+async function fetchVehiclesData(
+  query: VehiclesQueryState,
+  signal?: AbortSignal,
+): Promise<{
+  data: VehiclesData;
+  counts: FleetCounts;
+  pages: {
+    vehicles: PageMeta;
+    personnel: PageMeta;
+    terminatedPersonnel: PageMeta;
+    shiftHistoryLog: PageMeta;
+  };
+}> {
+  const personnelExtra = query.personnelRole === 'all'
+    ? undefined
+    : { role: query.personnelRole };
+  const shiftExtra = {
+    entry_view: 'personnel',
+    ...(query.shiftHistoryRange === 'all_time' ? {} : { shift_range: query.shiftHistoryRange }),
+  };
+
+  const urls = {
+    vehicles: buildPagedUrl('/api/admin/vehicles', query.vehiclePage, query.searchQuery),
+    personnel: buildPagedUrl('/api/admin/personnel', query.personnelPage, query.searchQuery, personnelExtra),
+    terminatedPersonnel: buildPagedUrl('/api/admin/terminated-personnel', query.terminatedPage, query.searchQuery),
+    shiftHistoryLog: buildPagedUrl('/api/admin/shift-logs', query.shiftPage, query.searchQuery, shiftExtra),
+  };
+
+  const activeKey = query.activeTab === 'history'
+    ? query.historyTab === 'terminated'
+      ? 'terminatedPersonnel'
+      : 'shiftHistoryLog'
+    : query.activeTab;
+
+  const [activeJson, vehicleCount, personnelCount, terminatedCount, shiftCount] = await Promise.all([
+    fetchJson(urls[activeKey], signal),
+    activeKey === 'vehicles' ? Promise.resolve(null) : fetchCount(buildCountUrl('/api/admin/vehicles', query.searchQuery), signal),
+    activeKey === 'personnel' ? Promise.resolve(null) : fetchCount(buildCountUrl('/api/admin/personnel', query.searchQuery, personnelExtra), signal),
+    activeKey === 'terminatedPersonnel' ? Promise.resolve(null) : fetchCount(buildCountUrl('/api/admin/terminated-personnel', query.searchQuery), signal),
+    activeKey === 'shiftHistoryLog'
+      ? Promise.resolve(null)
+      : fetchCount(buildCountUrl('/api/admin/shift-logs', query.searchQuery, shiftExtra), signal),
+  ]);
+
+  const activeRows = paginatedRows(activeJson);
+  const activeMeta = paginatedMeta(activeJson);
+
+  const data: VehiclesData = { ...EMPTY_DATA };
+  if (activeKey === 'vehicles') data.vehicles = mapVehicles(activeRows);
+  if (activeKey === 'personnel') data.personnel = mapPersonnel(activeRows);
+  if (activeKey === 'terminatedPersonnel') data.terminatedPersonnel = mapTerminatedPersonnel(activeRows);
+  if (activeKey === 'shiftHistoryLog') data.shiftHistoryLog = mapShiftHistory(activeRows);
+
+  const pages = {
+    vehicles: activeKey === 'vehicles' ? activeMeta : EMPTY_PAGE_META,
+    personnel: activeKey === 'personnel' ? activeMeta : EMPTY_PAGE_META,
+    terminatedPersonnel: activeKey === 'terminatedPersonnel' ? activeMeta : EMPTY_PAGE_META,
+    shiftHistoryLog: activeKey === 'shiftHistoryLog' ? activeMeta : EMPTY_PAGE_META,
+  };
+
+  const counts = {
+    vehicles: activeKey === 'vehicles' ? activeMeta.total : Number(vehicleCount ?? 0),
+    personnel: activeKey === 'personnel' ? activeMeta.total : Number(personnelCount ?? 0),
+    terminatedPersonnel: activeKey === 'terminatedPersonnel' ? activeMeta.total : Number(terminatedCount ?? 0),
+    shiftHistoryLog: activeKey === 'shiftHistoryLog' ? activeMeta.total : Number(shiftCount ?? 0),
+  };
+
+  return { data, counts, pages };
+}
+
+export function useVehiclesData(query: VehiclesQueryState) {
+  const [data, setData] = useState<VehiclesData>(EMPTY_DATA);
+  const [counts, setCounts] = useState<FleetCounts>({
+    vehicles: 0,
+    personnel: 0,
+    terminatedPersonnel: 0,
+    shiftHistoryLog: 0,
+  });
+  const [pages, setPages] = useState({
+    vehicles: EMPTY_PAGE_META,
+    personnel: EMPTY_PAGE_META,
+    terminatedPersonnel: EMPTY_PAGE_META,
+    shiftHistoryLog: EMPTY_PAGE_META,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // `silent` skips the loading flag so background polls don't flash skeletons
-  // over a populated table.
-  const load = useCallback(async (silent = false) => {
+  const load = useCallback(async (silent = false, signal?: AbortSignal) => {
     if (!silent) setIsLoading(true);
     setError(null);
+
     try {
-      const apiData = await fetchVehiclesData();
-      setData(apiData);
+      const result = await fetchVehiclesData(query, signal);
+      setData((current) => ({ ...current, ...result.data }));
+      setCounts(result.counts);
+      setPages((current) => ({ ...current, ...result.pages }));
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load vehicles data");
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      setError(err instanceof Error ? err.message : 'Failed to load vehicles data');
     } finally {
       if (!silent) setIsLoading(false);
     }
-  }, []);
+  }, [query]);
 
   const refetch = useCallback(() => load(false), [load]);
 
   useEffect(() => {
-    load(false);
+    const controller = new AbortController();
+    load(false, controller.signal);
 
-    // Assignments change without any action from this browser — a conductor
-    // starting a shift, or the midnight reset clearing every unit. Poll so an
-    // admin leaving the fleet page open doesn't sit on stale assignments.
     const id = setInterval(() => {
-      if (document.visibilityState === "visible") load(true);
+      if (document.visibilityState === 'visible') load(true);
     }, VEHICLES_POLL_INTERVAL_MS);
 
-    // Catch up immediately when the tab is refocused after being hidden.
     const onVisible = () => {
-      if (document.visibilityState === "visible") load(true);
+      if (document.visibilityState === 'visible') load(true);
     };
-    document.addEventListener("visibilitychange", onVisible);
+    document.addEventListener('visibilitychange', onVisible);
 
     return () => {
+      controller.abort();
       clearInterval(id);
-      document.removeEventListener("visibilitychange", onVisible);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [load]);
 
-  return { data, isLoading, error, refetch, setData };
+  return { data, counts, pages, isLoading, error, refetch, setData };
 }

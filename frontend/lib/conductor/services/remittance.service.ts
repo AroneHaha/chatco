@@ -1,4 +1,4 @@
-import { api, ApiError, NetworkError } from "@/lib/api/client";
+import { api, NetworkError } from "@/lib/api/client";
 import { CONDUCTOR_API } from "@/lib/conductor/endpoints";
 import { shouldUseConductorApi } from "@/lib/conductor/services/api-mode";
 import * as remittanceStore from "@/lib/conductor/persistence/remittance.store";
@@ -13,7 +13,7 @@ export async function fetchRemittanceHistory() {
       );
       return response.data ?? [];
     } catch (error) {
-      if (!(error instanceof NetworkError) && !(error instanceof ApiError)) throw error;
+      if (!(error instanceof NetworkError)) throw error;
     }
   }
 

@@ -30,17 +30,37 @@ class OperationalLifecycleTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_only_a_current_day_admin_assignment_can_start_a_shift(): void
+    public function test_conductor_can_start_shift_from_unassigned_available_vehicle_and_driver(): void
     {
-        [$conductor, $driver, $vehicle, $route] = $this->crew(now('Asia/Manila')->subDay()->toDateString());
+        $conductor = User::factory()->conductor()->create();
+        $driver = Driver::factory()->create();
+        $route = Route::factory()->create();
+        $vehicle = Vehicle::factory()->create(['route_id' => $route->id]);
 
-        $this->actingAs($conductor)->postJson('/api/v1/conductor/shifts/start', [
-            'vehicle_id' => $vehicle->id,
-            'driver_id' => $driver->id,
+        $this->actingAs($conductor)
+            ->postJson('/api/v1/conductor/shifts/start', [
+                'vehicle_id' => $vehicle->id,
+                'driver_id' => $driver->id,
+                'route_id' => $route->id,
+            ])
+            ->assertCreated();
+
+        $vehicle->refresh();
+        $this->assertSame($conductor->id, $vehicle->conductor_id);
+        $this->assertSame($driver->id, $vehicle->driver_id);
+        $this->assertSame(now('Asia/Manila')->toDateString(), $vehicle->assignment_date->toDateString());
+        $this->assertNotNull($vehicle->assignment_approved_at);
+    }
+
+    public function test_conductor_cannot_start_shift_with_vehicle_assigned_to_another_conductor(): void
+    {
+        $conductor = User::factory()->conductor()->create();
+        $otherConductor = User::factory()->conductor()->create();
+        $driver = Driver::factory()->create();
+        $route = Route::factory()->create();
+        $vehicle = Vehicle::factory()->create([
             'route_id' => $route->id,
-        ])->assertForbidden();
-
-        $vehicle->update([
+            'conductor_id' => $otherConductor->id,
             'assignment_date' => now('Asia/Manila')->toDateString(),
             'assignment_approved_at' => now(),
         ]);
@@ -49,7 +69,81 @@ class OperationalLifecycleTest extends TestCase
             'vehicle_id' => $vehicle->id,
             'driver_id' => $driver->id,
             'route_id' => $route->id,
-        ])->assertCreated();
+        ])->assertForbidden();
+    }
+
+    public function test_conductor_unit_and_driver_lists_include_unassigned_available_resources(): void
+    {
+        $conductor = User::factory()->conductor()->create();
+        $otherConductor = User::factory()->conductor()->create();
+        $route = Route::factory()->create();
+        $availableVehicle = Vehicle::factory()->create(['route_id' => $route->id]);
+        $availableDriver = Driver::factory()->create();
+        $otherDriver = Driver::factory()->create();
+        $otherVehicle = Vehicle::factory()->create([
+            'route_id' => $route->id,
+            'driver_id' => $otherDriver->id,
+            'conductor_id' => $otherConductor->id,
+            'assignment_date' => now('Asia/Manila')->toDateString(),
+            'assignment_approved_at' => now(),
+        ]);
+
+        $this->actingAs($conductor)
+            ->getJson('/api/v1/conductor/units')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $availableVehicle->id])
+            ->assertJsonMissing(['id' => $otherVehicle->id]);
+
+        $this->actingAs($conductor)
+            ->getJson('/api/v1/conductor/drivers')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $availableDriver->id])
+            ->assertJsonMissing(['id' => $otherDriver->id]);
+    }
+
+    public function test_remitted_vehicle_and_driver_return_to_available_conductor_lists(): void
+    {
+        [$conductor, $driver, $vehicle, , $shift] = $this->activeShift();
+
+        app(ShiftCloseoutService::class)->close(
+            $shift->shift_id,
+            0,
+            ShiftCloseoutService::REASON_MANUAL,
+            $conductor->id,
+        );
+
+        $this->actingAs($conductor)
+            ->getJson('/api/v1/conductor/units')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $vehicle->id]);
+
+        $this->actingAs($conductor)
+            ->getJson('/api/v1/conductor/drivers')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $driver->id]);
+    }
+
+    public function test_admin_remittances_include_active_shift_as_pending_with_live_totals(): void
+    {
+        $admin = User::factory()->admin()->create();
+        [, , , , $shift] = $this->activeShift();
+
+        $this->fare($shift, PaymentMethod::CASH, PaymentStatus::PAID, 45.0, ['total_passengers' => 2]);
+        $this->fare($shift, PaymentMethod::GCASH, PaymentStatus::PAID, 80.0, ['total_passengers' => 1]);
+        $this->fare($shift, PaymentMethod::GCASH, PaymentStatus::PENDING, 120.0, ['total_passengers' => 1]);
+
+        $response = $this->actingAs($admin)
+            ->getJson('/api/v1/admin/remittances?date='.now()->toDateString());
+
+        $response->assertOk();
+        $row = collect($response->json('data.data'))
+            ->firstWhere('shift_id', $shift->shift_id);
+
+        $this->assertNotNull($row);
+        $this->assertSame(Remittance::STATUS_PENDING, $row['remittance_status']);
+        $this->assertSame('45', (string) $row['cash_total']);
+        $this->assertSame('80', (string) $row['gcash_total']);
+        $this->assertSame(3, $row['total_passengers']);
     }
 
     public function test_manual_closeout_calculates_exact_shortage_and_overage_from_authoritative_cash(): void
@@ -288,6 +382,26 @@ class OperationalLifecycleTest extends TestCase
 
         $this->expectException(HttpException::class);
         $service->updateLocation($conductor, 14.9, 120.8, 60, null, null, 10, now()->subMinutes(5)->toIso8601String());
+    }
+
+    public function test_overspeed_events_track_separate_episodes_per_shift(): void
+    {
+        [$conductor, , , , $shift] = $this->activeShift();
+        Setting::create(['key' => 'speed_limit_kmh', 'value' => '50', 'category' => 'operations']);
+        $service = app(LocationService::class);
+
+        // First episode: over the limit, then back under it.
+        $service->updateLocation($conductor, 14.9, 120.8, 80, null, null, 10, now()->subSeconds(4)->toIso8601String());
+        $service->updateLocation($conductor, 14.9, 120.8, 40, null, null, 10, now()->subSeconds(3)->toIso8601String());
+        // Second, independent episode: over the limit again.
+        $service->updateLocation($conductor, 14.9, 120.8, 90, null, null, 10, now()->subSeconds(2)->toIso8601String());
+
+        $events = OverspeedEvent::where('shift_id', $shift->shift_id)->orderBy('id')->get();
+        $this->assertCount(2, $events);
+        $this->assertSame(80, $events[0]->top_speed);
+        $this->assertNotNull($events[0]->ended_at);
+        $this->assertSame(90, $events[1]->top_speed);
+        $this->assertNull($events[1]->ended_at);
     }
 
     public function test_admin_overspeed_history_is_paginated_and_filters_chatco_shift_ids(): void

@@ -20,6 +20,7 @@ export const COMMUTER_API = {
     claim: "/api/commuter/payments/claim",
     status: (id: string) => `/api/payments/${encodeURIComponent(id)}/status`,
     simulate: (id: string) => `/api/payments/${encodeURIComponent(id)}/simulate`,
+    redeemVoucher: (id: string) => `/api/commuter/payments/${encodeURIComponent(id)}/redeem-voucher`,
   },
   receipts: {
     claim: "/api/commuter/receipts/claim",

@@ -1,7 +1,7 @@
 // app/(admin)/vehicles/page.tsx
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { VehicleTable } from '@/components/admin/vehicles/vehicle-table';
 import { AddVehicleModal } from '@/components/admin/vehicles/add-vehicle-modal';
 import { EditVehicleModal } from '@/components/admin/vehicles/edit-vehicle-modal';
@@ -14,16 +14,12 @@ import { DeletePersonnelModal } from '@/components/admin/vehicles/delete-personn
 import { CreateConductorAccountModal } from '@/components/admin/vehicles/create-conductor-account-modal';
 import { ConductorAccountSuccessModal } from '@/components/admin/vehicles/conductor-account-success-modal';
 import { HistoryTable } from '@/components/admin/vehicles/history-table';
-import { SearchBar } from '@/components/admin/ui/search-bar';
-import { Plus, Users, Car, UserPlus, Archive, AlertCircle, RefreshCw } from 'lucide-react';
+import { Users, Car, Archive, AlertCircle, RefreshCw } from 'lucide-react';
 import { useVehiclesData } from './data/vehicles-data';
-import type { Vehicle, Personnel } from './data/vehicles-data';
-import { SkeletonTable } from '@/components/admin/ui/skeleton';
+import type { FleetHistoryTab, FleetShiftHistoryRange, PersonnelRoleFilter, Vehicle, Personnel } from './data/vehicles-data';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 
 export default function VehiclesPage() {
-  const { data, isLoading, error, refetch } = useVehiclesData();
-
   const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
   const [isEditVehicleModalOpen, setIsEditVehicleModalOpen] = useState(false);
   const [isPersonnelModalOpen, setIsPersonnelModalOpen] = useState(false);
@@ -47,27 +43,74 @@ export default function VehiclesPage() {
   const [editingPersonnelData, setEditingPersonnelData] = useState<Personnel | null>(null);
   const [deletingPersonnelData, setDeletingPersonnelData] = useState<Personnel | null>(null);
   
+  const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'vehicles' | 'personnel' | 'history'>('vehicles');
+  const [historyTab, setHistoryTab] = useState<FleetHistoryTab>('shifts');
+  const [personnelRole, setPersonnelRole] = useState<PersonnelRoleFilter>('all');
+  const [shiftHistoryRange, setShiftHistoryRange] = useState<FleetShiftHistoryRange>('today');
+  const [vehiclePage, setVehiclePage] = useState(1);
+  const [personnelPage, setPersonnelPage] = useState(1);
+  const [terminatedPage, setTerminatedPage] = useState(1);
+  const [shiftPage, setShiftPage] = useState(1);
+
+  const queryState = useMemo(() => ({
+    activeTab,
+    historyTab,
+    searchQuery,
+    personnelRole,
+    shiftHistoryRange,
+    vehiclePage,
+    personnelPage,
+    terminatedPage,
+    shiftPage,
+  }), [activeTab, historyTab, searchQuery, personnelRole, shiftHistoryRange, vehiclePage, personnelPage, terminatedPage, shiftPage]);
+
+  const { data, counts, pages, isLoading, error, refetch } = useVehiclesData(queryState);
   
   const vehicles = data.vehicles;
+  const historyRecords = counts.terminatedPersonnel + counts.shiftHistoryLog;
 
-  // ─── Loading State ───
-  if (isLoading) {
-    return (
-      <>
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-          <h1 className="text-2xl font-bold text-white">Fleet Management</h1>
-        </div>
-        <div className="flex space-x-1 mb-6 border-b border-[#1E2D45]">
-          <div className="py-2 px-4"><span className="text-sm text-slate-500">Vehicles</span></div>
-          <div className="py-2 px-4"><span className="text-sm text-slate-500">Personnel</span></div>
-          <div className="py-2 px-4"><span className="text-sm text-slate-500">History</span></div>
-        </div>
-        <SkeletonTable rows={5} columns={5} />
-      </>
-    );
-  }
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      setSearchQuery(searchInput);
+      setVehiclePage(1);
+      setPersonnelPage(1);
+      setTerminatedPage(1);
+      setShiftPage(1);
+    }, 350);
+
+    return () => window.clearTimeout(id);
+  }, [searchInput]);
+
+  const handleSearchChange = (value: string) => {
+    setSearchInput(value);
+  };
+
+  const handlePersonnelRoleChange = (role: PersonnelRoleFilter) => {
+    setPersonnelRole(role);
+    setPersonnelPage(1);
+  };
+
+  const handleShiftHistoryRangeChange = (range: FleetShiftHistoryRange) => {
+    setShiftHistoryRange(range);
+    setShiftPage(1);
+  };
+
+  const handleHistoryTabChange = (tab: FleetHistoryTab) => {
+    setHistoryTab(tab);
+    if (tab === 'terminated') {
+      setTerminatedPage(1);
+    } else {
+      setShiftPage(1);
+    }
+  };
+
+  const tabs = [
+    { id: 'vehicles' as const, label: 'Vehicles', count: counts.vehicles, icon: Car },
+    { id: 'personnel' as const, label: 'Personnel', count: counts.personnel, icon: Users },
+    { id: 'history' as const, label: 'Records', count: historyRecords, icon: Archive },
+  ];
 
   // ─── Error State ───
   if (error) {
@@ -141,7 +184,9 @@ export default function VehiclesPage() {
     setIsDeletePersonnelOpen(false);
   };
   const handleConfirmDeletePersonnel = async (deleteData: { id: string; reason: string; terminationType: string }): Promise<void> => {
-    const person = data.personnel.find(p => p.id === deleteData.id);
+    const person = deletingPersonnelData?.id === deleteData.id
+      ? deletingPersonnelData
+      : data.personnel.find(p => p.id === deleteData.id);
     if (!person) {
       throw new Error('Personnel not found. They may have already been removed.');
     }
@@ -230,98 +275,90 @@ export default function VehiclesPage() {
 
   return (
     <>
-      <StickyPageHeader className="mb-6">
-        <h1 className="text-2xl font-bold text-white">Fleet Management</h1>
-      </StickyPageHeader>
-      <div className="flex items-center space-x-3 w-full sm:w-auto mb-6 -mt-4 md:mt-0">
-          <SearchBar
-            placeholder={`Search ${activeTab === 'history' ? 'history...' : activeTab}...`}
-            value={searchQuery}
-            onChange={setSearchQuery}
-            className="flex-1"
-          />
-          
-          {activeTab !== 'history' && (
-            <>
-              {/* Conductor Account button only shows on Personnel tab —
-                  vehicles tab doesn't need it since conductors are people,
-                  not vehicles. */}
-              {activeTab === 'personnel' && (
-                <button
-                  onClick={handleOpenCreateConductor}
-                  className="flex items-center space-x-2 px-4 py-2 bg-[#62A0EA] text-white font-medium rounded-md hover:bg-[#4A8BD4] transition-colors flex-shrink-0"
-                >
-                  <UserPlus size={20} />
-                  <span className="hidden sm:inline">Conductor Account</span>
-                </button>
-              )}
-
-              <button
-                onClick={activeTab === 'vehicles' ? handleOpenVehicleModal : handleOpenPersonnelModal}
-                className="flex items-center space-x-2 px-4 py-2 bg-[#62A0EA] text-white font-medium rounded-md hover:bg-[#4A8BD4] transition-colors flex-shrink-0"
-              >
-                <Plus size={20} />
-                <span className="hidden sm:inline">Add {activeTab === 'vehicles' ? 'Vehicle' : 'Driver'}</span>
-              </button>
-            </>
-          )}
+      <StickyPageHeader className="mb-3">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-bold text-white">Fleet Management</h1>
         </div>
+      </StickyPageHeader>
 
       {/* Tab Navigation */}
-      <div className="flex space-x-1 mb-6 border-b border-[#1E2D45]">
-        <button
-          onClick={() => setActiveTab('vehicles')}
-          className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-md transition-colors ${
-            activeTab === 'vehicles' ? 'text-white border-b-2 border-[#62A0EA] bg-[#62A0EA]/10' : 'text-slate-400 hover:text-white hover:bg-[#1A2540]'
-          }`}
-        >
-          <Car size={20} />
-          <span>Vehicles</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('personnel')}
-          className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-md transition-colors ${
-            activeTab === 'personnel' ? 'text-white border-b-2 border-[#62A0EA] bg-[#62A0EA]/10' : 'text-slate-400 hover:text-white hover:bg-[#1A2540]'
-          }`}
-        >
-          <Users size={20} />
-          <span>Chatco Personnel</span>
-        </button>
-        
-        <button
-          onClick={() => setActiveTab('history')}
-          className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-md transition-colors ${
-            activeTab === 'history' ? 'text-white border-b-2 border-red-400 bg-red-400/10' : 'text-slate-400 hover:text-white hover:bg-[#1A2540]'
-          }`}
-        >
-          <Archive size={20} />
-          <span>Records & History</span>
-        </button>
+      <div className="mb-3 flex w-full gap-1.5 rounded-lg border border-[#1E2D45] bg-[#0E1628] p-1">
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
+                isActive
+                  ? tab.id === 'history'
+                    ? 'bg-red-400/15 text-red-200 shadow-[inset_0_0_0_1px_rgba(248,113,113,0.18)]'
+                    : 'bg-[#62A0EA]/15 text-white shadow-[inset_0_0_0_1px_rgba(98,160,234,0.18)]'
+                  : 'text-slate-400 hover:bg-[#172238] hover:text-white'
+              }`}
+            >
+              <tab.icon size={15} className={isActive && tab.id === 'history' ? 'text-red-300' : isActive ? 'text-[#62A0EA]' : 'text-slate-500'} />
+              <span>{tab.label}</span>
+              <span className={`rounded px-1.5 py-0.5 text-[10px] ${
+                isActive ? 'bg-black/20 text-slate-100' : 'bg-[#1A2540] text-slate-500'
+              }`}>
+                {tab.count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Tab Content */}
       {activeTab === 'vehicles' ? (
         <VehicleTable
           vehicles={vehicles}
-          searchQuery={searchQuery}
+          searchQuery={searchInput}
+          page={pages.vehicles}
+          onPageChange={setVehiclePage}
+          onSearchChange={handleSearchChange}
+          onAddVehicle={handleOpenVehicleModal}
           onEdit={handleOpenEditModal}
           onEditShift={handleOpenShiftHistory}
           onRowDoubleClick={handleOpenDetails}
+          isLoading={isLoading}
         />
       ) : activeTab === 'personnel' ? (
         <PersonnelTable 
           personnel={data.personnel}
-          searchQuery={searchQuery} 
+          searchQuery={searchInput} 
+          roleFilter={personnelRole}
+          page={pages.personnel}
+          onPageChange={setPersonnelPage}
+          onSearchChange={handleSearchChange}
+          onRoleFilterChange={handlePersonnelRoleChange}
+          onAddDriver={handleOpenPersonnelModal}
+          onCreateConductor={handleOpenCreateConductor}
           onEdit={handleOpenEditPersonnel}
           onDelete={handleOpenDeletePersonnel}
           driverProfiles={data.driverProfiles}
           driverRatings={data.driverRatings}
+          isLoading={isLoading}
         />
       ) : (
         <HistoryTable 
           terminatedPersonnel={data.terminatedPersonnel} 
           shiftHistoryLog={data.shiftHistoryLog}
-          searchQuery={searchQuery}
+          searchQuery={searchInput}
+          historyTab={historyTab}
+          onHistoryTabChange={handleHistoryTabChange}
+          shiftHistoryRange={shiftHistoryRange}
+          onShiftHistoryRangeChange={handleShiftHistoryRangeChange}
+          terminatedPage={pages.terminatedPersonnel}
+          shiftPage={pages.shiftHistoryLog}
+          onTerminatedPageChange={setTerminatedPage}
+          onShiftPageChange={setShiftPage}
+          onSearchChange={handleSearchChange}
+          counts={{
+            terminated: counts.terminatedPersonnel,
+            shifts: counts.shiftHistoryLog,
+          }}
+          isLoading={isLoading}
         />
       )}
 

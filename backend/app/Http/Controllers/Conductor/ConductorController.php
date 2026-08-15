@@ -263,6 +263,30 @@ class ConductorController extends Controller
             return $this->errorResponse('shift_id query parameter is required', 422);
         }
 
+        if ($request->hasAny(['page', 'per_page', 'payment_method', 'date_from', 'date_to'])) {
+            $result = $this->transactionService->getShiftTransactionsPage(
+                $request->user(),
+                $shiftId,
+                (int) $request->integer('per_page', 25),
+                [
+                    'payment_method' => $request->query('payment_method'),
+                    'date_from' => $request->query('date_from'),
+                    'date_to' => $request->query('date_to'),
+                ],
+            );
+
+            $paginator = $result['paginator'];
+
+            return $this->successResponse([
+                'data' => $paginator->items(),
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+                'total_amount' => $result['total_amount'],
+            ], 'Shift transactions retrieved');
+        }
+
         $transactions = $this->transactionService->getShiftTransactions(
             $request->user(),
             $shiftId,
@@ -452,10 +476,11 @@ class ConductorController extends Controller
         $profileId = $request->user()->conductorProfile?->id;
         $units = Vehicle::with('route')
             ->where('status', 'ACTIVE')
-            ->where('conductor_id', $profileId)
-            ->whereDate('assignment_date', now('Asia/Manila')->toDateString())
-            ->whereNotNull('assignment_approved_at')
             ->whereDoesntHave('activeShift')
+            ->where(function ($query) use ($profileId) {
+                $query->whereNull('conductor_id')
+                    ->orWhere('conductor_id', $profileId);
+            })
             ->get();
 
         return $this->successResponse($units, 'Available vehicles retrieved');
@@ -468,16 +493,15 @@ class ConductorController extends Controller
     public function drivers(Request $request): JsonResponse
     {
         $profileId = $request->user()->conductorProfile?->id;
-        $driverIds = Vehicle::query()
-            ->where('conductor_id', $profileId)
-            ->whereDate('assignment_date', now('Asia/Manila')->toDateString())
-            ->whereNotNull('assignment_approved_at')
-            ->whereNotNull('driver_id')
-            ->pluck('driver_id');
         $drivers = Driver::query()
-            ->whereIn('id', $driverIds)
             ->where('status', 'ACTIVE')
             ->whereDoesntHave('activeShift')
+            ->whereNotIn('id', Vehicle::query()
+                ->select('driver_id')
+                ->whereNotNull('driver_id')
+                ->whereNotNull('conductor_id')
+                ->where('conductor_id', '!=', $profileId)
+            )
             ->get();
 
         return $this->successResponse($drivers, 'Available drivers retrieved');

@@ -1,9 +1,10 @@
 // components/admin/vehicles/shift-history-modal.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import { Badge } from '@/components/admin/ui/badge';
+import { TablePagination } from '@/components/admin/ui/table-pagination';
 import { Clock, RefreshCw, User, MapPin, Calendar } from 'lucide-react';
 import type { Vehicle } from '@/app/(admin)/vehicles/data/vehicles-data';
 
@@ -26,6 +27,42 @@ interface ShiftHistoryModalProps {
   isOpen: boolean;
   onClose: () => void;
   vehicle: Vehicle | null;
+}
+
+interface ShiftHistoryPageMeta {
+  currentPage: number;
+  totalPages: number;
+  from: number;
+  to: number;
+  total: number;
+  perPage: number;
+}
+
+const SHIFT_HISTORY_PAGE_SIZE = 10;
+
+const EMPTY_PAGE_META: ShiftHistoryPageMeta = {
+  currentPage: 1,
+  totalPages: 1,
+  from: 0,
+  to: 0,
+  total: 0,
+  perPage: SHIFT_HISTORY_PAGE_SIZE,
+};
+
+function pageMetaFrom(raw: Record<string, unknown> | undefined | null): ShiftHistoryPageMeta {
+  if (!raw) return EMPTY_PAGE_META;
+
+  const total = Number(raw.total ?? 0);
+  const perPage = Number(raw.per_page ?? SHIFT_HISTORY_PAGE_SIZE);
+
+  return {
+    currentPage: Number(raw.current_page ?? 1),
+    totalPages: Math.max(1, Number((raw.last_page ?? Math.ceil(total / perPage)) || 1)),
+    from: Number(raw.from ?? 0),
+    to: Number(raw.to ?? 0),
+    total,
+    perPage,
+  };
 }
 
 function formatDateTime(iso: string | null): string {
@@ -62,15 +99,23 @@ function formatDuration(timeIn: string | null, timeOut: string | null): string {
 
 export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModalProps) {
   const [logs, setLogs] = useState<ShiftLogEntry[]>([]);
+  const [page, setPage] = useState(1);
+  const [pageMeta, setPageMeta] = useState<ShiftHistoryPageMeta>(EMPTY_PAGE_META);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const activeVehicleIdRef = useRef<string | null>(null);
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     if (!vehicle) return;
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/shift-logs?vehicle_id=${encodeURIComponent(vehicle.id)}`, {
+      const params = new URLSearchParams({
+        vehicle_id: vehicle.id,
+        page: String(page),
+        per_page: String(SHIFT_HISTORY_PAGE_SIZE),
+      });
+      const res = await fetch(`/api/admin/shift-logs?${params.toString()}`, {
         headers: { Accept: 'application/json' },
       });
       const data = await res.json();
@@ -81,19 +126,29 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
       // Fall back to a plain array in case the shape is ever un-paginated.
       const entries = data.data?.data ?? data.data;
       setLogs(Array.isArray(entries) ? (entries as ShiftLogEntry[]) : []);
+      setPageMeta(pageMetaFrom(data.data));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load shift logs');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [page, vehicle]);
 
   useEffect(() => {
-    if (isOpen && vehicle) {
-      fetchLogs();
+    if (!isOpen || !vehicle) return;
+
+    if (activeVehicleIdRef.current !== vehicle.id) {
+      activeVehicleIdRef.current = vehicle.id;
+      setLogs([]);
+      setPageMeta(EMPTY_PAGE_META);
+      if (page !== 1) {
+        setPage(1);
+        return;
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, vehicle?.id]);
+
+    fetchLogs();
+  }, [fetchLogs, isOpen, page, vehicle]);
 
   if (!vehicle) return null;
 
@@ -126,7 +181,7 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
       {/* Summary badges */}
       <div className="grid grid-cols-3 gap-2 mb-4">
         <div className="bg-[#0E1628] border border-[#1E2D45] rounded-md p-2.5 text-center">
-          <p className="text-lg font-bold text-white">{logs.length}</p>
+          <p className="text-lg font-bold text-white">{pageMeta.total}</p>
           <p className="text-[10px] uppercase tracking-wider text-slate-500">Total Shifts</p>
         </div>
         <div className="bg-[#0E1628] border border-[#1E2D45] rounded-md p-2.5 text-center">
@@ -212,6 +267,20 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
           })
         )}
       </div>
+
+      {pageMeta.total > 0 && (
+        <div className="mt-3">
+          <TablePagination
+            currentPage={pageMeta.currentPage}
+            totalPages={pageMeta.totalPages}
+            from={pageMeta.from}
+            to={pageMeta.to}
+            total={pageMeta.total}
+            label="shifts"
+            onPageChange={setPage}
+          />
+        </div>
+      )}
 
       <div className="flex justify-end pt-4 mt-3 border-t border-[#1E2D45]">
         <button

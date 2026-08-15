@@ -20,6 +20,9 @@ const announcementConfig: Record<AnnouncementType, { color: string; bg: string; 
   SYSTEM: { color: "text-[#62A0EA]", bg: "bg-[#1A5FB4]/10 border-[#1A5FB4]/20", label: "System", emoji: "🔔" },
   MAINTENANCE: { color: "text-red-400", bg: "bg-red-500/10 border-red-500/20", label: "Advisory", emoji: "🚧" },
   CLAIM_UPDATE: { color: "text-violet-400", bg: "bg-violet-500/10 border-violet-500/20", label: "Claim Update", emoji: "📦" },
+  // Label is a fallback only — CUSTOM announcements show the admin's actual
+  // typed category (Announcement.rawType) instead, see the two render sites.
+  CUSTOM: { color: "text-slate-300", bg: "bg-slate-500/10 border-slate-500/20", label: "Other", emoji: "🏷️" },
 };
 
 function formatRelativeTime(iso: string): string {
@@ -147,6 +150,7 @@ export default function RewardsPage() {
           <div className="space-y-3 max-h-80 overflow-y-auto pr-1 modal-scroll">
             {announcements.map((item) => {
               const config = announcementConfig[item.type];
+              const badgeLabel = item.type === "CUSTOM" && item.rawType ? item.rawType : config.label;
               return (
                 <div
                   key={item.id}
@@ -159,7 +163,7 @@ export default function RewardsPage() {
                   <div className="flex items-start gap-3">
                     <div className={`mt-0.5 flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${config.bg} ${config.color}`}>
                       <span className="text-[11px] leading-none">{config.emoji}</span>
-                      {config.label}
+                      {badgeLabel}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-baseline justify-between gap-2">
@@ -352,7 +356,7 @@ export default function RewardsPage() {
               <HelpStep n={4} title="Redeem it on your next ride">
                 Tap <span className="text-white font-semibold">Use Voucher</span>, then show
                 the code to the conductor. They enter it and the ride is free. Vouchers
-                expire <span className="text-white font-semibold">30 days</span> after you
+                expire <span className="text-white font-semibold">3 days</span> after you
                 earn them, so use them before then.
               </HelpStep>
 
@@ -416,6 +420,10 @@ export default function RewardsPage() {
       {/* --- ANNOUNCEMENT DETAIL MODAL --- */}
       {selectedAnnouncement && (() => {
         const config = announcementConfig[selectedAnnouncement.type];
+        const badgeLabel =
+          selectedAnnouncement.type === "CUSTOM" && selectedAnnouncement.rawType
+            ? selectedAnnouncement.rawType
+            : config.label;
         return (
           // pb-24 clears the commuter tab bar, which the layout renders as an
           // absolute overlay at the same z-50 — it was covering the bottom of
@@ -426,7 +434,7 @@ export default function RewardsPage() {
                 <div className="flex items-center justify-between gap-3 mb-3">
                   <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${config.bg} ${config.color}`}>
                     <span className="text-sm leading-none">{config.emoji}</span>
-                    {config.label}
+                    {badgeLabel}
                   </div>
                   <span className="text-[11px] text-white/40">{formatRelativeTime(selectedAnnouncement.createdAt)}</span>
                 </div>

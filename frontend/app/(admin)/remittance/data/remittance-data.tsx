@@ -27,11 +27,15 @@ interface RemittancePage {
   lastPage: number;
 }
 
-async function fetchRemittances(page: number, search: string, date: string, status: RemittanceStatus | 'All'): Promise<RemittancePage> {
-  const params = new URLSearchParams({ page: String(page), per_page: "10" });
+export async function fetchRemittances(page: number, search: string, date: string, status: RemittanceStatus | 'All', dateFrom = '', conductor = '', driver = '', perPage = 20): Promise<RemittancePage> {
+  const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
   if (search) params.set('search', search);
+  // Exact date wins when set; otherwise fall back to the range preset's lower bound.
   if (date) params.set('date', date);
+  else if (dateFrom) params.set('date_from', dateFrom);
   if (status !== 'All') params.set('status', status);
+  if (conductor) params.set('conductor', conductor);
+  if (driver) params.set('driver', driver);
   const res = await fetch(`/api/admin/remittances?${params}`, {
     headers: { Accept: "application/json" },
   });
@@ -109,7 +113,7 @@ function mapLaravelRemittance(r: Record<string, unknown>): RemittanceRecord {
 
 // ─── Hook ──────────────────────────────────────────────────────────────
 
-export function useRemittanceData(page = 1, search = '', date = '', status: RemittanceStatus | 'All' = 'All') {
+export function useRemittanceData(page = 1, search = '', date = '', status: RemittanceStatus | 'All' = 'All', dateFrom = '', conductor = '', driver = '') {
   const [records, setRecords] = useState<RemittanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -120,7 +124,7 @@ export function useRemittanceData(page = 1, search = '', date = '', status: Remi
     setIsLoading(true);
     setError(null);
     try {
-      const data = await fetchRemittances(page, search, date, status);
+      const data = await fetchRemittances(page, search, date, status, dateFrom, conductor, driver);
       setRecords(data.records);
       setTotal(data.total);
       setLastPage(data.lastPage);
@@ -131,7 +135,7 @@ export function useRemittanceData(page = 1, search = '', date = '', status: Remi
     } finally {
       setIsLoading(false);
     }
-  }, [date, page, search, status]);
+  }, [date, dateFrom, page, search, status, conductor, driver]);
 
   useEffect(() => {
     refresh();

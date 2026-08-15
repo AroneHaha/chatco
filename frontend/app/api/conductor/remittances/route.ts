@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getConductorSession, unauthorizedResponse } from "@/lib/conductor/server/auth";
+import { getConductorSession } from "@/lib/conductor/server/auth";
 import { jsonData, jsonError } from "@/lib/conductor/server/response";
 import { proxyToLaravel } from "@/lib/conductor/server/proxy";
 import { mapRemittance } from "@/lib/conductor/server/mappers";
@@ -7,9 +7,6 @@ import * as store from "@/lib/conductor/server/store";
 import type { RemittanceRecord } from "@/lib/conductor/persistence/remittance.store";
 
 export async function GET(request: NextRequest) {
-  const session = await getConductorSession(request);
-  if (!session) return unauthorizedResponse();
-
   const result = await proxyToLaravel(request, `/conductor/remittances${new URL(request.url).search}`, { method: "GET" });
   if (result.ok) {
     // Laravel returns a paginator: { data: [...rows], current_page, ... }.

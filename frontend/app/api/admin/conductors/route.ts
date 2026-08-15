@@ -7,7 +7,7 @@ import { proxyToLaravel } from "@/lib/conductor/server/proxy";
  * POST /api/admin/conductors
  */
 export async function GET(request: NextRequest) {
-  const result = await proxyToLaravel(request, "/admin/conductors", { method: "GET" });
+  const result = await proxyToLaravel(request, `/admin/conductors${request.nextUrl.search}`, { method: "GET" });
   if (!result.ok) return jsonError(result.message ?? "Failed to load conductors.", result.status);
   return jsonData(result.data);
 }

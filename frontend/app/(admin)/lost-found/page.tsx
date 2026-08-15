@@ -9,12 +9,11 @@ import { AddLostFoundModal } from '@/components/admin/lost-found/add-lost-found-
 import { EditLostFoundModal, type EditLostFoundFormData } from '@/components/admin/lost-found/edit-lost-found-modal';
 import { ViewItemModal } from '@/components/admin/lost-found/view-item-modal';
 import { ClaimsListModal } from '@/components/admin/lost-found/claims-list-modal';
+import { TablePagination } from '@/components/admin/ui/table-pagination';
 import {
   Archive,
   CalendarDays,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   ChevronDown,
   ClipboardList,
   History,
@@ -212,7 +211,8 @@ export default function LostFoundPage() {
 
   const totalPages = Math.max(1, pageMeta.lastPage);
   const displayItems = filteredItems;
-  const pageNumbers = buildVisiblePages(pageMeta.page, totalPages);
+  const rangeFrom = pageMeta.total === 0 ? 0 : (pageMeta.page - 1) * ITEMS_PER_PAGE + 1;
+  const rangeTo = Math.min(pageMeta.page * ITEMS_PER_PAGE, pageMeta.total);
   const claimSummaries = Object.fromEntries(
     Object.entries(claimsByItem).map(([itemId, itemClaims]) => {
       const pendingSignature = pendingClaimSignature(itemClaims);
@@ -461,8 +461,8 @@ export default function LostFoundPage() {
           ))}
         </div>
 
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,34rem)_13rem_15rem] lg:items-center">
-          <div className="relative min-w-0">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative min-w-0 lg:w-[34rem]">
             <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
             <input
               type="text"
@@ -472,41 +472,43 @@ export default function LostFoundPage() {
               className="w-full rounded-xl border border-white/10 bg-[#0E1628] py-3 pl-11 pr-4 text-sm text-white outline-none transition-colors placeholder:text-slate-500 focus:border-[#62A0EA]"
             />
           </div>
-          <div className="relative">
-            <CalendarDays className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => { setSelectedDate(e.target.value); setCurrentPage(1); }}
-              className="h-11 w-full rounded-xl border border-white/10 bg-[#0E1628] py-3 pl-11 pr-10 text-sm font-semibold text-slate-300 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
-              aria-label="Filter lost items by posted date"
-            />
-            {selectedDate && (
-              <button
-                type="button"
-                onClick={() => { setSelectedDate(''); setCurrentPage(1); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-500 transition-colors hover:bg-white/5 hover:text-slate-200"
-                aria-label="Clear date filter"
-                title="Clear date"
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:justify-end">
+            <div className="relative sm:w-52">
+              <CalendarDays className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => { setSelectedDate(e.target.value); setCurrentPage(1); }}
+                className="h-11 w-full rounded-xl border border-white/10 bg-[#0E1628] py-3 pl-11 pr-10 text-sm font-semibold text-slate-300 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
+                aria-label="Filter lost items by posted date"
+              />
+              {selectedDate && (
+                <button
+                  type="button"
+                  onClick={() => { setSelectedDate(''); setCurrentPage(1); }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-500 transition-colors hover:bg-white/5 hover:text-slate-200"
+                  aria-label="Clear date filter"
+                  title="Clear date"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            <div className="relative sm:w-60">
+              <select
+                value={activeCategory}
+                onChange={(e) => { setActiveCategory(e.target.value as ItemCategory | 'ALL'); setCurrentPage(1); }}
+                className="h-11 w-full appearance-none rounded-xl border border-white/10 bg-[#0E1628] px-4 pr-10 text-sm font-semibold text-slate-300 outline-none transition-colors focus:border-[#62A0EA]"
+                aria-label="Filter lost items by category"
               >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-          <div className="relative">
-            <select
-              value={activeCategory}
-              onChange={(e) => { setActiveCategory(e.target.value as ItemCategory | 'ALL'); setCurrentPage(1); }}
-              className="h-11 w-full appearance-none rounded-xl border border-white/10 bg-[#0E1628] px-4 pr-10 text-sm font-semibold text-slate-300 outline-none transition-colors focus:border-[#62A0EA]"
-              aria-label="Filter lost items by category"
-            >
-              {itemCategoriesWithAll.map(cat => (
-                <option key={cat.value} value={cat.value}>
-                  {cat.label}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                {itemCategoriesWithAll.map(cat => (
+                  <option key={cat.value} value={cat.value}>
+                    {cat.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            </div>
           </div>
         </div>
       </div>
@@ -519,27 +521,27 @@ export default function LostFoundPage() {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto pb-28 lg:pb-8 px-4 md:px-0">
-        {isLoading ? (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {Array.from({ length: 8 }).map((_, index) => (
-              <div key={index} className="h-[430px] rounded-xl border border-white/10 bg-white/[0.04]">
-                <div className="h-full w-full animate-pulse rounded-[inherit] bg-gradient-to-r from-white/[0.03] via-white/[0.07] to-white/[0.03]" />
-              </div>
-            ))}
-          </div>
-        ) : listError ? (
-          <div className="h-full flex flex-col items-center justify-center text-center px-4">
-            <p className="text-red-400 font-medium text-sm mb-3">{listError}</p>
-            <button onClick={() => void refresh()} className="px-4 py-2 rounded-md text-xs font-semibold bg-[#62A0EA] text-white">Try again</button>
-          </div>
-        ) : displayItems.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center px-4">
-            <h3 className="text-slate-300 font-semibold mb-1">No items found</h3>
-            <p className="text-slate-500 text-sm">Try adjusting your search or filters.</p>
-          </div>
-        ) : (
-          <>
+      <div className="flex-1 min-h-0 flex flex-col px-4 md:px-0">
+        <div className="flex-1 min-h-0 overflow-y-auto pb-4">
+          {isLoading ? (
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+              {Array.from({ length: 8 }).map((_, index) => (
+                <div key={index} className="h-[430px] rounded-xl border border-white/10 bg-white/[0.04]">
+                  <div className="h-full w-full animate-pulse rounded-[inherit] bg-gradient-to-r from-white/[0.03] via-white/[0.07] to-white/[0.03]" />
+                </div>
+              ))}
+            </div>
+          ) : listError ? (
+            <div className="h-full flex flex-col items-center justify-center text-center px-4">
+              <p className="text-red-400 font-medium text-sm mb-3">{listError}</p>
+              <button onClick={() => void refresh()} className="px-4 py-2 rounded-md text-xs font-semibold bg-[#62A0EA] text-white">Try again</button>
+            </div>
+          ) : displayItems.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-center px-4">
+              <h3 className="text-slate-300 font-semibold mb-1">No items found</h3>
+              <p className="text-slate-500 text-sm">Try adjusting your search or filters.</p>
+            </div>
+          ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
               <LostFoundGrid
                 items={displayItems}
@@ -552,55 +554,22 @@ export default function LostFoundPage() {
                 isActing={isActing}
               />
             </div>
-            {totalPages > 1 && (
-              <div className="mt-8 mb-4 flex flex-wrap items-center justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                  disabled={pageMeta.page === 1}
-                  className={`inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors ${
-                    pageMeta.page === 1
-                      ? 'cursor-not-allowed border-white/5 bg-white/5 text-slate-600'
-                      : 'border-white/10 bg-[#0E1628] text-slate-400 hover:bg-[#1A2540] hover:text-white'
-                  }`}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Prev
-                </button>
-                {pageNumbers.map((page, index) => (
-                  page === 'ellipsis' ? (
-                    <span key={`ellipsis-${index}`} className="flex h-10 w-9 items-center justify-center text-sm font-semibold text-slate-600">...</span>
-                  ) : (
-                    <button
-                      key={page}
-                      type="button"
-                      onClick={() => setCurrentPage(page)}
-                      className={`h-10 w-10 rounded-lg text-sm font-semibold transition-colors ${
-                        pageMeta.page === page
-                          ? 'bg-[#1A5FB4] text-white shadow-lg shadow-[#1A5FB4]/30'
-                          : 'bg-[#0E1628] text-slate-400 hover:bg-[#1A2540] hover:text-white'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  )
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                  disabled={pageMeta.page === totalPages}
-                  className={`inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors ${
-                    pageMeta.page === totalPages
-                      ? 'cursor-not-allowed border-white/5 bg-white/5 text-slate-600'
-                      : 'border-white/10 bg-[#0E1628] text-slate-400 hover:bg-[#1A2540] hover:text-white'
-                  }`}
-                >
-                  Next
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-            )}
-          </>
+          )}
+        </div>
+
+        {/* Pagination — outside the scrollable area above, so it never scrolls out of view. */}
+        {!isLoading && !listError && displayItems.length > 0 && (
+          <div className="flex-shrink-0 bg-[#0E1628] border border-white/10 rounded-lg px-3 pb-3">
+            <TablePagination
+              currentPage={pageMeta.page}
+              totalPages={totalPages}
+              from={rangeFrom}
+              to={rangeTo}
+              total={pageMeta.total}
+              label="items"
+              onPageChange={setCurrentPage}
+            />
+          </div>
         )}
       </div>
 
@@ -621,6 +590,7 @@ export default function LostFoundPage() {
         onClose={handleCloseClaimsModal}
         itemId={selectedItemId || ''}
         claims={selectedItemId ? (claimsByItem[selectedItemId] ?? []) : []}
+        releasedByName={items.find((i) => i.id === selectedItemId)?.closedByName ?? null}
         onClaimAction={handleClaimAction}
         onRecordManualClaim={handleRecordManualClaim}
       />
@@ -629,26 +599,6 @@ export default function LostFoundPage() {
 }
 
 // ─── Mappers: shared service → admin data types ─────────────────────
-
-function buildVisiblePages(currentPage: number, totalPages: number): (number | 'ellipsis')[] {
-  if (totalPages <= 7) {
-    return Array.from({ length: totalPages }, (_, index) => index + 1);
-  }
-
-  const pages = new Set([1, totalPages, currentPage - 1, currentPage, currentPage + 1]);
-  const sortedPages = Array.from(pages)
-    .filter(page => page >= 1 && page <= totalPages)
-    .sort((a, b) => a - b);
-
-  return sortedPages.reduce<(number | 'ellipsis')[]>((result, page) => {
-    const previous = result[result.length - 1];
-    if (typeof previous === 'number' && page - previous > 1) {
-      result.push('ellipsis');
-    }
-    result.push(page);
-    return result;
-  }, []);
-}
 
 function mapServiceItemToAdmin(item: ServiceItem): LostFoundItem {
   return {
@@ -665,6 +615,7 @@ function mapServiceItemToAdmin(item: ServiceItem): LostFoundItem {
     reporterName: item.reporterName,
     status: item.displayStatus as ItemStatus,
     claimedBy: item.claimedBy,
+    closedByName: item.closedByName,
     expiredAt: item.expiredAt,
     photos: item.photos,
   };
@@ -682,6 +633,7 @@ function mapServiceClaimToAdmin(claim: ServiceClaim): Claim {
     approvedAt: claim.approvedAt,
     rejectedAt: claim.rejectedAt,
     releasedAt: claim.releasedAt,
+    reviewedByName: claim.reviewedByName,
     proof: claim.proof,
     linkedAccount: claim.linkedAccount,
   };
