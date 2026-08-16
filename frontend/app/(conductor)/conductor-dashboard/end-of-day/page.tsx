@@ -8,7 +8,9 @@ import { submitRemittance, type RemittanceRecord } from "@/lib/conductor/service
 import {
   fetchShiftEarnings,
   clearShiftTransactions,
+  syncPendingTransactions,
 } from "@/lib/conductor/services/transactions.service";
+import { getPendingCashTransactions } from "@/lib/conductor/persistence/transactions.store";
 import { useRemittanceData } from "@/app/(conductor)/hooks/use-remittance-data";
 import { EndOfDaySkeleton } from "@/components/conductor/ui/skeleton";
 import { fmt, methodConfig } from "./helpers";
@@ -152,6 +154,18 @@ export default function EndOfDayPage() {
     setSubmitError(null);
 
     try {
+      // Offline cash is only a local receipt until the server accepts it. Do
+      // not submit a remittance snapshot that could omit those fares.
+      await syncPendingTransactions();
+      const pendingForShift = getPendingCashTransactions().filter(
+        (item) => item.shiftId === shiftInfo.shiftId,
+      );
+      if (pendingForShift.length > 0) {
+        throw new Error(
+          "Some cash transactions are still waiting to sync. Reconnect to the internet and try again before submitting remittance.",
+        );
+      }
+
       // Query the earnings API DIRECTLY to get the real DB totals right
       // before remitting. Don't rely on the possibly-stale `summary` which
       // may show ₱0 if the hook hasn't refreshed.

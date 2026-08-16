@@ -155,6 +155,27 @@ class TransactionFlowTest extends TestCase
         $this->assertSame(15.00, (float) $txn->final_amount);
     }
 
+    public function test_offline_retry_can_target_owned_originating_shift_only(): void
+    {
+        $svc = app(TransactionService::class);
+
+        $txn = $svc->recordCashFare($this->conductor, [
+            'shift_id' => $this->shift->shift_id,
+            'final_amount' => 15.00,
+            'pickup_name' => 'Calumpit',
+            'dropoff_name' => 'Bustos',
+        ]);
+
+        $this->assertSame($this->shift->shift_id, $txn->shift_id);
+
+        $this->assertAbort(403, fn () => $svc->recordCashFare($this->conductor, [
+            'shift_id' => $this->shift2->shift_id,
+            'final_amount' => 15.00,
+            'pickup_name' => 'Calumpit',
+            'dropoff_name' => 'Bustos',
+        ]));
+    }
+
     public function test_cash_fare_appears_in_get_shift_transactions(): void
     {
         $svc = app(TransactionService::class);

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import L from "leaflet";
 
 type RouteCoordinate = [number, number];
+type RouteSource = "backend" | "fallback";
 
 function coordinatesMatch(left: RouteCoordinate[], right: RouteCoordinate[]) {
   return left.length === right.length
@@ -15,6 +16,7 @@ export function useRouteGeometry(fallback: RouteCoordinate[], routeId?: string |
   const [routeCoords, setRouteCoords] = useState<RouteCoordinate[]>(fallback);
   const [routeName, setRouteName] = useState<string | null>(null);
   const [version, setVersion] = useState<number | null>(null);
+  const [source, setSource] = useState<RouteSource>("fallback");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -51,6 +53,7 @@ export function useRouteGeometry(fallback: RouteCoordinate[], routeId?: string |
           setVersion(Number.isFinite(Number(body.data?.version?.number))
             ? Number(body.data.version.number)
             : null);
+          setSource("backend");
         }
       })
       .catch((error: unknown) => {
@@ -78,6 +81,7 @@ export function useRouteGeometry(fallback: RouteCoordinate[], routeId?: string |
       routeCoords,
       routeName,
       version,
+      source,
       routeBounds,
       mapBounds,
       mapBoundsArray: [
@@ -86,5 +90,5 @@ export function useRouteGeometry(fallback: RouteCoordinate[], routeId?: string |
       ] as [[number, number], [number, number]],
       center: [rawBounds.getCenter().lat, rawBounds.getCenter().lng] as L.LatLngTuple,
     };
-  }, [routeCoords, routeName, version]);
+  }, [routeCoords, routeName, source, version]);
 }

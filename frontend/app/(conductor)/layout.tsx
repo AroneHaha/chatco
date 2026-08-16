@@ -6,6 +6,7 @@ import ConductorBottomNav from "@/components/conductor/conductor-bottom-nav";
 import ConductorPaymentModal from "@/components/conductor/conductor-payment-modal";
 import ConductorLocationBroadcaster from "@/components/conductor/conductor-location-broadcaster";
 import MaintenanceGate from "@/components/shared/maintenance-gate";
+import ConductorConnectivityBanner from "@/components/conductor/conductor-connectivity-banner";
 
 export default function ConductorLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -26,6 +27,7 @@ export default function ConductorLayout({ children }: { children: React.ReactNod
 
       {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto relative">
+          {!isUnitVerification && <ConductorConnectivityBanner />}
           {children}
       </main>
 
