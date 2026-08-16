@@ -100,7 +100,7 @@ class TransactionService
      */
     public function recordCashFare(User $conductor, array $data): Transaction
     {
-        $shift = $this->resolveConductorActiveShift($conductor);
+        $shift = $this->resolveConductorShift($conductor, $data['shift_id'] ?? null);
 
         $paymentMethod = $data['payment_method'] ?? 'CASH';
 
@@ -318,7 +318,7 @@ class TransactionService
     /** Record one paid cash receipt per passenger under a shared payment group. */
     public function recordGroupedCashFare(User $conductor, array $data): PaymentGroup
     {
-        $shift = $this->resolveConductorActiveShift($conductor);
+        $shift = $this->resolveConductorShift($conductor, $data['shift_id'] ?? null);
         $idempotencyKey = $data['idempotency_key'] ?? null;
 
         if ($idempotencyKey) {
@@ -352,7 +352,7 @@ class TransactionService
 
     public function recordMultiPassengerCashFare(User $conductor, array $data): Transaction
     {
-        $shift = $this->resolveConductorActiveShift($conductor);
+        $shift = $this->resolveConductorShift($conductor, $data['shift_id'] ?? null);
         $idempotencyKey = $data['idempotency_key'] ?? null;
 
         if ($idempotencyKey) {
@@ -1294,6 +1294,15 @@ class TransactionService
         }
 
         return $shift;
+    }
+
+    /** Resolve an explicit originating shift for offline retries while still
+     * enforcing that it belongs to the authenticated conductor. */
+    private function resolveConductorShift(User $conductor, ?string $shiftId): ShiftLog
+    {
+        return $shiftId !== null
+            ? $this->verifyShiftOwnership($conductor, $shiftId)
+            : $this->resolveConductorActiveShift($conductor);
     }
 
     /**

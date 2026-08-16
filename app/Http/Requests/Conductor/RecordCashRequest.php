@@ -46,6 +46,9 @@ class RecordCashRequest extends FormRequest
             'pickup_stop_id' => 'nullable|uuid|exists:fare_points,id',
             'dropoff_stop_id' => 'nullable|uuid|exists:fare_points,id',
             'idempotency_key' => 'nullable|string|max:100',
+            // ShiftLog uses the existing string primary key; this is used by
+            // offline retries to target the originating shift safely.
+            'shift_id' => 'nullable|string|max:20',
             'voucher_code' => 'nullable|string|required_if:payment_method,VOUCHER|max:50',
             'passengers' => 'nullable|array|min:1|max:4|required_with:pickup_stop_id,dropoff_stop_id',
             'passengers.*.passenger_type' => 'required_with:passengers|string|in:REGULAR,STUDENT,SENIOR,SENIOR_CITIZEN,PWD',
