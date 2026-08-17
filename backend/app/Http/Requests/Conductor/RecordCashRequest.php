@@ -34,7 +34,9 @@ class RecordCashRequest extends FormRequest
     {
         return [
             'payment_method' => 'required|string|in:CASH,VOUCHER',
-            'final_amount' => 'required_without_all:passengers,group_passengers|nullable|numeric|min:0',
+            // Monetary fields remain accepted during the client rollout, but
+            // TransactionService always recalculates them from fare points.
+            'final_amount' => 'nullable|numeric|min:0',
             'pickup_name' => 'required_without:passengers|nullable|string|max:100',
             'dropoff_name' => 'required_without:passengers|nullable|string|max:100',
             'base_fare' => 'nullable|numeric|min:0',
@@ -42,7 +44,7 @@ class RecordCashRequest extends FormRequest
             'discount_amount' => 'nullable|numeric|min:0',
             'passenger_name' => 'nullable|string|max:100',
             'passenger_id' => 'nullable|uuid|exists:commuter_profiles,id',
-            'passenger_role' => 'nullable|string|max:20',
+            'passenger_role' => 'nullable|string|in:REGULAR,STUDENT,SENIOR,SENIOR_CITIZEN,PWD',
             'pickup_stop_id' => 'nullable|uuid|exists:fare_points,id',
             'dropoff_stop_id' => 'nullable|uuid|exists:fare_points,id',
             'idempotency_key' => 'nullable|string|max:100',
@@ -50,7 +52,7 @@ class RecordCashRequest extends FormRequest
             // offline retries to target the originating shift safely.
             'shift_id' => 'nullable|string|max:20',
             'voucher_code' => 'nullable|string|required_if:payment_method,VOUCHER|max:50',
-            'passengers' => 'nullable|array|min:1|max:4|required_with:pickup_stop_id,dropoff_stop_id',
+            'passengers' => 'nullable|array|min:1|max:4',
             'passengers.*.passenger_type' => 'required_with:passengers|string|in:REGULAR,STUDENT,SENIOR,SENIOR_CITIZEN,PWD',
             'passengers.*.quantity' => 'required_with:passengers|integer|min:1|max:50',
             'pickup_stop_id' => 'required_with:passengers|nullable|uuid|exists:fare_points,id',
@@ -58,7 +60,7 @@ class RecordCashRequest extends FormRequest
             'group_passengers' => 'nullable|array|min:1|max:50',
             'group_passengers.*.type' => 'required_with:group_passengers|string|in:REGULAR,SENIOR_CITIZEN,STUDENT,PWD',
             'group_passengers.*.quantity' => 'required_with:group_passengers|integer|min:1|max:50',
-            'group_passengers.*.final_amount' => 'required_with:group_passengers|numeric|min:0',
+            'group_passengers.*.final_amount' => 'nullable|numeric|min:0',
             'group_passengers.*.base_fare' => 'nullable|numeric|min:0',
             'group_passengers.*.discount_amount' => 'nullable|numeric|min:0',
         ];

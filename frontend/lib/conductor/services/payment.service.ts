@@ -145,19 +145,10 @@ export async function initiateGcash(input: {
       discountAmount: input.discountAmount,
       pickupStopId: input.pickupStopId,
       dropoffStopId: input.dropoffStopId,
-      groupPassengers: input.groupPassengers?.map((passenger) => {
-        const discounted = passenger.passenger_type !== "REGULAR";
-        const finalAmount = discounted
-          ? Math.max(0, (input.baseFare ?? input.finalAmount) - (input.discountAmount ?? 0))
-          : input.baseFare ?? input.finalAmount;
-        return {
-          type: passenger.passenger_type,
-          quantity: passenger.quantity,
-          final_amount: finalAmount,
-          base_fare: input.baseFare ?? finalAmount,
-          discount_amount: discounted ? input.discountAmount ?? 0 : 0,
-        };
-      }),
+      groupPassengers: input.groupPassengers?.map((passenger) => ({
+        type: passenger.passenger_type,
+        quantity: passenger.quantity,
+      })),
     }
   );
 

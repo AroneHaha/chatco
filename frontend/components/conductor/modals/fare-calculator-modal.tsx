@@ -330,6 +330,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
       passengerRole: effectiveCommuterType,
       from: selectedPointName(pickupPoint, pickupLandmark),
       to: selectedPointName(dropoffPoint, dropoffLandmark),
+      pickupStopId: pickupPoint.id,
+      dropoffStopId: dropoffPoint.id,
       distance: fareData.barangaysTraveled,
       baseFare: fareData.regularFare,
       succeedingKm: fareData.succeedingCount,
@@ -482,8 +484,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
         distance: barangaysTraveled,
         discountAmount: isGroupMode ? regularFare - apiGetFareBetween(pickupPoint.pointNumber, dropoffPoint.pointNumber, true) : 0,
         groupPassengers: isGroupMode ? groupPassengers : undefined,
-        pickupStopId: undefined,
-        dropoffStopId: undefined,
+        pickupStopId: pickupPoint.id,
+        dropoffStopId: dropoffPoint.id,
       });
 
       setGcashInitiation(initiation);
@@ -557,6 +559,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
           to: selectedPointName(dropoffPoint, dropoffLandmark),
           regularFare: fareInfo.regularFare,
           discountedFare: fareInfo.discountedFare,
+          pickupStopId: pickupPoint.id,
+          dropoffStopId: dropoffPoint.id,
           passengers: groupPassengers,
         });
         setReceiptTransactions(result.transactions);

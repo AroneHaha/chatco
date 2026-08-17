@@ -3,15 +3,17 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
-use App\Models\ConductorProfile;
 use App\Models\CommuterProfile;
+use App\Models\ConductorProfile;
 use App\Models\Driver;
+use App\Models\FarePoint;
 use App\Models\Route;
 use App\Models\ShiftLog;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -37,8 +39,14 @@ class GcashPendingResumeTest extends TestCase
     use RefreshDatabase;
 
     private User $conductor;
+
     private User $commuter;
+
     private ShiftLog $shift;
+
+    private FarePoint $pickup;
+
+    private FarePoint $dropoff;
 
     protected function setUp(): void
     {
@@ -67,6 +75,22 @@ class GcashPendingResumeTest extends TestCase
             'license_number' => 'DL-TEST-001', 'hire_date' => '2023-01-01', 'status' => 'ACTIVE',
         ]);
         $route = Route::create(['name' => 'Test Route', 'status' => 'ACTIVE', 'waypoints' => []]);
+        $this->pickup = FarePoint::create([
+            'route_id' => $route->id,
+            'point_number' => 1,
+            'code' => 'MEY',
+            'name' => 'Meycauayan',
+            'regular_fare' => 0,
+            'discounted_fare' => 0,
+        ]);
+        $this->dropoff = FarePoint::create([
+            'route_id' => $route->id,
+            'point_number' => 2,
+            'code' => 'CAL',
+            'name' => 'Calumpit',
+            'regular_fare' => 25,
+            'discounted_fare' => 20,
+        ]);
         $vehicle = Vehicle::create([
             'unit_number' => 'TEST-001', 'plate_number' => 'TEST-1234', 'route_id' => $route->id,
             'driver_id' => $driver->id, 'conductor_id' => $this->conductor->id, 'status' => 'ACTIVE',
@@ -79,15 +103,17 @@ class GcashPendingResumeTest extends TestCase
         ]);
     }
 
-    private function initiate(): \Illuminate\Testing\TestResponse
+    private function initiate(): TestResponse
     {
         Sanctum::actingAs($this->conductor);
 
         return $this->postJson('/api/v1/conductor/payments/gcash/initiate', [
             'payment_method' => 'GCASH',
-            'final_amount'   => 25.00,
-            'pickup_name'    => 'Meycauayan',
-            'dropoff_name'   => 'Calumpit',
+            'final_amount' => 25.00,
+            'pickup_stop_id' => $this->pickup->id,
+            'dropoff_stop_id' => $this->dropoff->id,
+            'pickup_name' => 'Meycauayan',
+            'dropoff_name' => 'Calumpit',
         ]);
     }
 
@@ -162,7 +188,7 @@ class GcashPendingResumeTest extends TestCase
 
         $this->assertDatabaseHas('transactions', [
             'transaction_id' => $id,
-            'status'         => 'EXPIRED',
+            'status' => 'EXPIRED',
         ]);
     }
 
@@ -181,7 +207,7 @@ class GcashPendingResumeTest extends TestCase
         // The stale one was lazily expired by the reuse check.
         $this->assertDatabaseHas('transactions', [
             'transaction_id' => $first->json('data.transaction_id'),
-            'status'         => 'EXPIRED',
+            'status' => 'EXPIRED',
         ]);
     }
 
@@ -197,7 +223,7 @@ class GcashPendingResumeTest extends TestCase
 
         $this->assertDatabaseHas('transactions', [
             'transaction_id' => $initiated->json('data.transaction_id'),
-            'status'         => 'EXPIRED',
+            'status' => 'EXPIRED',
         ]);
     }
 
@@ -214,7 +240,7 @@ class GcashPendingResumeTest extends TestCase
 
         $this->assertDatabaseHas('transactions', [
             'transaction_id' => $initiated->json('data.transaction_id'),
-            'status'         => 'EXPIRED',
+            'status' => 'EXPIRED',
         ]);
     }
 
@@ -241,7 +267,7 @@ class GcashPendingResumeTest extends TestCase
 
         $this->assertDatabaseHas('transactions', [
             'transaction_id' => $id,
-            'status'         => 'PAID',
+            'status' => 'PAID',
         ]);
     }
 

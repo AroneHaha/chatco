@@ -214,6 +214,8 @@ export async function createGroupCashTransaction(
     to: string;
     regularFare: number;
     discountedFare: number;
+    pickupStopId?: string;
+    dropoffStopId?: string;
     passengers: GroupPassengerInput[];
   }
 ): Promise<{
@@ -227,18 +229,13 @@ export async function createGroupCashTransaction(
     paymentMethod: "Cash",
     from: input.from,
     to: input.to,
+    pickupStopId: input.pickupStopId,
+    dropoffStopId: input.dropoffStopId,
     idempotencyKey,
-    groupPassengers: input.passengers.map((passenger) => {
-      const discounted = passenger.passenger_type !== "REGULAR";
-      const finalAmount = discounted ? input.discountedFare : input.regularFare;
-      return {
-        type: passenger.passenger_type,
-        quantity: passenger.quantity,
-        final_amount: finalAmount,
-        base_fare: input.regularFare,
-        discount_amount: input.regularFare - finalAmount,
-      };
-    }),
+    groupPassengers: input.passengers.map((passenger) => ({
+      type: passenger.passenger_type,
+      quantity: passenger.quantity,
+    })),
   };
 
   try {

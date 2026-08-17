@@ -9,6 +9,8 @@ export interface Transaction {
   passengerRole?: string;
   from: string;
   to: string;
+  pickupStopId?: string;
+  dropoffStopId?: string;
   distance: number;
   baseFare: number;
   succeedingKm: number;
