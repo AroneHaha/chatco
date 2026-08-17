@@ -46,6 +46,8 @@ class InitiateGcashRequest extends FormRequest
             'base_fare' => 'nullable|numeric|min:0',
             'distance' => 'nullable|numeric|min:0',
             'discount_amount' => 'nullable|numeric|min:0',
+            'device_id' => 'nullable|string|min:16|max:100|regex:/^[A-Za-z0-9._:-]+$/',
+            'device_type' => 'nullable|required_with:device_id|string|in:WEB,MOBILE',
             'passengers' => 'nullable|array|min:1|max:4',
             'passengers.*.passenger_type' => 'required_with:passengers|string|in:REGULAR,STUDENT,SENIOR,SENIOR_CITIZEN,PWD',
             'passengers.*.quantity' => 'required_with:passengers|integer|min:1|max:50',

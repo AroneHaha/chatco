@@ -192,6 +192,8 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->grou
     // 'maintenance' blocks starting a shift (conductor self-assignment) while
     // Maintenance Mode is on, so no assignment state is created mid-maintenance.
     Route::post('/shifts/start', [ConductorController::class, 'startShift'])->middleware(['maintenance', 'throttle:conductor-mutation']);
+    Route::post('/shifts/device/claim', [ConductorController::class, 'claimShiftDevice'])->middleware('throttle:conductor-mutation');
+    Route::post('/shifts/device/release', [ConductorController::class, 'releaseShiftDevice'])->middleware('throttle:conductor-mutation');
     Route::post('/remittances', [ConductorController::class, 'remittances'])->middleware('throttle:conductor-mutation');
 
     // Read — conductor's own submitted remittance history (Week 5).

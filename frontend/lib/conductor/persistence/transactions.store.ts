@@ -42,6 +42,11 @@ export interface PendingCashTransaction {
   payload: Record<string, unknown>;
   localTransactions: Transaction[];
   createdAt: number;
+  deviceId?: string;
+  offlineCreatedAt?: string;
+  attempts?: number;
+  lastAttemptAt?: number;
+  lastError?: string;
 }
 
 export interface PassengerBreakdown {
@@ -98,6 +103,16 @@ export function removePendingCashTransaction(id: string): void {
   const remaining = getPendingCashTransactions().filter((item) => item.id !== id);
   if (remaining.length) localStorage.setItem(PENDING_KEY, JSON.stringify(remaining));
   else localStorage.removeItem(PENDING_KEY);
+}
+
+export function updatePendingCashTransaction(
+  id: string,
+  update: Partial<PendingCashTransaction>
+): void {
+  const next = getPendingCashTransactions().map((item) =>
+    item.id === id ? { ...item, ...update } : item
+  );
+  localStorage.setItem(PENDING_KEY, JSON.stringify(next));
 }
 
 export function getShiftTransactions(shiftId: string): Transaction[] {

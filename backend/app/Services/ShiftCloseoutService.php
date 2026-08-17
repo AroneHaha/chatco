@@ -15,6 +15,7 @@ use App\Models\ShiftLog;
 use App\Models\Transaction;
 use App\Models\Vehicle;
 use App\Models\VehicleLocation;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -25,6 +26,8 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  */
 final class ShiftCloseoutService
 {
+    public function __construct(private ShiftDeviceService $shiftDeviceService) {}
+
     public const REASON_MANUAL = 'MANUAL';
 
     public const REASON_STALE = 'STALE';
@@ -43,8 +46,10 @@ final class ShiftCloseoutService
         ?float $remittedAmount,
         string $reason,
         ?string $expectedConductorId = null,
+        ?string $deviceId = null,
+        ?string $deviceType = null,
     ): ShiftLog {
-        return DB::transaction(function () use ($shiftId, $remittedAmount, $reason, $expectedConductorId) {
+        return DB::transaction(function () use ($shiftId, $remittedAmount, $reason, $expectedConductorId, $deviceId, $deviceType) {
             $shift = ShiftLog::query()
                 ->where('shift_id', $shiftId)
                 ->lockForUpdate()
@@ -52,6 +57,10 @@ final class ShiftCloseoutService
 
             if ($expectedConductorId !== null && $shift->conductor_id !== $expectedConductorId) {
                 abort(403, 'Forbidden');
+            }
+
+            if ($reason === self::REASON_MANUAL) {
+                $this->shiftDeviceService->assertCanOperate($shift, $deviceId, $deviceType);
             }
 
             $remittance = Remittance::query()
@@ -170,6 +179,41 @@ final class ShiftCloseoutService
         return $shift;
     }
 
+    /**
+     * Lock a shift for an offline cash replay. Active shifts remain normally
+     * writable. An automatically ended shift is recoverable only while its
+     * physical-cash remittance is unresolved and the local fare timestamp
+     * falls inside the original shift window.
+     */
+    public function lockOfflineCashShift(string $shiftId, \DateTimeInterface $occurredAt): ShiftLog
+    {
+        $shift = ShiftLog::query()->where('shift_id', $shiftId)->lockForUpdate()->first();
+        if (! $shift) {
+            abort(404, 'Shift not found');
+        }
+
+        if ($shift->status === ShiftStatus::ACTIVE && $shift->is_active) {
+            return $shift;
+        }
+
+        $remittance = Remittance::query()
+            ->where('shift_id', $shiftId)
+            ->lockForUpdate()
+            ->first();
+        if (! $remittance || $remittance->remittance_status !== Remittance::STATUS_PENDING) {
+            abort(409, 'This ended shift has already been remitted; its offline cash queue requires administrator review.');
+        }
+
+        $occurred = Carbon::instance($occurredAt);
+        if ($occurred->lt($shift->time_in->copy()->subMinutes(5))
+            || ! $shift->time_out
+            || $occurred->gt($shift->time_out->copy()->addMinutes(5))) {
+            abort(422, 'The offline fare timestamp is outside the originating shift.');
+        }
+
+        return $shift;
+    }
+
     /** Refresh record-only GCash totals after a legitimate late settlement. */
     public function refreshEndedShiftRemittance(string $shiftId): void
     {
@@ -185,8 +229,16 @@ final class ShiftCloseoutService
 
         $totals = $this->totalsForLockedShift($shiftId);
         $remittance->update([
+            'cash_total' => $totals['cash_total'],
+            'total_collected' => $totals['cash_total'],
             'gcash_total' => $totals['gcash_total'],
             'total_passengers' => $totals['total_passengers'],
+            'shortage' => $remittance->remittance_status === Remittance::STATUS_PENDING
+                ? $totals['cash_total']
+                : $remittance->shortage,
+            'overage' => $remittance->remittance_status === Remittance::STATUS_PENDING
+                ? 0
+                : $remittance->overage,
         ]);
     }
 

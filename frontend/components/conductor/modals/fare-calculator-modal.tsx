@@ -591,6 +591,10 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
   // The conductor enters the voucher code shown by the commuter. The backend
   // validates it + creates a PAID/VOUCHER transaction with final_amount=0.
   const handlePayWithVoucher = async () => {
+    if (!isOnline) {
+      setGcashError("Voucher validation requires an internet connection. Use cash while offline.");
+      return;
+    }
     if (!fareInfo || !pickupPoint || !dropoffPoint) return;
     if (!voucherCode.trim()) {
       setGcashError("Please enter the voucher code.");
@@ -829,7 +833,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
           <div className="p-5 space-y-3">
             {!isOnline && (
               <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-                Offline mode: cash fares are saved on this device and queued for synchronization. GCash is disabled.
+                Offline mode: cash fares are saved on this device and queued for synchronization. GCash and vouchers are disabled.
               </div>
             )}
             {/* Cash Option */}
@@ -884,11 +888,13 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
             {/* Voucher Option */}
             <button
+              disabled={!isOnline}
               onClick={() => {
+                if (!isOnline) return;
                 setSelectedMethod("Voucher");
                 setStep("select");
               }}
-              className="w-full text-left p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-violet-500/10 hover:border-violet-500/30 transition-all duration-200 group"
+              className={`w-full text-left p-4 rounded-xl border transition-all duration-200 group ${isOnline ? "border-white/10 bg-white/5 hover:bg-violet-500/10 hover:border-violet-500/30" : "border-amber-500/20 bg-amber-500/5 opacity-60 cursor-not-allowed"}`}
             >
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-violet-500/15 border border-violet-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-violet-500/25 transition-colors">

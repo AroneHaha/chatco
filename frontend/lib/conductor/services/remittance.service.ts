@@ -2,6 +2,7 @@ import { api, NetworkError } from "@/lib/api/client";
 import { CONDUCTOR_API } from "@/lib/conductor/endpoints";
 import { shouldUseConductorApi } from "@/lib/conductor/services/api-mode";
 import * as remittanceStore from "@/lib/conductor/persistence/remittance.store";
+import { CONDUCTOR_DEVICE_TYPE, getConductorDeviceId } from "@/lib/conductor/persistence/device.store";
 
 export type { RemittanceRecord } from "@/lib/conductor/persistence/remittance.store";
 
@@ -43,7 +44,11 @@ export async function submitRemittance(record: remittanceStore.RemittanceRecord)
   if (shouldUseConductorApi()) {
     const response = await api.post<{ data: remittanceStore.RemittanceRecord[] }>(
       CONDUCTOR_API.remittances.create,
-      record
+      {
+        ...record,
+        deviceId: getConductorDeviceId(),
+        deviceType: CONDUCTOR_DEVICE_TYPE,
+      }
     );
     return response.data ?? [record];
   }

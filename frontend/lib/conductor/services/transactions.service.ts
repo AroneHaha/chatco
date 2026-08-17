@@ -1,6 +1,7 @@
 import { api, NetworkError } from "@/lib/api/client";
 import { CONDUCTOR_API } from "@/lib/conductor/endpoints";
 import * as transactionsStore from "@/lib/conductor/persistence/transactions.store";
+import { CONDUCTOR_DEVICE_TYPE, getConductorDeviceId } from "@/lib/conductor/persistence/device.store";
 
 export type { Transaction } from "@/lib/conductor/persistence/transactions.store";
 export type { PaymentMethodType } from "@/types";
@@ -155,7 +156,9 @@ export async function createTransaction(
     typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const payload = { ...txn, shiftId, idempotencyKey };
+  const deviceId = getConductorDeviceId();
+  const actionCreatedAt = new Date().toISOString();
+  const payload = { ...txn, shiftId, idempotencyKey, deviceId, deviceType: CONDUCTOR_DEVICE_TYPE };
 
   try {
     // Fresh idempotency key per record-fare action. Lets the backend
@@ -189,9 +192,12 @@ export async function createTransaction(
         shiftId,
         kind: "single",
         idempotencyKey,
-        payload,
+        payload: { ...payload, offlineCreatedAt: actionCreatedAt },
         localTransactions: [saved],
         createdAt: Date.now(),
+        deviceId,
+        offlineCreatedAt: actionCreatedAt,
+        attempts: 0,
       });
       // saveTransaction already dispatches the event
       return saved;
@@ -224,6 +230,8 @@ export async function createGroupCashTransaction(
   transactions: transactionsStore.Transaction[];
 }> {
   const idempotencyKey = crypto.randomUUID();
+  const deviceId = getConductorDeviceId();
+  const actionCreatedAt = new Date().toISOString();
   const payload = {
     shiftId,
     paymentMethod: "Cash",
@@ -232,6 +240,8 @@ export async function createGroupCashTransaction(
     pickupStopId: input.pickupStopId,
     dropoffStopId: input.dropoffStopId,
     idempotencyKey,
+    deviceId,
+    deviceType: CONDUCTOR_DEVICE_TYPE,
     groupPassengers: input.passengers.map((passenger) => ({
       type: passenger.passenger_type,
       quantity: passenger.quantity,
@@ -291,9 +301,12 @@ export async function createGroupCashTransaction(
       shiftId,
       kind: "group",
       idempotencyKey,
-      payload,
+      payload: { ...payload, offlineCreatedAt: actionCreatedAt },
       localTransactions,
       createdAt: Date.now(),
+      deviceId,
+      offlineCreatedAt: actionCreatedAt,
+      attempts: 0,
     });
     return { groupId: `offline-${idempotencyKey}`, multiplePaymentReference: reference, transactions: localTransactions };
   }
@@ -302,13 +315,21 @@ export async function createGroupCashTransaction(
 /** Flush queued cash fares after connectivity returns. */
 export async function syncPendingTransactions(): Promise<number> {
   const pending = transactionsStore.getPendingCashTransactions();
+  const currentDeviceId = getConductorDeviceId();
   let synced = 0;
 
   for (const item of pending) {
     try {
+      if (item.deviceId && item.deviceId !== currentDeviceId) continue;
+      const retryPayload = {
+        ...item.payload,
+        deviceId: item.deviceId ?? currentDeviceId,
+        deviceType: CONDUCTOR_DEVICE_TYPE,
+        offlineCreatedAt: item.offlineCreatedAt ?? new Date(item.createdAt).toISOString(),
+      };
       const response = await api.post<{ data: { transactions?: transactionsStore.Transaction[] } | transactionsStore.Transaction }>(
         CONDUCTOR_API.transactions.create,
-        item.payload,
+        retryPayload,
       );
       const data = response.data;
       const serverTransactions = Array.isArray((data as { transactions?: unknown[] }).transactions)
@@ -320,7 +341,12 @@ export async function syncPendingTransactions(): Promise<number> {
       synced += serverTransactions.length;
     } catch (error) {
       if (error instanceof NetworkError) break;
-      // Keep invalid/closed-shift items queued for an explicit retry/recovery.
+      transactionsStore.updatePendingCashTransaction(item.id, {
+        attempts: (item.attempts ?? 0) + 1,
+        lastAttemptAt: Date.now(),
+        lastError: error instanceof Error ? error.message : "Synchronization failed.",
+      });
+      // Keep validation/terminal-remittance items for explicit recovery.
     }
   }
 

@@ -51,6 +51,9 @@ class RecordCashRequest extends FormRequest
             // ShiftLog uses the existing string primary key; this is used by
             // offline retries to target the originating shift safely.
             'shift_id' => 'nullable|string|max:20',
+            'device_id' => 'nullable|string|min:16|max:100|regex:/^[A-Za-z0-9._:-]+$/',
+            'device_type' => 'nullable|required_with:device_id|string|in:WEB,MOBILE',
+            'offline_created_at' => 'nullable|date',
             'voucher_code' => 'nullable|string|required_if:payment_method,VOUCHER|max:50',
             'passengers' => 'nullable|array|min:1|max:4',
             'passengers.*.passenger_type' => 'required_with:passengers|string|in:REGULAR,STUDENT,SENIOR,SENIOR_CITIZEN,PWD',

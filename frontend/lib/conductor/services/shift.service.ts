@@ -3,6 +3,7 @@ import { CONDUCTOR_API } from "@/lib/conductor/endpoints";
 import { shouldUseConductorApi } from "@/lib/conductor/services/api-mode";
 import * as shiftStore from "@/lib/conductor/persistence/shift.store";
 import type { ConductorShift } from "@/lib/conductor/persistence/shift.store";
+import { CONDUCTOR_DEVICE_TYPE, getConductorDeviceId } from "@/lib/conductor/persistence/device.store";
 
 export type { ConductorShift };
 
@@ -55,6 +56,8 @@ export async function startShift(data: {
     const response = await api.post<{ data: ConductorShift }>(
       CONDUCTOR_API.shifts.start,
       data
+        ? { ...data, deviceId: getConductorDeviceId(), deviceType: CONDUCTOR_DEVICE_TYPE }
+        : data
     );
     shiftStore.cacheShift(response.data);
     return response.data;
@@ -74,6 +77,31 @@ export async function startShift(data: {
   };
   shiftStore.cacheShift(shift);
   return shift;
+}
+
+export function isOperatingDevice(shift: ConductorShift | null): boolean {
+  if (!shift?.operatingDeviceId) return true;
+  return shift.operatingDeviceId === getConductorDeviceId();
+}
+
+export async function claimOperatingDevice(shiftId: string): Promise<ConductorShift> {
+  const response = await api.post<{ data: ConductorShift }>(CONDUCTOR_API.shifts.deviceClaim, {
+    shiftId,
+    deviceId: getConductorDeviceId(),
+    deviceType: CONDUCTOR_DEVICE_TYPE,
+  });
+  shiftStore.cacheShift(response.data);
+  return response.data;
+}
+
+export async function releaseOperatingDevice(shiftId: string): Promise<ConductorShift> {
+  const response = await api.post<{ data: ConductorShift }>(CONDUCTOR_API.shifts.deviceRelease, {
+    shiftId,
+    deviceId: getConductorDeviceId(),
+    deviceType: CONDUCTOR_DEVICE_TYPE,
+  });
+  shiftStore.cacheShift(response.data);
+  return response.data;
 }
 
 export async function endShift(): Promise<ConductorShift | null> {

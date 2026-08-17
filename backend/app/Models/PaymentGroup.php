@@ -14,7 +14,8 @@ class PaymentGroup extends Model
     protected $fillable = [
         'id', 'reference_number', 'shift_id', 'payment_method', 'pickup_name', 'dropoff_name',
         'passenger_breakdown', 'passenger_count', 'total_amount',
-        'payer_id', 'payer_name', 'idempotency_key',
+        'payer_id', 'payer_name', 'idempotency_key', 'source_device_id',
+        'offline_created_at', 'synced_at',
     ];
 
     protected function casts(): array
@@ -24,6 +25,8 @@ class PaymentGroup extends Model
             'passenger_breakdown' => 'array',
             'passenger_count' => 'integer',
             'total_amount' => 'decimal:2',
+            'offline_created_at' => 'datetime',
+            'synced_at' => 'datetime',
         ];
     }
 

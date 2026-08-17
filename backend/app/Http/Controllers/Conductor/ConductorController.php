@@ -6,6 +6,7 @@ use App\Http\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Conductor\InitiateGcashRequest;
 use App\Http\Requests\Conductor\RecordCashRequest;
+use App\Http\Requests\Conductor\ShiftDeviceRequest;
 use App\Http\Requests\Conductor\StartShiftRequest;
 use App\Http\Requests\Conductor\SubmitRemittanceRequest;
 use App\Http\Requests\Conductor\UpdateLocationRequest;
@@ -16,6 +17,7 @@ use App\Models\Vehicle;
 use App\Services\ConductorService;
 use App\Services\FeedbackService;
 use App\Services\LocationService;
+use App\Services\ShiftDeviceService;
 use App\Services\ShiftService;
 use App\Services\TransactionService;
 use Illuminate\Http\JsonResponse;
@@ -36,18 +38,22 @@ class ConductorController extends Controller
 
     protected FeedbackService $feedbackService;
 
+    protected ShiftDeviceService $shiftDeviceService;
+
     public function __construct(
         ShiftService $shiftService,
         LocationService $locationService,
         TransactionService $transactionService,
         ConductorService $conductorService,
-        FeedbackService $feedbackService
+        FeedbackService $feedbackService,
+        ShiftDeviceService $shiftDeviceService,
     ) {
         $this->shiftService = $shiftService;
         $this->locationService = $locationService;
         $this->transactionService = $transactionService;
         $this->conductorService = $conductorService;
         $this->feedbackService = $feedbackService;
+        $this->shiftDeviceService = $shiftDeviceService;
     }
 
     /**
@@ -76,6 +82,8 @@ class ConductorController extends Controller
             $validated['vehicle_id'],
             $validated['driver_id'],
             $validated['route_id'] ?? null,
+            $validated['device_id'] ?? null,
+            $validated['device_type'] ?? null,
         );
 
         return $this->successResponse(
@@ -98,12 +106,39 @@ class ConductorController extends Controller
             $validated['shift_id'],
             (float) $validated['total_collected'],
             (float) $validated['remitted_amount'],
+            $validated['device_id'] ?? null,
+            $validated['device_type'] ?? null,
         );
 
         return $this->successResponse(
             $shiftLog->load(['vehicle', 'driver', 'route', 'remittance']),
             'Shift ended via remittance',
         );
+    }
+
+    public function claimShiftDevice(ShiftDeviceRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+        $shift = $this->shiftDeviceService->claim(
+            $request->user(),
+            $validated['shift_id'],
+            $validated['device_id'],
+            $validated['device_type'],
+        );
+
+        return $this->successResponse($shift, 'This device can now operate the shift.');
+    }
+
+    public function releaseShiftDevice(ShiftDeviceRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+        $shift = $this->shiftDeviceService->release(
+            $request->user(),
+            $validated['shift_id'],
+            $validated['device_id'],
+        );
+
+        return $this->successResponse($shift, 'The shift is ready to be claimed by another device.');
     }
 
     /**

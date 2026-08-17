@@ -13,6 +13,7 @@ import { api } from "@/lib/api/client";
 import { CONDUCTOR_API } from "@/lib/conductor/endpoints";
 import type { Transaction } from "@/lib/conductor/persistence/transactions.store";
 import type { GroupPassengerInput } from "@/lib/conductor/services/transactions.service";
+import { CONDUCTOR_DEVICE_TYPE, getConductorDeviceId } from "@/lib/conductor/persistence/device.store";
 
 export type PaymentStatus =
   | "pending" | "processing" | "paid" | "failed" | "cancelled" | "expired" | "refunded";
@@ -149,6 +150,8 @@ export async function initiateGcash(input: {
         type: passenger.passenger_type,
         quantity: passenger.quantity,
       })),
+      deviceId: getConductorDeviceId(),
+      deviceType: CONDUCTOR_DEVICE_TYPE,
     }
   );
 

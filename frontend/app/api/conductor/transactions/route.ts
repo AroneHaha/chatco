@@ -123,6 +123,9 @@ export async function POST(request: NextRequest) {
       dropoff_stop_id: txnBody.dropoffStopId ?? txnBody.dropoff_stop_id ?? undefined,
       passengers: txnBody.passengers ?? undefined,
       group_passengers: txnBody.groupPassengers ?? txnBody.group_passengers ?? undefined,
+      device_id: txnBody.deviceId ?? txnBody.device_id ?? undefined,
+      device_type: txnBody.deviceType ?? txnBody.device_type ?? undefined,
+      offline_created_at: txnBody.offlineCreatedAt ?? txnBody.offline_created_at ?? undefined,
     };
 
     const result = await proxyToLaravel(request, "/conductor/transactions", {

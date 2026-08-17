@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\PassengerType;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
+use App\Enums\ShiftStatus;
 use App\Models\CommuterProfile;
 use App\Models\FarePoint;
 use App\Models\PaymentGroup;
@@ -17,6 +18,7 @@ use App\Support\Payments\PaymentGatewayException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -56,6 +58,7 @@ class TransactionService
         private FareCalculationService $fareCalculationService,
         private RewardService $rewardService,
         private ShiftCloseoutService $shiftCloseoutService,
+        private ShiftDeviceService $shiftDeviceService,
     ) {}
 
     /**
@@ -158,8 +161,9 @@ class TransactionService
             $passengerName,
             $passengerId,
             $passengerRole,
+            $data,
         ): Transaction {
-            $shift = $this->shiftCloseoutService->lockActiveShift($shift->shift_id);
+            $shift = $this->lockCashShiftForRequest($shift, $data);
             $paidAt = now();
             $transaction = Transaction::create([
                 'transaction_id' => $this->generateTransactionId(),
@@ -187,11 +191,14 @@ class TransactionService
                 'pickup_stop_id' => $fare['pickup']->id,
                 'dropoff_stop_id' => $fare['dropoff']->id,
                 'paid_at' => $paidAt,
+                ...$this->deviceMetadata($data),
             ]);
 
             if ($passengerId !== null) {
                 $this->rewardService->issueForRewardableRide($transaction, $paidAt);
             }
+
+            $this->refreshRecoveredShift($shift);
 
             return $transaction;
         }, 3);
@@ -217,6 +224,11 @@ class TransactionService
         try {
             $transaction = DB::transaction(function () use ($shift, $data, $voucherCode, $expectedCommuterId, $idempotencyKey): ?Transaction {
                 $shift = $this->shiftCloseoutService->lockActiveShift($shift->shift_id);
+                $this->shiftDeviceService->assertCanOperate(
+                    $shift,
+                    $data['device_id'] ?? null,
+                    $data['device_type'] ?? null,
+                );
                 $voucher = Voucher::where('code', $voucherCode)
                     ->lockForUpdate()
                     ->first();
@@ -311,6 +323,7 @@ class TransactionService
                     'pickup_stop_id' => $fare['pickup']->id,
                     'dropoff_stop_id' => $fare['dropoff']->id,
                     'paid_at' => now(),
+                    ...$this->deviceMetadata($data),
                 ]);
             }, 3);
 
@@ -350,8 +363,8 @@ class TransactionService
         );
         $breakdown = $this->authoritativeGroupBreakdown($fare);
 
-        return DB::transaction(function () use ($shift, $fare, $breakdown, $idempotencyKey) {
-            $shift = $this->shiftCloseoutService->lockActiveShift($shift->shift_id);
+        return DB::transaction(function () use ($shift, $fare, $breakdown, $idempotencyKey, $data) {
+            $shift = $this->lockCashShiftForRequest($shift, $data);
             $passengers = $this->expandGroupPassengers($breakdown);
             $group = PaymentGroup::create([
                 'id' => (string) Str::uuid(),
@@ -364,6 +377,7 @@ class TransactionService
                 'passenger_count' => count($passengers),
                 'total_amount' => $fare['final_amount'],
                 'idempotency_key' => $idempotencyKey,
+                ...$this->deviceMetadata($data),
             ]);
 
             $this->createGroupReceiptRows(
@@ -374,7 +388,10 @@ class TransactionService
                 PaymentStatus::PAID,
                 $fare['pickup']->id,
                 $fare['dropoff']->id,
+                $this->deviceMetadata($data),
             );
+
+            $this->refreshRecoveredShift($shift);
 
             return $group->load('transactions');
         }, 3);
@@ -400,8 +417,8 @@ class TransactionService
             $shift->route_id,
         );
 
-        return DB::transaction(function () use ($shift, $fare, $idempotencyKey) {
-            $shift = $this->shiftCloseoutService->lockActiveShift($shift->shift_id);
+        return DB::transaction(function () use ($shift, $fare, $idempotencyKey, $data) {
+            $shift = $this->lockCashShiftForRequest($shift, $data);
             $transaction = Transaction::create([
                 'transaction_id' => $this->generateTransactionId(),
                 'shift_id' => $shift->shift_id,
@@ -423,8 +440,11 @@ class TransactionService
                 'unit_number' => $shift->unit_number,
                 'driver_name' => $shift->driver_name,
                 'paid_at' => now(),
+                ...$this->deviceMetadata($data),
             ]);
             $transaction->passengerBreakdown()->createMany($fare['lines']);
+
+            $this->refreshRecoveredShift($shift);
 
             return $transaction->load('passengerBreakdown');
         }, 3);
@@ -461,6 +481,15 @@ class TransactionService
     {
         $shift = $this->resolveConductorActiveShift($conductor);
 
+        DB::transaction(function () use ($shift, $data): void {
+            $locked = $this->shiftCloseoutService->lockActiveShift($shift->shift_id);
+            $this->shiftDeviceService->assertCanOperate(
+                $locked,
+                $data['device_id'] ?? null,
+                $data['device_type'] ?? null,
+            );
+        }, 3);
+
         // One pending GCash payment per shift: if a still-fresh PENDING
         // transaction exists (e.g. the conductor navigated away mid-payment
         // and came back), return it instead of minting a duplicate QR. Stale
@@ -493,8 +522,9 @@ class TransactionService
 
         // Persist the PENDING transaction first so its id can be sent to the
         // gateway as correlation metadata.
-        $transaction = DB::transaction(function () use ($shift, $fare, $fareLine, $finalAmount, $qrToken) {
+        $transaction = DB::transaction(function () use ($shift, $fare, $fareLine, $finalAmount, $qrToken, $data) {
             $shift = $this->shiftCloseoutService->lockActiveShift($shift->shift_id);
+            $this->shiftDeviceService->assertCanOperate($shift, $data['device_id'] ?? null, $data['device_type'] ?? null);
 
             return Transaction::create([
                 'transaction_id' => $this->generateTransactionId(),
@@ -517,6 +547,7 @@ class TransactionService
                 'dropoff_stop_id' => $fare['dropoff']->id,
                 'qr_token' => $qrToken,
                 'payment_provider' => $this->paymentService->gatewayName(),
+                ...$this->deviceMetadata($data),
             ]);
         }, 3);
 
@@ -554,8 +585,9 @@ class TransactionService
             $shift->route_id,
         );
         $qrToken = Str::random(32);
-        $transaction = DB::transaction(function () use ($shift, $fare, $qrToken) {
+        $transaction = DB::transaction(function () use ($shift, $fare, $qrToken, $data) {
             $shift = $this->shiftCloseoutService->lockActiveShift($shift->shift_id);
+            $this->shiftDeviceService->assertCanOperate($shift, $data['device_id'] ?? null, $data['device_type'] ?? null);
             $transaction = Transaction::create([
                 'transaction_id' => $this->generateTransactionId(),
                 'shift_id' => $shift->shift_id,
@@ -576,6 +608,7 @@ class TransactionService
                 'unit_number' => $shift->unit_number,
                 'driver_name' => $shift->driver_name,
                 'payment_provider' => $this->paymentService->gatewayName(),
+                ...$this->deviceMetadata($data),
             ]);
             $transaction->passengerBreakdown()->createMany($fare['lines']);
 
@@ -706,8 +739,9 @@ class TransactionService
             ],
         ], $companions);
 
-        $group = DB::transaction(function () use ($shift, $fare, $breakdown, $companions, $receiptRows) {
+        $group = DB::transaction(function () use ($shift, $fare, $breakdown, $companions, $receiptRows, $data) {
             $shift = $this->shiftCloseoutService->lockActiveShift($shift->shift_id);
+            $this->shiftDeviceService->assertCanOperate($shift, $data['device_id'] ?? null, $data['device_type'] ?? null);
             $group = PaymentGroup::create([
                 'id' => (string) Str::uuid(),
                 'reference_number' => $this->generateMultiplePaymentReference(),
@@ -718,6 +752,7 @@ class TransactionService
                 'passenger_breakdown' => $breakdown,
                 'passenger_count' => count($companions),
                 'total_amount' => $fare['final_amount'],
+                ...$this->deviceMetadata($data),
             ]);
 
             $this->createGroupReceiptRows(
@@ -728,6 +763,7 @@ class TransactionService
                 PaymentStatus::PENDING,
                 $fare['pickup']->id,
                 $fare['dropoff']->id,
+                $this->deviceMetadata($data),
             );
 
             return $group->load('transactions');
@@ -782,6 +818,7 @@ class TransactionService
         PaymentStatus $status,
         string $pickupStopId,
         string $dropoffStopId,
+        array $deviceMetadata = [],
     ): void {
         $totalPassengers = count($passengers);
         foreach ($passengers as $position => $passenger) {
@@ -811,6 +848,7 @@ class TransactionService
                 'driver_name' => $shift->driver_name,
                 'payment_provider' => $method === PaymentMethod::GCASH ? $this->paymentService->gatewayName() : null,
                 'paid_at' => $status === PaymentStatus::PAID ? now() : null,
+                ...$deviceMetadata,
             ]);
         }
     }
@@ -1449,6 +1487,49 @@ class TransactionService
         }
 
         return $type === PassengerType::SENIOR ? 'SENIOR_CITIZEN' : $type->value;
+    }
+
+    /**
+     * Lock the original shift and enforce its operating-device claim. Normal
+     * online writes require an ACTIVE shift. A queued offline cash write may
+     * additionally recover into an automatically closed shift whose physical
+     * remittance is still PENDING.
+     */
+    private function lockCashShiftForRequest(ShiftLog $shift, array $data): ShiftLog
+    {
+        $offlineCreatedAt = isset($data['offline_created_at'])
+            ? Carbon::parse($data['offline_created_at'])
+            : null;
+        $locked = $offlineCreatedAt
+            ? $this->shiftCloseoutService->lockOfflineCashShift($shift->shift_id, $offlineCreatedAt)
+            : $this->shiftCloseoutService->lockActiveShift($shift->shift_id);
+
+        $this->shiftDeviceService->assertCanOperate(
+            $locked,
+            $data['device_id'] ?? null,
+            $data['device_type'] ?? null,
+        );
+
+        return $locked;
+    }
+
+    /** @return array{source_device_id: string|null, offline_created_at: string|null, synced_at: Carbon|null} */
+    private function deviceMetadata(array $data): array
+    {
+        $offlineCreatedAt = $data['offline_created_at'] ?? null;
+
+        return [
+            'source_device_id' => $data['device_id'] ?? null,
+            'offline_created_at' => $offlineCreatedAt,
+            'synced_at' => $offlineCreatedAt !== null ? now() : null,
+        ];
+    }
+
+    private function refreshRecoveredShift(ShiftLog $shift): void
+    {
+        if ($shift->status !== ShiftStatus::ACTIVE) {
+            $this->shiftCloseoutService->refreshEndedShiftRemittance($shift->shift_id);
+        }
     }
 
     /** Resolve an explicit originating shift for offline retries while still
