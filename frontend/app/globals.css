@@ -43,6 +43,12 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-poppins);
   --font-mono: var(--font-geist-mono);
+
+  /* Editorial pairing, scoped to the public landing page only (applied via
+     the font-loader variables on app/page.tsx's <main>) — the rest of the
+     product (admin, conductor, commuter app) stays on Poppins. */
+  --font-editorial-serif: var(--font-erode);
+  --font-editorial-sans: var(--font-general-sans);
 }
 
 @media (prefers-color-scheme: dark) {

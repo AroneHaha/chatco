@@ -6,7 +6,7 @@ export default function Footer({ compact = false }: { compact?: boolean }) {
   if (compact) {
     return (
       <footer className="bg-[#071A2E] border-t border-white/5">
-        <div className="max-w-7xl mx-auto px-5 md:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-white/30">
+        <div className="max-w-7xl mx-auto px-5 md:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-[10px] text-white/30">
           <span>&copy; {new Date().getFullYear()} CHATCO. All rights reserved.</span>
           <span>Built for Philippine jeepney transport</span>
         </div>
@@ -44,7 +44,7 @@ export default function Footer({ compact = false }: { compact?: boolean }) {
               <li><a href="#features" className="hover:text-white transition-colors">Commuter App</a></li>
               <li><a href="#platform" className="hover:text-white transition-colors">Conductor App</a></li>
               <li><a href="#platform" className="hover:text-white transition-colors">Admin Portal</a></li>
-              <li><a href="#commuter-demand-heatmap" className="hover:text-white transition-colors">Demand Heatmap</a></li>
+              <li><a href="#smart-hailing" className="hover:text-white transition-colors">Smart Hailing</a></li>
             </ul>
           </div>
 
