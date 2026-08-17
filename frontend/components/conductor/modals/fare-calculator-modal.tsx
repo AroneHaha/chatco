@@ -37,6 +37,7 @@ import {
   type PaymentStatus as GcashPaymentStatus,
 } from "@/lib/conductor/services/payment.service";
 import type { PaymentMethodType } from "@/types";
+import { useConductorConnectivity } from "@/app/(conductor)/hooks/use-conductor-connectivity";
 
 interface FareCalcModalProps {
   isOpen: boolean;
@@ -70,6 +71,7 @@ function selectedPointName(point: PointArea, subPoint: string | null): string {
 }
 
 export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, conductorName, unitNumber, driverName }: FareCalcModalProps) {
+  const isOnline = useConductorConnectivity();
   const [step, setStep] = useState<Step>("method");
   const [selectedMethod, setSelectedMethod] = useState<SelectedPaymentMethod | null>(null);
   const [pointAreas, setPointAreas] = useState<PointArea[]>(() => getPointAreas());
@@ -328,6 +330,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
       passengerRole: effectiveCommuterType,
       from: selectedPointName(pickupPoint, pickupLandmark),
       to: selectedPointName(dropoffPoint, dropoffLandmark),
+      pickupStopId: pickupPoint.id,
+      dropoffStopId: dropoffPoint.id,
       distance: fareData.barangaysTraveled,
       baseFare: fareData.regularFare,
       succeedingKm: fareData.succeedingCount,
@@ -452,6 +456,10 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
   // transaction + qr_token + PayMongo checkout URL. We then move to the
   // qr_code step to display the qr_token for the commuter to scan.
   const handleInitiateGcash = async () => {
+    if (!isOnline) {
+      setGcashError("GCash is unavailable while offline. Use cash and it will sync when you reconnect.");
+      return;
+    }
     if (!pickupPoint || !dropoffPoint) return;
 
     setIsInitiatingGcash(true);
@@ -476,8 +484,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
         distance: barangaysTraveled,
         discountAmount: isGroupMode ? regularFare - apiGetFareBetween(pickupPoint.pointNumber, dropoffPoint.pointNumber, true) : 0,
         groupPassengers: isGroupMode ? groupPassengers : undefined,
-        pickupStopId: undefined,
-        dropoffStopId: undefined,
+        pickupStopId: pickupPoint.id,
+        dropoffStopId: dropoffPoint.id,
       });
 
       setGcashInitiation(initiation);
@@ -551,6 +559,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
           to: selectedPointName(dropoffPoint, dropoffLandmark),
           regularFare: fareInfo.regularFare,
           discountedFare: fareInfo.discountedFare,
+          pickupStopId: pickupPoint.id,
+          dropoffStopId: dropoffPoint.id,
           passengers: groupPassengers,
         });
         setReceiptTransactions(result.transactions);
@@ -581,6 +591,10 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
   // The conductor enters the voucher code shown by the commuter. The backend
   // validates it + creates a PAID/VOUCHER transaction with final_amount=0.
   const handlePayWithVoucher = async () => {
+    if (!isOnline) {
+      setGcashError("Voucher validation requires an internet connection. Use cash while offline.");
+      return;
+    }
     if (!fareInfo || !pickupPoint || !dropoffPoint) return;
     if (!voucherCode.trim()) {
       setGcashError("Please enter the voucher code.");
@@ -817,6 +831,11 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
           {/* Method Options */}
           <div className="p-5 space-y-3">
+            {!isOnline && (
+              <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                Offline mode: cash fares are saved on this device and queued for synchronization. GCash and vouchers are disabled.
+              </div>
+            )}
             {/* Cash Option */}
             <button
               onClick={() => {
@@ -843,11 +862,13 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
             {/* GCash Option */}
             <button
+              disabled={!isOnline}
               onClick={() => {
+                if (!isOnline) return;
                 setSelectedMethod("GCash");
                 setStep("select");
               }}
-              className="w-full text-left p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-blue-500/10 hover:border-blue-500/30 transition-all duration-200 group"
+              className={`w-full text-left p-4 rounded-xl border transition-all duration-200 group ${isOnline ? "border-white/10 bg-white/5 hover:bg-blue-500/10 hover:border-blue-500/30" : "border-amber-500/20 bg-amber-500/5 opacity-60 cursor-not-allowed"}`}
             >
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-blue-500/15 border border-blue-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-blue-500/25 transition-colors">
@@ -857,7 +878,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-white font-bold text-sm group-hover:text-blue-300 transition-colors">GCash Payment</h3>
-                  <p className="text-[11px] text-white/40 mt-0.5 leading-relaxed">Digital payment via GCash — commuter scans QR to pay from their account</p>
+                   <p className="text-[11px] text-white/40 mt-0.5 leading-relaxed">{isOnline ? "Digital payment via GCash — commuter scans QR to pay from their account" : "Unavailable offline. Reconnect to generate a payment QR."}</p>
                 </div>
                 <svg className="w-5 h-5 text-white/20 group-hover:text-blue-400 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
@@ -867,11 +888,13 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
             {/* Voucher Option */}
             <button
+              disabled={!isOnline}
               onClick={() => {
+                if (!isOnline) return;
                 setSelectedMethod("Voucher");
                 setStep("select");
               }}
-              className="w-full text-left p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-violet-500/10 hover:border-violet-500/30 transition-all duration-200 group"
+              className={`w-full text-left p-4 rounded-xl border transition-all duration-200 group ${isOnline ? "border-white/10 bg-white/5 hover:bg-violet-500/10 hover:border-violet-500/30" : "border-amber-500/20 bg-amber-500/5 opacity-60 cursor-not-allowed"}`}
             >
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-violet-500/15 border border-violet-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-violet-500/25 transition-colors">

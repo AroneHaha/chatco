@@ -113,6 +113,30 @@ class TransactionFlowTest extends TestCase
             'license_number' => 'DL-TEST-001', 'hire_date' => '2023-01-01', 'status' => 'ACTIVE',
         ]);
         $route = Route::create(['name' => 'Test Route', 'status' => 'ACTIVE', 'waypoints' => []]);
+        foreach ([
+            [1, 'CAL', 'Calumpit', 0, 0, ['Calumpit Sub Area']],
+            [2, 'BUS', 'Bustos', 15, 12, ['Bustos Sub Area']],
+            [3, 'PUL', 'Pulilan', 100, 100, []],
+            [4, 'PLA', 'Plaridel', 125, 120, []],
+            [5, 'A01', 'A', 200, 200, []],
+            [6, 'B01', 'B', 215, 212, []],
+            [7, 'C01', 'C', 300, 300, []],
+            [8, 'D01', 'D', 320, 316, []],
+            [9, 'E01', 'E', 400, 400, []],
+            [10, 'F01', 'F', 410, 408, []],
+            [11, 'LGA', 'Legacy A', 500, 500, []],
+            [12, 'LGB', 'Legacy B', 515, 512, []],
+        ] as [$number, $code, $name, $regular, $discounted, $subStops]) {
+            FarePoint::create([
+                'route_id' => $route->id,
+                'point_number' => $number,
+                'code' => $code,
+                'name' => $name,
+                'sub_stops' => $subStops,
+                'regular_fare' => $regular,
+                'discounted_fare' => $discounted,
+            ]);
+        }
 
         $this->vehicle = Vehicle::create([
             'unit_number' => 'TEST-001', 'plate_number' => 'TEST-1234', 'route_id' => $route->id,
@@ -141,18 +165,200 @@ class TransactionFlowTest extends TestCase
 
     // ─── 1. Cash Recording ──────────────────────────────────────────
 
-    public function test_cash_fare_persists_as_paid_with_null_fare_point_ids(): void
+    public function test_cash_fare_uses_authoritative_matrix_amount_and_fare_point_ids(): void
     {
         $txn = app(TransactionService::class)->recordCashFare($this->conductor, [
-            'final_amount' => 15.00, 'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+            'final_amount' => 1.00, 'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
         ]);
 
         $this->assertSame(PaymentMethod::CASH, $txn->payment_method);
         $this->assertSame(PaymentStatus::PAID, $txn->status);
-        $this->assertNull($txn->pickup_stop_id);
-        $this->assertNull($txn->dropoff_stop_id);
+        $this->assertNotNull($txn->pickup_stop_id);
+        $this->assertNotNull($txn->dropoff_stop_id);
         $this->assertNotNull($txn->paid_at);
         $this->assertSame(15.00, (float) $txn->final_amount);
+    }
+
+    public function test_cash_endpoint_ignores_tampered_amounts_and_validates_sub_area(): void
+    {
+        $pickup = FarePoint::where('name', 'Calumpit')->firstOrFail();
+        $dropoff = FarePoint::where('name', 'Bustos')->firstOrFail();
+        Sanctum::actingAs($this->conductor);
+
+        $response = $this->postJson('/api/v1/conductor/transactions', [
+            'payment_method' => 'CASH',
+            'final_amount' => 1,
+            'base_fare' => 1,
+            'discount_amount' => 0,
+            'pickup_stop_id' => $pickup->id,
+            'dropoff_stop_id' => $dropoff->id,
+            'pickup_name' => 'Calumpit · Calumpit Sub Area',
+            'dropoff_name' => 'Bustos · Bustos Sub Area',
+            'passenger_role' => 'STUDENT',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.final_amount', '12.00')
+            ->assertJsonPath('data.base_fare', '15.00')
+            ->assertJsonPath('data.discount_amount', '3.00')
+            ->assertJsonPath('data.pickup_name', 'Calumpit · Calumpit Sub Area')
+            ->assertJsonPath('data.dropoff_name', 'Bustos · Bustos Sub Area');
+    }
+
+    public function test_bound_cash_commuter_type_overrides_client_discount_claim(): void
+    {
+        $this->commuter1->commuterProfile->update(['commuter_type' => 'STUDENT']);
+        $pickup = FarePoint::where('name', 'Calumpit')->firstOrFail();
+        $dropoff = FarePoint::where('name', 'Bustos')->firstOrFail();
+        Sanctum::actingAs($this->conductor);
+
+        $this->postJson('/api/v1/conductor/transactions', [
+            'payment_method' => 'CASH',
+            'pickup_stop_id' => $pickup->id,
+            'dropoff_stop_id' => $dropoff->id,
+            'pickup_name' => $pickup->name,
+            'dropoff_name' => $dropoff->name,
+            'passenger_id' => $this->commuter1->commuterProfile->id,
+            'passenger_role' => 'REGULAR',
+        ])->assertCreated()
+            ->assertJsonPath('data.final_amount', '12.00')
+            ->assertJsonPath('data.passenger_role', 'STUDENT');
+    }
+
+    public function test_group_cash_endpoint_recalculates_every_passenger_amount(): void
+    {
+        $pickup = FarePoint::where('name', 'Calumpit')->firstOrFail();
+        $dropoff = FarePoint::where('name', 'Bustos')->firstOrFail();
+        Sanctum::actingAs($this->conductor);
+
+        $this->postJson('/api/v1/conductor/transactions', [
+            'payment_method' => 'CASH',
+            'pickup_stop_id' => $pickup->id,
+            'dropoff_stop_id' => $dropoff->id,
+            'pickup_name' => $pickup->name,
+            'dropoff_name' => $dropoff->name,
+            'group_passengers' => [
+                ['type' => 'REGULAR', 'quantity' => 2],
+                ['type' => 'PWD', 'quantity' => 1, 'final_amount' => 99, 'base_fare' => 99],
+            ],
+        ])->assertCreated()
+            ->assertJsonPath('data.total_amount', 42)
+            ->assertJsonPath('data.passenger_count', 3)
+            ->assertJsonPath('data.transactions.0.final_amount', '15.00')
+            ->assertJsonPath('data.transactions.2.final_amount', '12.00');
+    }
+
+    public function test_gcash_endpoint_recalculates_single_and_group_amounts(): void
+    {
+        config(['payments.gateways.paymongo.secret' => null]);
+        $this->forgetGateway();
+        $pickup = FarePoint::where('name', 'Calumpit')->firstOrFail();
+        $dropoff = FarePoint::where('name', 'Bustos')->firstOrFail();
+        Sanctum::actingAs($this->conductor);
+
+        $this->postJson('/api/v1/conductor/payments/gcash/initiate', [
+            'payment_method' => 'GCASH',
+            'final_amount' => 1,
+            'pickup_stop_id' => $pickup->id,
+            'dropoff_stop_id' => $dropoff->id,
+            'pickup_name' => $pickup->name,
+            'dropoff_name' => $dropoff->name,
+        ])->assertCreated()
+            ->assertJsonPath('data.amount', 15);
+
+        // Release the one-pending-payment slot before creating the grouped QR.
+        Transaction::query()->update(['status' => PaymentStatus::CANCELLED->value]);
+
+        $this->postJson('/api/v1/conductor/payments/gcash/initiate', [
+            'payment_method' => 'GCASH',
+            'pickup_stop_id' => $pickup->id,
+            'dropoff_stop_id' => $dropoff->id,
+            'pickup_name' => $pickup->name,
+            'dropoff_name' => $dropoff->name,
+            'group_passengers' => [
+                ['type' => 'REGULAR', 'quantity' => 2],
+                ['type' => 'PWD', 'quantity' => 1, 'final_amount' => 99],
+            ],
+        ])->assertCreated()
+            ->assertJsonPath('data.amount', 42);
+    }
+
+    public function test_server_rejects_wrong_sub_area_and_cross_route_points(): void
+    {
+        $pickup = FarePoint::where('name', 'Calumpit')->firstOrFail();
+        $dropoff = FarePoint::where('name', 'Bustos')->firstOrFail();
+        Sanctum::actingAs($this->conductor);
+
+        $this->postJson('/api/v1/conductor/transactions', [
+            'payment_method' => 'CASH',
+            'pickup_stop_id' => $pickup->id,
+            'dropoff_stop_id' => $dropoff->id,
+            'pickup_name' => 'Not a Calumpit sub-area',
+            'dropoff_name' => $dropoff->name,
+        ])->assertStatus(422);
+
+        $otherRoute = Route::create(['name' => 'Other Route', 'status' => 'ACTIVE', 'waypoints' => []]);
+        $otherPoint = FarePoint::create([
+            'route_id' => $otherRoute->id,
+            'point_number' => 1,
+            'code' => 'OTH',
+            'name' => 'Other Point',
+            'regular_fare' => 15,
+            'discounted_fare' => 12,
+        ]);
+
+        $this->postJson('/api/v1/conductor/transactions', [
+            'payment_method' => 'CASH',
+            'pickup_stop_id' => $pickup->id,
+            'dropoff_stop_id' => $otherPoint->id,
+            'pickup_name' => $pickup->name,
+            'dropoff_name' => $otherPoint->name,
+        ])->assertStatus(422);
+    }
+
+    public function test_voucher_ride_ignores_client_amounts_and_uses_server_fare_snapshot(): void
+    {
+        $voucher = $this->createRewardVoucher($this->commuter1);
+        $pickup = FarePoint::where('name', 'Calumpit')->firstOrFail();
+        $dropoff = FarePoint::where('name', 'Bustos')->firstOrFail();
+        Sanctum::actingAs($this->conductor);
+
+        $this->postJson('/api/v1/conductor/transactions', [
+            'payment_method' => 'VOUCHER',
+            'final_amount' => 999,
+            'base_fare' => 999,
+            'discount_amount' => 0,
+            'pickup_stop_id' => $pickup->id,
+            'dropoff_stop_id' => $dropoff->id,
+            'pickup_name' => $pickup->name,
+            'dropoff_name' => $dropoff->name,
+            'voucher_code' => $voucher->code,
+            'passenger_id' => $this->commuter1->commuterProfile->id,
+        ])->assertCreated()
+            ->assertJsonPath('data.final_amount', '0.00')
+            ->assertJsonPath('data.base_fare', '15.00')
+            ->assertJsonPath('data.discount_amount', '15.00');
+    }
+
+    public function test_offline_retry_can_target_owned_originating_shift_only(): void
+    {
+        $svc = app(TransactionService::class);
+
+        $txn = $svc->recordCashFare($this->conductor, [
+            'shift_id' => $this->shift->shift_id,
+            'final_amount' => 15.00,
+            'pickup_name' => 'Calumpit',
+            'dropoff_name' => 'Bustos',
+        ]);
+
+        $this->assertSame($this->shift->shift_id, $txn->shift_id);
+
+        $this->assertAbort(403, fn () => $svc->recordCashFare($this->conductor, [
+            'shift_id' => $this->shift2->shift_id,
+            'final_amount' => 15.00,
+            'pickup_name' => 'Calumpit',
+            'dropoff_name' => 'Bustos',
+        ]));
     }
 
     public function test_cash_fare_appears_in_get_shift_transactions(): void
@@ -234,7 +440,9 @@ class TransactionFlowTest extends TestCase
             'category' => 'financial',
         ]);
         $svc = app(TransactionService::class);
-        $txn = $svc->recordCashFare($this->conductor, ['final_amount' => 15.00]);
+        $txn = $svc->recordCashFare($this->conductor, [
+            'final_amount' => 15.00, 'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+        ]);
 
         $svc->claimCashReceipt($this->commuter1, $txn->qr_token);
         $second = $svc->claimCashReceipt($this->commuter1, $txn->qr_token);
@@ -247,7 +455,9 @@ class TransactionFlowTest extends TestCase
     public function test_receipt_claim_rejects_a_second_commuter_with_409(): void
     {
         $svc = app(TransactionService::class);
-        $txn = $svc->recordCashFare($this->conductor, ['final_amount' => 15.00]);
+        $txn = $svc->recordCashFare($this->conductor, [
+            'final_amount' => 15.00, 'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+        ]);
         $svc->claimCashReceipt($this->commuter1, $txn->qr_token);
 
         try {
@@ -263,7 +473,9 @@ class TransactionFlowTest extends TestCase
     public function test_receipt_claim_returns_410_once_past_the_ttl(): void
     {
         $svc = app(TransactionService::class);
-        $txn = $svc->recordCashFare($this->conductor, ['final_amount' => 15.00]);
+        $txn = $svc->recordCashFare($this->conductor, [
+            'final_amount' => 15.00, 'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+        ]);
 
         // Age the receipt one hour beyond the configured window.
         $ttl = (int) config('payments.cash_receipt_ttl_hours', 6);
@@ -282,7 +494,9 @@ class TransactionFlowTest extends TestCase
     public function test_receipt_claim_still_works_just_inside_the_ttl(): void
     {
         $svc = app(TransactionService::class);
-        $txn = $svc->recordCashFare($this->conductor, ['final_amount' => 15.00]);
+        $txn = $svc->recordCashFare($this->conductor, [
+            'final_amount' => 15.00, 'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+        ]);
 
         $ttl = (int) config('payments.cash_receipt_ttl_hours', 6);
         $txn->forceFill(['created_at' => now()->subHours($ttl)->addMinutes(5)])->save();
@@ -322,6 +536,8 @@ class TransactionFlowTest extends TestCase
 
         $txn = app(TransactionService::class)->recordCashFare($this->conductor, [
             'final_amount' => 15.00,
+            'pickup_name' => 'Calumpit',
+            'dropoff_name' => 'Bustos',
             'payment_method' => PaymentMethod::VOUCHER->value,
             'voucher_code' => $voucher->code,
         ]);
@@ -375,6 +591,8 @@ class TransactionFlowTest extends TestCase
             app(TransactionService::class)->recordCashFare($this->conductor, [
                 'payment_method' => PaymentMethod::VOUCHER->value,
                 'final_amount' => 0,
+                'pickup_name' => 'Calumpit',
+                'dropoff_name' => 'Bustos',
                 'voucher_code' => $voucher->code,
                 'passenger_id' => $this->commuter1->commuterProfile->id,
             ]);
@@ -441,6 +659,8 @@ class TransactionFlowTest extends TestCase
         $transaction = app(TransactionService::class)->recordCashFare($this->conductor, [
             'payment_method' => PaymentMethod::VOUCHER->value,
             'final_amount' => 0,
+            'pickup_name' => 'Calumpit',
+            'dropoff_name' => 'Bustos',
             'voucher_code' => $voucher->code,
             'passenger_id' => $this->commuter1->commuterProfile->id,
         ]);
@@ -455,8 +675,12 @@ class TransactionFlowTest extends TestCase
             // Expected database backstop.
         }
 
-        app(TransactionService::class)->recordCashFare($this->conductor, ['final_amount' => 15]);
-        app(TransactionService::class)->recordCashFare($this->conductor, ['final_amount' => 20]);
+        app(TransactionService::class)->recordCashFare($this->conductor, [
+            'final_amount' => 15, 'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+        ]);
+        app(TransactionService::class)->recordCashFare($this->conductor, [
+            'final_amount' => 20, 'pickup_name' => 'C', 'dropoff_name' => 'D',
+        ]);
 
         $this->assertSame(2, Transaction::whereNull('voucher_id')->count());
         $this->assertSame(1, Transaction::where('voucher_id', $voucher->id)->count());
@@ -1487,9 +1711,9 @@ SQL);
 
         $earnings = $svc->getShiftEarnings($this->conductor, $this->shift->shift_id);
 
-        $this->assertSame(45.00, $earnings['cash_total']);
+        $this->assertSame(50.00, $earnings['cash_total']);
         $this->assertSame(30.00, $earnings['gcash_total']);
-        $this->assertSame(75.00, $earnings['total']);
+        $this->assertSame(80.00, $earnings['total']);
     }
 
     public function test_gcash_totals_are_not_included_in_remitted_cash_figure(): void
@@ -1502,7 +1726,7 @@ SQL);
 
         $earnings = $svc->getShiftEarnings($this->conductor, $this->shift->shift_id);
 
-        $this->assertSame(50.00, $earnings['cash_total']);
+        $this->assertSame(35.00, $earnings['cash_total']);
         $this->assertSame(100.00, $earnings['gcash_total']);
         $this->assertNotSame($earnings['total'], $earnings['cash_total']);
     }

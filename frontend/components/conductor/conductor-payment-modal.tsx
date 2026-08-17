@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useConductorShift } from "@/app/(conductor)/hooks/use-conductor-shift";
+import { isOperatingDevice } from "@/lib/conductor/services/shift.service";
 
 // Explicit type for dynamic import — prevents Vercel build type inference errors
 interface FareCalculatorModalProps {
@@ -42,11 +43,15 @@ export default function ConductorPaymentModal() {
 
   useEffect(() => {
     const handler = () => {
+      if (shift && !isOperatingDevice(shift)) {
+        window.alert("This shift is active on another device. Sync and release that device before collecting a fare here.");
+        return;
+      }
       if (!shift?.isOnBreak) setShowFareCalc(true);
     };
     window.addEventListener("conductor:open-payment", handler);
     return () => window.removeEventListener("conductor:open-payment", handler);
-  }, []);
+  }, [shift]);
 
   return (
     <FareCalculatorModal

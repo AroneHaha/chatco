@@ -29,6 +29,8 @@ export async function POST(request: NextRequest) {
       dropoff_stop_id: body.dropoffStopId ?? body.dropoff_stop_id ?? undefined,
       passengers: body.passengers ?? undefined,
       group_passengers: body.groupPassengers ?? body.group_passengers ?? undefined,
+      device_id: body.deviceId ?? body.device_id ?? undefined,
+      device_type: body.deviceType ?? body.device_type ?? undefined,
     };
 
     const result = await proxyToLaravel(request, "/conductor/payments/gcash/initiate", {

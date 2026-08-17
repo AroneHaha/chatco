@@ -118,6 +118,11 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
       )}
 
       <MapContainer center={routeGeometry.center} zoom={12} zoomControl={false} attributionControl={false} className="commuter-map-container" style={{ background: '#050F1A' }} maxBounds={routeGeometry.mapBoundsArray} maxBoundsViscosity={1.0} minZoom={isDesktop ? 13 : 11}>
+        {routeGeometry.source === "fallback" && (
+          <div className="pointer-events-none absolute left-3 top-3 z-[1000] rounded-md border border-amber-300/30 bg-amber-950/90 px-2 py-1 text-[10px] font-medium text-amber-100 shadow-lg">
+            Published route unavailable — showing local fallback
+          </div>
+        )}
         <DynamicRouteViewport routeBounds={routeGeometry.routeBounds} mapBounds={routeGeometry.mapBounds} />
         <LocationFinder
           userLocationRef={userLocationRef}

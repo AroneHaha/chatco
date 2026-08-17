@@ -38,13 +38,17 @@ class InitiateGcashRequest extends FormRequest
     {
         return [
             'payment_method' => 'required|string|in:GCASH',
-            'final_amount' => 'required_without_all:passengers,group_passengers|nullable|numeric|min:1',
+            // Accepted for backwards compatibility only; the server ignores
+            // client monetary values and calculates from the fare matrix.
+            'final_amount' => 'nullable|numeric|min:0',
             'pickup_name' => 'required_without:passengers|nullable|string|max:100',
             'dropoff_name' => 'required_without:passengers|nullable|string|max:100',
             'base_fare' => 'nullable|numeric|min:0',
             'distance' => 'nullable|numeric|min:0',
             'discount_amount' => 'nullable|numeric|min:0',
-            'passengers' => 'nullable|array|min:1|max:4|required_with:pickup_stop_id,dropoff_stop_id',
+            'device_id' => 'nullable|string|min:16|max:100|regex:/^[A-Za-z0-9._:-]+$/',
+            'device_type' => 'nullable|required_with:device_id|string|in:WEB,MOBILE',
+            'passengers' => 'nullable|array|min:1|max:4',
             'passengers.*.passenger_type' => 'required_with:passengers|string|in:REGULAR,STUDENT,SENIOR,SENIOR_CITIZEN,PWD',
             'passengers.*.quantity' => 'required_with:passengers|integer|min:1|max:50',
             'pickup_stop_id' => 'required_with:passengers|nullable|uuid|exists:fare_points,id',
@@ -52,7 +56,7 @@ class InitiateGcashRequest extends FormRequest
             'group_passengers' => 'nullable|array|min:1|max:50',
             'group_passengers.*.type' => 'required_with:group_passengers|string|in:REGULAR,SENIOR_CITIZEN,STUDENT,PWD',
             'group_passengers.*.quantity' => 'required_with:group_passengers|integer|min:1|max:50',
-            'group_passengers.*.final_amount' => 'required_with:group_passengers|numeric|min:1',
+            'group_passengers.*.final_amount' => 'nullable|numeric|min:0',
             'group_passengers.*.base_fare' => 'nullable|numeric|min:0',
             'group_passengers.*.discount_amount' => 'nullable|numeric|min:0',
         ];

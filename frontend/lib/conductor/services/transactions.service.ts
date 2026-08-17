@@ -1,6 +1,7 @@
 import { api, NetworkError } from "@/lib/api/client";
 import { CONDUCTOR_API } from "@/lib/conductor/endpoints";
 import * as transactionsStore from "@/lib/conductor/persistence/transactions.store";
+import { CONDUCTOR_DEVICE_TYPE, getConductorDeviceId } from "@/lib/conductor/persistence/device.store";
 
 export type { Transaction } from "@/lib/conductor/persistence/transactions.store";
 export type { PaymentMethodType } from "@/types";
@@ -63,7 +64,11 @@ export async function fetchShiftTransactions(
       transactionsStore.cacheTransaction(shiftId, txn);
     }
 
-    return transactions;
+    const pending = transactionsStore
+      .getPendingCashTransactions()
+      .filter((item) => item.shiftId === shiftId)
+      .flatMap((item) => item.localTransactions);
+    return transactions.concat(pending);
   } catch (error) {
     // Only fall back on network errors (Laravel unreachable / 502).
     // API errors (401, 403, 422, 500) should propagate — the conductor
@@ -139,8 +144,7 @@ export async function fetchShiftTransactionsPage(
  * will NOT appear in the backend earnings breakdown until the next
  * successful API call — the conductor should sync before end-of-day.
  *
- * @param shiftId  The shift ID (ignored by the proxy — Laravel resolves
- *                 the shift from the authenticated conductor's active shift)
+ * @param shiftId  The originating shift ID, preserved for offline retries
  * @param txn      The transaction data (without transactionId/timestamp)
  * @returns The created transaction
  */
@@ -148,28 +152,27 @@ export async function createTransaction(
   shiftId: string,
   txn: Omit<transactionsStore.Transaction, "transactionId" | "timestamp">
 ): Promise<transactionsStore.Transaction> {
+  const idempotencyKey =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const deviceId = getConductorDeviceId();
+  const actionCreatedAt = new Date().toISOString();
+  const payload = { ...txn, shiftId, idempotencyKey, deviceId, deviceType: CONDUCTOR_DEVICE_TYPE };
+
   try {
     // Fresh idempotency key per record-fare action. Lets the backend
     // collapse a true retry (network re-send) without ever dropping a
     // distinct fare — two passengers paying the same fare for the same
     // segment get different keys and are both recorded.
-    const idempotencyKey =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
     const response = await api.post<{ data: transactionsStore.Transaction }>(
       CONDUCTOR_API.transactions.create,
-      {
-        ...txn,
-        shiftId, // The proxy strips this; Laravel resolves the shift
-        idempotencyKey, // The proxy forwards this as idempotency_key
-      }
+      payload
     );
 
     // Cache the API-returned transaction for offline fallback
     if (response.data) {
-      transactionsStore.cacheTransaction(shiftId, response.data);
+      transactionsStore.cacheTransaction(shiftId, { ...response.data, syncStatus: "SYNCED" });
     }
 
     // Dispatch event so the dashboard + end-of-day hooks refresh
@@ -184,6 +187,18 @@ export async function createTransaction(
     // Only fall back on network errors (Laravel unreachable / 502).
     if (error instanceof NetworkError) {
       const saved = transactionsStore.saveTransaction(shiftId, txn);
+      transactionsStore.enqueuePendingCashTransaction({
+        id: `pending-${idempotencyKey}`,
+        shiftId,
+        kind: "single",
+        idempotencyKey,
+        payload: { ...payload, offlineCreatedAt: actionCreatedAt },
+        localTransactions: [saved],
+        createdAt: Date.now(),
+        deviceId,
+        offlineCreatedAt: actionCreatedAt,
+        attempts: 0,
+      });
       // saveTransaction already dispatches the event
       return saved;
     }
@@ -205,6 +220,8 @@ export async function createGroupCashTransaction(
     to: string;
     regularFare: number;
     discountedFare: number;
+    pickupStopId?: string;
+    dropoffStopId?: string;
     passengers: GroupPassengerInput[];
   }
 ): Promise<{
@@ -212,46 +229,131 @@ export async function createGroupCashTransaction(
   multiplePaymentReference: string;
   transactions: transactionsStore.Transaction[];
 }> {
-  const response = await api.post<{
-    data: {
-      group_id: string;
-      multiple_payment_reference: string;
-      transactions: transactionsStore.Transaction[];
-    };
-  }>(
-    CONDUCTOR_API.transactions.create,
-    {
-      shiftId,
-      paymentMethod: "Cash",
-      from: input.from,
-      to: input.to,
-      idempotencyKey: crypto.randomUUID(),
-      groupPassengers: input.passengers.map((passenger) => {
-        const discounted = passenger.passenger_type !== "REGULAR";
-        const finalAmount = discounted ? input.discountedFare : input.regularFare;
-        return {
-          type: passenger.passenger_type,
-          quantity: passenger.quantity,
-          final_amount: finalAmount,
-          base_fare: input.regularFare,
-          discount_amount: input.regularFare - finalAmount,
-        };
-      }),
-    }
-  );
-
-  for (const transaction of response.data.transactions) {
-    transactionsStore.cacheTransaction(shiftId, transaction);
-  }
-  window.dispatchEvent(new CustomEvent("conductor:transaction-updated"));
-  return {
-    groupId: response.data.group_id,
-    multiplePaymentReference: response.data.multiple_payment_reference,
-    transactions: response.data.transactions.map((transaction) => ({
-      ...transaction,
-      multiplePaymentReference: response.data.multiple_payment_reference,
+  const idempotencyKey = crypto.randomUUID();
+  const deviceId = getConductorDeviceId();
+  const actionCreatedAt = new Date().toISOString();
+  const payload = {
+    shiftId,
+    paymentMethod: "Cash",
+    from: input.from,
+    to: input.to,
+    pickupStopId: input.pickupStopId,
+    dropoffStopId: input.dropoffStopId,
+    idempotencyKey,
+    deviceId,
+    deviceType: CONDUCTOR_DEVICE_TYPE,
+    groupPassengers: input.passengers.map((passenger) => ({
+      type: passenger.passenger_type,
+      quantity: passenger.quantity,
     })),
   };
+
+  try {
+    const response = await api.post<{
+      data: {
+        group_id: string;
+        multiple_payment_reference: string;
+        transactions: transactionsStore.Transaction[];
+      };
+    }>(CONDUCTOR_API.transactions.create, payload);
+
+    for (const transaction of response.data.transactions) {
+      transactionsStore.cacheTransaction(shiftId, { ...transaction, syncStatus: "SYNCED" });
+    }
+    window.dispatchEvent(new CustomEvent("conductor:transaction-updated"));
+    return {
+      groupId: response.data.group_id,
+      multiplePaymentReference: response.data.multiple_payment_reference,
+      transactions: response.data.transactions.map((transaction) => ({
+        ...transaction,
+        multiplePaymentReference: response.data.multiple_payment_reference,
+      })),
+    };
+  } catch (error) {
+    if (!(error instanceof NetworkError)) throw error;
+    const reference = `OFFLINE-${idempotencyKey.slice(0, 8).toUpperCase()}`;
+    const totalPassengers = input.passengers.reduce((sum, row) => sum + row.quantity, 0);
+    const localTransactions = input.passengers.flatMap((passenger) =>
+      Array.from({ length: passenger.quantity }, (_, index) => {
+        const discounted = passenger.passenger_type !== "REGULAR";
+        const amount = discounted ? input.discountedFare : input.regularFare;
+        return transactionsStore.saveTransaction(shiftId, {
+          paymentMethod: "Cash",
+          finalAmount: amount,
+          passengerName: "Passenger",
+          passengerId: "",
+          passengerRole: passenger.passenger_type,
+          from: input.from,
+          to: input.to,
+          distance: 0,
+          baseFare: input.regularFare,
+          succeedingKm: 0,
+          discountAmount: discounted ? input.regularFare - input.discountedFare : 0,
+          groupId: `offline-${idempotencyKey}`,
+          multiplePaymentReference: reference,
+          groupPosition: index + 1,
+          totalPassengers,
+        });
+      })
+    );
+    transactionsStore.enqueuePendingCashTransaction({
+      id: `pending-${idempotencyKey}`,
+      shiftId,
+      kind: "group",
+      idempotencyKey,
+      payload: { ...payload, offlineCreatedAt: actionCreatedAt },
+      localTransactions,
+      createdAt: Date.now(),
+      deviceId,
+      offlineCreatedAt: actionCreatedAt,
+      attempts: 0,
+    });
+    return { groupId: `offline-${idempotencyKey}`, multiplePaymentReference: reference, transactions: localTransactions };
+  }
+}
+
+/** Flush queued cash fares after connectivity returns. */
+export async function syncPendingTransactions(): Promise<number> {
+  const pending = transactionsStore.getPendingCashTransactions();
+  const currentDeviceId = getConductorDeviceId();
+  let synced = 0;
+
+  for (const item of pending) {
+    try {
+      if (item.deviceId && item.deviceId !== currentDeviceId) continue;
+      const retryPayload = {
+        ...item.payload,
+        deviceId: item.deviceId ?? currentDeviceId,
+        deviceType: CONDUCTOR_DEVICE_TYPE,
+        offlineCreatedAt: item.offlineCreatedAt ?? new Date(item.createdAt).toISOString(),
+      };
+      const response = await api.post<{ data: { transactions?: transactionsStore.Transaction[] } | transactionsStore.Transaction }>(
+        CONDUCTOR_API.transactions.create,
+        retryPayload,
+      );
+      const data = response.data;
+      const serverTransactions = Array.isArray((data as { transactions?: unknown[] }).transactions)
+        ? (data as { transactions: transactionsStore.Transaction[] }).transactions
+        : [data as transactionsStore.Transaction];
+      transactionsStore.removeCachedTransactions(item.shiftId, item.localTransactions.map((txn) => txn.transactionId));
+      serverTransactions.forEach((txn) => transactionsStore.cacheTransaction(item.shiftId, { ...txn, syncStatus: "SYNCED" }));
+      transactionsStore.removePendingCashTransaction(item.id);
+      synced += serverTransactions.length;
+    } catch (error) {
+      if (error instanceof NetworkError) break;
+      transactionsStore.updatePendingCashTransaction(item.id, {
+        attempts: (item.attempts ?? 0) + 1,
+        lastAttemptAt: Date.now(),
+        lastError: error instanceof Error ? error.message : "Synchronization failed.",
+      });
+      // Keep validation/terminal-remittance items for explicit recovery.
+    }
+  }
+
+  if (synced && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("conductor:transaction-updated"));
+  }
+  return synced;
 }
 
 /**

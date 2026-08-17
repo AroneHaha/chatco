@@ -66,6 +66,9 @@ class Transaction extends Model
         'paid_at',
         'reward_earned_at',
         'idempotency_key',
+        'source_device_id',
+        'offline_created_at',
+        'synced_at',
         // ─── Provider-agnostic payment columns ────────────────────────
         'payment_provider',
         'payment_reference',
@@ -89,6 +92,8 @@ class Transaction extends Model
             'discount_amount' => 'decimal:2',
             'paid_at' => 'datetime',
             'reward_earned_at' => 'datetime',
+            'offline_created_at' => 'datetime',
+            'synced_at' => 'datetime',
             'payment_method' => PaymentMethod::class,
             'status' => PaymentStatus::class,
             'payment_metadata' => 'array',

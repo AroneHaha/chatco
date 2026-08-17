@@ -22,6 +22,8 @@ export interface RemittanceRecord {
   dueAt?: string | null;
   remittedAt?: string | null;
   reminderCount?: number;
+  deviceId?: string;
+  deviceType?: "WEB" | "MOBILE";
 }
 
 const KEY = "conductor_remittance_history";

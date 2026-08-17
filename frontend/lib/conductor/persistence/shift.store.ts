@@ -12,6 +12,8 @@ export interface ConductorShift {
   isOnBreak?: boolean;
   breakStartedAt?: string | null;
   isActive: boolean;
+  operatingDeviceId?: string | null;
+  operatingDeviceType?: "WEB" | "MOBILE" | null;
 }
 
 const SHIFT_KEY = "conductor_shift";

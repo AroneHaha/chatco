@@ -83,8 +83,9 @@ export async function GET(request: NextRequest) {
  *   - Denormalization of conductor_name/unit_number/driver_name
  *   - Payment method must be CASH (enforced by RecordCashRequest)
  *
- * The request body is forwarded as-is (with shift_id stripped — Laravel
- * resolves the shift from the authenticated conductor's active shift).
+ * The originating shift ID is forwarded when present. Laravel verifies that
+ * it belongs to the authenticated conductor and remains writable; omitting it
+ * preserves the normal active-shift resolution for online requests.
  *
  * Returns 201 with the created transaction in the frontend's Transaction shape.
  *
@@ -97,11 +98,9 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    // Strip shiftId — Laravel resolves the shift from the conductor's
-    // active shift (not from the request body). This prevents a conductor
-    // from recording fares on another conductor's shift.
-    const txnBody = { ...body };
-    delete txnBody.shiftId;
+    // Keep shiftId for offline retries. Laravel performs the ownership and
+    // active-shift checks; the browser cannot choose another conductor's row.
+    const { shiftId, ...txnBody } = body;
 
     // Laravel expects snake_case field names. payment_method can be CASH or
     // VOUCHER (RecordCashRequest validates `in:CASH,VOUCHER`). GCash goes
@@ -118,11 +117,15 @@ export async function POST(request: NextRequest) {
       passenger_id: txnBody.passengerId || txnBody.passenger_id || undefined,
       passenger_role: txnBody.passengerRole ?? txnBody.passenger_role,
       idempotency_key: txnBody.idempotencyKey ?? txnBody.idempotency_key,
+      shift_id: shiftId ?? txnBody.shift_id ?? undefined,
       voucher_code: txnBody.voucherCode ?? txnBody.voucher_code ?? undefined,
       pickup_stop_id: txnBody.pickupStopId ?? txnBody.pickup_stop_id ?? undefined,
       dropoff_stop_id: txnBody.dropoffStopId ?? txnBody.dropoff_stop_id ?? undefined,
       passengers: txnBody.passengers ?? undefined,
       group_passengers: txnBody.groupPassengers ?? txnBody.group_passengers ?? undefined,
+      device_id: txnBody.deviceId ?? txnBody.device_id ?? undefined,
+      device_type: txnBody.deviceType ?? txnBody.device_type ?? undefined,
+      offline_created_at: txnBody.offlineCreatedAt ?? txnBody.offline_created_at ?? undefined,
     };
 
     const result = await proxyToLaravel(request, "/conductor/transactions", {

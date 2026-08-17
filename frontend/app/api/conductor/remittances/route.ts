@@ -72,6 +72,8 @@ export async function POST(request: NextRequest) {
       remitted_amount: cashDeclared,
       cash_total: cashTotal,
       gcash_total: gcashTotal,
+      device_id: record.deviceId,
+      device_type: record.deviceType,
     },
   });
 

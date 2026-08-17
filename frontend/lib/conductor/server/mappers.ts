@@ -61,6 +61,8 @@ interface LaravelShiftLog {
   time_in: string;
   time_out: string | null;
   status: string;
+  operating_device_id: string | null;
+  operating_device_type: "WEB" | "MOBILE" | null;
   route?: LaravelRoute | null;
   vehicle?: LaravelVehicle | null;
   driver?: LaravelDriver | null;
@@ -173,6 +175,8 @@ export function mapShiftLog(s: unknown): ConductorShift {
     isActive: shift.status === "ACTIVE",
     isOnBreak: Boolean(shift.is_on_break),
     breakStartedAt: shift.break_started_at,
+    operatingDeviceId: shift.operating_device_id,
+    operatingDeviceType: shift.operating_device_type,
   };
 }
 

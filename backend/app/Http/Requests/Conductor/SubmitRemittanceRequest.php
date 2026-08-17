@@ -19,6 +19,8 @@ class SubmitRemittanceRequest extends FormRequest
             'remitted_amount' => 'required|numeric|min:0',
             'cash_total' => 'nullable|numeric|min:0',
             'gcash_total' => 'nullable|numeric|min:0',
+            'device_id' => 'nullable|string|min:16|max:100|regex:/^[A-Za-z0-9._:-]+$/',
+            'device_type' => 'nullable|required_with:device_id|string|in:WEB,MOBILE',
         ];
     }
 

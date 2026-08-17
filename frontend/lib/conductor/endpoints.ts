@@ -12,6 +12,8 @@ export const CONDUCTOR_API = {
     active: "/api/conductor/shifts/active",
     start: "/api/conductor/shifts/start",
     end: "/api/conductor/shifts/end",
+    deviceClaim: "/api/conductor/shifts/device/claim",
+    deviceRelease: "/api/conductor/shifts/device/release",
   },
   transactions: {
     list: (shiftId: string) =>

@@ -17,6 +17,8 @@ class StartShiftRequest extends FormRequest
             'vehicle_id' => 'required|uuid|exists:vehicles,id',
             'driver_id' => 'required|uuid|exists:drivers,id',
             'route_id' => 'nullable|uuid|exists:routes,id',
+            'device_id' => 'nullable|string|min:16|max:100|regex:/^[A-Za-z0-9._:-]+$/',
+            'device_type' => 'nullable|required_with:device_id|string|in:WEB,MOBILE',
         ];
     }
 
