@@ -19,6 +19,7 @@ class ConductorProfile extends Model
         'middle_name',
         'last_name',
         'birthday',
+        'contact',
         'profile_picture_url',
         'generated_username',
         'generated_password',

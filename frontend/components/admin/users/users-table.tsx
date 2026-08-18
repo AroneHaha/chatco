@@ -1,11 +1,36 @@
 // components/admin/users/users-table.tsx
+import type { ReactNode } from 'react';
 import { DataTable } from '@/components/admin/ui/data-table';
+import { TablePagination } from '@/components/admin/ui/table-pagination';
 import { Badge } from '@/components/admin/ui/badge';
 import { Modal } from '@/components/admin/ui/modal';
-import { Clock, UserIcon, Mail, Phone, CreditCard, Pencil, Trash2 } from 'lucide-react';
+import { Clock, UserIcon, Mail, Phone, CreditCard, Pencil, Trash2, AtSign, Calendar, ShieldCheck } from 'lucide-react';
 import type { ActiveUser, RejectedUser } from '@/app/(admin)/users/data/users-data';
 
 type User = ActiveUser | RejectedUser;
+
+const ROLE_LABELS: Record<string, string> = {
+  COMMUTER: 'Commuter',
+  CONDUCTOR: 'Conductor',
+  ADMIN: 'Admin',
+  DRIVER: 'Driver',
+};
+
+function formatJoinedDate(value: string | null): string {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+/** Shape shared by PaginationMeta (active) and RegistrationPagination (rejected). */
+interface UsersTablePagination {
+  currentPage: number;
+  lastPage: number;
+  total: number;
+  from: number | null;
+  to: number | null;
+}
 
 interface UsersTableProps {
   users: User[];
@@ -23,14 +48,25 @@ interface UsersTableProps {
    * CONDUCTOR / DRIVER rows — other roles are ignored by the parent.
    */
   onRowDoubleClick?: (user: User) => void;
+  /** Search bar + filter controls, rendered in the card header above the table. */
+  headerContent?: ReactNode;
+  pagination?: UsersTablePagination | null;
+  onPageChange?: (page: number) => void;
+  /**
+   * True while a search/filter/page-driven refetch is in flight for a tab
+   * that already has data on screen. Shows a small overlay scoped to the
+   * table rows only — the header (search bar, filters) and pagination stay
+   * mounted and interactive instead of the whole card flashing to a skeleton.
+   */
+  isRefreshing?: boolean;
 }
 
-export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete, onViewHistory, isRejectedTab, selectedUser, onSelectUser, onRowDoubleClick }: UsersTableProps) {
+export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete, onViewHistory, isRejectedTab, selectedUser, onSelectUser, onRowDoubleClick, headerContent, pagination, onPageChange, isRefreshing }: UsersTableProps) {
   const columns = [
     {
       key: 'name',
       label: 'User',
-      headerClassName: 'w-[34%] px-2 sm:px-4',
+      headerClassName: 'w-[28%] px-2 sm:px-4',
       cellClassName: 'px-2 sm:px-4 min-w-0',
       render: (value: string, item: User) => (
         <div className="min-w-0">
@@ -42,16 +78,23 @@ export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete,
     {
       key: 'commuterType',
       label: 'Type',
-      headerClassName: 'w-[18%] px-2 sm:px-4',
+      headerClassName: 'w-[16%] px-2 sm:px-4',
       cellClassName: 'px-2 sm:px-4',
       render: (value: string) => <Badge variant="info">{value}</Badge>,
     },
-    { 
-      key: 'status', 
-      label: 'Status', 
-      headerClassName: 'w-[16%] px-2 sm:px-4',
+    {
+      key: 'createdAt',
+      label: isRejectedTab ? 'Applied' : 'Joined',
+      headerClassName: 'w-[14%] px-2 sm:px-4',
       cellClassName: 'px-2 sm:px-4',
-      render: (value: string) => <Badge variant={value === 'Active' ? 'success' : value === 'Suspended' ? 'warning' : 'danger'}>{value}</Badge> 
+      render: (value: string | null) => <span className="text-xs text-slate-400">{formatJoinedDate(value)}</span>,
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      headerClassName: 'w-[14%] px-2 sm:px-4',
+      cellClassName: 'px-2 sm:px-4',
+      render: (value: string) => <Badge variant={value === 'Active' ? 'success' : value === 'Suspended' ? 'warning' : 'danger'}>{value}</Badge>
     },
     ...(isRejectedTab ? [{
       key: 'rejectionReason', label: 'Reason', render: (value: string) => <span className="text-xs text-slate-400 italic">{value || 'N/A'}</span>
@@ -60,7 +103,7 @@ export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete,
       key: 'actions',
       label: 'Actions',
       align: 'center' as const,
-      headerClassName: 'w-[22%] px-2 sm:px-4',
+      headerClassName: 'w-[20%] px-2 sm:px-4',
       cellClassName: 'px-2 sm:px-4',
       render: (_: unknown, item: User) => (
         <div className="flex items-center justify-center space-x-1">
@@ -103,26 +146,55 @@ export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete,
 
   return (
     <>
-      <div>
-        <DataTable
-          data={users}
-          columns={columns}
-          searchQuery={searchQuery}
-          onRowDoubleClick={onRowDoubleClick ? (item) => onRowDoubleClick(item) : undefined}
-          emptyMessage={isRejectedTab ? 'No rejected users.' : 'No users found.'}
-          height="32rem"
-          stickyHeader
-          allowHorizontalScroll={false}
-          tableClassName="table-fixed"
-        />
+      <div className="flex h-full min-h-0 min-w-0 flex-col gap-3 rounded-lg border border-[#1E2D45] bg-[#111A2B] p-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
+        {headerContent && <div className="shrink-0">{headerContent}</div>}
+        <div className="relative flex-1 min-h-0">
+          <DataTable
+            data={users}
+            columns={columns}
+            searchQuery={searchQuery}
+            onRowDoubleClick={onRowDoubleClick ? (item) => onRowDoubleClick(item) : undefined}
+            emptyMessage={isRejectedTab ? 'No rejected users.' : 'No users found.'}
+            height="100%"
+            stickyHeader
+            allowHorizontalScroll={false}
+            tableClassName="table-fixed"
+          />
+          {isRefreshing && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center">
+              <div className="h-8 w-8 rounded-full border-2 border-[#1E2D45] border-t-[#62A0EA] animate-spin" />
+            </div>
+          )}
+        </div>
+        {pagination && onPageChange && (
+          <div className="shrink-0">
+            <TablePagination
+              currentPage={pagination.currentPage}
+              totalPages={pagination.lastPage}
+              from={pagination.from ?? 0}
+              to={pagination.to ?? 0}
+              total={pagination.total}
+              label={isRejectedTab ? 'rejected users' : 'users'}
+              onPageChange={onPageChange}
+            />
+          </div>
+        )}
       </div>
 
       {/* User Details Modal */}
       <Modal isOpen={!!selectedUser} onClose={() => onSelectUser(null)}>
-        {selectedUser && (
+        {selectedUser && (() => {
+          const role = 'role' in selectedUser ? selectedUser.role : null;
+          const roleLabel = role ? (ROLE_LABELS[role] ?? role) : 'User';
+          const isCommuter = role === 'COMMUTER';
+          const username = 'username' in selectedUser ? selectedUser.username : null;
+          const verifiedAt = 'verifiedAt' in selectedUser ? selectedUser.verifiedAt : null;
+          const createdAt = 'createdAt' in selectedUser ? selectedUser.createdAt : null;
+
+          return (
           <div className="space-y-6">
             <h2 className="text-xl font-bold text-white">
-              Commuter Details
+              {roleLabel} Details
             </h2>
 
             {/* Profile Header */}
@@ -132,15 +204,26 @@ export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete,
               </div>
               <div>
                 <p className="text-lg font-bold text-white">{selectedUser.name}</p>
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex flex-wrap items-center gap-2 mt-1">
                   <p className="text-sm text-slate-400">ID: {selectedUser.id}</p>
                   <Badge variant={selectedUser.status === 'Active' ? 'success' : 'warning'}>{selectedUser.status}</Badge>
+                  {role && <Badge variant="neutral">{roleLabel}</Badge>}
                 </div>
               </div>
             </div>
 
-            {/* Contact Info Grid */}
+            {/* Account Info Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {username && (
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                  <AtSign size={16} className="text-slate-500" />
+                  <div className="min-w-0">
+                    <p className="text-xs text-slate-500 uppercase">Username</p>
+                    <p className="text-sm text-white truncate">{username}</p>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
                 <Mail size={16} className="text-slate-500" />
                 <div className="min-w-0">
@@ -157,28 +240,36 @@ export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete,
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
-                <CreditCard size={16} className="text-slate-500" />
-                <div className="flex items-center justify-between w-full">
-                  <div>
-                    <p className="text-xs text-slate-500 uppercase">Commuter Type</p>
-                    <p className="text-sm text-white">{selectedUser.commuterType}</p>
+              {isCommuter && (
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                  <CreditCard size={16} className="text-slate-500" />
+                  <div className="flex items-center justify-between w-full min-w-0">
+                    <div className="min-w-0">
+                      <p className="text-xs text-slate-500 uppercase">Commuter Type</p>
+                      <p className="text-sm text-white truncate">{selectedUser.commuterType}</p>
+                    </div>
+                    <Badge variant="info">{selectedUser.commuterType}</Badge>
                   </div>
-                  <Badge variant="info">{selectedUser.commuterType}</Badge>
                 </div>
-              </div>
-            </div>
+              )}
 
-            {/* ID Verification Image */}
-            <div>
-              <h3 className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-2">Submitted ID</h3>
-              <div className="relative w-full h-44 rounded-md overflow-hidden border border-[#1E2D45] bg-black/20 flex items-center justify-center">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={selectedUser.idImageUrl} alt="User ID" className="object-cover w-full h-full" />
-                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-3">
-                  <p className="text-xs text-white/70">Verified ID Document</p>
+              <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                <Calendar size={16} className="text-slate-500" />
+                <div>
+                  <p className="text-xs text-slate-500 uppercase">Joined</p>
+                  <p className="text-sm text-white">{formatJoinedDate(createdAt)}</p>
                 </div>
               </div>
+
+              {verifiedAt && (
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                  <ShieldCheck size={16} className="text-slate-500" />
+                  <div>
+                    <p className="text-xs text-slate-500 uppercase">Verified On</p>
+                    <p className="text-sm text-white">{formatJoinedDate(verifiedAt)}</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Action Button */}
@@ -194,7 +285,7 @@ export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete,
                 <p className="mt-1 text-slate-300">{selectedUser.suspension.reason}</p>
               </div>
             )}
-            {'role' in selectedUser && selectedUser.role === 'DRIVER' ? (
+            {role === 'DRIVER' ? (
               <p className="rounded-md border border-[#1E2D45] bg-[#0E1628] p-3 text-center text-sm text-slate-400">
                 Driver account status is managed in Fleet Management.
               </p>
@@ -211,7 +302,8 @@ export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete,
               </button>
             )}
           </div>
-        )}
+          );
+        })()}
       </Modal>
     </>
   );

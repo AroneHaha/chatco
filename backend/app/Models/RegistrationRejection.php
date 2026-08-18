@@ -36,6 +36,12 @@ class RegistrationRejection extends Model
         ];
     }
 
+    /** The admin who performed this rejection. Not a DB-level FK (see class docblock). */
+    public function rejectedBy()
+    {
+        return $this->belongsTo(User::class, 'rejected_by', 'id');
+    }
+
     protected static function booted(): void
     {
         static::creating(function (self $rejection): void {
