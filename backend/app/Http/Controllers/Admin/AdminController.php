@@ -146,9 +146,33 @@ class AdminController extends Controller
         return $this->successResponse($zones, 'Demand zones retrieved');
     }
 
-    public function drivers(): JsonResponse
+    /**
+     * GET /api/v1/admin/drivers
+     *
+     * Two modes, distinguished by the presence of `page`:
+     *  - No `page` (legacy/default): the full, unfiltered driver list —
+     *    what Fleet Management, Lost & Found, and the personnel/vehicle
+     *    pickers call today to populate dropdowns. They need every driver
+     *    at once, not one page, so this path is untouched.
+     *  - `page` present: a server-side paginated + filterable + searchable
+     *    list (same Laravel-paginator envelope as GET /admin/users), used by
+     *    User Management's "Drivers" role filter so it no longer downloads
+     *    the whole table to filter/sort/paginate in the browser.
+     */
+    public function drivers(Request $request): JsonResponse
     {
-        $drivers = Driver::with('vehicle')->get();
+        if (! $request->filled('page')) {
+            $drivers = Driver::with('vehicle')->get();
+
+            return $this->successResponse($drivers, 'Drivers retrieved');
+        }
+
+        $drivers = $this->adminService->listDrivers([
+            'search' => $request->string('search')->toString() ?: null,
+            'status' => $request->string('status')->toString() ?: null,
+            'sort' => $request->string('sort')->toString() ?: 'recent',
+            'per_page' => $request->integer('per_page', 20),
+        ]);
 
         return $this->successResponse($drivers, 'Drivers retrieved');
     }
@@ -196,10 +220,11 @@ class AdminController extends Controller
             'middle_name' => 'nullable|string|max:100',
             'last_name' => 'required|string|max:100',
             'birthday' => 'required|date|before:today',
-            'contact' => 'required|string|max:20',
+            'contact' => ['required', 'string', 'regex:/^09[0-9]{9}$/'],
             'license_number' => ['required', 'string', 'regex:/^[A-Z][0-9]{2}-[0-9]{2}-[0-9]{6}$/', 'unique:drivers,license_number'],
             'profile_picture_url' => 'nullable|string|max:500',
         ], [
+            'contact.regex' => 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).',
             'license_number.regex' => 'Use the Philippine LTO format N01-23-045678 (one letter, four digits, then six digits).',
         ]);
 
@@ -239,10 +264,11 @@ class AdminController extends Controller
             'middle_name' => 'nullable|string|max:100',
             'last_name' => 'required|string|max:100',
             'birthday' => 'required|date|before:today',
-            'contact' => 'required|string|max:20',
+            'contact' => ['required', 'string', 'regex:/^09[0-9]{9}$/'],
             'license_number' => ['required', 'string', 'regex:/^[A-Z][0-9]{2}-[0-9]{2}-[0-9]{6}$/', 'unique:drivers,license_number,'.$id],
             'profile_picture_url' => 'nullable|string|max:500',
         ], [
+            'contact.regex' => 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).',
             'license_number.regex' => 'Use the Philippine LTO format N01-23-045678 (one letter, four digits, then six digits).',
         ]);
 
@@ -631,7 +657,7 @@ class AdminController extends Controller
      * PUT/PATCH /api/v1/admin/conductors/{id}
      * Updates a conductor's editable profile fields.
      *
-     * Editable: first_name, middle_name, last_name, birthday, profile_picture_url.
+     * Editable: first_name, middle_name, last_name, birthday, contact, profile_picture_url.
      * NOT editable here: generated_username, generated_password (regenerate-
      * credentials is a separate flow — see G7 in the admin audit).
      *
@@ -646,7 +672,10 @@ class AdminController extends Controller
             'middle_name' => 'nullable|string|max:100',
             'last_name' => 'required|string|max:100',
             'birthday' => 'required|date|before:today',
+            'contact' => ['required', 'string', 'regex:/^09[0-9]{9}$/'],
             'profile_picture_url' => 'nullable|string|max:500',
+        ], [
+            'contact.regex' => 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).',
         ]);
 
         $conductor->update([
@@ -654,6 +683,7 @@ class AdminController extends Controller
             'middle_name' => $validated['middle_name'] ?? null,
             'last_name' => $validated['last_name'],
             'birthday' => $validated['birthday'],
+            'contact' => $validated['contact'],
             'profile_picture_url' => $validated['profile_picture_url'] ?? $conductor->profile_picture_url,
         ]);
 
@@ -685,6 +715,7 @@ class AdminController extends Controller
             'middle_name' => $conductor->middle_name,
             'last_name' => $conductor->last_name,
             'birthday' => $conductor->birthday?->toDateString(),
+            'contact' => $conductor->contact,
             'profile_picture_url' => $conductor->profile_picture_url,
             'generated_username' => $conductor->generated_username,
             'vehicle' => $conductor->vehicle ? [
@@ -742,7 +773,10 @@ class AdminController extends Controller
             'middle_name' => 'nullable|string|max:100',
             'last_name' => 'required|string|max:100',
             'birthday' => 'required|date|before:today',
+            'contact' => ['required', 'string', 'regex:/^09[0-9]{9}$/'],
             'profile_picture_url' => 'nullable|string|max:500',
+        ], [
+            'contact.regex' => 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).',
         ]);
 
         $firstName = $validated['first_name'];
@@ -797,6 +831,7 @@ class AdminController extends Controller
             'middle_name' => $validated['middle_name'] ?? null,
             'last_name' => $lastName,
             'birthday' => $birthday,
+            'contact' => $validated['contact'],
             'profile_picture_url' => $validated['profile_picture_url'] ?? null,
             'generated_username' => $generatedUsername,
             'generated_password' => $generatedPassword,

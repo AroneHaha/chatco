@@ -5,10 +5,12 @@ namespace App\Services;
 use App\Enums\UserRole;
 use App\Mail\AccountApprovedMail;
 use App\Mail\AccountRejectedMail;
+use App\Models\Driver;
 use App\Models\RegistrationRejection;
 use App\Models\Remittance;
 use App\Models\Setting;
 use App\Models\ShiftLog;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Models\UserSuspension;
 use App\Models\Vehicle;
@@ -17,6 +19,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Pagination\LengthAwarePaginator as Paginator;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -631,7 +634,7 @@ class AdminService
                 'id',
                 DB::raw("{$driverNameExpr} as name"),
                 DB::raw("'Conductor' as role"),
-                DB::raw("'-' as contact"),
+                DB::raw("COALESCE(contact, '-') as contact"),
                 'profile_picture_url',
                 DB::raw('1 as role_order'),
                 'last_name as sort_last_name',
@@ -650,6 +653,7 @@ class AdminService
             $conductors->where(function ($query) use ($term): void {
                 $query->where('first_name', 'like', $term)
                     ->orWhere('last_name', 'like', $term)
+                    ->orWhere('contact', 'like', $term)
                     ->orWhereRaw("'Conductor' like ?", [$term]);
             });
         }
@@ -873,6 +877,57 @@ class AdminService
         return $query->paginate($perPage)
             ->withQueryString()
             ->through(fn (User $user) => $this->present($user));
+    }
+
+    /**
+     * GET /admin/drivers?page=… — paginated/filterable/searchable driver
+     * list for User Management's "Drivers" role filter.
+     *
+     * Only reached when the request includes a `page` param (see
+     * AdminController::drivers()) — every other GET /admin/drivers caller
+     * (Fleet Management, Lost & Found pickers, personnel dropdowns, …) keeps
+     * getting the full unpaginated list they already rely on, unchanged.
+     */
+    public function listDrivers(array $filters): LengthAwarePaginator
+    {
+        $perPage = (int) ($filters['per_page'] ?? 20);
+        $perPage = max(1, min($perPage, 100));
+
+        $query = Driver::with('vehicle');
+
+        if (! empty($filters['search'])) {
+            $term = '%'.trim($filters['search']).'%';
+            $query->where(function (Builder $q) use ($term) {
+                $q->where('first_name', 'like', $term)
+                    ->orWhere('middle_name', 'like', $term)
+                    ->orWhere('last_name', 'like', $term)
+                    ->orWhere('contact', 'like', $term)
+                    ->orWhere('license_number', 'like', $term);
+            });
+        }
+
+        if (! empty($filters['status'])) {
+            if ($filters['status'] === 'ACTIVE') {
+                $query->where('status', 'ACTIVE');
+            } else {
+                // Mirrors the frontend's own "anything not ACTIVE reads as
+                // Suspended" convention (see mapDriverToActiveUser client-side).
+                $query->where(function (Builder $q) {
+                    $q->whereNull('status')->orWhere('status', '!=', 'ACTIVE');
+                });
+            }
+        }
+
+        $sort = $filters['sort'] ?? 'recent';
+        if ($sort === 'oldest') {
+            $query->orderBy('created_at', 'asc');
+        } elseif ($sort === 'alphabetical') {
+            $query->orderBy('last_name', 'asc')->orderBy('first_name', 'asc');
+        } else {
+            $query->orderBy('created_at', 'desc');
+        }
+
+        return $query->paginate($perPage)->withQueryString();
     }
 
     /**
@@ -1112,6 +1167,7 @@ class AdminService
             'name' => $user->getDisplayName(),
             'account_status' => $suspension ? 'SUSPENDED' : $commuter?->account_status,
             'commuter_type' => $commuter?->commuter_type,
+            'username' => $commuter?->username,
             'contact_number' => $commuter?->contact_number,
             'verified_at' => optional($commuter?->verified_at)->toIso8601String(),
             'created_at' => optional($user->created_at)->toIso8601String(),
@@ -1152,7 +1208,7 @@ class AdminService
     {
         $perPage = max(1, min((int) ($filters['per_page'] ?? 15), 100));
 
-        return User::where('role', UserRole::COMMUTER)
+        $paginator = User::where('role', UserRole::COMMUTER)
             ->whereHas('commuterProfile', function ($q) {
                 $q->where('account_status', 'PENDING');
             })
@@ -1164,39 +1220,50 @@ class AdminService
             })
             ->with(['commuterProfile:id,first_name,middle_name,surname,birthdate,gender,email,contact_number,commuter_type,applied_type,account_status,id_image_url,verified_at,rejection_reason,username,language_preference'])
             ->orderBy('created_at', 'asc') // oldest first — FIFO review queue
-            ->paginate($perPage)
-            ->through(function (User $user) {
-                $c = $user->commuterProfile;
-                $history = $this->registrationHistoryPayload($user->email, $c?->contact_number);
+            ->paginate($perPage);
 
-                return [
-                    'id' => $user->id,
-                    'email' => $user->email,
-                    'first_name' => $c?->first_name,
-                    'middle_name' => $c?->middle_name,
-                    'surname' => $c?->surname,
-                    'birthdate' => $c?->birthdate?->toDateString(),
-                    'gender' => $c?->gender,
-                    'contact_number' => $c?->contact_number,
-                    'username' => $c?->username,
-                    'applied_type' => $c?->applied_type,
-                    'id_image_url' => $this->registrationIdUrl($c?->id_image_url),
-                    'account_status' => $c?->account_status,
-                    'language_preference' => $c?->language_preference,
-                    'verified_at' => $c?->verified_at?->toIso8601String(),
-                    'rejection_reason' => $c?->rejection_reason,
-                    // How many times this applicant's identity (email/contact)
-                    // has previously been rejected — surfaced so admins can spot
-                    // repeat submissions approaching the cooldown threshold.
-                    'rejection_count' => $this->registrationGuard->rejectionCountFor(
-                        $user->email,
-                        $c?->contact_number,
-                    ),
-                    'rejection_history' => $history['history'],
-                    'blocked_until' => $history['blocked_until'],
-                    'created_at' => optional($user->created_at)->toIso8601String(),
-                ];
-            });
+        // Batch-fetch rejection history for every applicant on this page in
+        // one query instead of one `registration_rejections` query per row
+        // (previously via registrationGuard->historyFor()/rejectionCountFor()
+        // inside the ->through() callback below).
+        $historyByUser = $this->registrationGuard->historyForMany(
+            $paginator->getCollection()->map(fn (User $user) => [
+                'key' => $user->id,
+                'email' => $user->email,
+                'contact' => $user->commuterProfile?->contact_number,
+            ])
+        );
+
+        return $paginator->through(function (User $user) use ($historyByUser) {
+            $c = $user->commuterProfile;
+            $rows = $historyByUser[$user->id] ?? collect();
+            $history = $this->registrationHistoryPayloadFromRows($rows);
+
+            return [
+                'id' => $user->id,
+                'email' => $user->email,
+                'first_name' => $c?->first_name,
+                'middle_name' => $c?->middle_name,
+                'surname' => $c?->surname,
+                'birthdate' => $c?->birthdate?->toDateString(),
+                'gender' => $c?->gender,
+                'contact_number' => $c?->contact_number,
+                'username' => $c?->username,
+                'applied_type' => $c?->applied_type,
+                'id_image_url' => $this->registrationIdUrl($c?->id_image_url),
+                'account_status' => $c?->account_status,
+                'language_preference' => $c?->language_preference,
+                'verified_at' => $c?->verified_at?->toIso8601String(),
+                'rejection_reason' => $c?->rejection_reason,
+                // How many times this applicant's identity (email/contact)
+                // has previously been rejected — surfaced so admins can spot
+                // repeat submissions approaching the cooldown threshold.
+                'rejection_count' => $rows->count(),
+                'rejection_history' => $history['history'],
+                'blocked_until' => $history['blocked_until'],
+                'created_at' => optional($user->created_at)->toIso8601String(),
+            ];
+        });
     }
 
     /**
@@ -1213,7 +1280,7 @@ class AdminService
     {
         $perPage = max(1, min((int) ($filters['per_page'] ?? 15), 100));
 
-        return User::withTrashed()
+        $paginator = User::withTrashed()
             ->where('role', UserRole::COMMUTER)
             ->whereHas('commuterProfile', function ($q) {
                 $q->where('account_status', 'REJECTED');
@@ -1232,39 +1299,79 @@ class AdminService
             })
             ->with(['commuterProfile:id,first_name,middle_name,surname,birthdate,gender,email,contact_number,commuter_type,applied_type,account_status,id_image_url,verified_at,rejection_reason,username,language_preference'])
             ->orderBy('updated_at', 'desc') // most recently rejected first
-            ->paginate($perPage)
-            ->through(function (User $user) {
-                $c = $user->commuterProfile;
-                $history = $this->registrationHistoryPayload($c?->email, $c?->contact_number);
+            ->paginate($perPage);
 
-                return [
-                    'id' => $user->id,
-                    'email' => $c?->email ?? $user->email,
-                    'first_name' => $c?->first_name,
-                    'middle_name' => $c?->middle_name,
-                    'surname' => $c?->surname,
-                    'birthdate' => $c?->birthdate?->toDateString(),
-                    'gender' => $c?->gender,
-                    'contact_number' => $c?->contact_number,
-                    'username' => $c?->username,
-                    'applied_type' => $c?->applied_type,
-                    'id_image_url' => $this->registrationIdUrl($c?->id_image_url),
-                    'account_status' => $c?->account_status,
-                    'language_preference' => $c?->language_preference,
-                    'verified_at' => $c?->verified_at?->toIso8601String(),
-                    'rejection_reason' => $c?->rejection_reason,
-                    'rejection_count' => count($history['history']),
-                    'rejection_history' => $history['history'],
-                    'blocked_until' => $history['blocked_until'],
-                    'created_at' => optional($user->created_at)->toIso8601String(),
-                    'rejected_at' => optional($user->deleted_at)->toIso8601String(),
-                ];
-            });
+        // Batch-fetch rejection history for the whole page in one query —
+        // see the matching comment in listPendingRegistrations() above.
+        $historyByUser = $this->registrationGuard->historyForMany(
+            $paginator->getCollection()->map(fn (User $user) => [
+                'key' => $user->id,
+                'email' => $user->commuterProfile?->email,
+                'contact' => $user->commuterProfile?->contact_number,
+            ])
+        );
+
+        // Who rejected THIS specific account (for the "Reject By" column) —
+        // matched by rejected_user_id, which is exact, unlike the identity
+        // (email/contact) matching historyForMany uses to span an applicant's
+        // full history across re-registrations. One extra query for the whole
+        // page (not per-row) via a direct whereIn, kept separate from
+        // RegistrationGuard so the identity-matching path used by the Pending
+        // tab is untouched.
+        $pageUserIds = $paginator->getCollection()->pluck('id');
+        $rejectorByUserId = $pageUserIds->isEmpty()
+            ? collect()
+            : RegistrationRejection::query()
+                ->whereIn('rejected_user_id', $pageUserIds)
+                ->with(['rejectedBy:id,email', 'rejectedBy.adminProfile:id,first_name,middle_name,last_name'])
+                ->get(['id', 'rejected_user_id', 'rejected_by'])
+                ->keyBy('rejected_user_id');
+
+        return $paginator->through(function (User $user) use ($historyByUser, $rejectorByUserId) {
+            $c = $user->commuterProfile;
+            $rows = $historyByUser[$user->id] ?? collect();
+            $history = $this->registrationHistoryPayloadFromRows($rows);
+
+            $rejector = $rejectorByUserId->get($user->id)?->rejectedBy;
+            $rejectorProfile = $rejector?->adminProfile;
+
+            return [
+                'id' => $user->id,
+                'email' => $c?->email ?? $user->email,
+                'first_name' => $c?->first_name,
+                'middle_name' => $c?->middle_name,
+                'surname' => $c?->surname,
+                'birthdate' => $c?->birthdate?->toDateString(),
+                'gender' => $c?->gender,
+                'contact_number' => $c?->contact_number,
+                'username' => $c?->username,
+                'applied_type' => $c?->applied_type,
+                'id_image_url' => $this->registrationIdUrl($c?->id_image_url),
+                'account_status' => $c?->account_status,
+                'language_preference' => $c?->language_preference,
+                'verified_at' => $c?->verified_at?->toIso8601String(),
+                'rejection_reason' => $c?->rejection_reason,
+                'rejection_count' => $rows->count(),
+                'rejection_history' => $history['history'],
+                'blocked_until' => $history['blocked_until'],
+                'created_at' => optional($user->created_at)->toIso8601String(),
+                'rejected_at' => optional($user->deleted_at)->toIso8601String(),
+                'rejected_by_name' => $rejectorProfile
+                    ? trim($rejectorProfile->first_name.' '.$rejectorProfile->last_name)
+                    : null,
+                'rejected_by_email' => $rejector?->email,
+            ];
+        });
     }
 
-    private function registrationHistoryPayload(?string $email, ?string $contact): array
+    /**
+     * Builds the { history, blocked_until } payload from a Collection of
+     * rejection rows already fetched by the caller — a batched lookup for a
+     * whole page via RegistrationGuard::historyForMany(), so this doesn't
+     * query `registration_rejections` again per row.
+     */
+    private function registrationHistoryPayloadFromRows(Collection $history): array
     {
-        $history = $this->registrationGuard->historyFor($email, $contact);
         $activeBlock = $history->first(
             fn ($rejection) => $rejection->blocked_until?->isFuture()
         );
@@ -1365,7 +1472,10 @@ class AdminService
                     'id' => "txn-{$txn->transaction_id}",
                     'timestamp' => optional($txn->created_at)->toIso8601String(),
                     'action' => 'Payment',
-                    'details' => "{$txn->payment_method} ₱{$txn->final_amount} — {$txn->pickup_name} → {$txn->dropoff_name} ({$txn->status})",
+                    // payment_method/status are backed enums (PaymentMethod/
+                    // PaymentStatus casts) — interpolate ->value, not the
+                    // enum object itself (uncatchable TypeError otherwise).
+                    'details' => "{$txn->payment_method->value} ₱{$txn->final_amount} — {$txn->pickup_name} → {$txn->dropoff_name} ({$txn->status->value})",
                 ];
             }
         }

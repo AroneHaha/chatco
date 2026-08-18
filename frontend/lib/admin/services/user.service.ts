@@ -30,6 +30,7 @@ interface RawUser {
   name: string;
   account_status: string | null;
   commuter_type: string | null;
+  username: string | null;
   contact_number: string | null;
   verified_at: string | null;
   created_at: string | null;
@@ -98,6 +99,8 @@ export interface AdminUser {
   commuterType: CommuterType | null;
   /** UI-friendly commuter type label (e.g. "Senior Citizen" for SENIOR). */
   commuterTypeLabel: string;
+  /** Commuter's self-chosen login username. Null for non-commuter roles. */
+  username: string | null;
   contactNumber: string | null;
   verifiedAt: string | null;
   createdAt: string | null;
@@ -210,6 +213,7 @@ function mapUser(raw: RawUser): AdminUser {
     statusLabel: mapStatusLabel(raw.account_status),
     commuterType: (raw.commuter_type as CommuterType | null) ?? null,
     commuterTypeLabel: mapCommuterTypeLabel(raw.commuter_type),
+    username: raw.username,
     contactNumber: raw.contact_number,
     verifiedAt: raw.verified_at,
     createdAt: raw.created_at,

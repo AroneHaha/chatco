@@ -1,22 +1,27 @@
+// components/admin/users/rejected-accounts-table.tsx
 'use client';
 
 import type { ReactNode } from 'react';
-import { Eye } from 'lucide-react';
 import { Badge } from '@/components/admin/ui/badge';
 import { DataTable } from '@/components/admin/ui/data-table';
 import { TablePagination } from '@/components/admin/ui/table-pagination';
-import type { PendingRequest } from '@/app/(admin)/users/data/users-data';
+import type { RejectedRequest } from '@/app/(admin)/users/data/users-data';
 import type { RegistrationPagination } from '@/lib/admin/services/registration.service';
 
-function formatAppliedDate(value: string): string {
+function formatAppliedDate(value: string | null): string {
+  if (!value) return '—';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-interface RegistrationRequestsTableProps {
-  requests: PendingRequest[];
-  onSelectRequest: (request: PendingRequest) => void;
+interface RejectedAccountsTableProps {
+  requests: RejectedRequest[];
+  /**
+   * Opens the details modal for a row. Receives the row object straight from
+   * the already-loaded page data — never triggers a fetch.
+   */
+  onSelectRequest: (request: RejectedRequest) => void;
   pagination: RegistrationPagination | null;
   onPageChange: (page: number) => void;
   /** Search bar + filter controls, rendered in the card header above the table. */
@@ -24,28 +29,30 @@ interface RegistrationRequestsTableProps {
   /**
    * True while a search/filter/page-driven refetch is in flight for a tab
    * that already has data on screen. Shows a small overlay scoped to the
-   * table rows only — the header (search bar, filters) and pagination stay
-   * mounted and interactive instead of the whole card flashing to a skeleton.
+   * table rows only.
    */
   isRefreshing?: boolean;
 }
 
-export function RegistrationRequestsTable({
+export function RejectedAccountsTable({
   requests,
   onSelectRequest,
   pagination,
   onPageChange,
   headerContent,
   isRefreshing,
-}: RegistrationRequestsTableProps) {
+}: RejectedAccountsTableProps) {
   const currentPage = pagination?.currentPage ?? 1;
   const totalPages = pagination?.lastPage ?? 1;
   const total = pagination?.total ?? requests.length;
+
   const columns = [
     {
       key: 'name',
       label: 'Applicant',
-      render: (value: string, request: PendingRequest) => (
+      headerClassName: 'w-[24%] px-2 sm:px-4',
+      cellClassName: 'px-2 sm:px-4 min-w-0',
+      render: (value: string, request: RejectedRequest) => (
         <div className="flex min-w-0 items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -54,8 +61,8 @@ export function RegistrationRequestsTable({
             className="h-9 w-9 flex-shrink-0 rounded-md border border-[#1E2D45] object-cover"
           />
           <div className="min-w-0">
-            <p className="truncate font-medium text-white">{value}</p>
-            <p className="truncate text-xs text-slate-500">{request.email}</p>
+            <p className="truncate font-medium text-white" title={value}>{value}</p>
+            <p className="truncate text-xs text-slate-500" title={request.email}>{request.email}</p>
           </div>
         </div>
       ),
@@ -63,39 +70,42 @@ export function RegistrationRequestsTable({
     {
       key: 'commuterType',
       label: 'Type',
+      headerClassName: 'w-[10%] px-2 sm:px-4',
+      cellClassName: 'px-2 sm:px-4',
       render: (value: string) => <Badge variant="info">{value}</Badge>,
     },
     {
       key: 'createdAt',
       label: 'Applied',
+      headerClassName: 'w-[12%] px-2 sm:px-4',
+      cellClassName: 'px-2 sm:px-4',
       render: (value: string) => <span className="text-xs text-slate-400">{formatAppliedDate(value)}</span>,
     },
     {
-      key: 'phoneNumber',
-      label: 'Contact',
-      render: (value: string) => <span className="text-sm text-slate-400">{value || '—'}</span>,
+      key: 'rejectionReason',
+      label: 'Reason',
+      // Fixed-width, single-line, ellipsized — a long reason must never grow
+      // the row. `min-w-0` on the cell is required for `truncate` to work
+      // inside a `table-fixed` layout. The full text is always available in
+      // the details modal (double-click) and via the hover tooltip.
+      headerClassName: 'w-[28%] px-2 sm:px-4',
+      cellClassName: 'px-2 sm:px-4 min-w-0',
+      render: (value: string) => (
+        <span className="block truncate text-xs text-slate-400 italic" title={value}>{value || 'N/A'}</span>
+      ),
     },
     {
-      key: 'status',
-      label: 'Status',
-      render: () => <Badge variant="warning">Pending Verification</Badge>,
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      align: 'center' as const,
-      render: (_: unknown, request: PendingRequest) => (
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onSelectRequest(request);
-          }}
-          className="inline-flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-400 transition-colors hover:bg-[#62A0EA]/10 hover:text-[#62A0EA]"
-        >
-          <Eye size={16} />
-          Review
-        </button>
+      key: 'rejectedByName',
+      label: 'Reject By',
+      headerClassName: 'w-[26%] px-2 sm:px-4',
+      cellClassName: 'px-2 sm:px-4 min-w-0',
+      render: (value: string | null, request: RejectedRequest) => (
+        <div className="min-w-0">
+          <p className="truncate text-sm text-white" title={value ?? undefined}>{value || '—'}</p>
+          {request.rejectedByEmail && (
+            <p className="truncate text-xs text-slate-500" title={request.rejectedByEmail}>{request.rejectedByEmail}</p>
+          )}
+        </div>
       ),
     },
   ];
@@ -108,9 +118,10 @@ export function RegistrationRequestsTable({
           data={requests}
           columns={columns}
           searchQuery=""
-          emptyMessage="No pending registration requests."
+          emptyMessage="No rejected accounts."
           height="100%"
           stickyHeader
+          allowHorizontalScroll={false}
           tableClassName="table-fixed"
           onRowDoubleClick={onSelectRequest}
         />
@@ -127,7 +138,7 @@ export function RegistrationRequestsTable({
           from={pagination?.from ?? (requests.length ? 1 : 0)}
           to={pagination?.to ?? requests.length}
           total={total}
-          label="requests"
+          label="rejected accounts"
           onPageChange={onPageChange}
         />
       </div>

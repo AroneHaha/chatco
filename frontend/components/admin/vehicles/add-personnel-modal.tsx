@@ -7,6 +7,13 @@ import { UserPlus, Upload, Check, User, Phone, IdCard } from 'lucide-react';
 
 // Mirrors the backend's LTO format check (AdminController::storeDriver).
 const LICENSE_NUMBER_PATTERN = /^[A-Z][0-9]{2}-[0-9]{2}-[0-9]{6}$/;
+// Mirrors the backend's PH mobile format check (AdminController::storeDriver).
+const CONTACT_PATTERN = /^09[0-9]{9}$/;
+const CONTACT_ERROR = 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).';
+
+function formatContactNumber(value: string): string {
+  return value.replace(/[^0-9]/g, '').slice(0, 11);
+}
 
 function formatLicenseNumber(value: string): string {
   const normalized = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -47,7 +54,7 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'licenseNumber' ? formatLicenseNumber(value) : value,
+      [name]: name === 'licenseNumber' ? formatLicenseNumber(value) : name === 'contact' ? formatContactNumber(value) : value,
     }));
   };
 
@@ -76,6 +83,11 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
 
     setError(null);
     setFieldErrors({});
+
+    if (!CONTACT_PATTERN.test(formData.contact)) {
+      setFieldErrors({ contact: [CONTACT_ERROR] });
+      return;
+    }
 
     if (!LICENSE_NUMBER_PATTERN.test(formData.licenseNumber)) {
       setFieldErrors({ licenseNumber: ['Use the Philippine LTO format N01-23-045678 (one letter, four digits, then six digits).'] });
@@ -350,7 +362,10 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
             onChange={handleChange}
             required
             disabled={isSubmitting}
-            placeholder="e.g. 0917 123 4567"
+            placeholder="e.g. 09171234567"
+            maxLength={11}
+            pattern="09[0-9]{9}"
+            title="Enter an 11-digit mobile number starting with 09"
             className={`${inputClasses} ${fieldErrors.contact ? 'border-red-500/50' : ''}`}
           />
           {fieldErrors.contact && (
