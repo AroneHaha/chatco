@@ -366,8 +366,14 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
         </div>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="h-[480px] overflow-hidden rounded-2xl border border-white/10">
+      {/* items-stretch (grid's default, made explicit here) + h-full on the
+          map: the sidebar's stacked controls run well past the map's old
+          fixed 480px, so the map stretches to match the sidebar's actual
+          height instead of sitting short beside a much taller column.
+          min-h-[480px] keeps a sane floor for the sub-xl single-column
+          layout, where the sidebar sits in its own row below the map. */}
+      <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="h-full min-h-120 overflow-hidden rounded-2xl border border-white/10">
           <MapContainer center={mapCenter} zoom={12} className="h-full w-full" attributionControl>
             <TileLayer
               url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"

@@ -1,7 +1,7 @@
 // app/(admin)/analytics/page.tsx
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   AlertCircle,
@@ -12,13 +12,13 @@ import {
   Smartphone,
   Users,
   Car,
-  RefreshCw,
   Banknote,
   Clock,
   AlertTriangle,
   BarChart3,
   FileText,
   Download,
+  ChevronDown,
   Receipt,
   ShieldCheck,
 } from 'lucide-react';
@@ -252,6 +252,19 @@ interface RemittanceRow {
   remittance_status: string;
 }
 
+// The API sends the backend Remittance enum's raw uppercase codes —
+// 'PENDING' | 'COMPLETE' | 'SHORTAGE' | 'OVERAGE' (see Remittance.php) —
+// never the literal string 'Remitted'. Comparing against 'Remitted' directly
+// was always false, so every row silently rendered as Pending regardless of
+// its actual state. This mirrors the decoding the Remittance module already
+// does correctly in remittance-data.tsx: any status other than PENDING means
+// a remittance record exists, i.e. the shift has been remitted (SHORTAGE/
+// OVERAGE still count — they're a remitted amount that didn't reconcile,
+// not an un-remitted one). 'Remitted' itself is kept as a legacy fallback.
+function isRemittedStatus(status: string): boolean {
+  return status === 'COMPLETE' || status === 'SHORTAGE' || status === 'OVERAGE' || status === 'Remitted';
+}
+
 function useRemittanceRows(range: AnalyticsRange) {
   const [rows, setRows] = useState<RemittanceRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -269,7 +282,19 @@ function useRemittanceRows(range: AnalyticsRange) {
       const json = await res.json();
       const payload = json.data;
       const records = Array.isArray(payload) ? payload : payload?.data ?? [];
-      setRows(Array.isArray(records) ? (records as RemittanceRow[]) : []);
+      // The API serializes decimal columns (cash_total, gcash_total) as JSON
+      // strings, not numbers. Left uncoerced, `r.cash_total + r.gcash_total`
+      // downstream does string concatenation ("57.75" + "0.00" ->
+      // "57.750.00") instead of addition, which then cascades into every
+      // running total. Coerce once here so the rest of the tab can trust
+      // these are numbers.
+      const normalized = (Array.isArray(records) ? records : []).map((r: Record<string, unknown>) => ({
+        ...r,
+        cash_total: Number(r.cash_total) || 0,
+        gcash_total: Number(r.gcash_total) || 0,
+        total_passengers: Number(r.total_passengers) || 0,
+      }));
+      setRows(normalized as RemittanceRow[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load remittances');
     } finally {
@@ -286,28 +311,24 @@ function ReportsTab({
   analyticsData,
   rangeLabel,
   range,
+  scopedRows,
+  isLoading,
+  error,
+  refetch,
 }: {
   analyticsData: AnalyticsData | null;
   rangeLabel: string;
   range: AnalyticsRange;
+  /** Remittance rows already fetched + date-scoped by the parent, which also
+   * owns the Export button (moved up into the shared filter row so it can
+   * sit beside the day-range presets instead of its own row down here). */
+  scopedRows: RemittanceRow[];
+  isLoading: boolean;
+  error: string | null;
+  refetch: () => void;
 }) {
-  const { rows, isLoading, error, refetch } = useRemittanceRows(range);
   const dateFrom = range.date_from;
   const dateTo = range.date_to;
-
-  // Scope remittances to the selected window. The table used to show every
-  // remittance ever recorded while the three panels beside it were range
-  // filtered, so the tab silently mixed two different periods. The backend
-  // also receives the range; this guard keeps proxy variants safe.
-  const scopedRows = useMemo(() => {
-    if (!dateFrom && !dateTo) return rows;
-    return rows.filter(r => {
-      if (!r.date) return false;
-      if (dateFrom && r.date < dateFrom) return false;
-      if (dateTo && r.date > dateTo) return false;
-      return true;
-    });
-  }, [rows, dateFrom, dateTo]);
 
   const remittanceTableData: AnalyticsRemittance[] = useMemo(() => {
     return scopedRows.map(r => ({
@@ -318,7 +339,7 @@ function ReportsTab({
       remittedAmount: r.cash_total + r.gcash_total,
       cashAmount: r.cash_total,
       gcashAmount: r.gcash_total,
-      status: r.remittance_status === 'Remitted' ? 'Remitted' as const : 'Pending' as const,
+      status: isRemittedStatus(r.remittance_status) ? 'Remitted' as const : 'Pending' as const,
     }));
   }, [scopedRows]);
 
@@ -340,61 +361,6 @@ function ReportsTab({
     if (!analyticsData?.pickup_points) return [];
     return analyticsData.pickup_points.map(p => ({ name: p.name, count: p.count }));
   }, [analyticsData]);
-
-  const handleExportCSV = useCallback(() => {
-    const headers = ['Shift ID', 'Conductor', 'Driver', 'Unit', 'Date', 'Time In', 'Time Out', 'Cash', 'GCash', 'Total', 'Passengers', 'Status'];
-    const body = scopedRows.map(r => [
-      r.shift_id,
-      r.conductor_name ?? '',
-      r.driver_name ?? '',
-      r.unit_number ?? '',
-      r.date ?? '',
-      r.time_in ?? '',
-      r.time_out ?? '',
-      r.cash_total.toFixed(2),
-      r.gcash_total.toFixed(2),
-      (r.cash_total + r.gcash_total).toFixed(2),
-      String(r.total_passengers ?? 0),
-      r.remittance_status ?? '',
-    ]);
-
-    const esc = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
-    const csv = [headers.map(esc).join(','), ...body.map(row => row.map(esc).join(','))].join('\n');
-
-    // BOM so Excel reads UTF-8 correctly (matches the Receipts export).
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `chatco-remittances-${dateFrom ?? 'all'}-to-${dateTo ?? 'all'}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  }, [scopedRows, dateFrom, dateTo]);
-
-  const handleReportExport = useCallback((format: ReportFormat) => {
-    exportReport({
-      title: 'CHATCO Remittance Analytics',
-      fileName: `chatco-remittances-${dateFrom ?? 'all'}-to-${dateTo ?? 'all'}`,
-      format,
-      headers: ['Shift ID', 'Conductor', 'Driver', 'Unit', 'Date', 'Time In', 'Time Out', 'Cash', 'GCash', 'Total', 'Passengers', 'Status'],
-      rows: scopedRows.map((row) => [
-        row.shift_id,
-        row.conductor_name ?? '',
-        row.driver_name ?? '',
-        row.unit_number ?? '',
-        row.date ?? '',
-        row.time_in ?? '',
-        row.time_out ?? '',
-        row.cash_total.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
-        row.gcash_total.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
-        (row.cash_total + row.gcash_total).toLocaleString('en-PH', { minimumFractionDigits: 2 }),
-        row.total_passengers ?? 0,
-        row.remittance_status ?? '',
-      ]),
-    });
-  }, [scopedRows, dateFrom, dateTo]);
 
   if (isLoading) {
     return (
@@ -422,45 +388,17 @@ function ReportsTab({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-slate-500">
-          {remittanceTableData.length} remittance{remittanceTableData.length === 1 ? '' : 's'} · {rangeLabel}
-        </p>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => refetch()}
-            title="Refresh remittances"
-            className="p-2 text-slate-400 hover:text-white hover:bg-[#1A2540] rounded-md transition-colors"
-          >
-            <RefreshCw size={16} />
-          </button>
-          <button
-            onClick={handleExportCSV}
-            disabled={scopedRows.length === 0}
-            title={`Export ${scopedRows.length} remittances to CSV`}
-            className="flex items-center gap-1.5 px-2.5 py-2 bg-[#334155] text-white text-xs font-medium rounded-md hover:bg-[#475569] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Download size={13} />
-            <span>CSV</span>
-          </button>
-          {(['pdf', 'excel', 'word'] as const).map((format) => (
-            <button
-              key={format}
-              onClick={() => handleReportExport(format)}
-              disabled={scopedRows.length === 0}
-              title={`Export ${scopedRows.length} remittances to ${format.toUpperCase()}`}
-              className="flex items-center gap-1.5 px-2.5 py-2 bg-[#62A0EA] text-white text-xs font-medium rounded-md hover:bg-[#4A8BD4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Download size={13} />
-              <span>{format === 'pdf' ? 'PDF' : format === 'excel' ? 'Excel' : 'Word'}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
+      {/* Two independent stacked columns, not a 2x2 grid: a CSS grid forces
+          paired cells in the same row to share one track height, which left
+          a ~100px dead gap under the shorter card whenever a row's two cards
+          didn't match exactly. Each card keeps a fixed height with an
+          internal scroll region (see PickupPointsList/DemandHeatmapData) so
+          a card with lots of rows scrolls instead of growing the page.
+          PickupPointsList's height was bumped to 500px so this column
+          (500+370) totals the same as the left column (600+270). */}
       <div className="grid lg:grid-cols-2 gap-6">
         <div className="space-y-6">
-          <RemittanceTable data={remittanceTableData} />
+          <RemittanceTable data={remittanceTableData} dateFrom={dateFrom} dateTo={dateTo} />
           <PaymentUsageTable data={paymentUsageData} />
         </div>
         <div className="space-y-6">
@@ -687,6 +625,100 @@ export default function AnalyticsPage() {
     ? `${data.date_range.from} → ${data.date_range.to} (${data.date_range.days}d)`
     : 'Loading…';
 
+  // Remittance data + the Export button live up here (not inside ReportsTab)
+  // so the button can sit in the shared filter row, beside the day-range
+  // presets, instead of its own row inside the Reports tab body.
+  const {
+    rows: remittanceRows,
+    isLoading: isLoadingRemittances,
+    error: remittanceError,
+    refetch: refetchRemittances,
+  } = useRemittanceRows(range);
+  const dateFrom = range.date_from;
+  const dateTo = range.date_to;
+
+  // Scope remittances to the selected window. The table used to show every
+  // remittance ever recorded while the three panels beside it were range
+  // filtered, so the tab silently mixed two different periods. The backend
+  // also receives the range; this guard keeps proxy variants safe.
+  const scopedRows = useMemo(() => {
+    if (!dateFrom && !dateTo) return remittanceRows;
+    return remittanceRows.filter(r => {
+      if (!r.date) return false;
+      if (dateFrom && r.date < dateFrom) return false;
+      if (dateTo && r.date > dateTo) return false;
+      return true;
+    });
+  }, [remittanceRows, dateFrom, dateTo]);
+
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setIsExportOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleExportCSV = useCallback(() => {
+    const headers = ['Shift ID', 'Conductor', 'Driver', 'Unit', 'Date', 'Time In', 'Time Out', 'Cash', 'GCash', 'Total', 'Passengers', 'Status'];
+    const body = scopedRows.map(r => [
+      r.shift_id,
+      r.conductor_name ?? '',
+      r.driver_name ?? '',
+      r.unit_number ?? '',
+      r.date ?? '',
+      r.time_in ?? '',
+      r.time_out ?? '',
+      r.cash_total.toFixed(2),
+      r.gcash_total.toFixed(2),
+      (r.cash_total + r.gcash_total).toFixed(2),
+      String(r.total_passengers ?? 0),
+      r.remittance_status ?? '',
+    ]);
+
+    const esc = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
+    const csv = [headers.map(esc).join(','), ...body.map(row => row.map(esc).join(','))].join('\n');
+
+    // BOM so Excel reads UTF-8 correctly (matches the Receipts export).
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `chatco-remittances-${dateFrom ?? 'all'}-to-${dateTo ?? 'all'}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [scopedRows, dateFrom, dateTo]);
+
+  const handleReportExport = useCallback((format: ReportFormat) => {
+    exportReport({
+      title: 'CHATCO Remittance Analytics',
+      fileName: `chatco-remittances-${dateFrom ?? 'all'}-to-${dateTo ?? 'all'}`,
+      format,
+      headers: ['Shift ID', 'Conductor', 'Driver', 'Unit', 'Date', 'Time In', 'Time Out', 'Cash', 'GCash', 'Total', 'Passengers', 'Status'],
+      rows: scopedRows.map((row) => [
+        row.shift_id,
+        row.conductor_name ?? '',
+        row.driver_name ?? '',
+        row.unit_number ?? '',
+        row.date ?? '',
+        row.time_in ?? '',
+        row.time_out ?? '',
+        row.cash_total.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
+        row.gcash_total.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
+        (row.cash_total + row.gcash_total).toLocaleString('en-PH', { minimumFractionDigits: 2 }),
+        row.total_passengers ?? 0,
+        row.remittance_status ?? '',
+      ]),
+    });
+  }, [scopedRows, dateFrom, dateTo]);
+
   return (
     <div className="space-y-6">
       <StickyPageHeader>
@@ -790,6 +822,55 @@ export default function AnalyticsPage() {
               </div>
             </div>
           )}
+
+          {/* Export lives here (Reports tab only) so it sits beside the
+              day-range presets — days first (leftmost), export after —
+              instead of its own row inside the tab body below. */}
+          {activeTab === 'reports' && (
+            <div className="relative" ref={exportMenuRef}>
+              <button
+                onClick={() => setIsExportOpen((open) => !open)}
+                disabled={scopedRows.length === 0}
+                title={`Export ${scopedRows.length} remittances`}
+                aria-haspopup="menu"
+                aria-expanded={isExportOpen}
+                className="flex items-center gap-1.5 px-2.5 py-2 bg-[#62A0EA] text-white text-xs font-medium rounded-md hover:bg-[#4A8BD4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Download size={13} />
+                <span>Export</span>
+                <ChevronDown size={13} className={`transition-transform duration-200 ${isExportOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isExportOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 top-full mt-2 w-32 bg-[#131C2E] border border-[#1E2D45] rounded-md shadow-2xl shadow-black/50 overflow-hidden z-20"
+                >
+                  <button
+                    role="menuitem"
+                    onClick={() => { handleExportCSV(); setIsExportOpen(false); }}
+                    title={`Export ${scopedRows.length} remittances to CSV`}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-300 hover:bg-[#1A2540] hover:text-white transition-colors"
+                  >
+                    <Download size={13} className="text-slate-500" />
+                    <span>CSV</span>
+                  </button>
+                  {(['pdf', 'excel', 'word'] as const).map((format) => (
+                    <button
+                      key={format}
+                      role="menuitem"
+                      onClick={() => { handleReportExport(format); setIsExportOpen(false); }}
+                      title={`Export ${scopedRows.length} remittances to ${format.toUpperCase()}`}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-300 hover:bg-[#1A2540] hover:text-white transition-colors"
+                    >
+                      <Download size={13} className="text-slate-500" />
+                      <span>{format === 'pdf' ? 'PDF' : format === 'excel' ? 'Excel' : 'Word'}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -800,6 +881,10 @@ export default function AnalyticsPage() {
           analyticsData={data}
           rangeLabel={rangeLabel}
           range={range}
+          scopedRows={scopedRows}
+          isLoading={isLoadingRemittances}
+          error={remittanceError}
+          refetch={refetchRemittances}
         />
       )}
     </div>

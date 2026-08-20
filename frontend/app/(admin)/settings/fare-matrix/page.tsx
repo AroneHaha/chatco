@@ -641,7 +641,10 @@ export default function FareMatrixPage() {
             <div id="fare-point-add-form" className="bg-[#1A5FB4]/5 border border-[#1A5FB4]/30 p-5 rounded-2xl space-y-4">
               <h3 className="text-sm font-bold text-white">New Point Area</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
+                {/* Full width: the next field (Sub Pickup) is also
+                    sm:col-span-2, so a single-column Point Name left an
+                    empty cell beside it instead of the two stacking flush. */}
+                <div className="sm:col-span-2">
                   <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Point Name</label>
                   <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Jollibee Crossing" className={inputClasses} />
                 </div>
@@ -682,7 +685,8 @@ export default function FareMatrixPage() {
             <div id="fare-point-edit-form" className="bg-[#1A5FB4]/5 border border-[#1A5FB4]/30 p-5 rounded-2xl space-y-4">
               <h3 className="text-sm font-bold text-white">Edit Point #{editingPoint}</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
+                {/* Full width, same reasoning as the Add form above. */}
+                <div className="sm:col-span-2">
                   <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Point Name</label>
                   <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} className={inputClasses} />
                 </div>

@@ -8,7 +8,7 @@ interface PaymentUsageTableProps {
 
 export function PaymentUsageTable({ data }: PaymentUsageTableProps) {
   return (
-    <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5 h-[270px] flex flex-col">
+    <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5 h-67.5 flex flex-col">
       <h3 className="text-sm font-semibold text-white mb-4 flex-shrink-0">Payment Method Usage</h3>
       
       {/* Table Header */}
