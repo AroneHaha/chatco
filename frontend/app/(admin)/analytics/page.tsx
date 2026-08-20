@@ -265,10 +265,14 @@ function isRemittedStatus(status: string): boolean {
   return status === 'COMPLETE' || status === 'SHORTAGE' || status === 'OVERAGE' || status === 'Remitted';
 }
 
-function useRemittanceRows(range: AnalyticsRange) {
+function useRemittanceRows(range: AnalyticsRange, enabled: boolean) {
   const [rows, setRows] = useState<RemittanceRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Tracks the range this hook has already fetched (or is fetching) for,
+  // so switching back to the Reports tab without changing the date range
+  // doesn't re-fire the request.
+  const fetchedRangeKey = useRef<string | null>(null);
 
   const fetchRows = useCallback(async () => {
     setIsLoading(true);
@@ -302,7 +306,17 @@ function useRemittanceRows(range: AnalyticsRange) {
     }
   }, [range.date_from, range.date_to]);
 
-  useEffect(() => { fetchRows(); }, [fetchRows]);
+  // Only fetches while the Reports tab (the only consumer of this data) is
+  // active. Loading it on the Overview tab was pure waste: a full
+  // /api/admin/remittances request with eager-loaded relations that
+  // Overview never renders.
+  useEffect(() => {
+    if (!enabled) return;
+    const rangeKey = `${range.date_from ?? ''}|${range.date_to ?? ''}`;
+    if (fetchedRangeKey.current === rangeKey) return;
+    fetchedRangeKey.current = rangeKey;
+    fetchRows();
+  }, [enabled, range.date_from, range.date_to, fetchRows]);
 
   return { rows, isLoading, error, refetch: fetchRows };
 }
@@ -633,7 +647,7 @@ export default function AnalyticsPage() {
     isLoading: isLoadingRemittances,
     error: remittanceError,
     refetch: refetchRemittances,
-  } = useRemittanceRows(range);
+  } = useRemittanceRows(range, activeTab === 'reports');
   const dateFrom = range.date_from;
   const dateTo = range.date_to;
 

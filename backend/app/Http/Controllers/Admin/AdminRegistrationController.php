@@ -142,22 +142,31 @@ class AdminRegistrationController extends Controller
             ]);
         }
 
-        $created = DB::transaction(function () use ($validated, $request) {
+        // Upload the ID image BEFORE opening the transaction — same reasoning
+        // as AuthService::register(): storeAs() is a network call to external
+        // storage (R2), so running it inside DB::transaction() would hold the
+        // transaction (and the row locks the User insert takes) open for
+        // however long that upload took. The id is generated up front and
+        // assigned explicitly so User::create()'s `creating` hook (which only
+        // fills empty ids) doesn't mint a different one than the filename
+        // already uses.
+        $userId = (string) Str::uuid();
+        $file = $request->file('id_image');
+        $extension = $file->getClientOriginalExtension() ?: 'jpg';
+        $filename = $userId . '-' . Str::random(16) . '.' . $extension;
+        $idImagePath = $file->storeAs(
+            'ids',
+            $filename,
+            config('filesystems.uploads.private_id_disk', 'r2_private')
+        );
+
+        $created = DB::transaction(function () use ($validated, $userId, $idImagePath) {
             $user = User::create([
+                'id' => $userId,
                 'email' => $validated['email'],
                 'password' => $validated['password'], // 'hashed' cast on User
                 'role' => UserRole::COMMUTER,
             ]);
-
-            // Store the ID image on the private upload disk.
-            $file = $request->file('id_image');
-            $extension = $file->getClientOriginalExtension() ?: 'jpg';
-            $filename = $user->id . '-' . Str::random(16) . '.' . $extension;
-            $idImagePath = $file->storeAs(
-                'ids',
-                $filename,
-                config('filesystems.uploads.private_id_disk', 'r2_private')
-            );
 
             $profile = CommuterProfile::create([
                 'id' => $user->id,

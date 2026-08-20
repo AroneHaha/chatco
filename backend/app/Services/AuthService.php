@@ -234,6 +234,18 @@ class AuthService
             ]);
         }
 
+        // Upload the ID image BEFORE opening the transaction. This is a
+        // network call to external storage (R2) — running it inside
+        // DB::transaction() (as before) held the transaction, and the row
+        // locks the User insert takes, open for however long that upload
+        // took, which delays both the commit and the moment the pending
+        // registration becomes visible to the admin's next query.
+        // The generated id is assigned explicitly below so User::create()'s
+        // `creating` hook (which only fills empty ids) doesn't mint a
+        // different one than the filename already uses.
+        $userId = (string) Str::uuid();
+        $idImagePath = $this->storeIdImage($userId, $data['id_image']);
+
         // The exists() check above is a TOCTOU race: two requests for the same
         // email submitted close together can both pass it and both reach
         // User::create(). The DB-level unique index (users.email, and
@@ -242,8 +254,9 @@ class AuthService
         // failure into the same friendly ValidationException the pre-check
         // throws, instead of letting a raw QueryException surface as a 500.
         try {
-            $created = DB::transaction(function () use ($data): array {
+            $created = DB::transaction(function () use ($data, $userId, $idImagePath): array {
                 $user = User::create([
+                    'id' => $userId,
                     'email' => $data['email'],
                     'password' => $data['password'], // 'hashed' cast on User
                     'role' => UserRole::COMMUTER,
@@ -263,7 +276,7 @@ class AuthService
                     'username' => $data['username'],
                     'language_preference' => $data['language_preference'] ?? 'English',
                     'account_status' => 'PENDING',
-                    'id_image_url' => $this->storeIdImage($user, $data['id_image']),
+                    'id_image_url' => $idImagePath,
                     'verified_at' => null,
                     'rejection_reason' => null,
                 ]);
@@ -326,15 +339,18 @@ class AuthService
      * private disk and are exposed to admins only through temporary URLs.
      * NEVER store the raw file in the DB — only the object path.
      *
-     * @param  User  $user
+     * Takes the user id as a string (rather than a User model) so callers can
+     * upload before the User row exists — see the call site in register().
+     *
+     * @param  string  $userId
      * @param  \Illuminate\Http\UploadedFile  $file
      * @return string  The storage path (e.g. 'ids/uuid-abc123.jpg')
      */
-    private function storeIdImage(User $user, $file): string
+    private function storeIdImage(string $userId, $file): string
     {
         // The filename includes the user ID for traceability.
         $extension = $file->getClientOriginalExtension() ?: 'jpg';
-        $filename = $user->id . '-' . Str::random(16) . '.' . $extension;
+        $filename = $userId . '-' . Str::random(16) . '.' . $extension;
 
         return $file->storeAs(
             'ids',
