@@ -21,6 +21,8 @@ class UpdateLocationRequest extends FormRequest
             'accuracy' => 'nullable|numeric|between:0,1000',
             'fix_timestamp' => 'nullable|date',
             'capacity_status' => 'nullable|string|in:AVAILABLE,STANDING,FULL',
+            'device_id' => 'nullable|string|min:16|max:100|regex:/^[A-Za-z0-9._:-]+$/',
+            'device_type' => 'nullable|required_with:device_id|string|in:WEB,MOBILE',
         ];
     }
 

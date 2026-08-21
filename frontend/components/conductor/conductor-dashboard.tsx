@@ -14,6 +14,7 @@ export default function ConductorDashboard() {
   const router = useRouter();
   const {
     shift,
+    canOperate,
     elapsed,
     shiftStatus,
     shiftError,
@@ -21,6 +22,9 @@ export default function ConductorDashboard() {
     txnStatus,
     txnError,
     hails,
+    hailBusyId,
+    hailActionError,
+    updateHail,
     status,
     setStatus,
     isOnBreak,
@@ -80,7 +84,7 @@ export default function ConductorDashboard() {
         <button
           type="button"
           onClick={openBreakModal}
-          disabled={breakBusy}
+          disabled={breakBusy || !canOperate}
           className={`rounded-xl border px-4 py-2 text-xs font-bold shadow-lg transition-colors disabled:cursor-wait disabled:opacity-60 ${
             isOnBreak
               ? "border-emerald-400/40 bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30"
@@ -108,6 +112,7 @@ export default function ConductorDashboard() {
         isOnBreak={isOnBreak}
         breakBusy={breakBusy}
         onOpenBreakModal={openBreakModal}
+        canOperate={canOperate}
       />
 
       <DesktopDashboardCard
@@ -129,6 +134,7 @@ export default function ConductorDashboard() {
           }
         }}
         onHistoryClick={() => setShowHistory(true)}
+        canOperate={canOperate}
       />
 
       <DashboardMapContainer
@@ -136,6 +142,10 @@ export default function ConductorDashboard() {
         hails={hails}
         status={status}
         isOnBreak={isOnBreak}
+        canOperate={canOperate}
+        hailBusyId={hailBusyId}
+        hailActionError={hailActionError}
+        onHailAction={updateHail}
       />
 
       <HistoryLogModal isOpen={showHistory} onClose={() => setShowHistory(false)} shiftId={shift?.shiftId || ""} />

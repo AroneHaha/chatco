@@ -8,6 +8,7 @@ import ConductorLocationBroadcaster from "@/components/conductor/conductor-locat
 import MaintenanceGate from "@/components/shared/maintenance-gate";
 import ConductorConnectivityBanner from "@/components/conductor/conductor-connectivity-banner";
 import ConductorDeviceGuard from "@/components/conductor/conductor-device-guard";
+import { ConductorShiftProvider } from "@/app/(conductor)/hooks/use-conductor-shift";
 
 export default function ConductorLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -17,6 +18,7 @@ export default function ConductorLayout({ children }: { children: React.ReactNod
 
   return (
     <MaintenanceGate>
+      <ConductorShiftProvider>
 <div className={`fixed inset-0 flex flex-col font-sans md:flex-row ${isUnitVerification ? "bg-[#050F1A]" : "bg-gray-50"}`}>
 
       {/* Desktop Sidebar (Hidden on Mobile & Unit Verification) */}
@@ -47,6 +49,7 @@ export default function ConductorLayout({ children }: { children: React.ReactNod
       {!isUnitVerification && <ConductorLocationBroadcaster />}
 
     </div>
+      </ConductorShiftProvider>
     </MaintenanceGate>
   );
 }

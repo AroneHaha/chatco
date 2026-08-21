@@ -4,7 +4,7 @@
 // Calls the real Laravel backend via the Next.js proxy.
 // No mock data, no localStorage fallback — admin sees only real DB data.
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type {
   RemittanceRecord,
   RemittanceStatus,
@@ -119,27 +119,55 @@ export function useRemittanceData(page = 1, search = '', date = '', status: Remi
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
   const [lastPage, setLastPage] = useState(1);
+  const refreshInFlight = useRef<Promise<void> | null>(null);
 
-  const refresh = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const data = await fetchRemittances(page, search, date, status, dateFrom, conductor, driver);
-      setRecords(data.records);
-      setTotal(data.total);
-      setLastPage(data.lastPage);
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Failed to load remittances";
-      setError(message);
-    } finally {
-      setIsLoading(false);
-    }
+  const load = useCallback(async (silent = false) => {
+    if (refreshInFlight.current) return refreshInFlight.current;
+
+    if (!silent) setIsLoading(true);
+    const request = (async () => {
+      setError(null);
+      try {
+        const data = await fetchRemittances(page, search, date, status, dateFrom, conductor, driver);
+        setRecords(data.records);
+        setTotal(data.total);
+        setLastPage(data.lastPage);
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : "Failed to load remittances";
+        setError(message);
+      } finally {
+        if (!silent) setIsLoading(false);
+        refreshInFlight.current = null;
+      }
+    })();
+
+    refreshInFlight.current = request;
+    return request;
   }, [date, dateFrom, page, search, status, conductor, driver]);
 
+  const refresh = useCallback(() => load(false), [load]);
+
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    void load(false);
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") void load(true);
+    }, 30000);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void load(true);
+    };
+
+    window.addEventListener("focus", refreshWhenVisible);
+    window.addEventListener("online", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshWhenVisible);
+      window.removeEventListener("online", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [load]);
 
   return { records, total, lastPage, isLoading, error, refresh };
 }

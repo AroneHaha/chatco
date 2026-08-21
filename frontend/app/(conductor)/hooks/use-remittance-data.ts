@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   fetchRemittanceHistory,
   getRemittanceHistory,
@@ -50,54 +50,74 @@ export function useRemittanceData(): UseRemittanceDataResult {
   const [history, setHistory] = useState<RemittanceRecord[]>([]);
   const [status, setStatus] = useState<UseRemittanceDataResult["status"]>("loading");
   const [error, setError] = useState<string | null>(null);
+  const refreshInFlight = useRef<Promise<void> | null>(null);
 
   const refresh = useCallback(async () => {
-    setStatus("loading");
-    setError(null);
+    if (refreshInFlight.current) return refreshInFlight.current;
 
-    try {
-      const activeShift = await fetchActiveShift();
-      setShift(activeShift);
+    const request = (async () => {
+      try {
+        const activeShift = await fetchActiveShift();
+        setShift(activeShift);
 
-      const [txnData, earningsData, historyData] = await Promise.all([
-        activeShift
-          ? fetchShiftTransactions(activeShift.shiftId)
-          : Promise.resolve([] as Transaction[]),
-        activeShift
-          ? fetchShiftEarnings(activeShift.shiftId)
-          : Promise.resolve({ cash_total: 0, gcash_total: 0, total: 0 } as ShiftEarnings),
-        fetchRemittanceHistory(),
-      ]);
+        const [txnData, earningsData, historyData] = await Promise.all([
+          activeShift
+            ? fetchShiftTransactions(activeShift.shiftId)
+            : Promise.resolve([] as Transaction[]),
+          activeShift
+            ? fetchShiftEarnings(activeShift.shiftId)
+            : Promise.resolve({ cash_total: 0, gcash_total: 0, total: 0 } as ShiftEarnings),
+          fetchRemittanceHistory(),
+        ]);
 
-      setTransactions(txnData);
-      setEarnings(earningsData);
-      setHistory(historyData);
-      setStatus("success");
-    } catch (err) {
-      const activeShift = await fetchActiveShift().catch(() => null);
-      setShift(activeShift);
-      setTransactions(
-        activeShift ? getShiftTransactions(activeShift.shiftId) : []
-      );
-      setEarnings(null);
-      setHistory(getRemittanceHistory());
-      setStatus("error");
-      setError(
-        err instanceof Error ? err.message : "Unable to load remittance data."
-      );
-    }
+        setTransactions(txnData);
+        setEarnings(earningsData);
+        setHistory(historyData);
+        setStatus("success");
+        setError(null);
+      } catch (err) {
+        const activeShift = await fetchActiveShift().catch(() => null);
+        setShift(activeShift);
+        setTransactions(
+          activeShift ? getShiftTransactions(activeShift.shiftId) : []
+        );
+        setEarnings(null);
+        setHistory(getRemittanceHistory());
+        setStatus("error");
+        setError(
+          err instanceof Error ? err.message : "Unable to load remittance data."
+        );
+      } finally {
+        refreshInFlight.current = null;
+      }
+    })();
+
+    refreshInFlight.current = request;
+    return request;
   }, []);
 
   useEffect(() => {
     void refresh();
-  }, [refresh]);
-
-  useEffect(() => {
-    const handler = () => {
-      void refresh();
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") void refresh();
+    }, 20000);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void refresh();
     };
+    const handler = () => void refresh();
+
+    window.addEventListener("focus", handler);
+    window.addEventListener("online", handler);
     window.addEventListener("conductor:transaction-updated", handler);
-    return () => window.removeEventListener("conductor:transaction-updated", handler);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", handler);
+      window.removeEventListener("online", handler);
+      window.removeEventListener("conductor:transaction-updated", handler);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
   }, [refresh]);
 
   return { shift, transactions, earnings, history, status, error, refresh };

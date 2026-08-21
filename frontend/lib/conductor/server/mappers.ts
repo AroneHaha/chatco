@@ -63,6 +63,7 @@ interface LaravelShiftLog {
   status: string;
   operating_device_id: string | null;
   operating_device_type: "WEB" | "MOBILE" | null;
+  latest_device_recovery?: { created_at: string } | null;
   route?: LaravelRoute | null;
   vehicle?: LaravelVehicle | null;
   driver?: LaravelDriver | null;
@@ -165,6 +166,7 @@ export function mapShiftLog(s: unknown): ConductorShift {
   const shift = s as LaravelShiftLog;
   return {
     shiftId: shift.shift_id,
+    vehicleId: shift.vehicle_id,
     conductorName: shift.conductor_name,
     unitNumber: shift.unit_number,
     route: shift.route?.name ?? "",
@@ -177,6 +179,7 @@ export function mapShiftLog(s: unknown): ConductorShift {
     breakStartedAt: shift.break_started_at,
     operatingDeviceId: shift.operating_device_id,
     operatingDeviceType: shift.operating_device_type,
+    latestDeviceRecoveryAt: shift.latest_device_recovery?.created_at ?? null,
   };
 }
 

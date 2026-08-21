@@ -3,7 +3,7 @@ import { proxyToLaravel } from "@/lib/conductor/server/proxy";
 import { jsonData, jsonError } from "@/lib/conductor/server/response";
 
 export async function POST(request: NextRequest) {
-  let body: { is_on_break?: unknown };
+  let body: { is_on_break?: unknown; deviceId?: unknown; deviceType?: unknown };
 
   try {
     body = await request.json();
@@ -17,7 +17,11 @@ export async function POST(request: NextRequest) {
 
   const result = await proxyToLaravel(request, "/conductor/break-status", {
     method: "POST",
-    body: { is_on_break: body.is_on_break },
+    body: {
+      is_on_break: body.is_on_break,
+      device_id: typeof body.deviceId === "string" ? body.deviceId : undefined,
+      device_type: body.deviceType === "WEB" || body.deviceType === "MOBILE" ? body.deviceType : undefined,
+    },
   });
 
   if (!result.ok) {

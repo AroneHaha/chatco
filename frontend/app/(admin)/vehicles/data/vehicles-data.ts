@@ -394,12 +394,19 @@ export function useVehiclesData(query: VehiclesQueryState) {
     const onVisible = () => {
       if (document.visibilityState === 'visible') load(true);
     };
+    const onFocusOrOnline = () => {
+      if (document.visibilityState === 'visible') load(true);
+    };
     document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onFocusOrOnline);
+    window.addEventListener('online', onFocusOrOnline);
 
     return () => {
       controller.abort();
       clearInterval(id);
       document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onFocusOrOnline);
+      window.removeEventListener('online', onFocusOrOnline);
     };
   }, [load]);
 

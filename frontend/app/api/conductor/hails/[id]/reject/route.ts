@@ -26,8 +26,17 @@ export async function POST(
     return jsonError("Hail id is required.", 400);
   }
 
+  const body = await request.json().catch(() => ({})) as {
+    deviceId?: unknown;
+    deviceType?: unknown;
+  };
+
   const result = await proxyToLaravel(request, `/conductor/hails/${id}/reject`, {
     method: "POST",
+    body: {
+      device_id: typeof body.deviceId === "string" ? body.deviceId : undefined,
+      device_type: body.deviceType === "WEB" || body.deviceType === "MOBILE" ? body.deviceType : undefined,
+    },
   });
 
   if (!result.ok) {

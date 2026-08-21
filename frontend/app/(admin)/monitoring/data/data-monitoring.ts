@@ -299,13 +299,29 @@ export function useMonitoringData(overspeedPage = 1, overspeedDate = "") {
 
   // Initial fetch + polling.
   useEffect(() => {
-    void Promise.all([fetchActive(), fetchHistory(), fetchOverspeed(), fetchDemandZones()]);
+    const refreshLiveData = () => {
+      if (document.visibilityState !== "visible") return;
+      void Promise.all([fetchActive(), fetchOverspeed(), fetchDemandZones()]);
+    };
+    const refreshAll = () => {
+      if (document.visibilityState !== "visible") return;
+      void Promise.all([fetchActive(), fetchHistory(), fetchOverspeed(), fetchDemandZones()]);
+    };
+
+    refreshAll();
     const id = setInterval(() => {
-      void fetchActive();
-      void fetchOverspeed();
-      void fetchDemandZones();
+      refreshLiveData();
     }, POLL_INTERVAL_MS);
-    return () => clearInterval(id);
+    window.addEventListener("focus", refreshAll);
+    window.addEventListener("online", refreshAll);
+    document.addEventListener("visibilitychange", refreshAll);
+
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("focus", refreshAll);
+      window.removeEventListener("online", refreshAll);
+      document.removeEventListener("visibilitychange", refreshAll);
+    };
   }, [fetchActive, fetchHistory, fetchOverspeed, fetchDemandZones]);
 
   // ── Actions ──

@@ -12,7 +12,7 @@ import { jsonData, jsonError } from "@/lib/conductor/server/response";
  * every commuter's map (green / yellow / red) in real time.
  */
 export async function POST(request: NextRequest) {
-  let body: { capacity_status?: unknown };
+  let body: { capacity_status?: unknown; deviceId?: unknown; deviceType?: unknown };
 
   try {
     body = await request.json();
@@ -27,7 +27,11 @@ export async function POST(request: NextRequest) {
 
   const result = await proxyToLaravel(request, "/conductor/capacity-status", {
     method: "POST",
-    body: { capacity_status: status },
+    body: {
+      capacity_status: status,
+      device_id: typeof body.deviceId === "string" ? body.deviceId : undefined,
+      device_type: body.deviceType === "WEB" || body.deviceType === "MOBILE" ? body.deviceType : undefined,
+    },
   });
 
   if (!result.ok) {

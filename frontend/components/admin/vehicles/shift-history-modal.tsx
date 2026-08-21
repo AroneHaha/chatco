@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import { Badge } from '@/components/admin/ui/badge';
 import { TablePagination } from '@/components/admin/ui/table-pagination';
-import { Clock, RefreshCw, User, MapPin, Calendar } from 'lucide-react';
+import { Clock, RefreshCw, User, MapPin, Calendar, MonitorSmartphone, ShieldAlert } from 'lucide-react';
 import type { Vehicle } from '@/app/(admin)/vehicles/data/vehicles-data';
 
 interface ShiftLogEntry {
@@ -18,6 +18,16 @@ interface ShiftLogEntry {
   time_out: string | null;
   status: string;
   notes: string | null;
+  operating_device_id: string | null;
+  operating_device_type: 'WEB' | 'MOBILE' | null;
+  operating_device_claimed_at: string | null;
+  synced_offline_cash_count?: number;
+  latest_device_recovery?: {
+    id: string;
+    previous_device_type: 'WEB' | 'MOBILE' | null;
+    reason: string;
+    created_at: string;
+  } | null;
   vehicle?: { id: string; unit_number: string; plate_number: string } | null;
   driver?: { id: string; first_name: string; last_name: string } | null;
   route?: { id: string; name: string } | null;
@@ -103,6 +113,11 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
   const [pageMeta, setPageMeta] = useState<ShiftHistoryPageMeta>(EMPTY_PAGE_META);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recoveryTarget, setRecoveryTarget] = useState<string | null>(null);
+  const [recoveryReason, setRecoveryReason] = useState('');
+  const [riskAcknowledged, setRiskAcknowledged] = useState(false);
+  const [isRecovering, setIsRecovering] = useState(false);
+  const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
   const activeVehicleIdRef = useRef<string | null>(null);
 
   const fetchLogs = useCallback(async () => {
@@ -141,6 +156,10 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
       activeVehicleIdRef.current = vehicle.id;
       setLogs([]);
       setPageMeta(EMPTY_PAGE_META);
+      setRecoveryTarget(null);
+      setRecoveryReason('');
+      setRiskAcknowledged(false);
+      setRecoveryMessage(null);
       if (page !== 1) {
         setPage(1);
         return;
@@ -149,6 +168,43 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
 
     fetchLogs();
   }, [fetchLogs, isOpen, page, vehicle]);
+
+  const cancelRecovery = () => {
+    setRecoveryTarget(null);
+    setRecoveryReason('');
+    setRiskAcknowledged(false);
+  };
+
+  const recoverDevice = async (shiftId: string) => {
+    setIsRecovering(true);
+    setError(null);
+    setRecoveryMessage(null);
+    try {
+      const res = await fetch(`/api/admin/shifts/${encodeURIComponent(shiftId)}/device/recover`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          reason: recoveryReason.trim(),
+          acknowledge_unsynced_cash_risk: riskAcknowledged,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        const validationMessage = data?.errors
+          ? Object.values(data.errors as Record<string, string[]>).flat()[0]
+          : null;
+        throw new Error(validationMessage ?? data?.message ?? 'Unable to recover the operating device.');
+      }
+
+      cancelRecovery();
+      setRecoveryMessage('Device ownership released. The conductor must claim this shift from a different device.');
+      await fetchLogs();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to recover the operating device.');
+    } finally {
+      setIsRecovering(false);
+    }
+  };
 
   if (!vehicle) return null;
 
@@ -197,6 +253,12 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
       {error && (
         <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md mb-3">
           <p className="text-sm text-red-400">{error}</p>
+        </div>
+      )}
+
+      {recoveryMessage && (
+        <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-md mb-3">
+          <p className="text-sm text-emerald-300">{recoveryMessage}</p>
         </div>
       )}
 
@@ -256,6 +318,97 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
                     )}
                   </div>
                 </div>
+                {isActive && (
+                  <div className="mt-2 border-t border-[#1E2D45] pt-2">
+                    <div className="flex items-start gap-2">
+                      <MonitorSmartphone size={14} className="mt-0.5 shrink-0 text-sky-400" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] uppercase tracking-wider text-slate-500">Operating device</p>
+                        {log.operating_device_id ? (
+                          <>
+                            <p className="text-xs font-semibold text-slate-200">
+                              {log.operating_device_type ?? 'Unknown'} · ID ending {log.operating_device_id.slice(-8)}
+                            </p>
+                            <p className="text-[10px] text-slate-500">
+                              Claimed {formatDateTime(log.operating_device_claimed_at)}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="text-xs font-semibold text-amber-300">Awaiting a conductor device claim</p>
+                        )}
+                        {log.latest_device_recovery && (
+                          <div className="mt-1 text-[10px] text-amber-300/80">
+                            <p>Last Admin recovery: {formatDateTime(log.latest_device_recovery.created_at)}</p>
+                            <p className="line-clamp-2">Reason: {log.latest_device_recovery.reason}</p>
+                          </div>
+                        )}
+                        <p className="mt-1 text-[10px] text-slate-500">
+                          Server-confirmed offline Cash syncs: {log.synced_offline_cash_count ?? 0}. Unsynced device-only Cash is not visible to Admin.
+                        </p>
+                      </div>
+                    </div>
+
+                    {log.operating_device_id && recoveryTarget !== log.shift_id && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRecoveryTarget(log.shift_id);
+                          setRecoveryReason('');
+                          setRiskAcknowledged(false);
+                          setError(null);
+                          setRecoveryMessage(null);
+                        }}
+                        className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-amber-200 transition-colors hover:bg-amber-500/20"
+                      >
+                        <ShieldAlert size={12} /> Recover lost device
+                      </button>
+                    )}
+
+                    {recoveryTarget === log.shift_id && (
+                      <div className="mt-3 rounded-md border border-amber-500/25 bg-amber-500/5 p-3">
+                        <p className="text-xs font-semibold text-amber-200">Emergency recovery only</p>
+                        <p className="mt-1 text-[11px] leading-4 text-slate-400">
+                          The server cannot see cash still stored only on a lost device. This action does not change transactions or remittance.
+                        </p>
+                        <textarea
+                          value={recoveryReason}
+                          onChange={(event) => setRecoveryReason(event.target.value)}
+                          maxLength={500}
+                          rows={3}
+                          placeholder="Explain why the device cannot perform a safe release (minimum 10 characters)."
+                          className="mt-2 w-full resize-none rounded-md border border-[#2B3A50] bg-[#07111F] px-3 py-2 text-xs text-white outline-none focus:border-amber-400"
+                        />
+                        <label className="mt-2 flex cursor-pointer items-start gap-2 text-[11px] leading-4 text-slate-300">
+                          <input
+                            type="checkbox"
+                            checked={riskAcknowledged}
+                            onChange={(event) => setRiskAcknowledged(event.target.checked)}
+                            className="mt-0.5"
+                          />
+                          I understand the unavailable device may contain unsynchronized cash that requires separate reconciliation.
+                        </label>
+                        <div className="mt-3 flex justify-end gap-2">
+                          <button
+                            type="button"
+                            disabled={isRecovering}
+                            onClick={cancelRecovery}
+                            className="rounded-md border border-white/10 px-3 py-1.5 text-[11px] text-slate-300 disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isRecovering || recoveryReason.trim().length < 10 || !riskAcknowledged}
+                            onClick={() => void recoverDevice(log.shift_id)}
+                            className="rounded-md bg-amber-500 px-3 py-1.5 text-[11px] font-bold text-slate-950 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            {isRecovering ? 'Releasing…' : 'Confirm recovery'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {log.notes && (
                   <div className="mt-2 pt-2 border-t border-[#1E2D45]">
                     <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Notes</p>

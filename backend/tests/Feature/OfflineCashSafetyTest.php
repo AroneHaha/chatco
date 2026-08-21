@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Enums\UserRole;
 use App\Models\Driver;
 use App\Models\FarePoint;
+use App\Models\Hail;
 use App\Models\PaymentGroup;
 use App\Models\Remittance;
 use App\Models\Route;
@@ -117,6 +119,95 @@ class OfflineCashSafetyTest extends TestCase
             ->assertCreated();
     }
 
+    public function test_admin_can_auditably_recover_a_lost_device_and_only_a_new_device_can_claim(): void
+    {
+        $shift = $this->startShift();
+        $admin = User::factory()->create(['role' => UserRole::ADMIN]);
+        $offlineCash = $this->cashPayload(self::WEB_DEVICE, 'admin-visible-offline-cash');
+        $offlineCash['offline_created_at'] = now()->toIso8601String();
+        $this->actingAs($this->conductor)
+            ->postJson('/api/v1/conductor/transactions', $offlineCash)
+            ->assertCreated();
+
+        $this->actingAs($admin)
+            ->postJson("/api/v1/admin/shifts/{$shift->shift_id}/device/recover", [
+                'reason' => 'The conductor reported that the operating phone was lost.',
+                'acknowledge_unsynced_cash_risk' => true,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.shift.operating_device_id', null)
+            ->assertJsonPath('data.recovery.previous_device_type', 'WEB');
+
+        $this->assertDatabaseHas('shift_device_recoveries', [
+            'shift_id' => $shift->shift_id,
+            'recovered_by' => $admin->id,
+            'previous_device_id' => self::WEB_DEVICE,
+        ]);
+
+        $this->actingAs($admin)
+            ->getJson("/api/v1/admin/shift-logs?vehicle_id={$this->vehicle->id}")
+            ->assertOk()
+            ->assertJsonPath('data.data.0.synced_offline_cash_count', 1)
+            ->assertJsonPath('data.data.0.latest_device_recovery.shift_id', $shift->shift_id);
+
+        $this->actingAs($this->conductor)
+            ->postJson('/api/v1/conductor/shifts/device/claim', $this->devicePayload($shift, self::WEB_DEVICE, 'WEB'))
+            ->assertStatus(409);
+
+        $this->actingAs($this->conductor)
+            ->postJson('/api/v1/conductor/shifts/device/claim', $this->devicePayload($shift, self::MOBILE_DEVICE, 'MOBILE'))
+            ->assertOk()
+            ->assertJsonPath('data.operating_device_id', self::MOBILE_DEVICE);
+
+        $this->actingAs($this->conductor)
+            ->getJson('/api/v1/conductor/shift')
+            ->assertOk()
+            ->assertJsonPath('data.latest_device_recovery.shift_id', $shift->shift_id);
+    }
+
+    public function test_device_recovery_requires_admin_reason_and_risk_acknowledgement(): void
+    {
+        $shift = $this->startShift();
+        $admin = User::factory()->create(['role' => UserRole::ADMIN]);
+
+        $this->actingAs($admin)
+            ->postJson("/api/v1/admin/shifts/{$shift->shift_id}/device/recover", [
+                'reason' => 'Lost',
+                'acknowledge_unsynced_cash_risk' => false,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['reason', 'acknowledge_unsynced_cash_risk']);
+
+        $this->assertDatabaseCount('shift_device_recoveries', 0);
+        $this->assertSame(self::WEB_DEVICE, $shift->fresh()->operating_device_id);
+    }
+
+    public function test_non_admin_cannot_recover_device_and_repeated_recovery_is_rejected(): void
+    {
+        $shift = $this->startShift();
+
+        $this->actingAs($this->conductor)
+            ->postJson("/api/v1/admin/shifts/{$shift->shift_id}/device/recover", [
+                'reason' => 'Attempted recovery by a non-admin account.',
+                'acknowledge_unsynced_cash_risk' => true,
+            ])
+            ->assertStatus(403);
+
+        $admin = User::factory()->create(['role' => UserRole::ADMIN]);
+        $payload = [
+            'reason' => 'The assigned operating device is permanently unavailable.',
+            'acknowledge_unsynced_cash_risk' => true,
+        ];
+        $this->actingAs($admin)
+            ->postJson("/api/v1/admin/shifts/{$shift->shift_id}/device/recover", $payload)
+            ->assertOk();
+        $this->actingAs($admin)
+            ->postJson("/api/v1/admin/shifts/{$shift->shift_id}/device/recover", $payload)
+            ->assertStatus(409);
+
+        $this->assertDatabaseCount('shift_device_recoveries', 1);
+    }
+
     public function test_only_operating_device_can_remit_and_end_shift(): void
     {
         $shift = $this->startShift();
@@ -157,6 +248,75 @@ class OfflineCashSafetyTest extends TestCase
         ])->assertStatus(409);
 
         $this->assertDatabaseCount('transactions', 0);
+    }
+
+    public function test_only_operating_device_can_change_shared_shift_operations(): void
+    {
+        $shift = $this->startShift();
+        $otherDevice = [
+            'device_id' => self::MOBILE_DEVICE,
+            'device_type' => 'MOBILE',
+        ];
+
+        $this->actingAs($this->conductor)
+            ->postJson('/api/v1/conductor/break-status', ['is_on_break' => true] + $otherDevice)
+            ->assertStatus(409);
+        $this->actingAs($this->conductor)
+            ->postJson('/api/v1/conductor/capacity-status', ['capacity_status' => 'FULL'] + $otherDevice)
+            ->assertStatus(409);
+        $this->actingAs($this->conductor)
+            ->postJson('/api/v1/conductor/location', [
+                'lat' => 14.5995,
+                'lng' => 120.9842,
+                'fix_timestamp' => now()->toIso8601String(),
+            ] + $otherDevice)
+            ->assertStatus(409);
+        $this->actingAs($this->conductor)
+            ->postJson('/api/v1/conductor/break-status', ['is_on_break' => true])
+            ->assertStatus(409);
+
+        $commuter = User::factory()->commuter()->create();
+        $hail = Hail::create([
+            'commuter_id' => $commuter->id,
+            'vehicle_id' => $this->vehicle->id,
+            'commuter_lat' => 14.5995,
+            'commuter_lng' => 120.9842,
+            'distance_m' => 50,
+            'status' => 'PENDING',
+            'expires_at' => now()->addMinutes(3),
+        ]);
+        $this->actingAs($this->conductor)
+            ->postJson("/api/v1/conductor/hails/{$hail->id}/accept", $otherDevice)
+            ->assertStatus(409);
+
+        $ownerDevice = [
+            'device_id' => self::WEB_DEVICE,
+            'device_type' => 'WEB',
+        ];
+        $this->actingAs($this->conductor)
+            ->postJson('/api/v1/conductor/break-status', ['is_on_break' => true] + $ownerDevice)
+            ->assertOk();
+        $this->actingAs($this->conductor)
+            ->postJson('/api/v1/conductor/capacity-status', ['capacity_status' => 'STANDING'] + $ownerDevice)
+            ->assertOk();
+        $this->actingAs($this->conductor)
+            ->postJson('/api/v1/conductor/location', [
+                'lat' => 14.5995,
+                'lng' => 120.9842,
+                'fix_timestamp' => now()->toIso8601String(),
+            ] + $ownerDevice)
+            ->assertOk();
+        $this->actingAs($this->conductor)
+            ->postJson("/api/v1/conductor/hails/{$hail->id}/accept", $ownerDevice)
+            ->assertOk()
+            ->assertJsonPath('data.status', 'ACCEPTED');
+
+        $this->assertTrue($shift->fresh()->is_on_break);
+        $this->assertDatabaseHas('vehicle_locations', [
+            'vehicle_id' => $this->vehicle->id,
+            'shift_id' => $shift->shift_id,
+            'capacity_status' => 'STANDING',
+        ]);
     }
 
     public function test_offline_cash_recovers_into_auto_ended_shift_and_updates_pending_remittance(): void

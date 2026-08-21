@@ -2,6 +2,7 @@ import { api, ApiError, NetworkError } from "@/lib/api/client";
 import { CONDUCTOR_API } from "@/lib/conductor/endpoints";
 import { shouldUseConductorApi } from "@/lib/conductor/services/api-mode";
 import type { ConductorHailRequest } from "@/lib/conductor/types";
+import { CONDUCTOR_DEVICE_TYPE, getConductorDeviceId } from "@/lib/conductor/persistence/device.store";
 
 export async function fetchActiveHails(): Promise<{
   hails: ConductorHailRequest[];
@@ -40,7 +41,8 @@ export async function fetchActiveHails(): Promise<{
  */
 export async function acceptHail(hailId: string): Promise<ConductorHailRequest> {
   const response = await api.post<{ data: ConductorHailRequest }>(
-    CONDUCTOR_API.hailAccept(hailId)
+    CONDUCTOR_API.hailAccept(hailId),
+    { deviceId: getConductorDeviceId(), deviceType: CONDUCTOR_DEVICE_TYPE }
   );
   return response.data;
 }
@@ -54,7 +56,8 @@ export async function acceptHail(hailId: string): Promise<ConductorHailRequest> 
  */
 export async function rejectHail(hailId: string): Promise<ConductorHailRequest> {
   const response = await api.post<{ data: ConductorHailRequest }>(
-    CONDUCTOR_API.hailReject(hailId)
+    CONDUCTOR_API.hailReject(hailId),
+    { deviceId: getConductorDeviceId(), deviceType: CONDUCTOR_DEVICE_TYPE }
   );
   return response.data;
 }

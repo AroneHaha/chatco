@@ -4,6 +4,7 @@ export interface ConductorShift {
   shiftId: string;
   conductorName: string;
   unitNumber: string;
+  vehicleId?: string;
   route: string;
   routeId?: string;
   driverName: string;
@@ -14,6 +15,7 @@ export interface ConductorShift {
   isActive: boolean;
   operatingDeviceId?: string | null;
   operatingDeviceType?: "WEB" | "MOBILE" | null;
+  latestDeviceRecoveryAt?: string | null;
 }
 
 const SHIFT_KEY = "conductor_shift";

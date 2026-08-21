@@ -2,6 +2,7 @@
 
 import { useConductorShift } from "@/app/(conductor)/hooks/use-conductor-shift";
 import { useConductorLocationBroadcast } from "@/app/(conductor)/hooks/use-conductor-location-broadcast";
+import { isOperatingDevice } from "@/lib/conductor/services/shift.service";
 
 /**
  * Headless component mounted in the conductor layout. While the conductor has
@@ -11,6 +12,6 @@ import { useConductorLocationBroadcast } from "@/app/(conductor)/hooks/use-condu
  */
 export default function ConductorLocationBroadcaster() {
   const { shift } = useConductorShift();
-  useConductorLocationBroadcast(Boolean(shift?.shiftId));
+  useConductorLocationBroadcast(Boolean(shift?.shiftId) && isOperatingDevice(shift));
   return null;
 }

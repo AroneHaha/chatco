@@ -91,7 +91,13 @@ class BroadcastAuthorizationTest extends TestCase
 
         $this->assertInstanceOf(PrivateChannel::class, (new HailCreated($hail))->broadcastOn());
         $statusEvent = new HailStatusChanged($hail);
-        $this->assertInstanceOf(PrivateChannel::class, $statusEvent->broadcastOn());
+        $statusChannels = $statusEvent->broadcastOn();
+        $this->assertCount(2, $statusChannels);
+        $this->assertContainsOnlyInstancesOf(PrivateChannel::class, $statusChannels);
+        $this->assertSame(
+            ["private-commuter.{$owner->id}.hails", "private-vehicle.{$vehicle->id}.hails"],
+            array_map(fn (PrivateChannel $channel) => $channel->name, $statusChannels),
+        );
         $this->assertSame(['hail_id' => $hail->id, 'status' => 'PENDING'], $statusEvent->broadcastWith());
     }
 
