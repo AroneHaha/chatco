@@ -4,6 +4,8 @@
 import { useState, useEffect } from 'react';
 import { UsersTable } from '@/components/admin/users/users-table';
 import { RegistrationRequestsTable } from '@/components/admin/users/registration-requests-table';
+import { RejectedAccountsTable } from '@/components/admin/users/rejected-accounts-table';
+import { RejectedAccountDetailsModal } from '@/components/admin/users/rejected-account-details-modal';
 import { ReviewRequestModal } from '@/components/admin/users/review-request-modal';
 import { AddRegistrationModal } from '@/components/admin/users/add-registration-modal';
 import { EditUserModal } from '@/components/admin/users/edit-user-modal';
@@ -11,9 +13,9 @@ import { UserHistoryModal } from '@/components/admin/users/user-history-modal';
 import { DeleteUserModal } from '@/components/admin/users/delete-user-modal';
 import { FeedbackModal, type FeedbackModalStaff } from '@/components/admin/users/feedback-modal';
 import { SearchBar } from '@/components/admin/ui/search-bar';
-import { Plus, UserCheck, Users, XCircle, AlertCircle, RefreshCw, ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react';
+import { Plus, UserCheck, Users, XCircle, AlertCircle, RefreshCw, CheckCircle } from 'lucide-react';
 import { useUsersData } from './data/users-data';
-import type { ActiveUser, PendingRequest, RejectedUser } from './data/users-data';
+import type { ActiveUser, PendingRequest, RejectedUser, RejectedRequest } from './data/users-data';
 import type { UpdateUserInput } from '@/lib/admin/services/user.service';
 import { SkeletonTable } from '@/components/admin/ui/skeleton';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
@@ -72,6 +74,7 @@ export default function UsersPage() {
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
 
   const [selectedRequest, setSelectedRequest] = useState<PendingRequest | null>(null);
+  const [selectedRejectedRequest, setSelectedRejectedRequest] = useState<RejectedRequest | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<ActiveUser | RejectedUser | null>(null);
   const [editingUser, setEditingUser] = useState<ActiveUser | null>(null);
@@ -101,6 +104,16 @@ export default function UsersPage() {
   const handleCloseReviewModal = () => {
     setSelectedRequest(null);
     setIsReviewModalOpen(false);
+  };
+
+  // Rejected tab: double-clicking a row opens the details modal with the
+  // row object it already has in memory — no fetch, since the current
+  // page's data already carries everything the modal displays.
+  const handleOpenRejectedDetails = (request: RejectedRequest) => {
+    setSelectedRejectedRequest(request);
+  };
+  const handleCloseRejectedDetails = () => {
+    setSelectedRejectedRequest(null);
   };
 
   const handleOpenHistoryModal = (userId: string) => {
@@ -324,10 +337,6 @@ export default function UsersPage() {
     }
   };
 
-  // ─── Pagination controls ───
-  const canPrev = (pagination?.currentPage ?? 1) > 1;
-  const canNext = (pagination?.currentPage ?? 1) < (pagination?.lastPage ?? 1);
-
   // Active tab label reflects the current role filter so the badge reads
   // "Active Conductors" / "Active Drivers" / "Active Admins" / "Active Commuters"
   // instead of always saying "Active Commuters" regardless of the filter.
@@ -338,82 +347,125 @@ export default function UsersPage() {
     filters.role === 'COMMUTER' ? 'Commuters' :
     'Users';
 
-  return (
-    <>
-      <StickyPageHeader className="mb-6">
-        <h1 className="text-2xl font-bold text-white">User Management</h1>
-      </StickyPageHeader>
-      <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto mb-6 -mt-4 md:mt-0">
-          <SearchBar placeholder="Search users..." value={searchQuery} onChange={setSearchQuery} className="w-full sm:w-64" />
-          {activeTab === 'active' && (
+  // True once the active tab has data on screen (pagination is only set
+  // after a successful fetch). Used to tell a first load — which needs the
+  // full card skeleton — apart from a search/filter/page refetch, which
+  // should keep the existing table (and its search bar) mounted and just
+  // show a small in-place spinner instead of blanking the whole card.
+  const hasDataForActiveTab =
+    activeTab === 'active' ? pagination !== null :
+    activeTab === 'pending' ? pendingPagination !== null :
+    rejectedPagination !== null;
+
+  // Search bar (left) + tab-specific filters + the Register Onsite button,
+  // pushed to the right via ml-auto — rendered inside each table card's
+  // header, matching the Remittance/Announcements page layout.
+  const filterBar = (
+    <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center">
+      <SearchBar placeholder="Search users..." value={searchQuery} onChange={setSearchQuery} className="w-full sm:w-64" />
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:ml-auto">
+        {activeTab === 'active' && (
+          <select
+            value={filters.role ?? ''}
+            onChange={(e) => setFilters({ role: e.target.value as typeof filters.role })}
+            className="px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] [color-scheme:dark]"
+          >
+            <option value="" className="bg-gray-800">All Roles</option>
+            <option value="COMMUTER" className="bg-gray-800">Commuters</option>
+            <option value="CONDUCTOR" className="bg-gray-800">Conductors</option>
+            <option value="DRIVER" className="bg-gray-800">Drivers</option>
+            <option value="ADMIN" className="bg-gray-800">Admins</option>
+          </select>
+        )}
+        {activeTab === 'active' && (
+          <>
             <select
-              value={filters.role ?? ''}
-              onChange={(e) => setFilters({ role: e.target.value as typeof filters.role })}
+              value={filters.accountStatus}
+              onChange={(e) => setFilters({ accountStatus: e.target.value as typeof filters.accountStatus })}
+              aria-label="Filter by account status"
               className="px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] [color-scheme:dark]"
             >
-              <option value="" className="bg-gray-800">All Roles</option>
-              <option value="COMMUTER" className="bg-gray-800">Commuters</option>
-              <option value="CONDUCTOR" className="bg-gray-800">Conductors</option>
-              <option value="DRIVER" className="bg-gray-800">Drivers</option>
-              <option value="ADMIN" className="bg-gray-800">Admins</option>
+              <option value="" className="bg-gray-800">All Statuses</option>
+              <option value="ACTIVE" className="bg-gray-800">Active</option>
+              <option value="SUSPENDED" className="bg-gray-800">Suspended</option>
             </select>
-          )}
-          {activeTab === 'active' && (
-            <>
-              <select
-                value={filters.accountStatus}
-                onChange={(e) => setFilters({ accountStatus: e.target.value as typeof filters.accountStatus })}
-                aria-label="Filter by account status"
-                className="px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] [color-scheme:dark]"
-              >
-                <option value="" className="bg-gray-800">All Statuses</option>
-                <option value="ACTIVE" className="bg-gray-800">Active</option>
-                <option value="SUSPENDED" className="bg-gray-800">Suspended</option>
-              </select>
-              <select
-                value={filters.sort}
-                onChange={(e) => setFilters({ sort: e.target.value as typeof filters.sort })}
-                aria-label="Sort users"
-                className="px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] [color-scheme:dark]"
-              >
-                <option value="recent" className="bg-gray-800">Recent</option>
-                <option value="alphabetical" className="bg-gray-800">Alphabetical</option>
-                <option value="oldest" className="bg-gray-800">Oldest</option>
-              </select>
-              <select
-                value={filters.perPage}
-                onChange={(e) => setFilters({ perPage: Number(e.target.value) })}
-                aria-label="Users per page"
-                className="px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] [color-scheme:dark]"
-              >
-                <option value={10} className="bg-gray-800">10 / page</option>
-                <option value={20} className="bg-gray-800">20 / page</option>
-                <option value={50} className="bg-gray-800">50 / page</option>
-              </select>
-            </>
-          )}
-          {activeTab === 'pending' && (
             <select
-              value={pendingType}
-              onChange={(event) => setPendingType(event.target.value as typeof pendingType)}
-              aria-label="Filter pending registrations by commuter type"
-              className="px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm [color-scheme:dark]"
+              value={filters.sort}
+              onChange={(e) => setFilters({ sort: e.target.value as typeof filters.sort })}
+              aria-label="Sort users"
+              className="px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] [color-scheme:dark]"
             >
-              <option value="">All Types</option>
-              <option value="REGULAR">Regular</option>
-              <option value="STUDENT">Student</option>
-              <option value="SENIOR">Senior Citizen</option>
-              <option value="PWD">PWD</option>
+              <option value="recent" className="bg-gray-800">Recent</option>
+              <option value="alphabetical" className="bg-gray-800">Alphabetical</option>
+              <option value="oldest" className="bg-gray-800">Oldest</option>
             </select>
-          )}
-          <button onClick={handleOpenRegisterModal} className="flex items-center justify-center space-x-2 px-4 py-2 bg-[#62A0EA] text-white font-medium rounded-md hover:bg-[#4A8BD4] transition-colors w-full sm:w-auto flex-shrink-0">
-            <Plus size={20} /><span>Register Onsite</span>
-          </button>
-        </div>
+          </>
+        )}
+        {activeTab === 'pending' && (
+          <select
+            value={pendingType}
+            onChange={(event) => setPendingType(event.target.value as typeof pendingType)}
+            aria-label="Filter pending registrations by commuter type"
+            className="px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm [color-scheme:dark]"
+          >
+            <option value="">All Types</option>
+            <option value="REGULAR">Regular</option>
+            <option value="STUDENT">Student</option>
+            <option value="SENIOR">Senior Citizen</option>
+            <option value="PWD">PWD</option>
+          </select>
+        )}
+        <button
+          onClick={handleOpenRegisterModal}
+          className="inline-flex w-full flex-shrink-0 items-center justify-center gap-2 rounded-lg border border-transparent bg-[#62A0EA] px-4 py-2 text-sm font-bold text-white shadow-lg shadow-[#62A0EA]/25 transition-colors hover:bg-[#4A8BD4] sm:w-auto"
+        >
+          <Plus size={16} /><span>Register Onsite</span>
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <StickyPageHeader className="mb-6 shrink-0">
+        <h1 className="text-2xl font-bold text-white">User Management</h1>
+      </StickyPageHeader>
+
+      {/* 3 Tabs — pill bar, matching Fleet Management's tab style */}
+      <div className="mb-3 flex w-full shrink-0 gap-1.5 overflow-x-auto rounded-lg border border-[#1E2D45] bg-[#0E1628] p-1 scrollbar-themed">
+        {([
+          { id: 'active' as const, label: `Active ${activeRoleLabel}`, count: pagination?.total ?? activeUsers.length, icon: UserCheck, accent: 'sky' as const },
+          { id: 'pending' as const, label: 'Pending Verification', count: pendingTotal, icon: Users, accent: 'amber' as const },
+          { id: 'rejected' as const, label: 'Rejected', count: rejectedTotal, icon: XCircle, accent: 'red' as const },
+        ]).map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => { setActiveTab(tab.id); if (tab.id === 'active') setSelectedUser(null); }}
+              className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
+                isActive
+                  ? tab.accent === 'red'
+                    ? 'bg-red-400/15 text-red-200 shadow-[inset_0_0_0_1px_rgba(248,113,113,0.18)]'
+                    : tab.accent === 'amber'
+                      ? 'bg-amber-400/15 text-amber-200 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.18)]'
+                      : 'bg-[#62A0EA]/15 text-white shadow-[inset_0_0_0_1px_rgba(98,160,234,0.18)]'
+                  : 'text-slate-400 hover:bg-[#172238] hover:text-white'
+              }`}
+            >
+              <tab.icon size={15} className={isActive ? (tab.accent === 'red' ? 'text-red-300' : tab.accent === 'amber' ? 'text-amber-300' : 'text-[#62A0EA]') : 'text-slate-500'} />
+              <span className="truncate">{tab.label}</span>
+              <span className={`rounded px-1.5 py-0.5 text-[10px] ${isActive ? 'bg-black/20 text-slate-100' : 'bg-[#1A2540] text-slate-500'}`}>
+                {tab.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
 
       {/* Action error banner */}
       {actionError && (
-        <div className="mb-4 bg-red-500/10 border border-red-500/30 rounded-md p-3 flex items-center justify-between">
+        <div className="mb-4 shrink-0 bg-red-500/10 border border-red-500/30 rounded-md p-3 flex items-center justify-between">
           <p className="text-sm text-red-400">{actionError}</p>
           <button onClick={() => setActionError(null)} className="text-red-400 hover:text-red-300">
             <XCircle size={16} />
@@ -423,7 +475,7 @@ export default function UsersPage() {
 
       {/* Success banner */}
       {successMessage && (
-        <div className="mb-4 bg-emerald-500/10 border border-emerald-500/30 rounded-md p-3 flex items-center justify-between">
+        <div className="mb-4 shrink-0 bg-emerald-500/10 border border-emerald-500/30 rounded-md p-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CheckCircle size={16} className="text-emerald-400 flex-shrink-0" />
             <p className="text-sm text-emerald-400">{successMessage}</p>
@@ -434,109 +486,68 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* 3 Tabs */}
-      <div className="flex space-x-1 mb-6 border-b border-[#1E2D45] overflow-x-auto scrollbar-themed">
-        <button onClick={() => { setActiveTab('active'); setSelectedUser(null); }} className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-md transition-colors ${activeTab === 'active' ? 'text-white border-b-2 border-sky-400 bg-sky-400/10' : 'text-slate-400 hover:text-white hover:bg-[#1A2540]'}`}>
-          <UserCheck size={20} /><span>Active {activeRoleLabel} ({pagination?.total ?? activeUsers.length})</span>
-        </button>
-        <button onClick={() => setActiveTab('pending')} className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-md transition-colors ${activeTab === 'pending' ? 'text-white border-b-2 border-amber-400 bg-amber-400/10' : 'text-slate-400 hover:text-white hover:bg-[#1A2540]'}`}>
-          <Users size={20} /><span>Pending Verification ({pendingTotal})</span>
-        </button>
-        <button onClick={() => setActiveTab('rejected')} className={`flex items-center space-x-2 py-2 px-4 font-medium text-sm rounded-t-md transition-colors ${activeTab === 'rejected' ? 'text-white border-b-2 border-red-400 bg-red-400/10' : 'text-slate-400 hover:text-white hover:bg-[#1A2540]'}`}>
-          <XCircle size={20} /><span>Rejected ({rejectedTotal})</span>
-        </button>
+      {/* Tab Content — fills whatever vertical space is left, on every
+          screen size, instead of a fixed height that either clips or
+          leaves a gap (same approach as Remittance/Announcements). */}
+      <div className="flex flex-1 min-h-0 flex-col">
+        {isLoading && !hasDataForActiveTab ? (
+          // First load of this tab — nothing on screen yet, so the full
+          // card skeleton is the right call.
+          <div className="h-full min-h-64 overflow-hidden rounded-lg">
+            <SkeletonTable rows={10} columns={5} />
+          </div>
+        ) : error ? (
+          <div className="flex h-full min-h-72 flex-col items-center justify-center gap-3 rounded-xl border border-red-400/20 bg-red-400/5 p-8">
+            <AlertCircle size={36} className="text-red-400" />
+            <p className="text-center font-medium text-slate-200">Unable to load this table.</p>
+            <p className="max-w-xl text-center text-sm text-slate-500">{error}</p>
+            <button onClick={refetch} className="flex items-center gap-2 rounded-md bg-[#62A0EA] px-4 py-2 text-sm font-medium text-white">
+              <RefreshCw size={16} /> Retry
+            </button>
+          </div>
+        ) : (
+          <>
+            {activeTab === 'active' && (
+              <UsersTable
+                users={activeUsers}
+                searchQuery=""
+                onDeactivate={handleDeactivateUser}
+                onEdit={handleOpenEditModal}
+                onDelete={handleOpenDeleteModal}
+                onViewHistory={handleOpenHistoryModal}
+                onRowDoubleClick={handleRowDoubleClick}
+                isRejectedTab={false}
+                selectedUser={selectedUser}
+                onSelectUser={setSelectedUser}
+                headerContent={filterBar}
+                pagination={pagination}
+                onPageChange={(page) => setFilters({ page })}
+                isRefreshing={isLoading}
+              />
+            )}
+            {activeTab === 'pending' && (
+              <RegistrationRequestsTable
+                requests={pendingRequests}
+                onSelectRequest={handleOpenReviewModal}
+                pagination={pendingPagination}
+                onPageChange={setPendingPage}
+                headerContent={filterBar}
+                isRefreshing={isLoading}
+              />
+            )}
+            {activeTab === 'rejected' && (
+              <RejectedAccountsTable
+                requests={rejectedUsers}
+                onSelectRequest={handleOpenRejectedDetails}
+                headerContent={filterBar}
+                pagination={rejectedPagination}
+                onPageChange={setRejectedPage}
+                isRefreshing={isLoading}
+              />
+            )}
+          </>
+        )}
       </div>
-
-      {/* Tab Content */}
-      {isLoading ? (
-        <SkeletonTable rows={6} columns={5} />
-      ) : error ? (
-        <div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-xl border border-red-400/20 bg-red-400/5 p-8">
-          <AlertCircle size={36} className="text-red-400" />
-          <p className="text-center font-medium text-slate-200">Unable to load this table.</p>
-          <p className="max-w-xl text-center text-sm text-slate-500">{error}</p>
-          <button onClick={refetch} className="flex items-center gap-2 rounded-md bg-[#62A0EA] px-4 py-2 text-sm font-medium text-white">
-            <RefreshCw size={16} /> Retry
-          </button>
-        </div>
-      ) : (
-        <>
-      {activeTab === 'active' && (
-        <>
-          <UsersTable
-            users={activeUsers}
-            searchQuery=""
-            onDeactivate={handleDeactivateUser}
-            onEdit={handleOpenEditModal}
-            onDelete={handleOpenDeleteModal}
-            onViewHistory={handleOpenHistoryModal}
-            onRowDoubleClick={handleRowDoubleClick}
-            isRejectedTab={false}
-            selectedUser={selectedUser}
-            onSelectUser={setSelectedUser}
-          />
-          {/* Pagination controls */}
-          {pagination && (
-            <div className="flex items-center justify-between mt-4 px-2">
-              <p className="text-sm text-slate-400">
-                Showing {pagination.from ?? 0}–{pagination.to ?? 0} of {pagination.total}
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setFilters({ page: (pagination.currentPage - 1) })}
-                  disabled={!canPrev}
-                  className="flex items-center gap-1 px-3 py-1.5 border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#131C2E] transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-sm"
-                >
-                  <ChevronLeft size={16} /> Prev
-                </button>
-                <span className="text-sm text-slate-400 px-2">
-                  Page {pagination.currentPage} of {pagination.lastPage}
-                </span>
-                <button
-                  onClick={() => setFilters({ page: (pagination.currentPage + 1) })}
-                  disabled={!canNext}
-                  className="flex items-center gap-1 px-3 py-1.5 border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#131C2E] transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-sm"
-                >
-                  Next <ChevronRight size={16} />
-                </button>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-      {activeTab === 'pending' && (
-        <RegistrationRequestsTable
-          requests={pendingRequests}
-          onSelectRequest={handleOpenReviewModal}
-          pagination={pendingPagination}
-          onPageChange={setPendingPage}
-        />
-      )}
-      {activeTab === 'rejected' && (
-        <>
-          <UsersTable
-            users={rejectedUsers}
-            searchQuery=""
-            onDeactivate={() => {}}
-            onEdit={() => {}}
-            onDelete={() => {}}
-            onViewHistory={() => {}}
-            isRejectedTab={true}
-            selectedUser={null}
-            onSelectUser={() => {}}
-          />
-          {rejectedPagination && <div className="mt-4 flex items-center justify-between px-2 text-xs text-slate-500">
-            <span>Showing {rejectedPagination.from ?? 0}-{rejectedPagination.to ?? 0} of {rejectedPagination.total}</span>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setRejectedPage(rejectedPagination.currentPage - 1)} disabled={rejectedPagination.currentPage === 1} className="rounded-md border border-[#1E2D45] px-3 py-1.5 disabled:opacity-30">Previous</button>
-              <span>{rejectedPagination.currentPage} / {rejectedPagination.lastPage}</span>
-              <button onClick={() => setRejectedPage(rejectedPagination.currentPage + 1)} disabled={rejectedPagination.currentPage === rejectedPagination.lastPage} className="rounded-md border border-[#1E2D45] px-3 py-1.5 disabled:opacity-30">Next</button>
-            </div>
-          </div>}
-        </>
-      )}
-        </>
-      )}
 
       {/* Modals */}
       <AddRegistrationModal isOpen={isRegisterModalOpen} onClose={handleCloseRegisterModal} onSave={handleSaveRegistration} />
@@ -567,6 +578,12 @@ export default function UsersPage() {
 
       <UserHistoryModal isOpen={isHistoryModalOpen} onClose={handleCloseHistoryModal} logs={historyLogs[selectedUserId || ''] || []} />
 
+      <RejectedAccountDetailsModal
+        isOpen={selectedRejectedRequest !== null}
+        onClose={handleCloseRejectedDetails}
+        request={selectedRejectedRequest}
+      />
+
       <FeedbackModal
         isOpen={isFeedbackModalOpen}
         onClose={handleCloseFeedbackModal}
@@ -589,6 +606,6 @@ export default function UsersPage() {
         message={reviewResult?.message ?? ''}
         onClose={() => setReviewResult(null)}
       />
-    </>
+    </div>
   );
 }

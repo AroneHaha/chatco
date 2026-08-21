@@ -49,6 +49,10 @@ export interface ActiveUser {
   commuterType: string;
   languagePreference: string;
   idImageUrl: string;
+  /** Self-chosen login username — commuters only. Null for other roles. */
+  username: string | null;
+  /** ISO timestamp the commuter's account was verified/approved. Null otherwise. */
+  verifiedAt: string | null;
   /** Frontend-only role label — includes "DRIVER" for driver rows. */
   role: TableRowRole;
   /**
@@ -57,6 +61,7 @@ export interface ActiveUser {
    */
   _raw?: AdminUser;
   suspension: SuspensionDetails | null;
+  createdAt: string | null;
 }
 
 export interface RejectedUser {
@@ -69,6 +74,7 @@ export interface RejectedUser {
   idImageUrl: string;
   status: "Rejected";
   rejectionReason: string;
+  createdAt: string | null;
 }
 
 export interface HistoryLog {
@@ -96,7 +102,7 @@ export interface UsersTabFilters {
 export interface UseUsersDataReturn {
   activeUsers: ActiveUser[];
   pendingRequests: PendingRequest[];
-  rejectedUsers: RejectedUser[];
+  rejectedUsers: RejectedRequest[];
   historyLogs: Record<string, HistoryLog[]>;
   /** Fetches a user's activity timeline. Cached in historyLogs. */
   fetchUserActivity: (userId: string) => Promise<HistoryLog[]>;
@@ -133,9 +139,12 @@ function mapToActiveUser(u: AdminUser): ActiveUser {
     commuterType: u.commuterTypeLabel,
     languagePreference: "English",
     idImageUrl: "",
+    username: u.username,
+    verifiedAt: u.verifiedAt,
     role: u.role,
     _raw: u,
     suspension: u.suspension,
+    createdAt: u.createdAt,
   };
 }
 
@@ -153,6 +162,7 @@ interface RawDriver {
   contact: string | null;
   license_number: string | null;
   status: string | null;
+  created_at: string | null;
 }
 
 function mapDriverToActiveUser(d: RawDriver): ActiveUser {
@@ -170,15 +180,18 @@ function mapDriverToActiveUser(d: RawDriver): ActiveUser {
     commuterType: d.license_number ?? "—",
     languagePreference: "English",
     idImageUrl: "",
+    username: null,
+    verifiedAt: null,
     role: "DRIVER",
     suspension: null,
+    createdAt: d.created_at,
   };
 }
 
 export function useUsersData(activeTab: "active" | "pending" | "rejected" = "active"): UseUsersDataReturn {
   const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
-  const [rejectedUsers, setRejectedUsers] = useState<RejectedUser[]>([]);
+  const [rejectedUsers, setRejectedUsers] = useState<RejectedRequest[]>([]);
   const [historyLogs, setHistoryLogs] = useState<Record<string, HistoryLog[]>>({});
   const [pagination, setPagination] = useState<PaginationMeta | null>(null);
   const [pendingPagination, setPendingPagination] = useState<registrationService.RegistrationPagination | null>(null);
@@ -198,7 +211,7 @@ export function useUsersData(activeTab: "active" | "pending" | "rejected" = "act
   const [filters, setFiltersState] = useState<UsersTabFilters>({
     role: "COMMUTER",
     search: "",
-    perPage: 10,
+    perPage: 20,
     page: 1,
     sort: "recent",
     accountStatus: "",
@@ -207,8 +220,14 @@ export function useUsersData(activeTab: "active" | "pending" | "rejected" = "act
   /**
    * Fetch the active list. When filters.role === "DRIVER", hit the drivers
    * endpoint and map results to ActiveUser. Otherwise hit the users endpoint
-   * as before. Driver list is NOT paginated at the backend (returns all
-   * drivers), so we synthesize pagination metadata client-side.
+   * as before.
+   *
+   * GET /admin/drivers is paginated/filtered/sorted server-side whenever a
+   * `page` param is sent (which this branch always does) — search/status/
+   * sort/page all forward straight to the backend instead of fetching the
+   * whole drivers table and slicing it in the browser. Every OTHER caller of
+   * that endpoint (Fleet Management, Lost & Found pickers, etc.) never sends
+   * `page`, so it keeps getting the full unpaginated list unchanged.
    */
   const fetchUsers = useCallback(
     async (f: UsersTabFilters) => {
@@ -217,7 +236,14 @@ export function useUsersData(activeTab: "active" | "pending" | "rejected" = "act
       setError(null);
       try {
         if (f.role === "DRIVER") {
-          const res = await fetch("/api/admin/drivers", {
+          const params = new URLSearchParams();
+          params.set("page", String(f.page || 1));
+          params.set("per_page", String(f.perPage || 20));
+          if (f.search.trim()) params.set("search", f.search.trim());
+          if (f.accountStatus) params.set("status", f.accountStatus);
+          if (f.sort) params.set("sort", f.sort);
+
+          const res = await fetch(`/api/admin/drivers?${params.toString()}`, {
             headers: { Accept: "application/json" },
             credentials: "include",
           });
@@ -226,35 +252,26 @@ export function useUsersData(activeTab: "active" | "pending" | "rejected" = "act
             throw new Error(msg?.message ?? `Failed to load drivers (${res.status}).`);
           }
           const json = await res.json();
-          const drivers: RawDriver[] = Array.isArray(json.data) ? json.data : [];
-          const query = f.search.trim().toLowerCase();
-          let mapped = drivers
-            .map(mapDriverToActiveUser)
-            .filter(user =>
-              (!query || [user.name, user.phoneNumber, user.commuterType].some(value => value.toLowerCase().includes(query))) &&
-              (!f.accountStatus || (f.accountStatus === "ACTIVE" ? user.status === "Active" : user.status === "Suspended"))
-            );
-          mapped = [...mapped].sort((a, b) => {
-            if (f.sort === "alphabetical") return a.name.localeCompare(b.name);
-            return f.sort === "oldest" ? a.id.localeCompare(b.id) : b.id.localeCompare(a.id);
-          });
-          // Client-side pagination — backend returns all drivers at once.
-          const perPage = f.perPage || 10;
-          const page = f.page || 1;
-          const total = mapped.length;
-          const lastPage = Math.max(1, Math.ceil(total / perPage));
-          const from = total === 0 ? null : (page - 1) * perPage + 1;
-          const to = total === 0 ? null : Math.min(page * perPage, total);
-          const slice = mapped.slice((page - 1) * perPage, page * perPage);
+          const paginator = (json.data ?? {}) as {
+            data?: RawDriver[];
+            current_page?: number;
+            per_page?: number;
+            total?: number;
+            last_page?: number;
+            from?: number | null;
+            to?: number | null;
+          };
+          const drivers: RawDriver[] = Array.isArray(paginator.data) ? paginator.data : [];
+          const mapped = drivers.map(mapDriverToActiveUser);
           if (sequence !== requestSequence.current) return;
-          setActiveUsers(slice);
+          setActiveUsers(mapped);
           setPagination({
-            currentPage: page,
-            perPage,
-            total,
-            lastPage,
-            from,
-            to,
+            currentPage: paginator.current_page ?? (f.page || 1),
+            perPage: paginator.per_page ?? (f.perPage || 20),
+            total: paginator.total ?? mapped.length,
+            lastPage: paginator.last_page ?? 1,
+            from: paginator.from ?? null,
+            to: paginator.to ?? null,
           });
           return;
         }
@@ -323,17 +340,10 @@ export function useUsersData(activeTab: "active" | "pending" | "rejected" = "act
         perPage: filters.perPage,
       });
       if (sequence !== requestSequence.current) return;
-      setRejectedUsers(result.registrations.map(r => ({
-        id: r.id,
-        name: r.name,
-        email: r.email,
-        phoneNumber: r.phoneNumber,
-        commuterType: r.commuterType as RejectedUser["commuterType"],
-        languagePreference: r.languagePreference as RejectedUser["languagePreference"],
-        idImageUrl: r.idImageUrl,
-        status: "Rejected" as const,
-        rejectionReason: r.rejectionReason,
-      })));
+      // Store the full page response as-is — the Rejected tab's table and
+      // its double-click details modal both read straight from this array,
+      // so no extra fetch is needed when a row is opened.
+      setRejectedUsers(result.registrations);
       setRejectedPagination(result.pagination);
     } catch (err) {
       if (sequence !== requestSequence.current) return;
@@ -349,17 +359,22 @@ export function useUsersData(activeTab: "active" | "pending" | "rejected" = "act
    * Load registration totals independently of the selected tab. Inactive
    * tabs do not have pagination data yet, which previously left their
    * labels showing "(...)" until the user opened each tab.
+   *
+   * `includeRejected` defaults to true (unchanged behavior everywhere except
+   * approveRegistrationApi below). Approving a registration can never change
+   * the rejected count, so re-fetching it there was a guaranteed-redundant
+   * request — always returning the same total already in state.
    */
-  const refreshRegistrationTotals = useCallback(async () => {
+  const refreshRegistrationTotals = useCallback(async (includeRejected: boolean = true) => {
     const [pendingResult, rejectedResult] = await Promise.allSettled([
       registrationService.listPending({ page: 1, perPage: 1 }),
-      registrationService.listRejected({ page: 1, perPage: 1 }),
+      includeRejected ? registrationService.listRejected({ page: 1, perPage: 1 }) : Promise.resolve(null),
     ]);
 
     if (pendingResult.status === "fulfilled") {
       setPendingTotal(pendingResult.value.pagination.total);
     }
-    if (rejectedResult.status === "fulfilled") {
+    if (includeRejected && rejectedResult.status === "fulfilled" && rejectedResult.value) {
       setRejectedTotal(rejectedResult.value.pagination.total);
     }
   }, []);
@@ -456,7 +471,8 @@ export function useUsersData(activeTab: "active" | "pending" | "rejected" = "act
   const approveRegistrationApi = useCallback(
     async (id: string): Promise<string> => {
       const result = await registrationService.approve(id);
-      await Promise.all([fetchPending(), refreshRegistrationTotals()]);
+      // Approving can't change the rejected count — skip refetching it.
+      await Promise.all([fetchPending(), refreshRegistrationTotals(false)]);
       return `Approved ${result.name} — commuter type: ${result.commuter_type}. They can now log in.`;
     },
     [fetchPending, refreshRegistrationTotals]

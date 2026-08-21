@@ -64,6 +64,86 @@ class RegistrationGuard
     }
 
     /**
+     * Batched version of historyFor() for a page of applicants at once —
+     * avoids one `registration_rejections` query per row when rendering the
+     * pending/rejected registrations list (see AdminService::listPending/
+     * listRejectedRegistrations).
+     *
+     * @param  iterable<array{key: string, email: ?string, contact: ?string}>  $identities
+     * @return array<string, Collection> keyed by the caller-supplied `key`,
+     *         each value the same newest-first Collection historyFor() would
+     *         return for that single identity.
+     */
+    public function historyForMany(iterable $identities): array
+    {
+        $identities = collect($identities)->values();
+
+        $emails = $identities
+            ->map(fn (array $identity) => RegistrationRejection::normalizeEmail($identity['email'] ?? null))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $contacts = $identities
+            ->map(fn (array $identity) => RegistrationRejection::normalizeContact($identity['contact'] ?? null))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($emails) && empty($contacts)) {
+            return $identities->mapWithKeys(fn (array $identity) => [$identity['key'] => collect()])->all();
+        }
+
+        // One query for the whole page instead of one per applicant.
+        $rows = RegistrationRejection::query()
+            ->where(function (Builder $q) use ($emails, $contacts) {
+                $matched = false;
+
+                if (! empty($emails)) {
+                    $q->orWhereIn('email', $emails);
+                    $matched = true;
+                }
+
+                if (! empty($contacts)) {
+                    $q->orWhereIn('contact_number', $contacts);
+                    $matched = true;
+                }
+
+                if (! $matched) {
+                    $q->whereRaw('1 = 0');
+                }
+            })
+            ->orderByDesc('created_at')
+            ->get(['id', 'email', 'contact_number', 'reason', 'attempt_number', 'blocked_until', 'created_at']);
+
+        $byEmail = $rows->groupBy('email');
+        $byContact = $rows->groupBy('contact_number');
+
+        return $identities->mapWithKeys(function (array $identity) use ($byEmail, $byContact) {
+            $email = RegistrationRejection::normalizeEmail($identity['email'] ?? null);
+            $contact = RegistrationRejection::normalizeContact($identity['contact'] ?? null);
+
+            $matches = collect();
+            if ($email !== null) {
+                $matches = $matches->merge($byEmail->get($email, collect()));
+            }
+            if ($contact !== null) {
+                $matches = $matches->merge($byContact->get($contact, collect()));
+            }
+
+            // Rows can appear in both maps (a rejection whose email matches
+            // one applicant may also share a contact number with another) —
+            // dedupe by primary key, then restore newest-first order since
+            // merging the two maps doesn't preserve it.
+            $history = $matches->unique('id')->sortByDesc('created_at')->values();
+
+            return [$identity['key'] => $history];
+        })->all();
+    }
+
+    /**
      * The active cooldown block for this identity, if any — the most recent
      * rejection whose blocked_until is still in the future. Null when the
      * applicant is free to register.

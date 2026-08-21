@@ -8,6 +8,14 @@ import type { Personnel } from '@/app/(admin)/vehicles/data/vehicles-data';
 
 // Mirrors the backend's LTO format check (AdminController::updateDriver).
 const LICENSE_NUMBER_PATTERN = /^[A-Z][0-9]{2}-[0-9]{2}-[0-9]{6}$/;
+// Mirrors the backend's PH mobile format check (AdminController::updateDriver
+// / updateConductor).
+const CONTACT_PATTERN = /^09[0-9]{9}$/;
+const CONTACT_ERROR = 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).';
+
+function formatContactNumber(value: string): string {
+  return value.replace(/[^0-9]/g, '').slice(0, 11);
+}
 
 function formatLicenseNumber(value: string): string {
   const normalized = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -36,8 +44,7 @@ interface EditPersonnelModalProps {
  *
  * Conductors (from /admin/conductors):
  *   - Fetches the raw conductor record from GET /api/admin/conductors/{id} (show endpoint)
- *   - Fields: first_name, middle_name, last_name, birthday, profile_picture_url
- *   - NO contact field (conductors don't have one in the schema)
+ *   - Fields: first_name, middle_name, last_name, birthday, contact, profile_picture_url
  *   - NO license_number field (conductors don't drive)
  *   - PUTs to /api/admin/conductors/{id}
  *
@@ -69,8 +76,8 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
   const roleLabel = isConductor ? 'Conductor' : 'Driver';
 
   // When modal opens, fetch the raw record from the API to get all fields
-  // (birthday, middle_name, profile_picture_url, and for drivers: license_number,
-  // contact) that aren't in the table row's Personnel object.
+  // (birthday, middle_name, contact, profile_picture_url, and for drivers:
+  // license_number) that aren't in the table row's Personnel object.
   //
   // Drivers and conductors both use single-record endpoints so the modal
   // never loads the full personnel dataset.
@@ -128,7 +135,7 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'license_number' ? formatLicenseNumber(value) : value,
+      [name]: name === 'license_number' ? formatLicenseNumber(value) : name === 'contact' ? formatContactNumber(value) : value,
     }));
   };
 
@@ -166,6 +173,11 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
     setError(null);
     setFieldErrors({});
 
+    if (!CONTACT_PATTERN.test(formData.contact)) {
+      setFieldErrors({ contact: [CONTACT_ERROR] });
+      return;
+    }
+
     if (!isConductor && !LICENSE_NUMBER_PATTERN.test(formData.license_number)) {
       setFieldErrors({ license_number: ['Use the Philippine LTO format N01-23-045678 (one letter, four digits, then six digits).'] });
       return;
@@ -178,15 +190,15 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
         first_name: formData.first_name,
         last_name: formData.last_name,
         birthday: formData.birthday,
+        contact: formData.contact,
       };
 
       if (formData.middle_name.trim()) {
         requestBody.middle_name = formData.middle_name.trim();
       }
 
-      // Drivers have contact + license_number; conductors do NOT.
+      // Drivers have license_number too; conductors don't drive.
       if (!isConductor) {
-        requestBody.contact = formData.contact;
         requestBody.license_number = formData.license_number;
       }
 
@@ -397,26 +409,27 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
           {fieldErrors.birthday && <p className="text-xs text-red-400 mt-1">{fieldErrors.birthday[0]}</p>}
         </div>
 
-        {/* Contact Number — drivers only (conductors have no contact field in the schema) */}
-        {!isConductor && (
-          <div>
-            <label htmlFor="edit-contact" className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-2">
-              <Phone size={14} /> Contact Number <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="tel"
-              id="edit-contact"
-              name="contact"
-              value={formData.contact}
-              onChange={handleChange}
-              required
-              disabled={isSubmitting || isLoadingMeta}
-              placeholder="e.g. 0917 123 4567"
-              className={`${inputClasses} ${fieldErrors.contact ? 'border-red-500/50' : ''}`}
-            />
-            {fieldErrors.contact && <p className="text-xs text-red-400 mt-1">{fieldErrors.contact[0]}</p>}
-          </div>
-        )}
+        {/* Contact Number — both drivers and conductors */}
+        <div>
+          <label htmlFor="edit-contact" className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-2">
+            <Phone size={14} /> Contact Number <span className="text-red-400">*</span>
+          </label>
+          <input
+            type="tel"
+            id="edit-contact"
+            name="contact"
+            value={formData.contact}
+            onChange={handleChange}
+            required
+            disabled={isSubmitting || isLoadingMeta}
+            placeholder="e.g. 09171234567"
+            maxLength={11}
+            pattern="09[0-9]{9}"
+            title="Enter an 11-digit mobile number starting with 09"
+            className={`${inputClasses} ${fieldErrors.contact ? 'border-red-500/50' : ''}`}
+          />
+          {fieldErrors.contact && <p className="text-xs text-red-400 mt-1">{fieldErrors.contact[0]}</p>}
+        </div>
 
         {/* Role is display-only. Route assignment belongs to vehicles. */}
         <div>

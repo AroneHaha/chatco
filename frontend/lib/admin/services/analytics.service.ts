@@ -33,6 +33,7 @@ export interface AnalyticsPreviousTotals {
   cash_total: number;
   gcash_total: number;
   paid_count: number;
+  total_passengers: number;
   avg_fare: number;
 }
 
@@ -307,6 +308,21 @@ export function formatShortDate(dateStr: string): string {
     month: "short",
     day: "numeric",
   });
+}
+
+/**
+ * Human-readable date range, e.g. "Jul 22 – Aug 20, 2026".
+ * The year is shown once after `to`, or after both ends when the range
+ * spans a year boundary.
+ */
+export function formatDateRangeLabel(from: string, to: string): string {
+  const fromYear = from.slice(0, 4);
+  const toYear = to.slice(0, 4);
+  const fromLabel = formatShortDate(from);
+  const toLabel = formatShortDate(to);
+  return fromYear === toYear
+    ? `${fromLabel} – ${toLabel}, ${toYear}`
+    : `${fromLabel}, ${fromYear} – ${toLabel}, ${toYear}`;
 }
 
 /**

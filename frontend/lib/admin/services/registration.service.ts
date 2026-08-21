@@ -45,6 +45,9 @@ export interface RawRegistration {
 export interface PendingRegistration {
   id: string;
   name: string;
+  firstName: string;
+  middleName: string | null;
+  surname: string;
   email: string;
   phoneNumber: string;
   commuterType: string;
@@ -139,6 +142,9 @@ function mapToViewModel(r: RawRegistration): PendingRegistration {
   return {
     id: r.id,
     name: `${r.first_name} ${r.middle_name ? r.middle_name + " " : ""}${r.surname}`.trim(),
+    firstName: r.first_name,
+    middleName: r.middle_name,
+    surname: r.surname,
     email: r.email,
     phoneNumber: r.contact_number,
     commuterType: TYPE_LABELS[r.applied_type] ?? "Regular",
@@ -220,6 +226,10 @@ export async function listPending(
 export interface RejectedRegistration extends PendingRegistration {
   rejectionReason: string;
   rejectedAt: string;
+  /** Name of the admin who rejected this account. Null for legacy rows predating this field. */
+  rejectedByName: string | null;
+  /** Email of the admin who rejected this account. Null for legacy rows predating this field. */
+  rejectedByEmail: string | null;
 }
 
 /**
@@ -249,10 +259,17 @@ export async function listRejected(
   const paginator = json.data ?? {};
   const rows = paginator.data ?? (Array.isArray(paginator) ? paginator : []);
   return {
-    registrations: (rows as (RawRegistration & { rejection_reason: string; rejected_at: string })[]).map(r => ({
+    registrations: (rows as (RawRegistration & {
+      rejection_reason: string;
+      rejected_at: string;
+      rejected_by_name: string | null;
+      rejected_by_email: string | null;
+    })[]).map(r => ({
       ...mapToViewModel(r),
       rejectionReason: r.rejection_reason ?? "Not provided",
       rejectedAt: r.rejected_at ?? r.created_at,
+      rejectedByName: r.rejected_by_name ?? null,
+      rejectedByEmail: r.rejected_by_email ?? null,
     })),
     pagination: paginationFrom(paginator, rows.length),
   };

@@ -3,7 +3,15 @@
 
 import { useState, useRef } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
-import { UserPlus, MapPin, Upload, Check, User, Calendar } from 'lucide-react';
+import { UserPlus, MapPin, Upload, Check, User, Calendar, Phone } from 'lucide-react';
+
+// Mirrors the backend's PH mobile format check (AdminController::storeConductor).
+const CONTACT_PATTERN = /^09[0-9]{9}$/;
+const CONTACT_ERROR = 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).';
+
+function formatContactNumber(value: string): string {
+  return value.replace(/[^0-9]/g, '').slice(0, 11);
+}
 
 interface CreatedConductorAccount {
   id: string;
@@ -28,6 +36,7 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
     middle_name: '',
     last_name: '',
     birthday: '',
+    contact: '',
   });
 
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
@@ -39,7 +48,10 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => ({
+      ...prev,
+      [name]: name === 'contact' ? formatContactNumber(value) : value,
+    }));
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -65,15 +77,22 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    setIsSubmitting(true);
     setError(null);
     setFieldErrors({});
+
+    if (!CONTACT_PATTERN.test(formData.contact)) {
+      setFieldErrors({ contact: [CONTACT_ERROR] });
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       const requestBody: Record<string, unknown> = {
         first_name: formData.first_name,
         last_name: formData.last_name,
         birthday: formData.birthday,
+        contact: formData.contact,
       };
 
       if (formData.middle_name.trim()) {
@@ -101,6 +120,7 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
           if (data.errors.middle_name) mapped.middle_name = data.errors.middle_name;
           if (data.errors.last_name) mapped.last_name = data.errors.last_name;
           if (data.errors.birthday) mapped.birthday = data.errors.birthday;
+          if (data.errors.contact) mapped.contact = data.errors.contact;
           if (data.errors.profile_picture_url) mapped.profilePicture = data.errors.profile_picture_url;
           setFieldErrors(mapped);
           const firstError = (Object.values(data.errors)[0] as string[] | undefined)?.[0] ?? 'Validation failed.';
@@ -112,7 +132,7 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
       // Success — pass the generated credentials to the parent (shows success modal).
       onCreated(data.data);
       // Reset form.
-      setFormData({ first_name: '', middle_name: '', last_name: '', birthday: '' });
+      setFormData({ first_name: '', middle_name: '', last_name: '', birthday: '', contact: '' });
       setProfilePicture(null);
       setUseDefaultPicture(true);
     } catch (err) {
@@ -279,6 +299,30 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
           />
           {fieldErrors.birthday && (
             <p className="text-xs text-red-400 mt-1">{fieldErrors.birthday[0]}</p>
+          )}
+        </div>
+
+        {/* Contact Number */}
+        <div>
+          <label htmlFor="cond-contact" className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-2">
+            <Phone size={14} /> Contact Number <span className="text-red-400">*</span>
+          </label>
+          <input
+            type="tel"
+            id="cond-contact"
+            name="contact"
+            value={formData.contact}
+            onChange={handleChange}
+            required
+            disabled={isSubmitting}
+            placeholder="e.g. 09171234567"
+            maxLength={11}
+            pattern="09[0-9]{9}"
+            title="Enter an 11-digit mobile number starting with 09"
+            className={`${inputClasses} ${fieldErrors.contact ? 'border-red-500/50' : ''}`}
+          />
+          {fieldErrors.contact && (
+            <p className="text-xs text-red-400 mt-1">{fieldErrors.contact[0]}</p>
           )}
         </div>
 

@@ -11,7 +11,7 @@ export function PickupPointsList({ data }: PickupPointsListProps) {
   const totalPickups = data.reduce((s, p) => s + p.count, 0);
 
   return (
-    <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5 h-[340px] flex flex-col">
+    <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5 h-125 flex flex-col">
       <div className="flex items-baseline justify-between mb-4 flex-shrink-0">
         <h3 className="text-sm font-semibold text-white">Most Used Pickup Points</h3>
         {data.length > 0 && (
