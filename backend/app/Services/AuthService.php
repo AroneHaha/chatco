@@ -11,6 +11,8 @@ use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -240,9 +242,11 @@ class AuthService
         // locks the User insert takes, open for however long that upload
         // took, which delays both the commit and the moment the pending
         // registration becomes visible to the admin's next query.
-        // The generated id is assigned explicitly below so User::create()'s
-        // `creating` hook (which only fills empty ids) doesn't mint a
-        // different one than the filename already uses.
+        // The generated id is assigned explicitly below (via $user->id =
+        // ..., not through mass assignment — 'id' is deliberately excluded
+        // from User::$fillable) so it matches the id already baked into the
+        // uploaded filename, rather than letting the `creating` hook mint a
+        // different one.
         $userId = (string) Str::uuid();
         $idImagePath = $this->storeIdImage($userId, $data['id_image']);
 
@@ -253,14 +257,20 @@ class AuthService
         // duplicate account — this try/catch just translates that guard's
         // failure into the same friendly ValidationException the pre-check
         // throws, instead of letting a raw QueryException surface as a 500.
+        //
+        // Any failure here (the race above, or anything else that aborts the
+        // transaction) leaves $idImagePath uploaded with no owning account —
+        // delete it before rethrowing so a failed registration never orphans
+        // a government ID in R2.
         try {
             $created = DB::transaction(function () use ($data, $userId, $idImagePath): array {
-                $user = User::create([
-                    'id' => $userId,
+                $user = new User([
                     'email' => $data['email'],
                     'password' => $data['password'], // 'hashed' cast on User
                     'role' => UserRole::COMMUTER,
                 ]);
+                $user->id = $userId;
+                $user->save();
 
                 $profile = CommuterProfile::create([
                     'id' => $user->id,
@@ -286,8 +296,10 @@ class AuthService
                     'profile' => $profile,
                 ];
             });
-        } catch (QueryException $e) {
-            throw $this->translateUniqueViolation($e);
+        } catch (\Throwable $e) {
+            $this->deleteIdImage($idImagePath);
+
+            throw $e instanceof QueryException ? $this->translateUniqueViolation($e) : $e;
         }
 
         // One account per verification. Burning it here (after the transaction
@@ -309,6 +321,10 @@ class AuthService
      * Laravel supports (unique, not-null, FK...); we only want to translate
      * the two unique keys this endpoint can actually hit, so anything else
      * — including a 23000 from an unrelated constraint — is rethrown as-is.
+     *
+     * The message format differs per driver — MySQL names the constraint
+     * ('users_email_unique'), SQLite names the column ('users.email') — so
+     * both are checked. This is also what the test suite (SQLite) exercises.
      */
     private function translateUniqueViolation(QueryException $e): \Throwable
     {
@@ -318,13 +334,13 @@ class AuthService
 
         $message = $e->getMessage();
 
-        if (str_contains($message, 'users_email_unique')) {
+        if (str_contains($message, 'users_email_unique') || str_contains($message, 'users.email')) {
             return ValidationException::withMessages([
                 'email' => ['This email is already registered. Sign in instead, or use "Forgot password" if you can\'t get in.'],
             ]);
         }
 
-        if (str_contains($message, 'commuter_profiles_username_unique')) {
+        if (str_contains($message, 'commuter_profiles_username_unique') || str_contains($message, 'commuter_profiles.username')) {
             return ValidationException::withMessages([
                 'username' => ['The username has already been taken.'],
             ]);
@@ -357,5 +373,25 @@ class AuthService
             $filename,
             config('filesystems.uploads.private_id_disk', 'r2_private')
         );
+    }
+
+    /**
+     * Best-effort cleanup of an ID image uploaded via storeIdImage() whose
+     * owning registration failed to persist. Never throws — a failed delete
+     * here must not mask the original registration failure the caller is
+     * about to rethrow — but it does log, so an orphaned private ID left
+     * behind by a disk-level failure is still visible operationally instead
+     * of silently disappearing.
+     */
+    private function deleteIdImage(string $path): void
+    {
+        try {
+            Storage::disk(config('filesystems.uploads.private_id_disk', 'r2_private'))->delete($path);
+        } catch (\Throwable $e) {
+            Log::warning('Failed to clean up orphaned registration ID image after a failed registration.', [
+                'path' => $path,
+                'exception' => $e->getMessage(),
+            ]);
+        }
     }
 }
