@@ -26,7 +26,7 @@ class ConductorService
 
         $paginator = Remittance::where('conductor_id', $conductorId)
             ->with([
-                'shift:id,shift_id,conductor_id,driver_id,vehicle_id,route_id,time_in,time_out,status',
+                'shift:shift_id,conductor_id,driver_id,vehicle_id,route_id,time_in,time_out,status',
                 'vehicle:id,unit_number,plate_number,route_id',
                 'vehicle.route:id,name',
                 'driver:id,first_name,last_name',

@@ -5,17 +5,21 @@ namespace App\Services;
 use App\Enums\UserRole;
 use App\Mail\AccountApprovedMail;
 use App\Mail\AccountRejectedMail;
+use App\Models\Driver;
 use App\Models\RegistrationRejection;
 use App\Models\Remittance;
 use App\Models\Setting;
 use App\Models\ShiftLog;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Models\UserSuspension;
 use App\Models\Vehicle;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Pagination\LengthAwarePaginator as Paginator;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -46,8 +50,39 @@ class AdminService
      */
     public function listVehicles(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
-        return Vehicle::query()
+        return $this->vehicleListQuery($filters)
             ->with(['route', 'driver', 'conductor'])
+            ->orderBy('unit_number', 'asc')
+            ->paginate($perPage);
+    }
+
+    /**
+     * Count vehicles using the same filters as listVehicles(), without eager
+     * loading relations or fetching a page row.
+     *
+     * @param  array{status?: string, route_id?: string, search?: string}  $filters
+     */
+    public function countVehicles(array $filters = []): int
+    {
+        return (int) $this->vehicleListQuery($filters)->count();
+    }
+
+    /**
+     * Fetch one vehicle with the same relations used by the Fleet list.
+     *
+     * @throws ModelNotFoundException If the vehicle doesn't exist.
+     */
+    public function getVehicle(string $id): Vehicle
+    {
+        return Vehicle::with(['route', 'driver', 'conductor'])->findOrFail($id);
+    }
+
+    /**
+     * @param  array{status?: string, route_id?: string, search?: string}  $filters
+     */
+    private function vehicleListQuery(array $filters = []): Builder
+    {
+        return Vehicle::query()
             ->when($filters['status'] ?? null, function (Builder $q, string $status) {
                 $q->where('status', $status);
             })
@@ -55,14 +90,12 @@ class AdminService
                 $q->where('route_id', $routeId);
             })
             ->when($filters['search'] ?? null, function (Builder $q, string $search) {
-                $term = "%{$search}%";
+                $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], trim($search)).'%';
                 $q->where(function (Builder $sub) use ($term) {
                     $sub->where('plate_number', 'like', $term)
                         ->orWhere('unit_number', 'like', $term);
                 });
-            })
-            ->orderBy('unit_number', 'asc')
-            ->paginate($perPage);
+            });
     }
 
     /**
@@ -207,12 +240,6 @@ class AdminService
         $totalFares = $cashTotal + $gcashTotal;
         $paidCount = $current['paid_count'];
 
-        // ── Pending transactions (PENDING + PROCESSING) ────────────────────
-        $pendingCount = (int) DB::table('transactions')
-            ->whereIn('status', ['PENDING', 'PROCESSING'])
-            ->whereBetween('created_at', [$dateFrom, $dateTo])
-            ->count();
-
         // ── Full status breakdown ──────────────────────────────────────────
         // Drives the GCash settlement-success metric. Previously only
         // PENDING was surfaced, so FAILED/EXPIRED/CANCELLED payments — the
@@ -240,6 +267,7 @@ class AdminService
                 $statusBreakdown[$status] = (int) $count;
             }
         }
+        $pendingCount = $statusBreakdown['PENDING'] + $statusBreakdown['PROCESSING'];
 
         // Gateway-settled attempts only — cash never goes through this
         // lifecycle, so including it would flatter the success rate.
@@ -254,7 +282,7 @@ class AdminService
         $paymentSplit = [
             'cash' => ['count' => $current['cash_count'], 'total' => $cashTotal],
             'gcash' => ['count' => $current['gcash_count'], 'total' => $gcashTotal],
-            'voucher' => ['count' => $voucherCount, 'total' => 0.0],
+            'voucher' => ['count' => $voucherCount, 'total' => $current['voucher_total']],
         ];
 
         // ── Per-day series (PAID transactions, grouped by date) ────────────
@@ -332,10 +360,17 @@ class AdminService
         $remittanceBase = Remittance::query()
             ->whereBetween('date', [$dateFrom->toDateString(), $dateTo->toDateString()]);
 
-        $remittanceCount = (int) (clone $remittanceBase)->count();
-        $totalRemitted = (float) (clone $remittanceBase)->sum('remitted_amount');
-        $totalCollected = (float) (clone $remittanceBase)->sum('total_collected');
-        $totalShortage = (float) (clone $remittanceBase)->sum('shortage');
+        $remittanceTotals = $remittanceBase
+            ->selectRaw('COUNT(*) as remittance_count')
+            ->selectRaw('COALESCE(SUM(remitted_amount), 0) as total_remitted')
+            ->selectRaw('COALESCE(SUM(total_collected), 0) as total_collected')
+            ->selectRaw('COALESCE(SUM(shortage), 0) as total_shortage')
+            ->first();
+
+        $remittanceCount = (int) ($remittanceTotals->remittance_count ?? 0);
+        $totalRemitted = (float) ($remittanceTotals->total_remitted ?? 0);
+        $totalCollected = (float) ($remittanceTotals->total_collected ?? 0);
+        $totalShortage = (float) ($remittanceTotals->total_shortage ?? 0);
 
         // ── Fleet counts ───────────────────────────────────────────────────
         // Active = currently on an active shift (active_shift_id IS NOT NULL).
@@ -448,6 +483,12 @@ class AdminService
                 'cash_total' => $previous['cash_total'],
                 'gcash_total' => $previous['gcash_total'],
                 'paid_count' => $previous['cash_count'] + $previous['gcash_count'],
+                // Same basis as totals.total_passengers (sum across CASH+GCASH+
+                // VOUCHER, not a row count) — the Passengers card's delta was
+                // comparing that sum against paid_count (a voucher-excluded row
+                // count) before this field existed, which compared two
+                // different kinds of numbers.
+                'total_passengers' => $previous['passenger_count'],
                 'avg_fare' => $previous['cash_count'] + $previous['gcash_count'] > 0
                     ? round($prevTotalFares / ($previous['cash_count'] + $previous['gcash_count']), 2)
                     : 0.0,
@@ -495,7 +536,7 @@ class AdminService
      * Extracted so the current and immediately-preceding windows can be
      * aggregated identically for period-over-period deltas.
      *
-     * @return array{cash_total: float, gcash_total: float, cash_count: int, gcash_count: int, voucher_count: int, paid_count: int}
+     * @return array{cash_total: float, gcash_total: float, voucher_total: float, cash_count: int, gcash_count: int, voucher_count: int, paid_count: int, passenger_count: int}
      */
     private function aggregateTransactionWindow(Carbon $from, Carbon $to): array
     {
@@ -521,12 +562,265 @@ class AdminService
         return [
             'cash_total' => $totalFor('CASH'),
             'gcash_total' => $totalFor('GCASH'),
+            // Sourced from the same aggregate as cash/gcash rather than
+            // hardcoded — voucher fares are ₱0 by construction today (every
+            // insert path forces final_amount = 0), so this reads as 0.0
+            // now, but it will reflect reality automatically if that
+            // business rule ever changes.
+            'voucher_total' => $totalFor('VOUCHER'),
             'cash_count' => $countFor('CASH'),
             'gcash_count' => $countFor('GCASH'),
             'voucher_count' => $countFor('VOUCHER'),
             'paid_count' => $countFor('CASH') + $countFor('GCASH') + $countFor('VOUCHER'),
             'passenger_count' => $passengersFor('CASH') + $passengersFor('GCASH') + $passengersFor('VOUCHER'),
         ];
+    }
+
+    /**
+     * Paginated Fleet Management personnel view.
+     *
+     * Combines drivers and conductors as the UI has always shown them, but
+     * performs the merge in SQL so large personnel tables are never fully
+     * loaded into PHP or the browser.
+     */
+    public function listFleetPersonnel(int $perPage = 25, int $page = 1, ?string $search = null, ?string $role = null): Paginator
+    {
+        $base = $this->fleetPersonnelBaseQuery($search, $role);
+        $total = (clone $base)->count();
+        $items = (clone $base)
+            ->orderBy('role_order')
+            ->orderBy('sort_last_name')
+            ->orderBy('sort_first_name')
+            ->orderBy('id')
+            ->forPage($page, $perPage)
+            ->get()
+            ->map(fn ($row) => [
+                'id' => (string) $row->id,
+                'name' => trim((string) $row->name),
+                'role' => (string) $row->role,
+                'contact' => (string) $row->contact,
+                'profile_picture_url' => $row->profile_picture_url,
+            ]);
+
+        return new Paginator(
+            $items,
+            $total,
+            $perPage,
+            $page,
+            ['path' => request()->url(), 'query' => request()->query()],
+        );
+    }
+
+    public function countFleetPersonnel(?string $search = null, ?string $role = null): int
+    {
+        return (int) $this->fleetPersonnelBaseQuery($search, $role)->count();
+    }
+
+    private function fleetPersonnelBaseQuery(?string $search = null, ?string $role = null): \Illuminate\Database\Query\Builder
+    {
+        $normalizedRole = match (strtoupper(trim((string) $role))) {
+            'DRIVER' => 'Driver',
+            'CONDUCTOR' => 'Conductor',
+            default => null,
+        };
+
+        $driverNameExpr = DB::connection()->getDriverName() === 'sqlite'
+            ? "first_name || ' ' || last_name"
+            : "CONCAT(first_name, ' ', last_name)";
+
+        $drivers = DB::table('drivers')
+            ->select([
+                'id',
+                DB::raw("{$driverNameExpr} as name"),
+                DB::raw("'Driver' as role"),
+                'contact',
+                'profile_picture_url',
+                DB::raw('0 as role_order'),
+                'last_name as sort_last_name',
+                'first_name as sort_first_name',
+            ])
+            ->whereNull('deleted_at');
+
+        $conductors = DB::table('conductor_profiles')
+            ->select([
+                'id',
+                DB::raw("{$driverNameExpr} as name"),
+                DB::raw("'Conductor' as role"),
+                DB::raw("COALESCE(contact, '-') as contact"),
+                'profile_picture_url',
+                DB::raw('1 as role_order'),
+                'last_name as sort_last_name',
+                'first_name as sort_first_name',
+            ])
+            ->whereNull('deleted_at');
+
+        if ($search !== null && trim($search) !== '') {
+            $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], trim($search)).'%';
+            $drivers->where(function ($query) use ($term): void {
+                $query->where('first_name', 'like', $term)
+                    ->orWhere('last_name', 'like', $term)
+                    ->orWhere('contact', 'like', $term)
+                    ->orWhereRaw("'Driver' like ?", [$term]);
+            });
+            $conductors->where(function ($query) use ($term): void {
+                $query->where('first_name', 'like', $term)
+                    ->orWhere('last_name', 'like', $term)
+                    ->orWhere('contact', 'like', $term)
+                    ->orWhereRaw("'Conductor' like ?", [$term]);
+            });
+        }
+
+        if ($normalizedRole === 'Driver') {
+            return DB::query()->fromSub($drivers, 'fleet_personnel');
+        }
+
+        if ($normalizedRole === 'Conductor') {
+            return DB::query()->fromSub($conductors, 'fleet_personnel');
+        }
+
+        return DB::query()->fromSub($drivers->unionAll($conductors), 'fleet_personnel');
+    }
+
+    /**
+     * Paginated Fleet Management shift-history personnel entries.
+     *
+     * One shift has one driver and one conductor. The UI displays those as
+     * separate history rows, so this query builds that split at the database
+     * layer and paginates the final row set.
+     */
+    public function listFleetShiftHistoryEntries(int $perPage = 25, int $page = 1, ?string $search = null, ?string $shiftRange = null): Paginator
+    {
+        $base = $this->fleetShiftHistoryEntriesBaseQuery($search, $shiftRange);
+        $total = (clone $base)->count();
+        $rows = (clone $base)
+            ->orderBy('time_in', 'desc')
+            ->orderBy('id')
+            ->forPage($page, $perPage)
+            ->get();
+
+        $items = $rows->map(function ($row) {
+            $timeIn = $row->time_in ? Carbon::parse($row->time_in)->format('H:i:s') : '-';
+            $timeOut = $row->time_out ? Carbon::parse($row->time_out)->format('H:i:s') : '-';
+            $details = "Time in: {$timeIn} | Time out: {$timeOut} | Status: {$row->status}";
+            if ($row->notes) {
+                $details .= " | Notes: {$row->notes}";
+            }
+
+            return [
+                'id' => (string) $row->id,
+                'personnelName' => (string) $row->personnel_name,
+                'role' => (string) $row->role,
+                'vehicle' => (string) $row->vehicle,
+                'shiftDate' => $row->time_in
+                    ? Carbon::parse($row->time_in)->format('M j, Y')
+                    : '-',
+                'timeIn' => $timeIn,
+                'timeOut' => $timeOut,
+                'status' => (string) $row->status,
+                'notes' => $row->notes ? (string) $row->notes : null,
+                'details' => $details,
+            ];
+        });
+
+        return new Paginator(
+            $items,
+            $total,
+            $perPage,
+            $page,
+            ['path' => request()->url(), 'query' => request()->query()],
+        );
+    }
+
+    public function countFleetShiftHistoryEntries(?string $search = null, ?string $shiftRange = null): int
+    {
+        return (int) $this->fleetShiftHistoryEntriesBaseQuery($search, $shiftRange)->count();
+    }
+
+    private function fleetShiftHistoryEntriesBaseQuery(?string $search = null, ?string $shiftRange = null): \Illuminate\Database\Query\Builder
+    {
+        $driverIdExpr = DB::connection()->getDriverName() === 'sqlite'
+            ? "shift_id || ':driver'"
+            : "CONCAT(shift_id, ':driver')";
+        $conductorIdExpr = DB::connection()->getDriverName() === 'sqlite'
+            ? "shift_id || ':conductor'"
+            : "CONCAT(shift_id, ':conductor')";
+
+        $driverEntries = DB::table('shift_logs')
+            ->select([
+                DB::raw("{$driverIdExpr} as id"),
+                'driver_name as personnel_name',
+                DB::raw("'Driver' as role"),
+                DB::raw('COALESCE(unit_number, plate_number) as vehicle'),
+                'time_in',
+                'time_out',
+                'status',
+                'notes',
+            ])
+            ->whereNull('deleted_at')
+            ->whereNotNull('driver_name')
+            ->where('driver_name', '!=', '');
+
+        $conductorEntries = DB::table('shift_logs')
+            ->select([
+                DB::raw("{$conductorIdExpr} as id"),
+                'conductor_name as personnel_name',
+                DB::raw("'Conductor' as role"),
+                DB::raw('COALESCE(unit_number, plate_number) as vehicle'),
+                'time_in',
+                'time_out',
+                'status',
+                'notes',
+            ])
+            ->whereNull('deleted_at')
+            ->whereNotNull('conductor_name')
+            ->where('conductor_name', '!=', '');
+
+        $rangeBounds = $this->fleetShiftHistoryRangeBounds($shiftRange);
+        if ($rangeBounds !== null) {
+            [$start, $end] = $rangeBounds;
+            $driverEntries->whereBetween('time_in', [$start, $end]);
+            $conductorEntries->whereBetween('time_in', [$start, $end]);
+        }
+
+        if ($search !== null && trim($search) !== '') {
+            $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], trim($search)).'%';
+            $applySearch = function ($query, string $personnelColumn, string $role) use ($term): void {
+                $query->where(function ($searchQuery) use ($term, $personnelColumn, $role): void {
+                    $searchQuery->where($personnelColumn, 'like', $term)
+                        ->orWhere('unit_number', 'like', $term)
+                        ->orWhere('plate_number', 'like', $term)
+                        ->orWhere('status', 'like', $term)
+                        ->orWhere('notes', 'like', $term)
+                        ->orWhereRaw('? like ?', [$role, $term]);
+                });
+            };
+
+            $applySearch($driverEntries, 'driver_name', 'Driver');
+            $applySearch($conductorEntries, 'conductor_name', 'Conductor');
+        }
+
+        return DB::query()->fromSub($driverEntries->unionAll($conductorEntries), 'fleet_shift_entries');
+    }
+
+    private function fleetShiftHistoryRangeBounds(?string $shiftRange): ?array
+    {
+        $now = Carbon::now();
+
+        return match ($shiftRange) {
+            'today' => [
+                $now->copy()->startOfDay(),
+                $now->copy()->endOfDay(),
+            ],
+            'last_7_days' => [
+                $now->copy()->subDays(6)->startOfDay(),
+                $now->copy()->endOfDay(),
+            ],
+            'this_month' => [
+                $now->copy()->startOfMonth(),
+                $now->copy()->endOfMonth(),
+            ],
+            default => null,
+        };
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -595,6 +889,57 @@ class AdminService
         return $query->paginate($perPage)
             ->withQueryString()
             ->through(fn (User $user) => $this->present($user));
+    }
+
+    /**
+     * GET /admin/drivers?page=… — paginated/filterable/searchable driver
+     * list for User Management's "Drivers" role filter.
+     *
+     * Only reached when the request includes a `page` param (see
+     * AdminController::drivers()) — every other GET /admin/drivers caller
+     * (Fleet Management, Lost & Found pickers, personnel dropdowns, …) keeps
+     * getting the full unpaginated list they already rely on, unchanged.
+     */
+    public function listDrivers(array $filters): LengthAwarePaginator
+    {
+        $perPage = (int) ($filters['per_page'] ?? 20);
+        $perPage = max(1, min($perPage, 100));
+
+        $query = Driver::with('vehicle');
+
+        if (! empty($filters['search'])) {
+            $term = '%'.trim($filters['search']).'%';
+            $query->where(function (Builder $q) use ($term) {
+                $q->where('first_name', 'like', $term)
+                    ->orWhere('middle_name', 'like', $term)
+                    ->orWhere('last_name', 'like', $term)
+                    ->orWhere('contact', 'like', $term)
+                    ->orWhere('license_number', 'like', $term);
+            });
+        }
+
+        if (! empty($filters['status'])) {
+            if ($filters['status'] === 'ACTIVE') {
+                $query->where('status', 'ACTIVE');
+            } else {
+                // Mirrors the frontend's own "anything not ACTIVE reads as
+                // Suspended" convention (see mapDriverToActiveUser client-side).
+                $query->where(function (Builder $q) {
+                    $q->whereNull('status')->orWhere('status', '!=', 'ACTIVE');
+                });
+            }
+        }
+
+        $sort = $filters['sort'] ?? 'recent';
+        if ($sort === 'oldest') {
+            $query->orderBy('created_at', 'asc');
+        } elseif ($sort === 'alphabetical') {
+            $query->orderBy('last_name', 'asc')->orderBy('first_name', 'asc');
+        } else {
+            $query->orderBy('created_at', 'desc');
+        }
+
+        return $query->paginate($perPage)->withQueryString();
     }
 
     /**
@@ -834,6 +1179,7 @@ class AdminService
             'name' => $user->getDisplayName(),
             'account_status' => $suspension ? 'SUSPENDED' : $commuter?->account_status,
             'commuter_type' => $commuter?->commuter_type,
+            'username' => $commuter?->username,
             'contact_number' => $commuter?->contact_number,
             'verified_at' => optional($commuter?->verified_at)->toIso8601String(),
             'created_at' => optional($user->created_at)->toIso8601String(),
@@ -874,7 +1220,7 @@ class AdminService
     {
         $perPage = max(1, min((int) ($filters['per_page'] ?? 15), 100));
 
-        return User::where('role', UserRole::COMMUTER)
+        $paginator = User::where('role', UserRole::COMMUTER)
             ->whereHas('commuterProfile', function ($q) {
                 $q->where('account_status', 'PENDING');
             })
@@ -886,39 +1232,50 @@ class AdminService
             })
             ->with(['commuterProfile:id,first_name,middle_name,surname,birthdate,gender,email,contact_number,commuter_type,applied_type,account_status,id_image_url,verified_at,rejection_reason,username,language_preference'])
             ->orderBy('created_at', 'asc') // oldest first — FIFO review queue
-            ->paginate($perPage)
-            ->through(function (User $user) {
-                $c = $user->commuterProfile;
-                $history = $this->registrationHistoryPayload($user->email, $c?->contact_number);
+            ->paginate($perPage);
 
-                return [
-                    'id' => $user->id,
-                    'email' => $user->email,
-                    'first_name' => $c?->first_name,
-                    'middle_name' => $c?->middle_name,
-                    'surname' => $c?->surname,
-                    'birthdate' => $c?->birthdate?->toDateString(),
-                    'gender' => $c?->gender,
-                    'contact_number' => $c?->contact_number,
-                    'username' => $c?->username,
-                    'applied_type' => $c?->applied_type,
-                    'id_image_url' => $this->registrationIdUrl($c?->id_image_url),
-                    'account_status' => $c?->account_status,
-                    'language_preference' => $c?->language_preference,
-                    'verified_at' => $c?->verified_at?->toIso8601String(),
-                    'rejection_reason' => $c?->rejection_reason,
-                    // How many times this applicant's identity (email/contact)
-                    // has previously been rejected — surfaced so admins can spot
-                    // repeat submissions approaching the cooldown threshold.
-                    'rejection_count' => $this->registrationGuard->rejectionCountFor(
-                        $user->email,
-                        $c?->contact_number,
-                    ),
-                    'rejection_history' => $history['history'],
-                    'blocked_until' => $history['blocked_until'],
-                    'created_at' => optional($user->created_at)->toIso8601String(),
-                ];
-            });
+        // Batch-fetch rejection history for every applicant on this page in
+        // one query instead of one `registration_rejections` query per row
+        // (previously via registrationGuard->historyFor()/rejectionCountFor()
+        // inside the ->through() callback below).
+        $historyByUser = $this->registrationGuard->historyForMany(
+            $paginator->getCollection()->map(fn (User $user) => [
+                'key' => $user->id,
+                'email' => $user->email,
+                'contact' => $user->commuterProfile?->contact_number,
+            ])
+        );
+
+        return $paginator->through(function (User $user) use ($historyByUser) {
+            $c = $user->commuterProfile;
+            $rows = $historyByUser[$user->id] ?? collect();
+            $history = $this->registrationHistoryPayloadFromRows($rows);
+
+            return [
+                'id' => $user->id,
+                'email' => $user->email,
+                'first_name' => $c?->first_name,
+                'middle_name' => $c?->middle_name,
+                'surname' => $c?->surname,
+                'birthdate' => $c?->birthdate?->toDateString(),
+                'gender' => $c?->gender,
+                'contact_number' => $c?->contact_number,
+                'username' => $c?->username,
+                'applied_type' => $c?->applied_type,
+                'id_image_url' => $this->registrationIdUrl($c?->id_image_url),
+                'account_status' => $c?->account_status,
+                'language_preference' => $c?->language_preference,
+                'verified_at' => $c?->verified_at?->toIso8601String(),
+                'rejection_reason' => $c?->rejection_reason,
+                // How many times this applicant's identity (email/contact)
+                // has previously been rejected — surfaced so admins can spot
+                // repeat submissions approaching the cooldown threshold.
+                'rejection_count' => $rows->count(),
+                'rejection_history' => $history['history'],
+                'blocked_until' => $history['blocked_until'],
+                'created_at' => optional($user->created_at)->toIso8601String(),
+            ];
+        });
     }
 
     /**
@@ -935,7 +1292,7 @@ class AdminService
     {
         $perPage = max(1, min((int) ($filters['per_page'] ?? 15), 100));
 
-        return User::withTrashed()
+        $paginator = User::withTrashed()
             ->where('role', UserRole::COMMUTER)
             ->whereHas('commuterProfile', function ($q) {
                 $q->where('account_status', 'REJECTED');
@@ -954,39 +1311,79 @@ class AdminService
             })
             ->with(['commuterProfile:id,first_name,middle_name,surname,birthdate,gender,email,contact_number,commuter_type,applied_type,account_status,id_image_url,verified_at,rejection_reason,username,language_preference'])
             ->orderBy('updated_at', 'desc') // most recently rejected first
-            ->paginate($perPage)
-            ->through(function (User $user) {
-                $c = $user->commuterProfile;
-                $history = $this->registrationHistoryPayload($c?->email, $c?->contact_number);
+            ->paginate($perPage);
 
-                return [
-                    'id' => $user->id,
-                    'email' => $c?->email ?? $user->email,
-                    'first_name' => $c?->first_name,
-                    'middle_name' => $c?->middle_name,
-                    'surname' => $c?->surname,
-                    'birthdate' => $c?->birthdate?->toDateString(),
-                    'gender' => $c?->gender,
-                    'contact_number' => $c?->contact_number,
-                    'username' => $c?->username,
-                    'applied_type' => $c?->applied_type,
-                    'id_image_url' => $this->registrationIdUrl($c?->id_image_url),
-                    'account_status' => $c?->account_status,
-                    'language_preference' => $c?->language_preference,
-                    'verified_at' => $c?->verified_at?->toIso8601String(),
-                    'rejection_reason' => $c?->rejection_reason,
-                    'rejection_count' => count($history['history']),
-                    'rejection_history' => $history['history'],
-                    'blocked_until' => $history['blocked_until'],
-                    'created_at' => optional($user->created_at)->toIso8601String(),
-                    'rejected_at' => optional($user->deleted_at)->toIso8601String(),
-                ];
-            });
+        // Batch-fetch rejection history for the whole page in one query —
+        // see the matching comment in listPendingRegistrations() above.
+        $historyByUser = $this->registrationGuard->historyForMany(
+            $paginator->getCollection()->map(fn (User $user) => [
+                'key' => $user->id,
+                'email' => $user->commuterProfile?->email,
+                'contact' => $user->commuterProfile?->contact_number,
+            ])
+        );
+
+        // Who rejected THIS specific account (for the "Reject By" column) —
+        // matched by rejected_user_id, which is exact, unlike the identity
+        // (email/contact) matching historyForMany uses to span an applicant's
+        // full history across re-registrations. One extra query for the whole
+        // page (not per-row) via a direct whereIn, kept separate from
+        // RegistrationGuard so the identity-matching path used by the Pending
+        // tab is untouched.
+        $pageUserIds = $paginator->getCollection()->pluck('id');
+        $rejectorByUserId = $pageUserIds->isEmpty()
+            ? collect()
+            : RegistrationRejection::query()
+                ->whereIn('rejected_user_id', $pageUserIds)
+                ->with(['rejectedBy:id,email', 'rejectedBy.adminProfile:id,first_name,middle_name,last_name'])
+                ->get(['id', 'rejected_user_id', 'rejected_by'])
+                ->keyBy('rejected_user_id');
+
+        return $paginator->through(function (User $user) use ($historyByUser, $rejectorByUserId) {
+            $c = $user->commuterProfile;
+            $rows = $historyByUser[$user->id] ?? collect();
+            $history = $this->registrationHistoryPayloadFromRows($rows);
+
+            $rejector = $rejectorByUserId->get($user->id)?->rejectedBy;
+            $rejectorProfile = $rejector?->adminProfile;
+
+            return [
+                'id' => $user->id,
+                'email' => $c?->email ?? $user->email,
+                'first_name' => $c?->first_name,
+                'middle_name' => $c?->middle_name,
+                'surname' => $c?->surname,
+                'birthdate' => $c?->birthdate?->toDateString(),
+                'gender' => $c?->gender,
+                'contact_number' => $c?->contact_number,
+                'username' => $c?->username,
+                'applied_type' => $c?->applied_type,
+                'id_image_url' => $this->registrationIdUrl($c?->id_image_url),
+                'account_status' => $c?->account_status,
+                'language_preference' => $c?->language_preference,
+                'verified_at' => $c?->verified_at?->toIso8601String(),
+                'rejection_reason' => $c?->rejection_reason,
+                'rejection_count' => $rows->count(),
+                'rejection_history' => $history['history'],
+                'blocked_until' => $history['blocked_until'],
+                'created_at' => optional($user->created_at)->toIso8601String(),
+                'rejected_at' => optional($user->deleted_at)->toIso8601String(),
+                'rejected_by_name' => $rejectorProfile
+                    ? trim($rejectorProfile->first_name.' '.$rejectorProfile->last_name)
+                    : null,
+                'rejected_by_email' => $rejector?->email,
+            ];
+        });
     }
 
-    private function registrationHistoryPayload(?string $email, ?string $contact): array
+    /**
+     * Builds the { history, blocked_until } payload from a Collection of
+     * rejection rows already fetched by the caller — a batched lookup for a
+     * whole page via RegistrationGuard::historyForMany(), so this doesn't
+     * query `registration_rejections` again per row.
+     */
+    private function registrationHistoryPayloadFromRows(Collection $history): array
     {
-        $history = $this->registrationGuard->historyFor($email, $contact);
         $activeBlock = $history->first(
             fn ($rejection) => $rejection->blocked_until?->isFuture()
         );
@@ -1087,7 +1484,10 @@ class AdminService
                     'id' => "txn-{$txn->transaction_id}",
                     'timestamp' => optional($txn->created_at)->toIso8601String(),
                     'action' => 'Payment',
-                    'details' => "{$txn->payment_method} ₱{$txn->final_amount} — {$txn->pickup_name} → {$txn->dropoff_name} ({$txn->status})",
+                    // payment_method/status are backed enums (PaymentMethod/
+                    // PaymentStatus casts) — interpolate ->value, not the
+                    // enum object itself (uncatchable TypeError otherwise).
+                    'details' => "{$txn->payment_method->value} ₱{$txn->final_amount} — {$txn->pickup_name} → {$txn->dropoff_name} ({$txn->status->value})",
                 ];
             }
         }

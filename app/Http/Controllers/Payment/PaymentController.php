@@ -72,6 +72,20 @@ class PaymentController extends Controller
     }
 
     /**
+     * POST /commuter/payments/{id}/redeem-voucher — cover the authed
+     * commuter's own portion of an already-claimed, PENDING GCash ride with
+     * one of their available vouchers. Solo rides settle at ₱0 immediately;
+     * grouped rides only cover the payer's seat, and the response's
+     * checkout_url/amount are updated to the companions' remaining total.
+     */
+    public function redeemVoucher(Request $request, string $id): JsonResponse
+    {
+        $result = $this->transactionService->redeemVoucherForGcash($request->user(), $id);
+
+        return $this->successResponse($result, 'Voucher redeemed');
+    }
+
+    /**
      * GET /commuter/payments — the authed commuter's payment history,
      * paginated and newest-first. Only rows bound to this commuter
      * (passenger_id) are returned.

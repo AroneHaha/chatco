@@ -122,6 +122,11 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
     // it from being brute-forced.
     Route::post('/receipts/claim', [PaymentController::class, 'claimReceipt'])->middleware('throttle:commuter-hail');
 
+    // Cover the commuter's own portion of a claimed, still-PENDING GCash ride
+    // with one of their available vouchers. Same throttle as the other
+    // claim-adjacent, money-affecting commuter actions above.
+    Route::post('/payments/{id}/redeem-voucher', [PaymentController::class, 'redeemVoucher'])->middleware('throttle:commuter-hail');
+
     // Feedback submission (S6) — its dedicated 5/min per-user limiter keeps
     // feedback retries isolated from hail, location, and payment claim limits.
     // The DB constraint still enforces one feedback per commuter per shift.
@@ -187,6 +192,8 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->grou
     // 'maintenance' blocks starting a shift (conductor self-assignment) while
     // Maintenance Mode is on, so no assignment state is created mid-maintenance.
     Route::post('/shifts/start', [ConductorController::class, 'startShift'])->middleware(['maintenance', 'throttle:conductor-mutation']);
+    Route::post('/shifts/device/claim', [ConductorController::class, 'claimShiftDevice'])->middleware('throttle:conductor-mutation');
+    Route::post('/shifts/device/release', [ConductorController::class, 'releaseShiftDevice'])->middleware('throttle:conductor-mutation');
     Route::post('/remittances', [ConductorController::class, 'remittances'])->middleware('throttle:conductor-mutation');
 
     // Read — conductor's own submitted remittance history (Week 5).
@@ -258,6 +265,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::post('/registrations/{id}/approve', [AdminRegistrationController::class, 'approve'])->middleware('throttle:conductor-write');
     Route::post('/registrations/{id}/reject', [AdminRegistrationController::class, 'reject'])->middleware('throttle:conductor-write');
     Route::get('/users/{id}/activity', [AdminController::class, 'userActivity'])->middleware('throttle:conductor-read');
+    Route::get('/personnel', [AdminController::class, 'personnel'])->middleware('throttle:conductor-read');
     Route::get('/drivers', [AdminController::class, 'drivers'])->middleware('throttle:conductor-read');
     Route::post('/drivers', [AdminController::class, 'storeDriver'])->middleware('throttle:conductor-write');
     Route::get('/drivers/{id}', [AdminController::class, 'showDriver'])->middleware('throttle:conductor-read');
@@ -275,6 +283,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::get('/terminated-personnel', [AdminController::class, 'terminatedPersonnel'])->middleware('throttle:conductor-read');
     Route::get('/vehicles', [AdminVehicleController::class, 'index'])->middleware('throttle:conductor-read');
     Route::post('/vehicles', [AdminVehicleController::class, 'store'])->middleware('throttle:conductor-write');
+    Route::get('/vehicles/{id}', [AdminVehicleController::class, 'show'])->middleware('throttle:conductor-read');
     Route::put('/vehicles/{id}', [AdminVehicleController::class, 'update'])->middleware('throttle:conductor-write');
     Route::patch('/vehicles/{id}', [AdminVehicleController::class, 'update'])->middleware('throttle:conductor-write');
     Route::delete('/vehicles/{id}', [AdminVehicleController::class, 'destroy'])->middleware('throttle:conductor-write');

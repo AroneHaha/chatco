@@ -19,8 +19,14 @@ class ShiftService
     ) {}
 
     /** Start a shift only from the Admin-approved current-day assignment. */
-    public function startShift(User $conductor, string $vehicleId, string $driverId, ?string $routeId = null): ShiftLog
-    {
+    public function startShift(
+        User $conductor,
+        string $vehicleId,
+        string $driverId,
+        ?string $routeId = null,
+        ?string $deviceId = null,
+        ?string $deviceType = null,
+    ): ShiftLog {
         if (! $conductor->isConductor()) {
             abort(403, 'Forbidden');
         }
@@ -30,7 +36,7 @@ class ShiftService
             abort(422, 'Conductor profile required');
         }
 
-        return DB::transaction(function () use ($profileId, $vehicleId, $driverId, $routeId) {
+        return DB::transaction(function () use ($profileId, $vehicleId, $driverId, $routeId, $deviceId, $deviceType) {
             // Locking the profile serializes simultaneous starts by one conductor.
             $profile = ConductorProfile::query()->whereKey($profileId)->lockForUpdate()->firstOrFail();
             $vehicle = Vehicle::query()->whereKey($vehicleId)->lockForUpdate()->firstOrFail();
@@ -50,11 +56,20 @@ class ShiftService
             }
 
             $operationalDate = now('Asia/Manila')->toDateString();
-            if ($vehicle->conductor_id !== $profileId
-                || $vehicle->driver_id !== $driverId
-                || $vehicle->assignment_date?->toDateString() !== $operationalDate
-                || $vehicle->assignment_approved_at === null) {
-                abort(403, 'No valid Admin-approved assignment exists for the current operational day.');
+            if ($vehicle->conductor_id !== null && $vehicle->conductor_id !== $profileId) {
+                abort(403, 'Vehicle is assigned to another conductor.');
+            }
+            if ($vehicle->driver_id !== null && $vehicle->driver_id !== $driverId) {
+                abort(403, 'Vehicle is assigned to another driver.');
+            }
+            $driverAssignedToAnotherConductor = Vehicle::query()
+                ->where('driver_id', $driverId)
+                ->where('id', '!=', $vehicleId)
+                ->whereNotNull('conductor_id')
+                ->where('conductor_id', '!=', $profileId)
+                ->exists();
+            if ($driverAssignedToAnotherConductor) {
+                abort(403, 'Driver is assigned to another conductor.');
             }
 
             if ($routeId !== null && $vehicle->route_id !== null && $routeId !== $vehicle->route_id) {
@@ -72,13 +87,22 @@ class ShiftService
                 'time_out' => null,
                 'is_active' => true,
                 'status' => ShiftStatus::ACTIVE->value,
+                'operating_device_id' => $deviceId,
+                'operating_device_type' => $deviceType,
+                'operating_device_claimed_at' => $deviceId !== null ? now() : null,
                 'conductor_name' => trim($profile->first_name.' '.$profile->last_name),
                 'driver_name' => trim($driver->first_name.' '.$driver->last_name),
                 'unit_number' => $vehicle->unit_number,
                 'plate_number' => $vehicle->plate_number,
             ]);
 
-            $vehicle->update(['active_shift_id' => $shiftId]);
+            $vehicle->update([
+                'active_shift_id' => $shiftId,
+                'driver_id' => $driverId,
+                'conductor_id' => $profileId,
+                'assignment_date' => $operationalDate,
+                'assignment_approved_at' => now(),
+            ]);
             $driver->update(['active_shift_id' => $shiftId]);
 
             return $shift;
@@ -94,6 +118,8 @@ class ShiftService
         string $shiftId,
         float $totalCollected,
         float $remittedAmount,
+        ?string $deviceId = null,
+        ?string $deviceType = null,
     ): ShiftLog {
         if (! $conductor->isConductor()) {
             abort(403, 'Forbidden');
@@ -112,6 +138,8 @@ class ShiftService
             $remittedAmount,
             ShiftCloseoutService::REASON_MANUAL,
             $profileId,
+            $deviceId,
+            $deviceType,
         );
     }
 

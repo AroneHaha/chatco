@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\PaymentMethod;
+use App\Enums\PaymentStatus;
+use App\Enums\ShiftStatus;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\CommuterLocation;
@@ -78,8 +81,8 @@ class AdminController extends Controller
 
     /**
      * GET /api/v1/admin/monitoring/overspeed
-     * Returns the persisted overspeeding history (one incident per shift,
-     * recorded live as vehicles exceed the speed limit).
+     * Returns the persisted overspeeding history (one row per overspeeding
+     * episode, recorded live as vehicles exceed the speed limit).
      */
     public function overspeed(Request $request): JsonResponse
     {
@@ -143,11 +146,59 @@ class AdminController extends Controller
         return $this->successResponse($zones, 'Demand zones retrieved');
     }
 
-    public function drivers(): JsonResponse
+    /**
+     * GET /api/v1/admin/drivers
+     *
+     * Two modes, distinguished by the presence of `page`:
+     *  - No `page` (legacy/default): the full, unfiltered driver list —
+     *    what Fleet Management, Lost & Found, and the personnel/vehicle
+     *    pickers call today to populate dropdowns. They need every driver
+     *    at once, not one page, so this path is untouched.
+     *  - `page` present: a server-side paginated + filterable + searchable
+     *    list (same Laravel-paginator envelope as GET /admin/users), used by
+     *    User Management's "Drivers" role filter so it no longer downloads
+     *    the whole table to filter/sort/paginate in the browser.
+     */
+    public function drivers(Request $request): JsonResponse
     {
-        $drivers = Driver::with('vehicle')->get();
+        if (! $request->filled('page')) {
+            $drivers = Driver::with('vehicle')->get();
+
+            return $this->successResponse($drivers, 'Drivers retrieved');
+        }
+
+        $drivers = $this->adminService->listDrivers([
+            'search' => $request->string('search')->toString() ?: null,
+            'status' => $request->string('status')->toString() ?: null,
+            'sort' => $request->string('sort')->toString() ?: 'recent',
+            'per_page' => $request->integer('per_page', 20),
+        ]);
 
         return $this->successResponse($drivers, 'Drivers retrieved');
+    }
+
+    /**
+     * GET /api/v1/admin/personnel
+     *
+     * Paginated Fleet Management personnel view. Combines drivers and
+     * conductors without loading either full table into the browser.
+     */
+    public function personnel(Request $request): JsonResponse
+    {
+        $perPage = max(1, min((int) $request->integer('per_page', 25), 100));
+        $page = max(1, (int) $request->integer('page', 1));
+        $search = $request->string('search')->toString() ?: null;
+        $role = $request->string('role')->toString() ?: null;
+
+        if ($request->boolean('count_only')) {
+            return $this->successResponse([
+                'total' => $this->adminService->countFleetPersonnel($search, $role),
+            ], 'Personnel count retrieved');
+        }
+
+        $personnel = $this->adminService->listFleetPersonnel($perPage, $page, $search, $role);
+
+        return $this->successResponse($personnel, 'Personnel retrieved');
     }
 
     /**
@@ -169,10 +220,11 @@ class AdminController extends Controller
             'middle_name' => 'nullable|string|max:100',
             'last_name' => 'required|string|max:100',
             'birthday' => 'required|date|before:today',
-            'contact' => 'required|string|max:20',
+            'contact' => ['required', 'string', 'regex:/^09[0-9]{9}$/'],
             'license_number' => ['required', 'string', 'regex:/^[A-Z][0-9]{2}-[0-9]{2}-[0-9]{6}$/', 'unique:drivers,license_number'],
             'profile_picture_url' => 'nullable|string|max:500',
         ], [
+            'contact.regex' => 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).',
             'license_number.regex' => 'Use the Philippine LTO format N01-23-045678 (one letter, four digits, then six digits).',
         ]);
 
@@ -212,10 +264,11 @@ class AdminController extends Controller
             'middle_name' => 'nullable|string|max:100',
             'last_name' => 'required|string|max:100',
             'birthday' => 'required|date|before:today',
-            'contact' => 'required|string|max:20',
+            'contact' => ['required', 'string', 'regex:/^09[0-9]{9}$/'],
             'license_number' => ['required', 'string', 'regex:/^[A-Z][0-9]{2}-[0-9]{2}-[0-9]{6}$/', 'unique:drivers,license_number,'.$id],
             'profile_picture_url' => 'nullable|string|max:500',
         ], [
+            'contact.regex' => 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).',
             'license_number.regex' => 'Use the Philippine LTO format N01-23-045678 (one letter, four digits, then six digits).',
         ]);
 
@@ -349,6 +402,7 @@ class AdminController extends Controller
                 'termination_type' => $validated['termination_type'],
                 'terminated_date' => now()->toDateString(),
                 'last_vehicle' => $lastVehicle,
+                'date_joined' => $driver->hire_date?->toDateString(),
             ]);
             $driver->delete();
         });
@@ -428,6 +482,7 @@ class AdminController extends Controller
                 'termination_type' => $validated['termination_type'],
                 'terminated_date' => now()->toDateString(),
                 'last_vehicle' => $lastVehicle,
+                'date_joined' => $conductor->created_at?->toDateString(),
             ]);
             // Revoke ALL tokens BEFORE soft-deleting — so the conductor is
             // instantly logged out everywhere and can't use the account.
@@ -555,12 +610,32 @@ class AdminController extends Controller
      */
     public function terminatedPersonnel(Request $request): JsonResponse
     {
-        $perPage = (int) $request->integer('per_page', 50);
+        $perPage = max(1, min((int) $request->integer('per_page', 50), 100));
 
-        $records = TerminatedPersonnel::query()
+        $query = TerminatedPersonnel::query()
+            ->when($request->string('search')->toString(), function ($query, string $search): void {
+                $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], trim($search)).'%';
+                $query->where(function ($subQuery) use ($term): void {
+                    $subQuery->where('name', 'like', $term)
+                        ->orWhere('role', 'like', $term)
+                        ->orWhere('contact', 'like', $term)
+                        ->orWhere('reason', 'like', $term)
+                        ->orWhere('last_vehicle', 'like', $term)
+                        ->orWhere('termination_type', 'like', $term);
+                });
+            });
+
+        if ($request->boolean('count_only')) {
+            return $this->successResponse([
+                'total' => (int) $query->count(),
+            ], 'Terminated personnel count retrieved');
+        }
+
+        $records = $query
             ->orderBy('terminated_date', 'desc')
             ->orderBy('created_at', 'desc')
-            ->paginate($perPage);
+            ->paginate($perPage)
+            ->withQueryString();
 
         return $this->successResponse($records, 'Terminated personnel retrieved');
     }
@@ -582,7 +657,7 @@ class AdminController extends Controller
      * PUT/PATCH /api/v1/admin/conductors/{id}
      * Updates a conductor's editable profile fields.
      *
-     * Editable: first_name, middle_name, last_name, birthday, profile_picture_url.
+     * Editable: first_name, middle_name, last_name, birthday, contact, profile_picture_url.
      * NOT editable here: generated_username, generated_password (regenerate-
      * credentials is a separate flow — see G7 in the admin audit).
      *
@@ -597,7 +672,10 @@ class AdminController extends Controller
             'middle_name' => 'nullable|string|max:100',
             'last_name' => 'required|string|max:100',
             'birthday' => 'required|date|before:today',
+            'contact' => ['required', 'string', 'regex:/^09[0-9]{9}$/'],
             'profile_picture_url' => 'nullable|string|max:500',
+        ], [
+            'contact.regex' => 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).',
         ]);
 
         $conductor->update([
@@ -605,6 +683,7 @@ class AdminController extends Controller
             'middle_name' => $validated['middle_name'] ?? null,
             'last_name' => $validated['last_name'],
             'birthday' => $validated['birthday'],
+            'contact' => $validated['contact'],
             'profile_picture_url' => $validated['profile_picture_url'] ?? $conductor->profile_picture_url,
         ]);
 
@@ -636,6 +715,7 @@ class AdminController extends Controller
             'middle_name' => $conductor->middle_name,
             'last_name' => $conductor->last_name,
             'birthday' => $conductor->birthday?->toDateString(),
+            'contact' => $conductor->contact,
             'profile_picture_url' => $conductor->profile_picture_url,
             'generated_username' => $conductor->generated_username,
             'vehicle' => $conductor->vehicle ? [
@@ -693,7 +773,10 @@ class AdminController extends Controller
             'middle_name' => 'nullable|string|max:100',
             'last_name' => 'required|string|max:100',
             'birthday' => 'required|date|before:today',
+            'contact' => ['required', 'string', 'regex:/^09[0-9]{9}$/'],
             'profile_picture_url' => 'nullable|string|max:500',
+        ], [
+            'contact.regex' => 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).',
         ]);
 
         $firstName = $validated['first_name'];
@@ -748,6 +831,7 @@ class AdminController extends Controller
             'middle_name' => $validated['middle_name'] ?? null,
             'last_name' => $lastName,
             'birthday' => $birthday,
+            'contact' => $validated['contact'],
             'profile_picture_url' => $validated['profile_picture_url'] ?? null,
             'generated_username' => $generatedUsername,
             'generated_password' => $generatedPassword,
@@ -772,7 +856,30 @@ class AdminController extends Controller
             ->orderBy('created_at', 'desc');
 
         if ($request->has('shift_id')) {
-            $query->where('shift_id', $request->input('shift_id'));
+            // Comma-separated shift_id batches multiple shifts into one request
+            // (e.g. the admin remittance conductor modal's Transactions tab)
+            // instead of one round trip per shift.
+            $shiftIds = array_filter(array_map('trim', explode(',', (string) $request->input('shift_id'))));
+            if (count($shiftIds) > 1) {
+                $query->whereIn('shift_id', $shiftIds);
+            } else {
+                $query->where('shift_id', $request->input('shift_id'));
+            }
+        }
+        // Plain range comparisons on created_at (not whereDate(), which wraps
+        // the column in a function and blocks index use) so this resolves as
+        // an index range scan against transactions_created_at_index as the
+        // table grows, instead of a full scan.
+        if ($request->filled('date')) {
+            $day = Carbon::parse($request->input('date'))->startOfDay();
+            $query->where('created_at', '>=', $day)
+                ->where('created_at', '<', $day->copy()->addDay());
+        }
+        if ($request->filled('date_from')) {
+            $query->where('created_at', '>=', Carbon::parse($request->input('date_from'))->startOfDay());
+        }
+        if ($request->filled('date_to')) {
+            $query->where('created_at', '<', Carbon::parse($request->input('date_to'))->addDay()->startOfDay());
         }
 
         $transactions = $query->paginate($perPage);
@@ -793,33 +900,44 @@ class AdminController extends Controller
      */
     public function remittances(Request $request): JsonResponse
     {
-        $perPage = (int) $request->integer('per_page', 100);
+        // Cap raised from 100 to 500: the Analytics Overview/Reports tabs and
+        // the CSV/PDF/Excel exports (frontend/app/(admin)/analytics/page.tsx)
+        // request per_page=500 to get the full scoped range in one page. The
+        // old 100 cap silently truncated `data` for any range with more than
+        // 100 remittances while `total` still reported the real count.
+        $perPage = max(1, min((int) $request->integer('per_page', 100), 500));
+        $page = max(1, (int) $request->integer('page', 1));
+        $statusFilter = $request->filled('status')
+            ? strtoupper((string) $request->input('status'))
+            : null;
 
         $completedQuery = Remittance::query()
             ->with(['shift:shift_id,status,time_in,time_out', 'vehicle:id,unit_number,plate_number', 'driver:id,first_name,last_name']);
+        // Plain comparisons, not whereDate() — `date` is already a native DATE
+        // column, so wrapping it in whereDate()'s CAST(...) still blocks the
+        // remittances_date_index range scan and forces a full table scan.
         if ($request->filled('date_from')) {
-            $completedQuery->whereDate('date', '>=', $request->input('date_from'));
+            $completedQuery->where('date', '>=', $request->input('date_from'));
         }
         if ($request->filled('date_to')) {
-            $completedQuery->whereDate('date', '<=', $request->input('date_to'));
+            $completedQuery->where('date', '<=', $request->input('date_to'));
         }
         if ($request->filled('date')) {
             $completedQuery->where('date', $request->input('date'));
         }
-        if ($request->filled('status')) {
-            $status = strtoupper((string) $request->input('status'));
-            if ($status === 'REMITTED') {
+        if ($statusFilter) {
+            if ($statusFilter === 'REMITTED') {
                 $completedQuery->whereIn('remittance_status', [
                     Remittance::STATUS_COMPLETE,
                     Remittance::STATUS_SHORTAGE,
                     Remittance::STATUS_OVERAGE,
                     'Remitted',
                 ]);
-            } elseif ($status === 'OVERDUE') {
+            } elseif ($statusFilter === 'OVERDUE') {
                 $completedQuery->where('remittance_status', Remittance::STATUS_PENDING)
                     ->where('remittance_due_at', '<', now());
             } else {
-                $completedQuery->where('remittance_status', $status);
+                $completedQuery->where('remittance_status', $statusFilter);
             }
         }
         if ($request->filled('search')) {
@@ -830,28 +948,163 @@ class AdminController extends Controller
                     ->orWhere('shift_id', 'like', $search);
             });
         }
-        $remittances = $completedQuery
-            ->orderBy('date', 'desc')
-            ->orderBy('time_in', 'desc')
-            ->paginate(max(1, min($perPage, 100)));
+        // Exact-name filters from the admin's Conductor/Driver dropdowns. Applied
+        // server-side (not just to the current page in memory) so switching to a
+        // specific conductor/driver returns every matching shift, not only
+        // whichever ones happened to land on the currently loaded page.
+        if ($request->filled('conductor')) {
+            $completedQuery->where('conductor_name', $request->input('conductor'));
+        }
+        if ($request->filled('driver')) {
+            $completedQuery->where('driver_name', $request->input('driver'));
+        }
 
-        $remittances->getCollection()->transform(function (Remittance $remittance): Remittance {
-            $remittance->setAttribute(
-                'is_overdue',
-                $remittance->remittance_status === Remittance::STATUS_PENDING
-                    && $remittance->remittance_due_at?->isPast(),
-            );
+        $completedRows = $completedQuery
+            ->get()
+            ->map(function (Remittance $remittance): array {
+                $remittance->setAttribute(
+                    'is_overdue',
+                    $remittance->remittance_status === Remittance::STATUS_PENDING
+                        && $remittance->remittance_due_at?->isPast(),
+                );
 
-            return $remittance;
-        });
+                return $remittance->toArray();
+            });
 
-        return $this->successResponse($remittances, 'Remittances retrieved');
+        $activeRows = collect();
+        if ($statusFilter === null || $statusFilter === Remittance::STATUS_PENDING) {
+            $activeQuery = ShiftLog::query()
+                ->where('status', ShiftStatus::ACTIVE->value)
+                ->whereDoesntHave('remittance');
+
+            if ($request->filled('date_from')) {
+                $activeQuery->where('time_in', '>=', Carbon::parse($request->input('date_from'))->startOfDay());
+            }
+            if ($request->filled('date_to')) {
+                $activeQuery->where('time_in', '<=', Carbon::parse($request->input('date_to'))->endOfDay());
+            }
+            if ($request->filled('date')) {
+                $activeQuery
+                    ->where('time_in', '>=', Carbon::parse($request->input('date'))->startOfDay())
+                    ->where('time_in', '<=', Carbon::parse($request->input('date'))->endOfDay());
+            }
+            if ($request->filled('search')) {
+                $search = '%'.str_replace(['%', '_'], ['\\%', '\\_'], (string) $request->input('search')).'%';
+                $activeQuery->where(function ($query) use ($search): void {
+                    $query->where('conductor_name', 'like', $search)
+                        ->orWhere('driver_name', 'like', $search)
+                        ->orWhere('shift_id', 'like', $search);
+                });
+            }
+            if ($request->filled('conductor')) {
+                $activeQuery->where('conductor_name', $request->input('conductor'));
+            }
+            if ($request->filled('driver')) {
+                $activeQuery->where('driver_name', $request->input('driver'));
+            }
+
+            $activeShifts = $activeQuery
+                ->get(['shift_id', 'conductor_id', 'driver_id', 'vehicle_id', 'conductor_name', 'driver_name', 'unit_number', 'time_in', 'time_out']);
+            $shiftIds = $activeShifts->pluck('shift_id');
+            $totalsByShift = $shiftIds->isEmpty()
+                ? collect()
+                : Transaction::query()
+                    ->whereIn('shift_id', $shiftIds)
+                    ->where('status', PaymentStatus::PAID->value)
+                    ->select('shift_id')
+                    ->selectRaw("COALESCE(SUM(CASE WHEN payment_method = ? THEN final_amount ELSE 0 END), 0) AS cash_total", [PaymentMethod::CASH->value])
+                    ->selectRaw("COALESCE(SUM(CASE WHEN payment_method = ? THEN final_amount ELSE 0 END), 0) AS gcash_total", [PaymentMethod::GCASH->value])
+                    ->selectRaw('COALESCE(SUM(total_passengers), 0) AS total_passengers')
+                    ->groupBy('shift_id')
+                    ->get()
+                    ->keyBy('shift_id');
+
+            $activeRows = $activeShifts->map(function (ShiftLog $shift) use ($totalsByShift): array {
+                $totals = $totalsByShift->get($shift->shift_id);
+                $cashTotal = (float) ($totals->cash_total ?? 0);
+                $gcashTotal = (float) ($totals->gcash_total ?? 0);
+
+                return [
+                    'shift_id' => $shift->shift_id,
+                    'conductor_id' => $shift->conductor_id,
+                    'driver_id' => $shift->driver_id,
+                    'vehicle_id' => $shift->vehicle_id,
+                    'date' => $shift->time_in?->toDateString(),
+                    'conductor_name' => $shift->conductor_name,
+                    'driver_name' => $shift->driver_name,
+                    'unit_number' => $shift->unit_number,
+                    'total_passengers' => (int) ($totals->total_passengers ?? 0),
+                    'time_in' => $shift->time_in,
+                    'time_out' => $shift->time_out,
+                    'total_collected' => $cashTotal,
+                    'remitted_amount' => 0,
+                    'shortage' => 0,
+                    'overage' => 0,
+                    'cash_total' => $cashTotal,
+                    'gcash_total' => $gcashTotal,
+                    'remittance_status' => Remittance::STATUS_PENDING,
+                    'remittance_due_at' => null,
+                    'remitted_at' => null,
+                    'reminder_count' => 0,
+                    'is_overdue' => false,
+                ];
+            });
+        }
+
+        $rows = $completedRows
+            ->concat($activeRows)
+            ->sort(function (array $a, array $b): int {
+                $dateCompare = strcmp((string) ($b['date'] ?? ''), (string) ($a['date'] ?? ''));
+                if ($dateCompare !== 0) {
+                    return $dateCompare;
+                }
+
+                return strcmp((string) ($b['time_in'] ?? ''), (string) ($a['time_in'] ?? ''));
+            })
+            ->values();
+
+        $total = $rows->count();
+        $items = $rows->forPage($page, $perPage)->values();
+
+        return $this->successResponse([
+            'current_page' => $page,
+            'data' => $items,
+            'from' => $items->isEmpty() ? null : (($page - 1) * $perPage) + 1,
+            'last_page' => max(1, (int) ceil($total / $perPage)),
+            'per_page' => $perPage,
+            'to' => $items->isEmpty() ? null : (($page - 1) * $perPage) + $items->count(),
+            'total' => $total,
+        ], 'Remittances retrieved');
     }
 
     public function shiftLogs(Request $request): JsonResponse
     {
-        $query = ShiftLog::with(['vehicle', 'driver', 'route'])
-            ->orderBy('time_in', 'desc');
+        $perPage = max(1, min((int) $request->integer('per_page', 100), 100));
+        $page = max(1, (int) $request->integer('page', 1));
+
+        if ($request->query('entry_view') === 'personnel') {
+            $shiftRange = $request->string('shift_range')->toString() ?: null;
+
+            if ($request->boolean('count_only')) {
+                return $this->successResponse([
+                    'total' => $this->adminService->countFleetShiftHistoryEntries(
+                        $request->string('search')->toString() ?: null,
+                        $shiftRange,
+                    ),
+                ], 'Shift history count retrieved');
+            }
+
+            $entries = $this->adminService->listFleetShiftHistoryEntries(
+                $perPage,
+                $page,
+                $request->string('search')->toString() ?: null,
+                $shiftRange,
+            );
+
+            return $this->successResponse($entries, 'Shift history entries retrieved');
+        }
+
+        $query = ShiftLog::query();
 
         if ($request->has('vehicle_id')) {
             $query->where('vehicle_id', $request->input('vehicle_id'));
@@ -865,9 +1118,29 @@ class AdminController extends Controller
             $query->where('driver_id', $request->input('driver_id'));
         }
 
-        $perPage = (int) $request->integer('per_page', 100);
+        if ($request->filled('search')) {
+            $search = '%'.str_replace(['%', '_'], ['\\%', '\\_'], (string) $request->input('search')).'%';
+            $query->where(function ($searchQuery) use ($search): void {
+                $searchQuery->where('driver_name', 'like', $search)
+                    ->orWhere('conductor_name', 'like', $search)
+                    ->orWhere('unit_number', 'like', $search)
+                    ->orWhere('plate_number', 'like', $search)
+                    ->orWhere('status', 'like', $search)
+                    ->orWhere('notes', 'like', $search);
+            });
+        }
 
-        $shiftLogs = $query->paginate($perPage);
+        if ($request->boolean('count_only')) {
+            return $this->successResponse([
+                'total' => (int) $query->count(),
+            ], 'Shift log count retrieved');
+        }
+
+        $shiftLogs = $query
+            ->with(['vehicle', 'driver', 'route'])
+            ->orderBy('time_in', 'desc')
+            ->paginate($perPage)
+            ->withQueryString();
 
         return $this->successResponse($shiftLogs, 'Shift logs retrieved');
     }

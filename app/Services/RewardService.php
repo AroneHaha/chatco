@@ -23,7 +23,7 @@ use Illuminate\Support\Str;
  */
 class RewardService
 {
-    public const VOUCHER_VALIDITY_DAYS = 30;
+    public const VOUCHER_VALIDITY_DAYS = 3;
 
     /**
      * @return Collection<int, Voucher> Vouchers created by this invocation.

@@ -121,7 +121,7 @@ class LostItemService
      */
     public function listForAdmin(array $filters, int $perPage = 15): LengthAwarePaginator
     {
-        $query = LostItem::with(['vehicle', 'photos', 'claims.claimant', 'releasedTo', 'closedBy'])
+        $query = LostItem::with(['vehicle', 'photos', 'claims.claimant', 'claims.reviewer', 'releasedTo', 'closedBy'])
             ->orderByDesc('created_at');
 
         if (! empty($filters['status'])) {
@@ -146,7 +146,7 @@ class LostItemService
     public function show(string $itemId): LostItem
     {
         try {
-            return LostItem::with(['vehicle', 'photos', 'claims.claimant', 'releasedTo', 'closedBy'])->findOrFail($itemId);
+            return LostItem::with(['vehicle', 'photos', 'claims.claimant', 'claims.reviewer', 'releasedTo', 'closedBy'])->findOrFail($itemId);
         } catch (ModelNotFoundException) {
             throw LostFoundException::notFound('Item');
         }
@@ -200,7 +200,7 @@ class LostItemService
             'category' => $data['category'] ?? null,
         ], fn ($v) => $v !== null));
 
-        return $item->fresh(['vehicle', 'photos', 'claims.claimant']);
+        return $item->fresh(['vehicle', 'photos', 'claims.claimant', 'claims.reviewer']);
     }
 
     /**
@@ -238,7 +238,7 @@ class LostItemService
             }
         });
 
-        return $item->fresh(['vehicle', 'photos', 'claims.claimant']);
+        return $item->fresh(['vehicle', 'photos', 'claims.claimant', 'claims.reviewer']);
     }
 
     /**
@@ -278,7 +278,7 @@ class LostItemService
             $item->update(['image_url' => $remaining->first()->url ?? null]);
         });
 
-        return $item->fresh(['vehicle', 'photos', 'claims.claimant']);
+        return $item->fresh(['vehicle', 'photos', 'claims.claimant', 'claims.reviewer']);
     }
 
     /**

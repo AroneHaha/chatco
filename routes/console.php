@@ -34,6 +34,11 @@ Schedule::command('lost-items:expire')
     ->timezone('Asia/Manila')
     ->withoutOverlapping(60);
 
+Schedule::command('announcements:prune-archived')
+    ->dailyAt('02:00')
+    ->timezone('Asia/Manila')
+    ->withoutOverlapping(60);
+
 // Shared Hostinger has no persistent process manager. Only database queues
 // require this short worker; sync executes jobs inline and needs no worker.
 if (config('queue.default') === 'database') {

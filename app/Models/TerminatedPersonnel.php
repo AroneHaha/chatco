@@ -36,10 +36,12 @@ class TerminatedPersonnel extends Model
         'termination_type',
         'terminated_date',
         'last_vehicle',
+        'date_joined',
     ];
 
     protected $casts = [
         'terminated_date' => 'date',
+        'date_joined' => 'date',
     ];
 
     /**

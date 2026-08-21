@@ -6,6 +6,7 @@ use App\Http\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Conductor\InitiateGcashRequest;
 use App\Http\Requests\Conductor\RecordCashRequest;
+use App\Http\Requests\Conductor\ShiftDeviceRequest;
 use App\Http\Requests\Conductor\StartShiftRequest;
 use App\Http\Requests\Conductor\SubmitRemittanceRequest;
 use App\Http\Requests\Conductor\UpdateLocationRequest;
@@ -16,6 +17,7 @@ use App\Models\Vehicle;
 use App\Services\ConductorService;
 use App\Services\FeedbackService;
 use App\Services\LocationService;
+use App\Services\ShiftDeviceService;
 use App\Services\ShiftService;
 use App\Services\TransactionService;
 use Illuminate\Http\JsonResponse;
@@ -36,18 +38,22 @@ class ConductorController extends Controller
 
     protected FeedbackService $feedbackService;
 
+    protected ShiftDeviceService $shiftDeviceService;
+
     public function __construct(
         ShiftService $shiftService,
         LocationService $locationService,
         TransactionService $transactionService,
         ConductorService $conductorService,
-        FeedbackService $feedbackService
+        FeedbackService $feedbackService,
+        ShiftDeviceService $shiftDeviceService,
     ) {
         $this->shiftService = $shiftService;
         $this->locationService = $locationService;
         $this->transactionService = $transactionService;
         $this->conductorService = $conductorService;
         $this->feedbackService = $feedbackService;
+        $this->shiftDeviceService = $shiftDeviceService;
     }
 
     /**
@@ -76,6 +82,8 @@ class ConductorController extends Controller
             $validated['vehicle_id'],
             $validated['driver_id'],
             $validated['route_id'] ?? null,
+            $validated['device_id'] ?? null,
+            $validated['device_type'] ?? null,
         );
 
         return $this->successResponse(
@@ -98,12 +106,39 @@ class ConductorController extends Controller
             $validated['shift_id'],
             (float) $validated['total_collected'],
             (float) $validated['remitted_amount'],
+            $validated['device_id'] ?? null,
+            $validated['device_type'] ?? null,
         );
 
         return $this->successResponse(
             $shiftLog->load(['vehicle', 'driver', 'route', 'remittance']),
             'Shift ended via remittance',
         );
+    }
+
+    public function claimShiftDevice(ShiftDeviceRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+        $shift = $this->shiftDeviceService->claim(
+            $request->user(),
+            $validated['shift_id'],
+            $validated['device_id'],
+            $validated['device_type'],
+        );
+
+        return $this->successResponse($shift, 'This device can now operate the shift.');
+    }
+
+    public function releaseShiftDevice(ShiftDeviceRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+        $shift = $this->shiftDeviceService->release(
+            $request->user(),
+            $validated['shift_id'],
+            $validated['device_id'],
+        );
+
+        return $this->successResponse($shift, 'The shift is ready to be claimed by another device.');
     }
 
     /**
@@ -261,6 +296,30 @@ class ConductorController extends Controller
 
         if (! $shiftId) {
             return $this->errorResponse('shift_id query parameter is required', 422);
+        }
+
+        if ($request->hasAny(['page', 'per_page', 'payment_method', 'date_from', 'date_to'])) {
+            $result = $this->transactionService->getShiftTransactionsPage(
+                $request->user(),
+                $shiftId,
+                (int) $request->integer('per_page', 25),
+                [
+                    'payment_method' => $request->query('payment_method'),
+                    'date_from' => $request->query('date_from'),
+                    'date_to' => $request->query('date_to'),
+                ],
+            );
+
+            $paginator = $result['paginator'];
+
+            return $this->successResponse([
+                'data' => $paginator->items(),
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+                'total_amount' => $result['total_amount'],
+            ], 'Shift transactions retrieved');
         }
 
         $transactions = $this->transactionService->getShiftTransactions(
@@ -452,10 +511,11 @@ class ConductorController extends Controller
         $profileId = $request->user()->conductorProfile?->id;
         $units = Vehicle::with('route')
             ->where('status', 'ACTIVE')
-            ->where('conductor_id', $profileId)
-            ->whereDate('assignment_date', now('Asia/Manila')->toDateString())
-            ->whereNotNull('assignment_approved_at')
             ->whereDoesntHave('activeShift')
+            ->where(function ($query) use ($profileId) {
+                $query->whereNull('conductor_id')
+                    ->orWhere('conductor_id', $profileId);
+            })
             ->get();
 
         return $this->successResponse($units, 'Available vehicles retrieved');
@@ -468,16 +528,15 @@ class ConductorController extends Controller
     public function drivers(Request $request): JsonResponse
     {
         $profileId = $request->user()->conductorProfile?->id;
-        $driverIds = Vehicle::query()
-            ->where('conductor_id', $profileId)
-            ->whereDate('assignment_date', now('Asia/Manila')->toDateString())
-            ->whereNotNull('assignment_approved_at')
-            ->whereNotNull('driver_id')
-            ->pluck('driver_id');
         $drivers = Driver::query()
-            ->whereIn('id', $driverIds)
             ->where('status', 'ACTIVE')
             ->whereDoesntHave('activeShift')
+            ->whereNotIn('id', Vehicle::query()
+                ->select('driver_id')
+                ->whereNotNull('driver_id')
+                ->whereNotNull('conductor_id')
+                ->where('conductor_id', '!=', $profileId)
+            )
             ->get();
 
         return $this->successResponse($drivers, 'Available drivers retrieved');

@@ -12,7 +12,9 @@ class ShiftLog extends Model
     use HasFactory;
 
     protected $primaryKey = 'shift_id';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [
@@ -32,6 +34,9 @@ class ShiftLog extends Model
         'break_started_at',
         'notes',
         'status',
+        'operating_device_id',
+        'operating_device_type',
+        'operating_device_claimed_at',
     ];
 
     protected function casts(): array
@@ -43,6 +48,7 @@ class ShiftLog extends Model
             'is_on_break' => 'boolean',
             'break_started_at' => 'datetime',
             'status' => ShiftStatus::class,
+            'operating_device_claimed_at' => 'datetime',
         ];
     }
 

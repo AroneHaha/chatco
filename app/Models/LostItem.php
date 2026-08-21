@@ -45,6 +45,9 @@ class LostItem extends Model
         'available_since' => 'datetime',
     ];
 
+    /** Always include the resolved admin name in JSON — see getClosedByNameAttribute(). */
+    protected $appends = ['closed_by_name'];
+
     /**
      * Auto-generate UUID on creation.
      */
@@ -86,6 +89,16 @@ class LostItem extends Model
     public function closedBy()
     {
         return $this->belongsTo(User::class, 'closed_by');
+    }
+
+    /**
+     * The admin's display name for whoever closed/released this item —
+     * releaseClaim() and close() both stamp `closed_by`, so this covers
+     * "released by" in the admin UI without a second lookup.
+     */
+    public function getClosedByNameAttribute(): ?string
+    {
+        return $this->closedBy?->getDisplayName();
     }
 
     /**
