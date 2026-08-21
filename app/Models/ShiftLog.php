@@ -82,6 +82,16 @@ class ShiftLog extends Model
         return $this->hasMany(Transaction::class, 'shift_id', 'shift_id');
     }
 
+    public function deviceRecoveries()
+    {
+        return $this->hasMany(ShiftDeviceRecovery::class, 'shift_id', 'shift_id');
+    }
+
+    public function latestDeviceRecovery()
+    {
+        return $this->hasOne(ShiftDeviceRecovery::class, 'shift_id', 'shift_id')->latestOfMany();
+    }
+
     public function scopeActive(Builder $query): void
     {
         $query->where('status', ShiftStatus::ACTIVE);

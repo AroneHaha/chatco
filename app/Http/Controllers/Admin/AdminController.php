@@ -1137,7 +1137,15 @@ class AdminController extends Controller
         }
 
         $shiftLogs = $query
-            ->with(['vehicle', 'driver', 'route'])
+            ->with(['vehicle', 'driver', 'route', 'latestDeviceRecovery'])
+            ->withCount([
+                'transactions as synced_offline_cash_count' => function ($transactions): void {
+                    $transactions
+                        ->where('payment_method', PaymentMethod::CASH)
+                        ->whereNotNull('offline_created_at')
+                        ->whereNotNull('synced_at');
+                },
+            ])
             ->orderBy('time_in', 'desc')
             ->paginate($perPage)
             ->withQueryString();

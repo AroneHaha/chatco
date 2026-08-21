@@ -19,7 +19,10 @@ class HailService
 {
     private const HAIL_TTL_MINUTES = 3;
 
-    public function __construct(private RouteGeometryService $routeGeometryService) {}
+    public function __construct(
+        private RouteGeometryService $routeGeometryService,
+        private ShiftDeviceService $shiftDeviceService,
+    ) {}
 
     public function createHail(
         User $commuter,
@@ -99,14 +102,22 @@ class HailService
         return $this->transitionHail($hailId, HailStatus::CANCELLED, $commuter);
     }
 
-    public function acceptHail(User $conductor, string $hailId): Hail
-    {
-        return $this->transitionHail($hailId, HailStatus::ACCEPTED, $conductor);
+    public function acceptHail(
+        User $conductor,
+        string $hailId,
+        ?string $deviceId = null,
+        ?string $deviceType = null,
+    ): Hail {
+        return $this->transitionHail($hailId, HailStatus::ACCEPTED, $conductor, $deviceId, $deviceType);
     }
 
-    public function rejectHail(User $conductor, string $hailId): Hail
-    {
-        return $this->transitionHail($hailId, HailStatus::REJECTED, $conductor);
+    public function rejectHail(
+        User $conductor,
+        string $hailId,
+        ?string $deviceId = null,
+        ?string $deviceType = null,
+    ): Hail {
+        return $this->transitionHail($hailId, HailStatus::REJECTED, $conductor, $deviceId, $deviceType);
     }
 
     public function getPendingHailsForVehicle(string $vehicleId): Collection
@@ -125,9 +136,14 @@ class HailService
      * accept/cancel/reject requests idempotent. The related shift is locked
      * first everywhere, matching shift closeout's lock order.
      */
-    private function transitionHail(string $hailId, HailStatus $target, User $actor): Hail
-    {
-        return DB::transaction(function () use ($hailId, $target, $actor) {
+    private function transitionHail(
+        string $hailId,
+        HailStatus $target,
+        User $actor,
+        ?string $deviceId = null,
+        ?string $deviceType = null,
+    ): Hail {
+        return DB::transaction(function () use ($hailId, $target, $actor, $deviceId, $deviceType) {
             $candidate = Hail::query()->whereKey($hailId)->firstOrFail();
             $shift = ShiftLog::query()
                 ->where('vehicle_id', $candidate->vehicle_id)
@@ -142,6 +158,10 @@ class HailService
                 }
             } elseif (! $shift || $shift->conductor_id !== $actor->id) {
                 abort(403, 'Forbidden');
+            }
+
+            if ($target !== HailStatus::CANCELLED) {
+                $this->shiftDeviceService->assertCanOperate($shift, $deviceId, $deviceType);
             }
 
             if ($hail->status !== HailStatus::PENDING) {
