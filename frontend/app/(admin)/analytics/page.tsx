@@ -1,7 +1,7 @@
 // app/(admin)/analytics/page.tsx
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   AlertCircle,
@@ -12,13 +12,13 @@ import {
   Smartphone,
   Users,
   Car,
-  RefreshCw,
   Banknote,
   Clock,
   AlertTriangle,
   BarChart3,
   FileText,
   Download,
+  ChevronDown,
   Receipt,
   ShieldCheck,
 } from 'lucide-react';
@@ -27,6 +27,7 @@ import {
   computeDelta,
   formatPeso,
   formatNumber,
+  formatDateRangeLabel,
   toLocalISODate,
   type AnalyticsData,
   type AnalyticsRange,
@@ -168,33 +169,33 @@ function PaymentSplitDonut({ data }: { data: AnalyticsData['payment_split'] }) {
 
   if (totalRides === 0) {
     return (
-      <div className="py-12 text-center text-slate-600 text-sm">
+      <div className="flex-1 flex items-center justify-center text-center text-slate-600 text-sm">
         No paid transactions in this date range.
       </div>
     );
   }
 
   return (
-    <div className="flex items-center gap-6">
+    <div className="flex-1 flex flex-col justify-center gap-6 sm:flex-row sm:items-center w-full">
       {/* Decorative: every value in the ring is stated in the legend beside
           it, and a conic-gradient div is unreadable to assistive tech. */}
-      <div className="relative w-32 h-32 flex-shrink-0" aria-hidden="true">
+      <div className="relative w-40 h-40 flex-shrink-0 mx-auto sm:mx-0" aria-hidden="true">
         <div
           className="w-full h-full rounded-full"
           style={{
             background: `conic-gradient(#10b981 0% ${cashPct}%, #3b82f6 ${cashPct}% 100%)`,
           }}
         />
-        <div className="absolute inset-4 bg-[#131C2E] rounded-full flex items-center justify-center">
+        <div className="absolute inset-5 bg-[#131C2E] rounded-full flex items-center justify-center">
           <div className="text-center">
-            <p className="text-[10px] text-slate-500 uppercase">Rides</p>
-            <p className="text-sm font-bold text-white">{formatNumber(totalRides)}</p>
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider">Rides</p>
+            <p className="text-2xl font-bold text-white">{formatNumber(totalRides)}</p>
             <p className="text-[10px] text-slate-500">total</p>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 space-y-2.5">
+      <div className="flex-1 space-y-3 w-full">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-emerald-500 flex-shrink-0" />
           <div className="flex-1 min-w-0">
@@ -213,7 +214,7 @@ function PaymentSplitDonut({ data }: { data: AnalyticsData['payment_split'] }) {
           <p className="text-sm font-bold text-blue-400 font-mono">{formatPeso(gcashTotal)}</p>
         </div>
 
-        <div className="flex items-center gap-2 pt-2.5 border-t border-[#1E2D45]">
+        <div className="flex items-center gap-2 pt-3 border-t border-[#1E2D45]">
           <div className="w-3 h-3 rounded-full bg-pink-500 flex-shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-slate-300">Voucher</p>
@@ -221,7 +222,12 @@ function PaymentSplitDonut({ data }: { data: AnalyticsData['payment_split'] }) {
               {data.voucher.count} free reward rides
             </p>
           </div>
-          <p className="text-sm font-bold text-slate-500 font-mono">₱0.00</p>
+          <p className="text-sm font-bold text-slate-500 font-mono">{formatPeso(data.voucher.total)}</p>
+        </div>
+
+        <div className="flex items-center justify-between pt-3 border-t border-[#1E2D45]">
+          <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Revenue</p>
+          <p className="text-base font-bold text-white font-mono">{formatPeso(grandTotal)}</p>
         </div>
       </div>
     </div>
@@ -246,10 +252,27 @@ interface RemittanceRow {
   remittance_status: string;
 }
 
-function useRemittanceRows(range: AnalyticsRange) {
+// The API sends the backend Remittance enum's raw uppercase codes —
+// 'PENDING' | 'COMPLETE' | 'SHORTAGE' | 'OVERAGE' (see Remittance.php) —
+// never the literal string 'Remitted'. Comparing against 'Remitted' directly
+// was always false, so every row silently rendered as Pending regardless of
+// its actual state. This mirrors the decoding the Remittance module already
+// does correctly in remittance-data.tsx: any status other than PENDING means
+// a remittance record exists, i.e. the shift has been remitted (SHORTAGE/
+// OVERAGE still count — they're a remitted amount that didn't reconcile,
+// not an un-remitted one). 'Remitted' itself is kept as a legacy fallback.
+function isRemittedStatus(status: string): boolean {
+  return status === 'COMPLETE' || status === 'SHORTAGE' || status === 'OVERAGE' || status === 'Remitted';
+}
+
+function useRemittanceRows(range: AnalyticsRange, enabled: boolean) {
   const [rows, setRows] = useState<RemittanceRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Tracks the range this hook has already fetched (or is fetching) for,
+  // so switching back to the Reports tab without changing the date range
+  // doesn't re-fire the request.
+  const fetchedRangeKey = useRef<string | null>(null);
 
   const fetchRows = useCallback(async () => {
     setIsLoading(true);
@@ -263,7 +286,19 @@ function useRemittanceRows(range: AnalyticsRange) {
       const json = await res.json();
       const payload = json.data;
       const records = Array.isArray(payload) ? payload : payload?.data ?? [];
-      setRows(Array.isArray(records) ? (records as RemittanceRow[]) : []);
+      // The API serializes decimal columns (cash_total, gcash_total) as JSON
+      // strings, not numbers. Left uncoerced, `r.cash_total + r.gcash_total`
+      // downstream does string concatenation ("57.75" + "0.00" ->
+      // "57.750.00") instead of addition, which then cascades into every
+      // running total. Coerce once here so the rest of the tab can trust
+      // these are numbers.
+      const normalized = (Array.isArray(records) ? records : []).map((r: Record<string, unknown>) => ({
+        ...r,
+        cash_total: Number(r.cash_total) || 0,
+        gcash_total: Number(r.gcash_total) || 0,
+        total_passengers: Number(r.total_passengers) || 0,
+      }));
+      setRows(normalized as RemittanceRow[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load remittances');
     } finally {
@@ -271,7 +306,17 @@ function useRemittanceRows(range: AnalyticsRange) {
     }
   }, [range.date_from, range.date_to]);
 
-  useEffect(() => { fetchRows(); }, [fetchRows]);
+  // Only fetches while the Reports tab (the only consumer of this data) is
+  // active. Loading it on the Overview tab was pure waste: a full
+  // /api/admin/remittances request with eager-loaded relations that
+  // Overview never renders.
+  useEffect(() => {
+    if (!enabled) return;
+    const rangeKey = `${range.date_from ?? ''}|${range.date_to ?? ''}`;
+    if (fetchedRangeKey.current === rangeKey) return;
+    fetchedRangeKey.current = rangeKey;
+    fetchRows();
+  }, [enabled, range.date_from, range.date_to, fetchRows]);
 
   return { rows, isLoading, error, refetch: fetchRows };
 }
@@ -280,28 +325,24 @@ function ReportsTab({
   analyticsData,
   rangeLabel,
   range,
+  scopedRows,
+  isLoading,
+  error,
+  refetch,
 }: {
   analyticsData: AnalyticsData | null;
   rangeLabel: string;
   range: AnalyticsRange;
+  /** Remittance rows already fetched + date-scoped by the parent, which also
+   * owns the Export button (moved up into the shared filter row so it can
+   * sit beside the day-range presets instead of its own row down here). */
+  scopedRows: RemittanceRow[];
+  isLoading: boolean;
+  error: string | null;
+  refetch: () => void;
 }) {
-  const { rows, isLoading, error, refetch } = useRemittanceRows(range);
   const dateFrom = range.date_from;
   const dateTo = range.date_to;
-
-  // Scope remittances to the selected window. The table used to show every
-  // remittance ever recorded while the three panels beside it were range
-  // filtered, so the tab silently mixed two different periods. The backend
-  // also receives the range; this guard keeps proxy variants safe.
-  const scopedRows = useMemo(() => {
-    if (!dateFrom && !dateTo) return rows;
-    return rows.filter(r => {
-      if (!r.date) return false;
-      if (dateFrom && r.date < dateFrom) return false;
-      if (dateTo && r.date > dateTo) return false;
-      return true;
-    });
-  }, [rows, dateFrom, dateTo]);
 
   const remittanceTableData: AnalyticsRemittance[] = useMemo(() => {
     return scopedRows.map(r => ({
@@ -312,7 +353,7 @@ function ReportsTab({
       remittedAmount: r.cash_total + r.gcash_total,
       cashAmount: r.cash_total,
       gcashAmount: r.gcash_total,
-      status: r.remittance_status === 'Remitted' ? 'Remitted' as const : 'Pending' as const,
+      status: isRemittedStatus(r.remittance_status) ? 'Remitted' as const : 'Pending' as const,
     }));
   }, [scopedRows]);
 
@@ -326,7 +367,7 @@ function ReportsTab({
     return [
       { method: 'Cash', transactions: s.cash.count, percentage: share(s.cash.count), amount: formatPeso(s.cash.total), color: 'bg-emerald-500', icon: '💵' },
       { method: 'GCash', transactions: s.gcash.count, percentage: share(s.gcash.count), amount: formatPeso(s.gcash.total), color: 'bg-blue-500', icon: '📱' },
-      { method: 'Voucher', transactions: s.voucher.count, percentage: share(s.voucher.count), amount: formatPeso(0), color: 'bg-pink-500', icon: '🎟️' },
+      { method: 'Voucher', transactions: s.voucher.count, percentage: share(s.voucher.count), amount: formatPeso(s.voucher.total), color: 'bg-pink-500', icon: '🎟️' },
     ];
   }, [analyticsData]);
 
@@ -334,61 +375,6 @@ function ReportsTab({
     if (!analyticsData?.pickup_points) return [];
     return analyticsData.pickup_points.map(p => ({ name: p.name, count: p.count }));
   }, [analyticsData]);
-
-  const handleExportCSV = useCallback(() => {
-    const headers = ['Shift ID', 'Conductor', 'Driver', 'Unit', 'Date', 'Time In', 'Time Out', 'Cash', 'GCash', 'Total', 'Passengers', 'Status'];
-    const body = scopedRows.map(r => [
-      r.shift_id,
-      r.conductor_name ?? '',
-      r.driver_name ?? '',
-      r.unit_number ?? '',
-      r.date ?? '',
-      r.time_in ?? '',
-      r.time_out ?? '',
-      r.cash_total.toFixed(2),
-      r.gcash_total.toFixed(2),
-      (r.cash_total + r.gcash_total).toFixed(2),
-      String(r.total_passengers ?? 0),
-      r.remittance_status ?? '',
-    ]);
-
-    const esc = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
-    const csv = [headers.map(esc).join(','), ...body.map(row => row.map(esc).join(','))].join('\n');
-
-    // BOM so Excel reads UTF-8 correctly (matches the Receipts export).
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `chatco-remittances-${dateFrom ?? 'all'}-to-${dateTo ?? 'all'}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  }, [scopedRows, dateFrom, dateTo]);
-
-  const handleReportExport = useCallback((format: ReportFormat) => {
-    exportReport({
-      title: 'CHATCO Remittance Analytics',
-      fileName: `chatco-remittances-${dateFrom ?? 'all'}-to-${dateTo ?? 'all'}`,
-      format,
-      headers: ['Shift ID', 'Conductor', 'Driver', 'Unit', 'Date', 'Time In', 'Time Out', 'Cash', 'GCash', 'Total', 'Passengers', 'Status'],
-      rows: scopedRows.map((row) => [
-        row.shift_id,
-        row.conductor_name ?? '',
-        row.driver_name ?? '',
-        row.unit_number ?? '',
-        row.date ?? '',
-        row.time_in ?? '',
-        row.time_out ?? '',
-        row.cash_total.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
-        row.gcash_total.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
-        (row.cash_total + row.gcash_total).toLocaleString('en-PH', { minimumFractionDigits: 2 }),
-        row.total_passengers ?? 0,
-        row.remittance_status ?? '',
-      ]),
-    });
-  }, [scopedRows, dateFrom, dateTo]);
 
   if (isLoading) {
     return (
@@ -416,45 +402,17 @@ function ReportsTab({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-slate-500">
-          {remittanceTableData.length} remittance{remittanceTableData.length === 1 ? '' : 's'} · {rangeLabel}
-        </p>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => refetch()}
-            title="Refresh remittances"
-            className="p-2 text-slate-400 hover:text-white hover:bg-[#1A2540] rounded-md transition-colors"
-          >
-            <RefreshCw size={16} />
-          </button>
-          <button
-            onClick={handleExportCSV}
-            disabled={scopedRows.length === 0}
-            title={`Export ${scopedRows.length} remittances to CSV`}
-            className="flex items-center gap-1.5 px-2.5 py-2 bg-[#334155] text-white text-xs font-medium rounded-md hover:bg-[#475569] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Download size={13} />
-            <span>CSV</span>
-          </button>
-          {(['pdf', 'excel', 'word'] as const).map((format) => (
-            <button
-              key={format}
-              onClick={() => handleReportExport(format)}
-              disabled={scopedRows.length === 0}
-              title={`Export ${scopedRows.length} remittances to ${format.toUpperCase()}`}
-              className="flex items-center gap-1.5 px-2.5 py-2 bg-[#62A0EA] text-white text-xs font-medium rounded-md hover:bg-[#4A8BD4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Download size={13} />
-              <span>{format === 'pdf' ? 'PDF' : format === 'excel' ? 'Excel' : 'Word'}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
+      {/* Two independent stacked columns, not a 2x2 grid: a CSS grid forces
+          paired cells in the same row to share one track height, which left
+          a ~100px dead gap under the shorter card whenever a row's two cards
+          didn't match exactly. Each card keeps a fixed height with an
+          internal scroll region (see PickupPointsList/DemandHeatmapData) so
+          a card with lots of rows scrolls instead of growing the page.
+          PickupPointsList's height was bumped to 500px so this column
+          (500+370) totals the same as the left column (600+270). */}
       <div className="grid lg:grid-cols-2 gap-6">
         <div className="space-y-6">
-          <RemittanceTable data={remittanceTableData} />
+          <RemittanceTable data={remittanceTableData} dateFrom={dateFrom} dateTo={dateTo} />
           <PaymentUsageTable data={paymentUsageData} />
         </div>
         <div className="space-y-6">
@@ -553,7 +511,7 @@ function OverviewTab({
           label="Passengers" value={formatNumber(data.totals.total_passengers)}
           sublabel={`incl. ${data.totals.voucher_count} voucher rides`}
           icon={Users} color="text-[#62A0EA]"
-          current={data.totals.total_passengers} previous={prev.paid_count}
+          current={data.totals.total_passengers} previous={prev.total_passengers}
         />
         <MetricCard
           label="GCash Success" value={health.success_rate === null ? '—' : `${health.success_rate}%`}
@@ -618,31 +576,10 @@ function OverviewTab({
           <p className="text-xs text-slate-500 mb-4">Rides by hour of day across the selected range</p>
           <PeakHoursChart data={data.hourly_series} />
         </div>
-        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5">
+        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5 flex flex-col">
           <h2 className="text-lg font-bold text-white mb-1">Payment Method Split</h2>
           <p className="text-xs text-slate-500 mb-4">Ring shows revenue share; voucher rides are free</p>
           <PaymentSplitDonut data={data.payment_split} />
-        </div>
-      </div>
-
-      {/* ── Payment status breakdown ── */}
-      <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5">
-        <h2 className="text-lg font-bold text-white mb-4">Transaction Status</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-          {(Object.entries(data.status_breakdown) as [string, number][]).map(([status, count]) => (
-            <div key={status} className="bg-[#0E1628] border border-[#1E2D45] rounded-md p-3">
-              <p className="text-[10px] text-slate-500 uppercase tracking-wider truncate">{status}</p>
-              <p className={`text-lg font-bold font-mono ${
-                status === 'PAID' ? 'text-emerald-400'
-                : status === 'FAILED' || status === 'CANCELLED' || status === 'EXPIRED' ? 'text-red-400'
-                : status === 'PENDING' || status === 'PROCESSING' ? 'text-amber-400'
-                // Anything else is a status the product doesn't produce and
-                // only appears when a row genuinely has one — neutral, so it
-                // reads as "needs a look" rather than good or bad.
-                : 'text-slate-300'
-              }`}>{formatNumber(count)}</p>
-            </div>
-          ))}
         </div>
       </div>
     </div>
@@ -696,11 +633,105 @@ export default function AnalyticsPage() {
     router.replace(`?${p.toString()}`, { scroll: false });
   }, [activeTab, preset, customFrom, customTo, router]);
 
-  const { data, isLoading, isRefreshing, error, refetch } = useAnalytics(range);
+  const { data, isLoading, error, refetch } = useAnalytics(range);
 
   const rangeLabel = data
     ? `${data.date_range.from} → ${data.date_range.to} (${data.date_range.days}d)`
     : 'Loading…';
+
+  // Remittance data + the Export button live up here (not inside ReportsTab)
+  // so the button can sit in the shared filter row, beside the day-range
+  // presets, instead of its own row inside the Reports tab body.
+  const {
+    rows: remittanceRows,
+    isLoading: isLoadingRemittances,
+    error: remittanceError,
+    refetch: refetchRemittances,
+  } = useRemittanceRows(range, activeTab === 'reports');
+  const dateFrom = range.date_from;
+  const dateTo = range.date_to;
+
+  // Scope remittances to the selected window. The table used to show every
+  // remittance ever recorded while the three panels beside it were range
+  // filtered, so the tab silently mixed two different periods. The backend
+  // also receives the range; this guard keeps proxy variants safe.
+  const scopedRows = useMemo(() => {
+    if (!dateFrom && !dateTo) return remittanceRows;
+    return remittanceRows.filter(r => {
+      if (!r.date) return false;
+      if (dateFrom && r.date < dateFrom) return false;
+      if (dateTo && r.date > dateTo) return false;
+      return true;
+    });
+  }, [remittanceRows, dateFrom, dateTo]);
+
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setIsExportOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleExportCSV = useCallback(() => {
+    const headers = ['Shift ID', 'Conductor', 'Driver', 'Unit', 'Date', 'Time In', 'Time Out', 'Cash', 'GCash', 'Total', 'Passengers', 'Status'];
+    const body = scopedRows.map(r => [
+      r.shift_id,
+      r.conductor_name ?? '',
+      r.driver_name ?? '',
+      r.unit_number ?? '',
+      r.date ?? '',
+      r.time_in ?? '',
+      r.time_out ?? '',
+      r.cash_total.toFixed(2),
+      r.gcash_total.toFixed(2),
+      (r.cash_total + r.gcash_total).toFixed(2),
+      String(r.total_passengers ?? 0),
+      r.remittance_status ?? '',
+    ]);
+
+    const esc = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
+    const csv = [headers.map(esc).join(','), ...body.map(row => row.map(esc).join(','))].join('\n');
+
+    // BOM so Excel reads UTF-8 correctly (matches the Receipts export).
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `chatco-remittances-${dateFrom ?? 'all'}-to-${dateTo ?? 'all'}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [scopedRows, dateFrom, dateTo]);
+
+  const handleReportExport = useCallback((format: ReportFormat) => {
+    exportReport({
+      title: 'CHATCO Remittance Analytics',
+      fileName: `chatco-remittances-${dateFrom ?? 'all'}-to-${dateTo ?? 'all'}`,
+      format,
+      headers: ['Shift ID', 'Conductor', 'Driver', 'Unit', 'Date', 'Time In', 'Time Out', 'Cash', 'GCash', 'Total', 'Passengers', 'Status'],
+      rows: scopedRows.map((row) => [
+        row.shift_id,
+        row.conductor_name ?? '',
+        row.driver_name ?? '',
+        row.unit_number ?? '',
+        row.date ?? '',
+        row.time_in ?? '',
+        row.time_out ?? '',
+        row.cash_total.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
+        row.gcash_total.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
+        (row.cash_total + row.gcash_total).toLocaleString('en-PH', { minimumFractionDigits: 2 }),
+        row.total_passengers ?? 0,
+        row.remittance_status ?? '',
+      ]),
+    });
+  }, [scopedRows, dateFrom, dateTo]);
 
   return (
     <div className="space-y-6">
@@ -708,18 +739,62 @@ export default function AnalyticsPage() {
         <h1 className="text-2xl font-bold text-white">Financial &amp; Operations Analytics</h1>
       </StickyPageHeader>
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 -mt-4 md:mt-0">
-        <div className="min-w-0">
-          <p className="text-sm text-white/40 truncate">
-            {data
-              ? `${rangeLabel} · compared against ${data.previous_range.from} → ${data.previous_range.to}`
-              : 'Conductor remittances, payment breakdowns, and commuter demand.'}
-          </p>
+      <div className="-mt-4 md:mt-0 flex items-center gap-1.5 min-w-0 text-sm text-slate-400">
+        {data ? (
+          <>
+            <CalendarDays size={14} className="text-slate-500 shrink-0" />
+            <span className="truncate">
+              {formatDateRangeLabel(data.date_range.from, data.date_range.to)}
+              <span className="text-slate-600"> · vs </span>
+              {formatDateRangeLabel(data.previous_range.from, data.previous_range.to)}
+            </span>
+          </>
+        ) : (
+          <span className="truncate">Conductor remittances, payment breakdowns, and commuter demand.</span>
+        )}
+      </div>
+
+      {/* Custom-range feedback. Selecting "Custom" used to fall back to the
+          backend's 30-day default while the UI still showed Custom selected. */}
+      {(rangeInvalid || customIncomplete) && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300">
+          <AlertTriangle size={14} className="flex-shrink-0" />
+          {rangeInvalid
+            ? 'Start date is after the end date — showing the default 30-day window until the range is valid.'
+            : 'Pick both a start and an end date — showing the default 30-day window in the meantime.'}
+        </div>
+      )}
+
+      {/* Tabs + range control share one row: tabs on the left, filters
+          flush right against the same border. The range control still
+          applies to BOTH tabs. */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-[#1E2D45]">
+        <div className="flex space-x-1">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`flex items-center space-x-2 py-2.5 px-4 font-medium text-sm rounded-t-md transition-colors ${
+              activeTab === 'overview'
+                ? 'text-white border-b-2 border-[#62A0EA] bg-[#62A0EA]/10'
+                : 'text-slate-400 hover:text-white hover:bg-[#1A2540]'
+            }`}
+          >
+            <BarChart3 size={18} />
+            <span>Overview</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('reports')}
+            className={`flex items-center space-x-2 py-2.5 px-4 font-medium text-sm rounded-t-md transition-colors ${
+              activeTab === 'reports'
+                ? 'text-white border-b-2 border-[#62A0EA] bg-[#62A0EA]/10'
+                : 'text-slate-400 hover:text-white hover:bg-[#1A2540]'
+            }`}
+          >
+            <FileText size={18} />
+            <span>Detailed Reports</span>
+          </button>
         </div>
 
-        {/* The range control now applies to BOTH tabs — it used to be hidden
-            on Reports, which still rendered range-scoped panels. */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap pb-2 lg:pb-2.5">
           <div className="flex items-center gap-1 bg-[#0E1628] p-1 rounded-md border border-[#1E2D45]">
             {(['7d', '30d', '90d', 'custom'] as PresetKey[]).map(p => (
               <button
@@ -762,52 +837,55 @@ export default function AnalyticsPage() {
             </div>
           )}
 
-          <button
-            onClick={() => refetch()}
-            disabled={isRefreshing}
-            title="Refresh"
-            className="p-2 text-slate-400 hover:text-white hover:bg-[#1A2540] rounded-md transition-colors disabled:opacity-50"
-          >
-            <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
-          </button>
-        </div>
-      </div>
+          {/* Export lives here (Reports tab only) so it sits beside the
+              day-range presets — days first (leftmost), export after —
+              instead of its own row inside the tab body below. */}
+          {activeTab === 'reports' && (
+            <div className="relative" ref={exportMenuRef}>
+              <button
+                onClick={() => setIsExportOpen((open) => !open)}
+                disabled={scopedRows.length === 0}
+                title={`Export ${scopedRows.length} remittances`}
+                aria-haspopup="menu"
+                aria-expanded={isExportOpen}
+                className="flex items-center gap-1.5 px-2.5 py-2 bg-[#62A0EA] text-white text-xs font-medium rounded-md hover:bg-[#4A8BD4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Download size={13} />
+                <span>Export</span>
+                <ChevronDown size={13} className={`transition-transform duration-200 ${isExportOpen ? 'rotate-180' : ''}`} />
+              </button>
 
-      {/* Custom-range feedback. Selecting "Custom" used to fall back to the
-          backend's 30-day default while the UI still showed Custom selected. */}
-      {(rangeInvalid || customIncomplete) && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300">
-          <AlertTriangle size={14} className="flex-shrink-0" />
-          {rangeInvalid
-            ? 'Start date is after the end date — showing the default 30-day window until the range is valid.'
-            : 'Pick both a start and an end date — showing the default 30-day window in the meantime.'}
+              {isExportOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 top-full mt-2 w-32 bg-[#131C2E] border border-[#1E2D45] rounded-md shadow-2xl shadow-black/50 overflow-hidden z-20"
+                >
+                  <button
+                    role="menuitem"
+                    onClick={() => { handleExportCSV(); setIsExportOpen(false); }}
+                    title={`Export ${scopedRows.length} remittances to CSV`}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-300 hover:bg-[#1A2540] hover:text-white transition-colors"
+                  >
+                    <Download size={13} className="text-slate-500" />
+                    <span>CSV</span>
+                  </button>
+                  {(['pdf', 'excel', 'word'] as const).map((format) => (
+                    <button
+                      key={format}
+                      role="menuitem"
+                      onClick={() => { handleReportExport(format); setIsExportOpen(false); }}
+                      title={`Export ${scopedRows.length} remittances to ${format.toUpperCase()}`}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-300 hover:bg-[#1A2540] hover:text-white transition-colors"
+                    >
+                      <Download size={13} className="text-slate-500" />
+                      <span>{format === 'pdf' ? 'PDF' : format === 'excel' ? 'Excel' : 'Word'}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
-      )}
-
-      {/* Tabs */}
-      <div className="flex space-x-1 border-b border-[#1E2D45]">
-        <button
-          onClick={() => setActiveTab('overview')}
-          className={`flex items-center space-x-2 py-2.5 px-4 font-medium text-sm rounded-t-md transition-colors ${
-            activeTab === 'overview'
-              ? 'text-white border-b-2 border-[#62A0EA] bg-[#62A0EA]/10'
-              : 'text-slate-400 hover:text-white hover:bg-[#1A2540]'
-          }`}
-        >
-          <BarChart3 size={18} />
-          <span>Overview</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('reports')}
-          className={`flex items-center space-x-2 py-2.5 px-4 font-medium text-sm rounded-t-md transition-colors ${
-            activeTab === 'reports'
-              ? 'text-white border-b-2 border-[#62A0EA] bg-[#62A0EA]/10'
-              : 'text-slate-400 hover:text-white hover:bg-[#1A2540]'
-          }`}
-        >
-          <FileText size={18} />
-          <span>Detailed Reports</span>
-        </button>
       </div>
 
       {activeTab === 'overview' ? (
@@ -817,6 +895,10 @@ export default function AnalyticsPage() {
           analyticsData={data}
           rangeLabel={rangeLabel}
           range={range}
+          scopedRows={scopedRows}
+          isLoading={isLoadingRemittances}
+          error={remittanceError}
+          refetch={refetchRemittances}
         />
       )}
     </div>

@@ -28,7 +28,7 @@ export function DemandHeatmapData({ zones, rangeLabel }: DemandHeatmapDataProps)
   const plottable = zones.filter(z => z.lat && z.lng);
 
   return (
-    <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5 h-[370px] flex flex-col">
+    <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5 h-92.5 flex flex-col">
       <div className="flex items-center justify-between mb-3 flex-shrink-0 gap-2">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-white">Boardings by Location</h3>

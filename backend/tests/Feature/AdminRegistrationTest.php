@@ -11,6 +11,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -142,6 +143,78 @@ class AdminRegistrationTest extends TestCase
     {
         $this->getJson('/api/v1/admin/registrations')
             ->assertStatus(401);
+    }
+
+    // ── POST  /admin/registrations (onsite) ───────────────────────
+    // AdminRegistrationController::store() uploads id_image to the private
+    // disk BEFORE opening the DB transaction (line ~157), same reasoning as
+    // AuthService::register().
+
+    public function test_store_assigns_the_generated_uuid_to_the_created_user(): void
+    {
+        Storage::fake('public');
+
+        $response = $this->actingAs($this->admin)->post('/api/v1/admin/registrations', [
+            'first_name' => 'Onsite',
+            'surname' => 'Applicant',
+            'birthdate' => '1995-01-01',
+            'gender' => 'Male',
+            'email' => 'onsite.success@example.com',
+            'contact_number' => '09171112223',
+            'username' => 'onsite.success',
+            'password' => 'SecurePass123!',
+            'applied_type' => 'REGULAR',
+            'id_image' => UploadedFile::fake()->image('id.jpg', 800, 600),
+        ], ['Accept' => 'application/json']);
+
+        $response->assertStatus(201);
+
+        $user = User::where('email', 'onsite.success@example.com')->first();
+
+        // 'id' is intentionally excluded from User::$fillable, so this only
+        // holds if store() assigns it directly ($user->id = $userId) rather
+        // than through User::create()'s mass assignment, which would
+        // silently drop it and let the `creating` hook mint a different,
+        // mismatched UUID than the one baked into the uploaded filename.
+        $this->assertStringContainsString($user->id, $user->commuterProfile->id_image_url);
+    }
+
+    // Failure-path cleanup: any failure inside the transaction must delete
+    // the already-uploaded ID image — otherwise a failed onsite registration
+    // leaves an orphaned government ID behind.
+
+    public function test_store_cleans_up_uploaded_id_image_on_profile_creation_failure(): void
+    {
+        Storage::fake('public');
+        $this->withoutExceptionHandling();
+
+        // Stands in for any transaction failure (uniqueness race, DB blip,
+        // etc.) — the catch(\Throwable) added to store() must clean up the
+        // already-uploaded ID image and rethrow, not leave it orphaned.
+        CommuterProfile::creating(function () {
+            throw new \RuntimeException('Simulated database failure.');
+        });
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Simulated database failure.');
+
+        try {
+            $this->actingAs($this->admin)->post('/api/v1/admin/registrations', [
+                'first_name' => 'Onsite',
+                'surname' => 'Applicant',
+                'birthdate' => '1995-01-01',
+                'gender' => 'Male',
+                'email' => 'onsite.fail@example.com',
+                'contact_number' => '09171112222',
+                'username' => 'onsite.fail',
+                'password' => 'SecurePass123!',
+                'applied_type' => 'REGULAR',
+                'id_image' => UploadedFile::fake()->image('id.jpg', 800, 600),
+            ], ['Accept' => 'application/json']);
+        } finally {
+            $this->assertDatabaseMissing('users', ['email' => 'onsite.fail@example.com']);
+            $this->assertEmpty(Storage::disk('public')->allFiles('ids'));
+        }
     }
 
     // ── POST  /admin/registrations/{id}/approve ──────────────────

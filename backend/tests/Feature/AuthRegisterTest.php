@@ -9,6 +9,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -120,6 +121,14 @@ class AuthRegisterTest extends TestCase
         // The id_image_url column is populated (non-null, non-empty) — the
         // uploaded file was stored to disk and its path persisted.
         $this->assertNotEmpty($user->commuterProfile->id_image_url);
+
+        // The uploaded filename is built from the same UUID that ends up as
+        // the row's actual id — 'id' is intentionally excluded from
+        // User::$fillable, so this only holds if AuthService::register()
+        // assigns it directly ($user->id = $userId) rather than through
+        // User::create()'s mass assignment, which would silently drop it and
+        // let the `creating` hook mint a different, mismatched UUID.
+        $this->assertStringContainsString($user->id, $user->commuterProfile->id_image_url);
     }
 
     public function test_register_hashes_the_password(): void
@@ -295,6 +304,91 @@ class AuthRegisterTest extends TestCase
             'account_status' => 'PENDING',
             'username' => 'maria.santos.v2',
         ]);
+    }
+
+    // ── Failure-path R2 cleanup ─────────────────────────────────
+    // AuthService::register() uploads id_image to the private disk BEFORE
+    // opening the DB transaction (backend/app/Services/AuthService.php:246-247),
+    // so any failure inside the transaction must delete that upload — otherwise
+    // a rejected/failed registration leaves an orphaned government ID behind.
+
+    public function test_register_cleans_up_uploaded_id_image_on_duplicate_username_race(): void
+    {
+        Storage::fake('public');
+
+        // RegisterRequest's 'unique:commuter_profiles,username' rule only
+        // catches a conflict that exists AT VALIDATION TIME. Simulate the
+        // TOCTOU race the DB's unique index — and translateUniqueViolation()
+        // — are the last line of defence against: a second registration for
+        // the same username commits its row after this request's validation
+        // already passed, but before this request's own CommuterProfile
+        // insert — so it fires from inside the transaction, after the ID
+        // image is already uploaded, and must both (a) come back as the same
+        // friendly 422 the pre-check produces and (b) clean up the upload.
+        //
+        // Guards against the listener re-triggering itself when it creates
+        // the racing User row below (User::creating fires for every User
+        // creation, including this one).
+        $isRacing = false;
+        User::creating(function () use (&$isRacing) {
+            if ($isRacing) {
+                return;
+            }
+            $isRacing = true;
+
+            $racingUser = User::create([
+                'email' => 'racing.applicant@example.com',
+                'password' => 'password123',
+                'role' => UserRole::COMMUTER,
+            ]);
+
+            CommuterProfile::create([
+                'id' => $racingUser->id,
+                'first_name' => 'Racing',
+                'surname' => 'Applicant',
+                'birthdate' => '1990-01-01',
+                'gender' => 'Male',
+                'email' => 'racing.applicant@example.com',
+                'contact_number' => '09170000001',
+                'commuter_type' => 'REGULAR',
+                'applied_type' => 'REGULAR',
+                'username' => 'maria.santos', // collides with validPayload()'s username
+                'language_preference' => 'English',
+                'account_status' => 'PENDING',
+            ]);
+
+            $isRacing = false;
+        });
+
+        $this->registerWithFile()
+            ->assertStatus(422)
+            ->assertJsonStructure(['errors' => ['username']]);
+
+        $this->assertDatabaseMissing('users', ['email' => 'maria.santos@example.com']);
+        $this->assertEmpty(Storage::disk('public')->allFiles('ids'));
+    }
+
+    public function test_register_cleans_up_uploaded_id_image_on_profile_creation_failure(): void
+    {
+        Storage::fake('public');
+        $this->withoutExceptionHandling();
+
+        // Stands in for any non-uniqueness transaction failure (e.g. a DB
+        // connection blip) — the catch(\Throwable) in AuthService::register()
+        // must clean up and rethrow it as-is, not just QueryExceptions.
+        CommuterProfile::creating(function () {
+            throw new \RuntimeException('Simulated database failure.');
+        });
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Simulated database failure.');
+
+        try {
+            $this->registerWithFile();
+        } finally {
+            $this->assertDatabaseMissing('users', ['email' => 'maria.santos@example.com']);
+            $this->assertEmpty(Storage::disk('public')->allFiles('ids'));
+        }
     }
 
     // ── No token + login gating ──────────────────────────────────

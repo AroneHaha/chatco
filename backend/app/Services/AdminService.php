@@ -282,7 +282,7 @@ class AdminService
         $paymentSplit = [
             'cash' => ['count' => $current['cash_count'], 'total' => $cashTotal],
             'gcash' => ['count' => $current['gcash_count'], 'total' => $gcashTotal],
-            'voucher' => ['count' => $voucherCount, 'total' => 0.0],
+            'voucher' => ['count' => $voucherCount, 'total' => $current['voucher_total']],
         ];
 
         // ── Per-day series (PAID transactions, grouped by date) ────────────
@@ -483,6 +483,12 @@ class AdminService
                 'cash_total' => $previous['cash_total'],
                 'gcash_total' => $previous['gcash_total'],
                 'paid_count' => $previous['cash_count'] + $previous['gcash_count'],
+                // Same basis as totals.total_passengers (sum across CASH+GCASH+
+                // VOUCHER, not a row count) — the Passengers card's delta was
+                // comparing that sum against paid_count (a voucher-excluded row
+                // count) before this field existed, which compared two
+                // different kinds of numbers.
+                'total_passengers' => $previous['passenger_count'],
                 'avg_fare' => $previous['cash_count'] + $previous['gcash_count'] > 0
                     ? round($prevTotalFares / ($previous['cash_count'] + $previous['gcash_count']), 2)
                     : 0.0,
@@ -530,7 +536,7 @@ class AdminService
      * Extracted so the current and immediately-preceding windows can be
      * aggregated identically for period-over-period deltas.
      *
-     * @return array{cash_total: float, gcash_total: float, cash_count: int, gcash_count: int, voucher_count: int, paid_count: int}
+     * @return array{cash_total: float, gcash_total: float, voucher_total: float, cash_count: int, gcash_count: int, voucher_count: int, paid_count: int, passenger_count: int}
      */
     private function aggregateTransactionWindow(Carbon $from, Carbon $to): array
     {
@@ -556,6 +562,12 @@ class AdminService
         return [
             'cash_total' => $totalFor('CASH'),
             'gcash_total' => $totalFor('GCASH'),
+            // Sourced from the same aggregate as cash/gcash rather than
+            // hardcoded — voucher fares are ₱0 by construction today (every
+            // insert path forces final_amount = 0), so this reads as 0.0
+            // now, but it will reflect reality automatically if that
+            // business rule ever changes.
+            'voucher_total' => $totalFor('VOUCHER'),
             'cash_count' => $countFor('CASH'),
             'gcash_count' => $countFor('GCASH'),
             'voucher_count' => $countFor('VOUCHER'),

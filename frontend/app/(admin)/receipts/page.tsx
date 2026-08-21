@@ -1,7 +1,7 @@
 // app/(admin)/receipts/page.tsx
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { DataTable } from '@/components/admin/ui/data-table';
 import { Badge } from '@/components/admin/ui/badge';
 import { SearchBar } from '@/components/admin/ui/search-bar';
@@ -41,6 +41,18 @@ export default function ReceiptsPage() {
   const [paymentFilter, setPaymentFilter] = useState<PaymentMethod | 'All'>('All');
   const [currentPage, setCurrentPage] = useState(1);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setIsExportOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const paymentOptions: (PaymentMethod | 'All')[] = ['All', 'Cash', 'Gcash', 'Voucher'];
 
@@ -407,18 +419,46 @@ export default function ReceiptsPage() {
               Refreshing…
             </span>
           )}
-          {(['pdf', 'excel', 'word'] as const).map((format) => (
+          {/* Single "Export" button opening a dropdown of formats, instead
+              of three separate PDF/Excel/Word buttons competing for space
+              in the header. */}
+          <div className="relative" ref={exportMenuRef}>
             <button
-              key={format}
-              onClick={() => handleReportExport(format)}
+              onClick={() => setIsExportOpen((open) => !open)}
               disabled={filteredData.length === 0}
               className="flex items-center gap-2 px-3 py-2 bg-[#62A0EA] text-white text-xs font-medium rounded-md hover:bg-[#4A8BD4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              title={`Export ${filteredData.length} receipts to ${format.toUpperCase()}`}
+              title={`Export ${filteredData.length} receipts`}
+              aria-haspopup="menu"
+              aria-expanded={isExportOpen}
             >
               <Download size={14} />
-              <span>{format === 'pdf' ? 'PDF' : format === 'excel' ? 'Excel' : 'Word'}</span>
+              <span>Export</span>
+              <ChevronDown size={14} className={`transition-transform duration-200 ${isExportOpen ? 'rotate-180' : ''}`} />
             </button>
-          ))}
+
+            {isExportOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 top-full mt-2 w-36 bg-[#131C2E] border border-[#1E2D45] rounded-md shadow-2xl shadow-black/50 overflow-hidden z-20"
+              >
+                {(['pdf', 'excel', 'word'] as const).map((format) => (
+                  <button
+                    key={format}
+                    role="menuitem"
+                    onClick={() => {
+                      handleReportExport(format);
+                      setIsExportOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-300 hover:bg-[#1A2540] hover:text-white transition-colors"
+                    title={`Export ${filteredData.length} receipts to ${format.toUpperCase()}`}
+                  >
+                    <Download size={13} className="text-slate-500" />
+                    <span>{format === 'pdf' ? 'PDF' : format === 'excel' ? 'Excel' : 'Word'}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </StickyPageHeader>
 

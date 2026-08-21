@@ -14,6 +14,8 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -142,47 +144,67 @@ class AdminRegistrationController extends Controller
             ]);
         }
 
-        $created = DB::transaction(function () use ($validated, $request) {
-            $user = User::create([
-                'email' => $validated['email'],
-                'password' => $validated['password'], // 'hashed' cast on User
-                'role' => UserRole::COMMUTER,
-            ]);
+        // Upload the ID image BEFORE opening the transaction — same reasoning
+        // as AuthService::register(): storeAs() is a network call to external
+        // storage (R2), so running it inside DB::transaction() would hold the
+        // transaction (and the row locks the User insert takes) open for
+        // however long that upload took. The id is generated up front and
+        // assigned explicitly below (via $user->id = ..., not through mass
+        // assignment — 'id' is deliberately excluded from User::$fillable)
+        // so it matches the id already baked into the uploaded filename.
+        $userId = (string) Str::uuid();
+        $file = $request->file('id_image');
+        $extension = $file->getClientOriginalExtension() ?: 'jpg';
+        $filename = $userId . '-' . Str::random(16) . '.' . $extension;
+        $idImagePath = $file->storeAs(
+            'ids',
+            $filename,
+            config('filesystems.uploads.private_id_disk', 'r2_private')
+        );
 
-            // Store the ID image on the private upload disk.
-            $file = $request->file('id_image');
-            $extension = $file->getClientOriginalExtension() ?: 'jpg';
-            $filename = $user->id . '-' . Str::random(16) . '.' . $extension;
-            $idImagePath = $file->storeAs(
-                'ids',
-                $filename,
-                config('filesystems.uploads.private_id_disk', 'r2_private')
-            );
+        // Any failure inside the transaction (e.g. a race on the unique
+        // username/email index) leaves $idImagePath uploaded with no owning
+        // account — delete it before rethrowing so a failed onsite
+        // registration never orphans a government ID in R2.
+        try {
+            $created = DB::transaction(function () use ($validated, $userId, $idImagePath) {
+                $user = new User([
+                    'email' => $validated['email'],
+                    'password' => $validated['password'], // 'hashed' cast on User
+                    'role' => UserRole::COMMUTER,
+                ]);
+                $user->id = $userId;
+                $user->save();
 
-            $profile = CommuterProfile::create([
-                'id' => $user->id,
-                'first_name' => $validated['first_name'],
-                'middle_name' => $validated['middle_name'] ?? null,
-                'surname' => $validated['surname'],
-                'birthdate' => $validated['birthdate'],
-                'gender' => $validated['gender'] ?? 'UNSPECIFIED',
-                'email' => $validated['email'],
-                'contact_number' => $validated['contact_number'],
-                'commuter_type' => $validated['applied_type'],
-                'applied_type' => $validated['applied_type'],
-                'username' => $validated['username'],
-                'language_preference' => $validated['language_preference'] ?? 'English',
-                'account_status' => 'PENDING',
-                'id_image_url' => $idImagePath,
-                'verified_at' => null,
-                'rejection_reason' => null,
-            ]);
+                $profile = CommuterProfile::create([
+                    'id' => $user->id,
+                    'first_name' => $validated['first_name'],
+                    'middle_name' => $validated['middle_name'] ?? null,
+                    'surname' => $validated['surname'],
+                    'birthdate' => $validated['birthdate'],
+                    'gender' => $validated['gender'] ?? 'UNSPECIFIED',
+                    'email' => $validated['email'],
+                    'contact_number' => $validated['contact_number'],
+                    'commuter_type' => $validated['applied_type'],
+                    'applied_type' => $validated['applied_type'],
+                    'username' => $validated['username'],
+                    'language_preference' => $validated['language_preference'] ?? 'English',
+                    'account_status' => 'PENDING',
+                    'id_image_url' => $idImagePath,
+                    'verified_at' => null,
+                    'rejection_reason' => null,
+                ]);
 
-            return [
-                'user' => $user,
-                'profile' => $profile,
-            ];
-        });
+                return [
+                    'user' => $user,
+                    'profile' => $profile,
+                ];
+            });
+        } catch (\Throwable $e) {
+            $this->deleteIdImage($idImagePath);
+
+            throw $e;
+        }
 
         return $this->successResponse([
             'id' => $created['user']->id,
@@ -222,5 +244,25 @@ class AdminRegistrationController extends Controller
             $request->validated()['rejection_reason']
         );
         return $this->successResponse($result, 'Registration rejected. The email is now available for re-registration.');
+    }
+
+    /**
+     * Best-effort cleanup of an ID image uploaded in store() whose owning
+     * registration failed to persist. Never throws — a failed delete here
+     * must not mask the original registration failure the caller is about
+     * to rethrow — but it does log, so an orphaned private ID left behind
+     * by a disk-level failure is still visible operationally instead of
+     * silently disappearing.
+     */
+    private function deleteIdImage(string $path): void
+    {
+        try {
+            Storage::disk(config('filesystems.uploads.private_id_disk', 'r2_private'))->delete($path);
+        } catch (\Throwable $e) {
+            Log::warning('Failed to clean up orphaned onsite-registration ID image after a failed registration.', [
+                'path' => $path,
+                'exception' => $e->getMessage(),
+            ]);
+        }
     }
 }

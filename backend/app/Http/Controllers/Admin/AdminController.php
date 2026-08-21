@@ -900,7 +900,12 @@ class AdminController extends Controller
      */
     public function remittances(Request $request): JsonResponse
     {
-        $perPage = max(1, min((int) $request->integer('per_page', 100), 100));
+        // Cap raised from 100 to 500: the Analytics Overview/Reports tabs and
+        // the CSV/PDF/Excel exports (frontend/app/(admin)/analytics/page.tsx)
+        // request per_page=500 to get the full scoped range in one page. The
+        // old 100 cap silently truncated `data` for any range with more than
+        // 100 remittances while `total` still reported the real count.
+        $perPage = max(1, min((int) $request->integer('per_page', 100), 500));
         $page = max(1, (int) $request->integer('page', 1));
         $statusFilter = $request->filled('status')
             ? strtoupper((string) $request->input('status'))
