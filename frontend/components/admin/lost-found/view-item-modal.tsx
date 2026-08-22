@@ -149,7 +149,6 @@ export function ViewItemModal({
               </span>
             </div>
             <h2 className="truncate text-xl font-bold leading-tight text-white sm:text-2xl">{item.itemName}</h2>
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">{item.description || 'No description provided.'}</p>
           </div>
 
           <div className="flex flex-shrink-0 items-center gap-2">
@@ -170,6 +169,16 @@ export function ViewItemModal({
               <Pencil className="h-4 w-4" />
               Edit
             </button>
+          </div>
+        </div>
+
+        <div className="flex min-w-0 items-start gap-3 rounded-lg border border-white/8 bg-white/[0.035] p-3">
+          <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-black/20 text-[#62A0EA]">
+            <FileText className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Description</p>
+            <p className="mt-0.5 break-words text-sm leading-6 text-slate-100">{item.description || 'No description provided.'}</p>
           </div>
         </div>
 
