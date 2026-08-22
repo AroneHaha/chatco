@@ -7,6 +7,12 @@ import { CONDUCTOR_DEVICE_TYPE, getConductorDeviceId } from "@/lib/conductor/per
 
 export type { ConductorShift };
 
+/** Extract the human message from an ApiError body (Laravel envelope). */
+function readMessage(err: ApiError, fallback: string): string {
+  const body = err.body as { message?: string } | null;
+  return body?.message ?? fallback;
+}
+
 export async function fetchActiveShift(): Promise<ConductorShift | null> {
   if (shouldUseConductorApi()) {
     try {
@@ -53,14 +59,21 @@ export async function startShift(data: {
   routeId?: string;
 }): Promise<ConductorShift> {
   if (shouldUseConductorApi()) {
-    const response = await api.post<{ data: ConductorShift }>(
-      CONDUCTOR_API.shifts.start,
-      data
-        ? { ...data, deviceId: getConductorDeviceId(), deviceType: CONDUCTOR_DEVICE_TYPE }
-        : data
-    );
-    shiftStore.cacheShift(response.data);
-    return response.data;
+    try {
+      const response = await api.post<{ data: ConductorShift }>(
+        CONDUCTOR_API.shifts.start,
+        data
+          ? { ...data, deviceId: getConductorDeviceId(), deviceType: CONDUCTOR_DEVICE_TYPE }
+          : data
+      );
+      shiftStore.cacheShift(response.data);
+      return response.data;
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw new Error(readMessage(error, "Unable to start shift. Please try again."));
+      }
+      throw error;
+    }
   }
 
   // Local prototype fallback — generate a minimal shift from IDs.

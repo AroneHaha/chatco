@@ -20,6 +20,12 @@ export default function ConductorDeviceGuard() {
   const unclaimed = !shift.operatingDeviceId;
   const recoveredByAdmin = unclaimed && Boolean(shift.latestDeviceRecoveryAt);
 
+  // The happy path (this device already owns the shift, nothing pending)
+  // needs no banner — only surface this when there's something to act on:
+  // claiming an unclaimed device, recovering from an admin release, or
+  // warning that this device is view-only because another device owns it.
+  if (ownsShift && !unclaimed) return null;
+
   const claim = async () => {
     setBusy(true);
     setError("");

@@ -17,6 +17,16 @@ import {
   type ConductorShift,
 } from "@/lib/conductor/services/shift.service";
 
+/**
+ * Read the cached shift synchronously for the initial render. localStorage is
+ * only available client-side, but this hook already requires "use client"
+ * and only runs in the browser, so a plain (non-lazy-safe) read is fine here.
+ */
+function readCachedShift(): ConductorShift | null {
+  if (typeof window === "undefined") return null;
+  return getActiveShift();
+}
+
 interface UseConductorShiftResult {
   shift: ConductorShift | null;
   elapsed: string;
@@ -28,9 +38,18 @@ interface UseConductorShiftResult {
 const ConductorShiftContext = createContext<UseConductorShiftResult | null>(null);
 
 function useSharedConductorShift(): UseConductorShiftResult {
-  const [shift, setShift] = useState<ConductorShift | null>(null);
-  const [elapsed, setElapsed] = useState("");
-  const [status, setStatus] = useState<UseConductorShiftResult["status"]>("loading");
+  // Seed from the last known shift (localStorage) instead of null, so a
+  // returning conductor sees real content on the first frame instead of a
+  // skeleton — fetchActiveShift() still verifies against the server right
+  // after mount and corrects this if it's stale (e.g. ended elsewhere).
+  const [shift, setShift] = useState<ConductorShift | null>(readCachedShift);
+  const [elapsed, setElapsed] = useState(() => {
+    const cached = readCachedShift();
+    return cached ? getElapsed(cached) : "";
+  });
+  const [status, setStatus] = useState<UseConductorShiftResult["status"]>(() =>
+    readCachedShift() ? "success" : "loading"
+  );
   const [error, setError] = useState<string | null>(null);
   const refreshInFlight = useRef<Promise<void> | null>(null);
 
@@ -62,7 +81,7 @@ function useSharedConductorShift(): UseConductorShiftResult {
   }, []);
 
   useEffect(() => {
-    const initialRefresh = window.setTimeout(() => void refresh(), 0);
+    void refresh();
     // Shift status changes ~twice a day (start / end), so polling every 3s
     // was wasteful and pushed conductor-read toward its limit. 15s keeps the
     // elapsed timer fresh enough while leaving plenty of rate headroom.
@@ -80,7 +99,6 @@ function useSharedConductorShift(): UseConductorShiftResult {
     document.addEventListener("visibilitychange", refreshWhenVisible);
 
     return () => {
-      window.clearTimeout(initialRefresh);
       window.clearInterval(interval);
       window.removeEventListener("focus", refreshNow);
       window.removeEventListener("online", refreshNow);

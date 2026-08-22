@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { ConductorDashboardSkeleton } from "@/components/conductor/ui/skeleton";
 import HistoryLogModal from "@/components/conductor/modals/history-log-modal";
 import BreakConfirmModal from "@/components/conductor/modals/break-confirm-modal";
+import ConductorConnectivityBanner from "@/components/conductor/conductor-connectivity-banner";
+import ConductorDeviceGuard from "@/components/conductor/conductor-device-guard";
 import { useDashboardState } from "./dashboard/use-dashboard-state";
 import { MobileDashboardCard } from "./dashboard/mobile-dashboard-card";
 import { DesktopDashboardCard } from "./dashboard/desktop-dashboard-card";
@@ -51,7 +53,11 @@ export default function ConductorDashboard() {
     }
   }, [router, shiftStatus]);
 
-  if (shiftStatus === "loading" || txnStatus === "loading") {
+  // Only the shift needs to be known before the shell (map + card) can paint.
+  // Transactions load in parallel now (see use-conductor-transactions.ts) and
+  // the card already renders whatever total it currently has — gating the
+  // whole page on txnStatus too just adds a second wait for no visible gain.
+  if (shiftStatus === "loading") {
     return <ConductorDashboardSkeleton />;
   }
 
@@ -95,25 +101,35 @@ export default function ConductorDashboard() {
         </button>
       </div>
 
-      <MobileDashboardCard
-        unitNumber={unitNumber}
-        route={route}
-        conductorName={conductorName}
-        elapsed={elapsed}
-        status={status}
-        setStatus={setStatus}
-        mobileCardExpanded={mobileCardExpanded}
-        setMobileCardExpanded={setMobileCardExpanded}
-        total={liveTransactions.total}
-        gcash={liveTransactions.gcash}
-        cash={liveTransactions.cash}
-        voucher={liveTransactions.voucher}
-        onHistoryClick={() => setShowHistory(true)}
-        isOnBreak={isOnBreak}
-        breakBusy={breakBusy}
-        onOpenBreakModal={openBreakModal}
-        canOperate={canOperate}
-      />
+      {/* Floating top overlay: connectivity/device-guard banners stack above
+          the mobile card here, in normal flow within this one absolutely
+          positioned box — so unlike rendering them in the shared layout's
+          <main>, they can never push this fixed full-bleed screen taller
+          than its box (clipped by overflow-hidden) or end up painted under
+          the map (position: fixed, its own stacking context). */}
+      <div className="absolute inset-x-0 top-0 z-30 lg:left-64 lg:top-16">
+        <ConductorConnectivityBanner />
+        <ConductorDeviceGuard />
+        <MobileDashboardCard
+          unitNumber={unitNumber}
+          route={route}
+          conductorName={conductorName}
+          elapsed={elapsed}
+          status={status}
+          setStatus={setStatus}
+          mobileCardExpanded={mobileCardExpanded}
+          setMobileCardExpanded={setMobileCardExpanded}
+          total={liveTransactions.total}
+          gcash={liveTransactions.gcash}
+          cash={liveTransactions.cash}
+          voucher={liveTransactions.voucher}
+          onHistoryClick={() => setShowHistory(true)}
+          isOnBreak={isOnBreak}
+          breakBusy={breakBusy}
+          onOpenBreakModal={openBreakModal}
+          canOperate={canOperate}
+        />
+      </div>
 
       <DesktopDashboardCard
         unitNumber={unitNumber}

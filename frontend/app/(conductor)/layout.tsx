@@ -16,6 +16,15 @@ export default function ConductorLayout({ children }: { children: React.ReactNod
   // Hide navigation on unit-verification page (pre-shift unit selection)
   const isUnitVerification = pathname === "/unit-verification";
 
+  // The dashboard home is a full-bleed fixed map with a floating card on top
+  // (like the commuter home screen), not a scrolling document. Letting <main>
+  // scroll here desyncs the card (in-flow) from the map (position: fixed,
+  // which ignores an ancestor's scroll entirely) — the card visibly drifts
+  // away from the top until a scroll gesture resets <main> back to 0. Other
+  // conductor routes (metrics, settings, end-of-day) are normal scrolling
+  // pages and keep the default overflow.
+  const isDashboardHome = pathname === "/conductor-dashboard";
+
   return (
     <MaintenanceGate>
       <ConductorShiftProvider>
@@ -29,9 +38,12 @@ export default function ConductorLayout({ children }: { children: React.ReactNod
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto relative">
-          {!isUnitVerification && <ConductorConnectivityBanner />}
-          {!isUnitVerification && <ConductorDeviceGuard />}
+      <main className={`flex-1 relative ${isDashboardHome ? "overflow-hidden" : "overflow-y-auto"}`}>
+          {/* The dashboard home renders these itself, floated above its fixed
+              full-bleed map — as normal flow content here they'd push its
+              h-full box taller than main and get clipped by overflow-hidden. */}
+          {!isUnitVerification && !isDashboardHome && <ConductorConnectivityBanner />}
+          {!isUnitVerification && !isDashboardHome && <ConductorDeviceGuard />}
           {children}
       </main>
 

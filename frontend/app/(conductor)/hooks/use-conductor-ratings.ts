@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { fetchActiveShift } from "@/lib/conductor/services/shift.service";
+import { fetchActiveShift, getActiveShift } from "@/lib/conductor/services/shift.service";
 import {
   calculateMetrics,
   fetchRatingsForShift,
@@ -30,7 +30,15 @@ export function useConductorRatings(): UseConductorRatingsResult {
     setError(null);
 
     try {
-      const activeShift = await fetchActiveShift();
+      // fetchRatingsForShift only needs a shiftId, which the shift cache
+      // already has for a returning conductor — start it alongside the
+      // shift verification instead of waiting for that round trip first.
+      const cachedShiftId = getActiveShift()?.shiftId ?? null;
+      const [activeShift, cachedRatingsResult] = await Promise.all([
+        fetchActiveShift(),
+        cachedShiftId ? fetchRatingsForShift(cachedShiftId) : Promise.resolve(null),
+      ]);
+
       if (!activeShift) {
         setShift(null);
         setRatings([]);
@@ -39,8 +47,14 @@ export function useConductorRatings(): UseConductorRatingsResult {
       }
 
       setShift(activeShift);
+
+      // The cached shiftId usually matches the server's real active shift.
+      // On the rare mismatch (shift changed between visits), the parallel
+      // fetch above was for the wrong shift — fetch the right one instead.
       const { ratings: fetchedRatings, error: ratingsError } =
-        await fetchRatingsForShift(activeShift.shiftId);
+        cachedRatingsResult && activeShift.shiftId === cachedShiftId
+          ? cachedRatingsResult
+          : await fetchRatingsForShift(activeShift.shiftId);
 
       setRatings(fetchedRatings);
       if (ratingsError) {

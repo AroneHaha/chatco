@@ -15,8 +15,19 @@ import {
 } from "@/lib/conductor/services/transactions.service";
 import {
   fetchActiveShift,
+  getActiveShift,
   type ConductorShift,
 } from "@/lib/conductor/services/shift.service";
+
+/** Read every cached slice synchronously for the initial render. */
+function readCache() {
+  const shift = getActiveShift();
+  return {
+    shift,
+    transactions: shift ? getShiftTransactions(shift.shiftId) : [],
+    history: getRemittanceHistory(),
+  };
+}
 
 interface UseRemittanceDataResult {
   shift: ConductorShift | null;
@@ -44,11 +55,17 @@ interface UseRemittanceDataResult {
  * breakdown list (passenger count, payment method distribution, etc.).
  */
 export function useRemittanceData(): UseRemittanceDataResult {
-  const [shift, setShift] = useState<ConductorShift | null>(null);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  // Seed every slice from its own cache instead of null/[]/loading — a
+  // returning conductor sees real numbers on the first frame, and the fetch
+  // below still runs right after to verify/correct against the server.
+  const [shift, setShift] = useState<ConductorShift | null>(() => readCache().shift);
+  const [transactions, setTransactions] = useState<Transaction[]>(() => readCache().transactions);
   const [earnings, setEarnings] = useState<ShiftEarnings | null>(null);
-  const [history, setHistory] = useState<RemittanceRecord[]>([]);
-  const [status, setStatus] = useState<UseRemittanceDataResult["status"]>("loading");
+  const [history, setHistory] = useState<RemittanceRecord[]>(() => readCache().history);
+  const [status, setStatus] = useState<UseRemittanceDataResult["status"]>(() => {
+    const cache = readCache();
+    return cache.shift || cache.history.length > 0 ? "success" : "loading";
+  });
   const [error, setError] = useState<string | null>(null);
   const refreshInFlight = useRef<Promise<void> | null>(null);
 
@@ -57,17 +74,21 @@ export function useRemittanceData(): UseRemittanceDataResult {
 
     const request = (async () => {
       try {
-        const activeShift = await fetchActiveShift();
+        // fetchRemittanceHistory() never depended on the shift — run it
+        // alongside the shift check instead of after it resolves.
+        const [activeShift, historyData] = await Promise.all([
+          fetchActiveShift(),
+          fetchRemittanceHistory(),
+        ]);
         setShift(activeShift);
 
-        const [txnData, earningsData, historyData] = await Promise.all([
+        const [txnData, earningsData] = await Promise.all([
           activeShift
             ? fetchShiftTransactions(activeShift.shiftId)
             : Promise.resolve([] as Transaction[]),
           activeShift
             ? fetchShiftEarnings(activeShift.shiftId)
             : Promise.resolve({ cash_total: 0, gcash_total: 0, total: 0 } as ShiftEarnings),
-          fetchRemittanceHistory(),
         ]);
 
         setTransactions(txnData);
