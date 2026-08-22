@@ -10,10 +10,14 @@ import { proxyToLaravel, API_V1 } from "@/lib/commuter/server/proxy";
  * `{ success, data: { count: int }, ... }` — the count of ACTIVE announcements
  * the authenticated user has NOT yet read. Open to any auth role.
  *
- * Polled by the announcement bell on mount + every 30s.
+ * Polled by the announcement bell on mount + every 30s. Forwards an optional
+ * `?types=` (comma-separated) so callers can scope the count — e.g. the Lost
+ * & Found Claims tab badge only counts claim_approved/claim_rejected/
+ * claim_released rows.
  */
 export async function GET(request: NextRequest) {
-  return proxyToLaravel(request, `${API_V1}/announcements/unread-count`, {
+  const qs = request.nextUrl.search;
+  return proxyToLaravel(request, `${API_V1}/announcements/unread-count${qs}`, {
     method: "GET",
   });
 }

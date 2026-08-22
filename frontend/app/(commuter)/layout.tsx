@@ -42,7 +42,7 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
   // rides, and the cycle repeats — several can be waiting at once).
   // Both come from providers shared with the rewards page, so acting on either
   // there decrements this badge immediately. 0 renders no badge at all.
-  const { unreadCount } = useAnnouncements();
+  const { unreadCount, claimUpdatesUnreadCount } = useAnnouncements();
   const { availableVoucherCount } = useRewardsData();
   const rewardsBadge = unreadCount + availableVoucherCount;
 
@@ -57,6 +57,12 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
   const navItemsWithBadges = navItems.map(item => {
     if (item.href === "/rewards") {
       return { ...item, badge: rewardsBadge, badgeLabel: rewardsBadgeLabel(unreadCount, availableVoucherCount) };
+    }
+    if (item.href === "/lost-and-found") {
+      const label = claimUpdatesUnreadCount > 0
+        ? `${claimUpdatesUnreadCount} unread claim update${claimUpdatesUnreadCount === 1 ? "" : "s"}`
+        : "";
+      return { ...item, badge: claimUpdatesUnreadCount, badgeLabel: label };
     }
     return { ...item, badge: 0, badgeLabel: "" };
   });

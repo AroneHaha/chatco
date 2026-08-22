@@ -482,4 +482,94 @@ class AnnouncementFlowTest extends TestCase
         $this->assertCount(1, $items);
         $this->assertEquals('Unread', $items[0]['title']);
     }
+
+    // ── Unread count scoped by type (Lost & Found claim-update badge) ──
+
+    /** Directly creates a targeted announcement, mirroring AnnouncementService::notifyUser(). */
+    private function createTargetedAnnouncement(string $userId, string $type, string $title = 'Update'): Announcement
+    {
+        return Announcement::create([
+            'user_id' => $userId,
+            'type'    => $type,
+            'title'   => $title,
+            'message' => 'Details.',
+            'status'  => 'ACTIVE',
+        ]);
+    }
+
+    public function test_unread_count_filters_by_types(): void
+    {
+        $this->createTargetedAnnouncement($this->commuter->id, 'claim_approved', 'Claim Approved');
+        $this->createTargetedAnnouncement($this->commuter->id, 'claim_rejected', 'Claim Rejected');
+        $this->createAnnouncement('Holiday Notice'); // broadcast, type=holiday
+
+        $this->commuter();
+        $response = $this->getJson('/api/v1/announcements/unread-count?types=claim_approved,claim_rejected');
+
+        $response->assertStatus(200)->assertJsonPath('data.count', 2);
+
+        // No types filter still counts everything (existing behaviour unchanged).
+        $response = $this->getJson('/api/v1/announcements/unread-count');
+        $response->assertStatus(200)->assertJsonPath('data.count', 3);
+    }
+
+    public function test_unread_count_by_types_is_scoped_to_the_requesting_user(): void
+    {
+        $otherCommuter = User::factory()->commuter()->create();
+        $this->createTargetedAnnouncement($otherCommuter->id, 'claim_approved', 'Not Mine');
+        $this->createTargetedAnnouncement($this->commuter->id, 'claim_approved', 'Mine');
+
+        $this->commuter();
+        $response = $this->getJson('/api/v1/announcements/unread-count?types=claim_approved');
+
+        $response->assertStatus(200)->assertJsonPath('data.count', 1);
+    }
+
+    // ── Bulk mark-as-read ────────────────────────────────────────
+
+    public function test_mark_all_read_scoped_to_types_only_marks_matching_rows(): void
+    {
+        $approved = $this->createTargetedAnnouncement($this->commuter->id, 'claim_approved', 'Claim Approved');
+        $released = $this->createTargetedAnnouncement($this->commuter->id, 'claim_released', 'Claim Released');
+        $holiday = $this->createAnnouncement('Holiday Notice'); // broadcast, type=holiday
+
+        $this->commuter();
+        $response = $this->postJson('/api/v1/announcements/mark-all-read?types=claim_approved,claim_released');
+
+        $response->assertStatus(200)->assertJsonPath('data.count', 2);
+
+        $this->assertDatabaseHas('announcement_reads', ['announcement_id' => $approved->id, 'user_id' => $this->commuter->id]);
+        $this->assertDatabaseHas('announcement_reads', ['announcement_id' => $released->id, 'user_id' => $this->commuter->id]);
+        $this->assertDatabaseMissing('announcement_reads', ['announcement_id' => $holiday->id, 'user_id' => $this->commuter->id]);
+
+        // The unscoped unread-count now excludes the two just-read rows.
+        $response = $this->getJson('/api/v1/announcements/unread-count');
+        $response->assertStatus(200)->assertJsonPath('data.count', 1);
+    }
+
+    public function test_mark_all_read_without_types_marks_everything(): void
+    {
+        $this->createAnnouncement('First');
+        $this->createAnnouncement('Second');
+
+        $this->commuter();
+        $response = $this->postJson('/api/v1/announcements/mark-all-read');
+        $response->assertStatus(200)->assertJsonPath('data.count', 2);
+
+        $response = $this->getJson('/api/v1/announcements/unread-count');
+        $response->assertStatus(200)->assertJsonPath('data.count', 0);
+    }
+
+    public function test_mark_all_read_is_idempotent(): void
+    {
+        $this->createTargetedAnnouncement($this->commuter->id, 'claim_approved', 'Claim Approved');
+
+        $this->commuter();
+        $this->postJson('/api/v1/announcements/mark-all-read?types=claim_approved')
+            ->assertStatus(200)->assertJsonPath('data.count', 1);
+
+        // Nothing left unread for that type — a second call marks 0.
+        $this->postJson('/api/v1/announcements/mark-all-read?types=claim_approved')
+            ->assertStatus(200)->assertJsonPath('data.count', 0);
+    }
 }
