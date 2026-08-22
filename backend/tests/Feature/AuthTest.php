@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\AdminProfile;
 use App\Models\CommuterProfile;
 use App\Models\ConductorProfile;
+use App\Models\ShiftLog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -205,6 +206,75 @@ class AuthTest extends TestCase
             ->assertStatus(401);
 
         $this->assertSame(1, $conductor->tokens()->count());
+    }
+
+    public function test_different_device_login_cannot_revoke_the_active_shift_owner_token(): void
+    {
+        $conductor = $this->seedConductor();
+        $ownerToken = $conductor->createToken('device-one');
+        $ownerPlainTextToken = $ownerToken->plainTextToken;
+
+        ShiftLog::factory()->create([
+            'shift_id' => 'SFT-AUTH-DEVICE-1',
+            'conductor_id' => $conductor->id,
+            'operating_device_id' => 'web-device-aaaaaaaa',
+            'operating_device_type' => 'WEB',
+            'operating_device_claimed_at' => now(),
+        ]);
+
+        $this->postJson('/api/v1/auth/login', [
+            'login' => 'conductor001',
+            'password' => 'password123',
+            'device_id' => 'mobile-device-bbbbbbbb',
+            'device_type' => 'MOBILE',
+        ])->assertStatus(409);
+
+        $this->assertDatabaseHas('personal_access_tokens', [
+            'id' => $ownerToken->accessToken->id,
+        ]);
+        $this->assertSame(1, $conductor->tokens()->count());
+
+        $this->withHeader('Authorization', "Bearer {$ownerPlainTextToken}")
+            ->getJson('/api/v1/user')
+            ->assertOk();
+
+        $this->withHeader('Authorization', "Bearer {$ownerPlainTextToken}")
+            ->postJson('/api/v1/conductor/break-status', [
+                'is_on_break' => true,
+                'device_id' => 'web-device-aaaaaaaa',
+                'device_type' => 'WEB',
+            ])
+            ->assertOk();
+    }
+
+    public function test_active_shift_owner_can_log_in_again_on_the_same_device(): void
+    {
+        $conductor = $this->seedConductor();
+        $previousToken = $conductor->createToken('device-one');
+
+        ShiftLog::factory()->create([
+            'shift_id' => 'SFT-AUTH-DEVICE-2',
+            'conductor_id' => $conductor->id,
+            'operating_device_id' => 'web-device-aaaaaaaa',
+            'operating_device_type' => 'WEB',
+            'operating_device_claimed_at' => now(),
+        ]);
+
+        $response = $this->postJson('/api/v1/auth/login', [
+            'login' => 'conductor001',
+            'password' => 'password123',
+            'device_id' => 'web-device-aaaaaaaa',
+            'device_type' => 'WEB',
+        ])->assertOk();
+
+        $this->assertDatabaseMissing('personal_access_tokens', [
+            'id' => $previousToken->accessToken->id,
+        ]);
+        $this->assertSame(1, $conductor->tokens()->count());
+
+        $this->withHeader('Authorization', "Bearer {$response->json('data.token')}")
+            ->getJson('/api/v1/user')
+            ->assertOk();
     }
 
     public function test_commuter_login_revokes_the_previous_device_token(): void

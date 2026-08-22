@@ -8,6 +8,7 @@ use App\Models\ShiftLog;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleLocation;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -84,6 +85,28 @@ class LocationTest extends TestCase
             ]);
 
         $response->assertOk();
+    }
+
+    public function test_utc_browser_fix_timestamp_is_stored_in_the_application_timezone(): void
+    {
+        Carbon::setTestNow(Carbon::create(2026, 8, 22, 14, 18, 40, 'Asia/Manila'));
+
+        try {
+            $this->actingAs($this->conductor)
+                ->postJson('/api/v1/conductor/location', [
+                    'lat' => 14.5995,
+                    'lng' => 120.9842,
+                    'fix_timestamp' => '2026-08-22T06:18:38.000Z',
+                ])
+                ->assertOk();
+
+            $this->assertDatabaseHas('vehicle_locations', [
+                'vehicle_id' => $this->vehicle->id,
+                'fix_recorded_at' => '2026-08-22 14:18:38',
+            ]);
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function test_location_update_requires_active_shift(): void

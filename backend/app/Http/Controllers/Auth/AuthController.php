@@ -45,12 +45,15 @@ class AuthController extends Controller
         $request->validate([
             'login' => 'required|string',
             'password' => 'required|string|min:6',
+            'device_id' => 'nullable|string|min:16|max:100|regex:/^[A-Za-z0-9._:-]+$/',
+            'device_type' => 'nullable|required_with:device_id|string|in:WEB,MOBILE',
         ]);
 
         try {
             $result = $this->authService->login(
                 $request->login,
-                $request->password
+                $request->password,
+                $request->input('device_id'),
             );
         } catch (ValidationException $e) {
             // Credentials incorrect → 401, not 422
