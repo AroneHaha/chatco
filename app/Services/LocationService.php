@@ -98,7 +98,12 @@ class LocationService
             abort(422, 'GPS accuracy must be between 0 and 1000 metres.');
         }
 
-        $fixAt = $fixTimestamp ? Carbon::parse($fixTimestamp) : now();
+        // Browser geolocation timestamps are ISO-8601 UTC values. MySQL
+        // DATETIME has no timezone metadata, while this application reads and
+        // writes operational timestamps in the configured application zone.
+        $fixAt = $fixTimestamp
+            ? Carbon::parse($fixTimestamp)->setTimezone(config('app.timezone'))
+            : now();
         if ($fixAt->lt(now()->subMinutes(2)) || $fixAt->gt(now()->addMinute())) {
             abort(422, 'The GPS sample is stale or has an invalid timestamp.');
         }
