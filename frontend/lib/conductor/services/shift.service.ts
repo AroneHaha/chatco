@@ -80,8 +80,7 @@ export async function startShift(data: {
 }
 
 export function isOperatingDevice(shift: ConductorShift | null): boolean {
-  if (!shift?.operatingDeviceId) return true;
-  return shift.operatingDeviceId === getConductorDeviceId();
+  return Boolean(shift?.operatingDeviceId && shift.operatingDeviceId === getConductorDeviceId());
 }
 
 export async function claimOperatingDevice(shiftId: string): Promise<ConductorShift> {

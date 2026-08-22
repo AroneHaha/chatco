@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\AdminRegistrationController;
 use App\Http\Controllers\Admin\AdminRemittanceOptionController;
 use App\Http\Controllers\Admin\AdminRouteController;
 use App\Http\Controllers\Admin\AdminSettingController;
+use App\Http\Controllers\Admin\AdminShiftDeviceController;
 use App\Http\Controllers\Admin\AdminSosController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminVehicleController;
@@ -324,6 +325,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::patch('/announcements/{id}', [AdminAnnouncementController::class, 'update'])->middleware('throttle:admin-write');
     Route::patch('/announcements/{id}/archive', [AdminAnnouncementController::class, 'archive'])->middleware('throttle:admin-write');
     Route::get('/shift-logs', [AdminController::class, 'shiftLogs'])->middleware('throttle:conductor-read');
+    Route::post('/shifts/{shift}/device/recover', [AdminShiftDeviceController::class, 'recover'])->middleware('throttle:admin-write');
 
     // ── Lost & Found management (S6-T3) ─────────────────────────
     // Replaces the old AdminController::lostItems() 501 stub. Admin creates

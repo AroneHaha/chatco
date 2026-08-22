@@ -22,6 +22,8 @@ export async function POST(request: NextRequest) {
     heading?: unknown;
     accuracy?: unknown;
     fix_timestamp?: unknown;
+    deviceId?: unknown;
+    deviceType?: unknown;
   };
 
   try {
@@ -45,6 +47,8 @@ export async function POST(request: NextRequest) {
       heading: Number.isFinite(heading as number) ? heading : null,
       accuracy: Number.isFinite(accuracy as number) ? accuracy : null,
       fix_timestamp: typeof fix_timestamp === "string" ? fix_timestamp : null,
+      device_id: typeof body.deviceId === "string" ? body.deviceId : undefined,
+      device_type: body.deviceType === "WEB" || body.deviceType === "MOBILE" ? body.deviceType : undefined,
     },
   });
 

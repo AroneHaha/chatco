@@ -10,20 +10,25 @@ const API_URL = process.env.API_URL || "http://localhost:8000";
  * downstream route reads to attach the bearer token.
  */
 export async function POST(request: Request) {
-  let body: { email?: string; password?: string };
+  let body: {
+    email?: string;
+    password?: string;
+    device_id?: string;
+    device_type?: "WEB" | "MOBILE";
+  };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ message: "Invalid request body." }, { status: 400 });
   }
-  const { email, password } = body;
+  const { email, password, device_id, device_type } = body;
 
   // ─── Try Laravel first ─────────────────────────────────────────────
   try {
     const res = await fetch(`${API_URL}/api/v1/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ login: email, password }),
+      body: JSON.stringify({ login: email, password, device_id, device_type }),
     });
 
     const data = await res.json().catch(() => null);

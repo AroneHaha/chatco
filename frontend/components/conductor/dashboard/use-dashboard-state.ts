@@ -5,6 +5,9 @@ import { useConductorShift } from "@/app/(conductor)/hooks/use-conductor-shift";
 import { useConductorTransactions } from "@/app/(conductor)/hooks/use-conductor-transactions";
 import { useConductorHails } from "@/app/(conductor)/hooks/use-conductor-hails";
 import { CONDUCTOR_API } from "@/lib/conductor/endpoints";
+import { CONDUCTOR_DEVICE_TYPE, getConductorDeviceId } from "@/lib/conductor/persistence/device.store";
+import { isOperatingDevice } from "@/lib/conductor/services/shift.service";
+import { acceptHail, rejectHail } from "@/lib/conductor/services/hails.service";
 
 export type ConductorStatus = "Available" | "Standing" | "Full";
 
@@ -22,7 +25,26 @@ export function useDashboardState() {
     useConductorTransactions(shift?.shiftId ?? null);
   // Conductor just observes waiting commuters on the map; the commuter drives
   // the hail lifecycle (create + cancel), so no accept/reject action here.
-  const { hails } = useConductorHails();
+  const { hails, refresh: refreshHails } = useConductorHails(shift?.vehicleId);
+  const canOperate = isOperatingDevice(shift);
+  const [hailBusyId, setHailBusyId] = useState<string | null>(null);
+  const [hailActionError, setHailActionError] = useState<string | null>(null);
+
+  const updateHail = useCallback(async (hailId: string, action: "accept" | "reject") => {
+    if (!canOperate || hailBusyId) return;
+    setHailBusyId(hailId);
+    setHailActionError(null);
+    try {
+      if (action === "accept") await acceptHail(hailId);
+      else await rejectHail(hailId);
+      await refreshHails();
+    } catch (error) {
+      setHailActionError(error instanceof Error ? error.message : "Unable to update the pickup request.");
+      await refreshHails();
+    } finally {
+      setHailBusyId(null);
+    }
+  }, [canOperate, hailBusyId, refreshHails]);
 
   const [status, setStatusState] = useState<ConductorStatus>("Available");
   // Mirror of `status` for reading the pre-change value inside setStatus
@@ -33,6 +55,7 @@ export function useDashboardState() {
   // unit on every commuter's map (green / yellow / red). Optimistic: flip the
   // UI immediately, then roll back if the request fails (e.g. no active shift).
   const setStatus = useCallback((next: ConductorStatus) => {
+    if (!canOperate) return;
     const prev = statusRef.current;
     if (prev === next) return;
 
@@ -44,7 +67,11 @@ export function useDashboardState() {
         const res = await fetch(CONDUCTOR_API.capacityStatus, {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify({ capacity_status: TO_CAPACITY[next] }),
+          body: JSON.stringify({
+            capacity_status: TO_CAPACITY[next],
+            deviceId: getConductorDeviceId(),
+            deviceType: CONDUCTOR_DEVICE_TYPE,
+          }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
       } catch {
@@ -53,7 +80,7 @@ export function useDashboardState() {
         setStatusState(prev);
       }
     })();
-  }, []);
+  }, [canOperate]);
 
   const [showHistory, setShowHistory] = useState(false);
   const [mobileCardExpanded, setMobileCardExpanded] = useState(true);
@@ -62,9 +89,10 @@ export function useDashboardState() {
   const [showBreakModal, setShowBreakModal] = useState(false);
 
   const openBreakModal = useCallback(() => {
+    if (!canOperate) return;
     setBreakError(null);
     setShowBreakModal(true);
-  }, []);
+  }, [canOperate]);
 
   const closeBreakModal = useCallback(() => {
     if (breakBusy) return;
@@ -72,7 +100,7 @@ export function useDashboardState() {
   }, [breakBusy]);
 
   const toggleBreak = useCallback(async () => {
-    if (!shift || breakBusy) return;
+    if (!shift || breakBusy || !canOperate) return;
 
     setBreakBusy(true);
     setBreakError(null);
@@ -80,7 +108,11 @@ export function useDashboardState() {
       const res = await fetch(CONDUCTOR_API.breakStatus, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ is_on_break: !shift.isOnBreak }),
+        body: JSON.stringify({
+          is_on_break: !shift.isOnBreak,
+          deviceId: getConductorDeviceId(),
+          deviceType: CONDUCTOR_DEVICE_TYPE,
+        }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
@@ -93,7 +125,7 @@ export function useDashboardState() {
     } finally {
       setBreakBusy(false);
     }
-  }, [breakBusy, refreshShift, shift]);
+  }, [breakBusy, canOperate, refreshShift, shift]);
 
   const conductorName = shift?.conductorName || "—";
   const unitNumber = shift?.unitNumber || "—";
@@ -102,6 +134,7 @@ export function useDashboardState() {
 
   return {
     shift,
+    canOperate,
     elapsed,
     shiftStatus,
     shiftError,
@@ -109,6 +142,9 @@ export function useDashboardState() {
     txnStatus,
     txnError,
     hails,
+    hailBusyId,
+    hailActionError,
+    updateHail,
     status,
     setStatus,
     isOnBreak: Boolean(shift?.isOnBreak),

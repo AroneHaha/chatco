@@ -11,13 +11,14 @@ import { syncPendingTransactions } from "@/lib/conductor/services/transactions.s
 import { getPendingCashTransactions } from "@/lib/conductor/persistence/transactions.store";
 
 export default function ConductorDeviceGuard() {
-  const { shift, refresh } = useConductorShift({ pollMs: 30000 });
+  const { shift, refresh } = useConductorShift();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   if (!shift) return null;
   const ownsShift = isOperatingDevice(shift);
   const unclaimed = !shift.operatingDeviceId;
+  const recoveredByAdmin = unclaimed && Boolean(shift.latestDeviceRecoveryAt);
 
   const claim = async () => {
     setBusy(true);
@@ -59,10 +60,12 @@ export default function ConductorDeviceGuard() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="font-semibold">
-            {unclaimed ? "Choose the operating device" : ownsShift ? "This is the operating device" : "View-only on this device"}
+            {recoveredByAdmin ? "Admin released the unavailable device" : unclaimed ? "Choose the operating device" : ownsShift ? "This is the operating device" : "View-only on this device"}
           </p>
           <p className="mt-1 text-xs opacity-75">
-            {unclaimed
+            {recoveredByAdmin
+              ? "Use a different device to claim this shift. The recovered device cannot reclaim it."
+              : unclaimed
               ? "Claim this shift before collecting fares."
               : ownsShift
                 ? "Release only when moving the shift to Web or Mobile."

@@ -18,6 +18,8 @@ use Illuminate\Support\Facades\DB;
 
 class LocationService
 {
+    public function __construct(private ShiftDeviceService $shiftDeviceService) {}
+
     /**
      * Update a vehicle's GPS position.
      *
@@ -34,6 +36,8 @@ class LocationService
         ?string $capacityStatus = null,
         ?float $accuracy = null,
         ?string $fixTimestamp = null,
+        ?string $deviceId = null,
+        ?string $deviceType = null,
     ): VehicleLocation {
         // 1. Validate lat/lng ranges
         if ($lat < -90 || $lat > 90) {
@@ -53,6 +57,8 @@ class LocationService
             $capacityStatus,
             $accuracy,
             $fixTimestamp,
+            $deviceId,
+            $deviceType,
         );
     }
 
@@ -82,6 +88,8 @@ class LocationService
         ?string $capacityStatus,
         ?float $accuracy,
         ?string $fixTimestamp,
+        ?string $deviceId,
+        ?string $deviceType,
     ): VehicleLocation {
         if ($speed !== null && ($speed < 0 || $speed > 160)) {
             abort(422, 'Reported speed is outside the supported 0-160 km/h range.');
@@ -90,12 +98,17 @@ class LocationService
             abort(422, 'GPS accuracy must be between 0 and 1000 metres.');
         }
 
-        $fixAt = $fixTimestamp ? Carbon::parse($fixTimestamp) : now();
+        // Browser geolocation timestamps are ISO-8601 UTC values. MySQL
+        // DATETIME has no timezone metadata, while this application reads and
+        // writes operational timestamps in the configured application zone.
+        $fixAt = $fixTimestamp
+            ? Carbon::parse($fixTimestamp)->setTimezone(config('app.timezone'))
+            : now();
         if ($fixAt->lt(now()->subMinutes(2)) || $fixAt->gt(now()->addMinute())) {
             abort(422, 'The GPS sample is stale or has an invalid timestamp.');
         }
 
-        return DB::transaction(function () use ($conductor, $lat, $lng, $speed, $heading, $capacityStatus, $accuracy, $fixAt) {
+        return DB::transaction(function () use ($conductor, $lat, $lng, $speed, $heading, $capacityStatus, $accuracy, $fixAt, $deviceId, $deviceType) {
             $shift = ShiftLog::query()
                 ->where('conductor_id', $conductor->conductorProfile?->id)
                 ->active()
@@ -105,6 +118,8 @@ class LocationService
             if (! $shift) {
                 abort(422, 'No active shift');
             }
+
+            $this->shiftDeviceService->assertCanOperate($shift, $deviceId, $deviceType);
 
             $vehicle = Vehicle::query()->whereKey($shift->vehicle_id)->lockForUpdate()->firstOrFail();
             if ($vehicle->active_shift_id !== $shift->shift_id) {
@@ -376,15 +391,19 @@ class LocationService
      * - Values restricted to: AVAILABLE, STANDING, FULL
      * - Broadcasts VehicleLocationUpdated via Pusher
      */
-    public function updateCapacityStatus(User $conductor, string $status): VehicleLocation
-    {
+    public function updateCapacityStatus(
+        User $conductor,
+        string $status,
+        ?string $deviceId = null,
+        ?string $deviceType = null,
+    ): VehicleLocation {
         // 1. Validate status value
         $validStatuses = array_column(CapacityStatus::cases(), 'value');
         if (! in_array($status, $validStatuses)) {
             abort(422, 'Invalid capacity status. Must be: AVAILABLE, STANDING, or FULL');
         }
 
-        return $this->updateCapacityForActiveShift($conductor, $status);
+        return $this->updateCapacityForActiveShift($conductor, $status, $deviceId, $deviceType);
     }
 
     /**
@@ -422,9 +441,13 @@ class LocationService
         }
     }
 
-    private function updateCapacityForActiveShift(User $conductor, string $status): VehicleLocation
-    {
-        return DB::transaction(function () use ($conductor, $status) {
+    private function updateCapacityForActiveShift(
+        User $conductor,
+        string $status,
+        ?string $deviceId,
+        ?string $deviceType,
+    ): VehicleLocation {
+        return DB::transaction(function () use ($conductor, $status, $deviceId, $deviceType) {
             $shift = ShiftLog::query()
                 ->where('conductor_id', $conductor->conductorProfile?->id)
                 ->active()
@@ -433,6 +456,8 @@ class LocationService
             if (! $shift) {
                 abort(422, 'No active shift');
             }
+
+            $this->shiftDeviceService->assertCanOperate($shift, $deviceId, $deviceType);
 
             $vehicle = Vehicle::query()->whereKey($shift->vehicle_id)->lockForUpdate()->firstOrFail();
             if ($vehicle->active_shift_id !== $shift->shift_id) {

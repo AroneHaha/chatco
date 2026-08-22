@@ -16,6 +16,7 @@ class ShiftService
 {
     public function __construct(
         private ShiftCloseoutService $closeoutService,
+        private ShiftDeviceService $shiftDeviceService,
     ) {}
 
     /** Start a shift only from the Admin-approved current-day assignment. */
@@ -143,13 +144,17 @@ class ShiftService
         );
     }
 
-    public function setBreakStatus(User $conductor, bool $isOnBreak): ShiftLog
-    {
+    public function setBreakStatus(
+        User $conductor,
+        bool $isOnBreak,
+        ?string $deviceId = null,
+        ?string $deviceType = null,
+    ): ShiftLog {
         if (! $conductor->isConductor()) {
             abort(403, 'Forbidden');
         }
 
-        return DB::transaction(function () use ($conductor, $isOnBreak) {
+        return DB::transaction(function () use ($conductor, $isOnBreak, $deviceId, $deviceType) {
             $shift = ShiftLog::query()
                 ->where('conductor_id', $conductor->conductorProfile?->id)
                 ->active()
@@ -159,6 +164,8 @@ class ShiftService
             if (! $shift) {
                 abort(422, 'No active shift');
             }
+
+            $this->shiftDeviceService->assertCanOperate($shift, $deviceId, $deviceType);
 
             $shift->update([
                 'is_on_break' => $isOnBreak,
@@ -174,7 +181,7 @@ class ShiftService
         return ShiftLog::query()
             ->where('conductor_id', $conductor->conductorProfile?->id)
             ->active()
-            ->with(['vehicle', 'driver', 'route'])
+            ->with(['vehicle', 'driver', 'route', 'latestDeviceRecovery'])
             ->first();
     }
 

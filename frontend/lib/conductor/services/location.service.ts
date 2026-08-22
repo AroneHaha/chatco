@@ -1,5 +1,6 @@
 import { api } from "@/lib/api/client";
 import { CONDUCTOR_API } from "@/lib/conductor/endpoints";
+import { CONDUCTOR_DEVICE_TYPE, getConductorDeviceId } from "@/lib/conductor/persistence/device.store";
 
 export interface ConductorLocationInput {
   lat: number;
@@ -19,5 +20,9 @@ export interface ConductorLocationInput {
 export async function updateConductorLocation(
   input: ConductorLocationInput
 ): Promise<void> {
-  await api.post(CONDUCTOR_API.location, input);
+  await api.post(CONDUCTOR_API.location, {
+    ...input,
+    deviceId: getConductorDeviceId(),
+    deviceType: CONDUCTOR_DEVICE_TYPE,
+  });
 }

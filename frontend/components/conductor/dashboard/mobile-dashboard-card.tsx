@@ -20,6 +20,7 @@ interface MobileDashboardCardProps {
   isOnBreak: boolean;
   breakBusy: boolean;
   onOpenBreakModal: () => void;
+  canOperate: boolean;
 }
 
 export function MobileDashboardCard({
@@ -39,6 +40,7 @@ export function MobileDashboardCard({
   isOnBreak,
   breakBusy,
   onOpenBreakModal,
+  canOperate,
 }: MobileDashboardCardProps) {
   return (
     <div className="lg:hidden flex-shrink-0 bg-[#071A2E]/95 backdrop-blur-xl z-20 border-b border-white/10">
@@ -73,7 +75,7 @@ export function MobileDashboardCard({
         <button
           type="button"
           onClick={onOpenBreakModal}
-          disabled={breakBusy}
+          disabled={breakBusy || !canOperate}
           aria-pressed={isOnBreak}
           className={`flex min-h-11 w-full items-center justify-center rounded-xl border px-4 py-2.5 text-sm font-bold shadow-lg transition-colors active:scale-[0.99] disabled:cursor-wait disabled:opacity-60 ${
             isOnBreak
@@ -105,7 +107,7 @@ export function MobileDashboardCard({
                   <button
                     key={s}
                     onClick={() => setStatus(s)}
-                    disabled={isOnBreak}
+                    disabled={isOnBreak || !canOperate}
                     className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-colors border disabled:cursor-not-allowed disabled:opacity-40 ${
                       status === s
                         ? s === "Available"

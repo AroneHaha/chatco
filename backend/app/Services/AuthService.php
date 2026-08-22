@@ -7,6 +7,7 @@ use App\Exceptions\AccountSuspendedException;
 use App\Exceptions\RegistrationPendingException;
 use App\Models\CommuterProfile;
 use App\Models\ConductorProfile;
+use App\Models\ShiftLog;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -41,7 +42,7 @@ class AuthService
      * excludes rejected (soft-deleted) accounts, so a freed username reused
      * by a new commuter resolves only to the live account.
      */
-    public function login(string $login, string $password): array
+    public function login(string $login, string $password, ?string $deviceId = null): array
     {
         $user = $this->resolveLoginUser($login);
 
@@ -102,11 +103,28 @@ class AuthService
         // request's create has committed, so exactly one token is ever left
         // standing and each request's own new token always survives its own
         // delete (never a later request's).
-        $token = DB::transaction(function () use ($user) {
-            User::whereKey($user->id)->lockForUpdate()->first();
-            $user->tokens()->delete();
+        // Check active shift ownership before revoking the existing token. A
+        // different device must never log out the only client that can safely
+        // sync offline cash and release the shift.
+        $token = DB::transaction(function () use ($user, $deviceId) {
+            $lockedUser = User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
 
-            return $user->createToken('auth-token')->plainTextToken;
+            if ($lockedUser->isConductor()) {
+                $activeShift = ShiftLog::query()
+                    ->where('conductor_id', $lockedUser->id)
+                    ->active()
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($activeShift?->operating_device_id !== null
+                    && ($deviceId === null || ! hash_equals($activeShift->operating_device_id, $deviceId))) {
+                    abort(409, 'This conductor has an active shift on another device. Sync and release that shift before logging in here.');
+                }
+            }
+
+            $lockedUser->tokens()->delete();
+
+            return $lockedUser->createToken('auth-token')->plainTextToken;
         });
 
         return [

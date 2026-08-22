@@ -219,11 +219,15 @@ class ConductorController extends Controller
     {
         $validated = $request->validate([
             'is_on_break' => ['required', 'boolean'],
+            'device_id' => ['nullable', 'string', 'min:16', 'max:100', 'regex:/^[A-Za-z0-9._:-]+$/'],
+            'device_type' => ['nullable', 'required_with:device_id', 'string', 'in:WEB,MOBILE'],
         ]);
 
         $shift = $this->shiftService->setBreakStatus(
             $request->user(),
             (bool) $validated['is_on_break'],
+            $validated['device_id'] ?? null,
+            $validated['device_type'] ?? null,
         );
 
         return $this->successResponse(
@@ -249,6 +253,8 @@ class ConductorController extends Controller
             $validated['capacity_status'] ?? null,
             isset($validated['accuracy']) ? (float) $validated['accuracy'] : null,
             $validated['fix_timestamp'] ?? null,
+            $validated['device_id'] ?? null,
+            $validated['device_type'] ?? null,
         );
 
         return $this->successResponse($location, 'Location updated');
@@ -261,11 +267,15 @@ class ConductorController extends Controller
     {
         $validated = $request->validate([
             'capacity_status' => 'required|string|in:AVAILABLE,STANDING,FULL',
+            'device_id' => ['nullable', 'string', 'min:16', 'max:100', 'regex:/^[A-Za-z0-9._:-]+$/'],
+            'device_type' => ['nullable', 'required_with:device_id', 'string', 'in:WEB,MOBILE'],
         ]);
 
         $location = $this->locationService->updateCapacityStatus(
             $request->user(),
             $validated['capacity_status'],
+            $validated['device_id'] ?? null,
+            $validated['device_type'] ?? null,
         );
 
         return $this->successResponse($location, 'Capacity status updated');

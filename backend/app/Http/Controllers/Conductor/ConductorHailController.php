@@ -61,7 +61,13 @@ class ConductorHailController extends Controller
      */
     public function accept(Request $request, string $id): JsonResponse
     {
-        $hail = $this->hailService->acceptHail($request->user(), $id);
+        $validated = $this->validateDevice($request);
+        $hail = $this->hailService->acceptHail(
+            $request->user(),
+            $id,
+            $validated['device_id'] ?? null,
+            $validated['device_type'] ?? null,
+        );
 
         return $this->successResponse(
             $hail->load(['commuter', 'vehicle', 'conductor']),
@@ -78,11 +84,25 @@ class ConductorHailController extends Controller
      */
     public function reject(Request $request, string $id): JsonResponse
     {
-        $hail = $this->hailService->rejectHail($request->user(), $id);
+        $validated = $this->validateDevice($request);
+        $hail = $this->hailService->rejectHail(
+            $request->user(),
+            $id,
+            $validated['device_id'] ?? null,
+            $validated['device_type'] ?? null,
+        );
 
         return $this->successResponse(
             $hail->load(['commuter', 'vehicle']),
             'Hail rejected',
         );
+    }
+
+    private function validateDevice(Request $request): array
+    {
+        return $request->validate([
+            'device_id' => ['nullable', 'string', 'min:16', 'max:100', 'regex:/^[A-Za-z0-9._:-]+$/'],
+            'device_type' => ['nullable', 'required_with:device_id', 'string', 'in:WEB,MOBILE'],
+        ]);
     }
 }

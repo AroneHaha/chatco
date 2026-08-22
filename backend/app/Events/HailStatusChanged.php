@@ -14,11 +14,10 @@ use Illuminate\Queue\SerializesModels;
  * (cancelled by commuter, accepted by conductor, rejected by conductor,
  * or auto-expired by the hails:expire scheduled command).
  *
- * Broadcasts on the commuter-scoped channel so the owning commuter
- * receives the status change in real time, reducing polling dependence.
+ * Broadcasts to the owning commuter and active vehicle channels so both
+ * sides converge immediately after an authorized lifecycle transition.
  *
- * Channel: private-commuter.{commuter_id}.hails. Authorization is restricted
- * to the commuter who owns the hail.
+ * Both private channels are protected by routes/channels.php.
  *
  * Triggered by:
  *   - HailService::cancelHail()
@@ -37,9 +36,13 @@ class HailStatusChanged implements ShouldBroadcast
         $this->hail = $hail;
     }
 
-    public function broadcastOn(): PrivateChannel
+    /** @return array<int, PrivateChannel> */
+    public function broadcastOn(): array
     {
-        return new PrivateChannel('commuter.'.$this->hail->commuter_id.'.hails');
+        return [
+            new PrivateChannel('commuter.'.$this->hail->commuter_id.'.hails'),
+            new PrivateChannel('vehicle.'.$this->hail->vehicle_id.'.hails'),
+        ];
     }
 
     public function broadcastAs(): string

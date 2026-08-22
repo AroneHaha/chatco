@@ -8,6 +8,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
+import { CONDUCTOR_DEVICE_TYPE, getConductorDeviceId } from "@/lib/conductor/persistence/device.store";
 import type { AuthUser, CommuterProfile } from "@/types";
 
 interface AuthContextValue {
@@ -70,7 +71,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          email,
+          password,
+          device_id: getConductorDeviceId(),
+          device_type: CONDUCTOR_DEVICE_TYPE,
+        }),
       });
 
       const data = await response.json();

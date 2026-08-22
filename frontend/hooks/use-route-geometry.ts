@@ -62,10 +62,19 @@ export function useRouteGeometry(fallback: RouteCoordinate[], routeId?: string |
 
     refresh();
     const interval = window.setInterval(refresh, 60_000);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    window.addEventListener("focus", refresh);
+    window.addEventListener("online", refresh);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
 
     return () => {
       controller.abort();
       window.clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("online", refresh);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, [fallback, routeId]);
 
