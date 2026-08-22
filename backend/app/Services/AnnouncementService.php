@@ -273,10 +273,49 @@ class AnnouncementService
     /**
      * Count of ACTIVE announcements the user has NOT read — for the bell badge.
      * Includes broadcasts (user_id IS NULL) plus rows targeted at this user.
+     *
+     * @param  array  $types  Optional — when non-empty, scopes the count to
+     *   these `type` values (e.g. the Lost & Found claim-update badge passes
+     *   ['claim_approved', 'claim_rejected', 'claim_released']).
      */
-    public function unreadCount(User $user): int
+    public function unreadCount(User $user, array $types = []): int
     {
-        return Announcement::where('status', self::STATUS_ACTIVE)
+        return $this->unreadQuery($user, $types)->count();
+    }
+
+    /**
+     * Mark every currently-unread ACTIVE announcement visible to the user as
+     * read, optionally scoped to `$types` (e.g. only the Lost & Found
+     * claim-update rows when the commuter opens the Claims tab). A single
+     * bulk insert rather than one upsert per row — correct even when there
+     * are more unread rows than any single feed page holds.
+     *
+     * @return int  The number of rows newly marked as read.
+     */
+    public function markAllRead(User $user, array $types = []): int
+    {
+        $ids = $this->unreadQuery($user, $types)->pluck('announcements.id');
+
+        if ($ids->isEmpty()) {
+            return 0;
+        }
+
+        $now = now();
+        DB::table('announcement_reads')->insertOrIgnore(
+            $ids->map(fn (string $id) => [
+                'announcement_id' => $id,
+                'user_id' => $user->id,
+                'read_at' => $now,
+            ])->all()
+        );
+
+        return $ids->count();
+    }
+
+    /** Shared "ACTIVE, visible to $user, not yet read, optionally type-filtered" query. */
+    private function unreadQuery(User $user, array $types = []): Builder
+    {
+        $query = Announcement::where('status', self::STATUS_ACTIVE)
             ->where(function ($q) use ($user) {
                 $q->whereNull('user_id')->orWhere('user_id', $user->id);
             })
@@ -285,7 +324,12 @@ class AnnouncementService
                       ->from('announcement_reads')
                       ->whereColumn('announcement_reads.announcement_id', 'announcements.id')
                       ->where('announcement_reads.user_id', $user->id);
-            })
-            ->count();
+            });
+
+        if (! empty($types)) {
+            $query->whereIn('type', $types);
+        }
+
+        return $query;
     }
 }

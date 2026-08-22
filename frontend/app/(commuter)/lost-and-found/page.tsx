@@ -1,10 +1,11 @@
 "use client";
 
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
+import { useAnnouncements } from "@/contexts/announcements-context";
 import { useLostAndFound } from "./use-lost-and-found";
 import { categories } from "./data";
 import LostItemCard from "@/components/commuter/lost-and-found/lost-item-card";
-import { ClaimData, ClaimStatus, ItemCategory, LostItem, ViewTab } from "./types";
+import { ClaimData, ClaimFilter, ClaimStatus, ItemCategory, LostItem, ViewTab } from "./types";
 import {
   AlertTriangle,
   Bookmark,
@@ -30,7 +31,7 @@ import {
 
 export default function LostAndFoundPage() {
   const {
-    activeTab, handleTabChange, activeCategory, handleCategoryChange, searchQuery, handleSearch,
+    activeTab, handleTabChange, activeCategory, handleCategoryChange, claimFilter, handleClaimFilterChange, searchQuery, handleSearch,
     selectedDate, handleDateChange,
     setCurrentPage, apiData, isLoading, listError,
     watchlist, toggleWatchlist, claims, claimPageData, openClaimModal,
@@ -39,6 +40,13 @@ export default function LostAndFoundPage() {
     submitClaim, claimError, isSubmittingClaim,
     displayItems, displayClaims, formatDate, getStatusBadge
   } = useLostAndFound();
+  const { claimUpdatesUnreadCount, markClaimUpdatesRead } = useAnnouncements();
+  // Opening the Claims tab clears the claim-update badge (nav button + tab
+  // dot) — new updates stay unread until the commuter actually looks here,
+  // regardless of how many times the claim's status has changed since.
+  useEffect(() => {
+    if (activeTab === "MY_CLAIMS") markClaimUpdatesRead();
+  }, [activeTab, markClaimUpdatesRead]);
   const paginationData = activeTab === "MY_CLAIMS" ? claimPageData : apiData;
   const pageNumbers = buildVisiblePages(paginationData.currentPage, paginationData.totalPages);
   const tabs: { key: ViewTab; label: string; icon: typeof PackageSearch }[] = [
@@ -48,7 +56,16 @@ export default function LostAndFoundPage() {
   ];
   const activeTabLabel = tabs.find((tab) => tab.key === activeTab)?.label ?? "All Items";
   const activeCategoryLabel = categories.find((cat) => cat.value === activeCategory)?.label ?? "All";
-  const activeFilterCount = Number(Boolean(searchQuery.trim())) + Number(Boolean(selectedDate)) + Number(activeCategory !== "ALL");
+  const claimFilterOptions: { value: ClaimFilter; label: string }[] = [
+    { value: "ALL", label: "All Statuses" },
+    { value: "PENDING", label: "Pending" },
+    { value: "VALIDATED", label: "Approved" },
+    { value: "RELEASED", label: "Released" },
+    { value: "REJECTED", label: "Rejected" },
+  ];
+  const activeClaimFilterLabel = claimFilterOptions.find((opt) => opt.value === claimFilter)?.label ?? "All Statuses";
+  const isClaimsTab = activeTab === "MY_CLAIMS";
+  const activeFilterCount = Number(Boolean(searchQuery.trim())) + Number(Boolean(selectedDate)) + Number(activeCategory !== "ALL") + Number(isClaimsTab && claimFilter !== "ALL");
 
   // Full-detail view — the card only shows a clamped description and a
   // thumbnail; this surfaces the complete description and a larger photo.
@@ -78,7 +95,7 @@ export default function LostAndFoundPage() {
     <div className="h-full w-full flex flex-col overflow-hidden bg-[#050F1A] relative">
       
       {/* --- HEADER --- */}
-      <div className="z-10 flex-shrink-0 border-b border-white/10 bg-[#071A2E]/98 shadow-lg shadow-black/15">
+      <div className="z-10 flex-shrink-0 border-b border-white/10 bg-[#071A2E]">
         <div className="px-4 py-4 lg:px-8 lg:py-5">
           <div className="mb-4 min-w-0">
             <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -93,33 +110,41 @@ export default function LostAndFoundPage() {
             <h1 className="text-xl font-bold leading-tight text-white lg:text-2xl">Lost & Found</h1>
           </div>
 
-          <div className="mb-3 grid grid-cols-3 rounded-xl border border-white/10 bg-[#050F1A] p-1">
+          <div className="mb-3 grid grid-cols-3 rounded-xl border border-white/10 bg-[#0E1628] p-1">
             {tabs.map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
                 type="button"
                 onClick={() => handleTabChange(key)}
-                className={`relative inline-flex h-9 min-w-0 items-center justify-center gap-2 rounded-lg px-2 text-xs font-semibold transition-all sm:px-4 ${
+                className={`relative inline-flex h-9 min-w-0 items-center justify-center gap-2 rounded-lg border px-2 text-xs font-semibold transition-all sm:px-4 ${
                   activeTab === key
-                    ? "bg-[#1A5FB4] text-white shadow-lg shadow-[#1A5FB4]/30"
-                    : "text-white/45 hover:bg-white/5 hover:text-white/75"
+                    ? "border-[#62A0EA]/45 bg-[#1A5FB4]/20 text-white shadow-lg shadow-[#1A5FB4]/15"
+                    : "border-transparent text-white/45 hover:bg-white/5 hover:text-white/75"
                 }`}
               >
                 <Icon className="h-4 w-4 flex-shrink-0" />
                 <span className="truncate">{label}</span>
+                {key === "MY_CLAIMS" && claimUpdatesUnreadCount > 0 && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-[#FF6D3A] rounded-full text-[9px] font-bold text-white flex items-center justify-center ring-2 ring-[#0E1628] tabular-nums"
+                  >
+                    {claimUpdatesUnreadCount > 99 ? "99+" : claimUpdatesUnreadCount}
+                  </span>
+                )}
               </button>
             ))}
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_13rem_15rem] lg:items-center">
-            <div className="relative min-w-0">
+          <div className={`grid gap-3 lg:items-center ${isClaimsTab ? "lg:grid-cols-[minmax(0,1fr)_13rem_12rem_15rem]" : "lg:grid-cols-[minmax(0,1fr)_13rem_15rem]"}`}>
+            <div className="relative min-w-0 lg:max-w-100">
               <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
               <input
                 type="text"
-                placeholder={activeTab === "MY_CLAIMS" ? "Search claims by item, plate, driver, conductor..." : "Search item, plate, driver, or conductor..."}
+                placeholder={isClaimsTab ? "Search claims by item, plate, driver, conductor..." : "Search item, plate, driver, or conductor..."}
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
-                className="h-10 w-full rounded-xl border border-white/10 bg-[#050F1A] pl-11 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/30 focus:border-[#62A0EA]"
+                className="h-10 w-full rounded-xl border border-white/10 bg-[#0E1628] pl-11 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/30 focus:border-[#62A0EA]"
               />
             </div>
             <div className="relative">
@@ -128,7 +153,7 @@ export default function LostAndFoundPage() {
                 type="date"
                 value={selectedDate}
                 onChange={(e) => handleDateChange(e.target.value)}
-                className="h-10 w-full rounded-xl border border-white/10 bg-[#050F1A] pl-11 pr-10 text-sm font-semibold text-white/70 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
+                className="h-10 w-full rounded-xl border border-white/10 bg-[#0E1628] pl-11 pr-10 text-sm font-semibold text-white/70 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
                 aria-label="Filter lost and found items by posted date"
               />
               {selectedDate && (
@@ -143,11 +168,26 @@ export default function LostAndFoundPage() {
                 </button>
               )}
             </div>
+            {isClaimsTab && (
+              <div className="relative">
+                <select
+                  value={claimFilter}
+                  onChange={(e) => handleClaimFilterChange(e.target.value as ClaimFilter)}
+                  className="h-10 w-full appearance-none rounded-xl border border-white/10 bg-[#0E1628] px-4 pr-10 text-sm font-semibold text-white/70 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
+                  aria-label="Filter claims by status"
+                >
+                  {claimFilterOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+              </div>
+            )}
             <div className="relative">
               <select
                 value={activeCategory}
                 onChange={(e) => handleCategoryChange(e.target.value as ItemCategory)}
-                className="h-10 w-full appearance-none rounded-xl border border-white/10 bg-[#050F1A] px-4 pr-10 text-sm font-semibold text-white/70 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
+                className="h-10 w-full appearance-none rounded-xl border border-white/10 bg-[#0E1628] px-4 pr-10 text-sm font-semibold text-white/70 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
                 aria-label="Filter lost and found items by category"
               >
                 {categories.map(cat => (
@@ -172,6 +212,12 @@ export default function LostAndFoundPage() {
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
+              {isClaimsTab && claimFilter !== "ALL" && (
+                <button type="button" onClick={() => handleClaimFilterChange("ALL")} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/55 hover:bg-white/[0.07] hover:text-white">
+                  {activeClaimFilterLabel}
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
               {activeCategory !== "ALL" && (
                 <button type="button" onClick={() => handleCategoryChange("ALL")} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/55 hover:bg-white/[0.07] hover:text-white">
                   {activeCategoryLabel}
@@ -188,7 +234,7 @@ export default function LostAndFoundPage() {
         {isLoading ? (
           <div className={activeTab === "MY_CLAIMS" ? "space-y-3" : "grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"}>
             {Array.from({ length: activeTab === "MY_CLAIMS" ? 4 : 8 }).map((_, index) => (
-              <div key={index} className={activeTab === "MY_CLAIMS" ? "h-44 rounded-2xl border border-white/10 bg-white/[0.04]" : "h-96 rounded-xl border border-white/10 bg-white/[0.04]"}>
+              <div key={index} className={activeTab === "MY_CLAIMS" ? "h-44 rounded-xl border border-white/10 bg-white/[0.04]" : "h-96 rounded-xl border border-white/10 bg-white/[0.04]"}>
                 <div className="h-full w-full animate-pulse rounded-[inherit] bg-gradient-to-r from-white/[0.03] via-white/[0.07] to-white/[0.03]" />
               </div>
             ))}
@@ -196,11 +242,11 @@ export default function LostAndFoundPage() {
         ) : listError ? (
           <div className="h-full flex flex-col items-center justify-center text-center px-4">
             <p className="text-red-400 font-medium text-sm mb-3">{listError}</p>
-            <button onClick={() => handleTabChange(activeTab)} className="px-4 py-2 rounded-full text-xs font-semibold bg-[#1A5FB4] text-white">Try again</button>
+            <button onClick={() => handleTabChange(activeTab)} className="px-4 py-2 rounded-md text-xs font-semibold bg-[#1A5FB4] text-white">Try again</button>
           </div>
         ) : activeTab === "MY_CLAIMS" && displayClaims.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center px-4">
-             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
+             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-xl border border-white/10 bg-white/5">
                <PackageSearch className="h-7 w-7 text-white/20" />
              </div>
              <h3 className="text-white/70 font-semibold mb-1">No claims found</h3>
@@ -208,7 +254,7 @@ export default function LostAndFoundPage() {
           </div>
         ) : activeTab !== "MY_CLAIMS" && displayItems.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center px-4">
-             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
+             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-xl border border-white/10 bg-white/5">
                <PackageSearch className="h-7 w-7 text-white/20" />
              </div>
              <h3 className="text-white/70 font-semibold mb-1">No matching items</h3>
@@ -255,10 +301,10 @@ export default function LostAndFoundPage() {
                   type="button"
                   onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                   disabled={paginationData.currentPage === 1}
-                  className={`inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors ${
+                  className={`inline-flex h-10 items-center gap-2 rounded-md border px-3 text-sm font-semibold transition-colors ${
                     paginationData.currentPage === 1
                       ? "cursor-not-allowed border-white/5 bg-white/5 text-white/20"
-                      : "border-white/10 bg-white/5 text-white/65 hover:bg-white/10 hover:text-white"
+                      : "border-white/10 bg-[#0E1628] text-white/65 hover:bg-white/10 hover:text-white"
                   }`}
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -272,9 +318,9 @@ export default function LostAndFoundPage() {
                       key={page}
                       type="button"
                       onClick={() => setCurrentPage(page)}
-                      className={`h-10 w-10 rounded-lg text-sm font-semibold transition-colors ${
+                      className={`h-10 w-10 rounded-md text-sm font-semibold transition-colors ${
                         paginationData.currentPage === page
-                          ? "bg-[#1A5FB4] text-white shadow-lg shadow-[#1A5FB4]/30"
+                          ? "bg-[#62A0EA]/15 text-[#62A0EA]"
                           : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"
                       }`}
                     >
@@ -286,10 +332,10 @@ export default function LostAndFoundPage() {
                   type="button"
                   onClick={() => setCurrentPage(prev => Math.min(prev + 1, paginationData.totalPages))}
                   disabled={paginationData.currentPage === paginationData.totalPages}
-                  className={`inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors ${
+                  className={`inline-flex h-10 items-center gap-2 rounded-md border px-3 text-sm font-semibold transition-colors ${
                     paginationData.currentPage === paginationData.totalPages
                       ? "cursor-not-allowed border-white/5 bg-white/5 text-white/20"
-                      : "border-white/10 bg-white/5 text-white/65 hover:bg-white/10 hover:text-white"
+                      : "border-white/10 bg-[#0E1628] text-white/65 hover:bg-white/10 hover:text-white"
                   }`}
                 >
                   Next
@@ -304,7 +350,7 @@ export default function LostAndFoundPage() {
       {/* --- ITEM DETAIL MODAL --- */}
       {detailItem && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setDetailItem(null)}>
-          <div className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#071A2E] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-white/10 bg-[#071A2E] shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
               <div className="relative aspect-[4/3] flex-shrink-0 bg-[#0A1E33] lg:aspect-auto lg:min-h-[520px]">
                 {detailItem.imageUrl ? (
@@ -394,7 +440,7 @@ export default function LostAndFoundPage() {
       {/* --- CLAIM MODAL --- */}
       {showClaimModal && itemToClaim && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="flex h-[min(720px,88vh)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#071A2E] shadow-2xl">
+          <div className="flex h-[min(720px,88vh)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-white/10 bg-[#071A2E] shadow-2xl">
             <div className="flex flex-shrink-0 items-start justify-between gap-4 border-b border-white/10 p-5">
               <div className="min-w-0">
                 <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#FF6D3A]/25 bg-[#FF6D3A]/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[#FFB199]">
@@ -426,7 +472,7 @@ export default function LostAndFoundPage() {
                   value={proofText}
                   onChange={(e) => setProofText(e.target.value)}
                   placeholder="Describe a specific detail, where you sat, unique marks, contents, or anything staff can verify."
-                  className="w-full resize-none rounded-xl border border-white/10 bg-[#050F1A] px-4 py-3 text-sm leading-6 text-white outline-none transition-colors placeholder:text-white/30 focus:border-[#62A0EA]"
+                  className="w-full resize-none rounded-xl border border-white/10 bg-[#0E1628] px-4 py-3 text-sm leading-6 text-white outline-none transition-colors placeholder:text-white/30 focus:border-[#62A0EA]"
                 />
                 <p className="mt-2 text-[10px] font-medium text-white/30">This proof is visible to the admin reviewer.</p>
               </div>
@@ -462,7 +508,7 @@ export default function LostAndFoundPage() {
       {/* --- CANCEL CLAIM CONFIRMATION MODAL --- */}
       {claimToCancel && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-white/10 bg-[#071A2E] shadow-2xl">
+          <div className="w-full max-w-md overflow-hidden rounded-xl border border-white/10 bg-[#071A2E] shadow-2xl">
             <div className="flex items-start gap-4 p-5">
               <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-red-500/30 bg-red-500/10 text-red-400">
                 <AlertTriangle className="h-5 w-5" />
@@ -536,8 +582,8 @@ function buildVisiblePages(currentPage: number, totalPages: number): (number | "
 
 function DetailInfo({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
-    <div className="flex min-w-0 items-start gap-3 rounded-xl border border-white/8 bg-white/[0.04] p-3">
-      <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-black/20 text-[#62A0EA]">
+    <div className="flex min-w-0 items-start gap-3 rounded-lg border border-white/8 bg-white/[0.04] p-3">
+      <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-black/20 text-[#62A0EA]">
         {icon}
       </div>
       <div className="min-w-0">
@@ -599,7 +645,7 @@ function ClaimRecordCard({
   const timelineSteps = buildClaimTimeline(claim, item);
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-[#071A2E] p-4 shadow-lg shadow-black/20">
+    <div className="rounded-xl border border-white/10 bg-[#071A2E] p-4 shadow-lg shadow-black/20">
       <div className="flex flex-col gap-4 sm:flex-row">
         <button
           type="button"

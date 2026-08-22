@@ -45,7 +45,7 @@ export interface LostFoundFormData {
 interface AddLostFoundModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (itemData: LostFoundFormData) => void;
+  onSave: (itemData: LostFoundFormData) => void | Promise<void>;
 }
 
 const emptyForm: LostFoundFormData = {
@@ -96,7 +96,10 @@ export function AddLostFoundModal({ isOpen, onClose, onSave }: AddLostFoundModal
   const [timeRange, setTimeRange] = useState({ start: '', end: '' });
   const [drivers, setDrivers] = useState<PersonnelOption[]>([]);
   const [conductors, setConductors] = useState<PersonnelOption[]>([]);
+  const [plateNumbers, setPlateNumbers] = useState<string[]>([]);
   const [isLoadingPersonnel, setIsLoadingPersonnel] = useState(false);
+  const [isLoadingPlates, setIsLoadingPlates] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -121,6 +124,28 @@ export function AddLostFoundModal({ isOpen, onClose, onSave }: AddLostFoundModal
         setConductors(list.map((c) => ({ id: String(c.id ?? ''), name: `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim() })));
       }
       setIsLoadingPersonnel(false);
+    })();
+
+    return () => { cancelled = true; };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+
+    (async () => {
+      setIsLoadingPlates(true);
+      const res = await fetch('/api/admin/vehicles?per_page=100', { headers: { Accept: 'application/json' } }).catch(() => null);
+      if (cancelled) return;
+
+      if (res?.ok) {
+        const json = await res.json();
+        const payload = json.data;
+        const list = (Array.isArray(payload) ? payload : payload?.data ?? []) as Record<string, unknown>[];
+        const plates = list.map((v) => String(v.plate_number ?? '').trim()).filter(Boolean);
+        setPlateNumbers(Array.from(new Set(plates)).sort());
+      }
+      setIsLoadingPlates(false);
     })();
 
     return () => { cancelled = true; };
@@ -166,11 +191,17 @@ export function AddLostFoundModal({ isOpen, onClose, onSave }: AddLostFoundModal
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
-    setFormData(emptyForm);
-    setTimeRange({ start: '', end: '' });
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await onSave(formData);
+      setFormData(emptyForm);
+      setTimeRange({ start: '', end: '' });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const inputClasses = 'block h-11 w-full rounded-lg border border-white/10 bg-[#0E1628] px-3 text-sm text-white shadow-sm outline-none transition-colors placeholder:text-slate-600 focus:border-[#62A0EA] focus:ring-2 focus:ring-[#62A0EA]/15 disabled:cursor-not-allowed disabled:opacity-60';
@@ -209,7 +240,10 @@ export function AddLostFoundModal({ isOpen, onClose, onSave }: AddLostFoundModal
 
             <div>
               <FieldLabel htmlFor="plateNumber" icon={<IdCard className="h-3.5 w-3.5" />}>Plate Number</FieldLabel>
-              <input type="text" id="plateNumber" name="plateNumber" value={formData.plateNumber} onChange={handleChange} placeholder="ABC 1234" className={inputClasses} />
+              <select id="plateNumber" name="plateNumber" value={formData.plateNumber} onChange={handleChange} disabled={isLoadingPlates} className={`${inputClasses} [color-scheme:dark]`}>
+                <option value="" className="bg-gray-800">{isLoadingPlates ? 'Loading plate numbers...' : 'Select a plate number'}</option>
+                {plateNumbers.map(plate => (<option key={plate} value={plate} className="bg-gray-800">{plate}</option>))}
+              </select>
             </div>
 
             <div className="sm:col-span-2">
@@ -321,10 +355,14 @@ export function AddLostFoundModal({ isOpen, onClose, onSave }: AddLostFoundModal
         </section>
 
         <div className="flex flex-col-reverse gap-2 border-t border-white/10 pt-4 sm:flex-row sm:justify-end">
-          <button type="button" onClick={onClose} className="inline-flex h-11 items-center justify-center rounded-lg border border-white/10 px-5 text-sm font-semibold text-slate-300 transition-colors hover:bg-white/5 hover:text-white">Cancel</button>
-          <button type="submit" className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-5 text-sm font-bold text-white transition-colors hover:bg-[#4A8BD4]">
-            <Save className="h-4 w-4" />
-            Report Item
+          <button type="button" onClick={onClose} disabled={isSubmitting} className="inline-flex h-11 items-center justify-center rounded-lg border border-white/10 px-5 text-sm font-semibold text-slate-300 transition-colors hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">Cancel</button>
+          <button type="submit" disabled={isSubmitting} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-5 text-sm font-bold text-white transition-colors hover:bg-[#4A8BD4] disabled:cursor-not-allowed disabled:opacity-50">
+            {isSubmitting ? (
+              <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" aria-hidden="true" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            {isSubmitting ? 'Reporting...' : 'Report Item'}
           </button>
         </div>
       </form>

@@ -158,7 +158,7 @@ export default function RewardsPage() {
                   className={`relative bg-[#071A2E] border rounded-xl p-4 transition-all duration-300 cursor-pointer hover:bg-[#0B1E33] ${item.isRead ? 'border-white/5 opacity-60' : 'border-white/10 shadow-lg shadow-black/20'}`}
                 >
                   {!item.isRead && (
-                    <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-[#62A0EA]" />
+                    <div className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-[#62A0EA] ring-2 ring-[#071A2E]" />
                   )}
                   <div className="flex items-start gap-3">
                     <div className={`mt-0.5 flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${config.bg} ${config.color}`}>

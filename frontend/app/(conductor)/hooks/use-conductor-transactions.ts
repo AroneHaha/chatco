@@ -42,8 +42,16 @@ interface UseConductorTransactionsResult {
 export function useConductorTransactions(
   shiftId: string | null
 ): UseConductorTransactionsResult {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [status, setStatus] = useState<UseConductorTransactionsResult["status"]>("loading");
+  // If the shift hook already seeded a shiftId from its own cache (the usual
+  // case for a returning conductor), read that shift's cached transactions
+  // synchronously too — fetchShiftTransactions() still verifies against the
+  // server right after mount, this just avoids a blank total in between.
+  const [transactions, setTransactions] = useState<Transaction[]>(() =>
+    shiftId ? getShiftTransactions(shiftId) : []
+  );
+  const [status, setStatus] = useState<UseConductorTransactionsResult["status"]>(() =>
+    shiftId ? "success" : "loading"
+  );
   const [error, setError] = useState<string | null>(null);
   const refreshInFlight = useRef<Promise<void> | null>(null);
 

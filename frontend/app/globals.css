@@ -211,6 +211,44 @@ body {
   .animate-fade-in { animation: none; }
 }
 
+/* ─── Modal entrance (backdrop + panel) ─────────────────────────────────
+ * Several modals (conductor fare-calculator-modal.tsx, commuter sos-modal,
+ * share-ride-modal, conductor sos-confirm-modal) referenced Tailwind's
+ * `tailwindcss-animate`-style utilities — `animate-in`, `fade-in`,
+ * `zoom-in-95`, `animate-slide-in-from-bottom` — but that plugin was never
+ * installed (only `@tailwindcss/postcss` is configured), so those classes
+ * silently generated no CSS at all: the modals were popping in instantly
+ * with zero animation. These two replace that dead pattern with real,
+ * working keyframes. Backdrop is opacity-only (a vertical offset reads
+ * wrong on a full-screen scrim). The panel slides up from below its own
+ * box (`translateY(100%)`, not a fixed px nudge) so it reads as an actual
+ * bottom-sheet entrance regardless of the panel's height. Both only cover
+ * the OPEN moment — these modals hard-unmount on close (`if (!isOpen)
+ * return null`), which leaves no time for an exit transition to play.
+ */
+@keyframes modal-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes modal-panel-in {
+  from { opacity: 0; transform: translateY(100%); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-modal-backdrop-in {
+  animation: modal-backdrop-in 0.2s ease-out;
+}
+
+.animate-modal-panel-in {
+  animation: modal-panel-in 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-modal-backdrop-in,
+  .animate-modal-panel-in { animation: none; }
+}
+
 /* ─── Feedback success countdown ring ──────────────────────────────────
  * Moved out of the feedback page's `<style jsx global>` for the same reason
  * as `fade-in` above: the keyframes only existed while that one branch was

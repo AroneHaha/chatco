@@ -115,7 +115,9 @@ export function EditLostFoundModal({ isOpen, onClose, item, onSave }: EditLostFo
   const [timeRange, setTimeRange] = useState({ start: '', end: '' });
   const [drivers, setDrivers] = useState<PersonnelOption[]>([]);
   const [conductors, setConductors] = useState<PersonnelOption[]>([]);
+  const [plateNumbers, setPlateNumbers] = useState<string[]>([]);
   const [isLoadingPersonnel, setIsLoadingPersonnel] = useState(false);
+  const [isLoadingPlates, setIsLoadingPlates] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -159,6 +161,28 @@ export function EditLostFoundModal({ isOpen, onClose, item, onSave }: EditLostFo
         setConductors(list.map((c) => ({ id: String(c.id ?? ''), name: `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim() })));
       }
       setIsLoadingPersonnel(false);
+    })();
+
+    return () => { cancelled = true; };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+
+    (async () => {
+      setIsLoadingPlates(true);
+      const res = await fetch('/api/admin/vehicles?per_page=100', { headers: { Accept: 'application/json' } }).catch(() => null);
+      if (cancelled) return;
+
+      if (res?.ok) {
+        const json = await res.json();
+        const payload = json.data;
+        const list = (Array.isArray(payload) ? payload : payload?.data ?? []) as Record<string, unknown>[];
+        const plates = list.map((v) => String(v.plate_number ?? '').trim()).filter(Boolean);
+        setPlateNumbers(Array.from(new Set(plates)).sort());
+      }
+      setIsLoadingPlates(false);
     })();
 
     return () => { cancelled = true; };
@@ -240,7 +264,13 @@ export function EditLostFoundModal({ isOpen, onClose, item, onSave }: EditLostFo
 
             <div>
               <FieldLabel htmlFor="edit-plateNumber" icon={<IdCard className="h-3.5 w-3.5" />}>Plate Number</FieldLabel>
-              <input type="text" id="edit-plateNumber" name="plateNumber" value={formData.plateNumber} onChange={handleChange} disabled={isSaving} placeholder="ABC 1234" className={inputClasses} />
+              <select id="edit-plateNumber" name="plateNumber" value={formData.plateNumber} onChange={handleChange} disabled={isLoadingPlates || isSaving} className={`${inputClasses} [color-scheme:dark]`}>
+                <option value="" className="bg-gray-800">{isLoadingPlates ? 'Loading plate numbers...' : 'Select a plate number'}</option>
+                {formData.plateNumber && !plateNumbers.includes(formData.plateNumber) && (
+                  <option value={formData.plateNumber} className="bg-gray-800">{formData.plateNumber}</option>
+                )}
+                {plateNumbers.map(plate => (<option key={plate} value={plate} className="bg-gray-800">{plate}</option>))}
+              </select>
             </div>
 
             <div className="sm:col-span-2">

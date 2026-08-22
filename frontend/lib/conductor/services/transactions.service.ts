@@ -1,7 +1,13 @@
-import { api, NetworkError } from "@/lib/api/client";
+import { api, ApiError, NetworkError } from "@/lib/api/client";
 import { CONDUCTOR_API } from "@/lib/conductor/endpoints";
 import * as transactionsStore from "@/lib/conductor/persistence/transactions.store";
 import { CONDUCTOR_DEVICE_TYPE, getConductorDeviceId } from "@/lib/conductor/persistence/device.store";
+
+/** Extract the human message from an ApiError body (Laravel envelope). */
+function readMessage(err: ApiError, fallback: string): string {
+  const body = err.body as { message?: string } | null;
+  return body?.message ?? fallback;
+}
 
 export type { Transaction } from "@/lib/conductor/persistence/transactions.store";
 export type { PaymentMethodType } from "@/types";
@@ -203,7 +209,11 @@ export async function createTransaction(
       return saved;
     }
 
-    // Re-throw ApiError (401/403/422/500) and other unexpected errors
+    if (error instanceof ApiError) {
+      throw new Error(readMessage(error, "Unable to save transaction."));
+    }
+
+    // Re-throw other unexpected errors
     throw error;
   }
 }
@@ -270,6 +280,9 @@ export async function createGroupCashTransaction(
       })),
     };
   } catch (error) {
+    if (error instanceof ApiError) {
+      throw new Error(readMessage(error, "Unable to save transaction."));
+    }
     if (!(error instanceof NetworkError)) throw error;
     const reference = `OFFLINE-${idempotencyKey.slice(0, 8).toUpperCase()}`;
     const totalPassengers = input.passengers.reduce((sum, row) => sum + row.quantity, 0);

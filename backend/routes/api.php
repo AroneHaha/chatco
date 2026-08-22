@@ -422,6 +422,7 @@ Route::prefix('lost-found')->middleware(['auth:sanctum'])->group(function () {
 |--------------------------------------------------------------------------
 |   GET  /announcements                (any auth role) — ACTIVE feed w/ is_read
 |   GET  /announcements/unread-count   (any auth role) — bell badge count
+|   POST /announcements/mark-all-read  (any auth role) — bulk mark-as-read
 |   POST /announcements/{id}/read      (any auth role) — mark-as-read (204)
 |
 | Admin CRUD (create/update/archive) lives in the /admin group above via
@@ -430,6 +431,7 @@ Route::prefix('lost-found')->middleware(['auth:sanctum'])->group(function () {
 */
 Route::prefix('announcements')->middleware(['auth:sanctum'])->group(function () {
     Route::get('/unread-count', [AnnouncementController::class, 'unreadCount'])->middleware('throttle:commuter-read');
+    Route::post('/mark-all-read', [AnnouncementController::class, 'markAllRead'])->middleware('throttle:commuter-write');
     Route::get('/', [AnnouncementController::class, 'index'])->middleware('throttle:commuter-read');
     Route::post('/{id}/read', [AnnouncementController::class, 'markRead'])->middleware('throttle:commuter-write');
 });

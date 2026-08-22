@@ -15,6 +15,7 @@ import {
   CalendarDays,
   CheckCircle2,
   ChevronDown,
+  ChevronUp,
   ClipboardList,
   History,
   PackageSearch,
@@ -114,6 +115,10 @@ export default function LostFoundPage() {
   const [isActing, setIsActing] = useState(false);
   const [pageMeta, setPageMeta] = useState<PageMeta>({ page: 1, lastPage: 1, total: 0 });
   const [viewedClaimMarkers, setViewedClaimMarkers] = useState<ViewedClaimMarkers>(readViewedClaimMarkers);
+  // Mobile-only: collapses the tab grid + filter row down to just the title
+  // and Add Item button, same collapse pattern as the conductor dashboard's
+  // MobileDashboardCard. Has no effect at md: and up (always expanded there).
+  const [isMobileFiltersExpanded, setIsMobileFiltersExpanded] = useState(true);
 
   const [activeTab, setActiveTab] = useState<AdminTab>('ALL');
   const [activeCategory, setActiveCategory] = useState<ItemCategory | 'ALL'>('ALL');
@@ -415,7 +420,7 @@ export default function LostFoundPage() {
   };
 
   return (
-    <div className="h-full w-[calc(100%+2rem)] flex flex-col overflow-hidden relative -mx-4 -mt-4 md:w-full md:mx-0 md:mt-0">
+    <div className="h-[calc(100%+2rem)] w-[calc(100%+2rem)] flex flex-col overflow-hidden relative -mx-4 -mt-4 md:h-full md:w-full md:mx-0 md:mt-0">
       {/* Header. On phones it breaks out of <main>'s padding to sit flush at the
           top edge-to-edge (like the shared sticky header). On desktop it drops
           the boxed-card look and becomes a borderless, transparent full-width
@@ -440,77 +445,96 @@ export default function LostFoundPage() {
           </button>
         </div>
 
-        <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-5">
-          {tabs.map(({ key, label, description, icon: Icon }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => { setActiveTab(key); setCurrentPage(1); }}
-              className={`rounded-xl border p-3 text-left transition-colors ${
-                activeTab === key
-                  ? 'border-[#62A0EA]/45 bg-[#1A5FB4]/20 text-white shadow-lg shadow-[#1A5FB4]/15'
-                  : 'border-white/10 bg-[#0E1628] text-slate-400 hover:bg-[#131C2E] hover:text-white'
-              }`}
-            >
-              <div className="mb-2 flex items-center gap-2">
-                <Icon className="h-4 w-4 text-[#62A0EA]" />
-                <span className="text-xs font-bold">{label}</span>
+        {/* Mobile-only collapse: tab grid + filter row hide behind a toggle so
+            just the title and Add Item button stay visible on small screens —
+            same pattern as the conductor dashboard's MobileDashboardCard. The
+            md:!max-h-none override means this never collapses at md: and up. */}
+        <div
+          className="overflow-hidden transition-all duration-300 ease-in-out md:max-h-none!"
+          style={{ maxHeight: isMobileFiltersExpanded ? '700px' : '0px' }}
+        >
+          <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-5">
+            {tabs.map(({ key, label, description, icon: Icon }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => { setActiveTab(key); setCurrentPage(1); }}
+                className={`rounded-xl border p-3 text-left transition-colors ${
+                  activeTab === key
+                    ? 'border-[#62A0EA]/45 bg-[#1A5FB4]/20 text-white shadow-lg shadow-[#1A5FB4]/15'
+                    : 'border-white/10 bg-[#0E1628] text-slate-400 hover:bg-[#131C2E] hover:text-white'
+                }`}
+              >
+                <div className="mb-2 flex items-center gap-2">
+                  <Icon className="h-4 w-4 text-[#62A0EA]" />
+                  <span className="text-xs font-bold">{label}</span>
+                </div>
+                <p className="text-[10px] text-slate-500">{description}</p>
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="relative min-w-0 lg:w-100">
+              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+              <input
+                type="text"
+                placeholder="Search item, plate, driver, or conductor..."
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                className="w-full rounded-xl border border-white/10 bg-[#0E1628] py-3 pl-11 pr-4 text-sm text-white outline-none transition-colors placeholder:text-slate-500 focus:border-[#62A0EA]"
+              />
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:justify-end">
+              <div className="relative sm:w-52">
+                <CalendarDays className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => { setSelectedDate(e.target.value); setCurrentPage(1); }}
+                  className="h-11 w-full rounded-xl border border-white/10 bg-[#0E1628] py-3 pl-11 pr-10 text-sm font-semibold text-slate-300 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
+                  aria-label="Filter lost items by posted date"
+                />
+                {selectedDate && (
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedDate(''); setCurrentPage(1); }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-500 transition-colors hover:bg-white/5 hover:text-slate-200"
+                    aria-label="Clear date filter"
+                    title="Clear date"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
-              <p className="text-[10px] text-slate-500">{description}</p>
-            </button>
-          ))}
+              <div className="relative sm:w-60">
+                <select
+                  value={activeCategory}
+                  onChange={(e) => { setActiveCategory(e.target.value as ItemCategory | 'ALL'); setCurrentPage(1); }}
+                  className="h-11 w-full appearance-none rounded-xl border border-white/10 bg-[#0E1628] px-4 pr-10 text-sm font-semibold text-slate-300 outline-none transition-colors focus:border-[#62A0EA]"
+                  aria-label="Filter lost items by category"
+                >
+                  {itemCategoriesWithAll.map(cat => (
+                    <option key={cat.value} value={cat.value}>
+                      {cat.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="relative min-w-0 lg:w-[34rem]">
-            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-            <input
-              type="text"
-              placeholder="Search item, plate, driver, or conductor..."
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              className="w-full rounded-xl border border-white/10 bg-[#0E1628] py-3 pl-11 pr-4 text-sm text-white outline-none transition-colors placeholder:text-slate-500 focus:border-[#62A0EA]"
-            />
-          </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:justify-end">
-            <div className="relative sm:w-52">
-              <CalendarDays className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => { setSelectedDate(e.target.value); setCurrentPage(1); }}
-                className="h-11 w-full rounded-xl border border-white/10 bg-[#0E1628] py-3 pl-11 pr-10 text-sm font-semibold text-slate-300 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
-                aria-label="Filter lost items by posted date"
-              />
-              {selectedDate && (
-                <button
-                  type="button"
-                  onClick={() => { setSelectedDate(''); setCurrentPage(1); }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-500 transition-colors hover:bg-white/5 hover:text-slate-200"
-                  aria-label="Clear date filter"
-                  title="Clear date"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-            <div className="relative sm:w-60">
-              <select
-                value={activeCategory}
-                onChange={(e) => { setActiveCategory(e.target.value as ItemCategory | 'ALL'); setCurrentPage(1); }}
-                className="h-11 w-full appearance-none rounded-xl border border-white/10 bg-[#0E1628] px-4 pr-10 text-sm font-semibold text-slate-300 outline-none transition-colors focus:border-[#62A0EA]"
-                aria-label="Filter lost items by category"
-              >
-                {itemCategoriesWithAll.map(cat => (
-                  <option key={cat.value} value={cat.value}>
-                    {cat.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-            </div>
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => setIsMobileFiltersExpanded((prev) => !prev)}
+          aria-expanded={isMobileFiltersExpanded}
+          aria-label={isMobileFiltersExpanded ? 'Collapse filters' : 'Expand filters'}
+          className="-mx-4 -mb-4 mt-2 flex w-[calc(100%+2rem)] flex-shrink-0 items-center justify-center border-t border-white/5 py-1.5 text-slate-500 transition-colors hover:bg-white/5 hover:text-slate-300 active:bg-white/10 md:hidden"
+        >
+          <ChevronUp className={`h-4 w-4 transition-transform duration-300 ${isMobileFiltersExpanded ? 'rotate-180' : ''}`} />
+        </button>
       </div>
 
       {actionError && (
@@ -524,7 +548,7 @@ export default function LostFoundPage() {
       <div className="flex-1 min-h-0 flex flex-col px-4 md:px-0">
         <div className="flex-1 min-h-0 overflow-y-auto pb-4">
           {isLoading ? (
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-5 xl:grid-cols-3 2xl:grid-cols-4">
               {Array.from({ length: 8 }).map((_, index) => (
                 <div key={index} className="h-[430px] rounded-xl border border-white/10 bg-white/[0.04]">
                   <div className="h-full w-full animate-pulse rounded-[inherit] bg-gradient-to-r from-white/[0.03] via-white/[0.07] to-white/[0.03]" />
@@ -542,7 +566,7 @@ export default function LostFoundPage() {
               <p className="text-slate-500 text-sm">Try adjusting your search or filters.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
+            <div className="grid grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
               <LostFoundGrid
                 items={displayItems}
                 claimSummaries={claimSummaries}

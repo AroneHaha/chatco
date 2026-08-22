@@ -285,19 +285,49 @@ export async function list(params: {
 
 /**
  * Fetch the count of ACTIVE announcements the current user has NOT read.
- * Powers the bell badge.
+ * Powers the bell badge. Pass `types` to scope the count (e.g. the Lost &
+ * Found Claims tab badge only counts claim status-update announcements) —
+ * omitted, it counts every unread announcement.
  *
  * @throws {AnnouncementOperationError} 401/5xx
  */
-export async function unreadCount(): Promise<number> {
+export async function unreadCount(params: { types?: string[] } = {}): Promise<number> {
+  const qs = buildQuery({ types: params.types?.length ? params.types.join(",") : undefined });
   try {
     const response = await api.get<ApiResponseEnvelope<{ count: number }>>(
-      `/api/announcements/unread-count`
+      `/api/announcements/unread-count${qs}`
     );
     return response.data?.count ?? 0;
   } catch (err) {
     if (err instanceof ApiError) {
       throw classifyError(err, "Unable to load unread count.");
+    }
+    throw new AnnouncementOperationError(
+      "network",
+      err instanceof Error ? err.message : "Unable to reach the backend service."
+    );
+  }
+}
+
+/**
+ * Mark every currently-unread ACTIVE announcement visible to the user as
+ * read in one request, optionally scoped to `types` (e.g. the Lost & Found
+ * Claims tab marks only claim status-update announcements as read when
+ * opened, leaving unrelated unread announcements untouched).
+ *
+ * @returns The number of rows newly marked as read.
+ * @throws {AnnouncementOperationError} 401/5xx
+ */
+export async function markAllRead(params: { types?: string[] } = {}): Promise<number> {
+  const qs = buildQuery({ types: params.types?.length ? params.types.join(",") : undefined });
+  try {
+    const response = await api.post<ApiResponseEnvelope<{ count: number }>>(
+      `/api/announcements/mark-all-read${qs}`
+    );
+    return response.data?.count ?? 0;
+  } catch (err) {
+    if (err instanceof ApiError) {
+      throw classifyError(err, "Unable to mark these announcements as read.");
     }
     throw new AnnouncementOperationError(
       "network",

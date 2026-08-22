@@ -43,7 +43,7 @@ export function MobileDashboardCard({
   canOperate,
 }: MobileDashboardCardProps) {
   return (
-    <div className="lg:hidden flex-shrink-0 bg-[#071A2E]/95 backdrop-blur-xl z-20 border-b border-white/10">
+    <div className="lg:hidden bg-[#071A2E]/95 backdrop-blur-xl border-b border-white/10">
       <div className="flex items-center justify-between px-4 py-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
