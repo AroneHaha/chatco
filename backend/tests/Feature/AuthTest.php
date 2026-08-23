@@ -3,11 +3,11 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
-use App\Models\User;
 use App\Models\AdminProfile;
 use App\Models\CommuterProfile;
 use App\Models\ConductorProfile;
 use App\Models\ShiftLog;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -19,15 +19,15 @@ class AuthTest extends TestCase
     private function seedAdmin(): User
     {
         $admin = User::create([
-            'email'    => 'admin@gmail.com',
+            'email' => 'admin@gmail.com',
             'password' => Hash::make('password123'),
-            'role'     => UserRole::ADMIN,
+            'role' => UserRole::ADMIN,
         ]);
 
         AdminProfile::create([
-            'id'         => $admin->id,
+            'id' => $admin->id,
             'first_name' => 'System',
-            'last_name'  => 'Admin',
+            'last_name' => 'Admin',
         ]);
 
         return $admin;
@@ -36,24 +36,24 @@ class AuthTest extends TestCase
     private function seedCommuter(): User
     {
         $commuter = User::create([
-            'email'    => 'commuter1@gmail.com',
+            'email' => 'commuter1@gmail.com',
             'password' => Hash::make('password123'),
-            'role'     => UserRole::COMMUTER,
+            'role' => UserRole::COMMUTER,
         ]);
 
         CommuterProfile::create([
-            'id'                  => $commuter->id,
-            'first_name'          => 'Jose',
-            'surname'             => 'Mendoza',
-            'birthdate'           => '1998-05-12',
-            'gender'              => 'Male',
-            'email'               => 'commuter1@gmail.com',
-            'contact_number'      => '+639171234567',
-            'commuter_type'       => 'Regular',
-            'username'            => 'commuter001',
+            'id' => $commuter->id,
+            'first_name' => 'Jose',
+            'surname' => 'Mendoza',
+            'birthdate' => '1998-05-12',
+            'gender' => 'Male',
+            'email' => 'commuter1@gmail.com',
+            'contact_number' => '+639171234567',
+            'commuter_type' => 'Regular',
+            'username' => 'commuter001',
             'language_preference' => 'en',
-            'account_status'      => 'ACTIVE',
-            'verified_at'         => now(),
+            'account_status' => 'ACTIVE',
+            'verified_at' => now(),
         ]);
 
         return $commuter;
@@ -62,16 +62,16 @@ class AuthTest extends TestCase
     private function seedConductor(): User
     {
         $conductor = User::create([
-            'email'    => 'conductor1@gmail.com',
+            'email' => 'conductor1@gmail.com',
             'password' => Hash::make('password123'),
-            'role'     => UserRole::CONDUCTOR,
+            'role' => UserRole::CONDUCTOR,
         ]);
 
         ConductorProfile::create([
-            'id'                 => $conductor->id,
-            'first_name'         => 'Juan',
-            'last_name'          => 'Dela Cruz',
-            'birthday'           => '1990-03-15',
+            'id' => $conductor->id,
+            'first_name' => 'Juan',
+            'last_name' => 'Dela Cruz',
+            'birthday' => '1990-03-15',
             'generated_username' => 'conductor001',
             'generated_password' => Hash::make('password123'),
         ]);
@@ -86,7 +86,7 @@ class AuthTest extends TestCase
         $this->seedAdmin();
 
         $response = $this->postJson('/api/v1/auth/login', [
-            'login'    => 'admin@gmail.com',
+            'login' => 'admin@gmail.com',
             'password' => 'password123',
         ]);
 
@@ -108,7 +108,7 @@ class AuthTest extends TestCase
         $this->seedAdmin();
 
         $response = $this->postJson('/api/v1/auth/login', [
-            'login'    => 'admin@gmail.com',
+            'login' => 'admin@gmail.com',
             'password' => 'wrong-password',
         ]);
 
@@ -120,7 +120,7 @@ class AuthTest extends TestCase
     public function test_login_with_nonexistent_email_returns_401(): void
     {
         $response = $this->postJson('/api/v1/auth/login', [
-            'login'    => 'nobody@gmail.com',
+            'login' => 'nobody@gmail.com',
             'password' => 'password123',
         ]);
 
@@ -143,7 +143,7 @@ class AuthTest extends TestCase
         $this->seedConductor();
 
         $response = $this->postJson('/api/v1/auth/login', [
-            'login'    => 'conductor001',
+            'login' => 'conductor001',
             'password' => 'password123',
         ]);
 
@@ -168,7 +168,7 @@ class AuthTest extends TestCase
         ]);
 
         $response = $this->postJson('/api/v1/auth/login', [
-            'login'    => 'admin@gmail.com',
+            'login' => 'admin@gmail.com',
             'password' => 'password123',
         ]);
         $response->assertStatus(200);
@@ -197,7 +197,7 @@ class AuthTest extends TestCase
         $firstDevice = $conductor->createToken('device-one')->plainTextToken;
 
         $this->postJson('/api/v1/auth/login', [
-            'login'    => 'conductor001',
+            'login' => 'conductor001',
             'password' => 'password123',
         ])->assertStatus(200);
 
@@ -208,7 +208,7 @@ class AuthTest extends TestCase
         $this->assertSame(1, $conductor->tokens()->count());
     }
 
-    public function test_different_device_login_cannot_revoke_the_active_shift_owner_token(): void
+    public function test_different_device_login_revokes_the_old_token_and_moves_the_active_shift(): void
     {
         $conductor = $this->seedConductor();
         $ownerToken = $conductor->createToken('device-one');
@@ -222,29 +222,61 @@ class AuthTest extends TestCase
             'operating_device_claimed_at' => now(),
         ]);
 
-        $this->postJson('/api/v1/auth/login', [
+        $response = $this->postJson('/api/v1/auth/login', [
             'login' => 'conductor001',
             'password' => 'password123',
             'device_id' => 'mobile-device-bbbbbbbb',
             'device_type' => 'MOBILE',
+        ])->assertOk();
+
+        $this->assertDatabaseMissing('personal_access_tokens', [
+            'id' => $ownerToken->accessToken->id,
+        ]);
+        $this->assertSame(1, $conductor->tokens()->count());
+        $this->assertDatabaseHas('shift_logs', [
+            'shift_id' => 'SFT-AUTH-DEVICE-1',
+            'operating_device_id' => 'mobile-device-bbbbbbbb',
+            'operating_device_type' => 'MOBILE',
+        ]);
+
+        $this->withHeader('Authorization', "Bearer {$ownerPlainTextToken}")
+            ->getJson('/api/v1/user')
+            ->assertUnauthorized();
+
+        $this->withHeader('Authorization', "Bearer {$response->json('data.token')}")
+            ->postJson('/api/v1/conductor/break-status', [
+                'is_on_break' => true,
+                'device_id' => 'mobile-device-bbbbbbbb',
+                'device_type' => 'MOBILE',
+            ])
+            ->assertOk();
+    }
+
+    public function test_unidentified_legacy_client_cannot_displace_an_active_shift_device(): void
+    {
+        $conductor = $this->seedConductor();
+        $ownerToken = $conductor->createToken('device-one');
+
+        ShiftLog::factory()->create([
+            'shift_id' => 'SFT-AUTH-DEVICE-LEGACY',
+            'conductor_id' => $conductor->id,
+            'operating_device_id' => 'web-device-aaaaaaaa',
+            'operating_device_type' => 'WEB',
+            'operating_device_claimed_at' => now(),
+        ]);
+
+        $this->postJson('/api/v1/auth/login', [
+            'login' => 'conductor001',
+            'password' => 'password123',
         ])->assertStatus(409);
 
         $this->assertDatabaseHas('personal_access_tokens', [
             'id' => $ownerToken->accessToken->id,
         ]);
-        $this->assertSame(1, $conductor->tokens()->count());
-
-        $this->withHeader('Authorization', "Bearer {$ownerPlainTextToken}")
-            ->getJson('/api/v1/user')
-            ->assertOk();
-
-        $this->withHeader('Authorization', "Bearer {$ownerPlainTextToken}")
-            ->postJson('/api/v1/conductor/break-status', [
-                'is_on_break' => true,
-                'device_id' => 'web-device-aaaaaaaa',
-                'device_type' => 'WEB',
-            ])
-            ->assertOk();
+        $this->assertDatabaseHas('shift_logs', [
+            'shift_id' => 'SFT-AUTH-DEVICE-LEGACY',
+            'operating_device_id' => 'web-device-aaaaaaaa',
+        ]);
     }
 
     public function test_active_shift_owner_can_log_in_again_on_the_same_device(): void
@@ -288,7 +320,7 @@ class AuthTest extends TestCase
         ]);
 
         $response = $this->postJson('/api/v1/auth/login', [
-            'login'    => 'commuter1@gmail.com',
+            'login' => 'commuter1@gmail.com',
             'password' => 'password123',
         ]);
         $response->assertStatus(200);
@@ -317,7 +349,7 @@ class AuthTest extends TestCase
         $firstDevice = $admin->createToken('device-one')->plainTextToken;
 
         $this->postJson('/api/v1/auth/login', [
-            'login'    => 'admin@gmail.com',
+            'login' => 'admin@gmail.com',
             'password' => 'wrong-password',
         ])->assertStatus(401);
 

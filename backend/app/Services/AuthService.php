@@ -10,6 +10,7 @@ use App\Models\ConductorProfile;
 use App\Models\ShiftLog;
 use App\Models\User;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -42,8 +43,12 @@ class AuthService
      * excludes rejected (soft-deleted) accounts, so a freed username reused
      * by a new commuter resolves only to the live account.
      */
-    public function login(string $login, string $password, ?string $deviceId = null): array
-    {
+    public function login(
+        string $login,
+        string $password,
+        ?string $deviceId = null,
+        ?string $deviceType = null,
+    ): array {
         $user = $this->resolveLoginUser($login);
 
         if (! $user || ! Hash::check($password, $user->password ?? self::DUMMY_PASSWORD_HASH)) {
@@ -63,7 +68,7 @@ class AuthService
             $suspension = $user->activeSuspension;
             $duration = $suspension->is_permanent
                 ? 'permanently'
-                : 'until ' . $suspension->ends_at?->timezone(config('app.timezone'))->format('M j, Y g:i A');
+                : 'until '.$suspension->ends_at?->timezone(config('app.timezone'))->format('M j, Y g:i A');
 
             throw new AccountSuspendedException(
                 "This account is suspended {$duration}. Reason: {$suspension->reason}"
@@ -103,11 +108,19 @@ class AuthService
         // request's create has committed, so exactly one token is ever left
         // standing and each request's own new token always survives its own
         // delete (never a later request's).
-        // Check active shift ownership before revoking the existing token. A
-        // different device must never log out the only client that can safely
-        // sync offline cash and release the shift.
-        $token = DB::transaction(function () use ($user, $deviceId) {
+        // For conductors, the last identified device to complete login becomes
+        // the active shift's operating device. The user row and shift row are
+        // locked before the handoff and token replacement, so two concurrent
+        // logins serialize: exactly one device owns the shift and exactly one
+        // token remains valid after the final commit. Shift, vehicle, driver,
+        // transaction and remittance records are not recreated or reassigned.
+        //
+        // A legacy conductor client that omits device_id may still log in when
+        // no device owns the shift, but it cannot displace an identified owner.
+        // Current Web and Mobile clients always send a stable device_id.
+        $loginResult = DB::transaction(function () use ($user, $deviceId, $deviceType) {
             $lockedUser = User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $handoff = null;
 
             if ($lockedUser->isConductor()) {
                 $activeShift = ShiftLog::query()
@@ -116,20 +129,53 @@ class AuthService
                     ->lockForUpdate()
                     ->first();
 
-                if ($activeShift?->operating_device_id !== null
-                    && ($deviceId === null || ! hash_equals($activeShift->operating_device_id, $deviceId))) {
-                    abort(409, 'This conductor has an active shift on another device. Sync and release that shift before logging in here.');
+                if ($activeShift?->operating_device_id !== null && $deviceId === null) {
+                    abort(409, 'Update this conductor client before moving an active shift from another device.');
+                }
+
+                if ($activeShift && $deviceId !== null) {
+                    $previousDeviceId = $activeShift->operating_device_id;
+                    $isDifferentDevice = $previousDeviceId !== null
+                        && ! hash_equals($previousDeviceId, $deviceId);
+
+                    if ($isDifferentDevice) {
+                        $handoff = [
+                            'shift_id' => $activeShift->shift_id,
+                            'from_device_type' => $activeShift->operating_device_type,
+                            'from_device_suffix' => substr($previousDeviceId, -8),
+                            'to_device_type' => $deviceType,
+                            'to_device_suffix' => substr($deviceId, -8),
+                        ];
+                    }
+
+                    if ($previousDeviceId === null || $isDifferentDevice) {
+                        $activeShift->update([
+                            'operating_device_id' => $deviceId,
+                            'operating_device_type' => $deviceType,
+                            'operating_device_claimed_at' => now(),
+                        ]);
+                    }
                 }
             }
 
             $lockedUser->tokens()->delete();
 
-            return $lockedUser->createToken('auth-token')->plainTextToken;
-        });
+            return [
+                'token' => $lockedUser->createToken('auth-token')->plainTextToken,
+                'handoff' => $handoff,
+            ];
+        }, 3);
+
+        if ($loginResult['handoff'] !== null) {
+            Log::notice('Conductor active shift moved to a newly logged-in device.', [
+                'conductor_id' => $user->id,
+                ...$loginResult['handoff'],
+            ]);
+        }
 
         return [
             'user' => $user,
-            'token' => $token,
+            'token' => $loginResult['token'],
         ];
     }
 
@@ -376,15 +422,14 @@ class AuthService
      * Takes the user id as a string (rather than a User model) so callers can
      * upload before the User row exists — see the call site in register().
      *
-     * @param  string  $userId
-     * @param  \Illuminate\Http\UploadedFile  $file
-     * @return string  The storage path (e.g. 'ids/uuid-abc123.jpg')
+     * @param  UploadedFile  $file
+     * @return string The storage path (e.g. 'ids/uuid-abc123.jpg')
      */
     private function storeIdImage(string $userId, $file): string
     {
         // The filename includes the user ID for traceability.
         $extension = $file->getClientOriginalExtension() ?: 'jpg';
-        $filename = $userId . '-' . Str::random(16) . '.' . $extension;
+        $filename = $userId.'-'.Str::random(16).'.'.$extension;
 
         return $file->storeAs(
             'ids',
