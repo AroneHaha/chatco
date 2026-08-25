@@ -52,6 +52,34 @@ class OperationalLifecycleTest extends TestCase
         $this->assertNotNull($vehicle->assignment_approved_at);
     }
 
+    public function test_starting_a_shift_notifies_every_admin(): void
+    {
+        $admin = User::factory()->create(['role' => 'ADMIN']);
+        $otherAdmin = User::factory()->create(['role' => 'ADMIN']);
+        $conductor = User::factory()->conductor()->create();
+        $driver = Driver::factory()->create();
+        $route = Route::factory()->create();
+        $vehicle = Vehicle::factory()->create(['route_id' => $route->id]);
+
+        $this->actingAs($conductor)
+            ->postJson('/api/v1/conductor/shifts/start', [
+                'vehicle_id' => $vehicle->id,
+                'driver_id' => $driver->id,
+                'route_id' => $route->id,
+            ])
+            ->assertCreated();
+
+        foreach ([$admin, $otherAdmin] as $recipient) {
+            $notification = Announcement::where('type', 'SHIFT_STARTED')
+                ->where('user_id', $recipient->id)
+                ->first();
+            $this->assertNotNull($notification, "Admin {$recipient->id} was not notified.");
+            $this->assertStringContainsString($vehicle->unit_number, $notification->message);
+        }
+        // Never broadcast to everyone — only the two admin accounts above.
+        $this->assertSame(2, Announcement::where('type', 'SHIFT_STARTED')->count());
+    }
+
     public function test_conductor_cannot_start_shift_with_vehicle_assigned_to_another_conductor(): void
     {
         $conductor = User::factory()->conductor()->create();
@@ -168,6 +196,63 @@ class OperationalLifecycleTest extends TestCase
             $this->assertSame(number_format($shortage, 2, '.', ''), $remittance->shortage);
             $this->assertSame(number_format($overage, 2, '.', ''), $remittance->overage);
         }
+    }
+
+    public function test_manual_remittance_completion_notifies_admins(): void
+    {
+        $admin = User::factory()->create(['role' => 'ADMIN']);
+        [$conductor, , , , $shift] = $this->activeShift();
+        $this->fare($shift, PaymentMethod::CASH, PaymentStatus::PAID, 100);
+
+        app(ShiftCloseoutService::class)->close(
+            $shift->shift_id,
+            100,
+            ShiftCloseoutService::REASON_MANUAL,
+            $conductor->id,
+        );
+
+        $notification = Announcement::where('type', 'REMITTANCE_COMPLETED')
+            ->where('user_id', $admin->id)
+            ->first();
+        $this->assertNotNull($notification);
+        $this->assertStringContainsString($shift->unit_number, $notification->message);
+    }
+
+    public function test_automatic_closeout_with_nothing_owed_notifies_admins(): void
+    {
+        $admin = User::factory()->create(['role' => 'ADMIN']);
+        [, , , , $shift] = $this->activeShift();
+        // No fares recorded — expected cash is 0, so the STALE closeout below
+        // resolves straight to COMPLETE without any conductor action.
+
+        app(ShiftCloseoutService::class)->close($shift->shift_id, null, ShiftCloseoutService::REASON_STALE);
+
+        $this->assertSame(Remittance::STATUS_COMPLETE, Remittance::findOrFail($shift->shift_id)->remittance_status);
+        $this->assertSame(
+            1,
+            Announcement::where('type', 'REMITTANCE_COMPLETED')->where('user_id', $admin->id)->count(),
+        );
+    }
+
+    public function test_resolving_a_previously_pending_remittance_notifies_admins_once(): void
+    {
+        $admin = User::factory()->create(['role' => 'ADMIN']);
+        [$conductor, , , , $shift] = $this->activeShift();
+        $this->fare($shift, PaymentMethod::CASH, PaymentStatus::PAID, 80);
+        $service = app(ShiftCloseoutService::class);
+
+        // Stale auto-closeout: cash is owed, nobody physically submitted it yet → PENDING, no notification.
+        $service->close($shift->shift_id, null, ShiftCloseoutService::REASON_STALE);
+        $this->assertSame(0, Announcement::where('type', 'REMITTANCE_COMPLETED')->count());
+
+        // The conductor later submits the cash manually — this resolves the PENDING remittance.
+        $service->close($shift->shift_id, 80, ShiftCloseoutService::REASON_MANUAL, $conductor->id);
+
+        $this->assertSame(Remittance::STATUS_COMPLETE, Remittance::findOrFail($shift->shift_id)->remittance_status);
+        $this->assertSame(
+            1,
+            Announcement::where('type', 'REMITTANCE_COMPLETED')->where('user_id', $admin->id)->count(),
+        );
     }
 
     public function test_automatic_closeout_creates_one_pending_obligation_without_marking_cash_remitted(): void

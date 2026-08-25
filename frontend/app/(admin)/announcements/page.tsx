@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Megaphone, Archive, Edit3, Eye, AlertTriangle, CalendarDays, X } from 'lucide-react';
+import { Plus, Megaphone, Archive, Edit3, Eye, AlertTriangle, CalendarDays, X, ChevronUp } from 'lucide-react';
 import { RequestCancelledError } from '@/lib/api/client';
 import {
   listForAdmin,
@@ -84,6 +84,12 @@ export default function AnnouncementsPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const [isArchiving, setIsArchiving] = useState(false);
+
+  // Mobile-only collapse: the search/date/category/status filter row hides
+  // behind a toggle so just the title + New Announcement button stay visible
+  // on small screens — same pattern as the admin Lost & Found and Remittance
+  // pages (and the conductor dashboard's MobileDashboardCard).
+  const [isMobileFiltersExpanded, setIsMobileFiltersExpanded] = useState(true);
 
   // ─── Debounce the search box → a server-side query, resetting to page 1 ──
   useEffect(() => {
@@ -295,7 +301,7 @@ export default function AnnouncementsPage() {
   };
 
   const searchInputClasses =
-    'w-full bg-[#0E1628] border border-[#1E2D45] rounded-md pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors';
+    'h-11 w-full bg-[#0E1628] border border-[#1E2D45] rounded-md pl-10 pr-4 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors';
 
   return (
     <div className="h-full w-[calc(100%+2rem)] flex flex-col overflow-hidden relative -mx-4 -mt-4 md:w-full md:mx-0 md:mt-0">
@@ -324,101 +330,121 @@ export default function AnnouncementsPage() {
           </button>
         </div>
 
-        {/* Filters — search on the left, date picker/dropdown/status filter
-            pushed to the right edge via justify-between (sm:+; they just
-            stack after the search on mobile). */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-          {/* Search — capped width so it doesn't stretch across the whole header.
-              Nudged right on desktop (md:) so the focus ring isn't clipped by
-              the header's flush-left edge (md:px-0 on the parent). */}
-          <div className="relative w-full sm:w-80 sm:flex-none md:ml-1">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-            </svg>
-            <input
-              type="text"
-              placeholder="Search title or message…"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              className={searchInputClasses}
-            />
-          </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            {/* Exact date picker — resolved server-side (whereDate created_at).
-                Picking a date overrides the range dropdown below (see
-                handleSelectedDateChange), same relationship as the two date
-                filters on the Lost & Found admin page. */}
-            <div className="relative">
-              <CalendarDays className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+        {/* Mobile-only collapse: the filter row hides behind a toggle so just
+            the title + New Announcement button above stay visible on small
+            screens. The md:!max-h-none override means this never collapses
+            at md: and up. */}
+        <div
+          className="overflow-hidden transition-all duration-300 ease-in-out md:max-h-none!"
+          style={{ maxHeight: isMobileFiltersExpanded ? '500px' : '0px' }}
+        >
+          {/* Filters — search on the left, date picker/dropdown/status filter
+              pushed to the right edge via justify-between (sm:+; they just
+              stack after the search on mobile). */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            {/* Search — capped width so it doesn't stretch across the whole header.
+                Nudged right on desktop (md:) so the focus ring isn't clipped by
+                the header's flush-left edge (md:px-0 on the parent). */}
+            <div className="relative w-full sm:w-80 sm:flex-none md:ml-1">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+              </svg>
               <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => handleSelectedDateChange(e.target.value)}
-                aria-label="Filter announcements by an exact date"
-                className="h-full rounded-md border border-[#1E2D45] bg-[#0E1628] py-2.5 pl-10 pr-8 text-sm text-slate-200 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]/50 focus:ring-1 focus:ring-[#62A0EA]/30"
+                type="text"
+                placeholder="Search title or message…"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className={searchInputClasses}
               />
-              {selectedDate && (
-                <button
-                  type="button"
-                  onClick={() => handleSelectedDateChange('')}
-                  aria-label="Clear date"
-                  title="Clear date"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-500 transition-colors hover:bg-white/5 hover:text-slate-200"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
             </div>
-            {/* Quick date range — same today/last_7_days/this_month convention
-                as Fleet Management's shift history filter. Defaults to This
-                Month. Mutually exclusive with the exact date picker above. */}
-            <select
-              value={dateRange}
-              onChange={(e) => handleDateRangeChange(e.target.value as DateRange)}
-              aria-label="Filter announcements by a quick date range"
-              className="rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2.5 text-sm text-slate-200 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]/50 focus:ring-1 focus:ring-[#62A0EA]/30"
-            >
-              {DATE_RANGE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value} className="bg-[#0E1628]">
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            {/* Category filter — same suggested categories offered when creating
-                a new announcement (TYPE_SUGGESTIONS), so this list can't drift
-                from what an admin can actually assign. */}
-            <select
-              value={categoryFilter}
-              onChange={(e) => handleCategoryFilterChange(e.target.value)}
-              aria-label="Filter announcements by category"
-              className="rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2.5 text-sm text-slate-200 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]/50 focus:ring-1 focus:ring-[#62A0EA]/30"
-            >
-              <option value="ALL" className="bg-[#0E1628]">All Categories</option>
-              {TYPE_SUGGESTIONS.map((type) => (
-                <option key={type} value={type} className="bg-[#0E1628]">
-                  {type}
-                </option>
-              ))}
-            </select>
-            {/* Status filter */}
-            <div className="flex bg-[#0E1628] rounded-md p-1 border border-[#1E2D45]">
-              {([['ALL', 'All'], ['ACTIVE', 'Active'], ['ARCHIVED', 'Archived']] as const).map(([key, label]) => (
-                <button
-                  key={key}
-                  onClick={() => handleStatusFilterChange(key)}
-                  className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                    statusFilter === key
-                      ? 'bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/30'
-                      : 'text-slate-500 hover:text-slate-300 hover:bg-[#1A2540]'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              {/* Exact date picker — resolved server-side (whereDate created_at).
+                  Picking a date overrides the range dropdown below (see
+                  handleSelectedDateChange), same relationship as the two date
+                  filters on the Lost & Found admin page. */}
+              <div className="relative w-full sm:w-auto">
+                <CalendarDays className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => handleSelectedDateChange(e.target.value)}
+                  aria-label="Filter announcements by an exact date"
+                  className="h-11 w-full rounded-md border border-[#1E2D45] bg-[#0E1628] pl-10 pr-8 text-sm text-slate-200 outline-none transition-colors scheme-dark focus:border-[#62A0EA]/50 focus:ring-1 focus:ring-[#62A0EA]/30 sm:w-auto"
+                />
+                {selectedDate && (
+                  <button
+                    type="button"
+                    onClick={() => handleSelectedDateChange('')}
+                    aria-label="Clear date"
+                    title="Clear date"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-500 transition-colors hover:bg-white/5 hover:text-slate-200"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+              {/* Quick date range — same today/last_7_days/this_month convention
+                  as Fleet Management's shift history filter. Defaults to This
+                  Month. Mutually exclusive with the exact date picker above. */}
+              <select
+                value={dateRange}
+                onChange={(e) => handleDateRangeChange(e.target.value as DateRange)}
+                aria-label="Filter announcements by a quick date range"
+                className="h-11 w-full rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 text-sm text-slate-200 outline-none transition-colors scheme-dark focus:border-[#62A0EA]/50 focus:ring-1 focus:ring-[#62A0EA]/30 sm:w-auto"
+              >
+                {DATE_RANGE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value} className="bg-[#0E1628]">
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              {/* Category filter — same suggested categories offered when creating
+                  a new announcement (TYPE_SUGGESTIONS), so this list can't drift
+                  from what an admin can actually assign. */}
+              <select
+                value={categoryFilter}
+                onChange={(e) => handleCategoryFilterChange(e.target.value)}
+                aria-label="Filter announcements by category"
+                className="h-11 w-full rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 text-sm text-slate-200 outline-none transition-colors scheme-dark focus:border-[#62A0EA]/50 focus:ring-1 focus:ring-[#62A0EA]/30 sm:w-auto"
+              >
+                <option value="ALL" className="bg-[#0E1628]">All Categories</option>
+                {TYPE_SUGGESTIONS.map((type) => (
+                  <option key={type} value={type} className="bg-[#0E1628]">
+                    {type}
+                  </option>
+                ))}
+              </select>
+              {/* Status filter — same h-11 as every other control in this row
+                  (font-size/padding alone made it read visibly shorter). */}
+              <div className="flex h-11 w-full items-stretch gap-1 rounded-md border border-[#1E2D45] bg-[#0E1628] p-1 sm:w-auto">
+                {([['ALL', 'All'], ['ACTIVE', 'Active'], ['ARCHIVED', 'Archived']] as const).map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => handleStatusFilterChange(key)}
+                    className={`flex-1 rounded-md px-4 text-sm font-semibold transition-all sm:flex-none ${
+                      statusFilter === key
+                        ? 'bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/30'
+                        : 'text-slate-500 hover:text-slate-300 hover:bg-[#1A2540]'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setIsMobileFiltersExpanded((prev) => !prev)}
+          aria-expanded={isMobileFiltersExpanded}
+          aria-label={isMobileFiltersExpanded ? 'Collapse filters' : 'Expand filters'}
+          className="-mx-4 -mb-4 mt-2 flex w-[calc(100%+2rem)] flex-shrink-0 items-center justify-center border-t border-white/5 py-1.5 text-slate-500 transition-colors hover:bg-white/5 hover:text-slate-300 active:bg-white/10 md:hidden"
+        >
+          <ChevronUp className={`h-4 w-4 transition-transform duration-300 ${isMobileFiltersExpanded ? 'rotate-180' : ''}`} />
+        </button>
       </div>
 
       {/* Action error */}

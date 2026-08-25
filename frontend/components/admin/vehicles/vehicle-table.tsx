@@ -41,25 +41,23 @@ export function VehicleTable({
     {
       key: 'unitNumber',
       label: 'Unit',
-      cellClassName: 'truncate',
-      render: (value: string, row: Vehicle) => (
-        <div className="flex min-w-0 items-center gap-3">
+      cellClassName: 'whitespace-nowrap',
+      render: (value: string) => (
+        <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-[#62A0EA]/20 bg-[#62A0EA]/10 text-[#62A0EA]">
             <Car size={17} />
           </div>
-          <div className="min-w-0">
-            <p className="truncate font-semibold text-white">{value}</p>
-            <p className="truncate text-xs text-slate-500">{row.route}</p>
-          </div>
+          <p className="font-semibold text-white">{value}</p>
         </div>
       ),
     },
-    { key: 'plateNumber', label: 'Plate', cellClassName: 'truncate font-mono text-xs' },
-    { key: 'driver', label: 'Driver', cellClassName: 'truncate', render: (value: string | null) => value || <span className="text-slate-500 italic">Unassigned</span> },
-    { key: 'conductor', label: 'Conductor', cellClassName: 'truncate', render: (value: string | null) => value || <span className="text-slate-500 italic">Unassigned</span> },
+    { key: 'plateNumber', label: 'Plate', cellClassName: 'whitespace-nowrap font-mono text-xs' },
+    { key: 'driver', label: 'Driver', cellClassName: 'whitespace-nowrap', render: (value: string | null) => value || <span className="text-slate-500 italic">Unassigned</span> },
+    { key: 'conductor', label: 'Conductor', cellClassName: 'whitespace-nowrap', render: (value: string | null) => value || <span className="text-slate-500 italic">Unassigned</span> },
     {
       key: 'status',
       label: 'Status',
+      cellClassName: 'whitespace-nowrap',
       render: (value: string) => {
         let variant: 'success' | 'warning' | 'danger' | 'info' = 'info';
         if (value === 'Operating') variant = 'success';
@@ -146,8 +144,6 @@ export function VehicleTable({
           emptyMessage="No vehicles match your search."
           height="calc(100dvh - 18rem)"
           stickyHeader
-          allowHorizontalScroll={false}
-          tableClassName="table-fixed"
           onRowDoubleClick={onRowDoubleClick}
         />
       )}

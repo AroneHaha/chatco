@@ -66,45 +66,45 @@ export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete,
     {
       key: 'name',
       label: 'User',
-      headerClassName: 'w-[28%] px-2 sm:px-4',
-      cellClassName: 'px-2 sm:px-4 min-w-0',
+      headerClassName: 'px-2 sm:px-4',
+      cellClassName: 'px-2 sm:px-4 min-w-[10rem]',
       render: (value: string, item: User) => (
         <div className="min-w-0">
-          <p className="truncate font-medium text-white" title={value}>{value}</p>
-          <p className="truncate text-xs text-slate-500" title={item.email}>{item.email}</p>
+          <p className="whitespace-nowrap font-medium text-white">{value}</p>
+          <p className="whitespace-nowrap text-xs text-slate-500">{item.email}</p>
         </div>
       ),
     },
     {
       key: 'commuterType',
       label: 'Type',
-      headerClassName: 'w-[16%] px-2 sm:px-4',
-      cellClassName: 'px-2 sm:px-4',
+      headerClassName: 'px-2 sm:px-4',
+      cellClassName: 'whitespace-nowrap px-2 sm:px-4',
       render: (value: string) => <Badge variant="info">{value}</Badge>,
     },
     {
       key: 'createdAt',
       label: isRejectedTab ? 'Applied' : 'Joined',
-      headerClassName: 'w-[14%] px-2 sm:px-4',
-      cellClassName: 'px-2 sm:px-4',
+      headerClassName: 'px-2 sm:px-4',
+      cellClassName: 'whitespace-nowrap px-2 sm:px-4',
       render: (value: string | null) => <span className="text-xs text-slate-400">{formatJoinedDate(value)}</span>,
     },
     {
       key: 'status',
       label: 'Status',
-      headerClassName: 'w-[14%] px-2 sm:px-4',
-      cellClassName: 'px-2 sm:px-4',
+      headerClassName: 'px-2 sm:px-4',
+      cellClassName: 'whitespace-nowrap px-2 sm:px-4',
       render: (value: string) => <Badge variant={value === 'Active' ? 'success' : value === 'Suspended' ? 'warning' : 'danger'}>{value}</Badge>
     },
     ...(isRejectedTab ? [{
-      key: 'rejectionReason', label: 'Reason', render: (value: string) => <span className="text-xs text-slate-400 italic">{value || 'N/A'}</span>
+      key: 'rejectionReason', label: 'Reason', cellClassName: 'whitespace-nowrap', render: (value: string) => <span className="text-xs text-slate-400 italic">{value || 'N/A'}</span>
     }] : []),
     {
       key: 'actions',
       label: 'Actions',
       align: 'center' as const,
-      headerClassName: 'w-[20%] px-2 sm:px-4',
-      cellClassName: 'px-2 sm:px-4',
+      headerClassName: 'px-2 sm:px-4',
+      cellClassName: 'whitespace-nowrap px-2 sm:px-4',
       render: (_: unknown, item: User) => (
         <div className="flex items-center justify-center space-x-1">
           {!isRejectedTab && (
@@ -157,8 +157,6 @@ export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete,
             emptyMessage={isRejectedTab ? 'No rejected users.' : 'No users found.'}
             height="100%"
             stickyHeader
-            allowHorizontalScroll={false}
-            tableClassName="table-fixed"
           />
           {isRefreshing && (
             <div className="absolute inset-0 z-10 flex items-center justify-center">

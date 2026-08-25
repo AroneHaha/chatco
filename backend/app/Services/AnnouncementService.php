@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\UserRole;
 use App\Events\AnnouncementCreated;
 use App\Models\Announcement;
 use App\Models\AnnouncementRead;
@@ -204,6 +205,20 @@ class AnnouncementService
             'message' => $message,
             'status'  => self::STATUS_ACTIVE,
         ]);
+    }
+
+    /**
+     * System-generated announcement, one row per current admin (e.g. a
+     * conductor starting a shift, or a remittance completing). Same
+     * single-recipient shape as notifyUser() — just fanned out to every
+     * ADMIN account instead of one user — so it rides the existing bell,
+     * unread-count, and mark-read machinery with no new tables.
+     */
+    public function notifyAdmins(string $type, string $title, string $message): void
+    {
+        User::query()->where('role', UserRole::ADMIN->value)->pluck('id')->each(
+            fn (string $adminId) => $this->notifyUser($adminId, $type, $title, $message)
+        );
     }
 
     public function update(string $id, array $data): Announcement

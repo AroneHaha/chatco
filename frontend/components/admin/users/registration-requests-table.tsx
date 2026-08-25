@@ -45,6 +45,7 @@ export function RegistrationRequestsTable({
     {
       key: 'name',
       label: 'Applicant',
+      cellClassName: 'min-w-[10rem]',
       render: (value: string, request: PendingRequest) => (
         <div className="flex min-w-0 items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -54,8 +55,8 @@ export function RegistrationRequestsTable({
             className="h-9 w-9 flex-shrink-0 rounded-md border border-[#1E2D45] object-cover"
           />
           <div className="min-w-0">
-            <p className="truncate font-medium text-white">{value}</p>
-            <p className="truncate text-xs text-slate-500">{request.email}</p>
+            <p className="whitespace-nowrap font-medium text-white">{value}</p>
+            <p className="whitespace-nowrap text-xs text-slate-500">{request.email}</p>
           </div>
         </div>
       ),
@@ -63,27 +64,32 @@ export function RegistrationRequestsTable({
     {
       key: 'commuterType',
       label: 'Type',
+      cellClassName: 'whitespace-nowrap',
       render: (value: string) => <Badge variant="info">{value}</Badge>,
     },
     {
       key: 'createdAt',
       label: 'Applied',
+      cellClassName: 'whitespace-nowrap',
       render: (value: string) => <span className="text-xs text-slate-400">{formatAppliedDate(value)}</span>,
     },
     {
       key: 'phoneNumber',
       label: 'Contact',
+      cellClassName: 'whitespace-nowrap',
       render: (value: string) => <span className="text-sm text-slate-400">{value || '—'}</span>,
     },
     {
       key: 'status',
       label: 'Status',
+      cellClassName: 'whitespace-nowrap',
       render: () => <Badge variant="warning">Pending Verification</Badge>,
     },
     {
       key: 'actions',
       label: 'Actions',
       align: 'center' as const,
+      cellClassName: 'whitespace-nowrap',
       render: (_: unknown, request: PendingRequest) => (
         <button
           type="button"
@@ -111,7 +117,6 @@ export function RegistrationRequestsTable({
           emptyMessage="No pending registration requests."
           height="100%"
           stickyHeader
-          tableClassName="table-fixed"
           onRowDoubleClick={onSelectRequest}
         />
         {isRefreshing && (

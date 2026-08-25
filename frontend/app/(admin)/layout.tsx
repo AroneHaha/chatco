@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { SignOutModal } from '@/components/admin/ui/sign-out-modal';
 import { SettingsDrawerProvider, SettingsDrawer, useSettingsDrawer } from '@/components/admin/ui/settings-drawer';
 import { useAuth } from '@/contexts/auth-context';
+import { AdminNotificationsProvider } from '@/contexts/admin-notifications-context';
 import { AdminSidebar } from '@/components/admin/layout/admin-sidebar';
 import { AdminBottomNav } from '@/components/admin/layout/admin-bottom-nav';
 import { NotificationBell } from '@/components/admin/layout/notification-bell';
@@ -154,10 +155,12 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
-    <SettingsDrawerProvider>
-      <Suspense fallback={<div className="admin-shell min-h-screen bg-[#0B1120]" />}>
-        <AdminLayoutInner>{children}</AdminLayoutInner>
-      </Suspense>
-    </SettingsDrawerProvider>
+    <AdminNotificationsProvider>
+      <SettingsDrawerProvider>
+        <Suspense fallback={<div className="admin-shell min-h-screen bg-[#0B1120]" />}>
+          <AdminLayoutInner>{children}</AdminLayoutInner>
+        </Suspense>
+      </SettingsDrawerProvider>
+    </AdminNotificationsProvider>
   );
 }

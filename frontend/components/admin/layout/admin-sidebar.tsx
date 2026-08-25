@@ -11,6 +11,7 @@ import {
 } from '@/config/admin-nav';
 import { useSettingsDrawer } from '@/components/admin/ui/settings-drawer';
 import { NotificationBell } from '@/components/admin/layout/notification-bell';
+import { useAdminNotifications, formatAdminBadgeCount } from '@/contexts/admin-notifications-context';
 
 interface AdminSidebarProps {
   onSignOut: () => void;
@@ -19,6 +20,7 @@ interface AdminSidebarProps {
 export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
   const pathname = usePathname();
   const { isSettingsOpen, openSettingsDrawer } = useSettingsDrawer();
+  const { remittanceBadgeCount } = useAdminNotifications();
 
   return (
     <nav className="relative z-40 w-64 bg-[#0D1424] border-r border-[#1E2D45] flex flex-col">
@@ -42,6 +44,7 @@ export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
           {operationsNav.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
+            const badgeCount = item.href === '/remittance' ? remittanceBadgeCount : 0;
             return (
               <Link
                 key={item.href}
@@ -54,7 +57,17 @@ export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
               >
                 {isActive && <span className="w-1.5 h-1.5 rounded-full bg-[#62A0EA] flex-shrink-0" />}
                 {!isActive && <span className="w-1.5 h-1.5 flex-shrink-0" />}
-                <Icon size={18} />
+                <span className="relative inline-flex shrink-0">
+                  <Icon size={18} />
+                  {badgeCount > 0 && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute -top-2 -right-2 min-w-4 h-4 px-1 bg-[#FF6D3A] rounded-full text-[9px] font-bold text-white flex items-center justify-center ring-2 ring-[#0D1424] tabular-nums"
+                    >
+                      {formatAdminBadgeCount(badgeCount)}
+                    </span>
+                  )}
+                </span>
                 <span className="text-sm font-medium">{item.label}</span>
               </Link>
             );
