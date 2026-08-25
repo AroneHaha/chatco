@@ -29,6 +29,7 @@ export interface RemittanceRecord {
 const KEY = "conductor_remittance_history";
 
 function getAll(): RemittanceRecord[] {
+  if (typeof window === "undefined") return [];
   const raw = localStorage.getItem(KEY);
   if (!raw) return [];
   try {

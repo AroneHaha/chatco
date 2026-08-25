@@ -51,6 +51,7 @@ export function startShift(data: {
 }
 
 export function getShift(): ConductorShift | null {
+  if (typeof window === "undefined") return null;
   const raw = localStorage.getItem(SHIFT_KEY);
   if (!raw) return null;
   try {

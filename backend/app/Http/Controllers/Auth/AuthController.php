@@ -54,6 +54,7 @@ class AuthController extends Controller
                 $request->login,
                 $request->password,
                 $request->input('device_id'),
+                $request->input('device_type'),
             );
         } catch (ValidationException $e) {
             // Credentials incorrect → 401, not 422
@@ -162,7 +163,7 @@ class AuthController extends Controller
     public function sendRegistrationCode(Request $request): JsonResponse
     {
         $request->validate([
-            'email'          => ['required', 'string', 'email:rfc', 'max:255'],
+            'email' => ['required', 'string', 'email:rfc', 'max:255'],
             'contact_number' => ['nullable', 'string', 'max:20'],
         ]);
 
@@ -208,9 +209,9 @@ class AuthController extends Controller
         return $this->successResponse(
             [
                 'expires_in_minutes' => EmailVerificationService::CODE_TTL_MINUTES,
-                'resend_in_seconds'  => EmailVerificationService::RESEND_COOLDOWN_SECONDS,
+                'resend_in_seconds' => EmailVerificationService::RESEND_COOLDOWN_SECONDS,
             ],
-            'We sent a 6-digit code to ' . $email . '. It expires in ' . EmailVerificationService::CODE_TTL_MINUTES . ' minutes.'
+            'We sent a 6-digit code to '.$email.'. It expires in '.EmailVerificationService::CODE_TTL_MINUTES.' minutes.'
         );
     }
 
@@ -225,7 +226,7 @@ class AuthController extends Controller
     {
         $request->validate([
             'email' => ['required', 'string', 'email:rfc', 'max:255'],
-            'code'  => ['required', 'string'],
+            'code' => ['required', 'string'],
         ]);
 
         [$status, $message] = $this->emailVerification->verifyCode(
@@ -285,8 +286,8 @@ class AuthController extends Controller
 
             return $this->errorResponse(
                 'No account is registered with that email. If your registration is '
-                . 'still awaiting admin approval, or was rejected, you cannot reset '
-                . 'a password yet.',
+                .'still awaiting admin approval, or was rejected, you cannot reset '
+                .'a password yet.',
                 404
             );
         }
@@ -298,8 +299,8 @@ class AuthController extends Controller
         DB::table('password_reset_tokens')->updateOrInsert(
             ['email' => $email],
             [
-                'token'      => Hash::make($code),
-                'attempts'   => 0,
+                'token' => Hash::make($code),
+                'attempts' => 0,
                 'created_at' => now(),
             ]
         );
@@ -342,7 +343,7 @@ class AuthController extends Controller
     {
         $request->validate([
             'email' => 'required|email',
-            'code'  => 'required|string',
+            'code' => 'required|string',
         ]);
 
         [$status, $message] = $this->checkResetCode(
@@ -367,8 +368,8 @@ class AuthController extends Controller
     public function resetPassword(Request $request): JsonResponse
     {
         $request->validate([
-            'email'    => ['required', 'email'],
-            'code'     => ['required', 'string'],
+            'email' => ['required', 'email'],
+            'code' => ['required', 'string'],
             // Same policy as sign-up — a reset shouldn't be a way to end up
             // with a weaker password than the account could be created with.
             'password' => ['required', 'string', 'confirmed', new StrongPassword],
@@ -387,11 +388,12 @@ class AuthController extends Controller
         if (! $user) {
             // Extremely unlikely (code existed a moment ago) but be defensive.
             DB::table('password_reset_tokens')->where('email', $email)->delete();
+
             return $this->errorResponse('We could not find an account with that email.', 400);
         }
 
         $user->forceFill([
-            'password'       => Hash::make($request->password),
+            'password' => Hash::make($request->password),
             'remember_token' => Str::random(60),
         ])->save();
 
@@ -428,6 +430,7 @@ class AuthController extends Controller
         // Expired → clean up and treat as invalid.
         if (Carbon::parse($record->created_at)->addMinutes(self::CODE_TTL_MINUTES)->isPast()) {
             DB::table('password_reset_tokens')->where('email', $email)->delete();
+
             return ['expired', $invalid];
         }
 
@@ -436,6 +439,7 @@ class AuthController extends Controller
 
             if ($attempts >= self::MAX_CODE_ATTEMPTS) {
                 DB::table('password_reset_tokens')->where('email', $email)->delete();
+
                 return ['locked', 'Too many incorrect attempts. Please request a new code.'];
             }
 

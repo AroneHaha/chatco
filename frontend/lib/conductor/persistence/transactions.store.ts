@@ -87,6 +87,7 @@ export function saveTransaction(
 }
 
 export function getPendingCashTransactions(): PendingCashTransaction[] {
+  if (typeof window === "undefined") return [];
   try {
     return JSON.parse(localStorage.getItem(PENDING_KEY) || "[]") as PendingCashTransaction[];
   } catch {
@@ -116,6 +117,7 @@ export function updatePendingCashTransaction(
 }
 
 export function getShiftTransactions(shiftId: string): Transaction[] {
+  if (typeof window === "undefined") return [];
   const raw = localStorage.getItem(getKey(shiftId));
   if (!raw) return [];
   try {
