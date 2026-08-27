@@ -7,6 +7,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -17,11 +18,7 @@ import {
   type ConductorShift,
 } from "@/lib/conductor/services/shift.service";
 
-/**
- * Read the cached shift synchronously for the initial render. localStorage is
- * only available client-side, but this hook already requires "use client"
- * and only runs in the browser, so a plain (non-lazy-safe) read is fine here.
- */
+/** Read the cached shift from localStorage. Only ever called client-side, from useLayoutEffect. */
 function readCachedShift(): ConductorShift | null {
   if (typeof window === "undefined") return null;
   return getActiveShift();
@@ -38,20 +35,33 @@ interface UseConductorShiftResult {
 const ConductorShiftContext = createContext<UseConductorShiftResult | null>(null);
 
 function useSharedConductorShift(): UseConductorShiftResult {
-  // Seed from the last known shift (localStorage) instead of null, so a
-  // returning conductor sees real content on the first frame instead of a
-  // skeleton — fetchActiveShift() still verifies against the server right
-  // after mount and corrects this if it's stale (e.g. ended elsewhere).
-  const [shift, setShift] = useState<ConductorShift | null>(readCachedShift);
-  const [elapsed, setElapsed] = useState(() => {
-    const cached = readCachedShift();
-    return cached ? getElapsed(cached) : "";
-  });
-  const [status, setStatus] = useState<UseConductorShiftResult["status"]>(() =>
-    readCachedShift() ? "success" : "loading"
-  );
+  // Start from null/loading on every render pass, matching what the server
+  // renders (it has no localStorage). The cache is applied in a
+  // useLayoutEffect below instead of a useState initializer, since the
+  // initializer also runs during client hydration and — unlike an effect —
+  // isn't guaranteed to match the server-rendered output, which caused a
+  // hydration mismatch for returning conductors.
+  const [shift, setShift] = useState<ConductorShift | null>(null);
+  const [elapsed, setElapsed] = useState("");
+  const [status, setStatus] = useState<UseConductorShiftResult["status"]>("loading");
   const [error, setError] = useState<string | null>(null);
   const refreshInFlight = useRef<Promise<void> | null>(null);
+
+  // Seed from the last known shift (localStorage) instead of leaving the
+  // skeleton up, so a returning conductor sees real content on the first
+  // paint instead of a skeleton — fetchActiveShift() still verifies against
+  // the server right after mount and corrects this if it's stale (e.g.
+  // ended elsewhere). useLayoutEffect only runs client-side, after
+  // hydration, and before the browser paints, so this never conflicts with
+  // the server-rendered HTML.
+  useLayoutEffect(() => {
+    const cached = readCachedShift();
+    if (cached) {
+      setShift(cached);
+      setElapsed(getElapsed(cached));
+      setStatus("success");
+    }
+  }, []);
 
   const refresh = useCallback(async () => {
     if (refreshInFlight.current) return refreshInFlight.current;
