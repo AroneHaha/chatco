@@ -5,6 +5,16 @@ import { fmt, fmtDate, fmtDateTime } from "@/app/(conductor)/conductor-dashboard
 
 interface OfficialReportModalProps { show: boolean; onClose: () => void; activeReport: RemittanceRecord; route: string; }
 
+/** Escape text before interpolating it into the print HTML string — this is written via doc.write() into a live iframe, so unescaped `<`/`&` in a name or route would be parsed as markup. */
+function escapeHtml(value: string): string {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export function buildPrintHTML(report: RemittanceRecord, route: string): string {
   const statusColor = report.remittanceStatus === "Remitted" ? "#16a34a" : "#d97706";
   const statusBg = report.remittanceStatus === "Remitted" ? "#f0fdf4" : "#fffbeb";
@@ -195,14 +205,14 @@ export function buildPrintHTML(report: RemittanceRecord, route: string): string 
   </div>
 
   <div class="info-grid">
-    <div class="info-item"><label>Date</label><span>${fmtDate(report.date)}</span></div>
-    <div class="info-item"><label>Shift ID</label><span style="font-family:monospace">${report.shiftId}</span></div>
-    <div class="info-item"><label>Conductor</label><span>${report.conductorName}</span></div>
-    <div class="info-item"><label>Driver</label><span>${report.driverName}</span></div>
-    <div class="info-item"><label>Time In</label><span style="color:#16a34a">${formatTime(report.timeIn)}</span></div>
-    <div class="info-item"><label>Time Out</label><span style="color:#dc2626">${formatTime(report.timeOut)}</span></div>
-    <div class="info-item"><label>Unit Number</label><span>${report.unitNumber}</span></div>
-    <div class="info-item"><label>Route</label><span>${route}</span></div>
+    <div class="info-item"><label>Date</label><span>${escapeHtml(fmtDate(report.date))}</span></div>
+    <div class="info-item"><label>Shift ID</label><span style="font-family:monospace">${escapeHtml(report.shiftId)}</span></div>
+    <div class="info-item"><label>Conductor</label><span>${escapeHtml(report.conductorName)}</span></div>
+    <div class="info-item"><label>Driver</label><span>${escapeHtml(report.driverName)}</span></div>
+    <div class="info-item"><label>Time In</label><span style="color:#16a34a">${escapeHtml(formatTime(report.timeIn))}</span></div>
+    <div class="info-item"><label>Time Out</label><span style="color:#dc2626">${escapeHtml(formatTime(report.timeOut))}</span></div>
+    <div class="info-item"><label>Unit Number</label><span>${escapeHtml(report.unitNumber)}</span></div>
+    <div class="info-item"><label>Route</label><span>${escapeHtml(route)}</span></div>
   </div>
 
   <hr class="divider" />
@@ -247,11 +257,11 @@ export function buildPrintHTML(report: RemittanceRecord, route: string): string 
       <p class="status-label">Remittance Status</p>
       <p class="status-text">Remitted to Admin</p>
     </div>
-    <span class="status-badge">${report.remittanceStatus}</span>
+    <span class="status-badge">${escapeHtml(report.remittanceStatus)}</span>
   </div>
 
   <div class="footer">
-    <p>Generated: ${fmtDateTime()}</p>
+    <p>Generated: ${escapeHtml(fmtDateTime())}</p>
   </div>
 </body>
 </html>`;

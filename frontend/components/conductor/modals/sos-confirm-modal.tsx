@@ -21,8 +21,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 
 interface SosConfirmModalProps {
   isOpen: boolean;
-  conductorId: string;
-  conductorName: string;
   onClose: () => void;
 }
 
@@ -47,8 +45,6 @@ const DEFAULT_LOCATION: { lat: number; lng: number } = { lat: 14.8434, lng: 120.
 
 export default function SosConfirmModal({
   isOpen,
-  conductorId: _conductorId,
-  conductorName: _conductorName,
   onClose,
 }: SosConfirmModalProps) {
   const [status, setStatus] = useState<SosStatus>("confirming");

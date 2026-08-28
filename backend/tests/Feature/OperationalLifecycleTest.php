@@ -75,6 +75,9 @@ class OperationalLifecycleTest extends TestCase
                 ->first();
             $this->assertNotNull($notification, "Admin {$recipient->id} was not notified.");
             $this->assertStringContainsString($vehicle->unit_number, $notification->message);
+            // reference_id names the vehicle so the admin bell can deep-link
+            // straight to its Vehicle Details modal on Fleet Management.
+            $this->assertSame($vehicle->id, $notification->reference_id);
         }
         // Never broadcast to everyone — only the two admin accounts above.
         $this->assertSame(2, Announcement::where('type', 'SHIFT_STARTED')->count());
@@ -216,6 +219,9 @@ class OperationalLifecycleTest extends TestCase
             ->first();
         $this->assertNotNull($notification);
         $this->assertStringContainsString($shift->unit_number, $notification->message);
+        // reference_id names the shift so the admin bell can deep-link straight
+        // to its Conductor Detail modal on the Remittance tracker.
+        $this->assertSame($shift->shift_id, $notification->reference_id);
     }
 
     public function test_automatic_closeout_with_nothing_owed_notifies_admins(): void
@@ -487,6 +493,55 @@ class OperationalLifecycleTest extends TestCase
         $this->assertNotNull($events[0]->ended_at);
         $this->assertSame(90, $events[1]->top_speed);
         $this->assertNull($events[1]->ended_at);
+    }
+
+    public function test_new_overspeed_episode_notifies_every_admin_once(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $otherAdmin = User::factory()->admin()->create();
+        [$conductor, , , , $shift] = $this->activeShift();
+        Setting::create(['key' => 'speed_limit_kmh', 'value' => '50', 'category' => 'operations']);
+        $service = app(LocationService::class);
+
+        // Two consecutive pings, both over the limit — the same open episode.
+        // Notifying on every ping would spam the bell every few seconds, so
+        // only the FIRST one (the episode starting) should notify.
+        $service->updateLocation($conductor, 14.9, 120.8, 80, null, null, 10, now()->subSeconds(2)->toIso8601String());
+        $service->updateLocation($conductor, 14.9, 120.8, 90, null, null, 10, now()->subSecond()->toIso8601String());
+
+        $event = OverspeedEvent::where('shift_id', $shift->shift_id)->firstOrFail();
+
+        foreach ([$admin, $otherAdmin] as $recipient) {
+            $notification = Announcement::where('type', 'OVERSPEED_FLAGGED')
+                ->where('user_id', $recipient->id)
+                ->first();
+            $this->assertNotNull($notification, "Admin {$recipient->id} was not notified.");
+            $this->assertStringContainsString($shift->unit_number, $notification->message);
+            // reference_id names the episode so the admin bell can deep-link
+            // straight to it (scrolled + highlighted) on Live Monitoring.
+            $this->assertSame((string) $event->id, $notification->reference_id);
+        }
+        // One notification per episode (per admin), not one per GPS ping.
+        $this->assertSame(2, Announcement::where('type', 'OVERSPEED_FLAGGED')->count());
+    }
+
+    public function test_reentering_overspeed_after_slowing_down_notifies_again(): void
+    {
+        $admin = User::factory()->admin()->create();
+        [$conductor, , , , $shift] = $this->activeShift();
+        Setting::create(['key' => 'speed_limit_kmh', 'value' => '50', 'category' => 'operations']);
+        $service = app(LocationService::class);
+
+        // First episode: over the limit, then back under it (closes the episode).
+        $service->updateLocation($conductor, 14.9, 120.8, 80, null, null, 10, now()->subSeconds(4)->toIso8601String());
+        $service->updateLocation($conductor, 14.9, 120.8, 40, null, null, 10, now()->subSeconds(3)->toIso8601String());
+        // Second, independent episode: over the limit again — a genuinely new flag.
+        $service->updateLocation($conductor, 14.9, 120.8, 90, null, null, 10, now()->subSeconds(2)->toIso8601String());
+
+        $this->assertSame(
+            2,
+            Announcement::where('type', 'OVERSPEED_FLAGGED')->where('user_id', $admin->id)->count(),
+        );
     }
 
     public function test_admin_overspeed_history_is_paginated_and_filters_chatco_shift_ids(): void

@@ -36,6 +36,10 @@ class SosService
     private const STATUS_ACKNOWLEDGED = 'ACKNOWLEDGED';
     private const STATUS_RESOLVED     = 'RESOLVED';
 
+    public function __construct(
+        private AnnouncementService $announcementService,
+    ) {}
+
     /**
      * Commuter triggers an SOS. Stores the alert with status=ACTIVE.
      */
@@ -56,6 +60,7 @@ class SosService
         ])->load('commuter');
 
         $this->sendSosEmailToAdmin($alert, $commuter);
+        $this->notifySosToAdmins($alert);
 
         return $alert;
     }
@@ -81,6 +86,7 @@ class SosService
         ])->load('conductor');
 
         $this->sendSosEmailToAdmin($alert, $conductor);
+        $this->notifySosToAdmins($alert);
 
         return $alert;
     }
@@ -231,9 +237,7 @@ class SosService
             $template = Setting::where('key', 'sos_admin_template')->value('value')
                 ?? "SOS ALERT\n\nA {sender_name} has triggered an emergency SOS alert.\n\nCoordinates: {lat}, {lng}\nNote: {note}\nTime: {time}\n\nPlease respond immediately.";
 
-            $senderName = $alert->sender_role === 'CONDUCTOR'
-                ? ($alert->conductor?->first_name . ' ' . $alert->conductor?->last_name)
-                : ($alert->commuter?->first_name . ' ' . $alert->commuter?->surname);
+            $senderName = $this->senderName($alert);
 
             $body = strtr($template, [
                 '{sender_name}' => trim($senderName),
@@ -249,6 +253,42 @@ class SosService
             });
         } catch (\Exception $e) {
             Log::error('Failed to send SOS email to admin', [
+                'error' => $e->getMessage(),
+                'alert_id' => $alert->id,
+            ]);
+        }
+    }
+
+    private function senderName(SosAlert $alert): string
+    {
+        $name = $alert->sender_role === 'CONDUCTOR'
+            ? ($alert->conductor?->first_name . ' ' . $alert->conductor?->last_name)
+            : ($alert->commuter?->first_name . ' ' . $alert->commuter?->surname);
+
+        return trim($name);
+    }
+
+    /**
+     * Notify every admin in-app (bell + unread count) the moment an SOS
+     * fires — separate from sendSosEmailToAdmin(), which is a best-effort
+     * email and may be unconfigured. reference_id is the alert's own id, so
+     * clicking the notification can jump straight to it on Live Monitoring.
+     *
+     * Errors are logged but never thrown — same reasoning as the email: an
+     * SOS trigger must never fail because a downstream notification did.
+     */
+    private function notifySosToAdmins(SosAlert $alert): void
+    {
+        try {
+            $role = $alert->sender_role === 'CONDUCTOR' ? 'Conductor' : 'Commuter';
+            $this->announcementService->notifyAdmins(
+                'SOS_TRIGGERED',
+                'Emergency SOS',
+                "{$this->senderName($alert)} ({$role}) triggered an emergency SOS alert.",
+                $alert->id,
+            );
+        } catch (\Exception $e) {
+            Log::error('Failed to send SOS in-app notification to admins', [
                 'error' => $e->getMessage(),
                 'alert_id' => $alert->id,
             ]);

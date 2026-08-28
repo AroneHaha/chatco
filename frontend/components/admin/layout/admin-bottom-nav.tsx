@@ -21,7 +21,11 @@ interface AdminBottomNavProps {
 export function AdminBottomNav({ isMoreOpen, setIsMoreOpen, onSignOut }: AdminBottomNavProps) {
   const pathname = usePathname();
   const { openSettingsDrawer } = useSettingsDrawer();
-  const { remittanceBadgeCount } = useAdminNotifications();
+  const { remittance, monitoring } = useAdminNotifications();
+  const moduleBadgeCounts: Record<string, number> = {
+    '/remittance': remittance.count,
+    '/monitoring': monitoring.count,
+  };
 
   const indicatorRef = useRef<HTMLDivElement>(null);
   const navItemRefs = useRef<(HTMLElement | null)[]>([]);
@@ -58,7 +62,7 @@ export function AdminBottomNav({ isMoreOpen, setIsMoreOpen, onSignOut }: AdminBo
         {mobileMainItems.map((item, index) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
-          const badgeCount = item.href === '/remittance' ? remittanceBadgeCount : 0;
+          const badgeCount = moduleBadgeCounts[item.href] ?? 0;
           return (
             <Link
               key={item.href}

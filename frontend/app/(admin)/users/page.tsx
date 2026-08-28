@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { UsersTable } from '@/components/admin/users/users-table';
 import { RegistrationRequestsTable } from '@/components/admin/users/registration-requests-table';
 import { RejectedAccountsTable } from '@/components/admin/users/rejected-accounts-table';
@@ -17,6 +18,7 @@ import { Plus, UserCheck, Users, XCircle, AlertCircle, RefreshCw, CheckCircle, C
 import { useUsersData } from './data/users-data';
 import type { ActiveUser, PendingRequest, RejectedUser, RejectedRequest } from './data/users-data';
 import type { UpdateUserInput } from '@/lib/admin/services/user.service';
+import * as registrationService from '@/lib/admin/services/registration.service';
 import { SkeletonTable } from '@/components/admin/ui/skeleton';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 import { SuspensionModal } from '@/components/admin/users/suspension-modal';
@@ -24,6 +26,8 @@ import type { SuspendUserInput } from '@/lib/admin/services/user.service';
 import { OperationResultModal } from '@/components/admin/ui/operation-result-modal';
 
 export default function UsersPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<'active' | 'pending' | 'rejected'>('active');
   const {
     activeUsers,
@@ -87,6 +91,44 @@ export default function UsersPage() {
   // visible on small screens — same pattern as Announcements/Remittance/Lost
   // & Found.
   const [isMobileFiltersExpanded, setIsMobileFiltersExpanded] = useState(true);
+
+  // ─── Deep-link from the notification bell ──────────────────────
+  // A NEW_REGISTRATION notification links here as
+  // /users?tab=pending&registrationId={userId}. Switch to the Pending tab
+  // and, if a registrationId is present, fetch that one registration by id
+  // (it may be far down the oldest-first queue, not on page 1) and open its
+  // Review Registration Request modal directly. Runs once on mount — the
+  // params are stripped from the URL right after so a refresh/back doesn't
+  // reopen the modal.
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    const registrationId = searchParams.get('registrationId');
+    if (tab !== 'pending' && !registrationId) return;
+
+    setActiveTab('pending');
+    router.replace('/users?tab=pending');
+    if (!registrationId) return;
+
+    let cancelled = false;
+    void registrationService
+      .listPending({ id: registrationId, perPage: 1 })
+      .then((result) => {
+        if (cancelled) return;
+        const match = result.registrations[0];
+        if (match) {
+          setSelectedRequest(match);
+          setIsReviewModalOpen(true);
+        }
+      })
+      .catch(() => {
+        // Best-effort — the applicant may have already been approved/rejected
+        // by another admin between the notification firing and this click.
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately mount-only: reacting to `router`/`searchParams` would re-fire after router.replace() strips the params.
+  }, []);
 
   // ─── Debounced search → API filter ────────────────────────────
   // The SearchBar updates `searchQuery` immediately (for responsive UX),
@@ -453,7 +495,7 @@ export default function UsersPage() {
 
       <button
         onClick={handleOpenRegisterModal}
-        className="mb-3 inline-flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-4 text-sm font-bold text-white shadow-lg shadow-[#62A0EA]/25 transition-colors hover:bg-[#4A8BD4] sm:w-auto"
+        className="mb-3 inline-flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-4 text-sm font-bold text-white shadow-lg shadow-[#62A0EA]/25 transition-colors hover:bg-[#4A8BD4] sm:w-auto lg:ml-auto"
       >
         <Plus size={16} />
         <span>Register Onsite</span>

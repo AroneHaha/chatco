@@ -2,6 +2,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { RemittanceTable } from '@/components/admin/remittance/remittance-table';
 import { RemittanceSummary } from '@/components/admin/remittance/remittance-summary';
 import { SearchBar } from '@/components/admin/ui/search-bar';
@@ -24,14 +25,34 @@ const RANGE_OPTIONS: { value: RangePreset; label: string }[] = [
 ];
 
 export default function RemittancePage() {
-  const { markRemittanceNotificationsRead } = useAdminNotifications();
-  // Opening the Remittance module clears the "new active shift" nav badge —
-  // mirrors the commuter Lost & Found Claims tab's markClaimUpdatesRead().
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { markRead: markRemittanceNotificationsRead } = useAdminNotifications().remittance;
+  // Opening the Remittance module clears the nav badge (new active shifts +
+  // completed remittances) — mirrors the commuter Lost & Found Claims tab's
+  // markClaimUpdatesRead().
   useEffect(() => {
     markRemittanceNotificationsRead();
   }, [markRemittanceNotificationsRead]);
 
   const [searchQuery, setSearchQuery] = useState('');
+  // ─── Deep-link from the notification bell ──────────────────────
+  // A REMITTANCE_COMPLETED notification links here as
+  // /remittance?shiftId={shiftId}. Route it through the same search box
+  // the admin would type a shift ID into (the backend already matches
+  // `search` against shift_id) so the table narrows to that one row, then
+  // tell RemittanceTable to auto-open its Conductor Detail modal once that
+  // row shows up. Runs once on mount — the param is stripped from the URL
+  // right after so a refresh/back doesn't repeat it.
+  const [autoOpenShiftId, setAutoOpenShiftId] = useState<string | null>(null);
+  useEffect(() => {
+    const shiftId = searchParams.get('shiftId');
+    if (!shiftId) return;
+    setSearchQuery(shiftId);
+    setAutoOpenShiftId(shiftId);
+    router.replace('/remittance');
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately mount-only: reacting to `router`/`searchParams` would re-fire after router.replace() strips the param.
+  }, []);
   // The SearchBar updates `searchQuery` immediately (for responsive typing),
   // but RemittanceTable's search is a real server fetch (useRemittanceData),
   // so it keys off the debounced value instead of firing one request per keystroke.
@@ -215,6 +236,8 @@ export default function RemittancePage() {
           conductorFilter={conductorFilter}
           driverFilter={driverFilter}
           onOptionsChange={handleOptionsChange}
+          autoOpenShiftId={autoOpenShiftId}
+          onAutoOpenHandled={() => setAutoOpenShiftId(null)}
         />
       </div>
     </div>

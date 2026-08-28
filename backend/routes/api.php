@@ -40,18 +40,18 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 Route::prefix('auth')->group(function () {
-    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:commuter-hail');
-    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:commuter-hail'); // PUBLIC — commuter self-sign-up (S5-T15)
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:auth');
+    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:auth'); // PUBLIC — commuter self-sign-up (S5-T15)
     // Sign-up email verification — the applicant must enter a 6-digit code
     // mailed to their address before /register will create the account.
-    Route::post('/register/send-code', [AuthController::class, 'sendRegistrationCode'])->middleware('throttle:commuter-hail');
-    Route::post('/register/verify-code', [AuthController::class, 'verifyRegistrationCode'])->middleware('throttle:commuter-hail');
+    Route::post('/register/send-code', [AuthController::class, 'sendRegistrationCode'])->middleware('throttle:auth');
+    Route::post('/register/verify-code', [AuthController::class, 'verifyRegistrationCode'])->middleware('throttle:auth');
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
     // Password reset — public (no auth required, throttled to prevent abuse).
     // 3-step 6-digit-code flow: request code → verify code → set new password.
-    Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:commuter-hail');
-    Route::post('/verify-reset-code', [AuthController::class, 'verifyResetCode'])->middleware('throttle:commuter-hail');
-    Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:commuter-hail');
+    Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:auth');
+    Route::post('/verify-reset-code', [AuthController::class, 'verifyResetCode'])->middleware('throttle:auth');
+    Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:auth');
 });
 
 /*

@@ -9,6 +9,7 @@ import {
   Users,
   FileText,
   Megaphone,
+  History,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -38,6 +39,7 @@ export const managementNav: NavItem[] = [
 
 export const systemNav: NavItem[] = [
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/activity-logs", label: "Activity Logs", icon: History },
   { href: "/settings", label: "Settings", icon: Sliders },
 ];
 
@@ -59,6 +61,7 @@ export const mobileMoreItems: NavItem[] = [
   { href: "/lost-found", label: "Lost & Found", icon: Package },
   { href: "/announcements", label: "Announcements", icon: Megaphone },
   { href: "/users", label: "User Management", icon: Users },
+  { href: "/activity-logs", label: "Activity Logs", icon: History },
   { href: "/settings", label: "Settings", icon: Sliders },
 ];
 

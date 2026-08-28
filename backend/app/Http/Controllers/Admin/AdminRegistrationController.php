@@ -59,6 +59,11 @@ class AdminRegistrationController extends Controller
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'applied_type' => ['nullable', Rule::in(['REGULAR', 'STUDENT', 'SENIOR', 'PWD'])],
+            // Looks up one specific pending registration by its User.id —
+            // used by the admin notification bell to deep-link straight to a
+            // just-signed-up applicant regardless of where they fall in the
+            // (oldest-first) review queue.
+            'id' => ['nullable', 'uuid'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'page' => ['nullable', 'integer', 'min:1'],
         ]);

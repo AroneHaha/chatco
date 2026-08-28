@@ -211,7 +211,6 @@ export default function EndOfDayPage() {
       const finalCashDeclared = Number.isFinite(cashDeclared) ? cashDeclared : finalCashTotal;
       const finalShortage = Math.max(0, finalCashTotal - finalCashDeclared);
 
-      await new Promise((resolve) => setTimeout(resolve, 1800));
       const record: RemittanceRecord = {
         shiftId: shiftInfo.shiftId,
         date: new Date().toISOString().split("T")[0],

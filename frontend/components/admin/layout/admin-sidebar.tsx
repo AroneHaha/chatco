@@ -20,7 +20,11 @@ interface AdminSidebarProps {
 export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
   const pathname = usePathname();
   const { isSettingsOpen, openSettingsDrawer } = useSettingsDrawer();
-  const { remittanceBadgeCount } = useAdminNotifications();
+  const { remittance, monitoring } = useAdminNotifications();
+  const moduleBadgeCounts: Record<string, number> = {
+    '/remittance': remittance.count,
+    '/monitoring': monitoring.count,
+  };
 
   return (
     <nav className="relative z-40 w-64 bg-[#0D1424] border-r border-[#1E2D45] flex flex-col">
@@ -44,7 +48,7 @@ export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
           {operationsNav.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
-            const badgeCount = item.href === '/remittance' ? remittanceBadgeCount : 0;
+            const badgeCount = moduleBadgeCounts[item.href] ?? 0;
             return (
               <Link
                 key={item.href}

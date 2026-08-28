@@ -113,6 +113,7 @@ class ShiftService
                 'SHIFT_STARTED',
                 'Shift started',
                 "{$conductorName} started an active shift on unit {$unitNumber}.",
+                $vehicleId,
             ));
 
             return $shift;

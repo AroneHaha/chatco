@@ -130,6 +130,19 @@ class AdminRegistrationTest extends TestCase
         $this->assertEquals(['older@example.com', 'newer@example.com'], $emails);
     }
 
+    public function test_pending_list_filters_by_id(): void
+    {
+        $target = $this->seedPendingCommuter(['email' => 'target@example.com', 'username' => 'target']);
+        $this->seedPendingCommuter(['email' => 'other@example.com', 'username' => 'other']);
+
+        $response = $this->actingAs($this->admin)
+            ->getJson('/api/v1/admin/registrations?id='.$target->id);
+
+        $response->assertStatus(200)
+            ->assertJsonCount(1, 'data.data')
+            ->assertJsonPath('data.data.0.email', 'target@example.com');
+    }
+
     public function test_pending_list_forbidden_for_non_admin(): void
     {
         $conductor = $this->seedConductor();

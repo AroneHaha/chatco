@@ -326,6 +326,7 @@ SQL;
             'REMITTANCE_COMPLETED',
             'Remittance completed',
             "{$conductorName} remitted ₱{$amount} {$statusLabel} for unit {$unitNumber}.",
+            $remittance->shift_id,
         ));
     }
 

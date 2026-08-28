@@ -30,14 +30,38 @@ interface RemittanceTableProps {
   /** Reports the current page's conductor/driver name lists up to the page
    * header so it can render the dropdown options without duplicating the fetch. */
   onOptionsChange: (conductorOptions: string[], driverOptions: string[]) => void;
+  /** Set by a notification-bell deep-link (?shiftId=...) — once a fetched
+   * record matches this shift_id, its Conductor Detail modal opens automatically. */
+  autoOpenShiftId?: string | null;
+  /** Called once the auto-open above has fired, so the page can clear it. */
+  onAutoOpenHandled?: () => void;
 }
 
 const ROWS_PER_PAGE = 20;
 
-export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFilter, conductorFilter, driverFilter, onOptionsChange }: RemittanceTableProps) {
+export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFilter, conductorFilter, driverFilter, onOptionsChange, autoOpenShiftId, onAutoOpenHandled }: RemittanceTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const { records, total, lastPage, isLoading, error, refresh } = useRemittanceData(currentPage, searchQuery, selectedDate, statusFilter, dateFrom, conductorFilter, driverFilter);
   const [selectedRecord, setSelectedRecord] = useState<RemittanceRow | null>(null);
+
+  // Auto-open the deep-linked record's modal the moment it shows up in a
+  // fetch. A render-phase adjustment (not an effect) so it takes effect the
+  // instant `records` updates, same pattern as the "adjust state when a prop
+  // changes" case in use-conductor-transactions.ts.
+  const [autoOpenedFor, setAutoOpenedFor] = useState<string | null>(null);
+  if (autoOpenShiftId && autoOpenShiftId !== autoOpenedFor) {
+    const match = records.find((r) => r.shiftId === autoOpenShiftId);
+    if (match) {
+      setAutoOpenedFor(autoOpenShiftId);
+      setSelectedRecord(match);
+    }
+  }
+
+  // Tell the parent the auto-open fired so it can clear autoOpenShiftId —
+  // a call to a prop function, not local state, so it belongs in an effect.
+  useEffect(() => {
+    if (autoOpenedFor) onAutoOpenHandled?.();
+  }, [autoOpenedFor, onAutoOpenHandled]);
 
   const handleRowClick = useCallback((item: RemittanceRow) => {
     setSelectedRecord(item);
