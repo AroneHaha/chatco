@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminActivityLogController;
 use App\Http\Controllers\Admin\AdminAnnouncementController;
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AdminFaqController;
@@ -358,6 +359,12 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     // row. Pass conductor_id OR driver_id. Returns paginated feedback + a
     // summary (average_rating, total_count, 5→1 distribution).
     Route::get('/feedback', [AdminFeedbackController::class, 'index'])->middleware('throttle:conductor-read');
+
+    // ── Activity Logs (audit trail) ─────────────────────────────
+    // Read-only admin audit trail — every admin-mutating action across the
+    // panel writes one row via ActivityLogService::record(). See the 13
+    // categories in App\Enums\ActivityLogCategory.
+    Route::get('/activity-logs', [AdminActivityLogController::class, 'index'])->middleware('throttle:conductor-read');
 });
 
 /*

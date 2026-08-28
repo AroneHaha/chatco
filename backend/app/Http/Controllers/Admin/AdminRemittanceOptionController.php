@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\ActivityLogCategory;
 use App\Http\Controllers\Controller;
 use App\Models\RemittanceOption;
+use App\Services\ActivityLogService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -11,6 +13,8 @@ use Illuminate\Http\Request;
 class AdminRemittanceOptionController extends Controller
 {
     use ApiResponse;
+
+    public function __construct(private ActivityLogService $activityLogService) {}
 
     public function index(): JsonResponse
     {
@@ -25,6 +29,13 @@ class AdminRemittanceOptionController extends Controller
         ]);
 
         $option = RemittanceOption::create($validated);
+
+        $this->activityLogService->record(
+            ActivityLogCategory::REMITTANCE_OPTION,
+            "Added remittance option {$option->option_name}",
+            $request->user(),
+        );
+
         return $this->successResponse($option, 'Remittance option created', 201);
     }
 
@@ -36,13 +47,28 @@ class AdminRemittanceOptionController extends Controller
             'is_active' => ['nullable', 'boolean'],
         ]);
         $option->update($validated);
+
+        $this->activityLogService->record(
+            ActivityLogCategory::REMITTANCE_OPTION,
+            "Updated remittance option {$option->option_name}",
+            $request->user(),
+        );
+
         return $this->successResponse($option, 'Remittance option updated');
     }
 
-    public function destroy(string $id): JsonResponse
+    public function destroy(Request $request, string $id): JsonResponse
     {
         $option = RemittanceOption::findOrFail($id);
+        $optionName = $option->option_name;
         $option->delete();
+
+        $this->activityLogService->record(
+            ActivityLogCategory::REMITTANCE_OPTION,
+            "Deleted remittance option {$optionName}",
+            $request->user(),
+        );
+
         return $this->successResponse(null, 'Remittance option deleted');
     }
 }

@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\ActivityLogCategory;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreFarePointRequest;
 use App\Http\Requests\Admin\UpdateFarePointRequest;
 use App\Models\FarePoint;
 use App\Models\Route;
+use App\Services\ActivityLogService;
 use App\Services\RouteGeometryService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -27,7 +29,10 @@ class AdminFarePointController extends Controller
 {
     use ApiResponse;
 
-    public function __construct(private RouteGeometryService $routeGeometryService) {}
+    public function __construct(
+        private RouteGeometryService $routeGeometryService,
+        private ActivityLogService $activityLogService,
+    ) {}
 
     /**
      * GET /api/v1/admin/fare-points?route_id={uuid}
@@ -73,6 +78,12 @@ class AdminFarePointController extends Controller
         $this->routeGeometryService->syncDraftWaypointsFromFarePoints(
             $farePoint->route,
             $request->user()?->id,
+        );
+
+        $this->activityLogService->record(
+            ActivityLogCategory::FARE_POINT,
+            "Added fare point {$farePoint->name}",
+            $request->user(),
         );
 
         return $this->successResponse(
@@ -122,6 +133,12 @@ class AdminFarePointController extends Controller
             );
         }
 
+        $this->activityLogService->record(
+            ActivityLogCategory::FARE_POINT,
+            "Updated fare point {$farePoint->name}",
+            $request->user(),
+        );
+
         return $this->successResponse(
             $farePoint,
             $routeFieldsChanged
@@ -137,11 +154,18 @@ class AdminFarePointController extends Controller
     public function destroy(Request $request, string $id): JsonResponse
     {
         $farePoint = FarePoint::findOrFail($id);
+        $farePointName = $farePoint->name;
         $route = $farePoint->route;
         $farePoint->delete();
         $this->routeGeometryService->syncDraftWaypointsFromFarePoints(
             $route,
             $request->user()?->id,
+        );
+
+        $this->activityLogService->record(
+            ActivityLogCategory::FARE_POINT,
+            "Deleted fare point {$farePointName}",
+            $request->user(),
         );
 
         return $this->successResponse(null, 'Fare point deleted. Review and publish the updated route draft.');
@@ -174,6 +198,12 @@ class AdminFarePointController extends Controller
         $this->routeGeometryService->syncDraftWaypointsFromFarePoints(
             $route,
             $request->user()?->id,
+        );
+
+        $this->activityLogService->record(
+            ActivityLogCategory::FARE_POINT,
+            'Reordered ' . count($orderedIds) . " fare point(s) on route {$route->name}",
+            $request->user(),
         );
 
         return $this->successResponse(
