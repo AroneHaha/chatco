@@ -73,6 +73,8 @@ export interface PendingRegistration {
 export interface RegistrationListFilters {
   search?: string;
   appliedType?: AppliedType | "";
+  /** Look up one specific pending registration by its User.id (e.g. from a notification deep-link). */
+  id?: string;
   perPage?: number;
   page?: number;
 }
@@ -171,6 +173,7 @@ function buildQuery(filters: RegistrationListFilters): string {
   const params = new URLSearchParams();
   if (filters.search?.trim()) params.set("search", filters.search.trim());
   if (filters.appliedType) params.set("applied_type", filters.appliedType);
+  if (filters.id) params.set("id", filters.id);
   params.set("per_page", String(filters.perPage ?? 10));
   params.set("page", String(filters.page ?? 1));
   return `?${params.toString()}`;

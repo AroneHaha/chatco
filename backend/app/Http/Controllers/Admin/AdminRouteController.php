@@ -2,22 +2,28 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\ActivityLogCategory;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\PublishRouteVersionRequest;
 use App\Http\Requests\Admin\SaveRouteDraftRequest;
 use App\Http\Requests\Admin\StoreRouteRequest;
 use App\Http\Requests\Admin\UpdateRouteRequest;
 use App\Models\Route;
+use App\Services\ActivityLogService;
 use App\Services\RouteGeometryService;
 use App\Traits\ApiResponse;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class AdminRouteController extends Controller
 {
     use ApiResponse;
 
-    public function __construct(private RouteGeometryService $routeGeometryService) {}
+    public function __construct(
+        private RouteGeometryService $routeGeometryService,
+        private ActivityLogService $activityLogService,
+    ) {}
 
     public function index(): JsonResponse
     {
@@ -46,6 +52,12 @@ class AdminRouteController extends Controller
             'waypoints' => $validated['waypoints'] ?? [],
         ]);
 
+        $this->activityLogService->record(
+            ActivityLogCategory::ROUTE,
+            "Created route {$route->name}",
+            $request->user(),
+        );
+
         return $this->successResponse($this->adminPayload($route), 'Route created successfully', 201);
     }
 
@@ -54,10 +66,16 @@ class AdminRouteController extends Controller
         $route = Route::findOrFail($id);
         $route->update($request->safe()->only(['name', 'status', 'waypoints']));
 
+        $this->activityLogService->record(
+            ActivityLogCategory::ROUTE,
+            "Updated route {$route->name}",
+            $request->user(),
+        );
+
         return $this->successResponse($this->adminPayload($route->fresh()), 'Route updated successfully');
     }
 
-    public function destroy(string $id): JsonResponse
+    public function destroy(Request $request, string $id): JsonResponse
     {
         $route = Route::withCount(['vehicles', 'farePoints'])->findOrFail($id);
         if ($route->vehicles_count > 0 || $route->fare_points_count > 0) {
@@ -65,6 +83,12 @@ class AdminRouteController extends Controller
         }
 
         $route->delete();
+
+        $this->activityLogService->record(
+            ActivityLogCategory::ROUTE,
+            "Deleted route {$route->name}",
+            $request->user(),
+        );
 
         return $this->successResponse(null, 'Route deleted successfully');
     }
@@ -108,6 +132,12 @@ class AdminRouteController extends Controller
             $effectiveUntil,
             $validated['notes'] ?? null,
             $request->user()?->id,
+        );
+
+        $this->activityLogService->record(
+            ActivityLogCategory::ROUTE,
+            ($effectiveUntil ? "Published temporary detour for route {$route->name}" : "Published route {$route->name}"),
+            $request->user(),
         );
 
         return $this->successResponse(

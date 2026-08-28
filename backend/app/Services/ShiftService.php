@@ -17,6 +17,7 @@ class ShiftService
     public function __construct(
         private ShiftCloseoutService $closeoutService,
         private ShiftDeviceService $shiftDeviceService,
+        private AnnouncementService $announcementService,
     ) {}
 
     /** Start a shift only from the Admin-approved current-day assignment. */
@@ -105,6 +106,15 @@ class ShiftService
                 'assignment_approved_at' => now(),
             ]);
             $driver->update(['active_shift_id' => $shiftId]);
+
+            $conductorName = trim($profile->first_name.' '.$profile->last_name);
+            $unitNumber = $vehicle->unit_number;
+            DB::afterCommit(fn () => $this->announcementService->notifyAdmins(
+                'SHIFT_STARTED',
+                'Shift started',
+                "{$conductorName} started an active shift on unit {$unitNumber}.",
+                $vehicleId,
+            ));
 
             return $shift;
         }, 3);

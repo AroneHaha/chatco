@@ -24,6 +24,12 @@ function formatLicenseNumber(value: string): string {
     .join('-');
 }
 
+// Capitalizes the first letter of each word (start of string or after a
+// space) as the admin types, e.g. "mark arone" -> "Mark Arone".
+function formatPersonName(value: string): string {
+  return value.replace(/(^|\s)([a-z])/g, (_match, boundary, letter) => boundary + letter.toUpperCase());
+}
+
 interface AddPersonnelModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -54,7 +60,13 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'licenseNumber' ? formatLicenseNumber(value) : name === 'contact' ? formatContactNumber(value) : value,
+      [name]: name === 'licenseNumber'
+        ? formatLicenseNumber(value)
+        : name === 'contact'
+          ? formatContactNumber(value)
+          : name === 'firstName' || name === 'lastName'
+            ? formatPersonName(value)
+            : value,
     }));
   };
 

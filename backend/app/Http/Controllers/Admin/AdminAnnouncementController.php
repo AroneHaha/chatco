@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\ActivityLogCategory;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Announcement\StoreAnnouncementRequest;
 use App\Http\Requests\Announcement\UpdateAnnouncementRequest;
+use App\Services\ActivityLogService;
 use App\Services\AnnouncementService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -29,6 +31,7 @@ class AdminAnnouncementController extends Controller
 
     public function __construct(
         private readonly AnnouncementService $announcementService,
+        private readonly ActivityLogService $activityLogService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -61,6 +64,12 @@ class AdminAnnouncementController extends Controller
             $request->validated(),
         );
 
+        $this->activityLogService->record(
+            ActivityLogCategory::ANNOUNCEMENT,
+            "Published announcement \"{$announcement->title}\"",
+            $request->user(),
+        );
+
         return $this->successResponse($announcement, 'Announcement created', 201);
     }
 
@@ -83,16 +92,28 @@ class AdminAnnouncementController extends Controller
             return $this->errorResponse($e->getMessage(), 404);
         }
 
+        $this->activityLogService->record(
+            ActivityLogCategory::ANNOUNCEMENT,
+            "Updated announcement \"{$announcement->title}\"",
+            $request->user(),
+        );
+
         return $this->successResponse($announcement, 'Announcement updated');
     }
 
-    public function archive(string $id): JsonResponse
+    public function archive(Request $request, string $id): JsonResponse
     {
         try {
             $announcement = $this->announcementService->archive($id);
         } catch (\RuntimeException $e) {
             return $this->errorResponse($e->getMessage(), 404);
         }
+
+        $this->activityLogService->record(
+            ActivityLogCategory::ANNOUNCEMENT,
+            "Archived announcement \"{$announcement->title}\"",
+            $request->user(),
+        );
 
         return $this->successResponse($announcement, 'Announcement archived');
     }

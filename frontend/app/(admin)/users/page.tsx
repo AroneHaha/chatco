@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { UsersTable } from '@/components/admin/users/users-table';
 import { RegistrationRequestsTable } from '@/components/admin/users/registration-requests-table';
 import { RejectedAccountsTable } from '@/components/admin/users/rejected-accounts-table';
@@ -13,10 +14,11 @@ import { UserHistoryModal } from '@/components/admin/users/user-history-modal';
 import { DeleteUserModal } from '@/components/admin/users/delete-user-modal';
 import { FeedbackModal, type FeedbackModalStaff } from '@/components/admin/users/feedback-modal';
 import { SearchBar } from '@/components/admin/ui/search-bar';
-import { Plus, UserCheck, Users, XCircle, AlertCircle, RefreshCw, CheckCircle } from 'lucide-react';
+import { Plus, UserCheck, Users, XCircle, AlertCircle, RefreshCw, CheckCircle, ChevronUp } from 'lucide-react';
 import { useUsersData } from './data/users-data';
 import type { ActiveUser, PendingRequest, RejectedUser, RejectedRequest } from './data/users-data';
 import type { UpdateUserInput } from '@/lib/admin/services/user.service';
+import * as registrationService from '@/lib/admin/services/registration.service';
 import { SkeletonTable } from '@/components/admin/ui/skeleton';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 import { SuspensionModal } from '@/components/admin/users/suspension-modal';
@@ -24,6 +26,8 @@ import type { SuspendUserInput } from '@/lib/admin/services/user.service';
 import { OperationResultModal } from '@/components/admin/ui/operation-result-modal';
 
 export default function UsersPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<'active' | 'pending' | 'rejected'>('active');
   const {
     activeUsers,
@@ -80,6 +84,51 @@ export default function UsersPage() {
   const [editingUser, setEditingUser] = useState<ActiveUser | null>(null);
   const [deletingUser, setDeletingUser] = useState<ActiveUser | null>(null);
   const [feedbackStaff, setFeedbackStaff] = useState<FeedbackModalStaff | null>(null);
+
+  // Mobile-only collapse: the search/dropdown filter row (rendered inside
+  // each table's card via filterBar below) hides behind a toggle so just the
+  // title + Register Onsite button in the sticky header, and the tabs, stay
+  // visible on small screens — same pattern as Announcements/Remittance/Lost
+  // & Found.
+  const [isMobileFiltersExpanded, setIsMobileFiltersExpanded] = useState(true);
+
+  // ─── Deep-link from the notification bell ──────────────────────
+  // A NEW_REGISTRATION notification links here as
+  // /users?tab=pending&registrationId={userId}. Switch to the Pending tab
+  // and, if a registrationId is present, fetch that one registration by id
+  // (it may be far down the oldest-first queue, not on page 1) and open its
+  // Review Registration Request modal directly. Runs once on mount — the
+  // params are stripped from the URL right after so a refresh/back doesn't
+  // reopen the modal.
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    const registrationId = searchParams.get('registrationId');
+    if (tab !== 'pending' && !registrationId) return;
+
+    setActiveTab('pending');
+    router.replace('/users?tab=pending');
+    if (!registrationId) return;
+
+    let cancelled = false;
+    void registrationService
+      .listPending({ id: registrationId, perPage: 1 })
+      .then((result) => {
+        if (cancelled) return;
+        const match = result.registrations[0];
+        if (match) {
+          setSelectedRequest(match);
+          setIsReviewModalOpen(true);
+        }
+      })
+      .catch(() => {
+        // Best-effort — the applicant may have already been approved/rejected
+        // by another admin between the notification firing and this click.
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately mount-only: reacting to `router`/`searchParams` would re-fire after router.replace() strips the params.
+  }, []);
 
   // ─── Debounced search → API filter ────────────────────────────
   // The SearchBar updates `searchQuery` immediately (for responsive UX),
@@ -357,79 +406,100 @@ export default function UsersPage() {
     activeTab === 'pending' ? pendingPagination !== null :
     rejectedPagination !== null;
 
-  // Search bar (left) + tab-specific filters + the Register Onsite button,
-  // pushed to the right via ml-auto — rendered inside each table card's
-  // header, matching the Remittance/Announcements page layout.
+  // Search bar (left) + tab-specific filters, pushed to the right via
+  // ml-auto — rendered inside each table card's header, matching the
+  // Remittance/Announcements page layout. Collapses behind a mobile-only
+  // toggle so the table stays reachable without scrolling past every filter;
+  // the Register Onsite button lives in the sticky header instead, so it
+  // stays visible even while this is collapsed.
   const filterBar = (
-    <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center">
-      <SearchBar placeholder="Search users..." value={searchQuery} onChange={setSearchQuery} className="w-full sm:w-64" />
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:ml-auto">
-        {activeTab === 'active' && (
-          <select
-            value={filters.role ?? ''}
-            onChange={(e) => setFilters({ role: e.target.value as typeof filters.role })}
-            className="px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] [color-scheme:dark]"
-          >
-            <option value="" className="bg-gray-800">All Roles</option>
-            <option value="COMMUTER" className="bg-gray-800">Commuters</option>
-            <option value="CONDUCTOR" className="bg-gray-800">Conductors</option>
-            <option value="DRIVER" className="bg-gray-800">Drivers</option>
-            <option value="ADMIN" className="bg-gray-800">Admins</option>
-          </select>
-        )}
-        {activeTab === 'active' && (
-          <>
-            <select
-              value={filters.accountStatus}
-              onChange={(e) => setFilters({ accountStatus: e.target.value as typeof filters.accountStatus })}
-              aria-label="Filter by account status"
-              className="px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] [color-scheme:dark]"
-            >
-              <option value="" className="bg-gray-800">All Statuses</option>
-              <option value="ACTIVE" className="bg-gray-800">Active</option>
-              <option value="SUSPENDED" className="bg-gray-800">Suspended</option>
-            </select>
-            <select
-              value={filters.sort}
-              onChange={(e) => setFilters({ sort: e.target.value as typeof filters.sort })}
-              aria-label="Sort users"
-              className="px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] [color-scheme:dark]"
-            >
-              <option value="recent" className="bg-gray-800">Recent</option>
-              <option value="alphabetical" className="bg-gray-800">Alphabetical</option>
-              <option value="oldest" className="bg-gray-800">Oldest</option>
-            </select>
-          </>
-        )}
-        {activeTab === 'pending' && (
-          <select
-            value={pendingType}
-            onChange={(event) => setPendingType(event.target.value as typeof pendingType)}
-            aria-label="Filter pending registrations by commuter type"
-            className="px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm [color-scheme:dark]"
-          >
-            <option value="">All Types</option>
-            <option value="REGULAR">Regular</option>
-            <option value="STUDENT">Student</option>
-            <option value="SENIOR">Senior Citizen</option>
-            <option value="PWD">PWD</option>
-          </select>
-        )}
-        <button
-          onClick={handleOpenRegisterModal}
-          className="inline-flex w-full flex-shrink-0 items-center justify-center gap-2 rounded-lg border border-transparent bg-[#62A0EA] px-4 py-2 text-sm font-bold text-white shadow-lg shadow-[#62A0EA]/25 transition-colors hover:bg-[#4A8BD4] sm:w-auto"
-        >
-          <Plus size={16} /><span>Register Onsite</span>
-        </button>
+    <div className="flex w-full flex-col">
+      <div
+        className="overflow-hidden transition-all duration-300 ease-in-out md:max-h-none!"
+        style={{ maxHeight: isMobileFiltersExpanded ? '400px' : '0px' }}
+      >
+        <div className="flex w-full flex-col gap-3 pb-1 lg:flex-row lg:items-center">
+          <SearchBar placeholder="Search users..." value={searchQuery} onChange={setSearchQuery} className="w-full sm:w-64" />
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:ml-auto">
+            {activeTab === 'active' && (
+              <select
+                value={filters.role ?? ''}
+                onChange={(e) => setFilters({ role: e.target.value as typeof filters.role })}
+                className="px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] [color-scheme:dark]"
+              >
+                <option value="" className="bg-gray-800">All Roles</option>
+                <option value="COMMUTER" className="bg-gray-800">Commuters</option>
+                <option value="CONDUCTOR" className="bg-gray-800">Conductors</option>
+                <option value="DRIVER" className="bg-gray-800">Drivers</option>
+                <option value="ADMIN" className="bg-gray-800">Admins</option>
+              </select>
+            )}
+            {activeTab === 'active' && (
+              <>
+                <select
+                  value={filters.accountStatus}
+                  onChange={(e) => setFilters({ accountStatus: e.target.value as typeof filters.accountStatus })}
+                  aria-label="Filter by account status"
+                  className="px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] [color-scheme:dark]"
+                >
+                  <option value="" className="bg-gray-800">All Statuses</option>
+                  <option value="ACTIVE" className="bg-gray-800">Active</option>
+                  <option value="SUSPENDED" className="bg-gray-800">Suspended</option>
+                </select>
+                <select
+                  value={filters.sort}
+                  onChange={(e) => setFilters({ sort: e.target.value as typeof filters.sort })}
+                  aria-label="Sort users"
+                  className="px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] [color-scheme:dark]"
+                >
+                  <option value="recent" className="bg-gray-800">Recent</option>
+                  <option value="alphabetical" className="bg-gray-800">Alphabetical</option>
+                  <option value="oldest" className="bg-gray-800">Oldest</option>
+                </select>
+              </>
+            )}
+            {activeTab === 'pending' && (
+              <select
+                value={pendingType}
+                onChange={(event) => setPendingType(event.target.value as typeof pendingType)}
+                aria-label="Filter pending registrations by commuter type"
+                className="px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm [color-scheme:dark]"
+              >
+                <option value="">All Types</option>
+                <option value="REGULAR">Regular</option>
+                <option value="STUDENT">Student</option>
+                <option value="SENIOR">Senior Citizen</option>
+                <option value="PWD">PWD</option>
+              </select>
+            )}
+          </div>
+        </div>
       </div>
+      <button
+        type="button"
+        onClick={() => setIsMobileFiltersExpanded((prev) => !prev)}
+        aria-expanded={isMobileFiltersExpanded}
+        aria-label={isMobileFiltersExpanded ? 'Collapse filters' : 'Expand filters'}
+        className="flex w-full shrink-0 items-center justify-center border-t border-white/5 py-1.5 text-slate-500 transition-colors hover:bg-white/5 hover:text-slate-300 active:bg-white/10 md:hidden"
+      >
+        <ChevronUp className={`h-4 w-4 transition-transform duration-300 ${isMobileFiltersExpanded ? 'rotate-180' : ''}`} />
+      </button>
     </div>
   );
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <StickyPageHeader className="mb-6 shrink-0">
+      <StickyPageHeader className="mb-4 shrink-0">
         <h1 className="text-2xl font-bold text-white">User Management</h1>
       </StickyPageHeader>
+
+      <button
+        onClick={handleOpenRegisterModal}
+        className="mb-3 inline-flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-4 text-sm font-bold text-white shadow-lg shadow-[#62A0EA]/25 transition-colors hover:bg-[#4A8BD4] sm:w-auto lg:ml-auto"
+      >
+        <Plus size={16} />
+        <span>Register Onsite</span>
+      </button>
 
       {/* 3 Tabs — pill bar, matching Fleet Management's tab style */}
       <div className="mb-3 flex w-full shrink-0 gap-1.5 overflow-x-auto rounded-lg border border-[#1E2D45] bg-[#0E1628] p-1 scrollbar-themed">

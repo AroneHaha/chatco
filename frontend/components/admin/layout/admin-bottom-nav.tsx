@@ -10,6 +10,7 @@ import {
   mobileMoreItems,
 } from '@/config/admin-nav';
 import { useSettingsDrawer } from '@/components/admin/ui/settings-drawer';
+import { useAdminNotifications, formatAdminBadgeCount } from '@/contexts/admin-notifications-context';
 
 interface AdminBottomNavProps {
   isMoreOpen: boolean;
@@ -20,6 +21,11 @@ interface AdminBottomNavProps {
 export function AdminBottomNav({ isMoreOpen, setIsMoreOpen, onSignOut }: AdminBottomNavProps) {
   const pathname = usePathname();
   const { openSettingsDrawer } = useSettingsDrawer();
+  const { remittance, monitoring } = useAdminNotifications();
+  const moduleBadgeCounts: Record<string, number> = {
+    '/remittance': remittance.count,
+    '/monitoring': monitoring.count,
+  };
 
   const indicatorRef = useRef<HTMLDivElement>(null);
   const navItemRefs = useRef<(HTMLElement | null)[]>([]);
@@ -56,6 +62,7 @@ export function AdminBottomNav({ isMoreOpen, setIsMoreOpen, onSignOut }: AdminBo
         {mobileMainItems.map((item, index) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
+          const badgeCount = moduleBadgeCounts[item.href] ?? 0;
           return (
             <Link
               key={item.href}
@@ -65,7 +72,17 @@ export function AdminBottomNav({ isMoreOpen, setIsMoreOpen, onSignOut }: AdminBo
                 isActive ? 'text-[#62A0EA]' : 'text-slate-500'
               }`}
             >
-              <Icon size={20} />
+              <span className="relative inline-flex shrink-0">
+                <Icon size={20} />
+                {badgeCount > 0 && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute -top-1.5 -right-2 min-w-4 h-4 px-1 bg-[#FF6D3A] rounded-full text-[9px] font-bold text-white flex items-center justify-center ring-2 ring-[#0D1424] tabular-nums"
+                  >
+                    {formatAdminBadgeCount(badgeCount)}
+                  </span>
+                )}
+              </span>
               <span className="mt-1 max-w-full truncate px-0.5">{item.label}</span>
             </Link>
           );

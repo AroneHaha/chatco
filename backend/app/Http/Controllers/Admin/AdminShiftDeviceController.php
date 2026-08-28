@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\ActivityLogCategory;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\RecoverShiftDeviceRequest;
+use App\Services\ActivityLogService;
 use App\Services\ShiftDeviceService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -12,7 +14,10 @@ class AdminShiftDeviceController extends Controller
 {
     use ApiResponse;
 
-    public function __construct(private ShiftDeviceService $shiftDeviceService) {}
+    public function __construct(
+        private ShiftDeviceService $shiftDeviceService,
+        private ActivityLogService $activityLogService,
+    ) {}
 
     public function recover(RecoverShiftDeviceRequest $request, string $shift): JsonResponse
     {
@@ -20,6 +25,12 @@ class AdminShiftDeviceController extends Controller
             $request->user(),
             $shift,
             $request->validated('reason'),
+        );
+
+        $this->activityLogService->record(
+            ActivityLogCategory::SHIFT_DEVICE,
+            'Recovered device for shift #' . substr($shift, 0, 8),
+            $request->user(),
         );
 
         return $this->successResponse(

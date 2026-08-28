@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Announcement;
 use App\Models\SosAlert;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -76,6 +77,31 @@ class SosFlowTest extends TestCase
             'status'      => 'ACTIVE',
             'note'        => 'Feeling unsafe',
         ]);
+    }
+
+    public function test_commuter_sos_notifies_every_admin(): void
+    {
+        $otherAdmin = User::factory()->admin()->create();
+
+        $this->commuter();
+        $response = $this->postJson('/api/v1/commuter/sos', [
+            'lat'  => 14.5995,
+            'lng'  => 120.9842,
+            'note' => 'Feeling unsafe',
+        ]);
+        $alertId = $response->json('data.id');
+
+        foreach ([$this->admin, $otherAdmin] as $recipient) {
+            $notification = Announcement::where('type', 'SOS_TRIGGERED')
+                ->where('user_id', $recipient->id)
+                ->first();
+            $this->assertNotNull($notification, "Admin {$recipient->id} was not notified.");
+            $this->assertStringContainsString('Commuter', $notification->message);
+            // reference_id names the alert so the admin bell can deep-link
+            // straight to it (scrolled + highlighted) on Live Monitoring.
+            $this->assertSame($alertId, $notification->reference_id);
+        }
+        $this->assertSame(2, Announcement::where('type', 'SOS_TRIGGERED')->count());
     }
 
     public function test_sos_requires_lat_and_lng(): void

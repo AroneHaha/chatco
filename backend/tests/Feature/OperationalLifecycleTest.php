@@ -52,6 +52,37 @@ class OperationalLifecycleTest extends TestCase
         $this->assertNotNull($vehicle->assignment_approved_at);
     }
 
+    public function test_starting_a_shift_notifies_every_admin(): void
+    {
+        $admin = User::factory()->create(['role' => 'ADMIN']);
+        $otherAdmin = User::factory()->create(['role' => 'ADMIN']);
+        $conductor = User::factory()->conductor()->create();
+        $driver = Driver::factory()->create();
+        $route = Route::factory()->create();
+        $vehicle = Vehicle::factory()->create(['route_id' => $route->id]);
+
+        $this->actingAs($conductor)
+            ->postJson('/api/v1/conductor/shifts/start', [
+                'vehicle_id' => $vehicle->id,
+                'driver_id' => $driver->id,
+                'route_id' => $route->id,
+            ])
+            ->assertCreated();
+
+        foreach ([$admin, $otherAdmin] as $recipient) {
+            $notification = Announcement::where('type', 'SHIFT_STARTED')
+                ->where('user_id', $recipient->id)
+                ->first();
+            $this->assertNotNull($notification, "Admin {$recipient->id} was not notified.");
+            $this->assertStringContainsString($vehicle->unit_number, $notification->message);
+            // reference_id names the vehicle so the admin bell can deep-link
+            // straight to its Vehicle Details modal on Fleet Management.
+            $this->assertSame($vehicle->id, $notification->reference_id);
+        }
+        // Never broadcast to everyone — only the two admin accounts above.
+        $this->assertSame(2, Announcement::where('type', 'SHIFT_STARTED')->count());
+    }
+
     public function test_conductor_cannot_start_shift_with_vehicle_assigned_to_another_conductor(): void
     {
         $conductor = User::factory()->conductor()->create();
@@ -168,6 +199,66 @@ class OperationalLifecycleTest extends TestCase
             $this->assertSame(number_format($shortage, 2, '.', ''), $remittance->shortage);
             $this->assertSame(number_format($overage, 2, '.', ''), $remittance->overage);
         }
+    }
+
+    public function test_manual_remittance_completion_notifies_admins(): void
+    {
+        $admin = User::factory()->create(['role' => 'ADMIN']);
+        [$conductor, , , , $shift] = $this->activeShift();
+        $this->fare($shift, PaymentMethod::CASH, PaymentStatus::PAID, 100);
+
+        app(ShiftCloseoutService::class)->close(
+            $shift->shift_id,
+            100,
+            ShiftCloseoutService::REASON_MANUAL,
+            $conductor->id,
+        );
+
+        $notification = Announcement::where('type', 'REMITTANCE_COMPLETED')
+            ->where('user_id', $admin->id)
+            ->first();
+        $this->assertNotNull($notification);
+        $this->assertStringContainsString($shift->unit_number, $notification->message);
+        // reference_id names the shift so the admin bell can deep-link straight
+        // to its Conductor Detail modal on the Remittance tracker.
+        $this->assertSame($shift->shift_id, $notification->reference_id);
+    }
+
+    public function test_automatic_closeout_with_nothing_owed_notifies_admins(): void
+    {
+        $admin = User::factory()->create(['role' => 'ADMIN']);
+        [, , , , $shift] = $this->activeShift();
+        // No fares recorded — expected cash is 0, so the STALE closeout below
+        // resolves straight to COMPLETE without any conductor action.
+
+        app(ShiftCloseoutService::class)->close($shift->shift_id, null, ShiftCloseoutService::REASON_STALE);
+
+        $this->assertSame(Remittance::STATUS_COMPLETE, Remittance::findOrFail($shift->shift_id)->remittance_status);
+        $this->assertSame(
+            1,
+            Announcement::where('type', 'REMITTANCE_COMPLETED')->where('user_id', $admin->id)->count(),
+        );
+    }
+
+    public function test_resolving_a_previously_pending_remittance_notifies_admins_once(): void
+    {
+        $admin = User::factory()->create(['role' => 'ADMIN']);
+        [$conductor, , , , $shift] = $this->activeShift();
+        $this->fare($shift, PaymentMethod::CASH, PaymentStatus::PAID, 80);
+        $service = app(ShiftCloseoutService::class);
+
+        // Stale auto-closeout: cash is owed, nobody physically submitted it yet → PENDING, no notification.
+        $service->close($shift->shift_id, null, ShiftCloseoutService::REASON_STALE);
+        $this->assertSame(0, Announcement::where('type', 'REMITTANCE_COMPLETED')->count());
+
+        // The conductor later submits the cash manually — this resolves the PENDING remittance.
+        $service->close($shift->shift_id, 80, ShiftCloseoutService::REASON_MANUAL, $conductor->id);
+
+        $this->assertSame(Remittance::STATUS_COMPLETE, Remittance::findOrFail($shift->shift_id)->remittance_status);
+        $this->assertSame(
+            1,
+            Announcement::where('type', 'REMITTANCE_COMPLETED')->where('user_id', $admin->id)->count(),
+        );
     }
 
     public function test_automatic_closeout_creates_one_pending_obligation_without_marking_cash_remitted(): void
@@ -402,6 +493,55 @@ class OperationalLifecycleTest extends TestCase
         $this->assertNotNull($events[0]->ended_at);
         $this->assertSame(90, $events[1]->top_speed);
         $this->assertNull($events[1]->ended_at);
+    }
+
+    public function test_new_overspeed_episode_notifies_every_admin_once(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $otherAdmin = User::factory()->admin()->create();
+        [$conductor, , , , $shift] = $this->activeShift();
+        Setting::create(['key' => 'speed_limit_kmh', 'value' => '50', 'category' => 'operations']);
+        $service = app(LocationService::class);
+
+        // Two consecutive pings, both over the limit — the same open episode.
+        // Notifying on every ping would spam the bell every few seconds, so
+        // only the FIRST one (the episode starting) should notify.
+        $service->updateLocation($conductor, 14.9, 120.8, 80, null, null, 10, now()->subSeconds(2)->toIso8601String());
+        $service->updateLocation($conductor, 14.9, 120.8, 90, null, null, 10, now()->subSecond()->toIso8601String());
+
+        $event = OverspeedEvent::where('shift_id', $shift->shift_id)->firstOrFail();
+
+        foreach ([$admin, $otherAdmin] as $recipient) {
+            $notification = Announcement::where('type', 'OVERSPEED_FLAGGED')
+                ->where('user_id', $recipient->id)
+                ->first();
+            $this->assertNotNull($notification, "Admin {$recipient->id} was not notified.");
+            $this->assertStringContainsString($shift->unit_number, $notification->message);
+            // reference_id names the episode so the admin bell can deep-link
+            // straight to it (scrolled + highlighted) on Live Monitoring.
+            $this->assertSame((string) $event->id, $notification->reference_id);
+        }
+        // One notification per episode (per admin), not one per GPS ping.
+        $this->assertSame(2, Announcement::where('type', 'OVERSPEED_FLAGGED')->count());
+    }
+
+    public function test_reentering_overspeed_after_slowing_down_notifies_again(): void
+    {
+        $admin = User::factory()->admin()->create();
+        [$conductor, , , , $shift] = $this->activeShift();
+        Setting::create(['key' => 'speed_limit_kmh', 'value' => '50', 'category' => 'operations']);
+        $service = app(LocationService::class);
+
+        // First episode: over the limit, then back under it (closes the episode).
+        $service->updateLocation($conductor, 14.9, 120.8, 80, null, null, 10, now()->subSeconds(4)->toIso8601String());
+        $service->updateLocation($conductor, 14.9, 120.8, 40, null, null, 10, now()->subSeconds(3)->toIso8601String());
+        // Second, independent episode: over the limit again — a genuinely new flag.
+        $service->updateLocation($conductor, 14.9, 120.8, 90, null, null, 10, now()->subSeconds(2)->toIso8601String());
+
+        $this->assertSame(
+            2,
+            Announcement::where('type', 'OVERSPEED_FLAGGED')->where('user_id', $admin->id)->count(),
+        );
     }
 
     public function test_admin_overspeed_history_is_paginated_and_filters_chatco_shift_ids(): void

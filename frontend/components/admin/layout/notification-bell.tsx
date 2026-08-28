@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Bell, AlertTriangle, CheckCircle, Info, Megaphone } from 'lucide-react';
 import {
   unreadCount as fetchUnreadCount,
@@ -16,8 +17,10 @@ import { AnnouncementDetailModal } from '@/components/shared/announcement-detail
 
 /** Polling interval for the bell badge (per the S6-T9 spec). */
 const POLL_INTERVAL_MS = 30_000;
-/** Max unread items to show in the dropdown (per the S6-T9 spec). */
-const DROPDOWN_LIMIT = 5;
+/** Items fetched per page — the dropdown loads 10 initially, then 10 more each time the user scrolls to the bottom. */
+const PAGE_SIZE = 10;
+/** Trigger the next page fetch once the user scrolls within this many px of the bottom. */
+const LOAD_MORE_THRESHOLD_PX = 48;
 
 // ─── Helper: format relative time ──────────────────────────────────────
 
@@ -41,7 +44,7 @@ function formatRelativeTime(iso: string): string {
  */
 function getNotificationStyle(type: string) {
   const t = (type ?? '').toLowerCase();
-  if (['safety', 'warning', 'maintenance', 'alert', 'sos'].some((k) => t.includes(k))) {
+  if (['safety', 'warning', 'maintenance', 'alert', 'sos', 'overspeed'].some((k) => t.includes(k))) {
     return { Icon: AlertTriangle, color: 'text-amber-400', bg: 'bg-amber-500/10' };
   }
   if (['promo', 'success', 'holiday', 'reward'].some((k) => t.includes(k))) {
@@ -62,8 +65,10 @@ function getNotificationStyle(type: string) {
  *
  * Flow:
  *   - Badge shows the polled unread count (capped at '99+' for display).
- *   - Clicking the bell opens a dropdown of the top 5 unread announcements
- *     (title + first 100 chars of message + time-ago).
+ *   - Clicking the bell opens a dropdown of unread notifications, loaded 10
+ *     at a time (title + first 100 chars of message + time-ago). Scrolling to
+ *     the bottom of the currently loaded list fetches the next page of 10 and
+ *     appends it — the already-rendered items are never replaced or reloaded.
  *   - Clicking an unread item → markRead(id) → badge decrements → the item
  *     is removed from the dropdown → the detail modal opens with the full body.
  *   - "Mark all read" iterates the visible unread items + calls markRead for
@@ -74,14 +79,24 @@ function getNotificationStyle(type: string) {
  * authenticated role), but it's only mounted in the admin layout today.
  */
 export function NotificationBell() {
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [items, setItems] = useState<Announcement[]>([]);
   const [isLoadingList, setIsLoadingList] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [markingIds, setMarkingIds] = useState<Set<string>>(new Set());
   const [detailItem, setDetailItem] = useState<Announcement | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const listScrollRef = useRef<HTMLDivElement>(null);
+  // Next page to fetch + whether the server has more pages, per the last
+  // list()/loadMore() response. A ref (not state) so loadMore's scroll
+  // handler always reads the latest value without re-subscribing on every
+  // page bump, and so a burst of scroll events can't race past the in-flight
+  // guard below and double-fetch the same page.
+  const paginationRef = useRef({ nextPage: 2, hasMore: false });
+  const isFetchingRef = useRef(false);
 
   // ─── Poll unread count on mount + every 30s ──────────────────────────
   const refreshCount = useCallback(async () => {
@@ -103,13 +118,15 @@ export function NotificationBell() {
     return () => clearInterval(id);
   }, [refreshCount]);
 
-  // ─── Fetch the dropdown list when the bell opens ─────────────────────
+  // ─── Fetch page 1 when the bell opens ─────────────────────────────────
   const refreshList = useCallback(async () => {
+    isFetchingRef.current = true;
     setIsLoadingList(true);
     setListError(null);
     try {
-      const result = await listAnnouncements({ unreadOnly: true, perPage: DROPDOWN_LIMIT });
+      const result = await listAnnouncements({ unreadOnly: true, page: 1, perPage: PAGE_SIZE });
       setItems(result.items);
+      paginationRef.current = { nextPage: 2, hasMore: result.page < result.lastPage };
     } catch (err) {
       setListError(
         err instanceof AnnouncementOperationError
@@ -117,14 +134,63 @@ export function NotificationBell() {
           : 'Unable to load announcements.'
       );
       setItems([]);
+      paginationRef.current = { nextPage: 2, hasMore: false };
     } finally {
       setIsLoadingList(false);
+      isFetchingRef.current = false;
     }
   }, []);
 
   useEffect(() => {
-    if (isOpen) void refreshList();
+    if (isOpen) {
+      void refreshList();
+      // A fresh open always starts scrolled to the top of the new page-1 list.
+      listScrollRef.current?.scrollTo({ top: 0 });
+    }
   }, [isOpen, refreshList]);
+
+  // ─── Fetch the next page and append it once the user nears the bottom ──
+  const loadMore = useCallback(async () => {
+    if (isFetchingRef.current || !paginationRef.current.hasMore) return;
+    isFetchingRef.current = true;
+    setIsLoadingMore(true);
+    const { nextPage } = paginationRef.current;
+    try {
+      const result = await listAnnouncements({ unreadOnly: true, page: nextPage, perPage: PAGE_SIZE });
+      // Guard against a page the server already gave us (e.g. a duplicate
+      // scroll-triggered call that slipped past isFetchingRef) landing twice.
+      setItems((prev) => {
+        const seen = new Set(prev.map((i) => i.id));
+        const fresh = result.items.filter((i) => !seen.has(i.id));
+        return [...prev, ...fresh];
+      });
+      paginationRef.current = { nextPage: nextPage + 1, hasMore: result.page < result.lastPage };
+    } catch {
+      // Leave hasMore as-is so scrolling back to the bottom retries the same page.
+    } finally {
+      setIsLoadingMore(false);
+      isFetchingRef.current = false;
+    }
+  }, []);
+
+  const handleListScroll = useCallback(() => {
+    const el = listScrollRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (distanceFromBottom <= LOAD_MORE_THRESHOLD_PX) void loadMore();
+  }, [loadMore]);
+
+  // If a loaded page doesn't fill the scrollable panel (e.g. a short first
+  // page), there's nothing for the user to scroll — so the handler above
+  // would never fire even though more pages exist. Top up until the panel
+  // is actually scrollable or there's nothing left to fetch.
+  useEffect(() => {
+    const el = listScrollRef.current;
+    if (!el || isLoadingList || isLoadingMore) return;
+    if (paginationRef.current.hasMore && el.scrollHeight <= el.clientHeight) {
+      void loadMore();
+    }
+  }, [items, isLoadingList, isLoadingMore, loadMore]);
 
   // ─── Close dropdown when clicking outside ────────────────────────────
   useEffect(() => {
@@ -137,7 +203,7 @@ export function NotificationBell() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // ─── Click an unread item → markRead + open detail modal ──────────────
+  // ─── Click an unread item → markRead + open detail modal (or deep-link) ─
   const handleClickItem = useCallback(
     async (item: Announcement) => {
       // Optimistic: remove from the dropdown immediately.
@@ -157,11 +223,48 @@ export function NotificationBell() {
           return next;
         });
       }
+      setIsOpen(false);
+
+      // A new-registration notice deep-links straight to that applicant's
+      // Review Registration Request modal on the Pending Verification tab,
+      // instead of the generic text detail modal.
+      if (item.type === 'NEW_REGISTRATION' && item.referenceId) {
+        router.push(`/users?tab=pending&registrationId=${item.referenceId}`);
+        return;
+      }
+
+      // A shift-started notice deep-links to that unit's Vehicle Details
+      // modal on Fleet Management (referenceId is the vehicle's id).
+      if (item.type === 'SHIFT_STARTED' && item.referenceId) {
+        router.push(`/vehicles?vehicleId=${item.referenceId}`);
+        return;
+      }
+
+      // A remittance-completed notice deep-links to that shift's Conductor
+      // Detail modal on the Remittance tracker (referenceId is the shift_id).
+      if (item.type === 'REMITTANCE_COMPLETED' && item.referenceId) {
+        router.push(`/remittance?shiftId=${item.referenceId}`);
+        return;
+      }
+
+      // An SOS notice deep-links to Live Monitoring, scrolled to and
+      // highlighting that specific alert card (referenceId is the alert's id).
+      if (item.type === 'SOS_TRIGGERED' && item.referenceId) {
+        router.push(`/monitoring?sosId=${item.referenceId}`);
+        return;
+      }
+
+      // An overspeed notice deep-links to Live Monitoring's Overspeeding
+      // History row for that episode (referenceId is the OverspeedEvent id).
+      if (item.type === 'OVERSPEED_FLAGGED' && item.referenceId) {
+        router.push(`/monitoring?overspeedId=${item.referenceId}`);
+        return;
+      }
+
       // Open the detail modal with the full body.
       setDetailItem(item);
-      setIsOpen(false);
     },
-    []
+    [router]
   );
 
   // ─── Mark all visible unread as read ─────────────────────────────────
@@ -219,7 +322,7 @@ export function NotificationBell() {
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-white">Announcements</h3>
+              <h3 className="text-sm font-bold text-white">Notifications</h3>
               {unreadCount > 0 && (
                 <span className="text-[10px] font-bold uppercase tracking-wider bg-red-500/15 text-red-400 px-2 py-0.5 rounded-full">
                   {unreadCount} New
@@ -238,7 +341,11 @@ export function NotificationBell() {
           </div>
 
           {/* List */}
-          <div className="max-h-96 overflow-y-auto divide-y divide-white/[0.04]">
+          <div
+            ref={listScrollRef}
+            onScroll={handleListScroll}
+            className="max-h-96 overflow-y-auto divide-y divide-white/[0.04]"
+          >
             {isLoadingList ? (
               <div className="px-4 py-12 text-center">
                 <div className="w-6 h-6 border-2 border-white/10 border-t-[#62A0EA] rounded-full animate-spin mx-auto mb-2" />
@@ -261,7 +368,8 @@ export function NotificationBell() {
                 <p className="text-sm text-white/30">You&apos;re all caught up</p>
               </div>
             ) : (
-              items.map((item) => {
+              <>
+              {items.map((item) => {
                 const { Icon, color, bg } = getNotificationStyle(item.type);
                 const preview =
                   item.message.length > 100
@@ -300,7 +408,13 @@ export function NotificationBell() {
                     </div>
                   </button>
                 );
-              })
+              })}
+              {isLoadingMore && (
+                <div className="px-4 py-3 text-center">
+                  <div className="w-4 h-4 border-2 border-white/10 border-t-[#62A0EA] rounded-full animate-spin mx-auto" />
+                </div>
+              )}
+              </>
             )}
           </div>
 

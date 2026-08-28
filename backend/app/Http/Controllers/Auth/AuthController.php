@@ -258,7 +258,7 @@ class AuthController extends Controller
      * accounts, but POST /auth/register already leaks the same fact (it
      * rejects an email held by a live user), so the silence bought little
      * while regularly stranding real users on the code screen waiting for a
-     * mail that was never sent. The route's `throttle:commuter-hail` limiter
+     * mail that was never sent. The route's `throttle:auth` limiter
      * (10/min per IP) keeps the endpoint from being scripted for bulk
      * harvesting.
      *

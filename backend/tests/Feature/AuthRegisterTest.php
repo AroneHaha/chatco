@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
+use App\Models\Announcement;
 use App\Models\CommuterProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -129,6 +130,26 @@ class AuthRegisterTest extends TestCase
         // User::create()'s mass assignment, which would silently drop it and
         // let the `creating` hook mint a different, mismatched UUID.
         $this->assertStringContainsString($user->id, $user->commuterProfile->id_image_url);
+    }
+
+    public function test_register_notifies_every_admin_with_a_deep_link_to_the_new_registration(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $otherAdmin = User::factory()->admin()->create();
+
+        $response = $this->registerWithFile();
+        $newUserId = $response->json('data.id');
+
+        foreach ([$admin, $otherAdmin] as $recipient) {
+            $notification = Announcement::where('type', 'NEW_REGISTRATION')
+                ->where('user_id', $recipient->id)
+                ->first();
+            $this->assertNotNull($notification, "Admin {$recipient->id} was not notified.");
+            $this->assertSame($newUserId, $notification->reference_id);
+            $this->assertStringContainsString('Maria', $notification->message);
+        }
+        // Never broadcast to everyone — only the two admin accounts above.
+        $this->assertSame(2, Announcement::where('type', 'NEW_REGISTRATION')->count());
     }
 
     public function test_register_hashes_the_password(): void

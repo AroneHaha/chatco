@@ -32,6 +32,7 @@ class AuthService
     public function __construct(
         private RegistrationGuard $registrationGuard,
         private EmailVerificationService $emailVerification,
+        private AnnouncementService $announcementService,
     ) {}
 
     /**
@@ -354,6 +355,14 @@ class AuthService
                     'verified_at' => null,
                     'rejection_reason' => null,
                 ]);
+
+                $applicantName = trim($profile->first_name.' '.$profile->surname);
+                DB::afterCommit(fn () => $this->announcementService->notifyAdmins(
+                    'NEW_REGISTRATION',
+                    'New registration request',
+                    "{$applicantName} signed up and is awaiting verification.",
+                    $user->id,
+                ));
 
                 return [
                     'user' => $user,

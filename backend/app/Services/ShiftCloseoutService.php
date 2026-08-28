@@ -26,7 +26,10 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  */
 final class ShiftCloseoutService
 {
-    public function __construct(private ShiftDeviceService $shiftDeviceService) {}
+    public function __construct(
+        private ShiftDeviceService $shiftDeviceService,
+        private AnnouncementService $announcementService,
+    ) {}
 
     public const REASON_MANUAL = 'MANUAL';
 
@@ -73,6 +76,7 @@ final class ShiftCloseoutService
                     && $remittance
                     && $remittance->remittance_status === Remittance::STATUS_PENDING) {
                     $this->completePendingRemittance($remittance, (float) $remittedAmount);
+                    $this->notifyRemittanceCompletedAfterCommit($remittance);
 
                     return $shift->fresh(['remittance']);
                 }
@@ -134,6 +138,10 @@ final class ShiftCloseoutService
                 'remitted_at' => $status === Remittance::STATUS_PENDING ? null : $timeOut,
             ]);
             $remittance->save();
+
+            if ($status !== Remittance::STATUS_PENDING) {
+                $this->notifyRemittanceCompletedAfterCommit($remittance);
+            }
 
             $shift->update([
                 'status' => ShiftStatus::ENDED->value,
@@ -300,6 +308,26 @@ SQL;
         $value = (int) (Setting::query()->where('key', 'remittance_grace_minutes')->value('value') ?? 30);
 
         return max(1, min($value, 1440));
+    }
+
+    /** Notify every admin once a shift's remittance reaches a terminal state (manually or automatically). */
+    private function notifyRemittanceCompletedAfterCommit(Remittance $remittance): void
+    {
+        $conductorName = $remittance->conductor_name;
+        $unitNumber = $remittance->unit_number;
+        $statusLabel = match ($remittance->remittance_status) {
+            Remittance::STATUS_SHORTAGE => 'with a shortage',
+            Remittance::STATUS_OVERAGE => 'with an overage',
+            default => 'in full',
+        };
+        $amount = number_format((float) $remittance->remitted_amount, 2);
+
+        DB::afterCommit(fn () => $this->announcementService->notifyAdmins(
+            'REMITTANCE_COMPLETED',
+            'Remittance completed',
+            "{$conductorName} remitted ₱{$amount} {$statusLabel} for unit {$unitNumber}.",
+            $remittance->shift_id,
+        ));
     }
 
     private function cancelOpenHailsAfterCommit(ShiftLog $shift): void

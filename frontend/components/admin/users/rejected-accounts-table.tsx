@@ -50,8 +50,8 @@ export function RejectedAccountsTable({
     {
       key: 'name',
       label: 'Applicant',
-      headerClassName: 'w-[24%] px-2 sm:px-4',
-      cellClassName: 'px-2 sm:px-4 min-w-0',
+      headerClassName: 'px-2 sm:px-4',
+      cellClassName: 'px-2 sm:px-4 min-w-[10rem]',
       render: (value: string, request: RejectedRequest) => (
         <div className="flex min-w-0 items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -61,8 +61,8 @@ export function RejectedAccountsTable({
             className="h-9 w-9 flex-shrink-0 rounded-md border border-[#1E2D45] object-cover"
           />
           <div className="min-w-0">
-            <p className="truncate font-medium text-white" title={value}>{value}</p>
-            <p className="truncate text-xs text-slate-500" title={request.email}>{request.email}</p>
+            <p className="whitespace-nowrap font-medium text-white">{value}</p>
+            <p className="whitespace-nowrap text-xs text-slate-500">{request.email}</p>
           </div>
         </div>
       ),
@@ -70,40 +70,39 @@ export function RejectedAccountsTable({
     {
       key: 'commuterType',
       label: 'Type',
-      headerClassName: 'w-[10%] px-2 sm:px-4',
-      cellClassName: 'px-2 sm:px-4',
+      headerClassName: 'px-2 sm:px-4',
+      cellClassName: 'whitespace-nowrap px-2 sm:px-4',
       render: (value: string) => <Badge variant="info">{value}</Badge>,
     },
     {
       key: 'createdAt',
       label: 'Applied',
-      headerClassName: 'w-[12%] px-2 sm:px-4',
-      cellClassName: 'px-2 sm:px-4',
+      headerClassName: 'px-2 sm:px-4',
+      cellClassName: 'whitespace-nowrap px-2 sm:px-4',
       render: (value: string) => <span className="text-xs text-slate-400">{formatAppliedDate(value)}</span>,
     },
     {
       key: 'rejectionReason',
       label: 'Reason',
-      // Fixed-width, single-line, ellipsized — a long reason must never grow
-      // the row. `min-w-0` on the cell is required for `truncate` to work
-      // inside a `table-fixed` layout. The full text is always available in
-      // the details modal (double-click) and via the hover tooltip.
-      headerClassName: 'w-[28%] px-2 sm:px-4',
-      cellClassName: 'px-2 sm:px-4 min-w-0',
+      // Full text, single line — the row no longer forces a fixed-width
+      // ellipsis; the table scrolls horizontally instead of clipping. The
+      // full text is also available in the details modal (double-click).
+      headerClassName: 'px-2 sm:px-4',
+      cellClassName: 'px-2 sm:px-4 max-w-xs truncate',
       render: (value: string) => (
-        <span className="block truncate text-xs text-slate-400 italic" title={value}>{value || 'N/A'}</span>
+        <span className="text-xs text-slate-400 italic" title={value}>{value || 'N/A'}</span>
       ),
     },
     {
       key: 'rejectedByName',
       label: 'Reject By',
-      headerClassName: 'w-[26%] px-2 sm:px-4',
-      cellClassName: 'px-2 sm:px-4 min-w-0',
+      headerClassName: 'px-2 sm:px-4',
+      cellClassName: 'px-2 sm:px-4 min-w-[10rem]',
       render: (value: string | null, request: RejectedRequest) => (
         <div className="min-w-0">
-          <p className="truncate text-sm text-white" title={value ?? undefined}>{value || '—'}</p>
+          <p className="whitespace-nowrap text-sm text-white">{value || '—'}</p>
           {request.rejectedByEmail && (
-            <p className="truncate text-xs text-slate-500" title={request.rejectedByEmail}>{request.rejectedByEmail}</p>
+            <p className="whitespace-nowrap text-xs text-slate-500">{request.rejectedByEmail}</p>
           )}
         </div>
       ),
@@ -121,8 +120,6 @@ export function RejectedAccountsTable({
           emptyMessage="No rejected accounts."
           height="100%"
           stickyHeader
-          allowHorizontalScroll={false}
-          tableClassName="table-fixed"
           onRowDoubleClick={onSelectRequest}
         />
         {isRefreshing && (

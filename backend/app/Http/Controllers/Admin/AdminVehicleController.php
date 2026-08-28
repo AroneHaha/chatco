@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\ActivityLogCategory;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreVehicleRequest;
 use App\Http\Requests\Admin\UpdateVehicleRequest;
+use App\Services\ActivityLogService;
 use App\Services\AdminService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -30,7 +32,8 @@ class AdminVehicleController extends Controller
     use ApiResponse;
 
     public function __construct(
-        private AdminService $adminService
+        private AdminService $adminService,
+        private ActivityLogService $activityLogService,
     ) {}
 
     /**
@@ -79,6 +82,12 @@ class AdminVehicleController extends Controller
     {
         $vehicle = $this->adminService->createVehicle($request->validated());
 
+        $this->activityLogService->record(
+            ActivityLogCategory::VEHICLE,
+            "Added vehicle {$vehicle->plate_number}",
+            $request->user(),
+        );
+
         return $this->successResponse($vehicle, 'Vehicle created successfully', 201);
     }
 
@@ -90,6 +99,12 @@ class AdminVehicleController extends Controller
     {
         $vehicle = $this->adminService->updateVehicle($id, $request->validated());
 
+        $this->activityLogService->record(
+            ActivityLogCategory::VEHICLE,
+            "Updated vehicle {$vehicle->plate_number}",
+            $request->user(),
+        );
+
         return $this->successResponse($vehicle, 'Vehicle updated successfully');
     }
 
@@ -98,8 +113,11 @@ class AdminVehicleController extends Controller
      * Blocks (409) if the vehicle has an active_shift_id — never orphan
      * a conductor's active shift. Otherwise soft-deletes the vehicle.
      */
-    public function destroy(string $id): JsonResponse
+    public function destroy(Request $request, string $id): JsonResponse
     {
+        // Captured before delete() so the log description can still name it.
+        $plateNumber = $this->adminService->getVehicle($id)->plate_number ?? $id;
+
         try {
             $this->adminService->deleteVehicle($id);
         } catch (ValidationException $e) {
@@ -112,6 +130,12 @@ class AdminVehicleController extends Controller
                 'meta'    => null,
             ], 409);
         }
+
+        $this->activityLogService->record(
+            ActivityLogCategory::VEHICLE,
+            "Deleted vehicle {$plateNumber}",
+            $request->user(),
+        );
 
         return $this->successResponse(null, 'Vehicle deleted successfully');
     }

@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ApproveRegistrationRequest;
 use App\Http\Requests\Admin\RejectRegistrationRequest;
+use App\Enums\ActivityLogCategory;
 use App\Enums\UserRole;
 use App\Models\CommuterProfile;
 use App\Models\User;
+use App\Services\ActivityLogService;
 use App\Services\AdminService;
 use App\Services\RegistrationGuard;
 use App\Traits\ApiResponse;
@@ -47,6 +49,7 @@ class AdminRegistrationController extends Controller
     public function __construct(
         private AdminService $adminService,
         private RegistrationGuard $registrationGuard,
+        private ActivityLogService $activityLogService,
     ) {}
 
     /**
@@ -59,6 +62,11 @@ class AdminRegistrationController extends Controller
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'applied_type' => ['nullable', Rule::in(['REGULAR', 'STUDENT', 'SENIOR', 'PWD'])],
+            // Looks up one specific pending registration by its User.id —
+            // used by the admin notification bell to deep-link straight to a
+            // just-signed-up applicant regardless of where they fall in the
+            // (oldest-first) review queue.
+            'id' => ['nullable', 'uuid'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
@@ -206,6 +214,12 @@ class AdminRegistrationController extends Controller
             throw $e;
         }
 
+        $this->activityLogService->record(
+            ActivityLogCategory::MEMBER,
+            "Created onsite registration for {$created['profile']->first_name} {$created['profile']->surname}",
+            $request->user(),
+        );
+
         return $this->successResponse([
             'id' => $created['user']->id,
             'email' => $created['user']->email,
@@ -228,6 +242,13 @@ class AdminRegistrationController extends Controller
     public function approve(ApproveRegistrationRequest $request, string $id): JsonResponse
     {
         $result = $this->adminService->approveRegistration($id);
+
+        $this->activityLogService->record(
+            ActivityLogCategory::MEMBER,
+            "Approved registration for {$result['name']}",
+            $request->user(),
+        );
+
         return $this->successResponse($result, 'Registration approved — commuter can now log in.');
     }
 
@@ -239,10 +260,22 @@ class AdminRegistrationController extends Controller
      */
     public function reject(RejectRegistrationRequest $request, string $id): JsonResponse
     {
+        // Captured before rejectRegistration() rewrites the email/username to
+        // placeholders — the profile's name fields are untouched by that, but
+        // reading it up front avoids relying on that detail staying true.
+        $targetName = User::find($id)?->getDisplayName() ?? $id;
+
         $result = $this->adminService->rejectRegistration(
             $id,
             $request->validated()['rejection_reason']
         );
+
+        $this->activityLogService->record(
+            ActivityLogCategory::MEMBER,
+            "Rejected registration for {$targetName}",
+            $request->user(),
+        );
+
         return $this->successResponse($result, 'Registration rejected. The email is now available for re-registration.');
     }
 

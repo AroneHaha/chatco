@@ -42,30 +42,33 @@ interface UseConductorTransactionsResult {
 export function useConductorTransactions(
   shiftId: string | null
 ): UseConductorTransactionsResult {
-  // If the shift hook already seeded a shiftId from its own cache (the usual
-  // case for a returning conductor), read that shift's cached transactions
-  // synchronously too — fetchShiftTransactions() still verifies against the
-  // server right after mount, this just avoids a blank total in between.
-  const [transactions, setTransactions] = useState<Transaction[]>(() =>
-    shiftId ? getShiftTransactions(shiftId) : []
-  );
-  const [status, setStatus] = useState<UseConductorTransactionsResult["status"]>(() =>
-    shiftId ? "success" : "loading"
-  );
+  // shiftId is null on the very first render (it comes from the shift hook,
+  // which itself starts null to match the server's no-localStorage render),
+  // so start empty/loading here too rather than reading the cache in the
+  // initializer — that would only be safe once shiftId is already non-null,
+  // which never happens on mount.
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [status, setStatus] = useState<UseConductorTransactionsResult["status"]>("loading");
   const [error, setError] = useState<string | null>(null);
   const refreshInFlight = useRef<Promise<void> | null>(null);
 
-  // Drop the previous shift's rows the moment the shift changes. Without this
-  // the summary keeps rendering the ended shift's cash/GCash totals until the
-  // new shift's fetch resolves, so a freshly started shift briefly shows the
-  // previous one's money. This is React's documented "adjust state when a prop
-  // changes" pattern (a render-phase reset, not an effect) so the stale rows
-  // never reach the DOM at all.
+  // Reconcile transactions the moment shiftId changes. This is React's
+  // documented "adjust state when a prop changes" pattern (a render-phase
+  // reset, not an effect), and — unlike a useState initializer — it only
+  // ever runs on a render after mount, once shiftId has already diverged
+  // from its hydration-time value, so reading the cache here can't cause a
+  // hydration mismatch. Seeding from the new shiftId's cache (rather than
+  // always clearing to []) is what gives a returning conductor instant
+  // numbers instead of a blank total while fetchShiftTransactions()
+  // verifies against the server; a freshly started shift has no cache yet
+  // so this still comes back empty, and the previous shift's rows never
+  // reach the DOM.
   const [renderedShiftId, setRenderedShiftId] = useState(shiftId);
   if (shiftId !== renderedShiftId) {
     setRenderedShiftId(shiftId);
-    setTransactions([]);
-    setStatus(shiftId ? "loading" : "empty");
+    const cached = shiftId ? getShiftTransactions(shiftId) : [];
+    setTransactions(cached);
+    setStatus(shiftId ? (cached.length > 0 ? "success" : "loading") : "empty");
     setError(null);
   }
 

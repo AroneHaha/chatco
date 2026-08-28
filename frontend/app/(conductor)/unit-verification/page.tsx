@@ -3,10 +3,11 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
-import { startShift, fetchActiveShift } from "@/lib/conductor/services/shift.service";
+import { startShift } from "@/lib/conductor/services/shift.service";
 import { fetchRemittanceHistory, type RemittanceRecord } from "@/lib/conductor/services/remittance.service";
 import type { ConductorDriver, ConductorUnit } from "@/lib/conductor/types";
 import { useUnitVerification } from "@/app/(conductor)/hooks/use-unit-verification";
+import { useConductorShift } from "@/app/(conductor)/hooks/use-conductor-shift";
 import UnitList from "@/components/conductor/unit-verification/UnitList";
 import DriverList from "@/components/conductor/unit-verification/DriverList";
 import StartShiftModal from "@/components/conductor/unit-verification/StartShiftModal";
@@ -17,6 +18,7 @@ type Step = "select-unit" | "select-driver";
 export default function ConductorLoginPage() {
   const router = useRouter();
   const { profile, units, drivers, status, error, refresh } = useUnitVerification();
+  const { shift, status: shiftStatus } = useConductorShift();
 
   const [step, setStep] = useState<Step>("select-unit");
   const [selectedUnit, setSelectedUnit] = useState<ConductorUnit | null>(null);
@@ -28,18 +30,25 @@ export default function ConductorLoginPage() {
   const [pendingRemittance, setPendingRemittance] = useState<RemittanceRecord | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
+  // Reuse the shift already fetched by ConductorShiftProvider (wraps the
+  // whole (conductor) route group) instead of calling fetchActiveShift()
+  // again here — this page used to fire a redundant duplicate request.
   useEffect(() => {
-    void Promise.all([fetchActiveShift(), fetchRemittanceHistory()]).then(([shift, remittances]) => {
-      if (shift) {
-        router.replace("/conductor-dashboard");
-      } else {
+    if (shiftStatus === "loading") return;
+
+    if (shift) {
+      router.replace("/conductor-dashboard");
+      return;
+    }
+
+    void fetchRemittanceHistory()
+      .then((remittances) => {
         setPendingRemittance(
           remittances.find((record) => record.remittanceStatus === "Pending" || record.remittanceStatus === "Overdue") ?? null,
         );
-        setIsCheckingShift(false);
-      }
-    }).catch(() => setIsCheckingShift(false));
-  }, [router]);
+      })
+      .finally(() => setIsCheckingShift(false));
+  }, [shift, shiftStatus, router]);
 
   if (isCheckingShift || status === "loading") {
     return <UnitVerificationSkeleton />;

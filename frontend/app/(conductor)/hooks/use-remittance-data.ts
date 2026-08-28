@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   fetchRemittanceHistory,
   getRemittanceHistory,
@@ -55,19 +55,35 @@ interface UseRemittanceDataResult {
  * breakdown list (passenger count, payment method distribution, etc.).
  */
 export function useRemittanceData(): UseRemittanceDataResult {
-  // Seed every slice from its own cache instead of null/[]/loading — a
-  // returning conductor sees real numbers on the first frame, and the fetch
-  // below still runs right after to verify/correct against the server.
-  const [shift, setShift] = useState<ConductorShift | null>(() => readCache().shift);
-  const [transactions, setTransactions] = useState<Transaction[]>(() => readCache().transactions);
+  // Start from null/[]/loading on every render pass, matching what the
+  // server renders (it has no localStorage). The cache is applied in a
+  // useLayoutEffect below instead of a useState initializer, since the
+  // initializer also runs during client hydration and — unlike an effect —
+  // isn't guaranteed to match the server-rendered output, which caused a
+  // hydration mismatch for returning conductors.
+  const [shift, setShift] = useState<ConductorShift | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [earnings, setEarnings] = useState<ShiftEarnings | null>(null);
-  const [history, setHistory] = useState<RemittanceRecord[]>(() => readCache().history);
-  const [status, setStatus] = useState<UseRemittanceDataResult["status"]>(() => {
-    const cache = readCache();
-    return cache.shift || cache.history.length > 0 ? "success" : "loading";
-  });
+  const [history, setHistory] = useState<RemittanceRecord[]>([]);
+  const [status, setStatus] = useState<UseRemittanceDataResult["status"]>("loading");
   const [error, setError] = useState<string | null>(null);
   const refreshInFlight = useRef<Promise<void> | null>(null);
+
+  // Seed from the last known cache so a returning conductor sees real
+  // numbers on the first paint instead of a skeleton — refresh() still
+  // verifies against the server right after mount and corrects this if it's
+  // stale. useLayoutEffect only runs client-side, after hydration, and
+  // before the browser paints, so this never conflicts with the
+  // server-rendered HTML.
+  useLayoutEffect(() => {
+    const cache = readCache();
+    if (cache.shift || cache.history.length > 0) {
+      setShift(cache.shift);
+      setTransactions(cache.transactions);
+      setHistory(cache.history);
+      setStatus("success");
+    }
+  }, []);
 
   const refresh = useCallback(async () => {
     if (refreshInFlight.current) return refreshInFlight.current;

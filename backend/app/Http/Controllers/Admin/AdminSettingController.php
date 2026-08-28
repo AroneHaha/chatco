@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\ActivityLogCategory;
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
+use App\Services\ActivityLogService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -27,6 +29,8 @@ use Illuminate\Support\Facades\Validator;
 class AdminSettingController extends Controller
 {
     use ApiResponse;
+
+    public function __construct(private ActivityLogService $activityLogService) {}
 
     /**
      * GET /api/v1/admin/settings?category={category}
@@ -128,6 +132,12 @@ class AdminSettingController extends Controller
         if ($key === 'speed_limit_kmh') {
             Cache::forget('overspeed.limit_kmh');
         }
+
+        $this->activityLogService->record(
+            ActivityLogCategory::SETTINGS,
+            "Updated setting {$key} to {$value}",
+            $request->user(),
+        );
 
         return $this->successResponse(
             ['key' => $setting->key, 'value' => $setting->value, 'category' => $setting->category],

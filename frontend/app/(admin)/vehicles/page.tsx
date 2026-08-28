@@ -2,6 +2,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { VehicleTable } from '@/components/admin/vehicles/vehicle-table';
 import { AddVehicleModal } from '@/components/admin/vehicles/add-vehicle-modal';
 import { EditVehicleModal } from '@/components/admin/vehicles/edit-vehicle-modal';
@@ -20,6 +21,8 @@ import type { FleetHistoryTab, FleetShiftHistoryRange, PersonnelRoleFilter, Vehi
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 
 export default function VehiclesPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
   const [isEditVehicleModalOpen, setIsEditVehicleModalOpen] = useState(false);
   const [isPersonnelModalOpen, setIsPersonnelModalOpen] = useState(false);
@@ -82,6 +85,19 @@ export default function VehiclesPage() {
 
     return () => window.clearTimeout(id);
   }, [searchInput]);
+
+  // ─── Deep-link from the notification bell ──────────────────────
+  // A SHIFT_STARTED notification links here as /vehicles?vehicleId={id}.
+  // VehicleDetailsModal already fetches by id on its own, so there's no
+  // list to search — just open it directly. Runs once on mount; the param
+  // is stripped from the URL right after so a refresh/back doesn't reopen it.
+  useEffect(() => {
+    const vehicleId = searchParams.get('vehicleId');
+    if (!vehicleId) return;
+    setDetailsVehicleId(vehicleId);
+    router.replace('/vehicles');
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately mount-only: reacting to `router`/`searchParams` would re-fire after router.replace() strips the param.
+  }, []);
 
   const handleSearchChange = (value: string) => {
     setSearchInput(value);

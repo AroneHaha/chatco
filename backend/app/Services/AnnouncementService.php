@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\UserRole;
 use App\Events\AnnouncementCreated;
 use App\Models\Announcement;
 use App\Models\AnnouncementRead;
@@ -195,7 +196,7 @@ class AnnouncementService
      * claim status update). Not part of the admin CRUD surface — callers are
      * other services, not controllers.
      */
-    public function notifyUser(string $userId, string $type, string $title, string $message): Announcement
+    public function notifyUser(string $userId, string $type, string $title, string $message, ?string $referenceId = null): Announcement
     {
         return Announcement::create([
             'user_id' => $userId,
@@ -203,7 +204,26 @@ class AnnouncementService
             'title'   => $title,
             'message' => $message,
             'status'  => self::STATUS_ACTIVE,
+            'reference_id' => $referenceId,
         ]);
+    }
+
+    /**
+     * System-generated announcement, one row per current admin (e.g. a
+     * conductor starting a shift, or a remittance completing). Same
+     * single-recipient shape as notifyUser() — just fanned out to every
+     * ADMIN account instead of one user — so it rides the existing bell,
+     * unread-count, and mark-read machinery with no new tables.
+     *
+     * `$referenceId` names the record the notification is about (e.g. the
+     * pending User.id for a NEW_REGISTRATION notice) so the frontend can
+     * deep-link straight to it instead of just displaying the message.
+     */
+    public function notifyAdmins(string $type, string $title, string $message, ?string $referenceId = null): void
+    {
+        User::query()->where('role', UserRole::ADMIN->value)->pluck('id')->each(
+            fn (string $adminId) => $this->notifyUser($adminId, $type, $title, $message, $referenceId)
+        );
     }
 
     public function update(string $id, array $data): Announcement

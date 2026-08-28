@@ -48,12 +48,6 @@ export function MobileDashboardCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h1 className="text-white font-bold text-sm truncate">Unit: {unitNumber}</h1>
-            {elapsed && (
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-[10px] font-semibold text-emerald-400/80 tabular-nums">{elapsed}</span>
-              </div>
-            )}
           </div>
           <p className="text-[10px] text-white/40 font-medium mt-0.5 truncate">{route}</p>
         </div>

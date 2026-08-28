@@ -13,6 +13,12 @@ function formatContactNumber(value: string): string {
   return value.replace(/[^0-9]/g, '').slice(0, 11);
 }
 
+// Capitalizes the first letter of each word (start of string or after a
+// space) as the admin types, e.g. "mark arone" -> "Mark Arone".
+function formatPersonName(value: string): string {
+  return value.replace(/(^|\s)([a-z])/g, (_match, boundary, letter) => boundary + letter.toUpperCase());
+}
+
 interface CreatedConductorAccount {
   id: string;
   first_name: string;
@@ -50,7 +56,11 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'contact' ? formatContactNumber(value) : value,
+      [name]: name === 'contact'
+        ? formatContactNumber(value)
+        : name === 'first_name' || name === 'last_name'
+          ? formatPersonName(value)
+          : value,
     }));
   };
 

@@ -1,7 +1,8 @@
 // app/(admin)/monitoring/page.tsx
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import {
   Gauge, Clock, MapPin, AlertTriangle, Archive, CalendarDays,
@@ -15,6 +16,7 @@ import {
 import { SkeletonMetric, SkeletonTable, SkeletonMap } from '@/components/admin/ui/skeleton';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 import { formatElapsedMinutes } from '@/lib/utils/display';
+import { useAdminNotifications } from '@/contexts/admin-notifications-context';
 
 // Dynamically import the map and disable SSR (Leaflet requires the window object)
 const AdminCommuterMap = dynamic<{
@@ -35,6 +37,15 @@ const AdminCommuterMap = dynamic<{
 const SPEED_LIMIT_KMH = 50;
 
 export default function MonitoringPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { markRead: markMonitoringNotificationsRead } = useAdminNotifications().monitoring;
+  // Opening the Monitoring module clears the nav badge (new SOS alerts +
+  // new overspeeding episodes) — mirrors Remittance's markRead-on-open.
+  useEffect(() => {
+    markMonitoringNotificationsRead();
+  }, [markMonitoringNotificationsRead]);
+
   const [overspeedPage, setOverspeedPage] = useState(1);
   const [filterOverspeedDate, setFilterOverspeedDate] = useState('');
   // Live fleet data (real API, 5s poll)
@@ -54,6 +65,47 @@ export default function MonitoringPage() {
   // Filter States
   const [filterSosDate, setFilterSosDate] = useState('');
   const [filterStaleOnly, setFilterStaleOnly] = useState(false);
+
+  // ─── Deep-link from the notification bell ──────────────────────
+  // SOS_TRIGGERED links here as ?sosId={id}; OVERSPEED_FLAGGED as
+  // ?overspeedId={id}. Neither has a per-item modal — both render inline
+  // (SOS as cards with Acknowledge/Resolve buttons, overspeed as history
+  // table rows) — so each deep-link scrolls to and highlights the matching
+  // element instead, same idea as handleFocusVehicle's scroll-into-view for
+  // a fleet row.
+  const [highlightedSosId, setHighlightedSosId] = useState<string | null>(null);
+  const [highlightedOverspeedId, setHighlightedOverspeedId] = useState<string | null>(null);
+  useEffect(() => {
+    const sosId = searchParams.get('sosId');
+    const overspeedId = searchParams.get('overspeedId');
+    if (!sosId && !overspeedId) return;
+    if (sosId) setHighlightedSosId(sosId);
+    if (overspeedId) {
+      setHighlightedOverspeedId(overspeedId);
+      // A freshly-flagged episode is always "today" — clear any leftover
+      // date filter/page so it's guaranteed to be on the page it lands on.
+      setFilterOverspeedDate('');
+      setOverspeedPage(1);
+    }
+    router.replace('/monitoring');
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately mount-only: reacting to `router`/`searchParams` would re-fire after router.replace() strips the params.
+  }, []);
+  useEffect(() => {
+    if (!highlightedSosId) return;
+    document.getElementById(`sos-alert-${highlightedSosId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [highlightedSosId]);
+  useEffect(() => {
+    if (!highlightedOverspeedId) return;
+    document.getElementById(`overspeed-log-${highlightedOverspeedId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [highlightedOverspeedId, data.overspeedHistory]);
+  // The SOS highlight only makes sense while the alert is still active —
+  // once it's resolved it drops out of `sosAlerts` and there's nothing left
+  // on screen to point at.
+  useEffect(() => {
+    if (highlightedSosId && !data.sosAlerts.some((a) => a.id === highlightedSosId)) {
+      setHighlightedSosId(null);
+    }
+  }, [highlightedSosId, data.sosAlerts]);
 
   // Map focus — clicking a row flies the camera to that unit. This only moves
   // the viewport; the full marker set stays rendered so the rest of the fleet
@@ -220,7 +272,15 @@ export default function MonitoringPage() {
             {sosAlerts.map((alert) => {
               const isAcknowledged = alert.status === "ACKNOWLEDGED";
               return (
-              <div key={alert.id} className="bg-red-400/5 border border-red-400/20 rounded-lg p-4">
+              <div
+                key={alert.id}
+                id={`sos-alert-${alert.id}`}
+                className={`bg-red-400/5 border rounded-lg p-4 transition-shadow ${
+                  highlightedSosId === alert.id
+                    ? 'border-[#62A0EA] ring-2 ring-[#62A0EA]/50'
+                    : 'border-red-400/20'
+                }`}
+              >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-start space-x-3">
                     <AlertTriangle className="text-red-400 mt-0.5 flex-shrink-0" size={24} />
@@ -404,7 +464,15 @@ export default function MonitoringPage() {
                   <thead><tr className="border-b border-[#1E2D45]"><th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Unit</th><th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Driver</th><th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Conductor</th><th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Top Speed</th><th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Logged</th></tr></thead>
                   <tbody className="divide-y divide-[#1E2D45]">
                     {currentOverspeedData.map((log) => (
-                      <tr key={log.id} className="hover:bg-[#0E1628] transition-colors opacity-70 hover:opacity-100">
+                      <tr
+                        key={log.id}
+                        id={`overspeed-log-${log.id}`}
+                        className={`transition-colors opacity-70 hover:opacity-100 ${
+                          highlightedOverspeedId === log.id
+                            ? 'bg-[#62A0EA]/10 ring-1 ring-inset ring-[#62A0EA]/50'
+                            : 'hover:bg-[#0E1628]'
+                        }`}
+                      >
                         <td className="py-3 pr-3"><span className="text-sm text-slate-300 font-semibold">{log.unit}</span></td>
                         <td className="py-3 pr-3"><span className="text-sm text-slate-400">{log.driver}</span></td>
                         <td className="py-3 pr-3"><span className="text-sm text-slate-400">{log.conductor}</span></td>

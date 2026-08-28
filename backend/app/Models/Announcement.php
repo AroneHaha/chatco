@@ -36,6 +36,7 @@ class Announcement extends Model
         'status',
         'user_id',
         'archived_at',
+        'reference_id',
     ];
 
     protected $casts = [

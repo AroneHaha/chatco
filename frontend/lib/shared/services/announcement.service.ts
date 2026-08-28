@@ -64,6 +64,8 @@ interface RawAnnouncement {
   status: string;
   created_at: string;
   updated_at: string;
+  /** Names the record this announcement is about (e.g. the pending User.id for a NEW_REGISTRATION notice). Null for plain text announcements. */
+  reference_id?: string | null;
   /** Only on the user-facing feed (listForUser). */
   is_read?: boolean;
   /** Only on admin list/show (eager-loaded creator). */
@@ -117,6 +119,8 @@ export interface Announcement {
   isRead: boolean;
   /** Admin who created the announcement (admin list/show only). */
   createdBy: string | null;
+  /** Names the record this announcement is about (e.g. the pending User.id for a NEW_REGISTRATION notice). Null for plain text announcements. */
+  referenceId: string | null;
 }
 
 /** Paginated list result. */
@@ -195,6 +199,7 @@ function mapAnnouncement(raw: RawAnnouncement): Announcement {
     createdAt: raw.created_at,
     isRead: Boolean(raw.is_read ?? false),
     createdBy: creatorName,
+    referenceId: raw.reference_id ?? null,
   };
 }
 

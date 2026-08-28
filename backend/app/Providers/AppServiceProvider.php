@@ -49,6 +49,19 @@ class AppServiceProvider extends ServiceProvider
             ], 429);
         };
 
+        // Auth routes (login/register/verification codes/password reset) —
+        // 10 req/min per IP. Its own bucket, separate from commuter-hail:
+        // those routes used to share commuter-hail's quota with fare-matrix,
+        // faqs, system-status, and commuter hail/location/payment traffic,
+        // so unrelated activity from the same IP could exhaust the bucket
+        // and make login fail with a 429 that had nothing to do with login
+        // attempts themselves.
+        RateLimiter::for('auth', function (Request $request) use ($rateLimitResponse) {
+            return Limit::perMinute(10)
+                ->by($request->ip())
+                ->response($rateLimitResponse);
+        });
+
         // Read endpoints — 60 req/min (1 req/s, generous for UI polling)
         RateLimiter::for('conductor-read', function (Request $request) use ($rateLimitResponse) {
             return Limit::perMinute(60)

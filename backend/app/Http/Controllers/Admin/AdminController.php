@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\ActivityLogCategory;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\ShiftStatus;
@@ -16,6 +17,7 @@ use App\Models\TerminatedPersonnel;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Services\ActivityLogService;
 use App\Services\AdminService;
 use App\Services\LocationService;
 use App\Traits\ApiResponse;
@@ -31,7 +33,8 @@ class AdminController extends Controller
 
     public function __construct(
         private AdminService $adminService,
-        private LocationService $locationService
+        private LocationService $locationService,
+        private ActivityLogService $activityLogService,
     ) {}
 
     public function dashboard(): JsonResponse
@@ -242,6 +245,12 @@ class AdminController extends Controller
 
         $driver->load(['vehicle']);
 
+        $this->activityLogService->record(
+            ActivityLogCategory::PERSONNEL,
+            "Added driver {$driver->first_name} {$driver->last_name}",
+            $request->user(),
+        );
+
         return $this->successResponse($driver, 'Driver created successfully', 201);
     }
 
@@ -283,6 +292,12 @@ class AdminController extends Controller
         ]);
 
         $driver->load(['vehicle']);
+
+        $this->activityLogService->record(
+            ActivityLogCategory::PERSONNEL,
+            "Updated driver {$driver->first_name} {$driver->last_name}",
+            $request->user(),
+        );
 
         return $this->successResponse($driver, 'Driver updated successfully');
     }
@@ -407,6 +422,12 @@ class AdminController extends Controller
             $driver->delete();
         });
 
+        $this->activityLogService->record(
+            ActivityLogCategory::PERSONNEL,
+            'Terminated driver ' . ($fullName ?: 'Unknown Driver'),
+            $request->user(),
+        );
+
         return $this->successResponse(null, 'Driver removed successfully');
     }
 
@@ -491,6 +512,12 @@ class AdminController extends Controller
             $user->delete();
         });
 
+        $this->activityLogService->record(
+            ActivityLogCategory::PERSONNEL,
+            'Terminated conductor ' . ($fullName ?: 'Unknown Conductor'),
+            $request->user(),
+        );
+
         return $this->successResponse(null, 'Conductor removed successfully');
     }
 
@@ -505,7 +532,7 @@ class AdminController extends Controller
      * To re-enable, the admin uses PUT /admin/users/{id} to set account_status
      * back to ACTIVE (or simply generates new credentials via reset-credentials).
      */
-    public function disableConductor(string $id): JsonResponse
+    public function disableConductor(Request $request, string $id): JsonResponse
     {
         $conductor = ConductorProfile::with('user')->findOrFail($id);
         $user = $conductor->user;
@@ -533,6 +560,12 @@ class AdminController extends Controller
         // Revoke ALL tokens — the conductor is instantly logged out everywhere.
         $user->tokens()->delete();
 
+        $this->activityLogService->record(
+            ActivityLogCategory::PERSONNEL,
+            "Disabled conductor {$conductor->first_name} {$conductor->last_name}",
+            $request->user(),
+        );
+
         return $this->successResponse(null, 'Conductor account disabled. All sessions revoked.');
     }
 
@@ -544,7 +577,7 @@ class AdminController extends Controller
      * can hand them to the conductor. All existing Sanctum tokens for the
      * user are revoked (the conductor must log in with the new credentials).
      */
-    public function resetConductorCredentials(string $id): JsonResponse
+    public function resetConductorCredentials(Request $request, string $id): JsonResponse
     {
         $conductor = ConductorProfile::with('user')->findOrFail($id);
         $user = $conductor->user;
@@ -593,6 +626,12 @@ class AdminController extends Controller
 
         // Revoke ALL tokens — the conductor must re-login with the new credentials.
         $user->tokens()->delete();
+
+        $this->activityLogService->record(
+            ActivityLogCategory::PERSONNEL,
+            "Reset login credentials for conductor {$conductor->first_name} {$conductor->last_name}",
+            $request->user(),
+        );
 
         return $this->successResponse([
             'id' => $conductor->id,
@@ -688,6 +727,12 @@ class AdminController extends Controller
         ]);
 
         $conductor->load(['vehicle.route', 'vehicle.driver']);
+
+        $this->activityLogService->record(
+            ActivityLogCategory::PERSONNEL,
+            "Updated conductor {$conductor->first_name} {$conductor->last_name}",
+            $request->user(),
+        );
 
         return $this->successResponse($conductor, 'Conductor updated successfully');
     }
@@ -836,6 +881,12 @@ class AdminController extends Controller
             'generated_username' => $generatedUsername,
             'generated_password' => $generatedPassword,
         ]);
+
+        $this->activityLogService->record(
+            ActivityLogCategory::PERSONNEL,
+            "Added conductor {$conductor->first_name} {$conductor->last_name}",
+            $request->user(),
+        );
 
         return $this->successResponse([
             'id' => $conductor->id,
