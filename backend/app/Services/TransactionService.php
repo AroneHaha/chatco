@@ -427,6 +427,12 @@ class TransactionService
                 'qr_token' => Str::random(32),
                 'idempotency_key' => $idempotencyKey,
                 'total_passengers' => $fare['total_passengers'],
+                // A row bundling >1 passenger's fare is not one person's ride —
+                // whoever scans the single resulting receipt shouldn't earn a
+                // personal reward for a fare that covered several riders. Mirrors
+                // createGroupReceiptRows(), which restricts reward_eligible to
+                // just the payer's own per-passenger row for the same reason.
+                'reward_eligible' => $fare['total_passengers'] <= 1,
                 'gross_amount' => $fare['gross_amount'],
                 'final_amount' => $fare['final_amount'],
                 'base_fare' => $fare['gross_amount'],

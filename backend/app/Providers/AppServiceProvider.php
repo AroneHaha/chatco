@@ -153,6 +153,18 @@ class AppServiceProvider extends ServiceProvider
                 ->response($rateLimitResponse);
         });
 
+        // Public share-ride tracking — 30 req/min per (IP + token). Keyed by
+        // token as well as IP so many legitimate viewers of DIFFERENT links
+        // behind the same IP (e.g. shared wifi) don't throttle each other;
+        // 30/min gives the 5s polling cadence (~12/min) ~2.5x headroom, same
+        // ratio as conductor-gps below. No auth on this route, so there's no
+        // user id to key on — IP+token is the best available identity.
+        RateLimiter::for('share-ride-track', function (Request $request) use ($rateLimitResponse) {
+            return Limit::perMinute(30)
+                ->by($request->ip().'|'.$request->route('token'))
+                ->response($rateLimitResponse);
+        });
+
         // SOS alert trigger — 1 request per minute per commuter_id.
         // Deliberately very strict: SOS is an emergency signal, not a chat.
         // Keyed by user_id (not IP) so a shared IP (e.g. school WiFi) doesn't

@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Schema;
  * Status lifecycle: ACTIVE → ACKNOWLEDGED → RESOLVED
  * (admin may skip ACK and go straight to RESOLVE — both transitions allowed)
  *
- * Rate-limited at 1 request per 5 minutes per commuter_id (throttle:sos
+ * Rate-limited at 1 request per minute per commuter_id (throttle:sos
  * defined in AppServiceProvider) to prevent abuse. The alert is purely a
  * notification + audit record — it does NOT dispatch emergency services,
  * does NOT make payments, does NOT mutate the commuter's account.

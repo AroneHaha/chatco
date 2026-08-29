@@ -89,7 +89,6 @@ export default function RewardsPage() {
   const getStatusColor = (status: Voucher["status"]) => {
     switch (status) {
       case "AVAILABLE": return "border-emerald-500/30 bg-emerald-500/10 text-emerald-400";
-      case "ACTIVE": return "border-amber-500/30 bg-amber-500/10 text-amber-400";
       case "USED": return "border-white/10 bg-white/5 text-white/30";
       case "EXPIRED": return "border-red-500/30 bg-red-500/10 text-red-400";
       default: return "";
@@ -272,9 +271,6 @@ export default function RewardsPage() {
                     >
                       Use Voucher
                     </button>
-                  )}
-                  {voucher.status === "ACTIVE" && (
-                    <span className="text-sm font-bold uppercase tracking-wider animate-pulse">Active - Show to Conductor</span>
                   )}
                   {voucher.status === "USED" && (
                     <span className="text-sm font-bold uppercase tracking-wider opacity-50">Redeemed</span>

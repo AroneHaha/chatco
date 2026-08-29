@@ -83,8 +83,10 @@ Route::get('/system-status', [SystemStatusController::class, 'index'])->middlewa
 
 // Public tracking endpoint — no auth required. Anyone with the token
 // can view the commuter's live position (for the share-ride feature).
-// No throttle — this is a public read-only endpoint that polls every 5s.
-Route::get('/share/{token}', [ShareRideController::class, 'show']);
+// Throttled per (IP + token) — see 'share-ride-track' in
+// AppServiceProvider — so the 5s polling cadence is untouched while
+// excessive hammering of one link is capped.
+Route::get('/share/{token}', [ShareRideController::class, 'show'])->middleware('throttle:share-ride-track');
 
 /*
 |--------------------------------------------------------------------------
