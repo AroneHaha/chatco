@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { fetchPaymentStatus, type PaymentStatus } from "@/lib/commuter/services/payment.service";
 import { notifyRewardsChanged } from "@/lib/commuter/rewards-events";
+import { getEcho } from "@/lib/echo";
 
 /**
  * /gcash/return — PayMongo redirect target
@@ -12,11 +13,18 @@ import { notifyRewardsChanged } from "@/lib/commuter/rewards-events";
  * page, PayMongo redirects here with `?transaction_id=...` (the query param
  * configured in config/payments.php return_url).
  *
- * This page polls GET /api/payments/{id}/status every 3s until the status
- * reaches a hard-terminal state (paid/failed/cancelled/refunded) or the
- * late-settlement grace window elapses after EXPIRED. The backend's PayMongo
- * webhook usually flips the status to PAID within seconds of the commuter
- * authorizing — this polling picks that up.
+ * PRIMARY PATH — REALTIME: subscribes to the public Pusher channel
+ * `payments.{transactionId}` (same channel/event the conductor's
+ * fare-calculator-modal listens on) and applies whatever status the
+ * `PaymentStatusUpdated` broadcast carries the instant it's dispatched — by
+ * the webhook handler, by provider reconciliation, or by /simulate in dev.
+ * That's normally within a second or two of the commuter authorizing.
+ *
+ * FALLBACK PATH — POLLING: also polls GET /api/payments/{id}/status every 3s
+ * regardless, so a missing/failed Pusher connection (unconfigured broadcaster,
+ * network issue) still resolves — just on the poll cadence instead of
+ * instantly. Whichever path observes a terminal status first wins; the other
+ * is torn down via the shared `applyStatus` cleanup below.
  *
  * LATE-SETTLEMENT HANDLING:
  * EXPIRED is NOT treated as immediately terminal. After the row flips to
@@ -59,57 +67,85 @@ function GcashReturnContent() {
 
     let mounted = true;
 
+    // Shared by both the realtime event handler and the poll fallback so a
+    // status observed either way is applied identically (and stops the
+    // poll interval once terminal, regardless of which path got there first).
+    const applyStatus = (status: PaymentStatus) => {
+      if (!mounted) return;
+      setStatus(status);
+
+      // PAID is always terminal — success regardless of prior EXPIRED state.
+      if (status === "paid") {
+        if (!rewardRefreshSentRef.current) {
+          rewardRefreshSentRef.current = true;
+          notifyRewardsChanged();
+        }
+        stopPolling();
+        return;
+      }
+
+      // Hard-terminal failure statuses end immediately.
+      if (HARD_TERMINAL.includes(status)) {
+        stopPolling();
+        return;
+      }
+
+      // EXPIRED — record when we first saw it, and keep polling/listening
+      // through the grace window. If we've already been in EXPIRED for
+      // longer than the grace, give up.
+      if (status === "expired") {
+        if (expiredAtRef.current === null) {
+          expiredAtRef.current = Date.now();
+        }
+        const elapsed = Date.now() - expiredAtRef.current;
+        if (elapsed >= LATE_SETTLEMENT_GRACE_MS) {
+          stopPolling();
+        }
+        // else: keep polling — the late webhook may still fire.
+      }
+    };
+
     const poll = async () => {
       try {
         const result = await fetchPaymentStatus(transactionId);
         if (!mounted) return;
-
-        setStatus(result.status);
         setPollCount((c) => c + 1);
-
-        // PAID is always terminal — success regardless of prior EXPIRED state.
-        if (result.status === "paid") {
-          if (!rewardRefreshSentRef.current) {
-            rewardRefreshSentRef.current = true;
-            notifyRewardsChanged();
-          }
-          stopPolling();
-          return;
-        }
-
-        // Hard-terminal failure statuses end immediately.
-        if (HARD_TERMINAL.includes(result.status)) {
-          stopPolling();
-          return;
-        }
-
-        // EXPIRED — record when we first saw it, and keep polling through
-        // the grace window. If we've already been in EXPIRED for longer
-        // than the grace, give up.
-        if (result.status === "expired") {
-          if (expiredAtRef.current === null) {
-            expiredAtRef.current = Date.now();
-          }
-          const elapsed = Date.now() - expiredAtRef.current;
-          if (elapsed >= LATE_SETTLEMENT_GRACE_MS) {
-            stopPolling();
-          }
-          // else: keep polling — the late webhook may still fire.
-        }
+        applyStatus(result.status);
       } catch {
         // Network error — keep polling, the next tick may recover.
       }
     };
 
-    // Poll immediately, then every 3s.
+    // Realtime primary path: the backend broadcasts PaymentStatusUpdated the
+    // instant the webhook (or provider reconciliation) resolves the payment,
+    // so this normally beats the next poll tick by seconds. Best-effort —
+    // an unconfigured broadcaster or a dropped socket just leaves polling as
+    // the sole path, same as before this existed.
+    let echo: ReturnType<typeof getEcho> | null = null;
+    const channelName = `payments.${transactionId}`;
+    try {
+      echo = getEcho();
+      echo.channel(channelName).listen(
+        ".PaymentStatusUpdated",
+        (event: { transaction_id: string; status: string }) => {
+          applyStatus((event.status?.toLowerCase() as PaymentStatus) ?? "pending");
+        }
+      );
+    } catch (err) {
+      console.warn("Echo subscription failed, relying on polling:", err);
+    }
+
+    // Poll immediately, then every 3s — the fallback for when the realtime
+    // path above is unavailable or misses an event.
     void poll();
     pollIntervalRef.current = setInterval(poll, 3000);
 
-    // Hard fallback timeout: 10 minutes (matches the QR claim TTL). If the
-    // webhook hasn't fired by then, stop polling + the UI shows the
+    // Hard fallback timeout: 10 minutes (matches the QR claim TTL). If
+    // neither path has resolved by then, stop and the UI shows the
     // "still processing" state with a "check your history later" hint.
-    // This is the offline upper bound — under normal conditions, polling
-    // resolves within seconds of the commuter authorizing on PayMongo.
+    // This is the offline upper bound — under normal conditions, the
+    // realtime event (or, failing that, polling) resolves within seconds of
+    // the commuter authorizing on PayMongo.
     const hardTimeout = setTimeout(() => {
       if (mounted) stopPolling();
     }, 10 * 60 * 1000);
@@ -118,6 +154,10 @@ function GcashReturnContent() {
       mounted = false;
       stopPolling();
       clearTimeout(hardTimeout);
+      if (echo) {
+        echo.channel(channelName).stopListening(".PaymentStatusUpdated");
+        echo.leave(channelName);
+      }
     };
   }, [transactionId, stopPolling]);
 

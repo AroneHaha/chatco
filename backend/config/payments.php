@@ -95,6 +95,29 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Active-Checkout Reconciliation (faster fallback while it matters most)
+    |--------------------------------------------------------------------------
+    | The flat 30s throttle above is fine once a payment has been sitting PENDING
+    | for a while, but it's needlessly slow during the first stretch after the
+    | commuter claims the QR — the window where they're actually on PayMongo's
+    | page (login/OTP/authorize) and a same-second webhook is the expectation,
+    | not the exception. If that webhook is delayed or unreachable (no public
+    | webhook URL in local dev, a network blip), the commuter would otherwise
+    | wait up to 30s to see success/failure even though the frontend polls
+    | every 3s.
+    |
+    | For transactions still within `reconcile_active_window_seconds` of
+    | creation, the reconciliation throttle is shortened to
+    | `reconcile_active_throttle_seconds`. Past that window (checkout has
+    | likely stalled or been abandoned), it falls back to the steady-state
+    | `reconcile_throttle_seconds` above so an idle PENDING row doesn't keep
+    | hammering the provider.
+    */
+    'reconcile_active_throttle_seconds' => (int) env('PAYMENT_RECONCILE_ACTIVE_TTL', 5),
+    'reconcile_active_window_seconds' => (int) env('PAYMENT_RECONCILE_ACTIVE_WINDOW', 90),
+
+    /*
+    |--------------------------------------------------------------------------
     | Late-Settlement Grace Window (seconds)
     |--------------------------------------------------------------------------
     | After a PENDING GCash transaction flips to EXPIRED, the conductor + /gcash/return
