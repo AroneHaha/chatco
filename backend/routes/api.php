@@ -321,6 +321,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::delete('/faqs/{id}', [AdminFaqController::class, 'destroy'])->middleware('throttle:conductor-write');
     Route::get('/transactions', [AdminController::class, 'transactions'])->middleware('throttle:conductor-read');
     Route::get('/remittances', [AdminController::class, 'remittances'])->middleware('throttle:conductor-read');
+    Route::post('/remittances/{shiftId}/cash-declaration', [AdminController::class, 'declareCash'])->middleware('throttle:admin-write');
     Route::get('/announcements', [AdminAnnouncementController::class, 'index'])->middleware('throttle:conductor-read');
     Route::post('/announcements', [AdminAnnouncementController::class, 'store'])->middleware('throttle:admin-write');
     Route::get('/announcements/{id}', [AdminAnnouncementController::class, 'show'])->middleware('throttle:conductor-read');

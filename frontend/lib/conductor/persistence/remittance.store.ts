@@ -1,30 +1,8 @@
-export interface RemittanceRecord {
-  shiftId: string;
-  date: string;
-  conductorName: string;
-  driverName: string;
-  unitNumber: string;
-  totalPassengers: number;
-  cashlessBreakdown: {
-    gcashScanned: number;
-    gcashDirect: number;
-    voucher: number;
-  };
-  totalCashless: number;
-  cashDeclared: number;
-  remittanceStatus: "Pending" | "Overdue" | "Remitted" | "Shortage" | "Overage";
-  timeIn: string;
-  timeOut: string;
-  cashTotal: number;
-  gcashTotal: number;
-  shortage?: number;
-  overage?: number;
-  dueAt?: string | null;
-  remittedAt?: string | null;
-  reminderCount?: number;
-  deviceId?: string;
-  deviceType?: "WEB" | "MOBILE";
-}
+// RemittanceRecord lives in @/types (types/shift.ts) — the single source of
+// truth. Re-exported here so existing conductor-side imports of this module
+// keep working without touching every call site.
+export type { RemittanceRecord } from "@/types";
+import type { RemittanceRecord } from "@/types";
 
 const KEY = "conductor_remittance_history";
 

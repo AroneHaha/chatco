@@ -37,15 +37,27 @@ function StatCard({ label, value, icon, accent, ring }: StatCardProps) {
 /**
  * Today's at-a-glance totals for the Remittance Tracker.
  *
- * Purely additive: reuses the same useRemittanceData() source as the table
- * and aggregates only records dated today. No existing logic is changed.
+ * Reuses the same useRemittanceData() source as the table and aggregates
+ * records dated today, EXCLUDING any row whose cash hasn't been declared by
+ * an admin yet ("Pending" — still active, "For Cash Declaration", or
+ * "Overdue"). Those rows stay visible in the table for review, but their
+ * earnings only count toward these cards once an admin has actually counted
+ * the physical cash via the Cash Declaration action — see
+ * cash-declaration-modal.tsx.
+ *
+ * NOTE: useRemittanceData() with no args defaults to per_page=20 — a
+ * pre-existing limitation (not introduced here) that under-counts once a
+ * day has more than 20 rows across active shifts + declared + undeclared
+ * remittances.
  */
 export function RemittanceSummary({ selectedDate = '' }: { selectedDate?: string }) {
   const { records, isLoading } = useRemittanceData();
 
   const summary = useMemo(() => {
     const targetDate = selectedDate || todayStr();
-    const matching = records.filter((r) => r.date === targetDate);
+    const isDeclared = (r: (typeof records)[number]) =>
+      r.remittanceStatus !== 'Pending' && r.remittanceStatus !== 'For Cash Declaration' && r.remittanceStatus !== 'Overdue';
+    const matching = records.filter((r) => r.date === targetDate && isDeclared(r));
     return {
       passengers: matching.reduce((s, r) => s + r.totalPassengers, 0),
       cash: matching.reduce((s, r) => s + r.cashTotal, 0),

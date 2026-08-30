@@ -16,7 +16,6 @@ class SubmitRemittanceRequest extends FormRequest
         return [
             'shift_id' => 'required|string',
             'total_collected' => 'required|numeric|min:0',
-            'remitted_amount' => 'required|numeric|min:0',
             'cash_total' => 'nullable|numeric|min:0',
             'gcash_total' => 'nullable|numeric|min:0',
             'device_id' => 'nullable|string|min:16|max:100|regex:/^[A-Za-z0-9._:-]+$/',
@@ -30,8 +29,6 @@ class SubmitRemittanceRequest extends FormRequest
             'shift_id.required' => 'Shift ID is required',
             'total_collected.required' => 'Total collected amount is required',
             'total_collected.min' => 'Total collected cannot be negative',
-            'remitted_amount.required' => 'Remitted amount is required',
-            'remitted_amount.min' => 'Remitted amount cannot be negative',
         ];
     }
 }

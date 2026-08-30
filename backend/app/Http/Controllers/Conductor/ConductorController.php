@@ -105,7 +105,6 @@ class ConductorController extends Controller
             $request->user(),
             $validated['shift_id'],
             (float) $validated['total_collected'],
-            (float) $validated['remitted_amount'],
             $validated['device_id'] ?? null,
             $validated['device_type'] ?? null,
         );

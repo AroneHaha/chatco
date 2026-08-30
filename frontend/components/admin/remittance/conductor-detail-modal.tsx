@@ -8,6 +8,7 @@ import {
   fetchRemittances,
   type RemittanceRecord,
 } from '@/app/(admin)/remittance/data/remittance-data';
+import { remittanceStatusVariant } from '@/lib/shared/remittance-status';
 import {
   User, Truck, Calendar, Clock, Banknote,
   ChevronDown, ChevronUp, MapPin, Hash,
@@ -17,7 +18,7 @@ import { formatPeso } from '@/lib/utils/display';
 
 // ─── Remittance History pagination ─────────────────────────────────────
 const REMIT_PAGE_SIZE = 15;
-type RemitFilter = 'All' | 'Remitted' | 'Pending';
+type RemitFilter = 'All' | 'Settled' | 'Pending';
 
 // ─── Helper ────────────────────────────────────────────────────────────
 const fmt = (n: number) =>
@@ -169,7 +170,7 @@ export function ConductorDetailModal({ isOpen, onClose, record }: ConductorDetai
   if (!record) return null;
 
   const totalPending = conductorRecords
-    .filter(r => r.remittanceStatus === 'Pending')
+    .filter(r => r.remittanceStatus === 'Pending' || r.remittanceStatus === 'For Cash Declaration' || r.remittanceStatus === 'Overdue')
     .reduce((s, r) => s + r.gcashTotal + r.cashTotal, 0);
 
   // ─── Remittance History: filter + paginate ───────────────────────────
@@ -327,7 +328,7 @@ export function ConductorDetailModal({ isOpen, onClose, record }: ConductorDetai
                     <p className="text-xs text-slate-500 flex items-center gap-1"><Clock size={11} />Remitted {formatClockTime(rec.remittedAt)}</p>
                   </div>
                 </div>
-                <Badge variant={rec.remittanceStatus==='Remitted'?'success':'warning'}>{rec.remittanceStatus}</Badge>
+                <Badge variant={remittanceStatusVariant(rec.remittanceStatus)}>{rec.remittanceStatus}</Badge>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div className="bg-[#131C2E] rounded-md p-2.5 border border-[#1E2D45]"><p className="text-[10px] text-slate-500 uppercase">GCash</p><p className="text-sm text-blue-400 font-medium">{fmt(rec.gcashTotal)}</p></div>

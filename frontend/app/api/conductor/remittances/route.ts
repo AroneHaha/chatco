@@ -37,10 +37,12 @@ export async function GET(request: NextRequest) {
  * the local conductor store so the frontend's remittance-history modal stays
  * consistent.
  *
- * Cash-focused remittance: the conductor is accountable for the cash they
- * collected and remits all of it (GCash/voucher are already digital), so
- * `total_collected` and `remitted_amount` both map to the cash total
- * (backend then computes shortage = 0).
+ * Cash declaration is no longer the conductor's job — they only submit.
+ * `total_collected` is sent (currently ignored server-side; the backend
+ * always recomputes the authoritative cash total from Transaction rows).
+ * The shift always resolves to PENDING when cash is owed, and stays that
+ * way until an admin declares the physical cash count via
+ * POST /admin/remittances/{shiftId}/cash-declaration.
  */
 export async function POST(request: NextRequest) {
   let record: RemittanceRecord;
@@ -56,20 +58,12 @@ export async function POST(request: NextRequest) {
 
   const cashTotal = Number(record.cashTotal) || 0;
   const gcashTotal = Number(record.gcashTotal) || 0;
-  // The conductor declares how much cash they physically counted.
-  // This is the `total_collected` — the backend computes shortage as
-  // max(0, total_collected - remitted_amount). The system-tracked cash
-  // total is the `remitted_amount` (what the DB says was collected).
-  const cashDeclared = Number.isFinite(Number(record.cashDeclared))
-    ? Number(record.cashDeclared)
-    : cashTotal;
 
   const result = await proxyToLaravel(request, "/conductor/remittances", {
     method: "POST",
     body: {
       shift_id: record.shiftId,
       total_collected: cashTotal,
-      remitted_amount: cashDeclared,
       cash_total: cashTotal,
       gcash_total: gcashTotal,
       device_id: record.deviceId,

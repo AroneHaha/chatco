@@ -36,8 +36,17 @@ export interface RemittanceRecord {
     voucher: number;
   };
   totalCashless: number;
-  cashDeclared: number; // legacy — kept for backward compat with old records
-  remittanceStatus: "Pending" | "Overdue" | "Remitted" | "Shortage" | "Overage";
+  // The admin's physically-counted cash for this shift — see remittanceStatus.
+  // Meaningless (0) until status is "Settled"/"Shortage"/"Overage"; the
+  // conductor no longer declares this themselves (see review-request-modal
+  // history: cash declaration moved to Admin > Remittance Module).
+  cashDeclared: number;
+  // "Pending": shift still active/ongoing (no Remittance row yet).
+  // "For Cash Declaration" / "Overdue": conductor submitted, ended shift,
+  //   admin hasn't declared cash yet (same underlying PENDING status either
+  //   way — "Overdue" is just past the grace window).
+  // "Settled" / "Shortage" / "Overage": admin has declared cash.
+  remittanceStatus: "Pending" | "For Cash Declaration" | "Overdue" | "Settled" | "Shortage" | "Overage";
   timeIn: string;
   timeOut: string;
   cashTotal: number; // system-tracked cash from Payment module
@@ -47,6 +56,8 @@ export interface RemittanceRecord {
   dueAt?: string | null;
   remittedAt?: string | null;
   reminderCount?: number;
+  deviceId?: string;
+  deviceType?: "WEB" | "MOBILE";
 }
 
 // ─── Remittance Status ───────────────────────────────────────────────
