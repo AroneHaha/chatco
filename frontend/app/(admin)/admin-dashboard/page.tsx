@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { ArrowRight, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 
 import { useDashboardData } from "./data/dashboard-data";
 import { SkeletonMetric, SkeletonCard } from "@/components/admin/ui/skeleton";
@@ -36,6 +35,9 @@ export default function DashboardHome() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <SkeletonCard count={3} height="200px" />
         </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <SkeletonCard count={2} height="200px" />
+        </div>
       </div>
     );
   }
@@ -65,6 +67,8 @@ export default function DashboardHome() {
     recentVehicles,
     recentLostFound,
     recentUsers,
+    recentAnnouncements,
+    recentActivityLogs,
     quickStats,
     settingsModules,
     topPickupPoints,
@@ -73,19 +77,13 @@ export default function DashboardHome() {
 
   return (
     <div className="space-y-6 pb-8">
-      {/* Header. Only the title pins on phones — the greeting and the settings
-          link stay in the scroll flow so the sticky bar stays one line tall
-          instead of eating a third of a small screen. */}
+      {/* Header. Only the title pins on phones — the greeting stays in the
+          scroll flow so the sticky bar stays one line tall instead of
+          eating a third of a small screen. */}
       <StickyPageHeader>
         <h1 className="text-2xl font-bold text-white">Dashboard</h1>
       </StickyPageHeader>
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 -mt-4 md:mt-0">
-        <p className="text-sm text-slate-400">Welcome back. Here&apos;s what&apos;s happening across your network today.</p>
-        <Link href="/settings" className="group flex items-center gap-2 text-sm font-medium text-[#62A0EA] hover:text-[#99C1F1] transition-colors w-fit">
-          Open Full Settings
-          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-        </Link>
-      </div>
+      <p className="text-sm text-slate-400 -mt-4 md:mt-0">Welcome back. Here&apos;s what&apos;s happening across your network today.</p>
 
       <DashboardQuickStats stats={quickStats} />
 
@@ -95,7 +93,13 @@ export default function DashboardHome() {
         <DashboardAnalyticsPreview paymentTendencies={paymentTendencies} topPickupPoints={topPickupPoints} />
       </div>
 
-      <DashboardPreviewCards recentVehicles={recentVehicles} recentLostFound={recentLostFound} recentUsers={recentUsers} />
+      <DashboardPreviewCards
+        recentVehicles={recentVehicles}
+        recentLostFound={recentLostFound}
+        recentUsers={recentUsers}
+        recentAnnouncements={recentAnnouncements}
+        recentActivityLogs={recentActivityLogs}
+      />
 
       <DashboardSettingsCarousel modules={settingsModules} />
     </div>
