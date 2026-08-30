@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import { Badge } from '@/components/admin/ui/badge';
-import { CheckCircle, XCircle, AlertTriangle, LoaderCircle } from 'lucide-react';
+import { CheckCircle, XCircle, AlertTriangle, LoaderCircle, ZoomIn, X } from 'lucide-react';
 import type { PendingRequest } from '@/app/(admin)/users/data/users-data';
 
 function formatBirthdate(value: string): string {
@@ -37,6 +37,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
   const [customReason, setCustomReason] = useState('');
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
   const [showApproveConfirm, setShowApproveConfirm] = useState(false);
+  const [isImageExpanded, setIsImageExpanded] = useState(false);
 
   // Reset internal state whenever the modal is closed or a different
   // request is opened — prevents a stale rejection reason from a previous
@@ -95,15 +96,24 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
           </div>
         )}
 
-        {/* ID Image Display */}
+        {/* ID Image Display — click to view full size, since the thumbnail is
+            too small to actually verify text/photo details against. */}
         <div className="flex justify-center">
-          <div className="relative">
+          <button
+            type="button"
+            onClick={() => setIsImageExpanded(true)}
+            className="group relative cursor-zoom-in"
+            aria-label="View full-size ID image"
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={request.idImageUrl} alt="Uploaded ID" className="w-64 h-40 object-cover rounded-md border-2 border-[#1E2D45] shadow-lg" />
+            <div className="absolute inset-0 flex items-center justify-center rounded-md bg-black/0 group-hover:bg-black/40 transition-colors">
+              <ZoomIn size={24} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
             <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-center py-1 rounded-b-md">
               <span className="text-xs text-slate-300">Uploaded Valid ID</span>
             </div>
-          </div>
+          </button>
         </div>
 
         {/* User Details Grid — every field the applicant filled in on the
@@ -258,6 +268,31 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
           </div>
         )}
       </div>
+
+      {/* Full-size ID image lightbox — sits above the review modal (z-60 vs
+          the modal's z-50) so it isn't clipped by the panel's own scroll area. */}
+      {isImageExpanded && (
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80"
+          onClick={() => setIsImageExpanded(false)}
+        >
+          <button
+            type="button"
+            onClick={() => setIsImageExpanded(false)}
+            className="absolute top-4 right-4 p-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+            aria-label="Close full-size image"
+          >
+            <X size={24} />
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={request.idImageUrl}
+            alt="Uploaded ID (full size)"
+            className="max-w-full max-h-full object-contain rounded-md shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </Modal>
   );
 }

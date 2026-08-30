@@ -1,7 +1,7 @@
 // contexts/admin-notifications-context.tsx
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { unreadCount as fetchUnreadCount, markAllRead as markAllAnnouncementsRead } from "@/lib/shared/services/announcement.service";
 
 /** Matches the admin bell's poll cadence (see notification-bell.tsx). */
@@ -47,11 +47,26 @@ const AdminNotificationsContext = createContext<AdminNotificationsContextValue |
  */
 function useModuleBadge(types: string[]): ModuleBadge {
   const [count, setCount] = useState(0);
+  // Bumped on every refresh() call and by markRead(). A refresh() only
+  // commits its result if it's still the most recent one in flight — without
+  // this, the provider's own mount/30s-poll refresh() can land *after*
+  // markRead()'s optimistic setCount(0) but *before* its mark-all-read
+  // request finishes server-side, restamping the badge with the still-unread
+  // count it just fetched (and, on a slow network, that stale response can
+  // even resolve after markRead's own follow-up refresh, leaving the badge
+  // wrong until the next 30s poll). Opening the module (e.g. landing
+  // directly on /remittance) mounts the provider and the page in the same
+  // pass, so this race isn't rare — this is what made the nav badge look
+  // like it doesn't clear on click.
+  const requestIdRef = useRef(0);
 
   const refresh = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     try {
       const result = await fetchUnreadCount({ types });
-      setCount(result);
+      if (requestId === requestIdRef.current) {
+        setCount(result);
+      }
     } catch {
       // Silent fail on poll — badge just keeps showing the last known count.
     }
@@ -68,6 +83,9 @@ function useModuleBadge(types: string[]): ModuleBadge {
   }, [refresh]);
 
   const markRead = useCallback(() => {
+    // Invalidate any refresh() already in flight so it can't clobber the
+    // optimistic zero below with a stale (pre-mark-all-read) count.
+    requestIdRef.current++;
     setCount(0);
     void markAllAnnouncementsRead({ types }).finally(() => {
       void refresh();
