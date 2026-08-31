@@ -158,9 +158,6 @@ export function PersonnelTable({
               <Plus size={18} />
               <span>Add Driver</span>
             </button>
-          <span className="rounded-md bg-[#62A0EA]/10 px-2 py-1 text-xs font-bold text-[#62A0EA]">
-            {page.total} Records
-          </span>
           </div>
         </div>
 

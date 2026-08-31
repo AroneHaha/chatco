@@ -5,7 +5,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import {
-  Gauge, Clock, MapPin, AlertTriangle, Archive, CalendarDays,
+  Gauge, Clock, MapPin, AlertTriangle, Archive,
   AlertCircle, RefreshCw, WifiOff,
 } from 'lucide-react';
 import { useFleetPoll } from '@/lib/admin/services/monitoring.service';
@@ -15,6 +15,7 @@ import {
 } from './data/data-monitoring';
 import { SkeletonMetric, SkeletonTable, SkeletonMap } from '@/components/admin/ui/skeleton';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
+import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
 import { formatElapsedMinutes } from '@/lib/utils/display';
 import { useAdminNotifications } from '@/contexts/admin-notifications-context';
 
@@ -49,7 +50,7 @@ export default function MonitoringPage() {
   const [overspeedPage, setOverspeedPage] = useState(1);
   const [filterOverspeedDate, setFilterOverspeedDate] = useState('');
   // Live fleet data (real API, 5s poll)
-  const { fleet, isLoading, isRefreshing, error, lastFetchedAt, refetch } = useFleetPoll(5000);
+  const { fleet, isLoading, error, refetch } = useFleetPoll(5000);
   // Real SOS alerts (polls /api/admin/sos every 5s) + real overspeed feed.
   // The hook exposes its own error/loading state — we surface it as a banner
   // so SOS feed failures don't silently render as an empty active-alerts list.
@@ -126,10 +127,13 @@ export default function MonitoringPage() {
   const staleCount = fleet.filter(v => v.is_stale).length;
   const activeCount = fleet.length;
 
+  // `alert` escalates a card's styling only while its count is actually
+  // non-zero — a fleet that's often on break or briefly unresponsive
+  // shouldn't sit permanently colored, or the color stops meaning anything.
   const metrics = [
-    { title: 'Active Vehicles', value: activeCount.toString(), icon: MapPin, color: 'text-[#62A0EA]' },
-    { title: 'Stale Units (>10min)', value: staleCount.toString(), icon: WifiOff, color: 'text-amber-400' },
-    { title: 'Active SOS', value: sosAlerts.length.toString(), icon: AlertTriangle, color: 'text-red-400' },
+    { title: 'Active Vehicles', value: activeCount.toString(), icon: MapPin, color: 'text-[#62A0EA]', alert: false },
+    { title: 'Unresponsive Units (>10min)', value: staleCount.toString(), icon: WifiOff, color: 'text-amber-400', alert: staleCount > 0 },
+    { title: 'Active SOS', value: sosAlerts.length.toString(), icon: AlertTriangle, color: 'text-red-400', alert: sosAlerts.length > 0 },
   ];
 
   const filteredFleet = useMemo(() => {
@@ -205,25 +209,11 @@ export default function MonitoringPage() {
 
   return (
     <>
-      {/* Header with live indicator. Pinned on phones so the "Live · Updated"
-          stamp stays visible while scrolling the unit tables — it's the main
-          signal that the feed is still refreshing.
-
-          Must stay the FIRST child: StickyPageHeader carries a negative top
+      {/* Must stay the FIRST child: StickyPageHeader carries a negative top
           margin to reclaim <main>'s padding, so anything above it would lose
           16px underneath. The SOS banner therefore sits below it now. */}
-      <StickyPageHeader className="flex items-center justify-between mb-6">
+      <StickyPageHeader className="mb-6">
         <h1 className="text-2xl font-bold text-white">Live Monitoring</h1>
-        <div className="flex items-center gap-3 text-xs text-slate-500">
-          {isRefreshing ? (
-            <span className="flex items-center gap-1.5 text-[#62A0EA]"><RefreshCw size={12} className="animate-spin" />Refreshing…</span>
-          ) : lastFetchedAt ? (
-            <span className="flex items-center gap-1.5">
-              <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span>
-              Live · Updated {lastFetchedAt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-            </span>
-          ) : null}
-        </div>
       </StickyPageHeader>
 
       {/* SOS feed error banner — shown when the SOS polling loop fails.
@@ -247,14 +237,24 @@ export default function MonitoringPage() {
         </div>
       )}
 
-      {/* Top Metrics */}
+      {/* Top Metrics. The two count-based cards (Unresponsive, SOS) escalate
+          to a tinted border + icon chip + colored value only while their
+          count is non-zero — see the `alert` note above the metrics array. */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         {metrics.map((item, index) => {
           const Icon = item.icon;
+          const isRed = item.color === 'text-red-400';
           return (
-          <div key={index} className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-3 flex items-center space-x-3">
-              <div className={`p-2.5 bg-[#0E1628] rounded-lg ${item.color}`}><Icon size={20} /></div>
-              <div><p className="text-xs font-medium text-slate-400">{item.title}</p><p className="text-xl font-bold text-white">{item.value}</p></div>
+          <div
+            key={index}
+            className={`rounded-lg p-3 flex items-center space-x-3 border transition-colors ${
+              item.alert
+                ? isRed ? 'bg-red-400/5 border-red-400/20' : 'bg-amber-400/5 border-amber-400/20'
+                : 'bg-[#131C2E] border-[#1E2D45]'
+            }`}
+          >
+              <div className={`p-2.5 rounded-lg ${item.alert ? (isRed ? 'bg-red-400/15' : 'bg-amber-400/15') : 'bg-[#0E1628]'} ${item.color}`}><Icon size={20} /></div>
+              <div><p className="text-xs font-medium text-slate-400">{item.title}</p><p className={`text-xl font-bold ${item.alert ? item.color : 'text-white'}`}>{item.value}</p></div>
             </div>
           );
         })}
@@ -336,10 +336,10 @@ export default function MonitoringPage() {
       <div className="mt-6 pb-8">
         <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-            <h2 className="text-lg font-bold text-white">Active Vehicle Tracking</h2>
+            <h2 className="text-lg font-bold text-white">Active Vehicle Tracking <span className="text-sm font-normal text-slate-500">— Today</span></h2>
             <div className="flex items-center gap-2 bg-[#0E1628] p-1 rounded-md border border-[#1E2D45]">
               <button onClick={() => setFilterStaleOnly(false)} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${!filterStaleOnly ? 'bg-[#62A0EA] text-white' : 'text-slate-500 hover:text-slate-300'}`}>All ({fleet.length})</button>
-              <button onClick={() => setFilterStaleOnly(true)} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${filterStaleOnly ? 'bg-amber-400/20 text-amber-400' : 'text-slate-500 hover:text-slate-300'}`}><WifiOff size={12} />Stale Only ({staleCount})</button>
+              <button onClick={() => setFilterStaleOnly(true)} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${filterStaleOnly ? 'bg-amber-400/20 text-amber-400' : 'text-slate-500 hover:text-slate-300'}`}><WifiOff size={12} />Unresponsive Only ({staleCount})</button>
             </div>
           </div>
           {/* Scrolled rather than paginated: this table re-polls every 5s, so
@@ -348,7 +348,7 @@ export default function MonitoringPage() {
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-[#1E2D45]">
-                  <th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Unit</th>
+                  <th className="sticky top-0 z-10 bg-[#131C2E] pb-3 pl-4 pr-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Unit</th>
                   <th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Driver</th>
                   <th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Route</th>
                   <th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Speed</th>
@@ -367,13 +367,13 @@ export default function MonitoringPage() {
                       title={v.has_gps ? 'Show this unit on the map' : 'No GPS position reported yet'}
                       className={`transition-colors ${v.has_gps ? 'cursor-pointer' : 'cursor-default'} ${
                         focusedVehicleId === v.id
-                          ? 'bg-[#62A0EA]/10 border-l-2 border-l-[#62A0EA]'
+                          ? 'bg-[#62A0EA]/10 ring-1 ring-inset ring-[#62A0EA]/50'
                           : v.is_stale
-                            ? 'bg-amber-400/5 border-l-2 border-l-amber-400'
+                            ? 'bg-amber-400/10 ring-1 ring-inset ring-amber-400/30'
                             : 'hover:bg-[#0E1628]'
                       }`}
                     >
-                      <td className="py-3.5 pr-4"><div className="flex flex-col"><span className="text-sm font-semibold text-white">{v.unit_number}</span><span className="text-xs text-slate-500 font-mono">{v.plate_number}</span></div></td>
+                      <td className="py-3.5 pl-4 pr-6"><div className="flex flex-col"><span className="text-sm font-semibold text-white">{v.unit_number}</span><span className="text-xs text-slate-500 font-mono">{v.plate_number}</span></div></td>
                       <td className="py-3.5 pr-4"><span className="text-sm text-slate-400">{v.driver_name ?? '—'}</span></td>
                       <td className="py-3.5 pr-4"><span className="text-sm text-slate-400">{v.route_name ?? '—'}</span></td>
                       <td className="py-3.5 pr-4 text-center"><span className={`text-sm font-semibold ${v.speed !== null && v.speed > SPEED_LIMIT_KMH ? 'text-red-400' : 'text-slate-300'}`}>{v.speed !== null ? `${v.speed} km/h` : '—'}</span></td>
@@ -384,7 +384,7 @@ export default function MonitoringPage() {
                         ) : !v.has_gps ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-400/15 text-slate-400" title="On shift, but the unit has not reported a GPS position yet"><WifiOff size={10} />Awaiting GPS</span>
                         ) : v.is_stale ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-400/15 text-amber-400"><WifiOff size={10} />Stale · {formatElapsedMinutes(v.minutes_since_update)} ago</span>
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-400/15 text-amber-400"><WifiOff size={10} />Unresponsive · {formatElapsedMinutes(v.minutes_since_update)} ago</span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-400/15 text-emerald-400"><span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span></span>Live</span>
                         )}
@@ -404,11 +404,12 @@ export default function MonitoringPage() {
         <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div className="flex items-center gap-2"><Archive size={18} className="text-slate-500" /><h2 className="text-lg font-bold text-white">SOS History</h2></div>
-            <div className="relative flex items-center">
-              <CalendarDays size={14} className="absolute left-2.5 text-slate-500 pointer-events-none" />
-              <input type="date" value={filterSosDate} onChange={(e) => { setFilterSosDate(e.target.value); setSosPage(1); }} className="bg-[#0E1628] border border-[#1E2D45] rounded-md text-xs text-slate-300 pl-8 pr-2 py-1.5 focus:outline-none focus:border-[#62A0EA]/50 [color-scheme:dark]" />
-              {filterSosDate && <button onClick={() => { setFilterSosDate(''); setSosPage(1); }} className="absolute right-2 text-slate-500 hover:text-white text-xs">✕</button>}
-            </div>
+            <AdminDatePicker
+              accent="blue"
+              ariaLabel="Filter SOS history by date"
+              value={filterSosDate}
+              onChange={(next) => { setFilterSosDate(next); setSosPage(1); }}
+            />
           </div>
           {filteredSosHistory.length === 0 ? (
             <div className="py-8 text-center text-slate-600 text-sm">No SOS history for this date.</div>
@@ -449,11 +450,13 @@ export default function MonitoringPage() {
         <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div className="flex items-center gap-2"><Gauge size={18} className="text-red-400/60" /><h2 className="text-lg font-bold text-white">Overspeeding History</h2></div>
-            <div className="relative flex items-center">
-              <CalendarDays size={14} className="absolute left-2.5 text-slate-500 pointer-events-none" />
-              <input type="date" value={filterOverspeedDate} onChange={(e) => { setFilterOverspeedDate(e.target.value); setOverspeedPage(1); }} className="bg-[#0E1628] border border-[#1E2D45] rounded-md text-xs text-slate-300 pl-8 pr-2 py-1.5 focus:outline-none focus:border-red-400/50 [color-scheme:dark]" />
-              {filterOverspeedDate && <button onClick={() => { setFilterOverspeedDate(''); setOverspeedPage(1); }} className="absolute right-2 text-slate-500 hover:text-white text-xs">✕</button>}
-            </div>
+            <AdminDatePicker
+              accent="red"
+              align="right"
+              ariaLabel="Filter overspeeding history by date"
+              value={filterOverspeedDate}
+              onChange={(next) => { setFilterOverspeedDate(next); setOverspeedPage(1); }}
+            />
           </div>
           {filteredOverspeedHistory.length === 0 ? (
             <div className="py-8 text-center text-slate-600 text-sm">No overspeeding logs for this date.</div>

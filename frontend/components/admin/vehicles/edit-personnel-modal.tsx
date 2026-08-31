@@ -3,7 +3,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
-import { Upload, Check, User, Save, Phone, IdCard, Calendar } from 'lucide-react';
+import { Upload, Check, User, Save, Phone, IdCard, Calendar, X } from 'lucide-react';
 import type { Personnel } from '@/app/(admin)/vehicles/data/vehicles-data';
 
 // Mirrors the backend's LTO format check (AdminController::updateDriver).
@@ -308,7 +308,8 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
               </label>
 
               {!useDefaultPicture && (profilePicture || existingPictureUrl) && (
-                <button type="button" onClick={handleRemoveImage} className="text-xs text-red-400 hover:text-red-300 transition-colors">
+                <button type="button" onClick={handleRemoveImage} className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 transition-colors">
+                  <X size={12} />
                   Remove
                 </button>
               )}

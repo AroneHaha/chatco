@@ -3,7 +3,7 @@
 
 import { useState, useRef } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
-import { UserPlus, MapPin, Upload, Check, User, Calendar, Phone } from 'lucide-react';
+import { UserPlus, MapPin, Upload, Check, User, Calendar, Phone, X } from 'lucide-react';
 
 // Mirrors the backend's PH mobile format check (AdminController::storeConductor).
 const CONTACT_PATTERN = /^09[0-9]{9}$/;
@@ -224,8 +224,9 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
                 <button
                   type="button"
                   onClick={handleRemoveImage}
-                  className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                  className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 transition-colors"
                 >
+                  <X size={12} />
                   Remove
                 </button>
               )}

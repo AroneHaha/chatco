@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import { Badge } from '@/components/admin/ui/badge';
 import { TablePagination } from '@/components/admin/ui/table-pagination';
-import { Clock, RefreshCw, User, MapPin, Calendar, MonitorSmartphone, ShieldAlert } from 'lucide-react';
+import { Clock, User, MapPin, Calendar, MonitorSmartphone, ShieldAlert } from 'lucide-react';
 import type { Vehicle } from '@/app/(admin)/vehicles/data/vehicles-data';
 
 interface ShiftLogEntry {
@@ -213,25 +213,14 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
-      <div className="flex items-start justify-between mb-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Clock size={20} className="text-[#62A0EA]" />
-            <h2 className="text-lg sm:text-xl font-bold text-white">Shift History</h2>
-          </div>
-          <p className="text-xs text-slate-400">
-            Unit <span className="font-semibold text-slate-300">{vehicle.plateNumber}</span> • Route <span className="font-semibold text-slate-300">{vehicle.route}</span>
-          </p>
-          <p className="text-[10px] text-slate-500 font-mono mt-1">{vehicle.id}</p>
+      <div className="mb-4">
+        <div className="flex items-center gap-2 mb-1">
+          <Clock size={20} className="text-[#62A0EA]" />
+          <h2 className="text-lg sm:text-xl font-bold text-white">Shift History</h2>
         </div>
-        <button
-          onClick={fetchLogs}
-          disabled={isLoading}
-          title="Refresh"
-          className="p-2 text-slate-400 hover:text-white hover:bg-[#1A2540] rounded-md transition-colors disabled:opacity-50"
-        >
-          <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
-        </button>
+        <p className="text-xs text-slate-400">
+          Unit <span className="font-semibold text-slate-300">{vehicle.plateNumber}</span>
+        </p>
       </div>
 
       {/* Summary badges */}

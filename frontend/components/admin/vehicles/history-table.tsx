@@ -211,13 +211,6 @@ export function HistoryTable({
               <span className="rounded bg-black/20 px-1.5 py-0.5">{counts.terminated}</span>
             </button>
           </div>
-          <span
-            className={`w-fit rounded-md px-2 py-1 text-xs font-bold ${
-              isTerminated ? 'bg-red-400/10 text-red-400' : 'bg-[#62A0EA]/10 text-[#62A0EA]'
-            }`}
-          >
-            {activePage.total} Records
-          </span>
         </div>
       </div>
 

@@ -575,7 +575,7 @@ export default function AdminCommuterMap({
                   )}
                   {vehicle.is_stale && (
                     <div className="text-[10px] font-medium text-amber-600 bg-amber-50 p-1.5 rounded text-center border border-amber-100">
-                      ⚠ Stale — last update {formatElapsedMinutes(vehicle.minutes_since_update)} ago
+                      ⚠ Unresponsive — last update {formatElapsedMinutes(vehicle.minutes_since_update)} ago
                     </div>
                   )}
                 </div>

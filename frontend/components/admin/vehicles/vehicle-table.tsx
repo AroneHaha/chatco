@@ -122,14 +122,11 @@ export function VehicleTable({
         <div className="flex items-center gap-2">
           <button
             onClick={onAddVehicle}
-            className="flex items-center justify-center gap-2 rounded-md bg-[#62A0EA] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4]"
+            className="flex w-full items-center justify-center gap-2 rounded-md bg-[#62A0EA] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4] sm:w-44"
           >
             <Plus size={18} />
             <span>Add Vehicle</span>
           </button>
-        <span className="rounded-md bg-[#62A0EA]/10 px-2 py-1 text-xs font-bold text-[#62A0EA]">
-          {page.total} Records
-        </span>
         </div>
       </div>
       {isLoading ? (

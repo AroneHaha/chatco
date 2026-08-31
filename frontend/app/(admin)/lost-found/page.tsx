@@ -10,9 +10,9 @@ import { EditLostFoundModal, type EditLostFoundFormData } from '@/components/adm
 import { ViewItemModal } from '@/components/admin/lost-found/view-item-modal';
 import { ClaimsListModal } from '@/components/admin/lost-found/claims-list-modal';
 import { TablePagination } from '@/components/admin/ui/table-pagination';
+import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
 import {
   Archive,
-  CalendarDays,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
@@ -21,7 +21,6 @@ import {
   PackageSearch,
   Plus,
   Search,
-  X,
 } from 'lucide-react';
 import {
   itemCategoriesWithAll,
@@ -436,9 +435,15 @@ export default function LostFoundPage() {
             <h1 className="text-xl font-bold leading-tight text-white lg:text-2xl">Lost & Found Management</h1>
             <p className="mt-1 text-xs text-slate-500">{pageMeta.total} records | Page {pageMeta.page} of {totalPages}</p>
           </div>
+          {/* Below lg: the filter row stays a stacked column (no "right side" to
+              align to yet), so Add Item stays up here — outside the mobile
+              collapse below, so it's still reachable even while filters are
+              collapsed on phones. From lg: up, the row below goes horizontal
+              and this same action moves there instead (see the lg:-only
+              instance further down), right-aligned with the filters. */}
           <button
             onClick={handleOpenAddModal}
-            className="inline-flex h-11 w-full flex-shrink-0 items-center justify-center gap-2 rounded-lg bg-[#FF6D3A] px-4 text-sm font-bold text-white shadow-lg shadow-[#FF6D3A]/25 transition-colors hover:bg-[#e55a2b] sm:w-auto"
+            className="inline-flex h-9.5 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-[#FF6D3A] px-4 text-sm font-bold text-white shadow-lg shadow-[#FF6D3A]/25 transition-colors hover:bg-[#e55a2b] sm:w-auto lg:hidden"
           >
             <Plus size={16} />
             Add Item
@@ -448,9 +453,16 @@ export default function LostFoundPage() {
         {/* Mobile-only collapse: tab grid + filter row hide behind a toggle so
             just the title and Add Item button stay visible on small screens —
             same pattern as the conductor dashboard's MobileDashboardCard. The
-            md:!max-h-none override means this never collapses at md: and up. */}
+            md:!max-h-none override means this never collapses at md: and up.
+            overflow-hidden is only needed to actually crop content to zero
+            height while collapsed below md: — left on unconditionally it
+            also clips anything absolutely-positioned that opens from inside
+            here (the date picker's popover) even once expanded. So it only
+            stays hidden while genuinely collapsed; md:overflow-visible covers
+            md: and up unconditionally, since content is always expanded
+            there regardless of this mobile-only toggle's state. */}
         <div
-          className="overflow-hidden transition-all duration-300 ease-in-out md:max-h-none!"
+          className={`transition-all duration-300 ease-in-out md:overflow-visible md:max-h-none! ${isMobileFiltersExpanded ? 'overflow-visible' : 'overflow-hidden'}`}
           style={{ maxHeight: isMobileFiltersExpanded ? '700px' : '0px' }}
         >
           <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-5">
@@ -482,36 +494,23 @@ export default function LostFoundPage() {
                 placeholder="Search item, plate, driver, or conductor..."
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-                className="w-full rounded-xl border border-white/10 bg-[#0E1628] py-3 pl-11 pr-4 text-sm text-white outline-none transition-colors placeholder:text-slate-500 focus:border-[#62A0EA]"
+                className="h-8.25 w-full rounded-xl border border-white/10 bg-[#0E1628] pl-11 pr-4 text-sm text-white outline-none transition-colors placeholder:text-slate-500 focus:border-[#62A0EA]"
               />
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:justify-end">
-              <div className="relative sm:w-52">
-                <CalendarDays className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => { setSelectedDate(e.target.value); setCurrentPage(1); }}
-                  className="h-11 w-full rounded-xl border border-white/10 bg-[#0E1628] py-3 pl-11 pr-10 text-sm font-semibold text-slate-300 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
-                  aria-label="Filter lost items by posted date"
-                />
-                {selectedDate && (
-                  <button
-                    type="button"
-                    onClick={() => { setSelectedDate(''); setCurrentPage(1); }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-500 transition-colors hover:bg-white/5 hover:text-slate-200"
-                    aria-label="Clear date filter"
-                    title="Clear date"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
-              <div className="relative sm:w-60">
+              <AdminDatePicker
+                accent="blue"
+                ariaLabel="Filter lost items by posted date"
+                value={selectedDate}
+                onChange={(next) => { setSelectedDate(next); setCurrentPage(1); }}
+                triggerClassName="h-8.25 w-full sm:w-44"
+                className="w-full sm:w-44"
+              />
+              <div className="relative sm:w-48">
                 <select
                   value={activeCategory}
                   onChange={(e) => { setActiveCategory(e.target.value as ItemCategory | 'ALL'); setCurrentPage(1); }}
-                  className="h-11 w-full appearance-none rounded-xl border border-white/10 bg-[#0E1628] px-4 pr-10 text-sm font-semibold text-slate-300 outline-none transition-colors focus:border-[#62A0EA]"
+                  className="h-8.25 w-full appearance-none rounded-xl border border-white/10 bg-[#0E1628] px-4 pr-10 text-sm font-semibold text-slate-300 outline-none transition-colors focus:border-[#62A0EA]"
                   aria-label="Filter lost items by category"
                 >
                   {itemCategoriesWithAll.map(cat => (
@@ -522,6 +521,18 @@ export default function LostFoundPage() {
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
               </div>
+              {/* lg:-only counterpart to the header's Add Item button above —
+                  once the row goes horizontal there's a real "right side" to
+                  align it to, flush with the filters at the same height. Width
+                  matches the Add Vehicle/Driver/Conductor buttons elsewhere in
+                  admin for a consistent "add" action size across modules. */}
+              <button
+                onClick={handleOpenAddModal}
+                className="hidden h-8.25 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#FF6D3A] px-4 text-sm font-bold text-white shadow-lg shadow-[#FF6D3A]/25 transition-colors hover:bg-[#e55a2b] lg:inline-flex lg:w-44"
+              >
+                <Plus size={16} />
+                Add Item
+              </button>
             </div>
           </div>
         </div>
