@@ -177,6 +177,69 @@ class OperationalLifecycleTest extends TestCase
         $this->assertSame(3, $row['total_passengers']);
     }
 
+    public function test_conductor_remittance_submission_always_leaves_cash_pending_for_admin(): void
+    {
+        [$conductor, , , , $shift] = $this->activeShift();
+        $this->fare($shift, PaymentMethod::CASH, PaymentStatus::PAID, 100);
+
+        $this->actingAs($conductor)
+            ->postJson("/api/v1/conductor/remittances", [
+                'shift_id' => $shift->shift_id,
+                'total_collected' => 100,
+            ])
+            ->assertOk();
+
+        $remittance = Remittance::findOrFail($shift->shift_id);
+        $this->assertSame(Remittance::STATUS_PENDING, $remittance->remittance_status);
+        $this->assertSame('0.00', $remittance->remitted_amount);
+    }
+
+    public function test_admin_can_declare_cash_and_resolve_a_pending_remittance(): void
+    {
+        $admin = User::factory()->admin()->create();
+        [$conductor, , , , $shift] = $this->activeShift();
+        $this->fare($shift, PaymentMethod::CASH, PaymentStatus::PAID, 100);
+        app(ShiftCloseoutService::class)->close($shift->shift_id, null, ShiftCloseoutService::REASON_MANUAL, $conductor->id);
+        $this->assertSame(Remittance::STATUS_PENDING, Remittance::findOrFail($shift->shift_id)->remittance_status);
+
+        $this->actingAs($admin)
+            ->postJson("/api/v1/admin/remittances/{$shift->shift_id}/cash-declaration", ['cash_declared' => 75])
+            ->assertOk()
+            ->assertJsonPath('data.remittance_status', Remittance::STATUS_SHORTAGE);
+
+        $remittance = Remittance::findOrFail($shift->shift_id);
+        $this->assertSame(Remittance::STATUS_SHORTAGE, $remittance->remittance_status);
+        $this->assertSame('75.00', $remittance->remitted_amount);
+        $this->assertSame('25.00', $remittance->shortage);
+        $this->assertNotNull($remittance->remitted_at);
+    }
+
+    public function test_admin_cannot_declare_cash_twice_for_the_same_remittance(): void
+    {
+        $admin = User::factory()->admin()->create();
+        [$conductor, , , , $shift] = $this->activeShift();
+        $this->fare($shift, PaymentMethod::CASH, PaymentStatus::PAID, 100);
+        app(ShiftCloseoutService::class)->close($shift->shift_id, null, ShiftCloseoutService::REASON_MANUAL, $conductor->id);
+
+        $this->actingAs($admin)
+            ->postJson("/api/v1/admin/remittances/{$shift->shift_id}/cash-declaration", ['cash_declared' => 100])
+            ->assertOk();
+
+        $this->actingAs($admin)
+            ->postJson("/api/v1/admin/remittances/{$shift->shift_id}/cash-declaration", ['cash_declared' => 100])
+            ->assertStatus(409);
+    }
+
+    public function test_cash_declaration_endpoint_requires_admin_role(): void
+    {
+        $conductor = User::factory()->conductor()->create();
+        [, , , , $shift] = $this->activeShift();
+
+        $this->actingAs($conductor)
+            ->postJson("/api/v1/admin/remittances/{$shift->shift_id}/cash-declaration", ['cash_declared' => 50])
+            ->assertStatus(403);
+    }
+
     public function test_manual_closeout_calculates_exact_shortage_and_overage_from_authoritative_cash(): void
     {
         foreach ([

@@ -4,7 +4,7 @@
 
 export type { AnnouncementType, Announcement } from "@/types";
 
-export type VoucherStatus = "AVAILABLE" | "ACTIVE" | "USED" | "EXPIRED";
+export type VoucherStatus = "AVAILABLE" | "USED" | "EXPIRED";
 
 export interface Voucher {
   id: string;

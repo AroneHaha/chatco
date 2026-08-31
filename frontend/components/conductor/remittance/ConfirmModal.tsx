@@ -5,7 +5,7 @@ import { fmt } from "@/app/(conductor)/conductor-dashboard/end-of-day/helpers";
 interface ConfirmModalProps {
   show: boolean;
   onClose: () => void;
-  onConfirm: (cashDeclared: number) => void;
+  onConfirm: () => void;
   isRemitting: boolean;
   shiftInfo: { driverName: string; unitNumber: string };
   gcashTotal: number;
@@ -33,8 +33,6 @@ export default function ConfirmModal({
   const startXRef = useRef(0);
   const pointerIdRef = useRef<number | null>(null);
 
-  const [cashDeclared, setCashDeclared] = useState<string>(cashTotal.toFixed(2));
-  const [touched, setTouched] = useState(false);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
@@ -47,20 +45,6 @@ export default function ConfirmModal({
     setDragX(0);
     setDragging(false);
     setConfirmed(false);
-    if (show) {
-      setCashDeclared(cashTotal.toFixed(2));
-      setTouched(false);
-    }
-  }
-
-  const declaredAmount = parseFloat(cashDeclared) || 0;
-  const shortage = Math.max(0, cashTotal - declaredAmount);
-  const overage = Math.max(0, declaredAmount - cashTotal);
-  const hasShortage = shortage > 0;
-  const hasInvalidAmount = declaredAmount < 0;
-
-  if (!touched && show && cashDeclared !== cashTotal.toFixed(2)) {
-    setCashDeclared(cashTotal.toFixed(2));
   }
 
   if (isRemitting !== prevRemitting) {
@@ -71,7 +55,7 @@ export default function ConfirmModal({
     }
   }
 
-  const locked = isRemitting || confirmed || hasInvalidAmount;
+  const locked = isRemitting || confirmed;
 
   const handlePointerDown = useCallback(
     (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -102,15 +86,15 @@ export default function ConfirmModal({
       setDragging(false);
 
       const ratio = dragX / maxDrag;
-      if (ratio >= COMPLETE_RATIO && !hasInvalidAmount) {
+      if (ratio >= COMPLETE_RATIO) {
         setDragX(maxDrag);
         setConfirmed(true);
-        onConfirm(declaredAmount);
+        onConfirm();
       } else {
         setDragX(0);
       }
     },
-    [declaredAmount, dragX, dragging, hasInvalidAmount, maxDrag, onConfirm]
+    [dragX, dragging, maxDrag, onConfirm]
   );
 
   const handleKeyDown = useCallback(
@@ -119,10 +103,10 @@ export default function ConfirmModal({
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
         setConfirmed(true);
-        onConfirm(declaredAmount);
+        onConfirm();
       }
     },
-    [declaredAmount, locked, onConfirm]
+    [locked, onConfirm]
   );
 
   if (!show) return null;
@@ -130,12 +114,10 @@ export default function ConfirmModal({
   const ratio = dragging || confirmed ? dragX / maxDrag : 0;
   const normalizedRatio = Math.min(Math.max(ratio, 0), 1);
   const isActivationReady = normalizedRatio >= COMPLETE_RATIO || confirmed;
-  const slideInstruction = hasInvalidAmount
-    ? "Enter valid cash amount"
-    : isRemitting
-      ? "Processing..."
-      : isActivationReady
-        ? "Release to confirm"
+  const slideInstruction = isRemitting
+    ? "Processing..."
+    : isActivationReady
+      ? "Release to confirm"
       : "Slide to confirm remittance";
 
   return (
@@ -182,56 +164,13 @@ export default function ConfirmModal({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="block text-xs font-bold text-white/50 uppercase tracking-wider">
-              Cash Declared (physical count)
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={cashDeclared}
-              onChange={(e) => {
-                setCashDeclared(e.target.value);
-                setTouched(true);
-                setDragX(0);
-                setConfirmed(false);
-              }}
-              disabled={isRemitting}
-              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-lg font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-[#62A0EA]/20 focus:border-[#62A0EA] transition-colors disabled:opacity-50"
-              placeholder="0.00"
-            />
-            <p className="text-[11px] text-white/30 leading-relaxed">
-              Enter the actual cash you have on hand. The system-tracked cash total is {fmt(cashTotal)}.
-            </p>
-
-            {hasShortage && (
-              <div className="flex items-center justify-between bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2.5">
-                <span className="text-xs font-semibold text-red-400">Shortage</span>
-                <span className="text-sm font-extrabold text-red-400 tabular-nums">-{fmt(shortage)}</span>
-              </div>
-            )}
-            {overage > 0 && (
-              <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-2.5">
-                <span className="text-xs font-semibold text-emerald-400">Overage</span>
-                <span className="text-sm font-extrabold text-emerald-400 tabular-nums">+{fmt(overage)}</span>
-              </div>
-            )}
-            {!hasShortage && overage === 0 && declaredAmount > 0 && (
-              <div className="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-2.5">
-                <span className="text-xs font-semibold text-white/40">Cash matches system total</span>
-                <span className="text-sm font-bold text-emerald-400">OK</span>
-              </div>
-            )}
-          </div>
-
           <div className="flex items-start gap-2.5 bg-blue-500/8 border border-blue-500/15 rounded-xl p-3">
             <svg className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
             </svg>
             <p className="text-[11px] text-blue-400/70 leading-relaxed">
-              GCash payments are digitally recorded. Cash of <span className="font-bold text-blue-400">{fmt(declaredAmount)}</span> must be handed over manually to admin.
-              {hasShortage && <span className="text-red-400 font-bold"> A shortage of {fmt(shortage)} will be recorded.</span>}
+              Hand over <span className="font-bold text-blue-400">{fmt(cashTotal)}</span> in cash to admin. They&apos;ll
+              count it and record the official Cash Declaration for this shift.
             </p>
           </div>
 

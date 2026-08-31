@@ -3,14 +3,26 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { DataTable } from '@/components/admin/ui/data-table';
-import { Badge } from '@/components/admin/ui/badge';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { BADGE_VARIANT_CLASSES } from '@/components/shared/badge';
+import { ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import {
   useRemittanceData,
   type RemittanceRow,
   type RemittanceStatus,
 } from '@/app/(admin)/remittance/data/remittance-data';
 import { ConductorDetailModal } from '@/components/admin/remittance/conductor-detail-modal';
+import { CashDeclarationModal } from '@/components/admin/remittance/cash-declaration-modal';
+import { remittanceStatusVariant } from '@/lib/shared/remittance-status';
+
+/** Real, ended remittances still awaiting the admin's cash count — the only
+ * rows eligible for the "Declare Cash" action. A plain "Pending" row is a
+ * still-active shift with no Remittance row yet to attach a declaration to. */
+const canDeclareCash = (status: RemittanceStatus) => status === 'For Cash Declaration' || status === 'Overdue';
+
+// Fixed size shared by both the "Declare" trigger and a plain status pill in
+// the Status column, so the column never reflows depending on which one a
+// given row happens to render.
+const STATUS_PILL_CLASSES = 'inline-flex w-24 items-center justify-center gap-1 px-2 py-1 text-xs font-semibold rounded-full transition-colors';
 
 // ─── Helper: format PHP currency ───────────────────────────────────────
 const fmtPHP = (n: number) =>
@@ -43,6 +55,7 @@ export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFil
   const [currentPage, setCurrentPage] = useState(1);
   const { records, total, lastPage, isLoading, error, refresh } = useRemittanceData(currentPage, searchQuery, selectedDate, statusFilter, dateFrom, conductorFilter, driverFilter);
   const [selectedRecord, setSelectedRecord] = useState<RemittanceRow | null>(null);
+  const [declaringRecord, setDeclaringRecord] = useState<RemittanceRow | null>(null);
 
   // Auto-open the deep-linked record's modal the moment it shows up in a
   // fetch. A render-phase adjustment (not an effect) so it takes effect the
@@ -83,9 +96,30 @@ export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFil
     {
       key: 'remittanceStatus',
       label: 'Status',
-      render: (value: RemittanceStatus) => (
-        <Badge variant={value === 'Remitted' ? 'success' : value === 'Pending' || value === 'Overdue' ? 'warning' : 'danger'}>{value}</Badge>
-      ),
+      // Fixed-width column — both pill variants below share the exact same
+      // size (STATUS_PILL_CLASSES), so which rows happen to be "Declare" vs
+      // a plain status never reflows this column or the table around it.
+      headerClassName: 'w-28',
+      cellClassName: 'w-28',
+      // When the row is eligible, the status pill itself is the trigger (a
+      // chevron marks it as clickable) instead of a second element next to
+      // it. Label is shortened to "Declare" (not the full status text) so a
+      // long value like "For Cash Declaration" can't blow out the pill; the
+      // full status is still the pill's color + the tooltip on hover.
+      render: (value: RemittanceStatus, row: RemittanceRow) =>
+        canDeclareCash(value) ? (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setDeclaringRecord(row); }}
+            title={value}
+            className={`${STATUS_PILL_CLASSES} hover:brightness-125 ${BADGE_VARIANT_CLASSES[remittanceStatusVariant(value)]}`}
+          >
+            Declare
+            <ChevronDown size={12} />
+          </button>
+        ) : (
+          <span className={`${STATUS_PILL_CLASSES} ${BADGE_VARIANT_CLASSES[remittanceStatusVariant(value)]}`}>{value}</span>
+        ),
     },
   ];
 
@@ -228,6 +262,15 @@ export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFil
         isOpen={selectedRecord !== null}
         onClose={() => setSelectedRecord(null)}
         record={selectedRecord}
+      />
+
+      {/* Cash Declaration Modal — admin's physical cash count for a real,
+          ended, undeclared remittance (see canDeclareCash above). */}
+      <CashDeclarationModal
+        isOpen={declaringRecord !== null}
+        onClose={() => setDeclaringRecord(null)}
+        onDeclared={refresh}
+        record={declaringRecord}
       />
     </div>
   );

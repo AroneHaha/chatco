@@ -424,13 +424,19 @@ class OfflineCashSafetyTest extends TestCase
         $this->recordOnlineCash(self::WEB_DEVICE);
         $offlineOccurredAt = now()->toIso8601String();
 
+        // Cash declaration now happens on the admin side: the conductor's
+        // submission always leaves the remittance PENDING (see
+        // ShiftService::endShiftViaRemittance), and only
+        // ShiftCloseoutService::recordCashDeclaration() — the admin's cash
+        // count — resolves it to COMPLETE. That resolution is what this test
+        // actually protects against a late offline replay overwriting.
         $this->actingAs($this->conductor)->postJson('/api/v1/conductor/remittances', [
             'shift_id' => $shift->shift_id,
             'total_collected' => 15,
-            'remitted_amount' => 15,
             'device_id' => self::WEB_DEVICE,
             'device_type' => 'WEB',
         ])->assertOk();
+        app(ShiftCloseoutService::class)->recordCashDeclaration($shift->shift_id, 15);
 
         $payload = $this->cashPayload(self::WEB_DEVICE, 'too-late-offline-key');
         $payload['offline_created_at'] = $offlineOccurredAt;

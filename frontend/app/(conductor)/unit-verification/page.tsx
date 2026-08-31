@@ -44,7 +44,7 @@ export default function ConductorLoginPage() {
     void fetchRemittanceHistory()
       .then((remittances) => {
         setPendingRemittance(
-          remittances.find((record) => record.remittanceStatus === "Pending" || record.remittanceStatus === "Overdue") ?? null,
+          remittances.find((record) => record.remittanceStatus === "For Cash Declaration" || record.remittanceStatus === "Overdue") ?? null,
         );
       })
       .finally(() => setIsCheckingShift(false));

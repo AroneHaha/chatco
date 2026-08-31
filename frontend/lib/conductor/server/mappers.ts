@@ -190,8 +190,14 @@ export function mapShiftLog(s: unknown): ConductorShift {
  * inside a paginator — the route unwraps the paginator, this maps each row.
  *
  * remittance_status: the backend writes 'COMPLETE' (no shortage) or
- * 'SHORTAGE'; both mean the shift WAS remitted, so they map to "Remitted".
- * Anything else (e.g. 'PENDING') maps to "Pending".
+ * 'SHORTAGE'/'OVERAGE'; all three mean the admin has declared cash for this
+ * shift, so they map to "Settled"/"Shortage"/"Overage". Anything else (i.e.
+ * 'PENDING') means the conductor submitted but admin hasn't declared cash
+ * yet — every row here is a real, ended remittance (this endpoint never
+ * returns still-active-shift rows), so PENDING always maps to
+ * "For Cash Declaration" (or "Overdue" once past the grace window), never
+ * bare "Pending" — that display value is reserved for a shift that's still
+ * ongoing, which can't appear in a conductor's own remittance history.
  *
  * time_in/time_out live on the related shift_log, not the remittance row.
  */
@@ -203,8 +209,8 @@ export function mapRemittance(r: unknown): RemittanceRecord {
   const displayStatus: RemittanceRecord["remittanceStatus"] =
     status === "SHORTAGE" ? "Shortage" :
     status === "OVERAGE" ? "Overage" :
-    status === "COMPLETE" || status === "Remitted" ? "Remitted" :
-    Boolean(row.is_overdue) ? "Overdue" : "Pending";
+    status === "COMPLETE" || status === "Remitted" ? "Settled" :
+    Boolean(row.is_overdue) ? "Overdue" : "For Cash Declaration";
 
   return {
     shiftId: String(row.shift_id ?? ""),

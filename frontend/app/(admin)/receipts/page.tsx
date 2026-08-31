@@ -523,7 +523,7 @@ export default function ReceiptsPage() {
         <button
           type="button"
           onClick={() => setShowMobileFilters((value) => !value)}
-          className="flex w-full items-center justify-between gap-3 rounded-lg border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-left transition-colors active:scale-[0.99] sm:hidden"
+          className="flex w-full items-center justify-between gap-3 rounded-lg border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-left transition-colors active:scale-[0.99] xl:hidden"
           aria-expanded={showMobileFilters}
         >
           <span className="flex min-w-0 items-center gap-2">
@@ -541,20 +541,31 @@ export default function ReceiptsPage() {
           />
         </button>
 
-        {/* Row 1 — search + payment (left), date picker + range presets (right) */}
-        <div className={`${showMobileFilters ? 'flex' : 'hidden'} flex-col gap-3 sm:flex sm:flex-row sm:flex-wrap sm:items-center`}>
+        {/* Row 1 — search + payment (left), date picker + range presets (right).
+            Every element here shares one xl: breakpoint end-to-end (search,
+            payment, the mobile-only range select, the date input, and the
+            desktop range buttons all switch together at xl:). Below xl, the
+            row stays fully stacked behind the collapse toggle above; there is
+            no in-between state where content-driven flex-wrap could shove
+            the date filter onto its own orphaned row — that's what happened
+            here (and previously in Remittance) when the row broke into flex
+            row layout before the sidebar-narrowed content column actually had
+            room for the full search + payment + date + range-buttons set
+            (that room only exists from xl: up — lg: still wraps the range
+            buttons onto their own line). */}
+        <div className={`${showMobileFilters ? 'flex' : 'hidden'} flex-col gap-3 xl:flex xl:flex-row xl:items-center`}>
           <SearchBar
             placeholder="Search by Commuter, reference, or receipt ID..."
             value={searchQuery}
             onChange={setSearchQuery}
-            className="w-full sm:w-72"
+            className="w-full xl:w-72"
           />
 
           <select
             value={paymentFilter}
             onChange={(e) => setPaymentFilter(e.target.value as PaymentMethod | 'All')}
             aria-label="Filter by payment method"
-            className="h-9.5 w-full sm:w-40 px-3 bg-[#0E1628] border border-[#1E2D45] rounded-lg text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] focus:border-[#62A0EA] [color-scheme:dark]"
+            className="h-9.5 w-full xl:w-40 px-3 bg-[#0E1628] border border-[#1E2D45] rounded-lg text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] focus:border-[#62A0EA] [color-scheme:dark]"
           >
             {paymentOptions.map((filter) => (
               <option key={filter} value={filter} className="bg-gray-800">
@@ -563,7 +574,7 @@ export default function ReceiptsPage() {
             ))}
           </select>
 
-          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:ml-auto">
+          <div className="flex flex-col xl:flex-row xl:items-center gap-3 xl:ml-auto">
             <select
               value={specificDate ? 'date' : rangePreset}
               onChange={(e) => {
@@ -572,7 +583,7 @@ export default function ReceiptsPage() {
                 handlePickRange(value);
               }}
               aria-label="Filter by date range"
-              className="h-9.5 w-full px-3 bg-[#0E1628] border border-[#1E2D45] rounded-lg text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] focus:border-[#62A0EA] [color-scheme:dark] sm:hidden"
+              className="h-9.5 w-full px-3 bg-[#0E1628] border border-[#1E2D45] rounded-lg text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] focus:border-[#62A0EA] [color-scheme:dark] xl:hidden"
             >
               {specificDate && <option value="date" className="bg-gray-800">Selected Date</option>}
               {RANGE_OPTIONS.map((option) => (
@@ -582,7 +593,7 @@ export default function ReceiptsPage() {
               ))}
             </select>
 
-            <div className="relative w-full sm:w-48">
+            <div className="relative w-full xl:w-48">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <CalendarDays className="h-4 w-4 text-slate-400" />
               </div>
@@ -595,7 +606,7 @@ export default function ReceiptsPage() {
               />
             </div>
 
-            <div className="hidden flex-wrap gap-2 sm:flex">
+            <div className="hidden flex-wrap gap-2 xl:flex">
               {RANGE_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}

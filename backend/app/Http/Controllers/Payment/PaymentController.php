@@ -210,7 +210,13 @@ class PaymentController extends Controller
      */
     public function status(Request $request, string $id): JsonResponse
     {
-        $transaction = Transaction::with(['shiftLog:shift_id,conductor_id', 'passengerBreakdown', 'paymentGroup:id,reference_number'])
+        // Only `shiftLog` is needed here (ownership check below). Neither the
+        // commuter (/gcash/return) nor the conductor (fare-calculator-modal)
+        // consumer of this response reads passenger_breakdown or
+        // multiple_payment_reference — eager-loading those relations (and the
+        // `receipts` group query further down, already conditional on
+        // group_id) on every 3s poll tick bought nothing but extra queries.
+        $transaction = Transaction::with('shiftLog:shift_id,conductor_id')
             ->where('transaction_id', $id)
             ->first();
 
@@ -243,9 +249,7 @@ class PaymentController extends Controller
             'gross_amount' => $transaction->gross_amount,
             'discount_amount' => $transaction->discount_amount,
             'final_amount' => $transaction->final_amount,
-            'passenger_breakdown' => $transaction->passengerBreakdown,
             'group_id' => $transaction->group_id,
-            'multiple_payment_reference' => $transaction->paymentGroup?->reference_number,
             'receipts' => $transaction->group_id
                 ? Transaction::where('group_id', $transaction->group_id)->orderBy('group_position')->get()
                 : [$transaction],
@@ -269,7 +273,7 @@ class PaymentController extends Controller
      */
     private function maybeReconcileWithProvider(Transaction $transaction): Transaction
     {
-        $throttleSeconds = (int) config('payments.reconcile_throttle_seconds', 30);
+        $throttleSeconds = $this->reconcileThrottleFor($transaction);
         if ($throttleSeconds <= 0) {
             return $transaction; // reconciliation disabled by config
         }
@@ -322,6 +326,25 @@ class PaymentController extends Controller
         }
 
         return $transaction;
+    }
+
+    /**
+     * The reconciliation throttle to apply for this transaction: a short
+     * window right after the commuter claims the QR (they're actively on
+     * PayMongo's checkout page and a webhook is imminent), backing off to
+     * the steady-state throttle once that window has passed and the row is
+     * more likely stalled/abandoned than about to resolve.
+     */
+    private function reconcileThrottleFor(Transaction $transaction): int
+    {
+        $activeWindowSeconds = (int) config('payments.reconcile_active_window_seconds', 90);
+        $createdAt = $transaction->created_at;
+
+        if ($activeWindowSeconds > 0 && $createdAt && $createdAt->copy()->addSeconds($activeWindowSeconds)->isFuture()) {
+            return (int) config('payments.reconcile_active_throttle_seconds', 5);
+        }
+
+        return (int) config('payments.reconcile_throttle_seconds', 30);
     }
 
     /**

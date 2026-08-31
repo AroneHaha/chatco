@@ -23,8 +23,8 @@ export function DashboardSettingsCarousel({ modules }: DashboardSettingsCarousel
     <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-6 relative">
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h2 className="text-base font-bold text-white">System Settings</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Quick access to core configurations.</p>
+          <h2 className="text-base font-bold text-white">Quick Links</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Jump to configuration and management tools.</p>
         </div>
         
         <div className="flex gap-2">
@@ -49,13 +49,12 @@ export function DashboardSettingsCarousel({ modules }: DashboardSettingsCarousel
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {modules.map((mod) => (
-          <Link 
-            key={mod.title} 
+          <Link
+            key={mod.title}
             href={mod.href}
-            className="flex-shrink-0 w-[280px] h-[140px] rounded-md p-5 flex flex-col justify-between group hover:border-[#2A3A55] transition-all snap-start border border-[#1E2D45]"
-            style={{ background: mod.gradient }}
+            className="shrink-0 w-70 h-35 rounded-lg p-5 flex flex-col justify-between group snap-start border border-[#1E2D45] bg-[#0E1628] hover:border-[#2A3A55] hover:bg-[#131C2E] transition-colors"
           >
-            <div className={`w-10 h-10 rounded-md bg-white/10 flex items-center justify-center ${mod.iconColor} group-hover:scale-110 transition-transform`}>
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${mod.color}`}>
               <mod.icon className="w-5 h-5" />
             </div>
             <div>

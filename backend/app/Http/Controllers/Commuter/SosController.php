@@ -15,7 +15,7 @@ use Illuminate\Http\Request;
  *   POST /api/v1/commuter/sos       (COMMUTER) — trigger a new alert
  *   GET  /api/v1/commuter/sos/{id}  (COMMUTER) — poll own alert status
  *
- * Rate-limited at 1 request per 5 minutes per commuter (throttle:sos) for
+ * Rate-limited at 1 request per minute per commuter (throttle:sos) for
  * the trigger to prevent abuse. The poll endpoint uses conductor-read
  * (60/min) so the commuter modal can poll every 3s without hitting the
  * limit. The commuter CANNOT cancel their own SOS — only admins can

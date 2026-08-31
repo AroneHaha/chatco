@@ -2,6 +2,7 @@
 import { type RemittanceRecord } from "@/lib/conductor/services/remittance.service";
 import { formatTime } from "@/lib/conductor/services/shift.service";
 import { fmt, fmtDate, fmtDateTime } from "@/app/(conductor)/conductor-dashboard/end-of-day/helpers";
+import { remittanceStatusVariant, REMITTANCE_STATUS_PILL_CLASSES } from "@/lib/shared/remittance-status";
 
 interface OfficialReportModalProps { show: boolean; onClose: () => void; activeReport: RemittanceRecord; route: string; }
 
@@ -15,9 +16,18 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
+// Same status→category as the shared admin helper, re-skinned to this
+// printed report's own light-paper palette instead of Tailwind classes.
+const STATUS_PRINT_COLORS: Record<ReturnType<typeof remittanceStatusVariant>, { color: string; bg: string }> = {
+  success: { color: "#16a34a", bg: "#f0fdf4" },
+  info: { color: "#0284c7", bg: "#f0f9ff" },
+  warning: { color: "#d97706", bg: "#fffbeb" },
+  danger: { color: "#dc2626", bg: "#fef2f2" },
+  neutral: { color: "#475569", bg: "#f8fafc" },
+};
+
 export function buildPrintHTML(report: RemittanceRecord, route: string): string {
-  const statusColor = report.remittanceStatus === "Remitted" ? "#16a34a" : "#d97706";
-  const statusBg = report.remittanceStatus === "Remitted" ? "#f0fdf4" : "#fffbeb";
+  const { color: statusColor, bg: statusBg } = STATUS_PRINT_COLORS[remittanceStatusVariant(report.remittanceStatus)];
 
   const gcashTotal = report.gcashTotal ?? 0;
   const cashTotal = report.cashTotal ?? 0;
@@ -255,7 +265,7 @@ export function buildPrintHTML(report: RemittanceRecord, route: string): string 
   <div class="status-box">
     <div>
       <p class="status-label">Remittance Status</p>
-      <p class="status-text">Remitted to Admin</p>
+      <p class="status-text">Submitted to Admin</p>
     </div>
     <span class="status-badge">${escapeHtml(report.remittanceStatus)}</span>
   </div>
@@ -309,7 +319,7 @@ export default function OfficialReportModal({ show, onClose, activeReport, route
             <span className="text-2xl font-extrabold text-[#62A0EA] tabular-nums">{fmt(grandTotal)}</span>
           </div>
           <div className="h-px bg-white/[0.06]" />
-          <div className="flex items-center justify-between bg-white/[0.03] border border-white/[0.05] rounded-xl px-4 py-3"><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Remittance Status</p><p className="text-xs font-semibold text-white/60 mt-0.5">Remitted to Admin</p></div><span className={`text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${activeReport.remittanceStatus === "Remitted" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-amber-500/10 text-amber-400 border border-amber-500/20"}`}>{activeReport.remittanceStatus}</span></div>
+          <div className="flex items-center justify-between bg-white/[0.03] border border-white/[0.05] rounded-xl px-4 py-3"><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Remittance Status</p><p className="text-xs font-semibold text-white/60 mt-0.5">Submitted to Admin</p></div><span className={`text-[9px] font-bold uppercase tracking-wider border px-2.5 py-1 rounded-full ${REMITTANCE_STATUS_PILL_CLASSES[remittanceStatusVariant(activeReport.remittanceStatus)]}`}>{activeReport.remittanceStatus}</span></div>
           <p className="text-[10px] text-white/15 text-center font-mono">Generated: {fmtDateTime()}</p>
         </div>
         <div className="flex-shrink-0 px-6 py-4 border-t border-white/[0.06] bg-[#0F2135]"><button onClick={onClose} className="w-full py-3 rounded-xl bg-white/5 border border-white/10 text-white/50 text-xs font-semibold hover:bg-white/10 transition-all">Close</button></div>

@@ -1,10 +1,16 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { register, type AppliedType, RegisterError } from "@/lib/auth/register";
 import { sendVerificationCode, verifyEmailCode, VerificationError } from "@/lib/auth/email-verification";
 import CodeInput from "@/components/auth/code-input";
+
+// Camera-dependent, so it stays out of the initial bundle and off the server.
+const IdCaptureModal = dynamic(() => import("@/components/auth/id-capture-modal"), {
+  ssr: false,
+});
 
 // Map the form's display labels to the backend's enum values
 const COMMUTER_TYPE_OPTIONS: { label: string; value: AppliedType }[] = [
@@ -79,6 +85,9 @@ export default function SignupForm() {
   const [idImage, setIdImage] = useState<File | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
+  // Blurred "Take a Picture" / "Upload an Image" choice shown over the ID box.
+  const [showIdOptions, setShowIdOptions] = useState(false);
+  const [showIdCamera, setShowIdCamera] = useState(false);
 
   // ── Email verification state ──
   const [code, setCode] = useState("");
@@ -128,6 +137,28 @@ export default function SignupForm() {
     });
   };
 
+  /** Shared by the file picker and the camera capture — same size/type rules either way. */
+  const acceptIdFile = (file: File): boolean => {
+    if (!ACCEPTED_TYPES.includes(file.type)) {
+      setFileError("That file type isn't supported. Upload a JPG, PNG, or WebP image.");
+      setIdImage(null);
+      setFileName(null);
+      return false;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      const mb = (file.size / 1024 / 1024).toFixed(1);
+      setFileError(`That image is ${mb}MB. Please upload one under 5MB.`);
+      setIdImage(null);
+      setFileName(null);
+      return false;
+    }
+
+    setFileError(null);
+    setIdImage(file);
+    setFileName(file.name);
+    return true;
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFileError(null);
     const file = e.target.files?.[0];
@@ -136,24 +167,13 @@ export default function SignupForm() {
       setFileName(null);
       return;
     }
+    acceptIdFile(file);
+  };
 
-    // Client-side validation
-    if (!ACCEPTED_TYPES.includes(file.type)) {
-      setFileError("That file type isn't supported. Upload a JPG, PNG, or WebP image.");
-      setIdImage(null);
-      setFileName(null);
-      return;
-    }
-    if (file.size > MAX_FILE_SIZE) {
-      const mb = (file.size / 1024 / 1024).toFixed(1);
-      setFileError(`That image is ${mb}MB. Please upload one under 5MB.`);
-      setIdImage(null);
-      setFileName(null);
-      return;
-    }
-
-    setIdImage(file);
-    setFileName(file.name);
+  /** The camera modal hands back a captured photo as a File — same acceptance path. */
+  const handleIdCapture = (file: File) => {
+    acceptIdFile(file);
+    setShowIdCamera(false);
   };
 
   // Whether the selected commuter type requires an ID upload
@@ -582,9 +602,15 @@ export default function SignupForm() {
               </div>
               <div>
                 <label className={labelClasses}>Valid ID Upload *</label>
-                <label htmlFor="validId" className={`flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-2xl transition-all duration-300 cursor-pointer ${
-                  fileError ? "border-red-300 bg-red-50" : fileName ? "border-green-400 bg-green-50 hover:bg-green-100" : "border-[#1A5FB4]/30 bg-[#F8FAFC] hover:bg-[#F0F7FF]"
-                }`}>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setShowIdOptions(true)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowIdOptions(true); } }}
+                  className={`relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-2xl transition-all duration-300 cursor-pointer ${
+                    fileError ? "border-red-300 bg-red-50" : fileName ? "border-green-400 bg-green-50 hover:bg-green-100" : "border-[#1A5FB4]/30 bg-[#F8FAFC] hover:bg-[#F0F7FF]"
+                  }`}
+                >
                   <input ref={fileInputRef} id="validId" name="validId" type="file" accept="image/jpeg,image/jpg,image/png,image/webp" onChange={handleFileChange} className="hidden" />
                   {fileName ? (
                     <>
@@ -592,21 +618,55 @@ export default function SignupForm() {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                       </svg>
                       <span className="text-base font-medium text-green-700 max-w-xs truncate px-4 text-center">{fileName}</span>
-                      <span className="text-sm text-green-500 mt-1">Click to change file</span>
+                      <span className="text-sm text-green-500 mt-1">Click to change</span>
                     </>
                   ) : (
                     <>
                       <svg className="w-10 h-10 text-[#1A5FB4]/50 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
                       </svg>
-                      <span className="text-base text-gray-500">Click to upload ID (JPG, PNG, WebP — max 5MB)</span>
+                      <span className="text-base text-gray-500">Click to add your ID (JPG, PNG, WebP — max 5MB)</span>
                     </>
                   )}
-                </label>
+
+                  {/* Blurred choice overlay — click the box, pick how to provide the ID. */}
+                  {showIdOptions && (
+                    <div
+                      className="absolute inset-0 rounded-2xl backdrop-blur-md bg-white/70 flex flex-col items-center justify-center gap-3 px-6"
+                      onClick={(e) => { e.stopPropagation(); setShowIdOptions(false); }}
+                    >
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setShowIdOptions(false); setShowIdCamera(true); }}
+                        className="w-full max-w-xs flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-colors shadow-md shadow-[#1A5FB4]/20"
+                      >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.174C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
+                        </svg>
+                        Take a Picture of Your ID
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setShowIdOptions(false); fileInputRef.current?.click(); }}
+                        className="w-full max-w-xs flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold bg-white text-[#1A5FB4] border border-[#1A5FB4]/30 hover:bg-[#F0F7FF] transition-colors"
+                      >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+                        </svg>
+                        Upload an Image
+                      </button>
+                    </div>
+                  )}
+                </div>
                 {fileError && <p className={errorClasses}>{fileError}</p>}
                 {getFieldError("id_image") && <p className={errorClasses}>{getFieldError("id_image")}</p>}
                 <p className="text-xs text-gray-400 mt-2">A valid ID is required for all registrations. Student, Senior, or PWD selections require a matching valid ID.</p>
               </div>
+
+              {showIdCamera && (
+                <IdCaptureModal onCapture={handleIdCapture} onClose={() => setShowIdCamera(false)} />
+              )}
             </div>
           )}
 

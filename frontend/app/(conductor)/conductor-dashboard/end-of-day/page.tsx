@@ -37,7 +37,7 @@ export default function EndOfDayPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const isLoggingOutAfterRemit = useRef(false);
   const pendingRemittance = useMemo(
-    () => history.find((record) => record.remittanceStatus === "Pending" || record.remittanceStatus === "Overdue") ?? null,
+    () => history.find((record) => record.remittanceStatus === "For Cash Declaration" || record.remittanceStatus === "Overdue") ?? null,
     [history],
   );
 
@@ -48,7 +48,6 @@ export default function EndOfDayPage() {
     gcashTotal: number;
     cashTotal: number;
     grandTotal: number;
-    shortage?: number;
   } | null>(null);
 
   const shiftInfo = {
@@ -149,7 +148,7 @@ export default function EndOfDayPage() {
     timeOut: shiftInfo.timeOut,
   };
 
-  const handleRemit = async (cashDeclared: number) => {
+  const handleRemit = async () => {
     setIsRemitting(true);
     setSubmitError(null);
 
@@ -206,10 +205,6 @@ export default function EndOfDayPage() {
       const finalGrandTotal = realGrandTotal;
       const finalTotalPassengers = summary.totalPassengers;
       const finalBreakdown = summary.breakdown;
-      // The conductor's physically-counted cash. May differ from the
-      // system-tracked total — the backend computes shortage from this.
-      const finalCashDeclared = Number.isFinite(cashDeclared) ? cashDeclared : finalCashTotal;
-      const finalShortage = Math.max(0, finalCashTotal - finalCashDeclared);
 
       const record: RemittanceRecord = {
         shiftId: shiftInfo.shiftId,
@@ -227,10 +222,12 @@ export default function EndOfDayPage() {
           (finalBreakdown["GCash_Scanned"]?.amount ?? 0) +
           (finalBreakdown["GCash_Direct"]?.amount ?? 0) +
           (finalBreakdown["Voucher"]?.amount ?? 0),
-        cashDeclared: finalCashDeclared,
+        // Cash is no longer declared by the conductor — admin declares it
+        // later in the Remittance Module. The real status is unknowable here.
+        cashDeclared: 0,
         gcashTotal: finalGcashTotal,
         cashTotal: finalCashTotal,
-        remittanceStatus: finalShortage > 0 ? "Shortage" as const : "Remitted" as const,
+        remittanceStatus: "For Cash Declaration" as const,
         timeIn: shiftInfo.timeIn,
         timeOut: new Date().toISOString(),
       };
@@ -257,7 +254,6 @@ export default function EndOfDayPage() {
         gcashTotal: finalGcashTotal,
         cashTotal: finalCashTotal,
         grandTotal: finalGrandTotal,
-        shortage: finalShortage,
       });
 
       // Show the success overlay. Do NOT call refresh() here — it would
@@ -277,7 +273,7 @@ export default function EndOfDayPage() {
     }
   };
 
-  const openOfficialReport = (record?: RemittanceRecord) => { setReportForRecord(record || null); if (!record) setReportForRecord({ ...activeReport, remittanceStatus: hasRemittedToday ? "Remitted" : "Pending" }); setShowOfficialReport(true); };
+  const openOfficialReport = (record?: RemittanceRecord) => { setReportForRecord(record || null); if (!record) setReportForRecord({ ...activeReport, remittanceStatus: hasRemittedToday ? "For Cash Declaration" : "Pending" }); setShowOfficialReport(true); };
 
   const printReport = (record: RemittanceRecord) => {
     const html = buildPrintHTML(record, shiftInfo.route);
@@ -316,7 +312,7 @@ export default function EndOfDayPage() {
 
   return (
     <div className="min-h-screen bg-[#050F1A] pb-28">
-      <div className="sticky top-0 z-20 bg-[#050F1A]/90 backdrop-blur-xl border-b border-white/5"><div className="flex items-center gap-3 px-4 py-3.5"><button onClick={() => router.back()} className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white transition-all active:scale-95"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg></button><h1 className="text-white font-bold text-lg">End of Day Report</h1>{hasRemittedToday && <span className="ml-auto text-[10px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 px-2.5 py-1 rounded-full">Remitted</span>}</div></div>
+      <div className="sticky top-0 z-20 bg-[#050F1A]/90 backdrop-blur-xl border-b border-white/5"><div className="flex items-center gap-3 px-4 py-3.5"><button onClick={() => router.back()} className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white transition-all active:scale-95"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg></button><h1 className="text-white font-bold text-lg">End of Day Report</h1>{hasRemittedToday && <span className="ml-auto text-[10px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 px-2.5 py-1 rounded-full">Submitted</span>}</div></div>
 
       <div className="px-4 pt-5 space-y-5">
         {/* Driver info */}
@@ -415,7 +411,7 @@ export default function EndOfDayPage() {
               <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
             </div>
             <div>
-              <p className="text-sm font-bold text-emerald-400">Remitted to Admin</p>
+              <p className="text-sm font-bold text-emerald-400">Submitted to Admin</p>
               <p className="text-[11px] text-white/30 mt-0.5">
                 GCash {fmt(summary.gcashTotal)} · Cash {fmt(summary.cashTotal)} · Total {fmt(summary.grandTotal)}
               </p>
@@ -442,7 +438,6 @@ export default function EndOfDayPage() {
         gcashTotal={capturedTotals?.gcashTotal ?? summary.gcashTotal}
         cashTotal={capturedTotals?.cashTotal ?? summary.cashTotal}
         grandTotal={capturedTotals?.grandTotal ?? summary.grandTotal}
-        shortage={capturedTotals?.shortage}
         unitNumber={shiftInfo.unitNumber}
       />
       <OfficialReportModal show={showOfficialReport} onClose={() => setShowOfficialReport(false)} activeReport={activeReport} route={shiftInfo.route} />

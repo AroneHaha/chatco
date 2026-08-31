@@ -60,21 +60,30 @@ export async function fetchRemittances(page: number, search: string, date: strin
  * The backend AdminController::remittances() row shape is:
  *   shift_id, date, conductor_name, driver_name, unit_number,
  *   total_passengers, cash_total, gcash_total, total_collected,
- *   remitted_amount, shortage, remittance_status, time_in, time_out
+ *   remitted_amount, shortage, remittance_status, is_overdue,
+ *   is_active_shift, time_in, time_out
  *
- * NOTE: There is no `cash_declared` field on the backend — the conductor's
- * declared cash for the shift is `cash_total`. We map cashDeclared → cashTotal
- * so the table column reflects real data instead of always 0.
+ * remittance_status mapping — cash declaration is now an admin-only action
+ * (see cash-declaration-modal.tsx), never the conductor's:
+ *   SHORTAGE/OVERAGE/COMPLETE → admin already declared cash for this shift.
+ *   PENDING + is_active_shift → the shift hasn't ended yet ("Pending").
+ *   PENDING + ended, not overdue → awaiting the admin's cash count
+ *     ("For Cash Declaration" — the row this endpoint's synthetic
+ *     still-active rows can NEVER produce, since those are always
+ *     is_active_shift: true).
+ *   PENDING + ended, past the grace window → "Overdue".
  */
 function mapLaravelRemittance(r: Record<string, unknown>): RemittanceRecord {
   const cashTotal = Number(r.cash_total ?? r.total_collected ?? 0);
   const gcashTotal = Number(r.gcash_total ?? 0);
   const rawStatus = String(r.remittance_status ?? "");
+  const isActiveShift = Boolean(r.is_active_shift);
   const remittanceStatus: RemittanceRecord["remittanceStatus"] =
     rawStatus === "SHORTAGE" ? "Shortage" :
     rawStatus === "OVERAGE" ? "Overage" :
-    rawStatus === "COMPLETE" || rawStatus === "Remitted" ? "Remitted" :
-    Boolean(r.is_overdue) ? "Overdue" : "Pending";
+    rawStatus === "COMPLETE" || rawStatus === "Remitted" ? "Settled" :
+    isActiveShift ? "Pending" :
+    Boolean(r.is_overdue) ? "Overdue" : "For Cash Declaration";
 
   return {
     shiftId: String(r.shift_id ?? ""),
@@ -89,15 +98,10 @@ function mapLaravelRemittance(r: Record<string, unknown>): RemittanceRecord {
       voucher: 0,
     },
     totalCashless: gcashTotal,
-    // The backend doesn't track a separate "declared" amount — the conductor's
-    // recorded cash total IS the declared amount. Map it through so the
-    // RemittanceTable's "Cash Declared" column shows real data.
+    // `remitted_amount` is the admin's declared cash count (see
+    // cash-declaration-modal.tsx) — meaningless (0) while status is still
+    // "Pending"/"For Cash Declaration"/"Overdue".
     cashDeclared: Number(r.remitted_amount ?? r.cash_declared ?? 0),
-    // The backend writes remittance_status as 'COMPLETE' (no shortage) or
-    // 'SHORTAGE' (cash declared < expected). The admin UI shows both as
-    // "Remitted" (the shift WAS ended + the remittance WAS submitted) —
-    // the shortage is surfaced separately via the shortage field if present.
-    // Pending shifts (active, no remittance yet) show as "Pending".
     remittanceStatus,
     timeIn: String(r.time_in ?? ""),
     timeOut: String(r.time_out ?? ""),

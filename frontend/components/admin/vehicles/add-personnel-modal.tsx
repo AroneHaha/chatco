@@ -3,7 +3,7 @@
 
 import { useState, useRef } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
-import { UserPlus, Upload, Check, User, Phone, IdCard } from 'lucide-react';
+import { UserPlus, Upload, Check, User, Phone, IdCard, X } from 'lucide-react';
 
 // Mirrors the backend's LTO format check (AdminController::storeDriver).
 const LICENSE_NUMBER_PATTERN = /^[A-Z][0-9]{2}-[0-9]{2}-[0-9]{6}$/;
@@ -249,8 +249,9 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
                 <button
                   type="button"
                   onClick={handleRemoveImage}
-                  className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                  className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 transition-colors"
                 >
+                  <X size={12} />
                   Remove
                 </button>
               )}

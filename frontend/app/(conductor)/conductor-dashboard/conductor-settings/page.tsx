@@ -46,15 +46,16 @@ export default function SettingsPage() {
     if (!shift) return false;
 
     const hasPendingRemit = history.some(
-      (record) => (record.remittanceStatus === "Pending" || record.remittanceStatus === "Overdue") && record.cashTotal > 0
+      (record) => (record.remittanceStatus === "For Cash Declaration" || record.remittanceStatus === "Overdue") && record.cashTotal > 0
     );
     if (hasPendingRemit) return true;
 
     const totalCollections = transactions.reduce((sum, txn) => sum + txn.finalAmount, 0);
-    const hasRemitted = history.some(
-      (record) => record.shiftId === shift.shiftId && record.remittanceStatus === "Remitted"
+    const hasSubmitted = history.some(
+      (record) => record.shiftId === shift.shiftId
+        && (record.remittanceStatus === "Settled" || record.remittanceStatus === "Shortage" || record.remittanceStatus === "Overage" || record.remittanceStatus === "For Cash Declaration" || record.remittanceStatus === "Overdue")
     );
-    if (totalCollections > 0 && !hasRemitted) return true;
+    if (totalCollections > 0 && !hasSubmitted) return true;
 
     return false;
   }, [debugLogoutUnlocked, shift, history, transactions]);

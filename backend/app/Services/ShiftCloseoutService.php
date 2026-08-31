@@ -284,6 +284,32 @@ SQL;
         ];
     }
 
+    /**
+     * The admin's physical cash count for a conductor's ended, still-PENDING
+     * remittance (cash declaration now happens on the admin side, never the
+     * conductor's — see AdminController::declareCash()). Reuses the same
+     * resolution math as the manual-closeout PENDING branch in close(),
+     * without that branch's conductor-device checks.
+     */
+    public function recordCashDeclaration(string $shiftId, float $declaredAmount): Remittance
+    {
+        return DB::transaction(function () use ($shiftId, $declaredAmount) {
+            $remittance = Remittance::query()
+                ->where('shift_id', $shiftId)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($remittance->remittance_status !== Remittance::STATUS_PENDING) {
+                throw new HttpException(409, 'Cash has already been declared for this remittance.');
+            }
+
+            $this->completePendingRemittance($remittance, $declaredAmount);
+            $this->notifyRemittanceCompletedAfterCommit($remittance);
+
+            return $remittance->fresh();
+        }, 3);
+    }
+
     private function completePendingRemittance(Remittance $remittance, float $remittedAmount): void
     {
         $expected = (float) $remittance->cash_total;

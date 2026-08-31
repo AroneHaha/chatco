@@ -17,9 +17,11 @@ use App\Models\TerminatedPersonnel;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Http\Requests\Admin\DeclareCashRequest;
 use App\Services\ActivityLogService;
 use App\Services\AdminService;
 use App\Services\LocationService;
+use App\Services\ShiftCloseoutService;
 use App\Traits\ApiResponse;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -35,6 +37,7 @@ class AdminController extends Controller
         private AdminService $adminService,
         private LocationService $locationService,
         private ActivityLogService $activityLogService,
+        private ShiftCloseoutService $shiftCloseoutService,
     ) {}
 
     public function dashboard(): JsonResponse
@@ -1018,6 +1021,11 @@ class AdminController extends Controller
                     $remittance->remittance_status === Remittance::STATUS_PENDING
                         && $remittance->remittance_due_at?->isPast(),
                 );
+                // Distinguishes a real, ended remittance awaiting the admin's cash
+                // declaration from a still-active shift (both are STATUS_PENDING) —
+                // the frontend needs this to know which PENDING rows can take the
+                // "Declare Cash" action.
+                $remittance->setAttribute('is_active_shift', false);
 
                 return $remittance->toArray();
             });
@@ -1098,6 +1106,7 @@ class AdminController extends Controller
                     'remitted_at' => null,
                     'reminder_count' => 0,
                     'is_overdue' => false,
+                    'is_active_shift' => true,
                 ];
             });
         }
@@ -1126,6 +1135,25 @@ class AdminController extends Controller
             'to' => $items->isEmpty() ? null : (($page - 1) * $perPage) + $items->count(),
             'total' => $total,
         ], 'Remittances retrieved');
+    }
+
+    /**
+     * POST /api/admin/remittances/{shiftId}/cash-declaration
+     *
+     * The admin's physical cash count for a conductor's ended, still-PENDING
+     * remittance. Resolves it to COMPLETE/SHORTAGE/OVERAGE — see
+     * ShiftCloseoutService::recordCashDeclaration(). 409s if this remittance's
+     * cash was already declared (not PENDING), 404 if the shift_id doesn't
+     * correspond to a real Remittance row (e.g. a still-active shift).
+     */
+    public function declareCash(DeclareCashRequest $request, string $shiftId): JsonResponse
+    {
+        $remittance = $this->shiftCloseoutService->recordCashDeclaration(
+            $shiftId,
+            (float) $request->validated('cash_declared'),
+        );
+
+        return $this->successResponse($remittance->load(['shift', 'vehicle', 'driver']), 'Cash declaration recorded');
     }
 
     public function shiftLogs(Request $request): JsonResponse

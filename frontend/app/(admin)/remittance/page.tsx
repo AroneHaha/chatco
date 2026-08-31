@@ -106,7 +106,7 @@ export default function RemittancePage() {
     setDriverOptions(drivers);
   }, []);
 
-  const quickFilters: (RemittanceStatus | 'All')[] = ['All', 'Pending', 'Overdue', 'Remitted', 'Shortage', 'Overage'];
+  const quickFilters: (RemittanceStatus | 'All')[] = ['All', 'Pending', 'For Cash Declaration', 'Overdue', 'Settled', 'Shortage', 'Overage'];
 
   return (
     // touch-action: manipulation prevents mobile double-tap ghost clicks
@@ -148,68 +148,84 @@ export default function RemittancePage() {
       </StickyPageHeader>
 
       <div className="flex shrink-0 flex-col gap-4 mb-4">
-        <RemittanceSummary selectedDate={selectedDate} />
+        {/* Mobile-only collapse: summary cards AND the filter row both hide
+            behind the toggle below, so a collapsed state actually reads as
+            "collapsed" instead of leaving the cards permanently visible.
+            The md:!max-h-none override means this never collapses at md:
+            and up (same breakpoint the toggle button itself disappears at,
+            below).
 
-        {/* Mobile-only collapse: the filter row hides behind a toggle so just
-            the summary cards above stay visible on small screens. The
-            md:!max-h-none override means this never collapses at md: and up. */}
+            Every element inside — the outer search/date/dropdowns row, and
+            each sub-group within it — now shares that one md: breakpoint
+            (previously a mix of sm:/lg:). Two independent breakpoints meant
+            the layout reflowed twice as the viewport narrowed (a "row" state
+            between lg and sm, then a second, different layout below sm) with
+            no collapse control in between (the toggle was md:hidden while
+            the row didn't break until lg) — that mismatch is what looked like
+            the date filter's position "changing" on smaller screens. One
+            shared breakpoint means exactly one transition: a single stacked
+            column below md:, one full row at md: and up. */}
         <div
           className="overflow-hidden transition-all duration-300 ease-in-out md:max-h-none!"
-          style={{ maxHeight: isMobileFiltersExpanded ? '400px' : '0px' }}
+          style={{ maxHeight: isMobileFiltersExpanded ? '700px' : '0px' }}
         >
-          {/* Search + date (left) — conductor/driver dropdowns (right, shorter) */}
-          <div className="flex flex-col lg:flex-row lg:items-center gap-3 w-full">
-            <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
-              <SearchBar
-                placeholder="Search by Conductor or ID..."
-                value={searchQuery}
-                onChange={setSearchQuery}
-                className="w-full sm:w-64"
-              />
+          <div className="flex flex-col gap-4">
+            <RemittanceSummary selectedDate={selectedDate} />
 
-              <div className="relative w-full sm:w-48">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <CalendarDays className="h-4 w-4 text-slate-400" />
-                </div>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => handlePickDate(e.target.value)}
-                  aria-label="Filter remittances by date"
-                  className="block w-full pl-10 pr-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] focus:border-[#62A0EA] scheme-dark"
+            {/* Search + date (left) — conductor/driver dropdowns (right, shorter) */}
+            <div className="flex flex-col md:flex-row md:items-center gap-3 w-full">
+              <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                <SearchBar
+                  placeholder="Search by Conductor or ID..."
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  className="w-full md:w-64"
                 />
-              </div>
-            </div>
 
-            <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto lg:ml-auto">
-              {/* Shows every shift in range — Pending (still active/not yet
-                  remitted) and Remitted alike — so activity is one click away. */}
-              <select
-                value={rangePreset}
-                onChange={(e) => handlePickRange(e.target.value as RangePreset)}
-                aria-label="Filter by date range"
-                className="w-full sm:w-36 rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white scheme-dark"
-              >
-                {RANGE_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-              </select>
-              <select
-                value={conductorFilter}
-                onChange={(e) => setConductorFilter(e.target.value)}
-                aria-label="Filter by conductor"
-                className="w-full sm:w-36 rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white scheme-dark"
-              >
-                <option value="">All conductors</option>
-                {conductorOptions.map((name) => <option key={name} value={name}>{name}</option>)}
-              </select>
-              <select
-                value={driverFilter}
-                onChange={(e) => setDriverFilter(e.target.value)}
-                aria-label="Filter by driver"
-                className="w-full sm:w-36 rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white scheme-dark"
-              >
-                <option value="">All drivers</option>
-                {driverOptions.map((name) => <option key={name} value={name}>{name}</option>)}
-              </select>
+                <div className="relative w-full md:w-48">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <CalendarDays className="h-4 w-4 text-slate-400" />
+                  </div>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => handlePickDate(e.target.value)}
+                    aria-label="Filter remittances by date"
+                    className="block w-full pl-10 pr-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] focus:border-[#62A0EA] scheme-dark"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto md:ml-auto">
+                {/* Shows every shift in range — Pending (still active/not yet
+                    remitted) and Remitted alike — so activity is one click away. */}
+                <select
+                  value={rangePreset}
+                  onChange={(e) => handlePickRange(e.target.value as RangePreset)}
+                  aria-label="Filter by date range"
+                  className="w-full md:w-36 rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white scheme-dark"
+                >
+                  {RANGE_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                </select>
+                <select
+                  value={conductorFilter}
+                  onChange={(e) => setConductorFilter(e.target.value)}
+                  aria-label="Filter by conductor"
+                  className="w-full md:w-36 rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white scheme-dark"
+                >
+                  <option value="">All conductors</option>
+                  {conductorOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+                </select>
+                <select
+                  value={driverFilter}
+                  onChange={(e) => setDriverFilter(e.target.value)}
+                  aria-label="Filter by driver"
+                  className="w-full md:w-36 rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white scheme-dark"
+                >
+                  <option value="">All drivers</option>
+                  {driverOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+                </select>
+              </div>
             </div>
           </div>
         </div>

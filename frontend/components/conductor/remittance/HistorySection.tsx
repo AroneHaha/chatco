@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { type RemittanceRecord } from "@/lib/conductor/services/remittance.service";
 import { fmtDate, fmt } from "@/app/(conductor)/conductor-dashboard/end-of-day/helpers";
+import { remittanceStatusVariant, REMITTANCE_STATUS_PILL_CLASSES } from "@/lib/shared/remittance-status";
 
 const RECORDS_PER_PAGE = 5;
 export type RemittanceHistoryFilter = "today" | "last7" | "week" | "month" | "all" | "date";
@@ -94,7 +95,7 @@ export default function HistorySection({ showHistory, setShowHistory, filteredHi
               <div className="space-y-2.5">
                 {paginatedHistory.map((record, idx) => (
                   <div key={`${record.shiftId}-${idx}`} className="bg-[#071A2E] border border-white/[0.06] rounded-2xl p-4 space-y-2.5">
-                    <div className="flex items-center justify-between"><span className="text-xs font-bold text-white/70">{fmtDate(record.date)}</span><span className="text-[9px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full">{record.remittanceStatus}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-xs font-bold text-white/70">{fmtDate(record.date)}</span><span className={`text-[9px] font-bold uppercase tracking-wider border px-2 py-0.5 rounded-full ${REMITTANCE_STATUS_PILL_CLASSES[remittanceStatusVariant(record.remittanceStatus)]}`}>{record.remittanceStatus}</span></div>
                     <div className="flex items-center gap-3 text-[11px] text-white/35 font-medium flex-wrap"><div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded-full bg-[#1A5FB4]/30 flex items-center justify-center"><span className="text-[7px] font-bold text-[#62A0EA]">{record.conductorName[0]}</span></div><span className="text-white/60 font-semibold">{record.conductorName}</span></div><div className="flex items-center gap-1.5"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0" /></svg><span className="text-white/50">{record.driverName}</span></div></div>
                     <div className="grid grid-cols-3 gap-2">
                       <div className="bg-white/[0.03] rounded-lg px-2.5 py-2"><p className="text-[8px] font-semibold text-blue-400/40 uppercase tracking-wider">GCash</p><p className="text-sm font-extrabold text-blue-400 mt-0.5 tabular-nums">{fmt(record.gcashTotal)}</p></div>

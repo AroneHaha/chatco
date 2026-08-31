@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   TrendingUp, MapPin, Banknote, Calculator, Receipt, Ticket, Bell,
-  SlidersHorizontal, User2Icon, type LucideIcon,
+  SlidersHorizontal, User2Icon, Megaphone, History, type LucideIcon,
 } from "lucide-react";
 import type { AnalyticsData } from "@/lib/admin/services/analytics.service";
 
@@ -26,6 +26,18 @@ export interface UserItem {
   status: "Active" | "Inactive";
 }
 
+export interface AnnouncementItem {
+  title: string;
+  type: string;
+  status: "Active" | "Archived";
+}
+
+export interface ActivityLogItem {
+  description: string;
+  category: string;
+  by: string;
+}
+
 export interface StatItem {
   label: string;
   value: string;
@@ -38,8 +50,9 @@ export interface SettingsModule {
   title: string;
   desc: string;
   icon: LucideIcon;
-  iconColor: string;
-  gradient: string;
+  /** Tonal icon-badge classes, e.g. "text-sky-400 bg-sky-400/15" — same
+   * convention as StatItem.color on the quick-stats row above. */
+  color: string;
   href: string;
 }
 
@@ -64,6 +77,8 @@ export interface DashboardData {
   recentVehicles: VehicleItem[];
   recentLostFound: LostFoundItem[];
   recentUsers: UserItem[];
+  recentAnnouncements: AnnouncementItem[];
+  recentActivityLogs: ActivityLogItem[];
   quickStats: StatItem[];
   settingsModules: SettingsModule[];
   topPickupPoints: PickupPoint[];
@@ -73,11 +88,13 @@ export interface DashboardData {
 /* ─── Static settings modules (navigation links — not from API) ─── */
 
 const SETTINGS_MODULES: SettingsModule[] = [
-  { title: "Fare Matrix", desc: "Set base fares and distance rates.", icon: Calculator, iconColor: "text-[#62A0EA]", gradient: "linear-gradient(135deg, rgba(98, 160, 234, 0.2) 0%, rgba(98, 160, 234, 0.05) 100%)", href: "/settings/fare-matrix" },
-  { title: "Financial Rules", desc: "Configure fare deductions and splits.", icon: Receipt, iconColor: "text-sky-400", gradient: "linear-gradient(135deg, rgba(56, 189, 248, 0.2) 0%, rgba(56, 189, 248, 0.05) 100%)", href: "/settings/financial-rules" },
-  { title: "Voucher Generator", desc: "Create promo codes and free ride passes.", icon: Ticket, iconColor: "text-violet-400", gradient: "linear-gradient(135deg, rgba(167, 139, 250, 0.2) 0%, rgba(167, 139, 250, 0.05) 100%)", href: "/settings/voucher-generator" },
-  { title: "Safety Notifications", desc: "Manage alert triggers and templates.", icon: Bell, iconColor: "text-amber-400", gradient: "linear-gradient(135deg, rgba(251, 191, 36, 0.2) 0%, rgba(251, 191, 36, 0.05) 100%)", href: "/settings/safety-notifications" },
-  { title: "App Configuration", desc: "General system preferences and UI.", icon: SlidersHorizontal, iconColor: "text-pink-400", gradient: "linear-gradient(135deg, rgba(244, 114, 182, 0.2) 0%, rgba(244, 114, 182, 0.05) 100%)", href: "/settings/app-configuration" },
+  { title: "Fare Matrix", desc: "Set base fares and distance rates.", icon: Calculator, color: "text-[#62A0EA] bg-[#62A0EA]/15", href: "/settings/fare-matrix" },
+  { title: "Financial Rules", desc: "Configure fare deductions and splits.", icon: Receipt, color: "text-sky-400 bg-sky-400/15", href: "/settings/financial-rules" },
+  { title: "Voucher Generator", desc: "Create promo codes and free ride passes.", icon: Ticket, color: "text-violet-400 bg-violet-400/15", href: "/settings/voucher-generator" },
+  { title: "Safety Notifications", desc: "Manage alert triggers and templates.", icon: Bell, color: "text-amber-400 bg-amber-400/15", href: "/settings/safety-notifications" },
+  { title: "App Configuration", desc: "General system preferences and UI.", icon: SlidersHorizontal, color: "text-pink-400 bg-pink-400/15", href: "/settings/app-configuration" },
+  { title: "Announcements", desc: "Publish and manage rider-facing notices.", icon: Megaphone, color: "text-indigo-400 bg-indigo-400/15", href: "/announcements" },
+  { title: "Activity Logs", desc: "Audit trail of admin and system actions.", icon: History, color: "text-teal-400 bg-teal-400/15", href: "/activity-logs" },
 ];
 
 /* ─── Helpers ─── */
@@ -117,14 +134,17 @@ export function useDashboardData() {
       //  - vehicles:     { data: { data: [...], current_page, ... } } (paginator)
       //  - users:        { data: { data: [...], current_page, ... } } (paginator)
       //  - lost-items:   { data: { data: [...], current_page, ... } } (paginator)
-      const [analyticsRes, vehiclesRes, usersRes, lostItemsRes] = await Promise.all([
+      const [analyticsRes, vehiclesRes, usersRes, lostItemsRes, announcementsRes, activityLogsRes] = await Promise.all([
         fetch("/api/admin/analytics", { headers: { Accept: "application/json" } }),
         fetch("/api/admin/vehicles?per_page=3", { headers: { Accept: "application/json" } }),
-        // users + lost-items are best-effort: if either fails (e.g. permission
-        // edge case), we still render the rest of the dashboard instead of
-        // throwing the whole thing into the error state.
+        // users + lost-items + announcements + activity-logs are best-effort:
+        // if any fails (e.g. permission edge case), we still render the rest
+        // of the dashboard instead of throwing the whole thing into the
+        // error state.
         fetch("/api/admin/users?per_page=3", { headers: { Accept: "application/json" } }).catch(() => null),
         fetch("/api/admin/lost-items?per_page=3", { headers: { Accept: "application/json" } }).catch(() => null),
+        fetch("/api/admin/announcements?per_page=3", { headers: { Accept: "application/json" } }).catch(() => null),
+        fetch("/api/admin/activity-logs?per_page=3", { headers: { Accept: "application/json" } }).catch(() => null),
       ]);
 
       if (!analyticsRes.ok) throw new Error("Failed to load analytics");
@@ -134,6 +154,8 @@ export function useDashboardData() {
       const vehiclesJson = await vehiclesRes.json();
       const usersJson = usersRes?.ok ? await usersRes.json() : { data: { data: [] } };
       const lostItemsJson = lostItemsRes?.ok ? await lostItemsRes.json() : { data: { data: [] } };
+      const announcementsJson = announcementsRes?.ok ? await announcementsRes.json() : { data: { data: [] } };
+      const activityLogsJson = activityLogsRes?.ok ? await activityLogsRes.json() : { data: { data: [] } };
 
       const analytics: AnalyticsData | undefined = analyticsJson?.data;
 
@@ -153,6 +175,14 @@ export function useDashboardData() {
       const lostItemsRaw = lostItemsJson.data;
       const lostItems = Array.isArray(lostItemsRaw) ? lostItemsRaw :
                         Array.isArray(lostItemsRaw?.data) ? lostItemsRaw.data : [];
+
+      const announcementsRaw = announcementsJson.data;
+      const announcementsData = Array.isArray(announcementsRaw) ? announcementsRaw :
+                                Array.isArray(announcementsRaw?.data) ? announcementsRaw.data : [];
+
+      const activityLogsRaw = activityLogsJson.data;
+      const activityLogsData = Array.isArray(activityLogsRaw) ? activityLogsRaw :
+                               Array.isArray(activityLogsRaw?.data) ? activityLogsRaw.data : [];
 
       // ── Quick Stats from real analytics ──
       const totalFares = analytics?.totals?.total_fares ?? 0;
@@ -215,6 +245,20 @@ export function useDashboardData() {
                 item.status === 'AVAILABLE' || item.status === 'REPORTED' ? 'Under Review' : 'Reported',
       }));
 
+      // ── Recent Announcements ──
+      const recentAnnouncements: AnnouncementItem[] = (announcementsData as Record<string, unknown>[]).slice(0, 3).map(a => ({
+        title: String(a.title ?? 'Untitled'),
+        type: String(a.type ?? 'General'),
+        status: a.status === 'ARCHIVED' ? 'Archived' : 'Active',
+      }));
+
+      // ── Recent Activity Logs ──
+      const recentActivityLogs: ActivityLogItem[] = (activityLogsData as Record<string, unknown>[]).slice(0, 3).map(l => ({
+        description: String(l.description ?? '—'),
+        category: String(l.category ?? 'GENERAL'),
+        by: String(l.actor_name ?? 'System'),
+      }));
+
       // ── Top Pickup Points (from the analytics response) ──
       // The backend aggregates PAID transactions by pickup_name — this gives
       // us the top 10 most-used boarding points in the last 30 days.
@@ -234,6 +278,8 @@ export function useDashboardData() {
         recentVehicles,
         recentLostFound,
         recentUsers,
+        recentAnnouncements,
+        recentActivityLogs,
         quickStats,
         settingsModules: SETTINGS_MODULES,
         topPickupPoints,
