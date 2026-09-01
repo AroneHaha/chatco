@@ -1227,6 +1227,9 @@ class AdminService
             ->when($filters['applied_type'] ?? null, function (Builder $query, string $type) {
                 $query->whereHas('commuterProfile', fn (Builder $profile) => $profile->where('applied_type', $type));
             })
+            ->when($filters['id'] ?? null, function (Builder $query, string $id) {
+                $query->where('users.id', $id);
+            })
             ->when($filters['search'] ?? null, function (Builder $query, string $search) {
                 $this->applySearch($query, trim($search));
             })

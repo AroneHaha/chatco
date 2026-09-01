@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\ActivityLogCategory;
 use App\Http\Controllers\Controller;
+use App\Services\ActivityLogService;
 use App\Services\SosService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -25,6 +27,7 @@ class AdminSosController extends Controller
 
     public function __construct(
         private readonly SosService $sosService,
+        private readonly ActivityLogService $activityLogService,
     ) {}
 
     /**
@@ -70,6 +73,12 @@ class AdminSosController extends Controller
             return $this->errorResponse($e->getMessage(), $status);
         }
 
+        $this->activityLogService->record(
+            ActivityLogCategory::SOS,
+            'Acknowledged SOS alert #' . substr($alert->id, 0, 8),
+            $request->user(),
+        );
+
         return $this->successResponse($alert, 'SOS alert acknowledged');
     }
 
@@ -84,6 +93,12 @@ class AdminSosController extends Controller
             $status = str_contains($e->getMessage(), 'not found') ? 404 : 422;
             return $this->errorResponse($e->getMessage(), $status);
         }
+
+        $this->activityLogService->record(
+            ActivityLogCategory::SOS,
+            'Resolved SOS alert #' . substr($alert->id, 0, 8),
+            $request->user(),
+        );
 
         return $this->successResponse($alert, 'SOS alert resolved');
     }

@@ -26,7 +26,10 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  */
 final class ShiftCloseoutService
 {
-    public function __construct(private ShiftDeviceService $shiftDeviceService) {}
+    public function __construct(
+        private ShiftDeviceService $shiftDeviceService,
+        private AnnouncementService $announcementService,
+    ) {}
 
     public const REASON_MANUAL = 'MANUAL';
 
@@ -73,6 +76,7 @@ final class ShiftCloseoutService
                     && $remittance
                     && $remittance->remittance_status === Remittance::STATUS_PENDING) {
                     $this->completePendingRemittance($remittance, (float) $remittedAmount);
+                    $this->notifyRemittanceCompletedAfterCommit($remittance);
 
                     return $shift->fresh(['remittance']);
                 }
@@ -134,6 +138,10 @@ final class ShiftCloseoutService
                 'remitted_at' => $status === Remittance::STATUS_PENDING ? null : $timeOut,
             ]);
             $remittance->save();
+
+            if ($status !== Remittance::STATUS_PENDING) {
+                $this->notifyRemittanceCompletedAfterCommit($remittance);
+            }
 
             $shift->update([
                 'status' => ShiftStatus::ENDED->value,
@@ -276,6 +284,32 @@ SQL;
         ];
     }
 
+    /**
+     * The admin's physical cash count for a conductor's ended, still-PENDING
+     * remittance (cash declaration now happens on the admin side, never the
+     * conductor's — see AdminController::declareCash()). Reuses the same
+     * resolution math as the manual-closeout PENDING branch in close(),
+     * without that branch's conductor-device checks.
+     */
+    public function recordCashDeclaration(string $shiftId, float $declaredAmount): Remittance
+    {
+        return DB::transaction(function () use ($shiftId, $declaredAmount) {
+            $remittance = Remittance::query()
+                ->where('shift_id', $shiftId)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($remittance->remittance_status !== Remittance::STATUS_PENDING) {
+                throw new HttpException(409, 'Cash has already been declared for this remittance.');
+            }
+
+            $this->completePendingRemittance($remittance, $declaredAmount);
+            $this->notifyRemittanceCompletedAfterCommit($remittance);
+
+            return $remittance->fresh();
+        }, 3);
+    }
+
     private function completePendingRemittance(Remittance $remittance, float $remittedAmount): void
     {
         $expected = (float) $remittance->cash_total;
@@ -300,6 +334,26 @@ SQL;
         $value = (int) (Setting::query()->where('key', 'remittance_grace_minutes')->value('value') ?? 30);
 
         return max(1, min($value, 1440));
+    }
+
+    /** Notify every admin once a shift's remittance reaches a terminal state (manually or automatically). */
+    private function notifyRemittanceCompletedAfterCommit(Remittance $remittance): void
+    {
+        $conductorName = $remittance->conductor_name;
+        $unitNumber = $remittance->unit_number;
+        $statusLabel = match ($remittance->remittance_status) {
+            Remittance::STATUS_SHORTAGE => 'with a shortage',
+            Remittance::STATUS_OVERAGE => 'with an overage',
+            default => 'in full',
+        };
+        $amount = number_format((float) $remittance->remitted_amount, 2);
+
+        DB::afterCommit(fn () => $this->announcementService->notifyAdmins(
+            'REMITTANCE_COMPLETED',
+            'Remittance completed',
+            "{$conductorName} remitted ₱{$amount} {$statusLabel} for unit {$unitNumber}.",
+            $remittance->shift_id,
+        ));
     }
 
     private function cancelOpenHailsAfterCommit(ShiftLog $shift): void

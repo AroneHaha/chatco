@@ -143,10 +143,21 @@ class LostItemService
         return $query->paginate($perPage);
     }
 
+    /**
+     * Single-item detail for ANY authenticated role (commuter/conductor
+     * browse + the admin item-detail view both call this). Deliberately does
+     * NOT eager-load `claims` or `releasedTo` — both relate back to
+     * CommuterProfile, which has no $hidden array, so loading them here would
+     * serialize other people's claimant PII (email, contact, birthdate,
+     * government-ID photo, etc.) straight into a response reachable by any
+     * commuter, not just admins. Same privacy posture as listItems() above.
+     * Admins get full claim + claimant detail through the dedicated
+     * ADMIN-only listForAdmin()/claimsForItem() paths instead.
+     */
     public function show(string $itemId): LostItem
     {
         try {
-            return LostItem::with(['vehicle', 'photos', 'claims.claimant', 'claims.reviewer', 'releasedTo', 'closedBy'])->findOrFail($itemId);
+            return LostItem::with(['vehicle', 'photos', 'closedBy'])->findOrFail($itemId);
         } catch (ModelNotFoundException) {
             throw LostFoundException::notFound('Item');
         }

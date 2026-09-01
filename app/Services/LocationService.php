@@ -18,7 +18,10 @@ use Illuminate\Support\Facades\DB;
 
 class LocationService
 {
-    public function __construct(private ShiftDeviceService $shiftDeviceService) {}
+    public function __construct(
+        private ShiftDeviceService $shiftDeviceService,
+        private AnnouncementService $announcementService,
+    ) {}
 
     /**
      * Update a vehicle's GPS position.
@@ -207,6 +210,7 @@ class LocationService
             return;
         }
 
+        $isNewEpisode = $openEvent === null;
         $roundedSpeed = (int) round($speed);
         $event = $openEvent ?? new OverspeedEvent(['shift_id' => $shift->shift_id]);
 
@@ -226,6 +230,21 @@ class LocationService
             'date' => $event->date ?? now()->toDateString(),
             'last_logged_at' => now(),
         ])->save();
+
+        // Notify admins once per episode (when it STARTS), not on every GPS
+        // ping while the conductor stays over the limit — a ping lands every
+        // few seconds, so notifying on each one would spam the bell.
+        if ($isNewEpisode) {
+            $conductorName = $shift->conductor_name;
+            $unitNumber = $shift->unit_number;
+            $eventId = (string) $event->id;
+            DB::afterCommit(fn () => $this->announcementService->notifyAdmins(
+                'OVERSPEED_FLAGGED',
+                'Overspeeding flagged',
+                "{$conductorName} is over the speed limit on unit {$unitNumber} ({$roundedSpeed} km/h, limit {$threshold} km/h).",
+                $eventId,
+            ));
+        }
     }
 
     private function distanceMetres(float $lat1, float $lng1, float $lat2, float $lng2): float

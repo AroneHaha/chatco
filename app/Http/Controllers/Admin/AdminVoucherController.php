@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\ActivityLogCategory;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreVoucherRequest;
 use App\Models\Voucher;
+use App\Services\ActivityLogService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,6 +23,8 @@ use Illuminate\Support\Str;
 class AdminVoucherController extends Controller
 {
     use ApiResponse;
+
+    public function __construct(private ActivityLogService $activityLogService) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -53,13 +57,26 @@ class AdminVoucherController extends Controller
             $created[] = $voucher;
         }
 
+        $this->activityLogService->record(
+            ActivityLogCategory::VOUCHER,
+            "Generated {$quantity} voucher(s) ({$type})",
+            $request->user(),
+        );
+
         return $this->successResponse($created, "{$quantity} voucher(s) generated", 201);
     }
 
-    public function destroy(string $id): JsonResponse
+    public function destroy(Request $request, string $id): JsonResponse
     {
         $voucher = Voucher::findOrFail($id);
+        $code = $voucher->code;
         $voucher->delete();
+
+        $this->activityLogService->record(
+            ActivityLogCategory::VOUCHER,
+            "Deleted voucher {$code}",
+            $request->user(),
+        );
 
         return $this->successResponse(null, 'Voucher deleted successfully');
     }

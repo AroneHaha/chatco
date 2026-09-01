@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\ActivityLogCategory;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LostFound\RejectClaimRequest;
 use App\Http\Requests\LostFound\StoreLostItemRequest;
 use App\Http\Requests\LostFound\UpdateLostItemRequest;
 use App\Http\Requests\LostFound\UploadLostItemImageRequest;
+use App\Services\ActivityLogService;
 use App\Services\LostItemService;
 use App\Support\LostFound\LostFoundException;
 use App\Traits\ApiResponse;
@@ -38,6 +40,7 @@ class AdminLostItemController extends Controller
 
     public function __construct(
         private readonly LostItemService $lostItemService,
+        private readonly ActivityLogService $activityLogService,
     ) {}
 
     /**
@@ -73,6 +76,12 @@ class AdminLostItemController extends Controller
     {
         $item = $this->lostItemService->create($request->user(), $request->validated());
 
+        $this->activityLogService->record(
+            ActivityLogCategory::LOST_FOUND,
+            "Reported lost item \"{$item->item_name}\"",
+            $request->user(),
+        );
+
         return $this->successResponse($item, 'Lost item created', 201);
     }
 
@@ -103,6 +112,12 @@ class AdminLostItemController extends Controller
 
             return $this->errorResponse($e->getMessage(), $status);
         }
+
+        $this->activityLogService->record(
+            ActivityLogCategory::LOST_FOUND,
+            "Updated lost item \"{$item->item_name}\"",
+            $request->user(),
+        );
 
         return $this->successResponse($item, 'Lost item updated');
     }
@@ -145,7 +160,7 @@ class AdminLostItemController extends Controller
      * PATCH /admin/lost-items/{itemId}/reactivate
      * Brings an auto-expired item back to AVAILABLE.
      */
-    public function reactivate(string $itemId): JsonResponse
+    public function reactivate(Request $request, string $itemId): JsonResponse
     {
         try {
             $item = $this->lostItemService->reactivate($itemId);
@@ -154,6 +169,12 @@ class AdminLostItemController extends Controller
 
             return $this->errorResponse($e->getMessage(), $status);
         }
+
+        $this->activityLogService->record(
+            ActivityLogCategory::LOST_FOUND,
+            "Reactivated lost item \"{$item->item_name}\"",
+            $request->user(),
+        );
 
         return $this->successResponse($item, 'Item reactivated');
     }
@@ -198,6 +219,12 @@ class AdminLostItemController extends Controller
             return $this->errorResponse($e->getMessage(), $status);
         }
 
+        $this->activityLogService->record(
+            ActivityLogCategory::LOST_FOUND,
+            "Recorded walk-in claim by {$validated['claimant_name']} on lost item \"{$claim->item?->item_name}\"",
+            $request->user(),
+        );
+
         return $this->successResponse($claim, 'Walk-in claimant recorded', 201);
     }
 
@@ -217,6 +244,12 @@ class AdminLostItemController extends Controller
 
             return $this->errorResponse($e->getMessage(), $status);
         }
+
+        $this->activityLogService->record(
+            ActivityLogCategory::LOST_FOUND,
+            "Approved claim on lost item \"{$claim->item?->item_name}\"",
+            $request->user(),
+        );
 
         return $this->successResponse($claim, 'Claim approved');
     }
@@ -239,6 +272,12 @@ class AdminLostItemController extends Controller
             return $this->errorResponse($e->getMessage(), $status);
         }
 
+        $this->activityLogService->record(
+            ActivityLogCategory::LOST_FOUND,
+            "Released lost item \"{$claim->item?->item_name}\" to claimant",
+            $request->user(),
+        );
+
         return $this->successResponse($claim, 'Claim released');
     }
 
@@ -260,6 +299,12 @@ class AdminLostItemController extends Controller
             return $this->errorResponse($e->getMessage(), $status);
         }
 
+        $this->activityLogService->record(
+            ActivityLogCategory::LOST_FOUND,
+            "Rejected claim on lost item \"{$claim->item?->item_name}\"",
+            $request->user(),
+        );
+
         return $this->successResponse($claim, 'Claim rejected');
     }
 
@@ -278,6 +323,12 @@ class AdminLostItemController extends Controller
 
             return $this->errorResponse($e->getMessage(), $status);
         }
+
+        $this->activityLogService->record(
+            ActivityLogCategory::LOST_FOUND,
+            "Closed lost item \"{$item->item_name}\"",
+            $request->user(),
+        );
 
         return $this->successResponse($item, 'Item closed');
     }

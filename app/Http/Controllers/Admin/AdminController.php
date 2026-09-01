@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\ActivityLogCategory;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\ShiftStatus;
@@ -16,8 +17,11 @@ use App\Models\TerminatedPersonnel;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Http\Requests\Admin\DeclareCashRequest;
+use App\Services\ActivityLogService;
 use App\Services\AdminService;
 use App\Services\LocationService;
+use App\Services\ShiftCloseoutService;
 use App\Traits\ApiResponse;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -31,7 +35,9 @@ class AdminController extends Controller
 
     public function __construct(
         private AdminService $adminService,
-        private LocationService $locationService
+        private LocationService $locationService,
+        private ActivityLogService $activityLogService,
+        private ShiftCloseoutService $shiftCloseoutService,
     ) {}
 
     public function dashboard(): JsonResponse
@@ -242,6 +248,12 @@ class AdminController extends Controller
 
         $driver->load(['vehicle']);
 
+        $this->activityLogService->record(
+            ActivityLogCategory::PERSONNEL,
+            "Added driver {$driver->first_name} {$driver->last_name}",
+            $request->user(),
+        );
+
         return $this->successResponse($driver, 'Driver created successfully', 201);
     }
 
@@ -283,6 +295,12 @@ class AdminController extends Controller
         ]);
 
         $driver->load(['vehicle']);
+
+        $this->activityLogService->record(
+            ActivityLogCategory::PERSONNEL,
+            "Updated driver {$driver->first_name} {$driver->last_name}",
+            $request->user(),
+        );
 
         return $this->successResponse($driver, 'Driver updated successfully');
     }
@@ -407,6 +425,12 @@ class AdminController extends Controller
             $driver->delete();
         });
 
+        $this->activityLogService->record(
+            ActivityLogCategory::PERSONNEL,
+            'Terminated driver ' . ($fullName ?: 'Unknown Driver'),
+            $request->user(),
+        );
+
         return $this->successResponse(null, 'Driver removed successfully');
     }
 
@@ -491,6 +515,12 @@ class AdminController extends Controller
             $user->delete();
         });
 
+        $this->activityLogService->record(
+            ActivityLogCategory::PERSONNEL,
+            'Terminated conductor ' . ($fullName ?: 'Unknown Conductor'),
+            $request->user(),
+        );
+
         return $this->successResponse(null, 'Conductor removed successfully');
     }
 
@@ -505,7 +535,7 @@ class AdminController extends Controller
      * To re-enable, the admin uses PUT /admin/users/{id} to set account_status
      * back to ACTIVE (or simply generates new credentials via reset-credentials).
      */
-    public function disableConductor(string $id): JsonResponse
+    public function disableConductor(Request $request, string $id): JsonResponse
     {
         $conductor = ConductorProfile::with('user')->findOrFail($id);
         $user = $conductor->user;
@@ -533,6 +563,12 @@ class AdminController extends Controller
         // Revoke ALL tokens — the conductor is instantly logged out everywhere.
         $user->tokens()->delete();
 
+        $this->activityLogService->record(
+            ActivityLogCategory::PERSONNEL,
+            "Disabled conductor {$conductor->first_name} {$conductor->last_name}",
+            $request->user(),
+        );
+
         return $this->successResponse(null, 'Conductor account disabled. All sessions revoked.');
     }
 
@@ -544,7 +580,7 @@ class AdminController extends Controller
      * can hand them to the conductor. All existing Sanctum tokens for the
      * user are revoked (the conductor must log in with the new credentials).
      */
-    public function resetConductorCredentials(string $id): JsonResponse
+    public function resetConductorCredentials(Request $request, string $id): JsonResponse
     {
         $conductor = ConductorProfile::with('user')->findOrFail($id);
         $user = $conductor->user;
@@ -593,6 +629,12 @@ class AdminController extends Controller
 
         // Revoke ALL tokens — the conductor must re-login with the new credentials.
         $user->tokens()->delete();
+
+        $this->activityLogService->record(
+            ActivityLogCategory::PERSONNEL,
+            "Reset login credentials for conductor {$conductor->first_name} {$conductor->last_name}",
+            $request->user(),
+        );
 
         return $this->successResponse([
             'id' => $conductor->id,
@@ -688,6 +730,12 @@ class AdminController extends Controller
         ]);
 
         $conductor->load(['vehicle.route', 'vehicle.driver']);
+
+        $this->activityLogService->record(
+            ActivityLogCategory::PERSONNEL,
+            "Updated conductor {$conductor->first_name} {$conductor->last_name}",
+            $request->user(),
+        );
 
         return $this->successResponse($conductor, 'Conductor updated successfully');
     }
@@ -837,6 +885,12 @@ class AdminController extends Controller
             'generated_password' => $generatedPassword,
         ]);
 
+        $this->activityLogService->record(
+            ActivityLogCategory::PERSONNEL,
+            "Added conductor {$conductor->first_name} {$conductor->last_name}",
+            $request->user(),
+        );
+
         return $this->successResponse([
             'id' => $conductor->id,
             'first_name' => $conductor->first_name,
@@ -967,6 +1021,11 @@ class AdminController extends Controller
                     $remittance->remittance_status === Remittance::STATUS_PENDING
                         && $remittance->remittance_due_at?->isPast(),
                 );
+                // Distinguishes a real, ended remittance awaiting the admin's cash
+                // declaration from a still-active shift (both are STATUS_PENDING) —
+                // the frontend needs this to know which PENDING rows can take the
+                // "Declare Cash" action.
+                $remittance->setAttribute('is_active_shift', false);
 
                 return $remittance->toArray();
             });
@@ -1047,6 +1106,7 @@ class AdminController extends Controller
                     'remitted_at' => null,
                     'reminder_count' => 0,
                     'is_overdue' => false,
+                    'is_active_shift' => true,
                 ];
             });
         }
@@ -1075,6 +1135,25 @@ class AdminController extends Controller
             'to' => $items->isEmpty() ? null : (($page - 1) * $perPage) + $items->count(),
             'total' => $total,
         ], 'Remittances retrieved');
+    }
+
+    /**
+     * POST /api/admin/remittances/{shiftId}/cash-declaration
+     *
+     * The admin's physical cash count for a conductor's ended, still-PENDING
+     * remittance. Resolves it to COMPLETE/SHORTAGE/OVERAGE — see
+     * ShiftCloseoutService::recordCashDeclaration(). 409s if this remittance's
+     * cash was already declared (not PENDING), 404 if the shift_id doesn't
+     * correspond to a real Remittance row (e.g. a still-active shift).
+     */
+    public function declareCash(DeclareCashRequest $request, string $shiftId): JsonResponse
+    {
+        $remittance = $this->shiftCloseoutService->recordCashDeclaration(
+            $shiftId,
+            (float) $request->validated('cash_declared'),
+        );
+
+        return $this->successResponse($remittance->load(['shift', 'vehicle', 'driver']), 'Cash declaration recorded');
     }
 
     public function shiftLogs(Request $request): JsonResponse

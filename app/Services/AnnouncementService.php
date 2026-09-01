@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\UserRole;
 use App\Events\AnnouncementCreated;
 use App\Models\Announcement;
 use App\Models\AnnouncementRead;
@@ -195,7 +196,7 @@ class AnnouncementService
      * claim status update). Not part of the admin CRUD surface — callers are
      * other services, not controllers.
      */
-    public function notifyUser(string $userId, string $type, string $title, string $message): Announcement
+    public function notifyUser(string $userId, string $type, string $title, string $message, ?string $referenceId = null): Announcement
     {
         return Announcement::create([
             'user_id' => $userId,
@@ -203,7 +204,26 @@ class AnnouncementService
             'title'   => $title,
             'message' => $message,
             'status'  => self::STATUS_ACTIVE,
+            'reference_id' => $referenceId,
         ]);
+    }
+
+    /**
+     * System-generated announcement, one row per current admin (e.g. a
+     * conductor starting a shift, or a remittance completing). Same
+     * single-recipient shape as notifyUser() — just fanned out to every
+     * ADMIN account instead of one user — so it rides the existing bell,
+     * unread-count, and mark-read machinery with no new tables.
+     *
+     * `$referenceId` names the record the notification is about (e.g. the
+     * pending User.id for a NEW_REGISTRATION notice) so the frontend can
+     * deep-link straight to it instead of just displaying the message.
+     */
+    public function notifyAdmins(string $type, string $title, string $message, ?string $referenceId = null): void
+    {
+        User::query()->where('role', UserRole::ADMIN->value)->pluck('id')->each(
+            fn (string $adminId) => $this->notifyUser($adminId, $type, $title, $message, $referenceId)
+        );
     }
 
     public function update(string $id, array $data): Announcement
@@ -273,10 +293,49 @@ class AnnouncementService
     /**
      * Count of ACTIVE announcements the user has NOT read — for the bell badge.
      * Includes broadcasts (user_id IS NULL) plus rows targeted at this user.
+     *
+     * @param  array  $types  Optional — when non-empty, scopes the count to
+     *   these `type` values (e.g. the Lost & Found claim-update badge passes
+     *   ['claim_approved', 'claim_rejected', 'claim_released']).
      */
-    public function unreadCount(User $user): int
+    public function unreadCount(User $user, array $types = []): int
     {
-        return Announcement::where('status', self::STATUS_ACTIVE)
+        return $this->unreadQuery($user, $types)->count();
+    }
+
+    /**
+     * Mark every currently-unread ACTIVE announcement visible to the user as
+     * read, optionally scoped to `$types` (e.g. only the Lost & Found
+     * claim-update rows when the commuter opens the Claims tab). A single
+     * bulk insert rather than one upsert per row — correct even when there
+     * are more unread rows than any single feed page holds.
+     *
+     * @return int  The number of rows newly marked as read.
+     */
+    public function markAllRead(User $user, array $types = []): int
+    {
+        $ids = $this->unreadQuery($user, $types)->pluck('announcements.id');
+
+        if ($ids->isEmpty()) {
+            return 0;
+        }
+
+        $now = now();
+        DB::table('announcement_reads')->insertOrIgnore(
+            $ids->map(fn (string $id) => [
+                'announcement_id' => $id,
+                'user_id' => $user->id,
+                'read_at' => $now,
+            ])->all()
+        );
+
+        return $ids->count();
+    }
+
+    /** Shared "ACTIVE, visible to $user, not yet read, optionally type-filtered" query. */
+    private function unreadQuery(User $user, array $types = []): Builder
+    {
+        $query = Announcement::where('status', self::STATUS_ACTIVE)
             ->where(function ($q) use ($user) {
                 $q->whereNull('user_id')->orWhere('user_id', $user->id);
             })
@@ -285,7 +344,12 @@ class AnnouncementService
                       ->from('announcement_reads')
                       ->whereColumn('announcement_reads.announcement_id', 'announcements.id')
                       ->where('announcement_reads.user_id', $user->id);
-            })
-            ->count();
+            });
+
+        if (! empty($types)) {
+            $query->whereIn('type', $types);
+        }
+
+        return $query;
     }
 }

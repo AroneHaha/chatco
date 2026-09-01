@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminActivityLogController;
 use App\Http\Controllers\Admin\AdminAnnouncementController;
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AdminFaqController;
@@ -40,18 +41,18 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 Route::prefix('auth')->group(function () {
-    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:commuter-hail');
-    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:commuter-hail'); // PUBLIC — commuter self-sign-up (S5-T15)
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:auth');
+    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:auth'); // PUBLIC — commuter self-sign-up (S5-T15)
     // Sign-up email verification — the applicant must enter a 6-digit code
     // mailed to their address before /register will create the account.
-    Route::post('/register/send-code', [AuthController::class, 'sendRegistrationCode'])->middleware('throttle:commuter-hail');
-    Route::post('/register/verify-code', [AuthController::class, 'verifyRegistrationCode'])->middleware('throttle:commuter-hail');
+    Route::post('/register/send-code', [AuthController::class, 'sendRegistrationCode'])->middleware('throttle:auth');
+    Route::post('/register/verify-code', [AuthController::class, 'verifyRegistrationCode'])->middleware('throttle:auth');
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
     // Password reset — public (no auth required, throttled to prevent abuse).
     // 3-step 6-digit-code flow: request code → verify code → set new password.
-    Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:commuter-hail');
-    Route::post('/verify-reset-code', [AuthController::class, 'verifyResetCode'])->middleware('throttle:commuter-hail');
-    Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:commuter-hail');
+    Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:auth');
+    Route::post('/verify-reset-code', [AuthController::class, 'verifyResetCode'])->middleware('throttle:auth');
+    Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:auth');
 });
 
 /*
@@ -82,8 +83,10 @@ Route::get('/system-status', [SystemStatusController::class, 'index'])->middlewa
 
 // Public tracking endpoint — no auth required. Anyone with the token
 // can view the commuter's live position (for the share-ride feature).
-// No throttle — this is a public read-only endpoint that polls every 5s.
-Route::get('/share/{token}', [ShareRideController::class, 'show']);
+// Throttled per (IP + token) — see 'share-ride-track' in
+// AppServiceProvider — so the 5s polling cadence is untouched while
+// excessive hammering of one link is capped.
+Route::get('/share/{token}', [ShareRideController::class, 'show'])->middleware('throttle:share-ride-track');
 
 /*
 |--------------------------------------------------------------------------
@@ -318,6 +321,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::delete('/faqs/{id}', [AdminFaqController::class, 'destroy'])->middleware('throttle:conductor-write');
     Route::get('/transactions', [AdminController::class, 'transactions'])->middleware('throttle:conductor-read');
     Route::get('/remittances', [AdminController::class, 'remittances'])->middleware('throttle:conductor-read');
+    Route::post('/remittances/{shiftId}/cash-declaration', [AdminController::class, 'declareCash'])->middleware('throttle:admin-write');
     Route::get('/announcements', [AdminAnnouncementController::class, 'index'])->middleware('throttle:conductor-read');
     Route::post('/announcements', [AdminAnnouncementController::class, 'store'])->middleware('throttle:admin-write');
     Route::get('/announcements/{id}', [AdminAnnouncementController::class, 'show'])->middleware('throttle:conductor-read');
@@ -358,6 +362,12 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     // row. Pass conductor_id OR driver_id. Returns paginated feedback + a
     // summary (average_rating, total_count, 5→1 distribution).
     Route::get('/feedback', [AdminFeedbackController::class, 'index'])->middleware('throttle:conductor-read');
+
+    // ── Activity Logs (audit trail) ─────────────────────────────
+    // Read-only admin audit trail — every admin-mutating action across the
+    // panel writes one row via ActivityLogService::record(). See the 13
+    // categories in App\Enums\ActivityLogCategory.
+    Route::get('/activity-logs', [AdminActivityLogController::class, 'index'])->middleware('throttle:conductor-read');
 });
 
 /*
@@ -422,6 +432,7 @@ Route::prefix('lost-found')->middleware(['auth:sanctum'])->group(function () {
 |--------------------------------------------------------------------------
 |   GET  /announcements                (any auth role) — ACTIVE feed w/ is_read
 |   GET  /announcements/unread-count   (any auth role) — bell badge count
+|   POST /announcements/mark-all-read  (any auth role) — bulk mark-as-read
 |   POST /announcements/{id}/read      (any auth role) — mark-as-read (204)
 |
 | Admin CRUD (create/update/archive) lives in the /admin group above via
@@ -430,6 +441,7 @@ Route::prefix('lost-found')->middleware(['auth:sanctum'])->group(function () {
 */
 Route::prefix('announcements')->middleware(['auth:sanctum'])->group(function () {
     Route::get('/unread-count', [AnnouncementController::class, 'unreadCount'])->middleware('throttle:commuter-read');
+    Route::post('/mark-all-read', [AnnouncementController::class, 'markAllRead'])->middleware('throttle:commuter-write');
     Route::get('/', [AnnouncementController::class, 'index'])->middleware('throttle:commuter-read');
     Route::post('/{id}/read', [AnnouncementController::class, 'markRead'])->middleware('throttle:commuter-write');
 });

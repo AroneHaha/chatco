@@ -17,6 +17,7 @@ class ShiftService
     public function __construct(
         private ShiftCloseoutService $closeoutService,
         private ShiftDeviceService $shiftDeviceService,
+        private AnnouncementService $announcementService,
     ) {}
 
     /** Start a shift only from the Admin-approved current-day assignment. */
@@ -106,19 +107,30 @@ class ShiftService
             ]);
             $driver->update(['active_shift_id' => $shiftId]);
 
+            $conductorName = trim($profile->first_name.' '.$profile->last_name);
+            $unitNumber = $vehicle->unit_number;
+            DB::afterCommit(fn () => $this->announcementService->notifyAdmins(
+                'SHIFT_STARTED',
+                'Shift started',
+                "{$conductorName} started an active shift on unit {$unitNumber}.",
+                $vehicleId,
+            ));
+
             return $shift;
         }, 3);
     }
 
     /**
-     * Submit physical cash and end an active shift, or resolve the PENDING
-     * obligation created earlier by stale/midnight automatic closeout.
+     * End an active shift via the conductor's remittance submission. Cash is
+     * no longer declared by the conductor — that's now an admin-only action
+     * (ShiftCloseoutService::recordCashDeclaration()) performed after the
+     * fact, against the PENDING remittance this always creates when cash is
+     * owed. This is the ONLY way a conductor ends a shift.
      */
     public function endShiftViaRemittance(
         User $conductor,
         string $shiftId,
         float $totalCollected,
-        float $remittedAmount,
         ?string $deviceId = null,
         ?string $deviceType = null,
     ): ShiftLog {
@@ -136,7 +148,7 @@ class ShiftService
 
         return $this->closeoutService->close(
             $shiftId,
-            $remittedAmount,
+            null,
             ShiftCloseoutService::REASON_MANUAL,
             $profileId,
             $deviceId,

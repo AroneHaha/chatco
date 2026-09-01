@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\ActivityLogCategory;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UpdateUserRequest;
+use App\Services\ActivityLogService;
 use App\Services\AdminService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -22,7 +24,8 @@ class AdminUserController extends Controller
     use ApiResponse;
 
     public function __construct(
-        private AdminService $adminService
+        private AdminService $adminService,
+        private ActivityLogService $activityLogService,
     ) {}
 
     /**
@@ -71,6 +74,12 @@ class AdminUserController extends Controller
             return $this->errorResponse('User not found', 404);
         }
 
+        $this->activityLogService->record(
+            ActivityLogCategory::MEMBER,
+            "Updated member {$user['name']}",
+            $request->user(),
+        );
+
         return $this->successResponse($user, 'User updated');
     }
 
@@ -79,11 +88,21 @@ class AdminUserController extends Controller
      */
     public function destroy(Request $request, string $id): JsonResponse
     {
+        // Captured before delete() — the record is gone by the time the log
+        // call below would otherwise resolve a display name for it.
+        $target = $this->adminService->getUser($id);
+
         $deleted = $this->adminService->deleteUser($id, $request->user());
 
         if (! $deleted) {
             return $this->errorResponse('User not found', 404);
         }
+
+        $this->activityLogService->record(
+            ActivityLogCategory::MEMBER,
+            'Deleted member ' . ($target['name'] ?? $id),
+            $request->user(),
+        );
 
         return $this->successResponse(null, 'User deleted');
     }
@@ -111,12 +130,24 @@ class AdminUserController extends Controller
 
         $user = $this->adminService->suspendUser($id, $validated, $request->user());
 
+        $this->activityLogService->record(
+            ActivityLogCategory::MEMBER,
+            "Suspended member {$user['name']}",
+            $request->user(),
+        );
+
         return $this->successResponse($user, 'Account suspended and active sessions revoked.');
     }
 
     public function unsuspend(Request $request, string $id): JsonResponse
     {
         $user = $this->adminService->unsuspendUser($id, $request->user());
+
+        $this->activityLogService->record(
+            ActivityLogCategory::MEMBER,
+            "Reactivated member {$user['name']}",
+            $request->user(),
+        );
 
         return $this->successResponse($user, 'Account reactivated.');
     }

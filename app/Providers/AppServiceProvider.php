@@ -49,6 +49,19 @@ class AppServiceProvider extends ServiceProvider
             ], 429);
         };
 
+        // Auth routes (login/register/verification codes/password reset) —
+        // 10 req/min per IP. Its own bucket, separate from commuter-hail:
+        // those routes used to share commuter-hail's quota with fare-matrix,
+        // faqs, system-status, and commuter hail/location/payment traffic,
+        // so unrelated activity from the same IP could exhaust the bucket
+        // and make login fail with a 429 that had nothing to do with login
+        // attempts themselves.
+        RateLimiter::for('auth', function (Request $request) use ($rateLimitResponse) {
+            return Limit::perMinute(10)
+                ->by($request->ip())
+                ->response($rateLimitResponse);
+        });
+
         // Read endpoints — 60 req/min (1 req/s, generous for UI polling)
         RateLimiter::for('conductor-read', function (Request $request) use ($rateLimitResponse) {
             return Limit::perMinute(60)
@@ -137,6 +150,18 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('admin-write', function (Request $request) use ($rateLimitResponse) {
             return Limit::perMinute(30)
                 ->by($request->user()?->id ?: $request->ip())
+                ->response($rateLimitResponse);
+        });
+
+        // Public share-ride tracking — 30 req/min per (IP + token). Keyed by
+        // token as well as IP so many legitimate viewers of DIFFERENT links
+        // behind the same IP (e.g. shared wifi) don't throttle each other;
+        // 30/min gives the 5s polling cadence (~12/min) ~2.5x headroom, same
+        // ratio as conductor-gps below. No auth on this route, so there's no
+        // user id to key on — IP+token is the best available identity.
+        RateLimiter::for('share-ride-track', function (Request $request) use ($rateLimitResponse) {
+            return Limit::perMinute(30)
+                ->by($request->ip().'|'.$request->route('token'))
                 ->response($rateLimitResponse);
         });
 

@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Commuter;
 
 use App\Http\Controllers\Controller;
+use App\Models\CommuterProfile;
 use App\Models\SharedRideLink;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Commuter Share Ride Controller.
@@ -47,55 +49,64 @@ class ShareRideController extends Controller
             'rotate' => 'nullable|boolean',
         ]);
 
-        // A "start sharing" action (rotate=true) mints a brand-new token every
-        // time: deactivate any existing active link so the new URL is unique
-        // and every previously shared link immediately reads as expired.
-        // Live position pushes (rotate=false) instead REUSE the current link so
-        // the token stays stable while the map updates.
-        if ($request->boolean('rotate')) {
-            SharedRideLink::where('commuter_id', $profile->id)
-                ->where('is_active', true)
-                ->update(['is_active' => false]);
-        } else {
-            $existing = SharedRideLink::where('commuter_id', $profile->id)
-                ->where('is_active', true)
-                ->where('expires_at', '>', now())
-                ->latest()
-                ->first();
+        // Deactivating the old link and creating/reusing one below must be
+        // atomic — otherwise two near-simultaneous calls (a double-tapped
+        // "Start Sharing", or a rotate racing a live-position push) could
+        // each see no conflicting link and both end up active. Locking the
+        // commuter's own profile row for the transaction serializes those
+        // calls so only one ever "wins", matching the payment flows'
+        // lock-a-stable-parent-row pattern elsewhere in the app.
+        [$link, $created] = DB::transaction(function () use ($profile, $validated, $request) {
+            CommuterProfile::where('id', $profile->id)->lockForUpdate()->first();
 
-            if ($existing) {
-                // Update position if provided.
-                if (isset($validated['lat']) && isset($validated['lng'])) {
-                    $existing->update([
-                        'lat' => $validated['lat'],
-                        'lng' => $validated['lng'],
-                        'last_updated_at' => now(),
-                    ]);
+            // A "start sharing" action (rotate=true) mints a brand-new token every
+            // time: deactivate any existing active link so the new URL is unique
+            // and every previously shared link immediately reads as expired.
+            // Live position pushes (rotate=false) instead REUSE the current link so
+            // the token stays stable while the map updates.
+            if ($request->boolean('rotate')) {
+                SharedRideLink::where('commuter_id', $profile->id)
+                    ->where('is_active', true)
+                    ->update(['is_active' => false]);
+            } else {
+                $existing = SharedRideLink::where('commuter_id', $profile->id)
+                    ->where('is_active', true)
+                    ->where('expires_at', '>', now())
+                    ->latest()
+                    ->first();
+
+                if ($existing) {
+                    // Update position if provided.
+                    if (isset($validated['lat']) && isset($validated['lng'])) {
+                        $existing->update([
+                            'lat' => $validated['lat'],
+                            'lng' => $validated['lng'],
+                            'last_updated_at' => now(),
+                        ]);
+                    }
+
+                    return [$existing, false];
                 }
-
-                return $this->successResponse([
-                    'token' => $existing->token,
-                    'expires_at' => $existing->expires_at->toIso8601String(),
-                    'share_url' => url("/share/{$existing->token}"),
-                ], 'Share link retrieved');
             }
-        }
 
-        // Create a new link.
-        $link = SharedRideLink::create([
-            'commuter_id' => $profile->id,
-            'lat' => $validated['lat'] ?? null,
-            'lng' => $validated['lng'] ?? null,
-            'expires_at' => now()->addMinutes(self::TTL_MINUTES),
-            'last_updated_at' => now(),
-            'is_active' => true,
-        ]);
+            // Create a new link.
+            $link = SharedRideLink::create([
+                'commuter_id' => $profile->id,
+                'lat' => $validated['lat'] ?? null,
+                'lng' => $validated['lng'] ?? null,
+                'expires_at' => now()->addMinutes(self::TTL_MINUTES),
+                'last_updated_at' => now(),
+                'is_active' => true,
+            ]);
+
+            return [$link, true];
+        }, 3);
 
         return $this->successResponse([
             'token' => $link->token,
             'expires_at' => $link->expires_at->toIso8601String(),
             'share_url' => url("/share/{$link->token}"),
-        ], 'Share link created', 201);
+        ], $created ? 'Share link created' : 'Share link retrieved', $created ? 201 : 200);
     }
 
     /**
