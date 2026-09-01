@@ -165,7 +165,7 @@ class AdminRegistrationController extends Controller
         $extension = $file->getClientOriginalExtension() ?: 'jpg';
         $filename = $userId . '-' . Str::random(16) . '.' . $extension;
         $idImagePath = $file->storeAs(
-            'ids',
+            "ids/commuters/{$userId}",
             $filename,
             config('filesystems.uploads.private_id_disk', 'r2_private')
         );
