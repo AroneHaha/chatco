@@ -17,7 +17,6 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 /**
  * Sprint 6 (T3) — Lost & Found business logic.
@@ -78,6 +77,7 @@ class LostItemService
 
     public function __construct(
         private readonly AnnouncementService $announcementService,
+        private readonly MediaStorageService $mediaStorage,
     ) {}
 
     /**
@@ -231,23 +231,24 @@ class LostItemService
             throw LostFoundException::invalid('This item already has the maximum of '.self::MAX_PHOTOS.' photos');
         }
 
-        $mediaDisk = config('filesystems.uploads.public_media_disk', 'r2_public');
-        $extension = $file->getClientOriginalExtension() ?: 'jpg';
-        $filename = "{$itemId}-".time().'-'.Str::random(8).".{$extension}";
-        $path = $file->storeAs('lost-items', $filename, $mediaDisk);
-        $url = Storage::disk($mediaDisk)->url($path);
+        $url = $this->mediaStorage->storeLostAndFoundImage($file, $item->id);
 
-        DB::transaction(function () use ($item, $url, $existing): void {
-            LostItemPhoto::create([
-                'item_id' => $item->id,
-                'url' => $url,
-                'position' => $existing,
-            ]);
+        try {
+            DB::transaction(function () use ($item, $url, $existing): void {
+                LostItemPhoto::create([
+                    'item_id' => $item->id,
+                    'url' => $url,
+                    'position' => $existing,
+                ]);
 
-            if ($existing === 0) {
-                $item->update(['image_url' => $url]);
-            }
-        });
+                if ($existing === 0) {
+                    $item->update(['image_url' => $url]);
+                }
+            });
+        } catch (\Throwable $e) {
+            $this->mediaStorage->deletePublicUrl($url);
+            throw $e;
+        }
 
         return $item->fresh(['vehicle', 'photos', 'claims.claimant', 'claims.reviewer']);
     }

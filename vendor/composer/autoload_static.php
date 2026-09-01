@@ -697,6 +697,7 @@ class ComposerStaticInit1554d9a7755277c7b64a5a5f7daac88e
         'App\\Services\\HailService' => __DIR__ . '/../..' . '/app/Services/HailService.php',
         'App\\Services\\LocationService' => __DIR__ . '/../..' . '/app/Services/LocationService.php',
         'App\\Services\\LostItemService' => __DIR__ . '/../..' . '/app/Services/LostItemService.php',
+        'App\\Services\\MediaStorageService' => __DIR__ . '/../..' . '/app/Services/MediaStorageService.php',
         'App\\Services\\PaymentService' => __DIR__ . '/../..' . '/app/Services/PaymentService.php',
         'App\\Services\\Payments\\Gateways\\FakeGateway' => __DIR__ . '/../..' . '/app/Services/Payments/Gateways/FakeGateway.php',
         'App\\Services\\Payments\\Gateways\\PayMongoGateway' => __DIR__ . '/../..' . '/app/Services/Payments/Gateways/PayMongoGateway.php',

@@ -193,6 +193,7 @@ return array(
     'App\\Services\\HailService' => $baseDir . '/app/Services/HailService.php',
     'App\\Services\\LocationService' => $baseDir . '/app/Services/LocationService.php',
     'App\\Services\\LostItemService' => $baseDir . '/app/Services/LostItemService.php',
+    'App\\Services\\MediaStorageService' => $baseDir . '/app/Services/MediaStorageService.php',
     'App\\Services\\PaymentService' => $baseDir . '/app/Services/PaymentService.php',
     'App\\Services\\Payments\\Gateways\\FakeGateway' => $baseDir . '/app/Services/Payments/Gateways/FakeGateway.php',
     'App\\Services\\Payments\\Gateways\\PayMongoGateway' => $baseDir . '/app/Services/Payments/Gateways/PayMongoGateway.php',

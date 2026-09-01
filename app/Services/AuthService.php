@@ -252,15 +252,17 @@ class AuthService
      * We therefore enforce uniqueness manually against NON-deleted users
      * here, so a previously-rejected email can be re-registered.
      *
-     * ID IMAGE (DEFERRED PERSISTENCE)
-     * -------------------------------
-     * The valid-ID image is accepted and validated by RegisterRequest as a
-     * non-empty string, but the binary is NOT yet persisted to a storage
-     * disk — we only store a derived path/identifier in
-     * commuter_profiles.id_image_url so the API contract is honoured. When
-     * the storage decision is made (S3 / local / etc.), swap the
-     * resolveIdImagePath() call below for a real Storage::put() and write
-     * the resulting URL — no schema or contract change required.
+     * ID IMAGE PERSISTENCE (private R2 object path)
+     * ---------------------------------------------
+     * The valid-ID image is accepted and validated by RegisterRequest and its
+     * binary is persisted to the configured private storage disk.
+     *
+     * The database stores only the object path; admins receive temporary URLs.
+     *
+     *
+     *
+     *
+     *
      *
      * @param  array<string, mixed>  $data  validated payload from RegisterRequest
      * @return array{user: User, profile: CommuterProfile}
@@ -441,7 +443,7 @@ class AuthService
         $filename = $userId.'-'.Str::random(16).'.'.$extension;
 
         return $file->storeAs(
-            'ids',
+            "ids/commuters/{$userId}",
             $filename,
             config('filesystems.uploads.private_id_disk', 'r2_private')
         );
