@@ -8,6 +8,7 @@ use App\Enums\PaymentStatus;
 use App\Enums\ShiftStatus;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\DeclareCashRequest;
 use App\Models\CommuterLocation;
 use App\Models\ConductorProfile;
 use App\Models\Driver;
@@ -17,16 +18,17 @@ use App\Models\TerminatedPersonnel;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Vehicle;
-use App\Http\Requests\Admin\DeclareCashRequest;
 use App\Services\ActivityLogService;
 use App\Services\AdminService;
 use App\Services\LocationService;
+use App\Services\MediaStorageService;
 use App\Services\ShiftCloseoutService;
 use App\Traits\ApiResponse;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class AdminController extends Controller
@@ -37,6 +39,7 @@ class AdminController extends Controller
         private AdminService $adminService,
         private LocationService $locationService,
         private ActivityLogService $activityLogService,
+        private MediaStorageService $mediaStorage,
         private ShiftCloseoutService $shiftCloseoutService,
     ) {}
 
@@ -229,22 +232,41 @@ class AdminController extends Controller
             'contact' => ['required', 'string', 'regex:/^09[0-9]{9}$/'],
             'license_number' => ['required', 'string', 'regex:/^[A-Z][0-9]{2}-[0-9]{2}-[0-9]{6}$/', 'unique:drivers,license_number'],
             'profile_picture_url' => 'nullable|string|max:500',
+            'profile_picture' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
         ], [
             'contact.regex' => 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).',
             'license_number.regex' => 'Use the Philippine LTO format N01-23-045678 (one letter, four digits, then six digits).',
         ]);
 
-        $driver = Driver::create([
-            'first_name' => $validated['first_name'],
-            'middle_name' => $validated['middle_name'] ?? null,
-            'last_name' => $validated['last_name'],
-            'birthday' => $validated['birthday'],
-            'contact' => $validated['contact'],
-            'license_number' => $validated['license_number'],
-            'hire_date' => now()->toDateString(),
-            'profile_picture_url' => $validated['profile_picture_url'] ?? null,
-            'status' => 'ACTIVE',
-        ]);
+        $driverId = (string) Str::uuid();
+        $newPictureUrl = $request->hasFile('profile_picture')
+            ? $this->mediaStorage->storeProfileImage($request->file('profile_picture'), 'driver', $driverId)
+            : ($validated['profile_picture_url'] ?? null);
+
+        try {
+            $driver = DB::transaction(function () use ($validated, $driverId, $newPictureUrl): Driver {
+                $driver = new Driver([
+                    'first_name' => $validated['first_name'],
+                    'middle_name' => $validated['middle_name'] ?? null,
+                    'last_name' => $validated['last_name'],
+                    'birthday' => $validated['birthday'],
+                    'contact' => $validated['contact'],
+                    'license_number' => $validated['license_number'],
+                    'hire_date' => now()->toDateString(),
+                    'profile_picture_url' => $newPictureUrl,
+                    'status' => 'ACTIVE',
+                ]);
+                $driver->id = $driverId;
+                $driver->save();
+
+                return $driver;
+            });
+        } catch (\Throwable $e) {
+            if ($request->hasFile('profile_picture')) {
+                $this->mediaStorage->deletePublicUrl($newPictureUrl);
+            }
+            throw $e;
+        }
 
         $driver->load(['vehicle']);
 
@@ -279,20 +301,43 @@ class AdminController extends Controller
             'contact' => ['required', 'string', 'regex:/^09[0-9]{9}$/'],
             'license_number' => ['required', 'string', 'regex:/^[A-Z][0-9]{2}-[0-9]{2}-[0-9]{6}$/', 'unique:drivers,license_number,'.$id],
             'profile_picture_url' => 'nullable|string|max:500',
+            'profile_picture' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
         ], [
             'contact.regex' => 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).',
             'license_number.regex' => 'Use the Philippine LTO format N01-23-045678 (one letter, four digits, then six digits).',
         ]);
 
-        $driver->update([
-            'first_name' => $validated['first_name'],
-            'middle_name' => $validated['middle_name'] ?? null,
-            'last_name' => $validated['last_name'],
-            'birthday' => $validated['birthday'],
-            'contact' => $validated['contact'],
-            'license_number' => $validated['license_number'],
-            'profile_picture_url' => $validated['profile_picture_url'] ?? $driver->profile_picture_url,
-        ]);
+        $oldPictureUrl = $driver->profile_picture_url;
+        $newPictureUrl = $oldPictureUrl;
+        $hasNewUpload = $request->hasFile('profile_picture');
+        if ($hasNewUpload) {
+            $newPictureUrl = $this->mediaStorage->storeProfileImage($request->file('profile_picture'), 'driver', $driver->id);
+        } elseif ($request->has('profile_picture_url')) {
+            $newPictureUrl = $validated['profile_picture_url'] ?? null;
+        }
+
+        try {
+            DB::transaction(function () use ($driver, $validated, $newPictureUrl): void {
+                $driver->update([
+                    'first_name' => $validated['first_name'],
+                    'middle_name' => $validated['middle_name'] ?? null,
+                    'last_name' => $validated['last_name'],
+                    'birthday' => $validated['birthday'],
+                    'contact' => $validated['contact'],
+                    'license_number' => $validated['license_number'],
+                    'profile_picture_url' => $newPictureUrl,
+                ]);
+            });
+        } catch (\Throwable $e) {
+            if ($hasNewUpload) {
+                $this->mediaStorage->deletePublicUrl($newPictureUrl);
+            }
+            throw $e;
+        }
+
+        if ($hasNewUpload || ($request->has('profile_picture_url') && $newPictureUrl !== $oldPictureUrl)) {
+            $this->mediaStorage->deletePublicUrl($oldPictureUrl);
+        }
 
         $driver->load(['vehicle']);
 
@@ -427,7 +472,7 @@ class AdminController extends Controller
 
         $this->activityLogService->record(
             ActivityLogCategory::PERSONNEL,
-            'Terminated driver ' . ($fullName ?: 'Unknown Driver'),
+            'Terminated driver '.($fullName ?: 'Unknown Driver'),
             $request->user(),
         );
 
@@ -517,7 +562,7 @@ class AdminController extends Controller
 
         $this->activityLogService->record(
             ActivityLogCategory::PERSONNEL,
-            'Terminated conductor ' . ($fullName ?: 'Unknown Conductor'),
+            'Terminated conductor '.($fullName ?: 'Unknown Conductor'),
             $request->user(),
         );
 
@@ -716,18 +761,41 @@ class AdminController extends Controller
             'birthday' => 'required|date|before:today',
             'contact' => ['required', 'string', 'regex:/^09[0-9]{9}$/'],
             'profile_picture_url' => 'nullable|string|max:500',
+            'profile_picture' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
         ], [
             'contact.regex' => 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).',
         ]);
 
-        $conductor->update([
-            'first_name' => $validated['first_name'],
-            'middle_name' => $validated['middle_name'] ?? null,
-            'last_name' => $validated['last_name'],
-            'birthday' => $validated['birthday'],
-            'contact' => $validated['contact'],
-            'profile_picture_url' => $validated['profile_picture_url'] ?? $conductor->profile_picture_url,
-        ]);
+        $oldPictureUrl = $conductor->profile_picture_url;
+        $newPictureUrl = $oldPictureUrl;
+        $hasNewUpload = $request->hasFile('profile_picture');
+        if ($hasNewUpload) {
+            $newPictureUrl = $this->mediaStorage->storeProfileImage($request->file('profile_picture'), 'conductor', $conductor->id);
+        } elseif ($request->has('profile_picture_url')) {
+            $newPictureUrl = $validated['profile_picture_url'] ?? null;
+        }
+
+        try {
+            DB::transaction(function () use ($conductor, $validated, $newPictureUrl): void {
+                $conductor->update([
+                    'first_name' => $validated['first_name'],
+                    'middle_name' => $validated['middle_name'] ?? null,
+                    'last_name' => $validated['last_name'],
+                    'birthday' => $validated['birthday'],
+                    'contact' => $validated['contact'],
+                    'profile_picture_url' => $newPictureUrl,
+                ]);
+            });
+        } catch (\Throwable $e) {
+            if ($hasNewUpload) {
+                $this->mediaStorage->deletePublicUrl($newPictureUrl);
+            }
+            throw $e;
+        }
+
+        if ($hasNewUpload || ($request->has('profile_picture_url') && $newPictureUrl !== $oldPictureUrl)) {
+            $this->mediaStorage->deletePublicUrl($oldPictureUrl);
+        }
 
         $conductor->load(['vehicle.route', 'vehicle.driver']);
 
@@ -865,25 +933,39 @@ class AdminController extends Controller
             $counter++;
         }
 
-        // Create the User account (CONDUCTOR role).
-        $user = User::create([
-            'email' => $email,
-            'password' => $generatedPassword,
-            'role' => UserRole::CONDUCTOR,
-        ]);
+        $userId = (string) Str::uuid();
+        $newPictureUrl = $request->hasFile('profile_picture')
+            ? $this->mediaStorage->storeProfileImage($request->file('profile_picture'), 'conductor', $userId)
+            : ($validated['profile_picture_url'] ?? null);
 
-        // Create the ConductorProfile (shares the same UUID PK as the User).
-        $conductor = ConductorProfile::create([
-            'id' => $user->id,
-            'first_name' => $firstName,
-            'middle_name' => $validated['middle_name'] ?? null,
-            'last_name' => $lastName,
-            'birthday' => $birthday,
-            'contact' => $validated['contact'],
-            'profile_picture_url' => $validated['profile_picture_url'] ?? null,
-            'generated_username' => $generatedUsername,
-            'generated_password' => $generatedPassword,
-        ]);
+        try {
+            $conductor = DB::transaction(function () use ($email, $generatedPassword, $userId, $firstName, $validated, $lastName, $birthday, $generatedUsername, $newPictureUrl): ConductorProfile {
+                $user = new User([
+                    'email' => $email,
+                    'password' => $generatedPassword,
+                    'role' => UserRole::CONDUCTOR,
+                ]);
+                $user->id = $userId;
+                $user->save();
+
+                return ConductorProfile::create([
+                    'id' => $user->id,
+                    'first_name' => $firstName,
+                    'middle_name' => $validated['middle_name'] ?? null,
+                    'last_name' => $lastName,
+                    'birthday' => $birthday,
+                    'contact' => $validated['contact'],
+                    'profile_picture_url' => $newPictureUrl,
+                    'generated_username' => $generatedUsername,
+                    'generated_password' => $generatedPassword,
+                ]);
+            });
+        } catch (\Throwable $e) {
+            if ($request->hasFile('profile_picture')) {
+                $this->mediaStorage->deletePublicUrl($newPictureUrl);
+            }
+            throw $e;
+        }
 
         $this->activityLogService->record(
             ActivityLogCategory::PERSONNEL,
@@ -1071,8 +1153,8 @@ class AdminController extends Controller
                     ->whereIn('shift_id', $shiftIds)
                     ->where('status', PaymentStatus::PAID->value)
                     ->select('shift_id')
-                    ->selectRaw("COALESCE(SUM(CASE WHEN payment_method = ? THEN final_amount ELSE 0 END), 0) AS cash_total", [PaymentMethod::CASH->value])
-                    ->selectRaw("COALESCE(SUM(CASE WHEN payment_method = ? THEN final_amount ELSE 0 END), 0) AS gcash_total", [PaymentMethod::GCASH->value])
+                    ->selectRaw('COALESCE(SUM(CASE WHEN payment_method = ? THEN final_amount ELSE 0 END), 0) AS cash_total', [PaymentMethod::CASH->value])
+                    ->selectRaw('COALESCE(SUM(CASE WHEN payment_method = ? THEN final_amount ELSE 0 END), 0) AS gcash_total', [PaymentMethod::GCASH->value])
                     ->selectRaw('COALESCE(SUM(total_passengers), 0) AS total_passengers')
                     ->groupBy('shift_id')
                     ->get()

@@ -13,9 +13,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  let body: Record<string, unknown>;
+  let body: Record<string, unknown> | FormData;
   try {
-    body = await request.json();
+    body = request.headers.get("content-type")?.includes("multipart/form-data")
+      ? await request.formData()
+      : await request.json();
   } catch {
     return jsonError("Invalid request body.", 400);
   }

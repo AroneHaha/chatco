@@ -64,6 +64,7 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
   });
 
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
+  const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null);
   const [useDefaultPicture, setUseDefaultPicture] = useState<boolean>(true);
   const [existingPictureUrl, setExistingPictureUrl] = useState<string | null>(null);
 
@@ -118,6 +119,7 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
           setExistingPictureUrl((raw.profile_picture_url as string | null) ?? null);
           setUseDefaultPicture(!raw.profile_picture_url);
           setProfilePicture(null);
+          setProfilePictureFile(null);
         } else {
           setError(`Could not find this ${roleLabel.toLowerCase()} in the database. Please refresh the page and try again.`);
         }
@@ -142,6 +144,7 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setProfilePictureFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setProfilePicture(reader.result as string);
@@ -153,6 +156,7 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
 
   const handleRemoveImage = () => {
     setProfilePicture(null);
+    setProfilePictureFile(null);
     setUseDefaultPicture(true);
     setExistingPictureUrl(null);
     if (fileInputRef.current) {
@@ -186,28 +190,18 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
     setIsSubmitting(true);
 
     try {
-      const requestBody: Record<string, unknown> = {
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        birthday: formData.birthday,
-        contact: formData.contact,
-      };
-
-      if (formData.middle_name.trim()) {
-        requestBody.middle_name = formData.middle_name.trim();
-      }
-
-      // Drivers have license_number too; conductors don't drive.
-      if (!isConductor) {
-        requestBody.license_number = formData.license_number;
-      }
-
-      // Send profile picture only if a new one was uploaded.
-      // If the user selected "use default", send null to clear existing.
-      if (!useDefaultPicture && profilePicture) {
-        requestBody.profile_picture_url = profilePicture;
+      const requestBody = new FormData();
+      requestBody.append('first_name', formData.first_name);
+      requestBody.append('last_name', formData.last_name);
+      requestBody.append('birthday', formData.birthday);
+      requestBody.append('contact', formData.contact);
+      if (formData.middle_name.trim()) requestBody.append('middle_name', formData.middle_name.trim());
+      if (!isConductor) requestBody.append('license_number', formData.license_number);
+      if (!useDefaultPicture && profilePictureFile) {
+        requestBody.append('profile_picture', profilePictureFile);
       } else if (useDefaultPicture) {
-        requestBody.profile_picture_url = null;
+        // An empty nullable field tells Laravel to clear the existing image.
+        requestBody.append('profile_picture_url', '');
       }
 
       const endpoint = isConductor
@@ -216,8 +210,7 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
 
       const res = await fetch(endpoint, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
+        body: requestBody,
       });
 
       const data = await res.json();
@@ -229,6 +222,8 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
           for (const field of ['first_name', 'middle_name', 'last_name', 'birthday', 'contact', 'license_number']) {
             if (data.errors[field]) mapped[field] = data.errors[field];
           }
+          if (data.errors.profile_picture) mapped.profilePicture = data.errors.profile_picture;
+          if (data.errors.profile_picture_url) mapped.profilePicture = data.errors.profile_picture_url;
           setFieldErrors(mapped);
           const firstError = (Object.values(data.errors)[0] as string[] | undefined)?.[0] ?? 'Validation failed.';
           throw new Error(firstError);

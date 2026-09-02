@@ -62,14 +62,29 @@ export async function proxyToLaravel(
       Authorization: `Bearer ${token}`,
       Accept: "application/json",
     };
-    if (options.body !== undefined) {
+    const isMultipart = typeof FormData !== "undefined" && options.body instanceof FormData;
+    let method = options.method ?? "GET";
+    const requestBody = options.body;
+    // PHP does not reliably populate multipart fields for PUT/PATCH requests.
+    // Use Laravel's standard POST method spoofing for file updates.
+    if (isMultipart && method !== "POST" && method !== "GET") {
+      (requestBody as FormData).set("_method", method);
+      method = "POST";
+    }
+    if (options.body !== undefined && !isMultipart) {
       headers["Content-Type"] = "application/json";
     }
 
     const res = await fetch(`${API_URL}${API_V1}${path}`, {
-      method: options.method ?? "GET",
+      method,
       headers,
-      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      // Let fetch set the multipart boundary for FormData. JSON requests keep
+      // the existing serialization and API behavior.
+      body: isMultipart
+        ? requestBody as BodyInit
+        : requestBody !== undefined
+          ? JSON.stringify(requestBody)
+          : undefined,
     });
 
     const body = await res.json().catch(() => null);

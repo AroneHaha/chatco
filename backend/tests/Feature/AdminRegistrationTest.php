@@ -112,6 +112,7 @@ class AdminRegistrationTest extends TestCase
         $this->assertNull($first['verified_at']);
         $this->assertNull($first['rejection_reason']);
         $this->assertNotEmpty($first['id_image_url']);
+        $this->assertStringContainsString('ids/commuters/', $first['id_image_url']);
     }
 
     public function test_pending_list_is_ordered_oldest_first(): void
@@ -583,7 +584,7 @@ class AdminRegistrationTest extends TestCase
             'username' => $username,
             'language_preference' => 'English',
             'account_status' => 'PENDING',
-            'id_image_url' => 'id-images/'.$user->id.'-sample',
+            'id_image_url' => 'ids/commuters/'.$user->id.'/sample',
             'verified_at' => null,
             'rejection_reason' => null,
         ]);

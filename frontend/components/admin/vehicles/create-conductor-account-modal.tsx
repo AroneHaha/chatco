@@ -46,6 +46,7 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
   });
 
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
+  const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null);
   const [useDefaultPicture, setUseDefaultPicture] = useState<boolean>(true);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -67,6 +68,7 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setProfilePictureFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setProfilePicture(reader.result as string);
@@ -78,6 +80,7 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
 
   const handleRemoveImage = () => {
     setProfilePicture(null);
+    setProfilePictureFile(null);
     setUseDefaultPicture(true);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -98,25 +101,17 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
     setIsSubmitting(true);
 
     try {
-      const requestBody: Record<string, unknown> = {
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        birthday: formData.birthday,
-        contact: formData.contact,
-      };
-
-      if (formData.middle_name.trim()) {
-        requestBody.middle_name = formData.middle_name.trim();
-      }
-
-      if (!useDefaultPicture && profilePicture) {
-        requestBody.profile_picture_url = profilePicture;
-      }
+      const requestBody = new FormData();
+      requestBody.append('first_name', formData.first_name);
+      requestBody.append('last_name', formData.last_name);
+      requestBody.append('birthday', formData.birthday);
+      requestBody.append('contact', formData.contact);
+      if (formData.middle_name.trim()) requestBody.append('middle_name', formData.middle_name.trim());
+      if (!useDefaultPicture && profilePictureFile) requestBody.append('profile_picture', profilePictureFile);
 
       const res = await fetch('/api/admin/conductors', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
+        body: requestBody,
       });
 
       const data = await res.json();
@@ -131,6 +126,7 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
           if (data.errors.last_name) mapped.last_name = data.errors.last_name;
           if (data.errors.birthday) mapped.birthday = data.errors.birthday;
           if (data.errors.contact) mapped.contact = data.errors.contact;
+          if (data.errors.profile_picture) mapped.profilePicture = data.errors.profile_picture;
           if (data.errors.profile_picture_url) mapped.profilePicture = data.errors.profile_picture_url;
           setFieldErrors(mapped);
           const firstError = (Object.values(data.errors)[0] as string[] | undefined)?.[0] ?? 'Validation failed.';
@@ -144,6 +140,7 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
       // Reset form.
       setFormData({ first_name: '', middle_name: '', last_name: '', birthday: '', contact: '' });
       setProfilePicture(null);
+      setProfilePictureFile(null);
       setUseDefaultPicture(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create conductor account');

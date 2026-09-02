@@ -50,6 +50,7 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
   });
 
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
+  const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null);
   const [useDefaultPicture, setUseDefaultPicture] = useState<boolean>(true);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -73,6 +74,7 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setProfilePictureFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setProfilePicture(reader.result as string);
@@ -84,6 +86,7 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
 
   const handleRemoveImage = () => {
     setProfilePicture(null);
+    setProfilePictureFile(null);
     setUseDefaultPicture(true);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -109,28 +112,18 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
     setIsSubmitting(true);
 
     try {
-      // Build the request body matching Laravel's storeDriver() validation.
-      // profile_picture_url is only sent if the user uploaded a custom image.
-      const requestBody: Record<string, unknown> = {
-        first_name: formData.firstName,
-        last_name: formData.lastName,
-        birthday: formData.birthday,
-        contact: formData.contact,
-        license_number: formData.licenseNumber,
-      };
-
-      if (formData.middleName.trim()) {
-        requestBody.middle_name = formData.middleName.trim();
-      }
-
-      if (!useDefaultPicture && profilePicture) {
-        requestBody.profile_picture_url = profilePicture;
-      }
+      const requestBody = new FormData();
+      requestBody.append('first_name', formData.firstName);
+      requestBody.append('last_name', formData.lastName);
+      requestBody.append('birthday', formData.birthday);
+      requestBody.append('contact', formData.contact);
+      requestBody.append('license_number', formData.licenseNumber);
+      if (formData.middleName.trim()) requestBody.append('middle_name', formData.middleName.trim());
+      if (!useDefaultPicture && profilePictureFile) requestBody.append('profile_picture', profilePictureFile);
 
       const res = await fetch('/api/admin/drivers', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
+        body: requestBody,
       });
 
       const data = await res.json();
@@ -147,6 +140,7 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
           if (data.errors.birthday) mapped.birthday = data.errors.birthday;
           if (data.errors.contact) mapped.contact = data.errors.contact;
           if (data.errors.license_number) mapped.licenseNumber = data.errors.license_number;
+          if (data.errors.profile_picture) mapped.profilePicture = data.errors.profile_picture;
           if (data.errors.profile_picture_url) mapped.profilePicture = data.errors.profile_picture_url;
           setFieldErrors(mapped);
           const firstError = (Object.values(data.errors)[0] as string[] | undefined)?.[0] ?? 'Validation failed.';
@@ -165,6 +159,7 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
         licenseNumber: '',
       });
       setProfilePicture(null);
+      setProfilePictureFile(null);
       setUseDefaultPicture(true);
       onSave();
       onClose();

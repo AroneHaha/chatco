@@ -47,9 +47,11 @@ export async function PUT(
     return jsonError("Conductor ID is missing. Please close and reopen the modal.", 400);
   }
 
-  let body: Record<string, unknown>;
+  let body: Record<string, unknown> | FormData;
   try {
-    body = await request.json();
+    body = request.headers.get("content-type")?.includes("multipart/form-data")
+      ? await request.formData()
+      : await request.json();
   } catch {
     return jsonError("Invalid request body.", 400);
   }

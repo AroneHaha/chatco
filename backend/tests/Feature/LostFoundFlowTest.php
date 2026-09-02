@@ -985,6 +985,7 @@ class LostFoundFlowTest extends TestCase
         // image_url (the thumbnail = position 0) is set and the file exists on disk
         $item->refresh();
         $this->assertNotNull($item->image_url);
+        $this->assertStringContainsString('lost-and-found/', $item->image_url);
         Storage::disk('public')->assertExists(
             $this->extractPathFromUrl($item->image_url)
         );

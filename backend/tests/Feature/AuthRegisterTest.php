@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -60,7 +61,7 @@ class AuthRegisterTest extends TestCase
      * Send a multipart POST with a fake ID image — mirrors what the real
      * signup form does, including the email verification it completes first.
      */
-    private function registerWithFile(array $overrides = []): \Illuminate\Testing\TestResponse
+    private function registerWithFile(array $overrides = []): TestResponse
     {
         $payload = array_merge(
             $this->validPayload($overrides),
@@ -122,6 +123,7 @@ class AuthRegisterTest extends TestCase
         // The id_image_url column is populated (non-null, non-empty) — the
         // uploaded file was stored to disk and its path persisted.
         $this->assertNotEmpty($user->commuterProfile->id_image_url);
+        $this->assertStringContainsString('ids/commuters/', $user->commuterProfile->id_image_url);
 
         // The uploaded filename is built from the same UUID that ends up as
         // the row's actual id — 'id' is intentionally excluded from
