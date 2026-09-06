@@ -182,10 +182,18 @@ class DatabaseSeeder extends Seeder
             ['code' => 'MYC-07', 'name' => 'Banga',                'lat' => 14.7046000, 'lng' => 120.7619000, 'landmarks' => ['Banga Terminal', 'Banga Market']],
         ];
 
-        // Build waypoints JSON for the route
-        $waypoints = array_map(function ($stop) {
-            return ['lat' => $stop['lat'], 'lng' => $stop['lng'], 'name' => $stop['name']];
-        }, $barangayStops);
+        // Build waypoints JSON for the route — full 77-point polyline ported
+        // VERBATIM from the web app (frontend/config/route-coords.ts, W5 CTC
+        // line). Served to the conductor mobile app via GET /api/v1/routes/active
+        // so web and mobile draw the identical line. Falls back to the fare
+        // point stop coordinates if the geometry data file is missing.
+        $geometryFile = __DIR__.'/data/route-w5-ctc.json';
+
+        $waypoints = file_exists($geometryFile)
+            ? json_decode((string) file_get_contents($geometryFile), true)['coordinates']
+            : array_map(function ($stop) {
+                return ['lat' => $stop['lat'], 'lng' => $stop['lng'], 'name' => $stop['name']];
+            }, $barangayStops);
 
         $route = Route::create([
             'name'      => 'McArthur Highway — Calumpit to Meycauayan',

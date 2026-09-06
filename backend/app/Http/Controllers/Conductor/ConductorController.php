@@ -92,7 +92,10 @@ class ConductorController extends Controller
             $request->user(),
             $validated['shift_id'],
             (float) $validated['total_collected'],
-            (float) $validated['remitted_amount'],
+            // chatco-mobile does not send remitted_amount — the conductor
+            // declares the same cash they collected. Fall back to
+            // total_collected when the field is absent.
+            (float) ($validated['remitted_amount'] ?? $validated['total_collected']),
         );
 
         return $this->successResponse(
@@ -225,13 +228,20 @@ class ConductorController extends Controller
      */
     public function storeTransaction(RecordCashRequest $request): JsonResponse
     {
-        $transaction = $this->transactionService->recordCashFare(
+        $result = $this->transactionService->recordCashFare(
             $request->user(),
             $request->validated(),
         );
 
+        // Group cash fare — service returns the group payload instead of
+        // a single Transaction; the mobile app reads group_id /
+        // multiple_payment_reference / transactions[] from this shape.
+        if (is_array($result)) {
+            return $this->successResponse($result, 'Group cash fare recorded', 201);
+        }
+
         return $this->successResponse(
-            $transaction,
+            $result,
             'Cash fare recorded',
             201,
         );

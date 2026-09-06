@@ -34,7 +34,12 @@ class RecordCashRequest extends FormRequest
     {
         return [
             'payment_method'   => 'required|string|in:CASH,VOUCHER',
-            'final_amount'     => 'required|numeric|min:0',
+
+            // Single-passenger fare. NOT required when group_passengers is
+            // present — the mobile app's group payment derives each row's
+            // final_amount from the group payload instead.
+            'final_amount'     => 'required_without:group_passengers|nullable|numeric|min:0',
+
             'pickup_name'      => 'required|string|max:100',
             'dropoff_name'     => 'required|string|max:100',
             'base_fare'        => 'nullable|numeric|min:0',
@@ -46,6 +51,17 @@ class RecordCashRequest extends FormRequest
             'dropoff_stop_id'  => 'nullable|uuid|exists:fare_points,id',
             'idempotency_key'  => 'nullable|string|max:100',
             'voucher_code'     => 'nullable|string|required_if:payment_method,VOUCHER|max:50',
+
+            // ─── Group cash fare (chatco-mobile multi-passenger payment) ──
+            // One cash payment covering N passengers. The service expands
+            // this into one transaction row per seat, sharing a group_id
+            // and multiple_payment_reference.
+            'group_passengers'              => ['nullable', 'array', 'min:1', 'max:30'],
+            'group_passengers.*.type'       => ['required_with:group_passengers', 'string', 'in:REGULAR,SENIOR_CITIZEN,STUDENT,PWD'],
+            'group_passengers.*.quantity'   => ['required_with:group_passengers', 'integer', 'min:1'],
+            'group_passengers.*.final_amount' => ['required_with:group_passengers', 'numeric', 'min:0'],
+            'group_passengers.*.base_fare'  => ['nullable', 'numeric', 'min:0'],
+            'group_passengers.*.discount_amount' => ['nullable', 'numeric', 'min:0'],
         ];
     }
 
@@ -68,6 +84,9 @@ class RecordCashRequest extends FormRequest
             'pickup_stop_id.exists'    => 'Pickup stop not found',
             'dropoff_stop_id.uuid'     => 'Dropoff stop ID must be a valid UUID',
             'dropoff_stop_id.exists'   => 'Dropoff stop not found',
+            'final_amount.required_without' => 'Final amount is required unless group passengers are provided',
+            'group_passengers.*.type.in'    => 'Passenger type must be REGULAR, SENIOR_CITIZEN, STUDENT or PWD',
+            'group_passengers.*.quantity.min' => 'Each passenger row needs at least 1 passenger',
         ];
     }
 }

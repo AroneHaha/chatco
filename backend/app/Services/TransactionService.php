@@ -80,9 +80,20 @@ class TransactionService
      * @throws \Symfony\Component\HttpKernel\Exception\HttpException
      *         422 if conductor has no active shift
      */
-    public function recordCashFare(User $conductor, array $data): Transaction
+    public function recordCashFare(User $conductor, array $data): Transaction|array
     {
         $shift = $this->resolveConductorActiveShift($conductor);
+
+        // ─── Group cash fare (chatco-mobile multi-passenger payment) ─
+        // One cash payment covering N passengers (mixed REGULAR / SENIOR
+        // / STUDENT / PWD). Expands into one transaction row per seat,
+        // sharing a group_id + multiple_payment_reference. Returns an
+        // array payload instead of a single Transaction.
+        $groupPassengers = $data['group_passengers'] ?? null;
+
+        if (is_array($groupPassengers) && count($groupPassengers) > 0) {
+            return $this->recordGroupCashFare($shift, $data, $groupPassengers);
+        }
 
         $paymentMethod  = $data['payment_method'] ?? 'CASH';
         $finalAmount    = (float) ($data['final_amount'] ?? 0);
@@ -169,6 +180,103 @@ class TransactionService
             'dropoff_stop_id'  => null,
             'paid_at'          => now(),
         ]);
+    }
+
+    /**
+     * Record a GROUP cash fare — one payment, N passengers.
+     *
+     * Payload (validated by RecordCashRequest):
+     *   group_passengers: [ { type, quantity, final_amount, base_fare?, discount_amount? } ]
+     *
+     * Creates one transaction row per seat (quantity × rows), all sharing:
+     *   group_id + multiple_payment_reference + total_passengers.
+     * The idempotency_key is stored on the FIRST row only, so a network
+     * replay from the mobile offline queue rebuilds and returns the whole
+     * group instead of double-charging.
+     *
+     * @return array{group_id: string, multiple_payment_reference: string, transactions: array<int, Transaction>}
+     */
+    private function recordGroupCashFare(ShiftLog $shift, array $data, array $groupPassengers): array
+    {
+        $idempotencyKey = $data['idempotency_key'] ?? null;
+
+        // ─── Idempotent replay — rebuild and return the stored group ──
+        if ($idempotencyKey) {
+            $existing = Transaction::where('idempotency_key', $idempotencyKey)->first();
+
+            if ($existing) {
+                $rows = $existing->group_id
+                    ? Transaction::where('group_id', $existing->group_id)
+                        ->orderBy('group_position')
+                        ->get()
+                    : collect([$existing]);
+
+                return [
+                    'group_id'                   => $existing->group_id,
+                    'multiple_payment_reference' => $existing->multiple_payment_reference,
+                    'transactions'               => $rows->values()->all(),
+                ];
+            }
+        }
+
+        $groupId      = (string) Str::uuid();
+        $reference    = 'MPG-'.strtoupper(Str::random(8));
+
+        $totalPassengers = 0;
+        foreach ($groupPassengers as $row) {
+            $totalPassengers += max(1, (int) ($row['quantity'] ?? 1));
+        }
+
+        $transactions = [];
+        $position     = 0;
+        $isFirstRow   = true;
+
+        foreach ($groupPassengers as $row) {
+            $quantity    = max(1, (int) ($row['quantity'] ?? 1));
+            $finalAmount = (float) ($row['final_amount'] ?? 0);
+            $baseFare    = isset($row['base_fare']) ? (float) $row['base_fare'] : (isset($data['base_fare']) ? (float) $data['base_fare'] : null);
+            $discount    = isset($row['discount_amount']) ? (float) $row['discount_amount'] : (isset($data['discount_amount']) ? (float) $data['discount_amount'] : null);
+
+            for ($seat = 0; $seat < $quantity; $seat++) {
+                $position++;
+
+                $transactions[] = Transaction::create([
+                    'transaction_id'   => $this->generateTransactionId(),
+                    'shift_id'         => $shift->shift_id,
+                    'group_id'         => $groupId,
+                    'group_position'   => $position,
+                    'multiple_payment_reference' => $reference,
+                    'total_passengers' => $totalPassengers,
+                    'payment_method'   => PaymentMethod::CASH->value,
+                    'status'           => PaymentStatus::PAID->value,
+                    // Key on the first row only — the replay lookup above
+                    // rebuilds the group from it.
+                    'idempotency_key'  => $isFirstRow ? $idempotencyKey : null,
+                    'final_amount'     => $finalAmount,
+                    'base_fare'        => $baseFare,
+                    'distance'         => isset($data['distance']) ? (float) $data['distance'] : null,
+                    'discount_amount'  => $discount,
+                    'pickup_name'      => $data['pickup_name'] ?? null,
+                    'dropoff_name'     => $data['dropoff_name'] ?? null,
+                    'passenger_role'   => $row['type'],
+                    // Denormalized from shift_log for fast reporting without JOINs
+                    'conductor_name'   => $shift->conductor_name,
+                    'unit_number'      => $shift->unit_number,
+                    'driver_name'      => $shift->driver_name,
+                    'pickup_stop_id'   => null,
+                    'dropoff_stop_id'  => null,
+                    'paid_at'          => now(),
+                ]);
+
+                $isFirstRow = false;
+            }
+        }
+
+        return [
+            'group_id'                   => $groupId,
+            'multiple_payment_reference' => $reference,
+            'transactions'               => $transactions,
+        ];
     }
 
     // ─── GCash Flow ─────────────────────────────────────────────────

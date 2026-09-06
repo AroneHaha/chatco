@@ -60,6 +60,14 @@ class AuthService
             }
         }
 
+        // ─── Single active session — "latest login wins" ────────────
+        // Logging in revokes every token previously issued to this user,
+        // so the most recent device is the only valid session. Earlier
+        // devices receive 401 on their next call; the conductor mobile
+        // app treats that as "This conductor account continued on another
+        // device" and signs out automatically (no manual claim/release).
+        $user->tokens()->delete();
+
         $token = $user->createToken('auth-token')->plainTextToken;
 
         return [

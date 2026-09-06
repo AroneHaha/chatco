@@ -54,6 +54,11 @@ class Transaction extends Model
         'qr_token',
         'paid_at',
         'idempotency_key',
+        // ─── Group cash fare (mobile multi-passenger payment) ─────────
+        'group_id',
+        'group_position',
+        'multiple_payment_reference',
+        'total_passengers',
         // ─── Provider-agnostic payment columns ────────────────────────
         'payment_provider',
         'payment_reference',

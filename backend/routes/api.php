@@ -27,6 +27,9 @@ use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\Payment\PaymentController;
 use App\Http\Controllers\Payment\QrController;
 use App\Http\Controllers\FareMatrixController;
+use App\Http\Controllers\RouteGeometryController;
+use App\Http\Controllers\SystemStatusController;
+use App\Http\Controllers\Conductor\BreakStatusController;
 
 /*
 |--------------------------------------------------------------------------
@@ -50,6 +53,11 @@ Route::prefix('auth')->group(function () {
 */
 Route::get('/fare-matrix', [FareMatrixController::class, 'index'])->middleware('throttle:commuter-hail');
 
+// System liveness probe (public) — the conductor mobile app polls this every
+// 20s to distinguish "server reachable" from "network down" before flushing
+// the offline cash queue. Any non-network response counts as online there.
+Route::get('/system-status', [SystemStatusController::class, 'index']);
+
 // Public tracking endpoint — no auth required. Anyone with the token
 // can view the commuter's live position (for the share-ride feature).
 // No throttle — this is a public read-only endpoint that polls every 5s.
@@ -61,6 +69,11 @@ Route::get('/share/{token}', [\App\Http\Controllers\Commuter\ShareRideController
 |--------------------------------------------------------------------------
 */
 Route::middleware('auth:sanctum')->get('/user', [AuthController::class, 'user']);
+
+// Active route geometry (authenticated, any role) — the conductor mobile
+// app draws this polyline under the vehicle marker. Geometry is seeded
+// verbatim from the web app's frontend/config/route-coords.ts.
+Route::middleware('auth:sanctum')->get('/routes/active', [RouteGeometryController::class, 'active']);
 
 /*
 |--------------------------------------------------------------------------
@@ -167,6 +180,10 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->grou
 
     // Capacity status updates
     Route::post('/capacity-status', [ConductorController::class, 'updateCapacityStatus'])->middleware('throttle:conductor-write');
+
+    // Break toggle (Sprint 8 — chatco-mobile dashboard). Reads back the full
+    // active shift so the client can refresh is_on_break/break_started_at.
+    Route::post('/break-status', [BreakStatusController::class, 'update'])->middleware('throttle:conductor-mutation');
 
     // Transaction lifecycle (S4-T5) — cash recording, GCash initiate, earnings.
     // POST fare recording uses conductor-write (30/min) — comfortably above

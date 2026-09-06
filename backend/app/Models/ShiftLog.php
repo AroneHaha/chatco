@@ -30,6 +30,8 @@ class ShiftLog extends Model
         'is_active',
         'notes',
         'status',
+        'is_on_break',
+        'break_started_at',
     ];
 
     protected function casts(): array
@@ -39,6 +41,8 @@ class ShiftLog extends Model
             'time_out' => 'datetime',
             'is_active' => 'boolean',
             'status' => ShiftStatus::class,
+            'is_on_break' => 'boolean',
+            'break_started_at' => 'datetime',
         ];
     }
 
