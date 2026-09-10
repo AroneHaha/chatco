@@ -8,6 +8,7 @@ use Illuminate\Foundation\Http\FormRequest;
  * Validates POST /api/v1/admin/vehicles.
  *
  * plate_number + unit_number must be unique (422 on dup).
+ * brand + model are required.
  * vehicle_type, capacity_status, route_id, driver_id, conductor_id, status
  * are optional but validated for format/existence when present.
  */
@@ -23,6 +24,8 @@ class StoreVehicleRequest extends FormRequest
         return [
             'unit_number'      => 'required|string|max:20|unique:vehicles,unit_number',
             'plate_number'     => 'required|string|max:20|unique:vehicles,plate_number',
+            'brand'            => 'required|string|max:50',
+            'model'            => 'required|string|max:50',
             'vehicle_type'     => 'nullable|string|max:50|in:Jeepney,Bus,Van,UV Express',
             'route_id'         => 'nullable|uuid|exists:routes,id',
             'driver_id'        => 'nullable|uuid|exists:drivers,id',

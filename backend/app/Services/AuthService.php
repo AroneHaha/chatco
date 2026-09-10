@@ -343,6 +343,7 @@ class AuthService
                     'id' => $user->id,
                     'first_name' => $data['first_name'],
                     'middle_name' => $data['middle_name'] ?? null,
+                    'suffix' => $data['suffix'] ?? null,
                     'surname' => $data['surname'],
                     'birthdate' => $data['birthdate'],
                     'gender' => $data['gender'],

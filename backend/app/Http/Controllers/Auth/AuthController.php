@@ -179,7 +179,7 @@ class AuthController extends Controller
 
         if ($taken) {
             throw ValidationException::withMessages([
-                'email' => ['That email already has a CHATCO account. Sign in instead, or use "Forgot password" if you can\'t get in.'],
+                'email' => ['That email is already in use.'],
             ]);
         }
 

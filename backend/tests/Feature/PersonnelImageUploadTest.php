@@ -43,6 +43,10 @@ class PersonnelImageUploadTest extends TestCase
             'last_name' => 'Dela Cruz',
             'birthday' => '1990-01-01',
             'contact' => '09171234567',
+            'address' => '123 Rizal St., Malolos, Bulacan',
+            'emergency_contact_name' => 'Ana Dela Cruz',
+            'emergency_contact_number' => '09189998888',
+            'emergency_contact_relationship' => 'Spouse',
             'license_number' => 'N01-23-045678',
             'profile_picture' => UploadedFile::fake()->image('driver.jpg'),
         ]);
@@ -63,6 +67,10 @@ class PersonnelImageUploadTest extends TestCase
             'last_name' => 'Santos',
             'birthday' => '1992-03-15',
             'contact' => '09181234567',
+            'address' => '123 Rizal St., Malolos, Bulacan',
+            'emergency_contact_name' => 'Jose Santos',
+            'emergency_contact_number' => '09189998888',
+            'emergency_contact_relationship' => 'Parent',
             'profile_picture' => UploadedFile::fake()->image('conductor.jpg'),
         ]);
 

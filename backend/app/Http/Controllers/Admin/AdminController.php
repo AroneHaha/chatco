@@ -35,6 +35,9 @@ class AdminController extends Controller
 {
     use ApiResponse;
 
+    /** Predefined emergency-contact relationship choices — kept in sync with the admin UI's dropdown. */
+    private const RELATIONSHIP_OPTIONS = ['Spouse', 'Parent', 'Sibling', 'Relative', 'Guardian', 'Friend', 'Other'];
+
     public function __construct(
         private AdminService $adminService,
         private LocationService $locationService,
@@ -230,11 +233,17 @@ class AdminController extends Controller
             'last_name' => 'required|string|max:100',
             'birthday' => 'required|date|before:today',
             'contact' => ['required', 'string', 'regex:/^09[0-9]{9}$/'],
+            'address' => ['required', 'string', 'max:255'],
+            'emergency_contact_name' => ['required', 'string', 'max:100'],
+            'emergency_contact_number' => ['required', 'string', 'regex:/^09[0-9]{9}$/'],
+            'emergency_contact_relationship' => ['required', 'string', Rule::in(self::RELATIONSHIP_OPTIONS)],
             'license_number' => ['required', 'string', 'regex:/^[A-Z][0-9]{2}-[0-9]{2}-[0-9]{6}$/', 'unique:drivers,license_number'],
             'profile_picture_url' => 'nullable|string|max:500',
             'profile_picture' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
         ], [
             'contact.regex' => 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).',
+            'emergency_contact_number.regex' => 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).',
+            'emergency_contact_relationship.in' => 'The relationship must be one of: '.implode(', ', self::RELATIONSHIP_OPTIONS).'.',
             'license_number.regex' => 'Use the Philippine LTO format N01-23-045678 (one letter, four digits, then six digits).',
         ]);
 
@@ -251,6 +260,10 @@ class AdminController extends Controller
                     'last_name' => $validated['last_name'],
                     'birthday' => $validated['birthday'],
                     'contact' => $validated['contact'],
+                    'address' => $validated['address'],
+                    'emergency_contact_name' => $validated['emergency_contact_name'],
+                    'emergency_contact_number' => $validated['emergency_contact_number'],
+                    'emergency_contact_relationship' => $validated['emergency_contact_relationship'],
                     'license_number' => $validated['license_number'],
                     'hire_date' => now()->toDateString(),
                     'profile_picture_url' => $newPictureUrl,
@@ -890,9 +903,15 @@ class AdminController extends Controller
             'last_name' => 'required|string|max:100',
             'birthday' => 'required|date|before:today',
             'contact' => ['required', 'string', 'regex:/^09[0-9]{9}$/'],
+            'address' => ['required', 'string', 'max:255'],
+            'emergency_contact_name' => ['required', 'string', 'max:100'],
+            'emergency_contact_number' => ['required', 'string', 'regex:/^09[0-9]{9}$/'],
+            'emergency_contact_relationship' => ['required', 'string', Rule::in(self::RELATIONSHIP_OPTIONS)],
             'profile_picture_url' => 'nullable|string|max:500',
         ], [
             'contact.regex' => 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).',
+            'emergency_contact_number.regex' => 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).',
+            'emergency_contact_relationship.in' => 'The relationship must be one of: '.implode(', ', self::RELATIONSHIP_OPTIONS).'.',
         ]);
 
         $firstName = $validated['first_name'];
@@ -955,6 +974,10 @@ class AdminController extends Controller
                     'last_name' => $lastName,
                     'birthday' => $birthday,
                     'contact' => $validated['contact'],
+                    'address' => $validated['address'],
+                    'emergency_contact_name' => $validated['emergency_contact_name'],
+                    'emergency_contact_number' => $validated['emergency_contact_number'],
+                    'emergency_contact_relationship' => $validated['emergency_contact_relationship'],
                     'profile_picture_url' => $newPictureUrl,
                     'generated_username' => $generatedUsername,
                     'generated_password' => $generatedPassword,

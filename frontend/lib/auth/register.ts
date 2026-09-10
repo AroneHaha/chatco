@@ -9,6 +9,7 @@ export type AppliedType = "REGULAR" | "STUDENT" | "SENIOR" | "PWD";
 export interface RegisterInput {
   first_name: string;
   middle_name?: string;
+  suffix?: string;
   surname: string;
   birthdate: string;
   gender: string;
@@ -54,6 +55,7 @@ export async function register(input: RegisterInput): Promise<RegisterResult> {
 
   formData.append("first_name", input.first_name);
   if (input.middle_name) formData.append("middle_name", input.middle_name);
+  if (input.suffix) formData.append("suffix", input.suffix);
   formData.append("surname", input.surname);
   formData.append("birthdate", input.birthdate);
   formData.append("gender", input.gender);

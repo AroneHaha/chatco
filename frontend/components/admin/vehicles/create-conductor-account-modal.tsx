@@ -3,11 +3,14 @@
 
 import { useState, useRef } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
-import { UserPlus, MapPin, Upload, Check, User, Calendar, Phone, X } from 'lucide-react';
+import { UserPlus, Upload, Check, User, Calendar, Phone, X, Home, Users } from 'lucide-react';
 
 // Mirrors the backend's PH mobile format check (AdminController::storeConductor).
 const CONTACT_PATTERN = /^09[0-9]{9}$/;
 const CONTACT_ERROR = 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).';
+
+// Mirrors AdminController::RELATIONSHIP_OPTIONS on the backend.
+const RELATIONSHIP_OPTIONS = ['Spouse', 'Parent', 'Sibling', 'Relative', 'Guardian', 'Friend', 'Other'];
 
 function formatContactNumber(value: string): string {
   return value.replace(/[^0-9]/g, '').slice(0, 11);
@@ -43,6 +46,10 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
     last_name: '',
     birthday: '',
     contact: '',
+    address: '',
+    emergency_contact_name: '',
+    emergency_contact_number: '',
+    emergency_contact_relationship: '',
   });
 
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
@@ -57,9 +64,9 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'contact'
+      [name]: name === 'contact' || name === 'emergency_contact_number'
         ? formatContactNumber(value)
-        : name === 'first_name' || name === 'last_name'
+        : name === 'first_name' || name === 'last_name' || name === 'emergency_contact_name'
           ? formatPersonName(value)
           : value,
     }));
@@ -98,6 +105,11 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
       return;
     }
 
+    if (!CONTACT_PATTERN.test(formData.emergency_contact_number)) {
+      setFieldErrors({ emergency_contact_number: [CONTACT_ERROR] });
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -106,6 +118,10 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
       requestBody.append('last_name', formData.last_name);
       requestBody.append('birthday', formData.birthday);
       requestBody.append('contact', formData.contact);
+      requestBody.append('address', formData.address);
+      requestBody.append('emergency_contact_name', formData.emergency_contact_name);
+      requestBody.append('emergency_contact_number', formData.emergency_contact_number);
+      requestBody.append('emergency_contact_relationship', formData.emergency_contact_relationship);
       if (formData.middle_name.trim()) requestBody.append('middle_name', formData.middle_name.trim());
       if (!useDefaultPicture && profilePictureFile) requestBody.append('profile_picture', profilePictureFile);
 
@@ -126,6 +142,10 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
           if (data.errors.last_name) mapped.last_name = data.errors.last_name;
           if (data.errors.birthday) mapped.birthday = data.errors.birthday;
           if (data.errors.contact) mapped.contact = data.errors.contact;
+          if (data.errors.address) mapped.address = data.errors.address;
+          if (data.errors.emergency_contact_name) mapped.emergency_contact_name = data.errors.emergency_contact_name;
+          if (data.errors.emergency_contact_number) mapped.emergency_contact_number = data.errors.emergency_contact_number;
+          if (data.errors.emergency_contact_relationship) mapped.emergency_contact_relationship = data.errors.emergency_contact_relationship;
           if (data.errors.profile_picture) mapped.profilePicture = data.errors.profile_picture;
           if (data.errors.profile_picture_url) mapped.profilePicture = data.errors.profile_picture_url;
           setFieldErrors(mapped);
@@ -138,7 +158,17 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
       // Success — pass the generated credentials to the parent (shows success modal).
       onCreated(data.data);
       // Reset form.
-      setFormData({ first_name: '', middle_name: '', last_name: '', birthday: '', contact: '' });
+      setFormData({
+        first_name: '',
+        middle_name: '',
+        last_name: '',
+        birthday: '',
+        contact: '',
+        address: '',
+        emergency_contact_name: '',
+        emergency_contact_number: '',
+        emergency_contact_relationship: '',
+      });
       setProfilePicture(null);
       setProfilePictureFile(null);
       setUseDefaultPicture(true);
@@ -334,19 +364,97 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
           )}
         </div>
 
-        {/* Route Assignment — fixed to the single corridor */}
+        {/* Address */}
         <div>
-          <label htmlFor="cond-route" className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-2">
-            <MapPin size={14} /> Assigned Route
+          <label htmlFor="cond-address" className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-2">
+            <Home size={14} /> Address <span className="text-red-400">*</span>
           </label>
-          <select
-            id="cond-route"
-            disabled
-            className="block w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-slate-500 cursor-not-allowed text-sm [color-scheme:dark]"
-          >
-            <option className="bg-gray-800">Malolos - Meycauayan - Calumpit</option>
-          </select>
-          <p className="text-xs text-slate-600 mt-1">Fixed to the single active e-jeep corridor.</p>
+          <input
+            type="text"
+            id="cond-address"
+            name="address"
+            value={formData.address}
+            onChange={handleChange}
+            required
+            disabled={isSubmitting}
+            placeholder="123 Rizal St., Malolos, Bulacan"
+            className={`${inputClasses} ${fieldErrors.address ? 'border-red-500/50' : ''}`}
+          />
+          {fieldErrors.address && (
+            <p className="text-xs text-red-400 mt-1">{fieldErrors.address[0]}</p>
+          )}
+        </div>
+
+        {/* Emergency Contact */}
+        <div>
+          <p className="flex items-center gap-2 text-xs font-medium text-slate-300 mb-2">
+            <Users size={14} /> Emergency Contact
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="cond-emergency-name" className="block text-xs font-medium text-slate-300 mb-1.5">
+                Contact Name <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                id="cond-emergency-name"
+                name="emergency_contact_name"
+                value={formData.emergency_contact_name}
+                onChange={handleChange}
+                required
+                disabled={isSubmitting}
+                placeholder="Jose Santos"
+                className={`${inputClasses} ${fieldErrors.emergency_contact_name ? 'border-red-500/50' : ''}`}
+              />
+              {fieldErrors.emergency_contact_name && (
+                <p className="text-xs text-red-400 mt-1">{fieldErrors.emergency_contact_name[0]}</p>
+              )}
+            </div>
+            <div>
+              <label htmlFor="cond-emergency-number" className="block text-xs font-medium text-slate-300 mb-1.5">
+                Contact Number <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="tel"
+                id="cond-emergency-number"
+                name="emergency_contact_number"
+                value={formData.emergency_contact_number}
+                onChange={handleChange}
+                required
+                disabled={isSubmitting}
+                placeholder="e.g. 09171234567"
+                maxLength={11}
+                pattern="09[0-9]{9}"
+                title="Enter an 11-digit mobile number starting with 09"
+                className={`${inputClasses} ${fieldErrors.emergency_contact_number ? 'border-red-500/50' : ''}`}
+              />
+              {fieldErrors.emergency_contact_number && (
+                <p className="text-xs text-red-400 mt-1">{fieldErrors.emergency_contact_number[0]}</p>
+              )}
+            </div>
+          </div>
+          <div className="mt-4">
+            <label htmlFor="cond-emergency-relationship" className="block text-xs font-medium text-slate-300 mb-1.5">
+              Relationship <span className="text-red-400">*</span>
+            </label>
+            <select
+              id="cond-emergency-relationship"
+              name="emergency_contact_relationship"
+              value={formData.emergency_contact_relationship}
+              onChange={handleChange}
+              required
+              disabled={isSubmitting}
+              className={`${inputClasses} [color-scheme:dark] ${fieldErrors.emergency_contact_relationship ? 'border-red-500/50' : ''}`}
+            >
+              <option value="" disabled className="bg-gray-800">Select Relationship</option>
+              {RELATIONSHIP_OPTIONS.map(opt => (
+                <option key={opt} value={opt} className="bg-gray-800">{opt}</option>
+              ))}
+            </select>
+            {fieldErrors.emergency_contact_relationship && (
+              <p className="text-xs text-red-400 mt-1">{fieldErrors.emergency_contact_relationship[0]}</p>
+            )}
+          </div>
         </div>
 
         {/* Action Buttons */}

@@ -114,6 +114,8 @@ class AdminService
             return Vehicle::create([
                 'unit_number' => $data['unit_number'],
                 'plate_number' => $data['plate_number'],
+                'brand' => $data['brand'],
+                'model' => $data['model'],
                 'vehicle_type' => $data['vehicle_type'] ?? null,
                 'route_id' => $data['route_id'] ?? null,
                 'driver_id' => $data['driver_id'] ?? null,

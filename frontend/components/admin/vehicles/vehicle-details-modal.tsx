@@ -16,6 +16,8 @@ import {
   AlertCircle,
   IdCard,
   Users,
+  Tag,
+  Calendar,
 } from 'lucide-react';
 import {
   get as getVehicle,
@@ -50,6 +52,19 @@ function buildUnitQrPayload(v: AdminVehicle): string {
     unitNumber: v.unitNumber,
     plateNumber: v.plateNumber,
   });
+}
+
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return '—';
+  try {
+    return new Date(dateStr).toLocaleDateString('en-PH', {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+    });
+  } catch {
+    return '—';
+  }
 }
 
 function CrewRow({
@@ -253,6 +268,9 @@ export function VehicleDetailsModal({ isOpen, vehicleId, onClose }: VehicleDetai
             <div className="divide-y divide-[#1A2540]">
               <DetailRow icon={Hash} label="Unit Number" value={vehicle.unitNumber || '—'} />
               <DetailRow icon={Car} label="Plate Number" value={vehicle.plateNumber || '—'} />
+              <DetailRow icon={Tag} label="Brand" value={vehicle.brand || '—'} />
+              <DetailRow icon={Tag} label="Model" value={vehicle.model || '—'} />
+              <DetailRow icon={Calendar} label="Date Added" value={formatDate(vehicle.createdAt)} />
             </div>
           </section>
 

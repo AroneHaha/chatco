@@ -17,6 +17,7 @@ class CommuterProfile extends Model
         'id',
         'first_name',
         'middle_name',
+        'suffix',
         'surname',
         'birthdate',
         'gender',

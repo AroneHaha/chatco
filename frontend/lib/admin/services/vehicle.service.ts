@@ -48,6 +48,8 @@ interface RawVehicle {
   unit_number: string | null;
   plate_number: string | null;
   vehicle_type?: string | null;
+  brand?: string | null;
+  model?: string | null;
   route_id?: string | null;
   driver_id?: string | null;
   conductor_id?: string | null;
@@ -56,6 +58,7 @@ interface RawVehicle {
   route?: RawRoute | null;
   driver?: RawPerson | null;
   conductor?: RawPerson | null;
+  created_at?: string | null;
 }
 
 /**
@@ -108,6 +111,8 @@ export interface AdminVehicle {
   unitNumber: string;
   plateNumber: string;
   vehicleType: string | null;
+  brand: string | null;
+  model: string | null;
   /** Raw backend status enum. */
   status: VehicleStatus;
   /** UI-friendly label for the table badge. */
@@ -116,6 +121,8 @@ export interface AdminVehicle {
   route: VehicleRoute | null;
   driver: VehiclePerson | null;
   conductor: VehiclePerson | null;
+  /** ISO timestamp of when this vehicle record was created. */
+  createdAt: string | null;
 }
 
 /** Pagination metadata returned by the list endpoint. */
@@ -157,6 +164,8 @@ export interface VehicleMutationInput {
   unitNumber?: string;
   plateNumber?: string;
   vehicleType?: string | null;
+  brand?: string | null;
+  model?: string | null;
   routeId?: string | null;
   driverId?: string | null;
   conductorId?: string | null;
@@ -236,12 +245,15 @@ function mapVehicle(raw: RawVehicle): AdminVehicle {
     unitNumber: String(raw.unit_number ?? ""),
     plateNumber: String(raw.plate_number ?? ""),
     vehicleType: raw.vehicle_type ?? null,
+    brand: raw.brand ?? null,
+    model: raw.model ?? null,
     status,
     statusLabel: mapStatusLabel(raw.status),
     capacityStatus: (raw.capacity_status as CapacityStatus | null) ?? null,
     route: mapRoute(raw.route),
     driver: mapPerson(raw.driver),
     conductor: mapPerson(raw.conductor),
+    createdAt: raw.created_at ?? null,
   };
 }
 
@@ -268,6 +280,8 @@ function buildMutationBody(input: VehicleMutationInput): Record<string, unknown>
   if (input.unitNumber !== undefined) body.unit_number = input.unitNumber;
   if (input.plateNumber !== undefined) body.plate_number = input.plateNumber;
   if (input.vehicleType !== undefined) body.vehicle_type = input.vehicleType;
+  if (input.brand !== undefined) body.brand = input.brand;
+  if (input.model !== undefined) body.model = input.model;
   if (input.routeId !== undefined) body.route_id = input.routeId;
   if (input.driverId !== undefined) body.driver_id = input.driverId;
   if (input.conductorId !== undefined) body.conductor_id = input.conductorId;
