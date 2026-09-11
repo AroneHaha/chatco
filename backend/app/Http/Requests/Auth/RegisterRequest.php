@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Rules\PhilippineMobileNumber;
 use App\Rules\StrongPassword;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
@@ -83,7 +84,7 @@ class RegisterRequest extends FormRequest
             'birthdate' => ['required', 'date', 'before:today'],
             'gender' => ['required', 'string', 'max:20'],
             'email' => ['required', 'string', 'email:rfc', 'max:255'],
-            'contact_number' => ['required', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
+            'contact_number' => ['required', 'string', new PhilippineMobileNumber],
             'username' => ['required', 'string', 'max:50', 'unique:commuter_profiles,username'],
             'password' => ['required', 'string', 'confirmed', new StrongPassword],
             'language_preference' => ['nullable', 'string', 'max:20'],
@@ -97,7 +98,6 @@ class RegisterRequest extends FormRequest
         return [
             'applied_type.in' => 'The applied type must be one of: REGULAR, STUDENT, SENIOR, PWD.',
             'suffix.in' => 'The suffix must be one of: '.implode(', ', self::SUFFIX_OPTIONS).'.',
-            'contact_number.regex' => 'The contact number format is invalid.',
             'username.unique' => 'The username has already been taken.',
             'id_image.required' => 'A valid ID image is required to complete registration.',
             'password.confirmed' => 'The password confirmation does not match.',

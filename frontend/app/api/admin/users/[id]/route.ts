@@ -49,7 +49,8 @@ export async function GET(
  *   last_name?: string         (profile last name — mapped to `surname`
  *                               for commuters server-side)
  *   account_status?: "ACTIVE"|"SUSPENDED"  (commuter-only)
- *   contact_number?: string    (commuter-only, phone format)
+ *   contact_number?: string    (commuter-only, 09XXXXXXXXX format)
+ *   birthdate?: string         (commuter-only, YYYY-MM-DD)
  *
  * Email, role, and password are deliberately NOT editable through this
  * endpoint (server-enforced via UpdateUserRequest whitelist).

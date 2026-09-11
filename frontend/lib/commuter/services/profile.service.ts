@@ -112,7 +112,7 @@ function mapProfile(raw: ProfilePayload): CommuterProfile {
 // ─── Public input types ──────────────────────────────────────────────
 
 export interface UpdateProfileInput {
-  /** Philippine phone format (09xxxxxxxxx or +63xxxxxxxxxx) */
+  /** Canonical PH mobile format only: 11 digits starting with 09 (e.g. "09171234567"). */
   contactNumber?: string;
   /** Free-form language tag, e.g. "English" / "Filipino" */
   languagePreference?: string;

@@ -19,8 +19,16 @@ export async function POST(
     return jsonError("Conductor ID is missing.", 400);
   }
 
+  let body: { current_password?: string } | undefined;
+  try {
+    body = await request.json();
+  } catch {
+    body = undefined;
+  }
+
   const result = await proxyToLaravel(request, `/admin/conductors/${id}/disable`, {
     method: "POST",
+    body,
   });
 
   if (!result.ok) return jsonError(result.message ?? "Failed to disable conductor.", result.status);

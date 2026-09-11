@@ -4,7 +4,7 @@ import { DataTable } from '@/components/admin/ui/data-table';
 import { TablePagination } from '@/components/admin/ui/table-pagination';
 import { Badge } from '@/components/admin/ui/badge';
 import { Modal } from '@/components/admin/ui/modal';
-import { Clock, UserIcon, Mail, Phone, CreditCard, Pencil, Trash2, AtSign, Calendar, ShieldCheck } from 'lucide-react';
+import { UserIcon, Mail, Phone, CreditCard, Pencil, Trash2, AtSign, Calendar, ShieldCheck } from 'lucide-react';
 import type { ActiveUser, RejectedUser } from '@/app/(admin)/users/data/users-data';
 
 type User = ActiveUser | RejectedUser;
@@ -38,7 +38,6 @@ interface UsersTableProps {
   onDeactivate: (user: ActiveUser) => void;
   onEdit: (user: ActiveUser) => void;
   onDelete: (user: ActiveUser) => void;
-  onViewHistory: (userId: string) => void;
   isRejectedTab: boolean;
   selectedUser: User | null;
   onSelectUser: (user: User | null) => void;
@@ -61,7 +60,7 @@ interface UsersTableProps {
   isRefreshing?: boolean;
 }
 
-export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete, onViewHistory, isRejectedTab, selectedUser, onSelectUser, onRowDoubleClick, headerContent, pagination, onPageChange, isRefreshing }: UsersTableProps) {
+export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete, isRejectedTab, selectedUser, onSelectUser, onRowDoubleClick, headerContent, pagination, onPageChange, isRefreshing }: UsersTableProps) {
   const columns = [
     {
       key: 'name',
@@ -123,15 +122,8 @@ export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete,
               >
                 <Pencil size={18} />
               </button>
-              <button 
-                onClick={(e) => { e.stopPropagation(); onViewHistory(String(item.id)); }} 
-                className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-[#1A2540] transition-colors" 
-                title="View History"
-              >
-                <Clock size={18} />
-              </button>
-              <button 
-                onClick={(e) => { e.stopPropagation(); onDelete(item as ActiveUser); }} 
+              <button
+                onClick={(e) => { e.stopPropagation(); onDelete(item as ActiveUser); }}
                 className="text-slate-400 hover:text-red-400 p-1 rounded-md hover:bg-red-400/10 transition-colors" 
                 title="Delete User"
               >
@@ -283,21 +275,30 @@ export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete,
                 <p className="mt-1 text-slate-300">{selectedUser.suspension.reason}</p>
               </div>
             )}
-            {role === 'DRIVER' ? (
+            <div className="flex gap-2">
+              <button
+                onClick={() => { onEdit(selectedUser as ActiveUser); onSelectUser(null); }}
+                className="flex-1 py-2.5 rounded-md text-sm font-medium bg-[#62A0EA]/10 text-[#62A0EA] border border-[#62A0EA]/20 hover:bg-[#62A0EA]/20 transition-colors"
+              >
+                Edit {roleLabel}
+              </button>
+              {role !== 'DRIVER' && (
+                <button
+                  onClick={() => { onDeactivate(selectedUser as ActiveUser); onSelectUser(null); }}
+                  className={`flex-1 py-2.5 rounded-md text-sm font-medium transition-colors ${
+                    selectedUser.status === 'Active'
+                      ? 'bg-red-400/10 text-red-400 border border-red-400/20 hover:bg-red-400/20'
+                      : 'bg-sky-400/10 text-sky-400 border border-sky-400/20 hover:bg-sky-400/20'
+                  }`}
+                >
+                  {selectedUser.status === 'Active' ? 'Suspend Account' : 'Reactivate Account'}
+                </button>
+              )}
+            </div>
+            {role === 'DRIVER' && (
               <p className="rounded-md border border-[#1E2D45] bg-[#0E1628] p-3 text-center text-sm text-slate-400">
                 Driver account status is managed in Fleet Management.
               </p>
-            ) : (
-              <button
-                onClick={() => { onDeactivate(selectedUser as ActiveUser); onSelectUser(null); }}
-                className={`w-full py-2.5 rounded-md text-sm font-medium transition-colors ${
-                  selectedUser.status === 'Active'
-                    ? 'bg-red-400/10 text-red-400 border border-red-400/20 hover:bg-red-400/20'
-                    : 'bg-sky-400/10 text-sky-400 border border-sky-400/20 hover:bg-sky-400/20'
-                }`}
-              >
-                {selectedUser.status === 'Active' ? 'Suspend Account' : 'Reactivate Account'}
-              </button>
             )}
           </div>
           );

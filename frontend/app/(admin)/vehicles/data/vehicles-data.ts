@@ -8,6 +8,7 @@ export interface Personnel {
   role: 'Driver' | 'Conductor';
   contact: string;
   profilePic: string;
+  status: 'ACTIVE' | 'DEACTIVATED';
 }
 
 export interface Vehicle {
@@ -238,6 +239,7 @@ function mapPersonnel(apiPersonnel: Record<string, unknown>[]): Personnel[] {
       profilePic: p.profile_picture_url
         ? String(p.profile_picture_url)
         : `https://placehold.co/150x150/0A1E33/${role === 'Driver' ? '62A0EA' : 'F59E0B'}?text=${name[0] ?? role[0]}`,
+      status: p.status === 'DEACTIVATED' ? 'DEACTIVATED' : 'ACTIVE',
     };
   });
 }

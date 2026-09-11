@@ -27,6 +27,7 @@ class ConductorProfile extends Model
         'profile_picture_url',
         'generated_username',
         'generated_password',
+        'status',
     ];
 
     protected function casts(): array

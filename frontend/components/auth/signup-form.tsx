@@ -6,6 +6,7 @@ import Link from "next/link";
 import { register, type AppliedType, RegisterError } from "@/lib/auth/register";
 import { sendVerificationCode, verifyEmailCode, VerificationError } from "@/lib/auth/email-verification";
 import CodeInput from "@/components/auth/code-input";
+import { CONTACT_NUMBER_PATTERN, CONTACT_NUMBER_ERROR, formatContactNumberInput } from "@/lib/utils/format";
 
 // Camera-dependent, so it stays out of the initial bundle and off the server.
 const IdCaptureModal = dynamic(() => import("@/components/auth/id-capture-modal"), {
@@ -130,8 +131,13 @@ export default function SignupForm() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    // Capitalized live so the field already shows what gets saved.
-    setFormData({ ...formData, [name]: name === "middleName" ? formatPersonName(value) : value });
+    // Capitalized/digit-stripped live so the field already shows what gets saved.
+    setFormData({
+      ...formData,
+      [name]: name === "middleName" ? formatPersonName(value)
+        : name === "contactNumber" ? formatContactNumberInput(value)
+        : value,
+    });
 
     // Editing the email abandons any code already typed — it belongs to the
     // old address. (The verification itself is void by comparison, not state.)
@@ -226,8 +232,8 @@ export default function SignupForm() {
 
       if (!formData.contactNumber.trim()) {
         errors.contact_number = ["Enter your contact number."];
-      } else if (!/^[0-9+\-\s()]{7,20}$/.test(formData.contactNumber.trim())) {
-        errors.contact_number = ["Use digits only, 7–20 characters (e.g. 0912 345 6789)."];
+      } else if (!CONTACT_NUMBER_PATTERN.test(formData.contactNumber.trim())) {
+        errors.contact_number = [CONTACT_NUMBER_ERROR];
       }
 
       if (!idImage) {
@@ -627,7 +633,7 @@ export default function SignupForm() {
                 </div>
                 <div>
                   <label htmlFor="contactNumber" className={labelClasses}>Contact Number *</label>
-                  <input id="contactNumber" name="contactNumber" type="tel" value={formData.contactNumber} onChange={handleChange} className={`${inputClasses} ${errorRing("contact_number")}`} placeholder="0912 345 6789" />
+                  <input id="contactNumber" name="contactNumber" type="tel" value={formData.contactNumber} onChange={handleChange} maxLength={11} className={`${inputClasses} ${errorRing("contact_number")}`} placeholder="09171234567" />
                   {getFieldError("contact_number") && <p className={errorClasses}>{getFieldError("contact_number")}</p>}
                 </div>
               </div>

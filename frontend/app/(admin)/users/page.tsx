@@ -10,7 +10,6 @@ import { RejectedAccountDetailsModal } from '@/components/admin/users/rejected-a
 import { ReviewRequestModal } from '@/components/admin/users/review-request-modal';
 import { AddRegistrationModal } from '@/components/admin/users/add-registration-modal';
 import { EditUserModal } from '@/components/admin/users/edit-user-modal';
-import { UserHistoryModal } from '@/components/admin/users/user-history-modal';
 import { DeleteUserModal } from '@/components/admin/users/delete-user-modal';
 import { FeedbackModal, type FeedbackModalStaff } from '@/components/admin/users/feedback-modal';
 import { SearchBar } from '@/components/admin/ui/search-bar';
@@ -33,8 +32,6 @@ export default function UsersPage() {
     activeUsers,
     pendingRequests,
     rejectedUsers,
-    historyLogs,
-    fetchUserActivity,
     pagination,
     pendingPagination,
     rejectedPagination,
@@ -72,14 +69,12 @@ export default function UsersPage() {
   // Modal States
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
-  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
 
   const [selectedRequest, setSelectedRequest] = useState<PendingRequest | null>(null);
   const [selectedRejectedRequest, setSelectedRejectedRequest] = useState<RejectedRequest | null>(null);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<ActiveUser | RejectedUser | null>(null);
   const [editingUser, setEditingUser] = useState<ActiveUser | null>(null);
   const [deletingUser, setDeletingUser] = useState<ActiveUser | null>(null);
@@ -163,18 +158,6 @@ export default function UsersPage() {
   };
   const handleCloseRejectedDetails = () => {
     setSelectedRejectedRequest(null);
-  };
-
-  const handleOpenHistoryModal = (userId: string) => {
-    setSelectedUserId(userId);
-    setIsHistoryModalOpen(true);
-    // Fetch the user's activity timeline from the backend. The result is
-    // cached in historyLogs so repeat opens don't re-fetch.
-    void fetchUserActivity(userId);
-  };
-  const handleCloseHistoryModal = () => {
-    setSelectedUserId(null);
-    setIsHistoryModalOpen(false);
   };
 
   const handleOpenEditModal = (user: ActiveUser) => {
@@ -584,7 +567,6 @@ export default function UsersPage() {
                 onDeactivate={handleDeactivateUser}
                 onEdit={handleOpenEditModal}
                 onDelete={handleOpenDeleteModal}
-                onViewHistory={handleOpenHistoryModal}
                 onRowDoubleClick={handleRowDoubleClick}
                 isRejectedTab={false}
                 selectedUser={selectedUser}
@@ -645,8 +627,6 @@ export default function UsersPage() {
         onConfirm={handleConfirmDelete}
         user={deletingUser ? { name: deletingUser.name, email: deletingUser.email } : null}
       />
-
-      <UserHistoryModal isOpen={isHistoryModalOpen} onClose={handleCloseHistoryModal} logs={historyLogs[selectedUserId || ''] || []} />
 
       <RejectedAccountDetailsModal
         isOpen={selectedRejectedRequest !== null}

@@ -3,20 +3,19 @@
 
 import { useState, useRef } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
+import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
 import { UserPlus, Upload, Check, User, Phone, IdCard, X, Home, Users } from 'lucide-react';
+import {
+  CONTACT_NUMBER_PATTERN as CONTACT_PATTERN,
+  CONTACT_NUMBER_ERROR as CONTACT_ERROR,
+  formatContactNumberInput as formatContactNumber,
+} from '@/lib/utils/format';
 
 // Mirrors the backend's LTO format check (AdminController::storeDriver).
 const LICENSE_NUMBER_PATTERN = /^[A-Z][0-9]{2}-[0-9]{2}-[0-9]{6}$/;
-// Mirrors the backend's PH mobile format check (AdminController::storeDriver).
-const CONTACT_PATTERN = /^09[0-9]{9}$/;
-const CONTACT_ERROR = 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).';
 
 // Mirrors AdminController::RELATIONSHIP_OPTIONS on the backend.
 const RELATIONSHIP_OPTIONS = ['Spouse', 'Parent', 'Sibling', 'Relative', 'Guardian', 'Friend', 'Other'];
-
-function formatContactNumber(value: string): string {
-  return value.replace(/[^0-9]/g, '').slice(0, 11);
-}
 
 function formatLicenseNumber(value: string): string {
   const normalized = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -105,6 +104,11 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
 
     setError(null);
     setFieldErrors({});
+
+    if (!formData.birthday) {
+      setFieldErrors({ birthday: ['Birthday is required.'] });
+      return;
+    }
 
     if (!CONTACT_PATTERN.test(formData.contact)) {
       setFieldErrors({ contact: [CONTACT_ERROR] });
@@ -363,18 +367,15 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
 
         {/* Birthday */}
         <div>
-          <label htmlFor="birthday" className="block text-xs font-medium text-slate-300 mb-1.5">
+          <label className="block text-xs font-medium text-slate-300 mb-1.5">
             Birthday <span className="text-red-400">*</span>
           </label>
-          <input
-            type="date"
-            id="birthday"
-            name="birthday"
+          <AdminDatePicker
             value={formData.birthday}
-            onChange={handleChange}
-            required
-            disabled={isSubmitting}
-            className={`${inputClasses} [color-scheme:dark] ${fieldErrors.birthday ? 'border-red-500/50' : ''}`}
+            onChange={(value) => setFormData(prev => ({ ...prev, birthday: value }))}
+            ariaLabel="Birthday"
+            className="w-full"
+            triggerClassName="w-full py-2.5"
           />
           {fieldErrors.birthday && (
             <p className="text-xs text-red-400 mt-1">{fieldErrors.birthday[0]}</p>
