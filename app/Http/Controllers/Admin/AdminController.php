@@ -1062,7 +1062,7 @@ class AdminController extends Controller
             $completedQuery->where('date', $request->input('date'));
         }
         if ($statusFilter) {
-            if ($statusFilter === 'REMITTED') {
+            if ($statusFilter === 'REMITTED' || $statusFilter === 'SETTLED') {
                 $completedQuery->whereIn('remittance_status', [
                     Remittance::STATUS_COMPLETE,
                     Remittance::STATUS_SHORTAGE,
@@ -1072,6 +1072,17 @@ class AdminController extends Controller
             } elseif ($statusFilter === 'OVERDUE') {
                 $completedQuery->where('remittance_status', Remittance::STATUS_PENDING)
                     ->where('remittance_due_at', '<', now());
+            } elseif ($statusFilter === 'FOR CASH DECLARATION') {
+                $completedQuery->where('remittance_status', Remittance::STATUS_PENDING)
+                    ->where(function ($query): void {
+                        $query->whereNull('remittance_due_at')
+                            ->orWhere('remittance_due_at', '>=', now());
+                    });
+            } elseif ($statusFilter === 'PENDING') {
+                // "Pending" is exclusively for still-active shifts (is_active_shift: true),
+                // handled by $activeRows below. Completed remittances awaiting cash count
+                // are "For Cash Declaration".
+                $completedQuery->whereRaw('1 = 0');
             } else {
                 $completedQuery->where('remittance_status', $statusFilter);
             }
