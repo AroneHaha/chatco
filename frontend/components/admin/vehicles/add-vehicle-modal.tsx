@@ -27,6 +27,8 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
   const [formData, setFormData] = useState({
     unit_number: '',
     plate_number: '',
+    brand: '',
+    model: '',
     status: 'ACTIVE',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -52,6 +54,8 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
         body: JSON.stringify({
           unit_number: formData.unit_number,
           plate_number: formData.plate_number,
+          brand: formData.brand,
+          model: formData.model,
           status: formData.status,
           // NOTE: driver_id and conductor_id are intentionally NOT sent.
           // A new vehicle starts unassigned; personnel are linked
@@ -72,7 +76,7 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
       }
 
       // Reset form and close
-      setFormData({ unit_number: '', plate_number: '', status: 'ACTIVE' });
+      setFormData({ unit_number: '', plate_number: '', brand: '', model: '', status: 'ACTIVE' });
       // Pass the created vehicle's id up so the parent can surface the
       // freshly-generated permanent QR (downloadable / printable).
       const createdId = String(data?.data?.id ?? '');
@@ -117,6 +121,30 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
           {fieldErrors.plate_number && (
             <p className="text-xs text-red-400 mt-1">{fieldErrors.plate_number[0]}</p>
           )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="brand" className="block text-xs font-medium text-slate-300 mb-1.5">
+              Brand <span className="text-red-400">*</span>
+            </label>
+            <input type="text" id="brand" name="brand" value={formData.brand} onChange={handleChange} required placeholder="e.g., Isuzu"
+              className={`${inputClasses} ${fieldErrors.brand ? 'border-red-500/50' : ''}`} />
+            {fieldErrors.brand && (
+              <p className="text-xs text-red-400 mt-1">{fieldErrors.brand[0]}</p>
+            )}
+          </div>
+
+          <div>
+            <label htmlFor="model" className="block text-xs font-medium text-slate-300 mb-1.5">
+              Model <span className="text-red-400">*</span>
+            </label>
+            <input type="text" id="model" name="model" value={formData.model} onChange={handleChange} required placeholder="e.g., Elf NHR"
+              className={`${inputClasses} ${fieldErrors.model ? 'border-red-500/50' : ''}`} />
+            {fieldErrors.model && (
+              <p className="text-xs text-red-400 mt-1">{fieldErrors.model[0]}</p>
+            )}
+          </div>
         </div>
 
         <div>

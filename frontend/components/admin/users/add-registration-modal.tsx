@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import { Upload, X, Loader2, AlertCircle } from 'lucide-react';
+import { formatContactNumberInput } from '@/lib/utils/format';
 
 interface AddRegistrationModalProps {
   isOpen: boolean;
@@ -51,6 +52,9 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
     }
     else if (name === 'username') {
       setFormData(prev => ({ ...prev, [name]: value.replace(/\s/g, '') }));
+    }
+    else if (name === 'phoneNumber') {
+      setFormData(prev => ({ ...prev, [name]: formatContactNumberInput(value) }));
     }
     else {
       setFormData(prev => ({ ...prev, [name]: value }));
@@ -168,7 +172,19 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">Phone Number</label>
-              <input type="text" name="phoneNumber" value={formData.phoneNumber} onChange={handleChange} required disabled={isSubmitting} placeholder="0917-123-4567" className={inputClasses} />
+              <input
+                type="tel"
+                name="phoneNumber"
+                value={formData.phoneNumber}
+                onChange={handleChange}
+                required
+                disabled={isSubmitting}
+                placeholder="09171234567"
+                maxLength={11}
+                pattern="09[0-9]{9}"
+                title="Enter an 11-digit mobile number starting with 09 (e.g. 09171234567)"
+                className={inputClasses}
+              />
             </div>
           </div>
 

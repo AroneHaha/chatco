@@ -8,6 +8,11 @@ import {
   getProfile,
   updateProfile,
 } from "@/lib/commuter/services/profile.service";
+import {
+  CONTACT_NUMBER_PATTERN,
+  CONTACT_NUMBER_ERROR,
+  formatContactNumberInput,
+} from "@/lib/utils/format";
 
 type LoadState = "loading" | "loaded" | "error";
 
@@ -97,7 +102,10 @@ export function useProfile() {
 
   // ─── Edit handlers ────────────────────────────────────────────────
   const handleEditChange = (field: string, value: string) => {
-    setEditData((prev) => ({ ...prev, [field]: value }));
+    setEditData((prev) => ({
+      ...prev,
+      [field]: field === "contactNumber" ? formatContactNumberInput(value) : value,
+    }));
     setSaveError(null);
   };
 
@@ -119,6 +127,14 @@ export function useProfile() {
 
   const saveProfile = async () => {
     if (!profile) return;
+
+    // Client-side pre-flight — saves a round-trip on an obviously malformed number.
+    const contactNumber = editData.contactNumber ?? profile.contactNumber;
+    if (!CONTACT_NUMBER_PATTERN.test(contactNumber)) {
+      setSaveError(CONTACT_NUMBER_ERROR);
+      return;
+    }
+
     setIsSaving(true);
     setSaveError(null);
     try {

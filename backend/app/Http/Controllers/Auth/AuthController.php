@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Mail\PasswordResetCodeMail;
 use App\Models\User;
+use App\Rules\PhilippineMobileNumber;
 use App\Rules\StrongPassword;
 use App\Services\AuthService;
 use App\Services\EmailVerificationService;
@@ -164,7 +165,7 @@ class AuthController extends Controller
     {
         $request->validate([
             'email' => ['required', 'string', 'email:rfc', 'max:255'],
-            'contact_number' => ['nullable', 'string', 'max:20'],
+            'contact_number' => ['nullable', 'string', new PhilippineMobileNumber],
         ]);
 
         $email = $this->normalizeEmail($request->email);
@@ -179,7 +180,7 @@ class AuthController extends Controller
 
         if ($taken) {
             throw ValidationException::withMessages([
-                'email' => ['That email already has a CHATCO account. Sign in instead, or use "Forgot password" if you can\'t get in.'],
+                'email' => ['That email is already in use.'],
             ]);
         }
 

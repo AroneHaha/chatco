@@ -6,6 +6,7 @@ import Link from "next/link";
 import { register, type AppliedType, RegisterError } from "@/lib/auth/register";
 import { sendVerificationCode, verifyEmailCode, VerificationError } from "@/lib/auth/email-verification";
 import CodeInput from "@/components/auth/code-input";
+import { CONTACT_NUMBER_PATTERN, CONTACT_NUMBER_ERROR, formatContactNumberInput } from "@/lib/utils/format";
 
 // Camera-dependent, so it stays out of the initial bundle and off the server.
 const IdCaptureModal = dynamic(() => import("@/components/auth/id-capture-modal"), {
@@ -19,6 +20,22 @@ const COMMUTER_TYPE_OPTIONS: { label: string; value: AppliedType }[] = [
   { label: "Senior Citizen", value: "SENIOR" },
   { label: "PWD", value: "PWD" },
 ];
+
+// Mirrors RegisterRequest's suffix allow-list on the backend.
+const SUFFIX_OPTIONS = ["Jr.", "Sr.", "II", "III", "IV"];
+
+// What the ID upload box asks for, based on the commuter type chosen in step 1.
+const ID_UPLOAD_LABELS: Record<AppliedType, string> = {
+  REGULAR: "Upload Valid ID *",
+  STUDENT: "Upload Student ID / Any School Form *",
+  SENIOR: "Upload Senior Citizen ID/Card *",
+  PWD: "Upload PWD ID/Card *",
+};
+
+/** Capitalizes the first letter of each word as the user types, e.g. "matti" -> "Matti". */
+function formatPersonName(value: string): string {
+  return value.replace(/(^|\s)([a-z])/g, (_match, boundary, letter) => boundary + letter.toUpperCase());
+}
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
@@ -51,7 +68,7 @@ const PASSWORD_RULES: { id: string; label: string; test: (v: string) => boolean 
  * fields they can't see.
  */
 const FIELD_STEP: Record<string, number> = {
-  first_name: 1, middle_name: 1, surname: 1, birthdate: 1, gender: 1, applied_type: 1,
+  first_name: 1, middle_name: 1, suffix: 1, surname: 1, birthdate: 1, gender: 1, applied_type: 1,
   email: 2, contact_number: 2, id_image: 2,
   username: 4, password: 4, password_confirmation: 4,
 };
@@ -73,6 +90,7 @@ export default function SignupForm() {
     surname: "",
     firstName: "",
     middleName: "",
+    suffix: "",
     birthdate: "",
     gender: "",
     email: "",
@@ -113,7 +131,13 @@ export default function SignupForm() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    // Capitalized/digit-stripped live so the field already shows what gets saved.
+    setFormData({
+      ...formData,
+      [name]: name === "middleName" ? formatPersonName(value)
+        : name === "contactNumber" ? formatContactNumberInput(value)
+        : value,
+    });
 
     // Editing the email abandons any code already typed — it belongs to the
     // old address. (The verification itself is void by comparison, not state.)
@@ -208,8 +232,8 @@ export default function SignupForm() {
 
       if (!formData.contactNumber.trim()) {
         errors.contact_number = ["Enter your contact number."];
-      } else if (!/^[0-9+\-\s()]{7,20}$/.test(formData.contactNumber.trim())) {
-        errors.contact_number = ["Use digits only, 7–20 characters (e.g. 0912 345 6789)."];
+      } else if (!CONTACT_NUMBER_PATTERN.test(formData.contactNumber.trim())) {
+        errors.contact_number = [CONTACT_NUMBER_ERROR];
       }
 
       if (!idImage) {
@@ -273,12 +297,15 @@ export default function SignupForm() {
         }
 
         // Anything the server pinned to a field (address in use, rejection
-        // cooldown) belongs to step 2, where the applicant can fix it.
+        // cooldown) belongs to step 2, where the applicant can fix it. The
+        // inline message under that field is enough — showing the same
+        // thing again as a top banner is redundant.
         if (Object.keys(err.errors).length > 0) {
           setFieldErrors(err.errors);
           setStep(2);
+        } else {
+          setServerError(err.message);
         }
-        setServerError(err.message);
       } else {
         setServerError("We couldn't send the code. Please try again.");
       }
@@ -401,6 +428,7 @@ export default function SignupForm() {
       await register({
         first_name: formData.firstName,
         middle_name: formData.middleName || undefined,
+        suffix: formData.suffix || undefined,
         surname: formData.surname,
         birthdate: formData.birthdate,
         gender: formData.gender,
@@ -529,7 +557,7 @@ export default function SignupForm() {
           {/* STEP 1 — Personal Info */}
           {step === 1 && (
             <div className="space-y-6 animate-in fade-in">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
                 <div>
                   <label htmlFor="firstName" className={labelClasses}>First Name *</label>
                   <input id="firstName" name="firstName" type="text" value={formData.firstName} onChange={handleChange} className={`${inputClasses} ${errorRing("first_name")}`} placeholder="Juan" />
@@ -537,12 +565,21 @@ export default function SignupForm() {
                 </div>
                 <div>
                   <label htmlFor="middleName" className={labelClasses}>Middle Name</label>
-                  <input id="middleName" name="middleName" type="text" value={formData.middleName} onChange={handleChange} className={inputClasses} placeholder="Santos" />
+                  <input id="middleName" name="middleName" type="text" value={formData.middleName} onChange={handleChange} className={inputClasses} placeholder="Santos (Optional)" />
                 </div>
                 <div>
                   <label htmlFor="surname" className={labelClasses}>Surname *</label>
                   <input id="surname" name="surname" type="text" value={formData.surname} onChange={handleChange} className={`${inputClasses} ${errorRing("surname")}`} placeholder="Dela Cruz" />
                   {getFieldError("surname") && <p className={errorClasses}>{getFieldError("surname")}</p>}
+                </div>
+                <div>
+                  <label htmlFor="suffix" className={labelClasses}>Suffix</label>
+                  <select id="suffix" name="suffix" value={formData.suffix} onChange={handleChange} className={inputClasses}>
+                    <option value="">None</option>
+                    {SUFFIX_OPTIONS.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
@@ -596,22 +633,31 @@ export default function SignupForm() {
                 </div>
                 <div>
                   <label htmlFor="contactNumber" className={labelClasses}>Contact Number *</label>
-                  <input id="contactNumber" name="contactNumber" type="tel" value={formData.contactNumber} onChange={handleChange} className={`${inputClasses} ${errorRing("contact_number")}`} placeholder="0912 345 6789" />
+                  <input id="contactNumber" name="contactNumber" type="tel" value={formData.contactNumber} onChange={handleChange} maxLength={11} className={`${inputClasses} ${errorRing("contact_number")}`} placeholder="09171234567" />
                   {getFieldError("contact_number") && <p className={errorClasses}>{getFieldError("contact_number")}</p>}
                 </div>
               </div>
               <div>
-                <label className={labelClasses}>Valid ID Upload *</label>
+                <label className={labelClasses}>
+                  {formData.appliedType ? ID_UPLOAD_LABELS[formData.appliedType] : "Valid ID Upload *"}
+                </label>
                 <div
                   role="button"
                   tabIndex={0}
                   onClick={() => setShowIdOptions(true)}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowIdOptions(true); } }}
-                  className={`relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-2xl transition-all duration-300 cursor-pointer ${
+                  className={`group relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-2xl transition-all duration-300 cursor-pointer ${
                     fileError ? "border-red-300 bg-red-50" : fileName ? "border-green-400 bg-green-50 hover:bg-green-100" : "border-[#1A5FB4]/30 bg-[#F8FAFC] hover:bg-[#F0F7FF]"
                   }`}
                 >
-                  <input ref={fileInputRef} id="validId" name="validId" type="file" accept="image/jpeg,image/jpg,image/png,image/webp" onChange={handleFileChange} className="hidden" />
+                  {/*
+                    fileInputRef.current.click() (fired by the "Upload an Image" button below)
+                    dispatches a real click event that bubbles up through this input's ancestors
+                    — including the container div's onClick — undoing the setShowIdOptions(false)
+                    that same button just set. Stop it here so a completed upload doesn't
+                    immediately reopen the overlay.
+                  */}
+                  <input ref={fileInputRef} id="validId" name="validId" type="file" accept="image/jpeg,image/jpg,image/png,image/webp" onChange={handleFileChange} onClick={(e) => e.stopPropagation()} className="hidden" />
                   {fileName ? (
                     <>
                       <svg className="w-10 h-10 text-green-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -629,10 +675,20 @@ export default function SignupForm() {
                     </>
                   )}
 
-                  {/* Blurred choice overlay — click the box, pick how to provide the ID. */}
-                  {showIdOptions && (
+                  {/*
+                    Blurred choice overlay — click the box, pick how to provide the ID.
+                    Once an ID is already uploaded, the success state (checkmark + filename)
+                    is what's shown at rest; this overlay only reappears on hover (or a
+                    click, for touch devices without hover) so it doesn't cover the
+                    confirmation that the upload succeeded.
+                  */}
+                  {(showIdOptions || fileName) && (
                     <div
-                      className="absolute inset-0 rounded-2xl backdrop-blur-md bg-white/70 flex flex-col items-center justify-center gap-3 px-6"
+                      className={`absolute inset-0 rounded-2xl backdrop-blur-md bg-white/70 flex flex-col items-center justify-center gap-3 px-6 transition-opacity duration-200 ${
+                        fileName && !showIdOptions
+                          ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
+                          : "opacity-100"
+                      }`}
                       onClick={(e) => { e.stopPropagation(); setShowIdOptions(false); }}
                     >
                       <button

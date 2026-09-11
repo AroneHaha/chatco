@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Rules\PhilippineMobileNumber;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -15,8 +16,8 @@ use Illuminate\Validation\Rule;
  * if sent — they are absent from validated() and the service uses only
  * validated() data. See AdminService for the rationale.
  *
- * `account_status` and `contact_number` are commuter-only; the service
- * rejects them (422) for other roles.
+ * `account_status`, `contact_number` and `birthdate` are commuter-only; the
+ * service rejects them (422) for other roles.
  */
 class UpdateUserRequest extends FormRequest
 {
@@ -32,7 +33,8 @@ class UpdateUserRequest extends FormRequest
             'middle_name'    => ['sometimes', 'nullable', 'string', 'max:100'],
             'last_name'      => ['sometimes', 'required', 'string', 'max:100'],
             'account_status' => ['sometimes', 'required', 'string', Rule::in(['ACTIVE', 'SUSPENDED'])],
-            'contact_number' => ['sometimes', 'required', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
+            'contact_number' => ['sometimes', 'required', 'string', new PhilippineMobileNumber],
+            'birthdate'      => ['sometimes', 'required', 'date', 'before:today'],
         ];
     }
 
@@ -42,7 +44,8 @@ class UpdateUserRequest extends FormRequest
             'first_name.required'    => 'First name cannot be empty',
             'last_name.required'     => 'Last name cannot be empty',
             'account_status.in'      => 'Account status must be ACTIVE or SUSPENDED',
-            'contact_number.regex'   => 'Contact number format is invalid',
+            'birthdate.date'         => 'Enter a valid date of birth',
+            'birthdate.before'       => 'Date of birth must be in the past',
         ];
     }
 }

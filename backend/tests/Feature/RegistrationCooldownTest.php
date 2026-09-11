@@ -99,7 +99,7 @@ class RegistrationCooldownTest extends TestCase
         $this->registerWithFile([
             'email' => 'totally-new@example.com',
             'username' => 'brandnew',
-            'contact_number' => '0917 123 4567', // same digits, different formatting
+            'contact_number' => '09171234567',
         ])
             ->assertStatus(422)
             ->assertJsonValidationErrors('email');

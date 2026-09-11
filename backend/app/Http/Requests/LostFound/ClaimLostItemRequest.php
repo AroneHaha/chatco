@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\LostFound;
 
+use App\Rules\PhilippineMobileNumber;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -23,7 +24,7 @@ class ClaimLostItemRequest extends FormRequest
     {
         return [
             'proof'           => 'required|string|max:1000',
-            'claimant_contact'=> 'nullable|string|max:20',
+            'claimant_contact'=> ['nullable', 'string', new PhilippineMobileNumber],
             'claimant_email'  => 'nullable|string|email|max:255',
         ];
     }

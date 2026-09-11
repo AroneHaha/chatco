@@ -70,6 +70,8 @@ class AdminVehicleCrudTest extends TestCase
         $response = $this->actingAs($admin)->postJson('/api/v1/admin/vehicles', [
             'unit_number'  => 'UNIT-NEW',
             'plate_number' => 'NEW-1234',
+            'brand'        => 'Isuzu',
+            'model'        => 'Elf NHR',
             'vehicle_type' => 'Bus',
         ]);
 
@@ -77,8 +79,20 @@ class AdminVehicleCrudTest extends TestCase
         $this->assertDatabaseHas('vehicles', [
             'unit_number'  => 'UNIT-NEW',
             'plate_number' => 'NEW-1234',
+            'brand'        => 'Isuzu',
+            'model'        => 'Elf NHR',
             'vehicle_type' => 'Bus',
         ]);
+    }
+
+    public function test_create_rejects_missing_brand_or_model(): void
+    {
+        $admin = $this->makeAdmin();
+
+        $this->actingAs($admin)->postJson('/api/v1/admin/vehicles', [
+            'unit_number'  => 'UNIT-NOBRAND',
+            'plate_number' => 'NB-0001',
+        ])->assertStatus(422)->assertJsonStructure(['errors' => ['brand', 'model']]);
     }
 
     public function test_create_rejects_duplicate_plate_or_unit(): void

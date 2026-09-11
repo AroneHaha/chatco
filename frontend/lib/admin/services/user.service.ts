@@ -28,10 +28,15 @@ interface RawUser {
   email: string;
   role: string;
   name: string;
+  first_name: string | null;
+  middle_name: string | null;
+  last_name: string | null;
   account_status: string | null;
   commuter_type: string | null;
   username: string | null;
   contact_number: string | null;
+  /** Commuter's date of birth (YYYY-MM-DD). Null for non-commuter roles. */
+  birthdate: string | null;
   verified_at: string | null;
   created_at: string | null;
   suspension: RawSuspension | null;
@@ -92,6 +97,9 @@ export interface AdminUser {
   email: string;
   role: UserRole;
   name: string;
+  firstName: string | null;
+  middleName: string | null;
+  lastName: string | null;
   /** Raw backend status — kept for the service layer to branch on. */
   accountStatus: AccountStatus | null;
   /** UI-friendly label for the table badge. */
@@ -102,6 +110,8 @@ export interface AdminUser {
   /** Commuter's self-chosen login username. Null for non-commuter roles. */
   username: string | null;
   contactNumber: string | null;
+  /** Commuter's date of birth (YYYY-MM-DD). Null for non-commuter roles. */
+  dateOfBirth: string | null;
   verifiedAt: string | null;
   createdAt: string | null;
   suspension: SuspensionDetails | null;
@@ -147,6 +157,8 @@ export interface UpdateUserInput {
   lastName?: string;
   accountStatus?: "ACTIVE" | "SUSPENDED";
   contactNumber?: string;
+  /** Commuter's date of birth (YYYY-MM-DD). Commuter-only. */
+  dateOfBirth?: string;
 }
 
 // ─── Typed errors ───────────────────────────────────────────────────
@@ -209,12 +221,16 @@ function mapUser(raw: RawUser): AdminUser {
     email: raw.email,
     role: raw.role as UserRole,
     name: raw.name,
+    firstName: raw.first_name,
+    middleName: raw.middle_name,
+    lastName: raw.last_name,
     accountStatus: (raw.account_status as AccountStatus | null) ?? null,
     statusLabel: mapStatusLabel(raw.account_status),
     commuterType: (raw.commuter_type as CommuterType | null) ?? null,
     commuterTypeLabel: mapCommuterTypeLabel(raw.commuter_type),
     username: raw.username,
     contactNumber: raw.contact_number,
+    dateOfBirth: raw.birthdate,
     verifiedAt: raw.verified_at,
     createdAt: raw.created_at,
     suspension: raw.suspension ? {
@@ -343,6 +359,7 @@ export async function update(id: string, input: UpdateUserInput): Promise<AdminU
   if (input.lastName !== undefined) body.last_name = input.lastName;
   if (input.accountStatus !== undefined) body.account_status = input.accountStatus;
   if (input.contactNumber !== undefined) body.contact_number = input.contactNumber;
+  if (input.dateOfBirth !== undefined) body.birthdate = input.dateOfBirth;
 
   const res = await fetch(`${API_BASE}/${encodeURIComponent(id)}`, {
     method: "PUT",

@@ -115,7 +115,7 @@ class UserFactory extends Factory
                     'birthdate' => '1995-01-01',
                     'gender' => 'Male',
                     'email' => $user->email,
-                    'contact_number' => '+63917' . fake()->numerify('#######'),
+                    'contact_number' => '0917' . fake()->numerify('#######'),
                     'commuter_type' => 'Regular',
                     'username' => 'commuter_' . Str::random(8),
                     'language_preference' => 'en',
