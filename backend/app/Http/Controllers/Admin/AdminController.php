@@ -1294,7 +1294,14 @@ class AdminController extends Controller
         // column, so wrapping it in whereDate()'s CAST(...) still blocks the
         // remittances_date_index range scan and forces a full table scan.
         if ($request->filled('date_from')) {
-            $completedQuery->where('date', '>=', $request->input('date_from'));
+            $dateFrom = $request->input('date_from');
+            $completedQuery->where(function ($query) use ($dateFrom): void {
+                $query->where('date', '>=', $dateFrom)
+                    ->orWhere(function ($q): void {
+                        $q->where('remittance_status', Remittance::STATUS_PENDING)
+                            ->where('date', '>=', now('Asia/Manila')->subDays(7)->toDateString());
+                    });
+            });
         }
         if ($request->filled('date_to')) {
             $completedQuery->where('date', '<=', $request->input('date_to'));
@@ -1368,7 +1375,11 @@ class AdminController extends Controller
                 ->whereDoesntHave('remittance');
 
             if ($request->filled('date_from')) {
-                $activeQuery->where('time_in', '>=', Carbon::parse($request->input('date_from'))->startOfDay());
+                $dateFrom = Carbon::parse($request->input('date_from'))->startOfDay();
+                $activeQuery->where(function ($q) use ($dateFrom): void {
+                    $q->where('time_in', '>=', $dateFrom)
+                        ->orWhere('time_in', '>=', now('Asia/Manila')->subHours(24));
+                });
             }
             if ($request->filled('date_to')) {
                 $activeQuery->where('time_in', '<=', Carbon::parse($request->input('date_to'))->endOfDay());

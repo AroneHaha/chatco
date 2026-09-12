@@ -21,6 +21,11 @@ Schedule::command('payments:expire-stale')
     ->everyMinute()
     ->withoutOverlapping(2);
 
+Schedule::command('shifts:auto-end-stale')
+    ->everyTenMinutes()
+    ->timezone('Asia/Manila')
+    ->withoutOverlapping(10);
+
 Schedule::command('shifts:auto-end-stale --all')
     ->dailyAt('00:00')
     ->timezone('Asia/Manila')
