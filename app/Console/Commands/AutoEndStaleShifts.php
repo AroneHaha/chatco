@@ -33,7 +33,11 @@ class AutoEndStaleShifts extends Command
             }
 
             $cutoff = now()->subHours($maxHours);
-            $query->where('time_in', '<=', $cutoff);
+            $dayStart = now('Asia/Manila')->startOfDay();
+            $query->where(function ($q) use ($cutoff, $dayStart): void {
+                $q->where('time_in', '<=', $cutoff)
+                    ->orWhere('time_in', '<', $dayStart);
+            });
         }
 
         $ended = 0;
