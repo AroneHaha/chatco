@@ -269,6 +269,7 @@ Route::prefix('mobile/conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR']
 
     Route::get('/transactions', [MobileTransactionController::class, 'index'])->middleware('throttle:conductor-read');
     Route::post('/transactions', [MobileTransactionController::class, 'store'])->middleware('throttle:conductor-write');
+    Route::post('/transactions/sync', [MobileTransactionController::class, 'syncBatch'])->middleware('throttle:conductor-write');
     Route::post('/payments/gcash/initiate', [ConductorController::class, 'initiateGcash'])->middleware('throttle:conductor-write');
     Route::get('/payments/gcash/pending', [ConductorController::class, 'pendingGcash'])->middleware('throttle:conductor-read');
     Route::get('/earnings', [ConductorController::class, 'earnings'])->middleware('throttle:conductor-read');
