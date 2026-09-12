@@ -21,13 +21,15 @@ Schedule::command('payments:expire-stale')
     ->everyMinute()
     ->withoutOverlapping(2);
 
-Schedule::command('shifts:auto-end-stale')
-    ->everyFiveMinutes()
-    ->withoutOverlapping(10);
+Schedule::command('shifts:auto-end-stale --all')
+    ->dailyAt('00:00')
+    ->timezone('Asia/Manila')
+    ->withoutOverlapping(60);
 
 Schedule::command('remittances:send-reminders')
-    ->everyFiveMinutes()
-    ->withoutOverlapping(10);
+    ->dailyAt('00:05')
+    ->timezone('Asia/Manila')
+    ->withoutOverlapping(60);
 
 Schedule::command('lost-items:expire')
     ->dailyAt('01:00')
