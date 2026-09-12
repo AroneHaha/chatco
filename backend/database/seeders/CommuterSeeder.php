@@ -60,7 +60,7 @@ class CommuterSeeder extends Seeder
             $seq = str_pad((string) ($i + 1), 3, '0', STR_PAD_LEFT);
             $handle = strtolower(str_replace(' ', '', $first) . '.' . str_replace(' ', '', $surname));
             $email = "{$handle}@gmail.com";
-            $contact = '+63917' . str_pad((string) (1000000 + $i), 7, '0', STR_PAD_LEFT);
+            $contact = '0917' . str_pad((string) (1000000 + $i), 7, '0', STR_PAD_LEFT);
 
             $user = User::create([
                 'email'    => $email,

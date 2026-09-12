@@ -3,17 +3,19 @@
 
 import { useState, useRef } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
-import { UserPlus, Upload, Check, User, Phone, IdCard, X } from 'lucide-react';
+import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
+import { UserPlus, Upload, Check, User, Phone, IdCard, X, Home, Users } from 'lucide-react';
+import {
+  CONTACT_NUMBER_PATTERN as CONTACT_PATTERN,
+  CONTACT_NUMBER_ERROR as CONTACT_ERROR,
+  formatContactNumberInput as formatContactNumber,
+} from '@/lib/utils/format';
 
 // Mirrors the backend's LTO format check (AdminController::storeDriver).
 const LICENSE_NUMBER_PATTERN = /^[A-Z][0-9]{2}-[0-9]{2}-[0-9]{6}$/;
-// Mirrors the backend's PH mobile format check (AdminController::storeDriver).
-const CONTACT_PATTERN = /^09[0-9]{9}$/;
-const CONTACT_ERROR = 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).';
 
-function formatContactNumber(value: string): string {
-  return value.replace(/[^0-9]/g, '').slice(0, 11);
-}
+// Mirrors AdminController::RELATIONSHIP_OPTIONS on the backend.
+const RELATIONSHIP_OPTIONS = ['Spouse', 'Parent', 'Sibling', 'Relative', 'Guardian', 'Friend', 'Other'];
 
 function formatLicenseNumber(value: string): string {
   const normalized = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -48,6 +50,10 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
     lastName: '',
     birthday: '',
     contact: '',
+    address: '',
+    emergencyContactName: '',
+    emergencyContactNumber: '',
+    emergencyContactRelationship: '',
     licenseNumber: '',
   });
 
@@ -69,9 +75,9 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
       ...prev,
       [name]: name === 'licenseNumber'
         ? formatLicenseNumber(value)
-        : name === 'contact'
+        : name === 'contact' || name === 'emergencyContactNumber'
           ? formatContactNumber(value)
-          : name === 'firstName' || name === 'lastName'
+          : name === 'firstName' || name === 'lastName' || name === 'emergencyContactName'
             ? formatPersonName(value)
             : value,
     }));
@@ -135,8 +141,18 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
     setError(null);
     setFieldErrors({});
 
+    if (!formData.birthday) {
+      setFieldErrors({ birthday: ['Birthday is required.'] });
+      return;
+    }
+
     if (!CONTACT_PATTERN.test(formData.contact)) {
       setFieldErrors({ contact: [CONTACT_ERROR] });
+      return;
+    }
+
+    if (!CONTACT_PATTERN.test(formData.emergencyContactNumber)) {
+      setFieldErrors({ emergencyContactNumber: [CONTACT_ERROR] });
       return;
     }
 
@@ -153,6 +169,10 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
       requestBody.append('last_name', formData.lastName);
       requestBody.append('birthday', formData.birthday);
       requestBody.append('contact', formData.contact);
+      requestBody.append('address', formData.address);
+      requestBody.append('emergency_contact_name', formData.emergencyContactName);
+      requestBody.append('emergency_contact_number', formData.emergencyContactNumber);
+      requestBody.append('emergency_contact_relationship', formData.emergencyContactRelationship);
       requestBody.append('license_number', formData.licenseNumber);
       if (formData.middleName.trim()) requestBody.append('middle_name', formData.middleName.trim());
       if (!useDefaultPicture && profilePictureFile) requestBody.append('profile_picture', profilePictureFile);
@@ -175,6 +195,10 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
           if (data.errors.last_name) mapped.lastName = data.errors.last_name;
           if (data.errors.birthday) mapped.birthday = data.errors.birthday;
           if (data.errors.contact) mapped.contact = data.errors.contact;
+          if (data.errors.address) mapped.address = data.errors.address;
+          if (data.errors.emergency_contact_name) mapped.emergencyContactName = data.errors.emergency_contact_name;
+          if (data.errors.emergency_contact_number) mapped.emergencyContactNumber = data.errors.emergency_contact_number;
+          if (data.errors.emergency_contact_relationship) mapped.emergencyContactRelationship = data.errors.emergency_contact_relationship;
           if (data.errors.license_number) mapped.licenseNumber = data.errors.license_number;
           if (data.errors.profile_picture) mapped.profilePicture = data.errors.profile_picture;
           if (data.errors.profile_picture_url) mapped.profilePicture = data.errors.profile_picture_url;
@@ -195,6 +219,10 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
         lastName: '',
         birthday: '',
         contact: '',
+        address: '',
+        emergencyContactName: '',
+        emergencyContactNumber: '',
+        emergencyContactRelationship: '',
         licenseNumber: '',
       });
       setProfilePicture(null);
@@ -413,18 +441,15 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
 
         {/* Birthday */}
         <div>
-          <label htmlFor="birthday" className="block text-xs font-medium text-slate-300 mb-1.5">
+          <label className="block text-xs font-medium text-slate-300 mb-1.5">
             Birthday <span className="text-red-400">*</span>
           </label>
-          <input
-            type="date"
-            id="birthday"
-            name="birthday"
+          <AdminDatePicker
             value={formData.birthday}
-            onChange={handleChange}
-            required
-            disabled={isSubmitting}
-            className={`${inputClasses} [color-scheme:dark] ${fieldErrors.birthday ? 'border-red-500/50' : ''}`}
+            onChange={(value) => setFormData(prev => ({ ...prev, birthday: value }))}
+            ariaLabel="Birthday"
+            className="w-full"
+            triggerClassName="w-full py-2.5"
           />
           {fieldErrors.birthday && (
             <p className="text-xs text-red-400 mt-1">{fieldErrors.birthday[0]}</p>
@@ -453,6 +478,99 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
           {fieldErrors.contact && (
             <p className="text-xs text-red-400 mt-1">{fieldErrors.contact[0]}</p>
           )}
+        </div>
+
+        {/* Address */}
+        <div>
+          <label htmlFor="address" className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-2">
+            <Home size={14} /> Address <span className="text-red-400">*</span>
+          </label>
+          <input
+            type="text"
+            id="address"
+            name="address"
+            value={formData.address}
+            onChange={handleChange}
+            required
+            disabled={isSubmitting}
+            placeholder="123 Rizal St., Malolos, Bulacan"
+            className={`${inputClasses} ${fieldErrors.address ? 'border-red-500/50' : ''}`}
+          />
+          {fieldErrors.address && (
+            <p className="text-xs text-red-400 mt-1">{fieldErrors.address[0]}</p>
+          )}
+        </div>
+
+        {/* Emergency Contact */}
+        <div>
+          <p className="flex items-center gap-2 text-xs font-medium text-slate-300 mb-2">
+            <Users size={14} /> Emergency Contact
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="emergencyContactName" className="block text-xs font-medium text-slate-300 mb-1.5">
+                Contact Name <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                id="emergencyContactName"
+                name="emergencyContactName"
+                value={formData.emergencyContactName}
+                onChange={handleChange}
+                required
+                disabled={isSubmitting}
+                placeholder="Ana Dela Cruz"
+                className={`${inputClasses} ${fieldErrors.emergencyContactName ? 'border-red-500/50' : ''}`}
+              />
+              {fieldErrors.emergencyContactName && (
+                <p className="text-xs text-red-400 mt-1">{fieldErrors.emergencyContactName[0]}</p>
+              )}
+            </div>
+            <div>
+              <label htmlFor="emergencyContactNumber" className="block text-xs font-medium text-slate-300 mb-1.5">
+                Contact Number <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="tel"
+                id="emergencyContactNumber"
+                name="emergencyContactNumber"
+                value={formData.emergencyContactNumber}
+                onChange={handleChange}
+                required
+                disabled={isSubmitting}
+                placeholder="e.g. 09171234567"
+                maxLength={11}
+                pattern="09[0-9]{9}"
+                title="Enter an 11-digit mobile number starting with 09"
+                className={`${inputClasses} ${fieldErrors.emergencyContactNumber ? 'border-red-500/50' : ''}`}
+              />
+              {fieldErrors.emergencyContactNumber && (
+                <p className="text-xs text-red-400 mt-1">{fieldErrors.emergencyContactNumber[0]}</p>
+              )}
+            </div>
+          </div>
+          <div className="mt-4">
+            <label htmlFor="emergencyContactRelationship" className="block text-xs font-medium text-slate-300 mb-1.5">
+              Relationship <span className="text-red-400">*</span>
+            </label>
+            <select
+              id="emergencyContactRelationship"
+              name="emergencyContactRelationship"
+              value={formData.emergencyContactRelationship}
+              onChange={handleChange}
+              required
+              disabled={isSubmitting}
+              className={`${inputClasses} [color-scheme:dark] ${fieldErrors.emergencyContactRelationship ? 'border-red-500/50' : ''}`}
+            >
+              <option value="" disabled className="bg-gray-800">Select Relationship</option>
+              {RELATIONSHIP_OPTIONS.map(opt => (
+                <option key={opt} value={opt} className="bg-gray-800">{opt}</option>
+              ))}
+            </select>
+            {fieldErrors.emergencyContactRelationship && (
+              <p className="text-xs text-red-400 mt-1">{fieldErrors.emergencyContactRelationship[0]}</p>
+            )}
+          </div>
         </div>
 
         {/* Footer Buttons */}

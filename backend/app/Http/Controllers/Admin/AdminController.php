@@ -18,6 +18,7 @@ use App\Models\TerminatedPersonnel;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Rules\PhilippineMobileNumber;
 use App\Services\ActivityLogService;
 use App\Services\AdminService;
 use App\Services\LocationService;
@@ -28,13 +29,18 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class AdminController extends Controller
 {
     use ApiResponse;
+
+    /** Predefined emergency-contact relationship choices — kept in sync with the admin UI's dropdown. */
+    private const RELATIONSHIP_OPTIONS = ['Spouse', 'Parent', 'Sibling', 'Relative', 'Guardian', 'Friend', 'Other'];
 
     public function __construct(
         private AdminService $adminService,
@@ -230,12 +236,16 @@ class AdminController extends Controller
             'middle_name' => 'nullable|string|max:100',
             'last_name' => 'required|string|max:100',
             'birthday' => 'required|date|before:today',
-            'contact' => ['required', 'string', 'regex:/^09[0-9]{9}$/'],
+            'contact' => ['required', 'string', new PhilippineMobileNumber],
+            'address' => ['required', 'string', 'max:255'],
+            'emergency_contact_name' => ['required', 'string', 'max:100'],
+            'emergency_contact_number' => ['required', 'string', new PhilippineMobileNumber],
+            'emergency_contact_relationship' => ['required', 'string', Rule::in(self::RELATIONSHIP_OPTIONS)],
             'license_number' => ['required', 'string', 'regex:/^[A-Z][0-9]{2}-[0-9]{2}-[0-9]{6}$/', 'unique:drivers,license_number'],
             'profile_picture_url' => 'nullable|string|max:500',
             'profile_picture' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
         ], [
-            'contact.regex' => 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).',
+            'emergency_contact_relationship.in' => 'The relationship must be one of: '.implode(', ', self::RELATIONSHIP_OPTIONS).'.',
             'license_number.regex' => 'Use the Philippine LTO format N01-23-045678 (one letter, four digits, then six digits).',
         ]);
 
@@ -252,6 +262,10 @@ class AdminController extends Controller
                     'last_name' => $validated['last_name'],
                     'birthday' => $validated['birthday'],
                     'contact' => $validated['contact'],
+                    'address' => $validated['address'],
+                    'emergency_contact_name' => $validated['emergency_contact_name'],
+                    'emergency_contact_number' => $validated['emergency_contact_number'],
+                    'emergency_contact_relationship' => $validated['emergency_contact_relationship'],
                     'license_number' => $validated['license_number'],
                     'hire_date' => now()->toDateString(),
                     'profile_picture_url' => $newPictureUrl,
@@ -299,12 +313,11 @@ class AdminController extends Controller
             'middle_name' => 'nullable|string|max:100',
             'last_name' => 'required|string|max:100',
             'birthday' => 'required|date|before:today',
-            'contact' => ['required', 'string', 'regex:/^09[0-9]{9}$/'],
+            'contact' => ['required', 'string', new PhilippineMobileNumber],
             'license_number' => ['required', 'string', 'regex:/^[A-Z][0-9]{2}-[0-9]{2}-[0-9]{6}$/', 'unique:drivers,license_number,'.$id],
             'profile_picture_url' => 'nullable|string|max:500',
             'profile_picture' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
         ], [
-            'contact.regex' => 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).',
             'license_number.regex' => 'Use the Philippine LTO format N01-23-045678 (one letter, four digits, then six digits).',
         ]);
 
@@ -354,19 +367,13 @@ class AdminController extends Controller
     /**
      * GET /api/v1/admin/drivers/{id}
      * Returns a single driver with full details for the profile modal.
-     * Includes: vehicle assignment, recent shift logs (assignment history).
+     * Includes: vehicle assignment. Shift-log history is fetched separately
+     * and paginated — see driverShiftLogs() below.
      */
     public function showDriver(string $id): JsonResponse
     {
         $driver = Driver::with(['vehicle.route', 'vehicle.conductor'])
             ->findOrFail($id);
-
-        // Fetch recent shift logs for this driver (assignment history).
-        $shiftLogs = ShiftLog::with(['vehicle', 'route'])
-            ->where('driver_id', $id)
-            ->orderBy('time_in', 'desc')
-            ->limit(20)
-            ->get();
 
         $data = [
             'id' => $driver->id,
@@ -375,6 +382,10 @@ class AdminController extends Controller
             'last_name' => $driver->last_name,
             'birthday' => $driver->birthday?->toDateString(),
             'contact' => $driver->contact,
+            'address' => $driver->address,
+            'emergency_contact_name' => $driver->emergency_contact_name,
+            'emergency_contact_number' => $driver->emergency_contact_number,
+            'emergency_contact_relationship' => $driver->emergency_contact_relationship,
             'license_number' => $driver->license_number,
             'license_front_image_url' => $driver->license_front_image_url,
             'license_back_image_url' => $driver->license_back_image_url,
@@ -392,17 +403,6 @@ class AdminController extends Controller
                 'name' => trim(($driver->vehicle->conductor->first_name ?? '').' '.($driver->vehicle->conductor->last_name ?? '')),
             ] : null,
             'assigned_route' => $driver->vehicle?->route?->name ?? 'Malolos - Meycauayan - Calumpit',
-            'shift_logs' => $shiftLogs->map(function ($log) {
-                return [
-                    'shift_id' => $log->shift_id,
-                    'unit_number' => $log->unit_number,
-                    'plate_number' => $log->plate_number,
-                    'route' => $log->route?->name,
-                    'time_in' => $log->time_in?->toDateTimeString(),
-                    'time_out' => $log->time_out?->toDateTimeString(),
-                    'status' => $log->status,
-                ];
-            }),
         ];
 
         return $this->successResponse($data, 'Driver details retrieved');
@@ -521,6 +521,53 @@ class AdminController extends Controller
             'Content-Disposition' => 'inline',
             'Cache-Control' => 'private, no-store',
         ]);
+    }
+
+    /**
+     * GET /api/v1/admin/drivers/{id}/shift-logs
+     * Paginated assignment history for a driver (newest first), powering
+     * the driver detail modal's infinite-scroll "Assignment History" tab.
+     * 10 per page by default. Uses the shift_logs_driver_id_time_in_index
+     * (see 2026_08_12_000001_add_fleet_detail_history_indexes) so the
+     * ORDER BY stays index-backed as a driver's shift history grows.
+     *
+     * Optional ?date=YYYY-MM-DD filters to that single calendar day (the
+     * date picker on the Assignment History tab). The range check is on
+     * time_in itself (not a whereDate() wrapper) so the same composite
+     * index still covers the equality + range + order-by in one lookup.
+     */
+    public function driverShiftLogs(Request $request, string $id): JsonResponse
+    {
+        Driver::findOrFail($id);
+
+        $validated = $request->validate([
+            'date' => ['nullable', 'date_format:Y-m-d'],
+        ]);
+
+        $perPage = max(1, min((int) $request->integer('per_page', 10), 50));
+
+        $query = ShiftLog::with(['vehicle', 'route'])
+            ->where('driver_id', $id);
+
+        if (! empty($validated['date'])) {
+            $day = Carbon::parse($validated['date'])->startOfDay();
+            $query->whereBetween('time_in', [$day, $day->copy()->endOfDay()]);
+        }
+
+        $shiftLogs = $query
+            ->orderBy('time_in', 'desc')
+            ->paginate($perPage)
+            ->through(fn ($log) => [
+                'shift_id' => $log->shift_id,
+                'unit_number' => $log->unit_number,
+                'plate_number' => $log->plate_number,
+                'route' => $log->route?->name,
+                'time_in' => $log->time_in?->toDateTimeString(),
+                'time_out' => $log->time_out?->toDateTimeString(),
+                'status' => $log->status,
+            ]);
+
+        return $this->successResponse($shiftLogs, 'Driver shift history retrieved');
     }
 
     /**
@@ -697,9 +744,23 @@ class AdminController extends Controller
      *
      * To re-enable, the admin uses PUT /admin/users/{id} to set account_status
      * back to ACTIVE (or simply generates new credentials via reset-credentials).
+     *
+     * Requires the calling admin's own current_password (re-verified here,
+     * same Hash::check pattern as CommuterService::changePassword) so a
+     * stray click can't instantly disable a conductor's account.
      */
     public function disableConductor(Request $request, string $id): JsonResponse
     {
+        $validated = $request->validate([
+            'current_password' => ['required', 'string'],
+        ]);
+
+        if (! Hash::check($validated['current_password'], $request->user()->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => ['The password you entered is incorrect.'],
+            ]);
+        }
+
         $conductor = ConductorProfile::with('user')->findOrFail($id);
         $user = $conductor->user;
 
@@ -726,6 +787,11 @@ class AdminController extends Controller
         // Revoke ALL tokens — the conductor is instantly logged out everywhere.
         $user->tokens()->delete();
 
+        // Persist the disabled state so it survives past this request — read
+        // back by AdminService::listFleetPersonnel for the Personnel tab's
+        // Status column, and cleared by resetConductorCredentials below.
+        $conductor->update(['status' => 'DISABLED']);
+
         $this->activityLogService->record(
             ActivityLogCategory::PERSONNEL,
             "Disabled conductor {$conductor->first_name} {$conductor->last_name}",
@@ -742,9 +808,23 @@ class AdminController extends Controller
      * are returned ONCE in the response (same as storeConductor) so the admin
      * can hand them to the conductor. All existing Sanctum tokens for the
      * user are revoked (the conductor must log in with the new credentials).
+     *
+     * Requires the calling admin's own current_password (re-verified here,
+     * same Hash::check pattern as CommuterService::changePassword) so a
+     * stray click can't instantly rotate a conductor's login credentials.
      */
     public function resetConductorCredentials(Request $request, string $id): JsonResponse
     {
+        $validated = $request->validate([
+            'current_password' => ['required', 'string'],
+        ]);
+
+        if (! Hash::check($validated['current_password'], $request->user()->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => ['The password you entered is incorrect.'],
+            ]);
+        }
+
         $conductor = ConductorProfile::with('user')->findOrFail($id);
         $user = $conductor->user;
 
@@ -784,10 +864,13 @@ class AdminController extends Controller
             'password' => $generatedPassword,
         ]);
 
-        // Update the conductor profile with the new credentials.
+        // Update the conductor profile with the new credentials. Also
+        // clears a prior DISABLED status — handing out fresh credentials
+        // is how a disabled conductor gets re-enabled (see disableConductor).
         $conductor->update([
             'generated_username' => $generatedUsername,
             'generated_password' => $generatedPassword,
+            'status' => 'ACTIVE',
         ]);
 
         // Revoke ALL tokens — the conductor must re-login with the new credentials.
@@ -877,11 +960,9 @@ class AdminController extends Controller
             'middle_name' => 'nullable|string|max:100',
             'last_name' => 'required|string|max:100',
             'birthday' => 'required|date|before:today',
-            'contact' => ['required', 'string', 'regex:/^09[0-9]{9}$/'],
+            'contact' => ['required', 'string', new PhilippineMobileNumber],
             'profile_picture_url' => 'nullable|string|max:500',
             'profile_picture' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
-        ], [
-            'contact.regex' => 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).',
         ]);
 
         $oldPictureUrl = $conductor->profile_picture_url;
@@ -929,19 +1010,13 @@ class AdminController extends Controller
     /**
      * GET /api/v1/admin/conductors/{id}
      * Returns a single conductor with full details for the profile modal.
-     * Includes: vehicle assignment, recent shift logs (assignment history).
+     * Includes: vehicle assignment. Shift-log history is fetched separately
+     * and paginated — see conductorShiftLogs() below.
      */
     public function showConductor(string $id): JsonResponse
     {
         $conductor = ConductorProfile::with(['vehicle.route', 'vehicle.driver'])
             ->findOrFail($id);
-
-        // Fetch recent shift logs for this conductor (assignment history).
-        $shiftLogs = ShiftLog::with(['vehicle', 'route', 'driver'])
-            ->where('conductor_id', $id)
-            ->orderBy('time_in', 'desc')
-            ->limit(20)
-            ->get();
 
         $data = [
             'id' => $conductor->id,
@@ -950,6 +1025,10 @@ class AdminController extends Controller
             'last_name' => $conductor->last_name,
             'birthday' => $conductor->birthday?->toDateString(),
             'contact' => $conductor->contact,
+            'address' => $conductor->address,
+            'emergency_contact_name' => $conductor->emergency_contact_name,
+            'emergency_contact_number' => $conductor->emergency_contact_number,
+            'emergency_contact_relationship' => $conductor->emergency_contact_relationship,
             'profile_picture_url' => $conductor->profile_picture_url,
             'generated_username' => $conductor->generated_username,
             'vehicle' => $conductor->vehicle ? [
@@ -963,21 +1042,57 @@ class AdminController extends Controller
                 'name' => trim(($conductor->vehicle->driver->first_name ?? '').' '.($conductor->vehicle->driver->last_name ?? '')),
             ] : null,
             'assigned_route' => $conductor->vehicle?->route?->name ?? 'Malolos - Meycauayan - Calumpit',
-            'shift_logs' => $shiftLogs->map(function ($log) {
-                return [
-                    'shift_id' => $log->shift_id,
-                    'unit_number' => $log->unit_number,
-                    'plate_number' => $log->plate_number,
-                    'route' => $log->route?->name,
-                    'driver_name' => $log->driver_name,
-                    'time_in' => $log->time_in?->toDateTimeString(),
-                    'time_out' => $log->time_out?->toDateTimeString(),
-                    'status' => $log->status,
-                ];
-            }),
         ];
 
         return $this->successResponse($data, 'Conductor details retrieved');
+    }
+
+    /**
+     * GET /api/v1/admin/conductors/{id}/shift-logs
+     * Paginated assignment history for a conductor (newest first), powering
+     * the conductor detail modal's infinite-scroll "Assignment History" tab.
+     * 10 per page by default. Uses the shift_logs_conductor_id_time_in_index
+     * (see 2026_08_12_000001_add_fleet_detail_history_indexes) so the
+     * ORDER BY stays index-backed as a conductor's shift history grows.
+     *
+     * Optional ?date=YYYY-MM-DD filters to that single calendar day (the
+     * date picker on the Assignment History tab). The range check is on
+     * time_in itself (not a whereDate() wrapper) so the same composite
+     * index still covers the equality + range + order-by in one lookup.
+     */
+    public function conductorShiftLogs(Request $request, string $id): JsonResponse
+    {
+        ConductorProfile::findOrFail($id);
+
+        $validated = $request->validate([
+            'date' => ['nullable', 'date_format:Y-m-d'],
+        ]);
+
+        $perPage = max(1, min((int) $request->integer('per_page', 10), 50));
+
+        $query = ShiftLog::with(['vehicle', 'route', 'driver'])
+            ->where('conductor_id', $id);
+
+        if (! empty($validated['date'])) {
+            $day = Carbon::parse($validated['date'])->startOfDay();
+            $query->whereBetween('time_in', [$day, $day->copy()->endOfDay()]);
+        }
+
+        $shiftLogs = $query
+            ->orderBy('time_in', 'desc')
+            ->paginate($perPage)
+            ->through(fn ($log) => [
+                'shift_id' => $log->shift_id,
+                'unit_number' => $log->unit_number,
+                'plate_number' => $log->plate_number,
+                'route' => $log->route?->name,
+                'driver_name' => $log->driver_name,
+                'time_in' => $log->time_in?->toDateTimeString(),
+                'time_out' => $log->time_out?->toDateTimeString(),
+                'status' => $log->status,
+            ]);
+
+        return $this->successResponse($shiftLogs, 'Conductor shift history retrieved');
     }
 
     /**
@@ -1007,10 +1122,14 @@ class AdminController extends Controller
             'middle_name' => 'nullable|string|max:100',
             'last_name' => 'required|string|max:100',
             'birthday' => 'required|date|before:today',
-            'contact' => ['required', 'string', 'regex:/^09[0-9]{9}$/'],
+            'contact' => ['required', 'string', new PhilippineMobileNumber],
+            'address' => ['required', 'string', 'max:255'],
+            'emergency_contact_name' => ['required', 'string', 'max:100'],
+            'emergency_contact_number' => ['required', 'string', new PhilippineMobileNumber],
+            'emergency_contact_relationship' => ['required', 'string', Rule::in(self::RELATIONSHIP_OPTIONS)],
             'profile_picture_url' => 'nullable|string|max:500',
         ], [
-            'contact.regex' => 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).',
+            'emergency_contact_relationship.in' => 'The relationship must be one of: '.implode(', ', self::RELATIONSHIP_OPTIONS).'.',
         ]);
 
         $firstName = $validated['first_name'];
@@ -1073,6 +1192,10 @@ class AdminController extends Controller
                     'last_name' => $lastName,
                     'birthday' => $birthday,
                     'contact' => $validated['contact'],
+                    'address' => $validated['address'],
+                    'emergency_contact_name' => $validated['emergency_contact_name'],
+                    'emergency_contact_number' => $validated['emergency_contact_number'],
+                    'emergency_contact_relationship' => $validated['emergency_contact_relationship'],
                     'profile_picture_url' => $newPictureUrl,
                     'generated_username' => $generatedUsername,
                     'generated_password' => $generatedPassword,

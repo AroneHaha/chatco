@@ -5,17 +5,14 @@ import { useState, useRef, useEffect } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import { Upload, Check, User, Save, Phone, IdCard, Calendar, X } from 'lucide-react';
 import type { Personnel } from '@/app/(admin)/vehicles/data/vehicles-data';
+import {
+  CONTACT_NUMBER_PATTERN as CONTACT_PATTERN,
+  CONTACT_NUMBER_ERROR as CONTACT_ERROR,
+  formatContactNumberInput as formatContactNumber,
+} from '@/lib/utils/format';
 
 // Mirrors the backend's LTO format check (AdminController::updateDriver).
 const LICENSE_NUMBER_PATTERN = /^[A-Z][0-9]{2}-[0-9]{2}-[0-9]{6}$/;
-// Mirrors the backend's PH mobile format check (AdminController::updateDriver
-// / updateConductor).
-const CONTACT_PATTERN = /^09[0-9]{9}$/;
-const CONTACT_ERROR = 'Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).';
-
-function formatContactNumber(value: string): string {
-  return value.replace(/[^0-9]/g, '').slice(0, 11);
-}
 
 function formatLicenseNumber(value: string): string {
   const normalized = value.toUpperCase().replace(/[^A-Z0-9]/g, '');

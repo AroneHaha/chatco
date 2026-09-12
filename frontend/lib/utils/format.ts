@@ -84,3 +84,20 @@ export function formatDuration(seconds: number): string {
   if (h > 0) return `${h}h ${m.toString().padStart(2, "0")}m`;
   return `${m}m`;
 }
+
+// ─── Contact number ──────────────────────────────────────────────────
+//
+// The one contact-number format accepted system-wide: exactly 11 digits,
+// starting with "09" (e.g. "09171234567"). No spaces, dashes, parentheses,
+// or "+63" country code. Mirrors the backend's App\Rules\PhilippineMobileNumber
+// — keep the two in step.
+
+/** Matches a canonical "09XXXXXXXXX" contact number. */
+export const CONTACT_NUMBER_PATTERN = /^09[0-9]{9}$/;
+
+export const CONTACT_NUMBER_ERROR = "Enter an 11-digit mobile number starting with 09 (e.g. 09171234567).";
+
+/** Live-input formatter: strips non-digits and caps at 11 characters. */
+export function formatContactNumberInput(value: string): string {
+  return value.replace(/[^0-9]/g, "").slice(0, 11);
+}

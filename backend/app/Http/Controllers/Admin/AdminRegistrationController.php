@@ -9,6 +9,7 @@ use App\Enums\ActivityLogCategory;
 use App\Enums\UserRole;
 use App\Models\CommuterProfile;
 use App\Models\User;
+use App\Rules\PhilippineMobileNumber;
 use App\Services\ActivityLogService;
 use App\Services\AdminService;
 use App\Services\RegistrationGuard;
@@ -122,7 +123,7 @@ class AdminRegistrationController extends Controller
             'birthdate' => ['required', 'date', 'before:today'],
             'gender' => ['nullable', 'string', 'max:20'],
             'email' => ['required', 'string', 'email:rfc', 'max:255'],
-            'contact_number' => ['required', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
+            'contact_number' => ['required', 'string', new PhilippineMobileNumber],
             'username' => ['required', 'string', 'max:50', 'unique:commuter_profiles,username'],
             'password' => ['required', 'string', 'min:8', 'max:128'],
             'language_preference' => ['nullable', 'string', 'max:20'],

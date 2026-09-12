@@ -91,6 +91,26 @@ export function PersonnelTable({
     },
     { key: "contact", label: "Contact", cellClassName: "truncate" },
     {
+      key: "status",
+      label: "Status",
+      render: (_: unknown, row: Personnel) => {
+        const isActive = row.status === "ACTIVE";
+        return (
+          <span className="inline-flex items-center gap-1.5">
+            <span
+              aria-hidden="true"
+              className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${
+                isActive ? "bg-emerald-400" : "bg-slate-600"
+              }`}
+            />
+            <span className={`text-xs font-medium ${isActive ? "text-slate-300" : "text-slate-500"}`}>
+              {isActive ? "Active" : "Deactivated"}
+            </span>
+          </span>
+        );
+      },
+    },
+    {
       key: "actions",
       label: "Actions",
       align: "center" as const,

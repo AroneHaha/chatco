@@ -20,9 +20,14 @@ class ConductorProfile extends Model
         'last_name',
         'birthday',
         'contact',
+        'address',
+        'emergency_contact_name',
+        'emergency_contact_number',
+        'emergency_contact_relationship',
         'profile_picture_url',
         'generated_username',
         'generated_password',
+        'status',
     ];
 
     protected function casts(): array

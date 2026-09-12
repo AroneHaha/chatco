@@ -119,6 +119,7 @@ function MetricCard({
   color,
   current,
   previous,
+  tone = 'default',
 }: {
   label: string;
   value: string;
@@ -128,10 +129,17 @@ function MetricCard({
   /** Supply both to render a period-over-period delta. */
   current?: number;
   previous?: number;
+  /** 'alert' escalates the card itself (not just the icon) for a genuine
+   *  problem — e.g. an unreconciled shortage — so it outranks routine
+   *  totals at a glance instead of reading as one of eight equal tiles. */
+  tone?: 'default' | 'alert';
 }) {
+  const isAlert = tone === 'alert';
   return (
-    <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4 flex items-center space-x-4">
-      <div className={`p-3 bg-[#0E1628] rounded-full ${color} flex-shrink-0`}>
+    <div className={`border rounded-lg p-4 flex items-center space-x-4 ${
+      isAlert ? 'bg-red-500/10 border-red-500/30' : 'bg-[#131C2E] border-[#1E2D45]'
+    }`}>
+      <div className={`p-3 rounded-full ${color} shrink-0 ${isAlert ? 'bg-red-500/15' : 'bg-[#0E1628]'}`}>
         <Icon size={22} />
       </div>
       <div className="min-w-0 flex-1">
@@ -146,6 +154,28 @@ function MetricCard({
           {sublabel && <p className="text-xs text-slate-500 truncate">{sublabel}</p>}
         </div>
       </div>
+    </div>
+  );
+}
+
+// A small uppercase "eyebrow" that groups a block of cards under a named
+// category — the dashboard used to lay all 8 KPI tiles out as two visually
+// identical rows with nothing distinguishing "money" from "operations to
+// watch." `live` swaps the static dot for the pulsing one already used by
+// Live Fleet, so a glance tells you whether a group is range-scoped or
+// happening right now.
+function SectionEyebrow({ children, live = false }: { children: React.ReactNode; live?: boolean }) {
+  return (
+    <div className="flex items-center gap-2">
+      {live ? (
+        <span className="relative flex h-2 w-2 shrink-0">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+        </span>
+      ) : (
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#62A0EA]" />
+      )}
+      <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{children}</h2>
     </div>
   );
 }
@@ -409,18 +439,28 @@ function ReportsTab({
           internal scroll region (see PickupPointsList/DemandHeatmapData) so
           a card with lots of rows scrolls instead of growing the page.
           PickupPointsList's height was bumped to 500px so this column
-          (500+370) totals the same as the left column (600+270). */}
+          (500+370) totals the same as the left column (600+270) — the
+          eyebrow above each column adds identical height to both, so it
+          doesn't change that balance. Each column also gets a named eyebrow
+          now: the two stacks used to have no label explaining why THESE two
+          cards live together, distinct from the other stack. */}
       <div className="grid lg:grid-cols-2 gap-6">
-        <div className="space-y-6">
-          <RemittanceTable data={remittanceTableData} dateFrom={dateFrom} dateTo={dateTo} />
-          <PaymentUsageTable data={paymentUsageData} />
+        <div className="space-y-3">
+          <SectionEyebrow>Remittances &amp; Payments</SectionEyebrow>
+          <div className="space-y-6">
+            <RemittanceTable data={remittanceTableData} dateFrom={dateFrom} dateTo={dateTo} />
+            <PaymentUsageTable data={paymentUsageData} />
+          </div>
         </div>
-        <div className="space-y-6">
-          <PickupPointsList data={pickupPoints} />
-          <DemandHeatmapData
-            zones={analyticsData?.heatmap_zones ?? []}
-            rangeLabel={rangeLabel}
-          />
+        <div className="space-y-3">
+          <SectionEyebrow>Demand &amp; Pickup Points</SectionEyebrow>
+          <div className="space-y-6">
+            <PickupPointsList data={pickupPoints} />
+            <DemandHeatmapData
+              zones={analyticsData?.heatmap_zones ?? []}
+              rangeLabel={rangeLabel}
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -476,59 +516,74 @@ function OverviewTab({
   const prev = data.previous_totals;
   const health = data.gcash_health;
 
+  const hasShortage = data.remittances.total_shortage > 0;
+
   return (
     <div className="space-y-6">
-      {/* ── Range-scoped revenue metrics, with period-over-period deltas ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard
-          label="Total Fares" value={formatPeso(data.totals.total_fares)}
-          sublabel={`${formatNumber(data.totals.paid_count)} paid rides`}
-          icon={TrendingUp} color="text-[#62A0EA]"
-          current={data.totals.total_fares} previous={prev.total_fares}
-        />
-        <MetricCard
-          label="Cash Total" value={formatPeso(data.totals.cash_total)}
-          sublabel={`${data.payment_split.cash.count} rides`}
-          icon={Banknote} color="text-emerald-400"
-          current={data.totals.cash_total} previous={prev.cash_total}
-        />
-        <MetricCard
-          label="GCash Total" value={formatPeso(data.totals.gcash_total)}
-          sublabel={`${data.payment_split.gcash.count} rides`}
-          icon={Smartphone} color="text-blue-400"
-          current={data.totals.gcash_total} previous={prev.gcash_total}
-        />
-        <MetricCard
-          label="Avg Fare" value={formatPeso(data.totals.avg_fare)}
-          sublabel="per paying ride"
-          icon={Receipt} color="text-[#62A0EA]"
-          current={data.totals.avg_fare} previous={prev.avg_fare}
-        />
+      {/* ── Revenue: the range-scoped money metrics, with period-over-period
+          deltas. First group an admin scans — "how much did we make." ── */}
+      <div className="space-y-3">
+        <SectionEyebrow>Revenue</SectionEyebrow>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <MetricCard
+            label="Total Fares" value={formatPeso(data.totals.total_fares)}
+            sublabel={`${formatNumber(data.totals.paid_count)} paid rides`}
+            icon={TrendingUp} color="text-[#62A0EA]"
+            current={data.totals.total_fares} previous={prev.total_fares}
+          />
+          <MetricCard
+            label="Cash Total" value={formatPeso(data.totals.cash_total)}
+            sublabel={`${data.payment_split.cash.count} rides`}
+            icon={Banknote} color="text-emerald-400"
+            current={data.totals.cash_total} previous={prev.cash_total}
+          />
+          <MetricCard
+            label="GCash Total" value={formatPeso(data.totals.gcash_total)}
+            sublabel={`${data.payment_split.gcash.count} rides`}
+            icon={Smartphone} color="text-blue-400"
+            current={data.totals.gcash_total} previous={prev.gcash_total}
+          />
+          <MetricCard
+            label="Avg Fare" value={formatPeso(data.totals.avg_fare)}
+            sublabel="per paying ride"
+            icon={Receipt} color="text-[#62A0EA]"
+            current={data.totals.avg_fare} previous={prev.avg_fare}
+          />
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard
-          label="Passengers" value={formatNumber(data.totals.total_passengers)}
-          sublabel={`incl. ${data.totals.voucher_count} voucher rides`}
-          icon={Users} color="text-[#62A0EA]"
-          current={data.totals.total_passengers} previous={prev.total_passengers}
-        />
-        <MetricCard
-          label="GCash Success" value={health.success_rate === null ? '—' : `${health.success_rate}%`}
-          sublabel={health.success_rate === null ? 'no gateway attempts' : `${health.failed + health.expired + health.cancelled} unsettled`}
-          icon={ShieldCheck}
-          color={health.success_rate !== null && health.success_rate < 90 ? 'text-red-400' : 'text-emerald-400'}
-        />
-        <MetricCard
-          label="Pending" value={formatNumber(data.totals.pending_count)}
-          sublabel="awaiting payment" icon={Clock} color="text-amber-400"
-        />
-        <MetricCard
-          label="Shortage" value={formatPeso(data.remittances.total_shortage)}
-          sublabel={data.remittances.total_shortage > 0 ? `${data.remittances.shortage_rate}% of collected` : 'No shortage'}
-          icon={AlertTriangle}
-          color={data.remittances.total_shortage > 0 ? 'text-red-400' : 'text-slate-500'}
-        />
+      {/* ── Rides & Operations Health: volume plus the things worth watching
+          (payment reliability, what's still pending, what didn't reconcile).
+          Second group — "how's the operation running." Shortage escalates to
+          an alert-toned card the moment it's nonzero, so an actual problem
+          outranks the seven routine tiles around it instead of blending in. ── */}
+      <div className="space-y-3">
+        <SectionEyebrow>Rides &amp; Operations Health</SectionEyebrow>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <MetricCard
+            label="Passengers" value={formatNumber(data.totals.total_passengers)}
+            sublabel={`incl. ${data.totals.voucher_count} voucher rides`}
+            icon={Users} color="text-[#62A0EA]"
+            current={data.totals.total_passengers} previous={prev.total_passengers}
+          />
+          <MetricCard
+            label="GCash Success" value={health.success_rate === null ? '—' : `${health.success_rate}%`}
+            sublabel={health.success_rate === null ? 'no gateway attempts' : `${health.failed + health.expired + health.cancelled} unsettled`}
+            icon={ShieldCheck}
+            color={health.success_rate !== null && health.success_rate < 90 ? 'text-red-400' : 'text-emerald-400'}
+          />
+          <MetricCard
+            label="Pending" value={formatNumber(data.totals.pending_count)}
+            sublabel="awaiting payment" icon={Clock} color="text-amber-400"
+          />
+          <MetricCard
+            label="Shortage" value={formatPeso(data.remittances.total_shortage)}
+            sublabel={hasShortage ? `${data.remittances.shortage_rate}% of collected` : 'No shortage'}
+            icon={AlertTriangle}
+            color={hasShortage ? 'text-red-400' : 'text-slate-500'}
+            tone={hasShortage ? 'alert' : 'default'}
+          />
+        </div>
       </div>
 
       {/* ── Live fleet status ──
@@ -536,14 +591,8 @@ function OverviewTab({
           "right now" counts, not range aggregates, and mixing the two in one
           grid invited them to be read as scoped to the selected window. */}
       <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-          </span>
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            Live Fleet — current status, not affected by the date range
-          </h2>
+        <div className="mb-3">
+          <SectionEyebrow live>Live Fleet — current status, not affected by the date range</SectionEyebrow>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <MetricCard

@@ -21,7 +21,7 @@ class DriverFactory extends Factory
             'middle_name' => null,
             'last_name' => fake()->lastName(),
             'birthday' => fake()->date('Y-m-d', '1990-01-01'),
-            'contact' => '+63' . fake()->numerify('9#########'),
+            'contact' => '0' . fake()->numerify('9#########'),
             'license_number' => 'LIC-' . fake()->unique()->numerify('######'),
             'hire_date' => fake()->date('Y-m-d', '2020-01-01'),
             'profile_picture_url' => null,

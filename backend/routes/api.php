@@ -276,10 +276,12 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::post('/drivers/{id}/license-images', [AdminController::class, 'uploadDriverLicenseImages'])->middleware('throttle:conductor-write');
     Route::delete('/drivers/{id}/license-images/{side}', [AdminController::class, 'destroyDriverLicenseImage'])->middleware('throttle:conductor-write');
     Route::get('/drivers/{id}/license-images/{side}', [AdminController::class, 'showDriverLicenseImage'])->middleware('throttle:conductor-read');
+    Route::get('/drivers/{id}/shift-logs', [AdminController::class, 'driverShiftLogs'])->middleware('throttle:conductor-read');
     Route::put('/drivers/{id}', [AdminController::class, 'updateDriver'])->middleware('throttle:conductor-write');
     Route::patch('/drivers/{id}', [AdminController::class, 'updateDriver'])->middleware('throttle:conductor-write');
     Route::delete('/drivers/{id}', [AdminController::class, 'destroyDriver'])->middleware('throttle:conductor-write');
     Route::get('/conductors/{id}', [AdminController::class, 'showConductor'])->middleware('throttle:conductor-read');
+    Route::get('/conductors/{id}/shift-logs', [AdminController::class, 'conductorShiftLogs'])->middleware('throttle:conductor-read');
     Route::put('/conductors/{id}', [AdminController::class, 'updateConductor'])->middleware('throttle:conductor-write');
     Route::patch('/conductors/{id}', [AdminController::class, 'updateConductor'])->middleware('throttle:conductor-write');
     Route::get('/conductors', [AdminController::class, 'conductors'])->middleware('throttle:conductor-read');

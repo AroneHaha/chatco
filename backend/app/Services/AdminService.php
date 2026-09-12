@@ -114,6 +114,8 @@ class AdminService
             return Vehicle::create([
                 'unit_number' => $data['unit_number'],
                 'plate_number' => $data['plate_number'],
+                'brand' => $data['brand'],
+                'model' => $data['model'],
                 'vehicle_type' => $data['vehicle_type'] ?? null,
                 'route_id' => $data['route_id'] ?? null,
                 'driver_id' => $data['driver_id'] ?? null,
@@ -600,6 +602,7 @@ class AdminService
                 'role' => (string) $row->role,
                 'contact' => (string) $row->contact,
                 'profile_picture_url' => $row->profile_picture_url,
+                'status' => (string) $row->status,
             ]);
 
         return new Paginator(
@@ -628,6 +631,14 @@ class AdminService
             ? "first_name || ' ' || last_name"
             : "CONCAT(first_name, ' ', last_name)";
 
+        // Both drivers.status and conductor_profiles.status use their own
+        // role-specific vocab (driver: ACTIVE/SUSPENDED, conductor:
+        // ACTIVE/DISABLED — see AdminController::disableConductor). This
+        // normalizes both into one ACTIVE/DEACTIVATED pair for the shared
+        // Personnel tab's Status column; NULL reads as ACTIVE either way.
+        $driverStatusExpr = "CASE WHEN status IS NULL OR status = 'ACTIVE' THEN 'ACTIVE' ELSE 'DEACTIVATED' END";
+        $conductorStatusExpr = "CASE WHEN status = 'DISABLED' THEN 'DEACTIVATED' ELSE 'ACTIVE' END";
+
         $drivers = DB::table('drivers')
             ->select([
                 'id',
@@ -635,6 +646,7 @@ class AdminService
                 DB::raw("'Driver' as role"),
                 'contact',
                 'profile_picture_url',
+                DB::raw("{$driverStatusExpr} as status"),
                 DB::raw('0 as role_order'),
                 'last_name as sort_last_name',
                 'first_name as sort_first_name',
@@ -648,6 +660,7 @@ class AdminService
                 DB::raw("'Conductor' as role"),
                 DB::raw("COALESCE(contact, '-') as contact"),
                 'profile_picture_url',
+                DB::raw("{$conductorStatusExpr} as status"),
                 DB::raw('1 as role_order'),
                 'last_name as sort_last_name',
                 'first_name as sort_first_name',
@@ -982,11 +995,11 @@ class AdminService
             $profile->{$lastNameColumn} = $data['last_name'];
         }
 
-        $commuterOnly = array_intersect_key($data, array_flip(['account_status', 'contact_number']));
+        $commuterOnly = array_intersect_key($data, array_flip(['account_status', 'contact_number', 'birthdate']));
 
         if (! empty($commuterOnly) && ! $user->isCommuter()) {
             throw ValidationException::withMessages([
-                'account_status' => ['Account status and contact number can only be set on commuter accounts.'],
+                'account_status' => ['Account status, contact number and date of birth can only be set on commuter accounts.'],
             ]);
         }
 
@@ -1001,6 +1014,10 @@ class AdminService
 
         if (array_key_exists('contact_number', $data)) {
             $profile->contact_number = $data['contact_number'];
+        }
+
+        if (array_key_exists('birthdate', $data)) {
+            $profile->birthdate = $data['birthdate'];
         }
 
         if ($profile->isDirty()) {
@@ -1122,7 +1139,7 @@ class AdminService
         return [
             'adminProfile:id,first_name,middle_name,last_name',
             'conductorProfile:id,first_name,middle_name,last_name,generated_username',
-            'commuterProfile:id,first_name,middle_name,surname,contact_number,commuter_type,account_status,verified_at,username',
+            'commuterProfile:id,first_name,middle_name,surname,birthdate,contact_number,commuter_type,account_status,verified_at,username',
             'activeSuspension',
         ];
     }
@@ -1177,10 +1194,14 @@ class AdminService
             'email' => $user->email,
             'role' => $user->role->value,
             'name' => $user->getDisplayName(),
+            'first_name' => $commuter?->first_name,
+            'middle_name' => $commuter?->middle_name,
+            'last_name' => $commuter?->surname,
             'account_status' => $suspension ? 'SUSPENDED' : $commuter?->account_status,
             'commuter_type' => $commuter?->commuter_type,
             'username' => $commuter?->username,
             'contact_number' => $commuter?->contact_number,
+            'birthdate' => optional($commuter?->birthdate)->toDateString(),
             'verified_at' => optional($commuter?->verified_at)->toIso8601String(),
             'created_at' => optional($user->created_at)->toIso8601String(),
             'suspension' => $suspension ? $this->presentSuspension($suspension) : null,

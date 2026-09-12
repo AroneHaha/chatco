@@ -342,6 +342,8 @@ export default function ProfilePage() {
                   handleEditChange("contactNumber", e.target.value)
                 }
                 disabled={!isEditing}
+                maxLength={11}
+                placeholder="09171234567"
                 className={isEditing ? enabledInputClasses : disabledInputClasses}
               />
             </div>

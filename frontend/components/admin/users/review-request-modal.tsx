@@ -6,7 +6,7 @@ import { Modal } from '@/components/admin/ui/modal';
 import { CheckCircle, XCircle, AlertTriangle, LoaderCircle, ZoomIn, X, IdCard, User } from 'lucide-react';
 import type { PendingRequest } from '@/app/(admin)/users/data/users-data';
 
-function formatBirthdate(value: string): string {
+function formatDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
   return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
@@ -173,7 +173,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
               </div>
               <div className="min-w-0">
                 <p className={fieldLabelClasses}>Birthdate</p>
-                <p className={fieldValueClasses}>{formatBirthdate(request.birthdate)}</p>
+                <p className={fieldValueClasses}>{formatDate(request.birthdate)}</p>
               </div>
               <div className="min-w-0">
                 <p className={fieldLabelClasses}>Gender</p>
@@ -182,6 +182,10 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
               <div className="min-w-0">
                 <p className={fieldLabelClasses}>Phone Number</p>
                 <p className={fieldValueClasses} title={request.phoneNumber}>{request.phoneNumber}</p>
+              </div>
+              <div className="col-span-2 min-w-0">
+                <p className={fieldLabelClasses}>Date Applied</p>
+                <p className={fieldValueClasses}>{formatDate(request.createdAt)}</p>
               </div>
               <div className="col-span-2 min-w-0">
                 <p className={fieldLabelClasses}>Username</p>

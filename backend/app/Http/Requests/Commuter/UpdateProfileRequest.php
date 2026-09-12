@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Commuter;
 
+use App\Rules\PhilippineMobileNumber;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -28,8 +29,7 @@ class UpdateProfileRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // Accepts local (09171234567) and intl (+639171234567) PH formats.
-            'contact_number' => ['sometimes', 'required', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
+            'contact_number' => ['sometimes', 'required', 'string', new PhilippineMobileNumber],
             'language_preference' => ['sometimes', 'required', 'string', 'max:20'],
         ];
     }
@@ -38,8 +38,6 @@ class UpdateProfileRequest extends FormRequest
     {
         return [
             'contact_number.required'    => 'Contact number cannot be empty',
-            'contact_number.regex'       => 'Contact number format is invalid',
-            'contact_number.max'         => 'Contact number is too long',
             'language_preference.required' => 'Language preference cannot be empty',
             'language_preference.max'    => 'Language preference is too long',
         ];
