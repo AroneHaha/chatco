@@ -26,6 +26,7 @@ use App\Http\Controllers\Commuter\SosController;
 use App\Http\Controllers\Commuter\VehicleLocationController;
 use App\Http\Controllers\Conductor\ConductorController;
 use App\Http\Controllers\Conductor\ConductorHailController;
+use App\Http\Controllers\Conductor\MobileTransactionController;
 use App\Http\Controllers\FaqController;
 use App\Http\Controllers\FareMatrixController;
 use App\Http\Controllers\LostItemController;
@@ -266,8 +267,8 @@ Route::prefix('mobile/conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR']
     Route::post('/capacity-status', [ConductorController::class, 'updateCapacityStatus'])->middleware('throttle:conductor-write');
     Route::post('/break-status', [ConductorController::class, 'updateBreakStatus'])->middleware('throttle:conductor-write');
 
-    Route::get('/transactions', [ConductorController::class, 'transactions'])->middleware('throttle:conductor-read');
-    Route::post('/transactions', [ConductorController::class, 'storeTransaction'])->middleware('throttle:conductor-write');
+    Route::get('/transactions', [MobileTransactionController::class, 'index'])->middleware('throttle:conductor-read');
+    Route::post('/transactions', [MobileTransactionController::class, 'store'])->middleware('throttle:conductor-write');
     Route::post('/payments/gcash/initiate', [ConductorController::class, 'initiateGcash'])->middleware('throttle:conductor-write');
     Route::get('/payments/gcash/pending', [ConductorController::class, 'pendingGcash'])->middleware('throttle:conductor-read');
     Route::get('/earnings', [ConductorController::class, 'earnings'])->middleware('throttle:conductor-read');
