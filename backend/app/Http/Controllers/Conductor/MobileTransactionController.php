@@ -102,4 +102,85 @@ class MobileTransactionController extends Controller
             201,
         );
     }
+
+    /**
+     * POST /api/v1/mobile/conductor/transactions/sync
+     * Dedicated batch offline cash synchronization endpoint for mobile clients.
+     * Processes queued offline tickets atomically per item and returns detailed
+     * reconciliation results without dropping valid items if one fails.
+     */
+    public function syncBatch(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'transactions' => ['required', 'array', 'min:1', 'max:50'],
+            'transactions.*.shift_id' => ['required', 'string', 'max:20'],
+            'transactions.*.payment_method' => ['required', 'string', 'in:CASH,VOUCHER'],
+            'transactions.*.final_amount' => ['nullable', 'numeric', 'min:0'],
+            'transactions.*.pickup_name' => ['required', 'string', 'max:100'],
+            'transactions.*.dropoff_name' => ['required', 'string', 'max:100'],
+            'transactions.*.idempotency_key' => ['required', 'string', 'max:100'],
+            'transactions.*.device_id' => ['nullable', 'string', 'min:16', 'max:100'],
+            'transactions.*.device_type' => ['nullable', 'string', 'in:WEB,MOBILE'],
+            'transactions.*.offline_created_at' => ['required', 'date'],
+            'transactions.*.passengers' => ['nullable', 'array'],
+            'transactions.*.group_passengers' => ['nullable', 'array'],
+        ]);
+
+        $results = [];
+        $syncedCount = 0;
+        $failedCount = 0;
+
+        foreach ($validated['transactions'] as $txnData) {
+            $idempotencyKey = $txnData['idempotency_key'];
+            try {
+                if (! empty($txnData['passengers'])) {
+                    $txn = $this->transactionService->recordMultiPassengerCashFare(
+                        $request->user(),
+                        $txnData,
+                        true,
+                    );
+                    $txId = $txn->transaction_id ?? null;
+                } elseif (! empty($txnData['group_passengers'])) {
+                    $group = $this->transactionService->recordGroupedCashFare(
+                        $request->user(),
+                        $txnData,
+                        true,
+                    );
+                    $txId = $group->reference_number ?? null;
+                } else {
+                    $txn = $this->transactionService->recordCashFare(
+                        $request->user(),
+                        $txnData,
+                        true,
+                    );
+                    $txId = $txn->transaction_id ?? null;
+                }
+
+                $syncedCount++;
+                $results[] = [
+                    'idempotency_key' => $idempotencyKey,
+                    'status' => 'synced',
+                    'transaction_id' => $txId,
+                ];
+            } catch (\Throwable $e) {
+                $failedCount++;
+                $results[] = [
+                    'idempotency_key' => $idempotencyKey,
+                    'status' => 'failed',
+                    'error' => $e->getMessage(),
+                ];
+                \Illuminate\Support\Facades\Log::warning('Mobile batch transaction sync item failed', [
+                    'conductor_id' => $request->user()->id,
+                    'idempotency_key' => $idempotencyKey,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $this->successResponse([
+            'synced_count' => $syncedCount,
+            'failed_count' => $failedCount,
+            'items' => $results,
+        ], 'Batch offline cash synchronization processed');
+    }
 }

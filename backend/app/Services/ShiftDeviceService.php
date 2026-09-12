@@ -15,6 +15,7 @@ final class ShiftDeviceService
         ShiftLog $shift,
         ?string $deviceId,
         ?string $deviceType = null,
+        bool $requireDeviceId = true,
     ): void {
         if ($shift->operating_device_id === null) {
             $this->assertDeviceWasNotRecovered($shift, $deviceId);
@@ -33,7 +34,14 @@ final class ShiftDeviceService
             return;
         }
 
-        if ($deviceId === null || ! hash_equals($shift->operating_device_id, $deviceId)) {
+        if ($deviceId === null) {
+            if (! $requireDeviceId) {
+                return;
+            }
+            abort(409, 'This shift is active on another device. Finish syncing and release that device before performing shift actions here.');
+        }
+
+        if (! hash_equals($shift->operating_device_id, $deviceId)) {
             abort(409, 'This shift is active on another device. Finish syncing and release that device before performing shift actions here.');
         }
     }

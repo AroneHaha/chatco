@@ -103,7 +103,7 @@ class TransactionService
      * @throws HttpException
      *                       422 if conductor has no active shift
      */
-    public function recordCashFare(User $conductor, array $data): Transaction
+    public function recordCashFare(User $conductor, array $data, bool $enforceDeviceLock = true): Transaction
     {
         $shift = $this->resolveConductorShift($conductor, $data['shift_id'] ?? null);
 
@@ -162,8 +162,9 @@ class TransactionService
             $passengerId,
             $passengerRole,
             $data,
+            $enforceDeviceLock,
         ): Transaction {
-            $shift = $this->lockCashShiftForRequest($shift, $data);
+            $shift = $this->lockCashShiftForRequest($shift, $data, $enforceDeviceLock);
             $paidAt = now();
             $transaction = Transaction::create([
                 'transaction_id' => $this->generateTransactionId(),
@@ -344,7 +345,7 @@ class TransactionService
     }
 
     /** Record one paid cash receipt per passenger under a shared payment group. */
-    public function recordGroupedCashFare(User $conductor, array $data): PaymentGroup
+    public function recordGroupedCashFare(User $conductor, array $data, bool $enforceDeviceLock = true): PaymentGroup
     {
         $shift = $this->resolveConductorShift($conductor, $data['shift_id'] ?? null);
         $idempotencyKey = $data['idempotency_key'] ?? null;
@@ -363,8 +364,8 @@ class TransactionService
         );
         $breakdown = $this->authoritativeGroupBreakdown($fare);
 
-        return DB::transaction(function () use ($shift, $fare, $breakdown, $idempotencyKey, $data) {
-            $shift = $this->lockCashShiftForRequest($shift, $data);
+        return DB::transaction(function () use ($shift, $fare, $breakdown, $idempotencyKey, $data, $enforceDeviceLock) {
+            $shift = $this->lockCashShiftForRequest($shift, $data, $enforceDeviceLock);
             $passengers = $this->expandGroupPassengers($breakdown);
             $group = PaymentGroup::create([
                 'id' => (string) Str::uuid(),
@@ -397,7 +398,7 @@ class TransactionService
         }, 3);
     }
 
-    public function recordMultiPassengerCashFare(User $conductor, array $data): Transaction
+    public function recordMultiPassengerCashFare(User $conductor, array $data, bool $enforceDeviceLock = true): Transaction
     {
         $shift = $this->resolveConductorShift($conductor, $data['shift_id'] ?? null);
         $idempotencyKey = $data['idempotency_key'] ?? null;
@@ -417,8 +418,8 @@ class TransactionService
             $shift->route_id,
         );
 
-        return DB::transaction(function () use ($shift, $fare, $idempotencyKey, $data) {
-            $shift = $this->lockCashShiftForRequest($shift, $data);
+        return DB::transaction(function () use ($shift, $fare, $idempotencyKey, $data, $enforceDeviceLock) {
+            $shift = $this->lockCashShiftForRequest($shift, $data, $enforceDeviceLock);
             $transaction = Transaction::create([
                 'transaction_id' => $this->generateTransactionId(),
                 'shift_id' => $shift->shift_id,
@@ -1501,7 +1502,7 @@ class TransactionService
      * additionally recover into an automatically closed shift whose physical
      * remittance is still PENDING.
      */
-    private function lockCashShiftForRequest(ShiftLog $shift, array $data): ShiftLog
+    private function lockCashShiftForRequest(ShiftLog $shift, array $data, bool $enforceDeviceLock = true): ShiftLog
     {
         $offlineCreatedAt = isset($data['offline_created_at'])
             ? Carbon::parse($data['offline_created_at'])
@@ -1514,6 +1515,7 @@ class TransactionService
             $locked,
             $data['device_id'] ?? null,
             $data['device_type'] ?? null,
+            $enforceDeviceLock,
         );
 
         return $locked;
