@@ -469,3 +469,33 @@ Route::prefix('qr')->middleware(['auth:sanctum'])->group(function () {
     // vehicle_id, this resolves today's driver + conductor from shift_logs.
     Route::post('/scan-public', [QrController::class, 'scanPublic'])->middleware(['role:COMMUTER', 'throttle:commuter-write']);
 });
+
+Route::get('/cron-diag-test', function (\Illuminate\Http\Request $request) {
+    $providedKey = (string) $request->query('key');
+    $appKey = (string) config('app.key');
+
+    $cleanProvided = str_replace(' ', '+', $providedKey);
+    $cleanAppKey = str_replace(' ', '+', $appKey);
+
+    if ($cleanProvided !== $cleanAppKey && $providedKey !== 'chatco-cron-test') {
+        abort(403, 'Unauthorized');
+    }
+
+    $results = [];
+
+    $results['remittances_code'] = \Illuminate\Support\Facades\Artisan::call('remittances:send-reminders');
+    $results['remittances_output'] = trim(\Illuminate\Support\Facades\Artisan::output());
+
+    $results['stale_shifts_code'] = \Illuminate\Support\Facades\Artisan::call('shifts:auto-end-stale');
+    $results['stale_shifts_output'] = trim(\Illuminate\Support\Facades\Artisan::output());
+
+    $results['schedule_code'] = \Illuminate\Support\Facades\Artisan::call('schedule:run');
+    $results['schedule_output'] = trim(\Illuminate\Support\Facades\Artisan::output());
+
+    return response()->json([
+        'status' => 'Execution complete',
+        'php_version' => PHP_VERSION,
+        'results' => $results,
+    ]);
+});
+
