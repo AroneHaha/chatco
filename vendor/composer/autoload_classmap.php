@@ -180,6 +180,7 @@ return array(
     'App\\Providers\\AppServiceProvider' => $baseDir . '/app/Providers/AppServiceProvider.php',
     'App\\Providers\\BroadcastServiceProvider' => $baseDir . '/app/Providers/BroadcastServiceProvider.php',
     'App\\Providers\\PaymentServiceProvider' => $baseDir . '/app/Providers/PaymentServiceProvider.php',
+    'App\\Rules\\PhilippineMobileNumber' => $baseDir . '/app/Rules/PhilippineMobileNumber.php',
     'App\\Rules\\StrongPassword' => $baseDir . '/app/Rules/StrongPassword.php',
     'App\\Services\\ActivityLogService' => $baseDir . '/app/Services/ActivityLogService.php',
     'App\\Services\\AdminService' => $baseDir . '/app/Services/AdminService.php',

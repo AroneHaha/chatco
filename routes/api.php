@@ -273,10 +273,15 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::get('/drivers', [AdminController::class, 'drivers'])->middleware('throttle:conductor-read');
     Route::post('/drivers', [AdminController::class, 'storeDriver'])->middleware('throttle:conductor-write');
     Route::get('/drivers/{id}', [AdminController::class, 'showDriver'])->middleware('throttle:conductor-read');
+    Route::post('/drivers/{id}/license-images', [AdminController::class, 'uploadDriverLicenseImages'])->middleware('throttle:conductor-write');
+    Route::delete('/drivers/{id}/license-images/{side}', [AdminController::class, 'destroyDriverLicenseImage'])->middleware('throttle:conductor-write');
+    Route::get('/drivers/{id}/license-images/{side}', [AdminController::class, 'showDriverLicenseImage'])->middleware('throttle:conductor-read');
+    Route::get('/drivers/{id}/shift-logs', [AdminController::class, 'driverShiftLogs'])->middleware('throttle:conductor-read');
     Route::put('/drivers/{id}', [AdminController::class, 'updateDriver'])->middleware('throttle:conductor-write');
     Route::patch('/drivers/{id}', [AdminController::class, 'updateDriver'])->middleware('throttle:conductor-write');
     Route::delete('/drivers/{id}', [AdminController::class, 'destroyDriver'])->middleware('throttle:conductor-write');
     Route::get('/conductors/{id}', [AdminController::class, 'showConductor'])->middleware('throttle:conductor-read');
+    Route::get('/conductors/{id}/shift-logs', [AdminController::class, 'conductorShiftLogs'])->middleware('throttle:conductor-read');
     Route::put('/conductors/{id}', [AdminController::class, 'updateConductor'])->middleware('throttle:conductor-write');
     Route::patch('/conductors/{id}', [AdminController::class, 'updateConductor'])->middleware('throttle:conductor-write');
     Route::get('/conductors', [AdminController::class, 'conductors'])->middleware('throttle:conductor-read');
@@ -469,33 +474,3 @@ Route::prefix('qr')->middleware(['auth:sanctum'])->group(function () {
     // vehicle_id, this resolves today's driver + conductor from shift_logs.
     Route::post('/scan-public', [QrController::class, 'scanPublic'])->middleware(['role:COMMUTER', 'throttle:commuter-write']);
 });
-
-Route::get('/cron-diag-test', function (\Illuminate\Http\Request $request) {
-    $providedKey = (string) $request->query('key');
-    $appKey = (string) config('app.key');
-
-    $cleanProvided = str_replace(' ', '+', $providedKey);
-    $cleanAppKey = str_replace(' ', '+', $appKey);
-
-    if ($cleanProvided !== $cleanAppKey && $providedKey !== 'chatco-cron-test') {
-        abort(403, 'Unauthorized');
-    }
-
-    $results = [];
-
-    $results['remittances_code'] = \Illuminate\Support\Facades\Artisan::call('remittances:send-reminders');
-    $results['remittances_output'] = trim(\Illuminate\Support\Facades\Artisan::output());
-
-    $results['stale_shifts_code'] = \Illuminate\Support\Facades\Artisan::call('shifts:auto-end-stale');
-    $results['stale_shifts_output'] = trim(\Illuminate\Support\Facades\Artisan::output());
-
-    $results['schedule_code'] = \Illuminate\Support\Facades\Artisan::call('schedule:run');
-    $results['schedule_output'] = trim(\Illuminate\Support\Facades\Artisan::output());
-
-    return response()->json([
-        'status' => 'Execution complete',
-        'php_version' => PHP_VERSION,
-        'results' => $results,
-    ]);
-});
-

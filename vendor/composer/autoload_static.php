@@ -684,6 +684,7 @@ class ComposerStaticInit1554d9a7755277c7b64a5a5f7daac88e
         'App\\Providers\\AppServiceProvider' => __DIR__ . '/../..' . '/app/Providers/AppServiceProvider.php',
         'App\\Providers\\BroadcastServiceProvider' => __DIR__ . '/../..' . '/app/Providers/BroadcastServiceProvider.php',
         'App\\Providers\\PaymentServiceProvider' => __DIR__ . '/../..' . '/app/Providers/PaymentServiceProvider.php',
+        'App\\Rules\\PhilippineMobileNumber' => __DIR__ . '/../..' . '/app/Rules/PhilippineMobileNumber.php',
         'App\\Rules\\StrongPassword' => __DIR__ . '/../..' . '/app/Rules/StrongPassword.php',
         'App\\Services\\ActivityLogService' => __DIR__ . '/../..' . '/app/Services/ActivityLogService.php',
         'App\\Services\\AdminService' => __DIR__ . '/../..' . '/app/Services/AdminService.php',

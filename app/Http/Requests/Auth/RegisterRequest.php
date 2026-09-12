@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Rules\PhilippineMobileNumber;
 use App\Rules\StrongPassword;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
@@ -42,6 +43,9 @@ use Illuminate\Validation\Rule;
  */
 class RegisterRequest extends FormRequest
 {
+    /** Predefined suffix choices — kept in sync with the sign-up form's dropdown. */
+    public const SUFFIX_OPTIONS = ['Jr.', 'Sr.', 'II', 'III', 'IV'];
+
     public function authorize(): bool
     {
         return true; // public endpoint
@@ -54,11 +58,19 @@ class RegisterRequest extends FormRequest
      * uniqueness is checked against the stored value — so "Juan@Gmail.com"
      * here has to resolve to the same key as the "juan@gmail.com" the
      * applicant verified a minute ago.
+     *
+     * Also title-cases middle_name here (not just on the frontend) so the
+     * saved value is properly capitalized regardless of what actually
+     * reached the server, e.g. "matti" / "MATTI" -> "Matti".
      */
     protected function prepareForValidation(): void
     {
         if (is_string($this->email)) {
             $this->merge(['email' => Str::lower(trim($this->email))]);
+        }
+
+        if (is_string($this->middle_name) && trim($this->middle_name) !== '') {
+            $this->merge(['middle_name' => Str::title(trim($this->middle_name))]);
         }
     }
 
@@ -67,11 +79,12 @@ class RegisterRequest extends FormRequest
         return [
             'first_name' => ['required', 'string', 'max:100'],
             'middle_name' => ['nullable', 'string', 'max:100'],
+            'suffix' => ['nullable', 'string', Rule::in(self::SUFFIX_OPTIONS)],
             'surname' => ['required', 'string', 'max:100'],
             'birthdate' => ['required', 'date', 'before:today'],
             'gender' => ['required', 'string', 'max:20'],
             'email' => ['required', 'string', 'email:rfc', 'max:255'],
-            'contact_number' => ['required', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
+            'contact_number' => ['required', 'string', new PhilippineMobileNumber],
             'username' => ['required', 'string', 'max:50', 'unique:commuter_profiles,username'],
             'password' => ['required', 'string', 'confirmed', new StrongPassword],
             'language_preference' => ['nullable', 'string', 'max:20'],
@@ -84,7 +97,7 @@ class RegisterRequest extends FormRequest
     {
         return [
             'applied_type.in' => 'The applied type must be one of: REGULAR, STUDENT, SENIOR, PWD.',
-            'contact_number.regex' => 'The contact number format is invalid.',
+            'suffix.in' => 'The suffix must be one of: '.implode(', ', self::SUFFIX_OPTIONS).'.',
             'username.unique' => 'The username has already been taken.',
             'id_image.required' => 'A valid ID image is required to complete registration.',
             'password.confirmed' => 'The password confirmation does not match.',

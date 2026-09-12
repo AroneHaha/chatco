@@ -12,6 +12,7 @@ class Driver extends Model
     use HasFactory, SoftDeletes;
 
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [
@@ -20,7 +21,13 @@ class Driver extends Model
         'last_name',
         'birthday',
         'contact',
+        'address',
+        'emergency_contact_name',
+        'emergency_contact_number',
+        'emergency_contact_relationship',
         'license_number',
+        'license_front_image_url',
+        'license_back_image_url',
         'hire_date',
         'profile_picture_url',
         'status',
