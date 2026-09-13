@@ -82,6 +82,7 @@ return array(
     'App\\Http\\Controllers\\Commuter\\VehicleLocationController' => $baseDir . '/app/Http/Controllers/Commuter/VehicleLocationController.php',
     'App\\Http\\Controllers\\Conductor\\ConductorController' => $baseDir . '/app/Http/Controllers/Conductor/ConductorController.php',
     'App\\Http\\Controllers\\Conductor\\ConductorHailController' => $baseDir . '/app/Http/Controllers/Conductor/ConductorHailController.php',
+    'App\\Http\\Controllers\\Conductor\\MobileTransactionController' => $baseDir . '/app/Http/Controllers/Conductor/MobileTransactionController.php',
     'App\\Http\\Controllers\\Conductor\\SosController' => $baseDir . '/app/Http/Controllers/Conductor/SosController.php',
     'App\\Http\\Controllers\\Controller' => $baseDir . '/app/Http/Controllers/Controller.php',
     'App\\Http\\Controllers\\FaqController' => $baseDir . '/app/Http/Controllers/FaqController.php',

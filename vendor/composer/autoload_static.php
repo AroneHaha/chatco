@@ -586,6 +586,7 @@ class ComposerStaticInit1554d9a7755277c7b64a5a5f7daac88e
         'App\\Http\\Controllers\\Commuter\\VehicleLocationController' => __DIR__ . '/../..' . '/app/Http/Controllers/Commuter/VehicleLocationController.php',
         'App\\Http\\Controllers\\Conductor\\ConductorController' => __DIR__ . '/../..' . '/app/Http/Controllers/Conductor/ConductorController.php',
         'App\\Http\\Controllers\\Conductor\\ConductorHailController' => __DIR__ . '/../..' . '/app/Http/Controllers/Conductor/ConductorHailController.php',
+        'App\\Http\\Controllers\\Conductor\\MobileTransactionController' => __DIR__ . '/../..' . '/app/Http/Controllers/Conductor/MobileTransactionController.php',
         'App\\Http\\Controllers\\Conductor\\SosController' => __DIR__ . '/../..' . '/app/Http/Controllers/Conductor/SosController.php',
         'App\\Http\\Controllers\\Controller' => __DIR__ . '/../..' . '/app/Http/Controllers/Controller.php',
         'App\\Http\\Controllers\\FaqController' => __DIR__ . '/../..' . '/app/Http/Controllers/FaqController.php',
