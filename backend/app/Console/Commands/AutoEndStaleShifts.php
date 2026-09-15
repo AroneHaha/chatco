@@ -23,8 +23,14 @@ class AutoEndStaleShifts extends Command
     public function handle(): int
     {
         $query = ShiftLog::query()->where('status', ShiftStatus::ACTIVE->value);
+        $dayStart = now('Asia/Manila')->startOfDay();
 
-        if (! $this->option('all')) {
+        if ($this->option('all')) {
+            // Midnight sweep: end shifts still open from a prior day, not a
+            // shift that legitimately just started in the new day (the
+            // scheduler's dailyAt('00:00') can fire anywhere in that minute).
+            $query->where('time_in', '<', $dayStart);
+        } else {
             $maxHours = (int) (Setting::query()->where('key', 'max_shift_hours')->value('value') ?? 12);
             if ($maxHours < 1 || $maxHours > 48) {
                 $this->error("Invalid max_shift_hours value: {$maxHours}. Expected 1-48.");
@@ -33,7 +39,6 @@ class AutoEndStaleShifts extends Command
             }
 
             $cutoff = now()->subHours($maxHours);
-            $dayStart = now('Asia/Manila')->startOfDay();
             $query->where(function ($q) use ($cutoff, $dayStart): void {
                 $q->where('time_in', '<=', $cutoff)
                     ->orWhere('time_in', '<', $dayStart);

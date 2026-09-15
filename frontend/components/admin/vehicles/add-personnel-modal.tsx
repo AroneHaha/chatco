@@ -209,10 +209,33 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
         throw new Error(data.message ?? 'Failed to create driver');
       }
 
-      // Success — reset form, trigger parent refetch, close modal.
+      // Driver record is already created at this point. If the license
+      // image upload below fails, the driver must not be treated as if
+      // nothing happened: re-submitting the whole form would resend the
+      // same license_number, which is now taken by the driver we just
+      // created, and strand the admin behind a confusing "already taken"
+      // error. Instead: refresh the parent list in the background (so the
+      // new driver shows up once this modal closes), clear the license
+      // fields so the form can't be blindly resubmitted, and surface a
+      // message pointing at the Edit form, which supports adding license
+      // images afterwards.
       const driverId = data.data?.id;
-      if (driverId) await uploadLicenseImages(String(driverId));
+      if (driverId) {
+        try {
+          await uploadLicenseImages(String(driverId));
+        } catch (uploadErr) {
+          onSave();
+          setLicenseFrontFile(null);
+          setLicenseBackFile(null);
+          setLicenseFrontPreview(null);
+          setLicenseBackPreview(null);
+          const reason = uploadErr instanceof Error ? uploadErr.message : 'Failed to upload license image(s).';
+          setError(`Driver created, but license image upload failed: ${reason} Add the image(s) from the driver's Edit form.`);
+          return;
+        }
+      }
 
+      // Success — reset form, trigger parent refetch, close modal.
       setFormData({
         firstName: '',
         middleName: '',

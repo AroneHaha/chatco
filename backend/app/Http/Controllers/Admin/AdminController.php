@@ -439,26 +439,42 @@ class AdminController extends Controller
         $oldPaths = [];
         $newPaths = [];
 
-        DB::transaction(function () use ($driver, $validated, $diskName, &$oldPaths, &$newPaths): void {
-            foreach (['front', 'back'] as $side) {
-                if (! isset($validated[$side])) {
-                    continue;
-                }
-
-                $column = "license_{$side}_image_url";
-                $file = $validated[$side];
-                $extension = strtolower($file->getClientOriginalExtension() ?: 'jpg');
-                $path = $file->storeAs(
-                    "driver-licenses/{$driver->id}",
-                    "{$side}-".Str::uuid().".{$extension}",
-                    $diskName
-                );
-
-                $oldPaths[] = $driver->{$column};
-                $newPaths[] = $path;
-                $driver->update([$column => $path]);
+        // Upload BEFORE opening the transaction — same reasoning as
+        // AdminRegistrationController::store(): storeAs() is a network call
+        // to R2, so it must not run inside DB::transaction(). Any failure in
+        // the DB update below deletes the just-uploaded files so a failed
+        // save never orphans a license image in R2.
+        $uploads = [];
+        foreach (['front', 'back'] as $side) {
+            if (! isset($validated[$side])) {
+                continue;
             }
-        });
+
+            $file = $validated[$side];
+            $extension = strtolower($file->getClientOriginalExtension() ?: 'jpg');
+            $uploads[$side] = $file->storeAs(
+                "driver-licenses/{$driver->id}",
+                "{$side}-".Str::uuid().".{$extension}",
+                $diskName
+            );
+        }
+
+        try {
+            DB::transaction(function () use ($driver, $uploads, &$oldPaths, &$newPaths): void {
+                foreach ($uploads as $side => $path) {
+                    $column = "license_{$side}_image_url";
+                    $oldPaths[] = $driver->{$column};
+                    $newPaths[] = $path;
+                    $driver->update([$column => $path]);
+                }
+            });
+        } catch (\Throwable $e) {
+            foreach ($uploads as $path) {
+                $disk->delete($path);
+            }
+
+            throw $e;
+        }
 
         foreach ($oldPaths as $oldPath) {
             if ($oldPath && ! in_array($oldPath, $newPaths, true)) {
@@ -488,8 +504,12 @@ class AdminController extends Controller
         $path = $driver->{$column};
 
         if ($path) {
-            Storage::disk(config('filesystems.uploads.private_id_disk', 'r2_private'))->delete($path);
+            // Clear the DB reference first, then delete the file. If the file
+            // delete fails afterwards it only leaves an orphaned (harmless)
+            // file in storage, rather than a DB reference pointing at a file
+            // that no longer exists.
             $driver->update([$column => null]);
+            Storage::disk(config('filesystems.uploads.private_id_disk', 'r2_private'))->delete($path);
         }
 
         return $this->successResponse(null, 'License image removed successfully');

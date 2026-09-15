@@ -260,6 +260,25 @@ class AuthTest extends TestCase
             ->assertOk();
     }
 
+    public function test_platform_scoped_login_also_revokes_a_pre_existing_legacy_token(): void
+    {
+        $conductor = $this->seedConductor();
+        // A session created before platform-scoped token names shipped.
+        $legacyToken = $conductor->createToken('auth-token');
+
+        $this->postJson('/api/v1/auth/login', [
+            'login' => 'conductor001',
+            'password' => 'password123',
+            'device_id' => 'web-device-cccccccc',
+            'device_type' => 'WEB',
+        ])->assertOk();
+
+        $this->assertDatabaseMissing('personal_access_tokens', [
+            'id' => $legacyToken->accessToken->id,
+        ]);
+        $this->assertSame(1, $conductor->tokens()->count());
+    }
+
     public function test_unidentified_legacy_client_cannot_displace_an_active_shift_device(): void
     {
         $conductor = $this->seedConductor();
