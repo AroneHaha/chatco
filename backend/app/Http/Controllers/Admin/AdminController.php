@@ -30,6 +30,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -386,6 +387,8 @@ class AdminController extends Controller
             'emergency_contact_number' => $driver->emergency_contact_number,
             'emergency_contact_relationship' => $driver->emergency_contact_relationship,
             'license_number' => $driver->license_number,
+            'license_front_image_url' => $driver->license_front_image_url,
+            'license_back_image_url' => $driver->license_back_image_url,
             'hire_date' => $driver->hire_date?->toDateString(),
             'profile_picture_url' => $driver->profile_picture_url,
             'status' => $driver->status,
@@ -403,6 +406,141 @@ class AdminController extends Controller
         ];
 
         return $this->successResponse($data, 'Driver details retrieved');
+    }
+
+    /**
+     * POST /api/v1/admin/drivers/{id}/license-images
+     *
+     * Stores one or both sides of a driver's license on the configured
+     * private ID disk. The image itself is only served through the
+     * authenticated showDriverLicenseImage endpoint below.
+     */
+    public function uploadDriverLicenseImages(Request $request, string $id): JsonResponse
+    {
+        $driver = Driver::findOrFail($id);
+
+        $validated = $request->validate([
+            'front' => ['sometimes', 'file', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
+            'back' => ['sometimes', 'file', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
+        ]);
+
+        if (! isset($validated['front']) && ! isset($validated['back'])) {
+            return response()->json([
+                'success' => false,
+                'data' => null,
+                'message' => 'At least one license image is required.',
+                'errors' => ['license_images' => ['Upload a front or back license image.']],
+                'meta' => null,
+            ], 422);
+        }
+
+        $diskName = config('filesystems.uploads.private_id_disk', 'r2_private');
+        $disk = Storage::disk($diskName);
+        $oldPaths = [];
+        $newPaths = [];
+
+        // Upload BEFORE opening the transaction — same reasoning as
+        // AdminRegistrationController::store(): storeAs() is a network call
+        // to R2, so it must not run inside DB::transaction(). Any failure in
+        // the DB update below deletes the just-uploaded files so a failed
+        // save never orphans a license image in R2.
+        $uploads = [];
+        foreach (['front', 'back'] as $side) {
+            if (! isset($validated[$side])) {
+                continue;
+            }
+
+            $file = $validated[$side];
+            $extension = strtolower($file->getClientOriginalExtension() ?: 'jpg');
+            $uploads[$side] = $file->storeAs(
+                "driver-licenses/{$driver->id}",
+                "{$side}-".Str::uuid().".{$extension}",
+                $diskName
+            );
+        }
+
+        try {
+            DB::transaction(function () use ($driver, $uploads, &$oldPaths, &$newPaths): void {
+                foreach ($uploads as $side => $path) {
+                    $column = "license_{$side}_image_url";
+                    $oldPaths[] = $driver->{$column};
+                    $newPaths[] = $path;
+                    $driver->update([$column => $path]);
+                }
+            });
+        } catch (\Throwable $e) {
+            foreach ($uploads as $path) {
+                $disk->delete($path);
+            }
+
+            throw $e;
+        }
+
+        foreach ($oldPaths as $oldPath) {
+            if ($oldPath && ! in_array($oldPath, $newPaths, true)) {
+                $disk->delete($oldPath);
+            }
+        }
+
+        $driver = $driver->fresh();
+
+        return $this->successResponse([
+            'id' => $driver->id,
+            'license_front_image_url' => $driver->license_front_image_url,
+            'license_back_image_url' => $driver->license_back_image_url,
+        ], 'License image(s) uploaded successfully');
+    }
+
+    /**
+     * DELETE /api/v1/admin/drivers/{id}/license-images/{side}
+     * Removes one side of a driver's license document.
+     */
+    public function destroyDriverLicenseImage(string $id, string $side): JsonResponse
+    {
+        abort_unless(in_array($side, ['front', 'back'], true), 404);
+
+        $driver = Driver::findOrFail($id);
+        $column = "license_{$side}_image_url";
+        $path = $driver->{$column};
+
+        if ($path) {
+            // Clear the DB reference first, then delete the file. If the file
+            // delete fails afterwards it only leaves an orphaned (harmless)
+            // file in storage, rather than a DB reference pointing at a file
+            // that no longer exists.
+            $driver->update([$column => null]);
+            Storage::disk(config('filesystems.uploads.private_id_disk', 'r2_private'))->delete($path);
+        }
+
+        return $this->successResponse(null, 'License image removed successfully');
+    }
+
+    /**
+     * GET /api/v1/admin/drivers/{id}/license-images/{side}
+     * Streams a license image to an authenticated admin only.
+     */
+    public function showDriverLicenseImage(string $id, string $side)
+    {
+        abort_unless(in_array($side, ['front', 'back'], true), 404);
+
+        $driver = Driver::findOrFail($id);
+        $path = $driver->{"license_{$side}_image_url"};
+        abort_if(! $path, 404);
+
+        $disk = Storage::disk(config('filesystems.uploads.private_id_disk', 'r2_private'));
+        abort_unless($disk->exists($path), 404);
+
+        $stream = $disk->readStream($path);
+        abort_unless(is_resource($stream), 404);
+
+        return response()->stream(function () use ($stream): void {
+            fpassthru($stream);
+            fclose($stream);
+        }, 200, [
+            'Content-Type' => $disk->mimeType($path) ?: 'application/octet-stream',
+            'Content-Disposition' => 'inline',
+            'Cache-Control' => 'private, no-store',
+        ]);
     }
 
     /**
@@ -1176,7 +1314,14 @@ class AdminController extends Controller
         // column, so wrapping it in whereDate()'s CAST(...) still blocks the
         // remittances_date_index range scan and forces a full table scan.
         if ($request->filled('date_from')) {
-            $completedQuery->where('date', '>=', $request->input('date_from'));
+            $dateFrom = $request->input('date_from');
+            $completedQuery->where(function ($query) use ($dateFrom): void {
+                $query->where('date', '>=', $dateFrom)
+                    ->orWhere(function ($q): void {
+                        $q->where('remittance_status', Remittance::STATUS_PENDING)
+                            ->where('date', '>=', now('Asia/Manila')->subDays(7)->toDateString());
+                    });
+            });
         }
         if ($request->filled('date_to')) {
             $completedQuery->where('date', '<=', $request->input('date_to'));
@@ -1185,7 +1330,7 @@ class AdminController extends Controller
             $completedQuery->where('date', $request->input('date'));
         }
         if ($statusFilter) {
-            if ($statusFilter === 'REMITTED') {
+            if ($statusFilter === 'REMITTED' || $statusFilter === 'SETTLED') {
                 $completedQuery->whereIn('remittance_status', [
                     Remittance::STATUS_COMPLETE,
                     Remittance::STATUS_SHORTAGE,
@@ -1195,6 +1340,14 @@ class AdminController extends Controller
             } elseif ($statusFilter === 'OVERDUE') {
                 $completedQuery->where('remittance_status', Remittance::STATUS_PENDING)
                     ->where('remittance_due_at', '<', now());
+            } elseif ($statusFilter === 'FOR CASH DECLARATION') {
+                $completedQuery->where('remittance_status', Remittance::STATUS_PENDING)
+                    ->where(function ($query): void {
+                        $query->whereNull('remittance_due_at')
+                            ->orWhere('remittance_due_at', '>=', now());
+                    });
+            } elseif ($statusFilter === 'PENDING') {
+                $completedQuery->whereRaw('1 = 0');
             } else {
                 $completedQuery->where('remittance_status', $statusFilter);
             }
@@ -1242,7 +1395,11 @@ class AdminController extends Controller
                 ->whereDoesntHave('remittance');
 
             if ($request->filled('date_from')) {
-                $activeQuery->where('time_in', '>=', Carbon::parse($request->input('date_from'))->startOfDay());
+                $dateFrom = Carbon::parse($request->input('date_from'))->startOfDay();
+                $activeQuery->where(function ($q) use ($dateFrom): void {
+                    $q->where('time_in', '>=', $dateFrom)
+                        ->orWhere('time_in', '>=', now('Asia/Manila')->subHours(24));
+                });
             }
             if ($request->filled('date_to')) {
                 $activeQuery->where('time_in', '<=', Carbon::parse($request->input('date_to'))->endOfDay());

@@ -356,6 +356,7 @@ class ConductorController extends Controller
             $transaction = $this->transactionService->recordMultiPassengerCashFare(
                 $request->user(),
                 $request->validated(),
+                false,
             );
 
             return $this->successResponse($transaction, 'Multi-passenger cash fare recorded', 201);
@@ -365,6 +366,7 @@ class ConductorController extends Controller
             $group = $this->transactionService->recordGroupedCashFare(
                 $request->user(),
                 $request->validated(),
+                false,
             );
 
             return $this->successResponse([
@@ -380,6 +382,7 @@ class ConductorController extends Controller
         $transaction = $this->transactionService->recordCashFare(
             $request->user(),
             $request->validated(),
+            false,
         );
 
         return $this->successResponse(

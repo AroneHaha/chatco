@@ -448,6 +448,53 @@ class OfflineCashSafetyTest extends TestCase
         $this->assertDatabaseMissing('transactions', ['idempotency_key' => 'too-late-offline-key']);
     }
 
+    public function test_mobile_conductor_transactions_route_records_cash_successfully(): void
+    {
+        $shift = $this->startShift();
+        // Hand off shift to mobile device
+        $this->actingAs($this->conductor)
+            ->postJson('/api/v1/conductor/shifts/device/release', $this->devicePayload($shift, self::WEB_DEVICE, 'WEB'))
+            ->assertOk();
+        $this->actingAs($this->conductor)
+            ->postJson('/api/v1/conductor/shifts/device/claim', $this->devicePayload($shift, self::MOBILE_DEVICE, 'MOBILE'))
+            ->assertOk();
+
+        $response = $this->actingAs($this->conductor)
+            ->postJson('/api/v1/mobile/conductor/transactions', $this->cashPayload(self::MOBILE_DEVICE, 'mobile-direct-cash-1'))
+            ->assertCreated();
+
+        $this->assertSame('Cash fare recorded', $response->json('message'));
+        $this->assertDatabaseHas('transactions', [
+            'idempotency_key' => 'mobile-direct-cash-1',
+            'source_device_id' => self::MOBILE_DEVICE,
+        ]);
+    }
+
+    public function test_mobile_conductor_transactions_route_supports_offline_queue_sync(): void
+    {
+        $shift = $this->startShift();
+        // Hand off shift to mobile device
+        $this->actingAs($this->conductor)
+            ->postJson('/api/v1/conductor/shifts/device/release', $this->devicePayload($shift, self::WEB_DEVICE, 'WEB'))
+            ->assertOk();
+        $this->actingAs($this->conductor)
+            ->postJson('/api/v1/conductor/shifts/device/claim', $this->devicePayload($shift, self::MOBILE_DEVICE, 'MOBILE'))
+            ->assertOk();
+
+        $offlinePayload = $this->cashPayload(self::MOBILE_DEVICE, 'mobile-offline-queue-1');
+        $offlinePayload['offline_created_at'] = now()->subMinutes(2)->toIso8601String();
+
+        $this->actingAs($this->conductor)
+            ->postJson('/api/v1/mobile/conductor/transactions', $offlinePayload)
+            ->assertCreated();
+
+        $this->assertDatabaseHas('transactions', [
+            'idempotency_key' => 'mobile-offline-queue-1',
+            'source_device_id' => self::MOBILE_DEVICE,
+        ]);
+        $this->assertNotNull(Transaction::where('idempotency_key', 'mobile-offline-queue-1')->value('synced_at'));
+    }
+
     private function startShift(): ShiftLog
     {
         $this->actingAs($this->conductor)->postJson('/api/v1/conductor/shifts/start', [

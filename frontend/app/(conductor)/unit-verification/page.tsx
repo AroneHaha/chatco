@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { startShift } from "@/lib/conductor/services/shift.service";
-import { fetchRemittanceHistory, type RemittanceRecord } from "@/lib/conductor/services/remittance.service";
 import type { ConductorDriver, ConductorUnit } from "@/lib/conductor/types";
 import { useUnitVerification } from "@/app/(conductor)/hooks/use-unit-verification";
 import { useConductorShift } from "@/app/(conductor)/hooks/use-conductor-shift";
@@ -27,7 +26,6 @@ export default function ConductorLoginPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isCheckingShift, setIsCheckingShift] = useState(true);
-  const [pendingRemittance, setPendingRemittance] = useState<RemittanceRecord | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Reuse the shift already fetched by ConductorShiftProvider (wraps the
@@ -41,13 +39,7 @@ export default function ConductorLoginPage() {
       return;
     }
 
-    void fetchRemittanceHistory()
-      .then((remittances) => {
-        setPendingRemittance(
-          remittances.find((record) => record.remittanceStatus === "For Cash Declaration" || record.remittanceStatus === "Overdue") ?? null,
-        );
-      })
-      .finally(() => setIsCheckingShift(false));
+    setIsCheckingShift(false);
   }, [shift, shiftStatus, router]);
 
   if (isCheckingShift || status === "loading") {
@@ -145,21 +137,6 @@ export default function ConductorLoginPage() {
           </div>
         )}
 
-        {pendingRemittance && (
-          <div className="mb-4 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-4">
-            <p className="text-sm font-bold text-amber-200">Pending cash remittance</p>
-            <p className="mt-1 text-xs text-amber-100/70">
-              Shift {pendingRemittance.shiftId} has ₱{pendingRemittance.cashTotal.toFixed(2)} expected cash awaiting submission.
-            </p>
-            <button
-              type="button"
-              onClick={() => router.push("/conductor-dashboard/end-of-day")}
-              className="mt-3 rounded-lg bg-amber-300 px-3 py-2 text-xs font-bold text-[#291b00] hover:bg-amber-200"
-            >
-              Complete Remittance
-            </button>
-          </div>
-        )}
 
         {status === "empty" && (
           <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] px-6 py-10 text-center">

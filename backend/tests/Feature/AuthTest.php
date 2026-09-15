@@ -211,45 +211,72 @@ class AuthTest extends TestCase
     public function test_different_device_login_revokes_the_old_token_and_moves_the_active_shift(): void
     {
         $conductor = $this->seedConductor();
-        $ownerToken = $conductor->createToken('device-one');
-        $ownerPlainTextToken = $ownerToken->plainTextToken;
+        // Simulate an already-logged-in WEB session (auth-token:WEB)
+        $webToken  = $conductor->createToken('auth-token:WEB');
+        $webPlainText = $webToken->plainTextToken;
 
         ShiftLog::factory()->create([
-            'shift_id' => 'SFT-AUTH-DEVICE-1',
-            'conductor_id' => $conductor->id,
-            'operating_device_id' => 'web-device-aaaaaaaa',
-            'operating_device_type' => 'WEB',
+            'shift_id'                  => 'SFT-AUTH-DEVICE-1',
+            'conductor_id'              => $conductor->id,
+            'operating_device_id'       => 'web-device-aaaaaaaa',
+            'operating_device_type'     => 'WEB',
             'operating_device_claimed_at' => now(),
         ]);
 
         $response = $this->postJson('/api/v1/auth/login', [
-            'login' => 'conductor001',
-            'password' => 'password123',
-            'device_id' => 'mobile-device-bbbbbbbb',
+            'login'       => 'conductor001',
+            'password'    => 'password123',
+            'device_id'   => 'mobile-device-bbbbbbbb',
             'device_type' => 'MOBILE',
         ])->assertOk();
 
-        $this->assertDatabaseMissing('personal_access_tokens', [
-            'id' => $ownerToken->accessToken->id,
+        // Phase 3: WEB token must be preserved — only auth-token:MOBILE was wiped
+        $this->assertDatabaseHas('personal_access_tokens', [
+            'id' => $webToken->accessToken->id,
         ]);
-        $this->assertSame(1, $conductor->tokens()->count());
+
+        // Conductor now holds 2 tokens: auth-token:WEB (unchanged) + auth-token:MOBILE (new)
+        $this->assertSame(2, $conductor->tokens()->count());
+
+        // Shift device handoff happened as usual
         $this->assertDatabaseHas('shift_logs', [
-            'shift_id' => 'SFT-AUTH-DEVICE-1',
-            'operating_device_id' => 'mobile-device-bbbbbbbb',
+            'shift_id'              => 'SFT-AUTH-DEVICE-1',
+            'operating_device_id'   => 'mobile-device-bbbbbbbb',
             'operating_device_type' => 'MOBILE',
         ]);
 
-        $this->withHeader('Authorization', "Bearer {$ownerPlainTextToken}")
+        // WEB token is still valid (no 401)
+        $this->withHeader('Authorization', "Bearer {$webPlainText}")
             ->getJson('/api/v1/user')
-            ->assertUnauthorized();
+            ->assertOk();
 
+        // MOBILE token works for device-locked operations
         $this->withHeader('Authorization', "Bearer {$response->json('data.token')}")
             ->postJson('/api/v1/conductor/break-status', [
                 'is_on_break' => true,
-                'device_id' => 'mobile-device-bbbbbbbb',
+                'device_id'   => 'mobile-device-bbbbbbbb',
                 'device_type' => 'MOBILE',
             ])
             ->assertOk();
+    }
+
+    public function test_platform_scoped_login_also_revokes_a_pre_existing_legacy_token(): void
+    {
+        $conductor = $this->seedConductor();
+        // A session created before platform-scoped token names shipped.
+        $legacyToken = $conductor->createToken('auth-token');
+
+        $this->postJson('/api/v1/auth/login', [
+            'login' => 'conductor001',
+            'password' => 'password123',
+            'device_id' => 'web-device-cccccccc',
+            'device_type' => 'WEB',
+        ])->assertOk();
+
+        $this->assertDatabaseMissing('personal_access_tokens', [
+            'id' => $legacyToken->accessToken->id,
+        ]);
+        $this->assertSame(1, $conductor->tokens()->count());
     }
 
     public function test_unidentified_legacy_client_cannot_displace_an_active_shift_device(): void
@@ -282,26 +309,29 @@ class AuthTest extends TestCase
     public function test_active_shift_owner_can_log_in_again_on_the_same_device(): void
     {
         $conductor = $this->seedConductor();
-        $previousToken = $conductor->createToken('device-one');
+        // Use the real platform token name so Phase 3 scoping applies correctly
+        $previousToken = $conductor->createToken('auth-token:WEB');
 
         ShiftLog::factory()->create([
-            'shift_id' => 'SFT-AUTH-DEVICE-2',
-            'conductor_id' => $conductor->id,
-            'operating_device_id' => 'web-device-aaaaaaaa',
-            'operating_device_type' => 'WEB',
+            'shift_id'                  => 'SFT-AUTH-DEVICE-2',
+            'conductor_id'              => $conductor->id,
+            'operating_device_id'       => 'web-device-aaaaaaaa',
+            'operating_device_type'     => 'WEB',
             'operating_device_claimed_at' => now(),
         ]);
 
         $response = $this->postJson('/api/v1/auth/login', [
-            'login' => 'conductor001',
-            'password' => 'password123',
-            'device_id' => 'web-device-aaaaaaaa',
+            'login'       => 'conductor001',
+            'password'    => 'password123',
+            'device_id'   => 'web-device-aaaaaaaa',
             'device_type' => 'WEB',
         ])->assertOk();
 
+        // Old auth-token:WEB must be gone (same-platform rotation)
         $this->assertDatabaseMissing('personal_access_tokens', [
             'id' => $previousToken->accessToken->id,
         ]);
+        // Only the new WEB token remains — total count is 1
         $this->assertSame(1, $conductor->tokens()->count());
 
         $this->withHeader('Authorization', "Bearer {$response->json('data.token')}")

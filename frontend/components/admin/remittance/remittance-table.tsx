@@ -137,9 +137,12 @@ export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFil
         item.shiftId.toLowerCase().includes(q);
 
       // Exact date wins when set; otherwise fall back to the range preset's lower bound.
+      // Shifts awaiting cash declaration (canDeclareCash) remain visible under range
+      // presets (such as "Today") so midnight closeouts from the previous day are
+      // immediately accessible for declaration.
       const matchesDate = selectedDate
         ? item.date === selectedDate
-        : !dateFrom || item.date >= dateFrom;
+        : !dateFrom || item.date >= dateFrom || canDeclareCash(item.remittanceStatus);
       const matchesConductor = !conductorFilter || item.conductorName === conductorFilter;
       const matchesDriver = !driverFilter || item.driverName === driverFilter;
 

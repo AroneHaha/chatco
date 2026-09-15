@@ -13,6 +13,11 @@ require __DIR__.'/vendor/autoload.php';
 /** @var Application $app */
 $app = require_once __DIR__.'/bootstrap/app.php';
 
+try {
+    $ref = new ReflectionProperty($app, 'namespace');
+    $ref->setValue($app, 'App\\');
+} catch (\Throwable) {}
+
 $status = $app->handleCommand(new ArgvInput);
 
 exit($status);

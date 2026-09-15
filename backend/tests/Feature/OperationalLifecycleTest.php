@@ -371,6 +371,18 @@ class OperationalLifecycleTest extends TestCase
         $this->assertSame(55, Remittance::count());
     }
 
+    public function test_midnight_all_sweep_ends_prior_day_shifts_but_spares_a_shift_that_just_started(): void
+    {
+        $dayStart = now('Asia/Manila')->startOfDay();
+        [, , , , $priorDayShift] = $this->activeShift($dayStart->copy()->subMinutes(30));
+        [, , , , $justStartedShift] = $this->activeShift($dayStart->copy()->addSeconds(10));
+
+        $this->artisan('shifts:auto-end-stale --all')->assertSuccessful();
+
+        $this->assertSame(ShiftStatus::ENDED, $priorDayShift->fresh()->status);
+        $this->assertSame(ShiftStatus::ACTIVE, $justStartedShift->fresh()->status);
+    }
+
     public function test_normalized_group_rows_are_not_multiplied_again_in_passenger_total(): void
     {
         [, , , , $shift] = $this->activeShift();

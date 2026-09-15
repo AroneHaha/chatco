@@ -11,9 +11,9 @@ use Illuminate\Support\Facades\Log;
 
 class AutoEndStaleShifts extends Command
 {
-    protected $signature = 'shifts:auto-end-stale';
+    protected $signature = 'shifts:auto-end-stale {--all : End all active shifts regardless of duration}';
 
-    protected $description = 'End active shifts that exceed the configured maximum duration';
+    protected $description = 'End active shifts that exceed the configured maximum duration or all open shifts at midnight';
 
     public function __construct(private ShiftCloseoutService $closeoutService)
     {
@@ -22,20 +22,33 @@ class AutoEndStaleShifts extends Command
 
     public function handle(): int
     {
-        $maxHours = (int) (Setting::query()->where('key', 'max_shift_hours')->value('value') ?? 12);
-        if ($maxHours < 1 || $maxHours > 48) {
-            $this->error("Invalid max_shift_hours value: {$maxHours}. Expected 1-48.");
+        $query = ShiftLog::query()->where('status', ShiftStatus::ACTIVE->value);
+        $dayStart = now('Asia/Manila')->startOfDay();
 
-            return self::FAILURE;
+        if ($this->option('all')) {
+            // Midnight sweep: end shifts still open from a prior day, not a
+            // shift that legitimately just started in the new day (the
+            // scheduler's dailyAt('00:00') can fire anywhere in that minute).
+            $query->where('time_in', '<', $dayStart);
+        } else {
+            $maxHours = (int) (Setting::query()->where('key', 'max_shift_hours')->value('value') ?? 12);
+            if ($maxHours < 1 || $maxHours > 48) {
+                $this->error("Invalid max_shift_hours value: {$maxHours}. Expected 1-48.");
+
+                return self::FAILURE;
+            }
+
+            $cutoff = now()->subHours($maxHours);
+            $query->where(function ($q) use ($cutoff, $dayStart): void {
+                $q->where('time_in', '<=', $cutoff)
+                    ->orWhere('time_in', '<', $dayStart);
+            });
         }
 
-        $cutoff = now()->subHours($maxHours);
         $ended = 0;
         $failed = 0;
 
-        ShiftLog::query()
-            ->where('status', ShiftStatus::ACTIVE->value)
-            ->where('time_in', '<=', $cutoff)
+        $query
             ->orderBy('shift_id')
             ->chunkById(100, function ($shifts) use (&$ended, &$failed): void {
                 foreach ($shifts as $shift) {

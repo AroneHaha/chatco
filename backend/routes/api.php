@@ -26,6 +26,7 @@ use App\Http\Controllers\Commuter\SosController;
 use App\Http\Controllers\Commuter\VehicleLocationController;
 use App\Http\Controllers\Conductor\ConductorController;
 use App\Http\Controllers\Conductor\ConductorHailController;
+use App\Http\Controllers\Conductor\MobileTransactionController;
 use App\Http\Controllers\FaqController;
 use App\Http\Controllers\FareMatrixController;
 use App\Http\Controllers\LostItemController;
@@ -237,6 +238,49 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->grou
 
 /*
 |--------------------------------------------------------------------------
+| Mobile Specific Conductor Routes (Phase 1 Isolation)
+|--------------------------------------------------------------------------
+| Dedicated namespace /api/v1/mobile/conductor/* for mobile app clients.
+| Isolates mobile traffic from web conductor traffic so future platform-specific
+| behaviors can evolve independently without breaking web endpoints.
+|--------------------------------------------------------------------------
+*/
+Route::prefix('mobile/conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->group(function () {
+    Route::get('/shift', [ConductorController::class, 'shiftStatus'])->middleware('throttle:conductor-read');
+    Route::get('/shift-logs', [ConductorController::class, 'shiftLogs'])->middleware('throttle:conductor-read');
+    Route::get('/profile', [ConductorController::class, 'profile'])->middleware('throttle:conductor-read');
+    Route::get('/units', [ConductorController::class, 'units'])->middleware('throttle:conductor-read');
+    Route::get('/drivers', [ConductorController::class, 'drivers'])->middleware('throttle:conductor-read');
+    Route::get('/receipt-settings', [ConductorController::class, 'receiptSettings'])->middleware('throttle:conductor-read');
+    Route::get('/ratings', [ConductorController::class, 'ratings'])->middleware('throttle:conductor-read');
+
+    Route::post('/shifts/start', [ConductorController::class, 'startShift'])->middleware(['maintenance', 'throttle:conductor-mutation']);
+    Route::post('/shifts/device/claim', [ConductorController::class, 'claimShiftDevice'])->middleware('throttle:conductor-mutation');
+    Route::post('/shifts/device/release', [ConductorController::class, 'releaseShiftDevice'])->middleware('throttle:conductor-mutation');
+    Route::post('/remittances', [ConductorController::class, 'remittances'])->middleware('throttle:conductor-mutation');
+    Route::get('/remittances', [ConductorController::class, 'remittancesIndex'])->middleware('throttle:conductor-read');
+
+    Route::post('/sos', [App\Http\Controllers\Conductor\SosController::class, 'trigger'])->middleware('throttle:conductor-mutation');
+    Route::get('/sos/{id}', [App\Http\Controllers\Conductor\SosController::class, 'show'])->middleware('throttle:conductor-read');
+
+    Route::post('/location', [ConductorController::class, 'updateLocation'])->middleware('throttle:conductor-gps');
+    Route::post('/capacity-status', [ConductorController::class, 'updateCapacityStatus'])->middleware('throttle:conductor-write');
+    Route::post('/break-status', [ConductorController::class, 'updateBreakStatus'])->middleware('throttle:conductor-write');
+
+    Route::get('/transactions', [MobileTransactionController::class, 'index'])->middleware('throttle:conductor-read');
+    Route::post('/transactions', [MobileTransactionController::class, 'store'])->middleware('throttle:conductor-write');
+    Route::post('/transactions/sync', [MobileTransactionController::class, 'syncBatch'])->middleware('throttle:conductor-write');
+    Route::post('/payments/gcash/initiate', [ConductorController::class, 'initiateGcash'])->middleware('throttle:conductor-write');
+    Route::get('/payments/gcash/pending', [ConductorController::class, 'pendingGcash'])->middleware('throttle:conductor-read');
+    Route::get('/earnings', [ConductorController::class, 'earnings'])->middleware('throttle:conductor-read');
+
+    Route::get('/hails', [ConductorHailController::class, 'index'])->middleware('throttle:conductor-read');
+    Route::post('/hails/{id}/accept', [ConductorHailController::class, 'accept'])->middleware('throttle:conductor-write');
+    Route::post('/hails/{id}/reject', [ConductorHailController::class, 'reject'])->middleware('throttle:conductor-write');
+});
+
+/*
+|--------------------------------------------------------------------------
 | Vehicle Locations (Authenticated — any role)
 |--------------------------------------------------------------------------
 */
@@ -273,6 +317,9 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::get('/drivers', [AdminController::class, 'drivers'])->middleware('throttle:conductor-read');
     Route::post('/drivers', [AdminController::class, 'storeDriver'])->middleware('throttle:conductor-write');
     Route::get('/drivers/{id}', [AdminController::class, 'showDriver'])->middleware('throttle:conductor-read');
+    Route::post('/drivers/{id}/license-images', [AdminController::class, 'uploadDriverLicenseImages'])->middleware('throttle:conductor-write');
+    Route::delete('/drivers/{id}/license-images/{side}', [AdminController::class, 'destroyDriverLicenseImage'])->middleware('throttle:conductor-write');
+    Route::get('/drivers/{id}/license-images/{side}', [AdminController::class, 'showDriverLicenseImage'])->middleware('throttle:conductor-read');
     Route::get('/drivers/{id}/shift-logs', [AdminController::class, 'driverShiftLogs'])->middleware('throttle:conductor-read');
     Route::put('/drivers/{id}', [AdminController::class, 'updateDriver'])->middleware('throttle:conductor-write');
     Route::patch('/drivers/{id}', [AdminController::class, 'updateDriver'])->middleware('throttle:conductor-write');
