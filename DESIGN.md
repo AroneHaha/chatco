@@ -263,3 +263,65 @@ A floating bottom-right chat affordance on the public site that opens into a scr
 - **Don't** reintroduce a language-selection picker or multi-language marketing claim; the product is English-only by product decision (see PRODUCT.md), not a design gap to fill.
 - **Don't** use Deep Navy (`#071A2E`) and the admin background tones (`#0B1120` etc.) interchangeably — they're related but distinct tokens for distinct surfaces (public hero vs. admin shell).
 - **Don't** apply a colored glow shadow inside the admin or conductor shell; use a border + lighter surface tone instead.
+
+### UI Consistency, Layout, and Component Rules
+
+1. **No Pulsating UI**
+
+   * Do not use unnecessary pulsating animations, pulsing indicators, or attention-grabbing motion effects.
+   * Animations should be purposeful and subtle, not decorative or distracting.
+
+2. **No Generic Pill Components**
+
+   * Do not use generic pill-shaped UI components unless the element is specifically a status badge, tag, or another component where the pill shape has a clear semantic purpose.
+   * Avoid introducing generic `rounded-full` containers simply for visual styling.
+
+3. **Map Picker Reuse**
+
+   * For map/location selection on the admin side, reuse the existing **Map Picker implementation from Lost & Found**.
+   * Do not create a separate map picker or duplicate its functionality unless the existing implementation cannot support the required use case.
+   * Preserve its existing behavior, interaction pattern, and location-selection logic.
+
+4. **No Emojis**
+
+   * Do not use emojis anywhere in the application UI, including buttons, labels, notifications, empty states, alerts, or decorative elements.
+   * Use the project's existing visual language and proper UI components instead.
+
+5. **No Generic Icons**
+
+   * Do not use arbitrary, generic, or placeholder icons when a more appropriate existing icon/component is available.
+   * Reuse the project's existing icon system and established icon choices for consistency.
+   * Choose icons based on the actual meaning and function of the action, not simply because an icon looks visually suitable.
+
+6. **Use Established Components**
+
+   * Before creating a new component, search the codebase for an existing component that already provides the required behavior or interaction.
+   * Reuse and extend existing components when appropriate instead of duplicating functionality.
+
+7. **Install Supporting Components or Libraries When Necessary**
+
+   * If an appropriate component, utility, or library is required to implement the requested UI correctly and consistently, it is acceptable to install it.
+   * Before installing anything, check whether the functionality already exists in the project.
+   * Do not introduce a dependency when the same functionality can reasonably be implemented using existing project components or libraries.
+   * Any newly installed dependency must directly support the requested functionality and should not introduce unnecessary architectural changes.
+
+8. **Intentional Layout and Visual Hierarchy**
+
+   * Do not default to generic layouts simply because they are common or easy to implement.
+   * Avoid repetitive patterns such as identical card grids, evenly spaced sections, excessive centered content, or automatically wrapping everything inside cards.
+   * Design the layout based on the purpose and importance of the information or actions on the page.
+   * Establish a clear visual hierarchy through spacing, typography, grouping, alignment, scale, and positioning.
+   * Important information and primary actions should receive stronger visual emphasis, while secondary information should remain visually subordinate.
+   * Use whitespace intentionally. Do not fill empty space simply to make the page look complete.
+   * When appropriate, use asymmetric layouts, distinct section compositions, larger focal areas, contextual panels, or other purposeful arrangements instead of relying on standard dashboard templates.
+   * Different pages should not look identical when their purposes and workflows are different. The layout should reflect the actual task being performed.
+   * UI should feel intentionally designed for CHATCO and its specific workflows rather than resembling a generic admin template or AI-generated dashboard.
+
+9. **Avoid Generic / AI-Generated UI Patterns**
+
+   * Do not automatically generate the typical combination of cards + icons + headings + descriptions + buttons for every feature.
+   * Avoid unnecessary cards, borders, badges, decorative icons, gradients, shadows, and containers when they do not improve usability.
+   * Every major visual element should have a clear purpose.
+   * Prioritize strong composition, usability, and information hierarchy over simply making the interface look “modern.”
+   * When implementing a new page, first consider how the user's workflow should move through the interface, then design the layout around that workflow.
+   * Reuse the established CHATCO design language, but do not interpret consistency as making every page visually identical.
