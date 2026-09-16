@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CommuterProfile, PasswordPayload } from "./types";
 import { useAuth } from "@/contexts/auth-context";
 import { ApiError } from "@/lib/api/client";
 import {
   PasswordChangeError,
-  changePassword,
+  requestPasswordChangeCode,
+  confirmPasswordChange,
   getProfile,
   updateProfile,
 } from "@/lib/commuter/services/profile.service";
@@ -20,7 +21,14 @@ type PasswordErrorField =
   | "currentPassword"
   | "newPassword"
   | "confirmNewPassword"
+  | "code"
   | null;
+
+/**
+ * "form"   — collecting current/new password, before a code has been sent.
+ * "verify" — a code was emailed; collecting it to actually apply the change.
+ */
+type PasswordStep = "form" | "verify";
 
 /**
  * Hook backing the commuter Profile page (S5-T9).
@@ -59,15 +67,38 @@ export function useProfile() {
 
   // ─── Change-password modal state ──────────────────────────────────
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordStep, setPasswordStep] = useState<PasswordStep>("form");
   const [passwordData, setPasswordData] = useState<PasswordPayload>({
     currentPassword: "",
     newPassword: "",
     confirmNewPassword: "",
   });
+  const [verificationCode, setVerificationCode] = useState("");
+  const [resendSecondsLeft, setResendSecondsLeft] = useState(0);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordErrorField, setPasswordErrorField] =
     useState<PasswordErrorField>(null);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const resendTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Ticks resendSecondsLeft down to 0 once a code has been sent, so the
+  // "Resend code" button re-enables itself without a page interaction.
+  useEffect(() => {
+    if (resendSecondsLeft <= 0) {
+      if (resendTimerRef.current) {
+        clearInterval(resendTimerRef.current);
+        resendTimerRef.current = null;
+      }
+      return;
+    }
+    resendTimerRef.current = setInterval(() => {
+      setResendSecondsLeft((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => {
+      if (resendTimerRef.current) clearInterval(resendTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resendSecondsLeft > 0]);
 
   // ─── Transient success banner (password change, ID re-upload notice) ──
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -174,8 +205,8 @@ export function useProfile() {
     }
   };
 
-  // ─── Change password ──────────────────────────────────────────────
-  const handleChangePassword = async () => {
+  // ─── Change password (phase 1: request the emailed code) ──────────
+  const handleRequestPasswordChangeCode = async () => {
     setPasswordError(null);
     setPasswordErrorField(null);
 
@@ -195,20 +226,16 @@ export function useProfile() {
 
     setIsChangingPassword(true);
     try {
-      await changePassword({
+      const { resendInSeconds } = await requestPasswordChangeCode({
         currentPassword: passwordData.currentPassword,
         newPassword: passwordData.newPassword,
         confirmNewPassword: passwordData.confirmNewPassword,
       });
-      // Success — clear the form, close the modal, surface a confirmation
-      setPasswordData({
-        currentPassword: "",
-        newPassword: "",
-        confirmNewPassword: "",
-      });
-      setShowPasswordModal(false);
-      setSuccessMessage("Password updated successfully.");
-      window.setTimeout(() => setSuccessMessage(null), 4000);
+      // Current/new password are valid — move to the code-entry step. The
+      // password itself is NOT changed yet.
+      setVerificationCode("");
+      setResendSecondsLeft(resendInSeconds);
+      setPasswordStep("verify");
     } catch (err) {
       if (err instanceof PasswordChangeError) {
         setPasswordError(err.message);
@@ -225,8 +252,89 @@ export function useProfile() {
     }
   };
 
+  // ─── Change password (phase 2: verify the code, apply the change) ─
+  const handleConfirmPasswordChange = async () => {
+    setPasswordError(null);
+    setPasswordErrorField(null);
+
+    if (!verificationCode.trim()) {
+      setPasswordError("Enter the code we emailed you.");
+      setPasswordErrorField("code");
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      await confirmPasswordChange({
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword,
+        confirmNewPassword: passwordData.confirmNewPassword,
+        code: verificationCode.trim(),
+      });
+      // Success — clear the form, close the modal, surface a confirmation
+      closePasswordModal();
+      setSuccessMessage("Password updated successfully.");
+      window.setTimeout(() => setSuccessMessage(null), 4000);
+    } catch (err) {
+      if (err instanceof PasswordChangeError) {
+        setPasswordError(err.message);
+        setPasswordErrorField(err.field ?? null);
+        if (err.code === "unauthenticated") {
+          // Session expired — let the user read the message, then redirect
+          window.setTimeout(() => authLogout(), 1500);
+        } else if (err.field === "currentPassword" || err.field === "newPassword") {
+          // The account/policy changed since phase 1 (e.g. password changed
+          // from another device) — send them back to fix the form rather
+          // than retrying a code against a request that's no longer valid.
+          setPasswordStep("form");
+        }
+      } else {
+        setPasswordError("Something went wrong. Please try again.");
+      }
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  // ─── Resend the code without leaving the verify step ───────────────
+  const handleResendCode = async () => {
+    if (resendSecondsLeft > 0 || isChangingPassword) return;
+
+    setPasswordError(null);
+    setPasswordErrorField(null);
+    setIsChangingPassword(true);
+    try {
+      const { resendInSeconds } = await requestPasswordChangeCode({
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword,
+        confirmNewPassword: passwordData.confirmNewPassword,
+      });
+      setVerificationCode("");
+      setResendSecondsLeft(resendInSeconds);
+    } catch (err) {
+      if (err instanceof PasswordChangeError) {
+        setPasswordError(err.message);
+        setPasswordErrorField(err.field ?? null);
+      } else {
+        setPasswordError("Something went wrong. Please try again.");
+      }
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  // Back to the form step to fix current/new password without closing the
+  // modal — the emailed code for the previous attempt is left to expire.
+  const handleBackToPasswordForm = () => {
+    setPasswordStep("form");
+    setVerificationCode("");
+    setPasswordError(null);
+    setPasswordErrorField(null);
+  };
+
   const closePasswordModal = () => {
     setShowPasswordModal(false);
+    setPasswordStep("form");
     setPasswordError(null);
     setPasswordErrorField(null);
     setPasswordData({
@@ -234,6 +342,8 @@ export function useProfile() {
       newPassword: "",
       confirmNewPassword: "",
     });
+    setVerificationCode("");
+    setResendSecondsLeft(0);
   };
 
   // ─── Misc ─────────────────────────────────────────────────────────
@@ -272,10 +382,17 @@ export function useProfile() {
     // Password
     showPasswordModal,
     setShowPasswordModal,
+    passwordStep,
     passwordData,
     setPasswordData,
+    verificationCode,
+    setVerificationCode,
+    resendSecondsLeft,
     isChangingPassword,
-    handleChangePassword,
+    handleRequestPasswordChangeCode,
+    handleConfirmPasswordChange,
+    handleResendCode,
+    handleBackToPasswordForm,
     passwordError,
     passwordErrorField,
     closePasswordModal,
