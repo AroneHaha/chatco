@@ -5,9 +5,10 @@
  * `chatco_session` cookie) — never calls Laravel directly from the browser.
  * This keeps the Sanctum bearer token server-side only and avoids CORS.
  *
- *   GET  /api/commuter/profile          -> getProfile()
- *   PUT  /api/commuter/profile          -> updateProfile()
- *   POST /api/commuter/change-password  -> changePassword()
+ *   GET  /api/commuter/profile                       -> getProfile()
+ *   PUT  /api/commuter/profile                       -> updateProfile()
+ *   POST /api/commuter/change-password/request-code  -> requestPasswordChangeCode()
+ *   POST /api/commuter/change-password/confirm       -> confirmPasswordChange()
  *
  * Responsibilities:
  *   - Map snake_case Laravel envelopes → camelCase view-models the UI uses
@@ -124,6 +125,17 @@ export interface ChangePasswordInput {
   confirmNewPassword: string;
 }
 
+export interface ConfirmPasswordChangeInput extends ChangePasswordInput {
+  /** The 6-digit code emailed to the commuter's registered address. */
+  code: string;
+}
+
+/** Response from requestPasswordChangeCode() — drives the code-entry step's UI. */
+export interface PasswordChangeCodeRequested {
+  expiresInMinutes: number;
+  resendInSeconds: number;
+}
+
 // ─── Typed errors ────────────────────────────────────────────────────
 
 export type PasswordChangeErrorCode =
@@ -135,10 +147,14 @@ export type PasswordChangeErrorCode =
   | "confirmation_mismatch"
   /** New password failed the strength rules (min 8, letters + numbers) */
   | "weak_password"
+  /** The emailed `code` was wrong, expired, or burned after too many tries (422) */
+  | "wrong_code"
   /** Any other 422 from the backend */
   | "validation"
   /** 401 — the session expired; caller should redirect to login */
   | "unauthenticated"
+  /** 429 — resend cooldown still active (requestPasswordChangeCode only) */
+  | "cooldown"
   /** 5xx / network failure / unexpected error */
   | "network";
 
@@ -154,7 +170,7 @@ export class PasswordChangeError extends Error {
   constructor(
     public code: PasswordChangeErrorCode,
     message: string,
-    public field?: "currentPassword" | "newPassword" | "confirmNewPassword"
+    public field?: "currentPassword" | "newPassword" | "confirmNewPassword" | "code"
   ) {
     super(message);
     this.name = "PasswordChangeError";
@@ -207,26 +223,62 @@ export async function updateProfile(
 }
 
 /**
- * Change the commuter's password.
+ * Change-password phase 1: verify the current/new password, then have the
+ * backend email a 6-digit code to the commuter's OWN registered address.
+ * The password is NOT changed yet — call `confirmPasswordChange()` with the
+ * code the commuter received to actually apply it. This is what stops a
+ * change-password request from succeeding on a hijacked session alone.
  *
- * Maps the camelCase frontend payload to Laravel's snake_case contract:
- *   - `currentPassword`     → `current_password`
- *   - `newPassword`         → `password`
- *   - `confirmNewPassword`  → `password_confirmation`
+ * Maps the camelCase frontend payload to Laravel's snake_case contract, same
+ * as `confirmPasswordChange()` below.
+ *
+ * @throws {PasswordChangeError} `code: "cooldown"` if a code was just sent
+ *         (resend cooldown still active — message names the wait time);
+ *         `wrong_current_password` / `password_reuse` / `weak_password` /
+ *         `confirmation_mismatch` on 422; `network` if the email couldn't be
+ *         sent (502) or on any other failure.
+ */
+export async function requestPasswordChangeCode(
+  input: ChangePasswordInput
+): Promise<PasswordChangeCodeRequested> {
+  try {
+    const response = await api.post<
+      ApiResponseEnvelope<{ expires_in_minutes: number; resend_in_seconds: number }>
+    >(COMMUTER_API.changePassword.requestCode, {
+      current_password: input.currentPassword,
+      password: input.newPassword,
+      password_confirmation: input.confirmNewPassword,
+    });
+    return {
+      expiresInMinutes: response.data.expires_in_minutes,
+      resendInSeconds: response.data.resend_in_seconds,
+    };
+  } catch (err) {
+    throw translatePasswordError(err);
+  }
+}
+
+/**
+ * Change-password phase 2: re-verify the current/new password plus the
+ * emailed `code`, and only then rotate the password.
  *
  * On 422, inspects `errors.current_password` / `errors.password` /
- * `errors.password_confirmation` and throws a typed `PasswordChangeError`
- * with a stable `code` + `field` so the UI can highlight the right input.
+ * `errors.password_confirmation` / `errors.code` and throws a typed
+ * `PasswordChangeError` with a stable `code` + `field` so the UI can
+ * highlight the right input.
  *
  * On success, Laravel revokes all OTHER access tokens server-side (the
  * current session stays valid). No return value.
  */
-export async function changePassword(input: ChangePasswordInput): Promise<void> {
+export async function confirmPasswordChange(
+  input: ConfirmPasswordChangeInput
+): Promise<void> {
   try {
-    await api.post<ApiResponseEnvelope<null>>(COMMUTER_API.changePassword, {
+    await api.post<ApiResponseEnvelope<null>>(COMMUTER_API.changePassword.confirm, {
       current_password: input.currentPassword,
       password: input.newPassword,
       password_confirmation: input.confirmNewPassword,
+      code: input.code,
     });
   } catch (err) {
     throw translatePasswordError(err);
@@ -274,10 +326,23 @@ function translatePasswordError(err: unknown): PasswordChangeError {
           "confirmNewPassword"
         );
       }
+      if (errors.code?.length) {
+        return new PasswordChangeError("wrong_code", errors.code[0], "code");
+      }
       return new PasswordChangeError("validation", message);
     }
 
-    // 404 / 429 / 5xx — surface a friendly generic message
+    if (err.status === 429) {
+      // requestPasswordChangeCode's resend cooldown — the backend's message
+      // already names the wait time ("Please wait N seconds…").
+      const body = err.body as ApiResponseEnvelope<unknown> | undefined;
+      return new PasswordChangeError(
+        "cooldown",
+        body?.message ?? "Please wait before requesting another code."
+      );
+    }
+
+    // 404 / 5xx — surface a friendly generic message
     return new PasswordChangeError(
       "network",
       "We couldn't update your password right now. Please try again."

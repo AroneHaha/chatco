@@ -24,10 +24,17 @@ export default function ProfilePage() {
     handleEditChange,
     showPasswordModal,
     setShowPasswordModal,
+    passwordStep,
     passwordData,
     setPasswordData,
+    verificationCode,
+    setVerificationCode,
+    resendSecondsLeft,
     isChangingPassword,
-    handleChangePassword,
+    handleRequestPasswordChangeCode,
+    handleConfirmPasswordChange,
+    handleResendCode,
+    handleBackToPasswordForm,
     passwordError,
     passwordErrorField,
     closePasswordModal,
@@ -109,7 +116,7 @@ export default function ProfilePage() {
   const errorInputClasses = `${inputClasses} bg-[#050F1A] border-red-500/50 text-white placeholder:text-white/30 focus:ring-red-500/20 focus:border-red-500`;
 
   const fieldClass = (
-    field: "currentPassword" | "newPassword" | "confirmNewPassword"
+    field: "currentPassword" | "newPassword" | "confirmNewPassword" | "code"
   ) =>
     passwordErrorField === field ? errorInputClasses : enabledInputClasses;
 
@@ -455,95 +462,164 @@ export default function ProfilePage() {
             <div className="p-6 border-b border-white/10">
               <h2 className="text-white font-bold text-lg">Change Password</h2>
               <p className="text-white/40 text-xs mt-1">
-                Ensure your account stays secure
+                {passwordStep === "form"
+                  ? "Ensure your account stays secure"
+                  : "Confirm it's you to finish changing your password"}
               </p>
             </div>
 
-            <div className="p-6 space-y-4">
-              {passwordError && (
-                <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium p-3 rounded-lg">
-                  {passwordError}
+            {passwordStep === "form" ? (
+              <>
+                <div className="p-6 space-y-4">
+                  {passwordError && (
+                    <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium p-3 rounded-lg">
+                      {passwordError}
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-xs font-medium text-white/50 mb-1.5">
+                      Current Password
+                    </label>
+                    <input
+                      type="password"
+                      value={passwordData.currentPassword}
+                      onChange={(e) =>
+                        setPasswordData((prev) => ({
+                          ...prev,
+                          currentPassword: e.target.value,
+                        }))
+                      }
+                      placeholder="••••••••"
+                      className={fieldClass("currentPassword")}
+                      autoComplete="current-password"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-white/50 mb-1.5">
+                      New Password
+                    </label>
+                    <input
+                      type="password"
+                      value={passwordData.newPassword}
+                      onChange={(e) =>
+                        setPasswordData((prev) => ({
+                          ...prev,
+                          newPassword: e.target.value,
+                        }))
+                      }
+                      placeholder="••••••••"
+                      className={fieldClass("newPassword")}
+                      autoComplete="new-password"
+                    />
+                    <p className="text-[10px] text-white/30 mt-1">
+                      Min 8 characters, with letters and numbers.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-white/50 mb-1.5">
+                      Confirm New Password
+                    </label>
+                    <input
+                      type="password"
+                      value={passwordData.confirmNewPassword}
+                      onChange={(e) =>
+                        setPasswordData((prev) => ({
+                          ...prev,
+                          confirmNewPassword: e.target.value,
+                        }))
+                      }
+                      placeholder="••••••••"
+                      className={fieldClass("confirmNewPassword")}
+                      autoComplete="new-password"
+                    />
+                  </div>
                 </div>
-              )}
-              <div>
-                <label className="block text-xs font-medium text-white/50 mb-1.5">
-                  Current Password
-                </label>
-                <input
-                  type="password"
-                  value={passwordData.currentPassword}
-                  onChange={(e) =>
-                    setPasswordData((prev) => ({
-                      ...prev,
-                      currentPassword: e.target.value,
-                    }))
-                  }
-                  placeholder="••••••••"
-                  className={fieldClass("currentPassword")}
-                  autoComplete="current-password"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-white/50 mb-1.5">
-                  New Password
-                </label>
-                <input
-                  type="password"
-                  value={passwordData.newPassword}
-                  onChange={(e) =>
-                    setPasswordData((prev) => ({
-                      ...prev,
-                      newPassword: e.target.value,
-                    }))
-                  }
-                  placeholder="••••••••"
-                  className={fieldClass("newPassword")}
-                  autoComplete="new-password"
-                />
-                <p className="text-[10px] text-white/30 mt-1">
-                  Min 8 characters, with letters and numbers.
-                </p>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-white/50 mb-1.5">
-                  Confirm New Password
-                </label>
-                <input
-                  type="password"
-                  value={passwordData.confirmNewPassword}
-                  onChange={(e) =>
-                    setPasswordData((prev) => ({
-                      ...prev,
-                      confirmNewPassword: e.target.value,
-                    }))
-                  }
-                  placeholder="••••••••"
-                  className={fieldClass("confirmNewPassword")}
-                  autoComplete="new-password"
-                />
-              </div>
-            </div>
 
-            <div className="p-6 border-t border-white/10 flex gap-3">
-              <button
-                onClick={closePasswordModal}
-                className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold border border-white/10 text-white/60 hover:bg-white/5 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleChangePassword}
-                disabled={
-                  isChangingPassword ||
-                  !passwordData.currentPassword ||
-                  !passwordData.newPassword ||
-                  !passwordData.confirmNewPassword
-                }
-                className="flex-1 px-4 py-3 rounded-xl text-sm font-bold bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-colors shadow-lg shadow-[#1A5FB4]/30 disabled:opacity-50"
-              >
-                {isChangingPassword ? "Updating..." : "Update Password"}
-              </button>
-            </div>
+                <div className="p-6 border-t border-white/10 flex gap-3">
+                  <button
+                    onClick={closePasswordModal}
+                    className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold border border-white/10 text-white/60 hover:bg-white/5 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleRequestPasswordChangeCode}
+                    disabled={
+                      isChangingPassword ||
+                      !passwordData.currentPassword ||
+                      !passwordData.newPassword ||
+                      !passwordData.confirmNewPassword
+                    }
+                    className="flex-1 px-4 py-3 rounded-xl text-sm font-bold bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-colors shadow-lg shadow-[#1A5FB4]/30 disabled:opacity-50"
+                  >
+                    {isChangingPassword ? "Sending code..." : "Send Code"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="p-6 space-y-4">
+                  {passwordError && (
+                    <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium p-3 rounded-lg">
+                      {passwordError}
+                    </div>
+                  )}
+                  <p className="text-white/40 text-xs">
+                    We emailed a 6-digit code to your registered address. Enter it below to finish changing your password.
+                  </p>
+                  <div>
+                    <label className="block text-xs font-medium text-white/50 mb-1.5">
+                      Verification Code
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={verificationCode}
+                      onChange={(e) =>
+                        setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))
+                      }
+                      placeholder="123456"
+                      className={`${fieldClass("code")} text-center tracking-[0.5em] font-mono`}
+                      autoComplete="one-time-code"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={handleBackToPasswordForm}
+                      className="text-xs font-medium text-white/40 hover:text-white/60 transition-colors"
+                    >
+                      ← Back
+                    </button>
+                    <button
+                      onClick={handleResendCode}
+                      disabled={resendSecondsLeft > 0 || isChangingPassword}
+                      className="text-xs font-medium text-[#62A0EA] hover:text-[#99C1F1] transition-colors disabled:text-white/20 disabled:cursor-not-allowed"
+                    >
+                      {resendSecondsLeft > 0
+                        ? `Resend code in ${resendSecondsLeft}s`
+                        : "Resend code"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-6 border-t border-white/10 flex gap-3">
+                  <button
+                    onClick={closePasswordModal}
+                    className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold border border-white/10 text-white/60 hover:bg-white/5 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleConfirmPasswordChange}
+                    disabled={isChangingPassword || verificationCode.length !== 6}
+                    className="flex-1 px-4 py-3 rounded-xl text-sm font-bold bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-colors shadow-lg shadow-[#1A5FB4]/30 disabled:opacity-50"
+                  >
+                    {isChangingPassword ? "Updating..." : "Update Password"}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

@@ -90,7 +90,7 @@ export default function ScanModal({ onClose }: ScanModalProps) {
 
         await html5QrCode.start(
           { facingMode: "environment" },
-          { fps: 10, qrbox: { width: 220, height: 220 } },
+          { fps: 10, qrbox: { width: 220, height: 220 }, aspectRatio: 1 },
           (decodedText) => {
             if (!mounted) return;
             // Stop the scanner immediately — we have a result. The
@@ -305,8 +305,21 @@ export default function ScanModal({ onClose }: ScanModalProps) {
           </div>
 
           {/* Camera viewfinder — html5-qrcode mounts here */}
-          <div className="relative bg-[#050F1A] h-72 sm:h-80 overflow-hidden">
+          <div className="relative w-full aspect-square bg-[#050F1A] overflow-hidden">
             <div id={scannerContainerId} className="w-full h-full" />
+            {/* html5-qrcode sets the <video> element's width inline (in px)
+                but leaves height at the browser's default "auto", which
+                scales off the camera's native (non-square) stream aspect
+                ratio — leaving it short of the square container's height.
+                Force it to cover the container instead of trusting the
+                library's own sizing. */}
+            <style jsx global>{`
+              #qr-reader-container video {
+                width: 100% !important;
+                height: 100% !important;
+                object-fit: cover !important;
+              }
+            `}</style>
             {/* Scan frame overlay */}
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
               <div className="relative w-52 h-52">

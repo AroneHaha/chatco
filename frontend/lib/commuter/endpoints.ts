@@ -8,7 +8,12 @@
 
 export const COMMUTER_API = {
   profile: "/api/commuter/profile",
-  changePassword: "/api/commuter/change-password",
+  changePassword: {
+    /** POST — phase 1: verify current/new password, email a 6-digit code to the registered address. */
+    requestCode: "/api/commuter/change-password/request-code",
+    /** POST — phase 2: verify the emailed code and rotate the password. */
+    confirm: "/api/commuter/change-password/confirm",
+  },
   tracking: {
     nearby: "/api/commuter/tracking/nearby",
     hail: "/api/commuter/hail",

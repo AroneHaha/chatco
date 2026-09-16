@@ -225,7 +225,8 @@ export const API_ROUTES = {
   commuter: {
     profile: "/api/commuter/profile",
     updateProfile: "/api/commuter/profile",
-    changePassword: "/api/commuter/change-password",
+    requestPasswordChangeCode: "/api/commuter/change-password/request-code",
+    confirmPasswordChange: "/api/commuter/change-password/confirm",
     paymentHistory: "/api/commuter/payments",
   },
   conductor: {

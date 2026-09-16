@@ -17,7 +17,7 @@ type Step = "select-unit" | "select-driver";
 export default function ConductorLoginPage() {
   const router = useRouter();
   const { profile, units, drivers, status, error, refresh } = useUnitVerification();
-  const { shift, status: shiftStatus } = useConductorShift();
+  const { shift, status: shiftStatus, refresh: refreshShift } = useConductorShift();
 
   const [step, setStep] = useState<Step>("select-unit");
   const [selectedUnit, setSelectedUnit] = useState<ConductorUnit | null>(null);
@@ -75,6 +75,11 @@ export default function ConductorLoginPage() {
         driverId: selectedDriver.id,
         routeId: selectedUnit.routeId,
       });
+      // Sync the shared shift context before navigating — it's still
+      // holding the pre-shift "empty" status from this page's own load,
+      // and the dashboard's guard redirects back to unit-verification if
+      // it mounts before that's corrected.
+      await refreshShift();
       router.push("/conductor-dashboard");
     } catch (err) {
       setSubmitError(
