@@ -1,7 +1,7 @@
 // app/(admin)/remittance/page.tsx
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { RemittanceTable } from '@/components/admin/remittance/remittance-table';
 import { RemittanceSummary } from '@/components/admin/remittance/remittance-summary';
@@ -66,10 +66,42 @@ export default function RemittancePage() {
   const [statusFilter, setStatusFilter] = useState<RemittanceStatus | 'All'>('All'); // Quick Filter State
   const [conductorFilter, setConductorFilter] = useState('');
   const [driverFilter, setDriverFilter] = useState('');
-  // Populated by RemittanceTable (via onOptionsChange) from the records it
-  // already fetches — avoids a second fetch just to list conductor/driver names.
+  // Every registered conductor/driver (not just the ones with a remittance
+  // row on the current page) — fetched once on mount from the same admin
+  // personnel endpoints Fleet Management uses. Names are built the same way
+  // the backend denormalizes conductor_name/driver_name onto a shift
+  // (`${first_name} ${last_name}`.trim(), see ShiftService::startShift()),
+  // so a dropdown selection matches the remittance rows' exact-string filter.
   const [conductorOptions, setConductorOptions] = useState<string[]>([]);
   const [driverOptions, setDriverOptions] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPersonnelNames = async (endpoint: string): Promise<string[]> => {
+      const res = await fetch(endpoint, { headers: { Accept: 'application/json' } });
+      if (!res.ok) return [];
+      const json = await res.json();
+      const rows: Array<{ first_name?: string; last_name?: string }> = Array.isArray(json.data) ? json.data : [];
+      return [...new Set(
+        rows
+          .map((row) => `${row.first_name ?? ''} ${row.last_name ?? ''}`.trim())
+          .filter(Boolean)
+      )].sort();
+    };
+
+    void Promise.all([
+      loadPersonnelNames('/api/admin/conductors'),
+      loadPersonnelNames('/api/admin/drivers'),
+    ]).then(([conductors, drivers]) => {
+      if (cancelled) return;
+      setConductorOptions(conductors);
+      setDriverOptions(drivers);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   // Mobile-only collapse: the search/date/dropdown filter row hides behind a
   // toggle so just the summary cards stay visible on small screens — same
   // pattern as the conductor dashboard's MobileDashboardCard and the admin
@@ -101,50 +133,18 @@ export default function RemittancePage() {
     return sevenDaysAgo.toLocaleDateString('en-CA');
   }, [rangePreset]);
 
-  const handleOptionsChange = useCallback((conductors: string[], drivers: string[]) => {
-    setConductorOptions(conductors);
-    setDriverOptions(drivers);
-  }, []);
-
   const quickFilters: (RemittanceStatus | 'All')[] = ['All', 'Pending', 'For Cash Declaration', 'Overdue', 'Settled', 'Shortage', 'Overage'];
 
   return (
     // touch-action: manipulation prevents mobile double-tap ghost clicks
     <div style={{ touchAction: 'manipulation' }} className="flex h-full min-h-0 flex-col">
-      {/* Title + quick status filters share one row (matches Receipts/Live
-          Monitoring's header) and pin together on phones.
-
-          Deliberately a direct child of the page root, NOT of the filter block
+      {/* Deliberately a direct child of the page root, NOT of the filter block
           below: a sticky element only stays pinned while its containing block
           is on screen, so nesting it in that short wrapper would have released
           the title as soon as the filters scrolled past — long before the
           remittance table, which is exactly where the title matters most. */}
       <StickyPageHeader className="flex flex-wrap items-center justify-between gap-3 mb-4 shrink-0">
         <h1 className="text-2xl font-bold text-white">Remittance Tracker</h1>
-
-        {/* Quick Status Filters — one line, scrolls sideways instead of
-            wrapping so the row never grows past a single line on narrow
-            screens. min-w-0 lets it shrink inside the flex-wrap header;
-            without it overflow-x-auto has no room to kick in. Buttons are
-            flex-1 so they stretch to fill the full row width when they fit;
-            each still has a text-driven min width (via whitespace-nowrap),
-            so once they no longer fit they fall back to natural size and
-            the row scrolls instead of squishing the labels. */}
-        <div className="flex w-full min-w-0 flex-nowrap gap-2 overflow-x-auto scrollbar-themed">
-          {quickFilters.map((filter) => (
-            <button
-              key={filter}
-              onClick={() => setStatusFilter(filter)}
-              className={`flex-1 whitespace-nowrap px-4 py-2 rounded-md text-sm font-medium text-center transition-colors ${
-                statusFilter === filter
-                  ? 'bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/25'
-                  : 'bg-[#0E1628] border border-[#1E2D45] text-slate-300 hover:bg-[#1A2540]'
-              }`}
-            >
-              {filter}
-            </button>
-          ))}
-        </div>
       </StickyPageHeader>
 
       <div className="flex shrink-0 flex-col gap-4 mb-4">
@@ -172,7 +172,7 @@ export default function RemittancePage() {
           <div className="flex flex-col gap-4">
             <RemittanceSummary selectedDate={selectedDate} />
 
-            {/* Search + date (left) — conductor/driver dropdowns (right, shorter) */}
+            {/* Search + date (left) — range/status/conductor/driver dropdowns (right, shorter) */}
             <div className="flex flex-col md:flex-row md:items-center gap-3 w-full">
               <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
                 <SearchBar
@@ -206,6 +206,14 @@ export default function RemittancePage() {
                   className="w-full md:w-36 rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white scheme-dark"
                 >
                   {RANGE_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                </select>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as RemittanceStatus | 'All')}
+                  aria-label="Filter by status"
+                  className="w-full md:w-44 rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white scheme-dark"
+                >
+                  {quickFilters.map((filter) => <option key={filter} value={filter}>{filter}</option>)}
                 </select>
                 <select
                   value={conductorFilter}
@@ -251,7 +259,6 @@ export default function RemittancePage() {
           statusFilter={statusFilter}
           conductorFilter={conductorFilter}
           driverFilter={driverFilter}
-          onOptionsChange={handleOptionsChange}
           autoOpenShiftId={autoOpenShiftId}
           onAutoOpenHandled={() => setAutoOpenShiftId(null)}
         />

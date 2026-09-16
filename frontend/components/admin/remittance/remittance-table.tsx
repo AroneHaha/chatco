@@ -39,9 +39,6 @@ interface RemittanceTableProps {
    * search + date, so their value is a controlled prop instead of local state. */
   conductorFilter: string;
   driverFilter: string;
-  /** Reports the current page's conductor/driver name lists up to the page
-   * header so it can render the dropdown options without duplicating the fetch. */
-  onOptionsChange: (conductorOptions: string[], driverOptions: string[]) => void;
   /** Set by a notification-bell deep-link (?shiftId=...) — once a fetched
    * record matches this shift_id, its Conductor Detail modal opens automatically. */
   autoOpenShiftId?: string | null;
@@ -51,7 +48,7 @@ interface RemittanceTableProps {
 
 const ROWS_PER_PAGE = 20;
 
-export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFilter, conductorFilter, driverFilter, onOptionsChange, autoOpenShiftId, onAutoOpenHandled }: RemittanceTableProps) {
+export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFilter, conductorFilter, driverFilter, autoOpenShiftId, onAutoOpenHandled }: RemittanceTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const { records, total, lastPage, isLoading, error, refresh } = useRemittanceData(currentPage, searchQuery, selectedDate, statusFilter, dateFrom, conductorFilter, driverFilter);
   const [selectedRecord, setSelectedRecord] = useState<RemittanceRow | null>(null);
@@ -149,21 +146,6 @@ export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFil
       return matchesStatus && matchesSearch && matchesDate && matchesConductor && matchesDriver;
     });
   }, [records, searchQuery, selectedDate, dateFrom, statusFilter, conductorFilter, driverFilter]);
-
-  const conductorOptions = useMemo(
-    () => [...new Set(records.map((record) => record.conductorName).filter((name) => name && name !== '—'))].sort(),
-    [records],
-  );
-  const driverOptions = useMemo(
-    () => [...new Set(records.map((record) => record.driverName).filter((name) => name && name !== '—'))].sort(),
-    [records],
-  );
-
-  // The dropdowns themselves render in the page header now; just report the
-  // current option lists up so it can populate them without a second fetch.
-  useEffect(() => {
-    onOptionsChange(conductorOptions, driverOptions);
-  }, [conductorOptions, driverOptions, onOptionsChange]);
 
   const filterKey = `${searchQuery}|${selectedDate}|${dateFrom}|${statusFilter}|${conductorFilter}|${driverFilter}`;
   const [previousFilterKey, setPreviousFilterKey] = useState(filterKey);

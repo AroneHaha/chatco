@@ -22,7 +22,10 @@ interface DashboardMapContainerProps {
 
 export function DashboardMapContainer({ unitNumber, hails, status, isOnBreak, canOperate, hailBusyId, hailActionError, onHailAction }: DashboardMapContainerProps) {
   return (
-    <div className="fixed inset-0 z-0 lg:left-64">
+    // xl:left-0: the sidebar no longer reserves 256px of left space at xl:+
+    // (it's a floating bottom dock instead — see ConductorDock), so the map
+    // goes back to full-bleed there instead of leaving a blank left gutter.
+    <div className="fixed inset-0 z-0 lg:left-64 xl:left-0">
       <ConductorMap
         unitNumber={unitNumber}
         hails={hails}

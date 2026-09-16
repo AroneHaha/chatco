@@ -97,6 +97,20 @@ class AppServiceProvider extends ServiceProvider
                 ->response($rateLimitResponse);
         });
 
+        // Public read-only reference data (fare matrix, active route geometry)
+        // — 60 req/min per IP. Same rationale as the 'auth' split above: these
+        // used to share commuter-hail's 10/min quota, so a conductor recording
+        // several fares in a row (the fare-calculator modal force-refreshes
+        // the matrix on every open) could exhaust it and silently fall back
+        // to the hardcoded, ID-less local fare list — which then fails
+        // pickup/drop-off resolution against the live DB. No auth on these
+        // routes, so there's no user id to key on; IP is the best available.
+        RateLimiter::for('public-read', function (Request $request) use ($rateLimitResponse) {
+            return Limit::perMinute(60)
+                ->by($request->user()?->id ?: $request->ip())
+                ->response($rateLimitResponse);
+        });
+
         // Commuter hail lifecycle — 10 req/min (one active hail at a time,
         // with headroom for cancel + retry). Used by POST /commuter/hail
         // and DELETE /commuter/hail/{id}.

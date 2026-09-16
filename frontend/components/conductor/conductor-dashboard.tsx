@@ -10,6 +10,7 @@ import ConductorDeviceGuard from "@/components/conductor/conductor-device-guard"
 import { useDashboardState } from "./dashboard/use-dashboard-state";
 import { MobileDashboardCard } from "./dashboard/mobile-dashboard-card";
 import { DesktopDashboardCard } from "./dashboard/desktop-dashboard-card";
+import { DesktopDashboardBar } from "./dashboard/desktop-dashboard-bar";
 import { DashboardMapContainer } from "./dashboard/dashboard-map-container";
 
 export default function ConductorDashboard() {
@@ -86,7 +87,11 @@ export default function ConductorDashboard() {
 
   return (
     <div className="relative h-full w-full bg-[#050F1A] flex flex-col lg:block">
-      <div className="absolute right-4 top-4 z-30 hidden flex-col items-end gap-1 lg:flex">
+      {/* lg:flex xl:hidden: only for the 1024–1279px range (DesktopDashboardCard).
+          At xl:+, this same "Take a Break" control lives inside
+          DesktopDashboardBar itself instead of floating separately in the
+          far corner, disconnected from the rest of the bar's controls. */}
+      <div className="absolute right-4 top-4 z-30 hidden flex-col items-end gap-1 lg:flex xl:hidden">
         <button
           type="button"
           onClick={openBreakModal}
@@ -107,7 +112,10 @@ export default function ConductorDashboard() {
           <main>, they can never push this fixed full-bleed screen taller
           than its box (clipped by overflow-hidden) or end up painted under
           the map (position: fixed, its own stacking context). */}
-      <div className="absolute inset-x-0 top-0 z-30 lg:left-64 lg:top-16">
+      {/* xl:left-0: the sidebar no longer reserves 256px of left space at
+          xl:+ (it's a floating bottom dock instead), so these banners go
+          back to full width there. xl:top-24 clears the new top-center bar. */}
+      <div className="absolute inset-x-0 top-0 z-30 lg:left-64 lg:top-16 xl:left-0 xl:top-24">
         <ConductorConnectivityBanner />
         <ConductorDeviceGuard />
         <MobileDashboardCard
@@ -150,6 +158,24 @@ export default function ConductorDashboard() {
           }
         }}
         onHistoryClick={() => setShowHistory(true)}
+        canOperate={canOperate}
+      />
+
+      <DesktopDashboardBar
+        unitNumber={unitNumber}
+        route={route}
+        conductorName={conductorName}
+        status={status}
+        setStatus={setStatus}
+        total={liveTransactions.total}
+        gcash={liveTransactions.gcash}
+        cash={liveTransactions.cash}
+        voucher={liveTransactions.voucher}
+        isOnBreak={isOnBreak}
+        breakBusy={breakBusy}
+        shiftTimeIn={shift?.timeIn}
+        onHistoryClick={() => setShowHistory(true)}
+        onOpenBreakModal={openBreakModal}
         canOperate={canOperate}
       />
 

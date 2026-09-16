@@ -53,6 +53,28 @@ export default function ConductorPaymentModal() {
     return () => window.removeEventListener("conductor:open-payment", handler);
   }, [shift]);
 
+  // ConductorDock dispatches this on every one of its own item clicks
+  // (including this modal's own Payment button) so switching to a
+  // different tab/popover doesn't require closing this one first — see
+  // ConductorDock's closePopovers. A same-click reopen (Payment clicked
+  // while already open) still nets out to open: React batches this
+  // synchronous close with the conductor:open-payment handler above that
+  // fires right after it in the same click.
+  useEffect(() => {
+    const handler = () => setShowFareCalc(false);
+    window.addEventListener("conductor:close-popovers", handler);
+    return () => window.removeEventListener("conductor:close-popovers", handler);
+  }, []);
+
+  // Lets ConductorSidebar/ConductorDock/ConductorBottomNav show "Payment" as
+  // the active tab while this modal is open (and revert to whichever tab
+  // actually matches the route once it closes) without needing to know any
+  // of this component's internal state directly — same event-based
+  // decoupling as conductor:open-payment above.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("conductor:payment-active-changed", { detail: { active: showFareCalc } }));
+  }, [showFareCalc]);
+
   return (
     <FareCalculatorModal
       isOpen={showFareCalc}

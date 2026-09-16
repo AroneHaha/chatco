@@ -40,7 +40,10 @@ export function DesktopDashboardCard({
   canOperate,
 }: DesktopDashboardCardProps) {
   return (
-    <div className="hidden lg:block absolute bottom-4 right-4 z-10 pointer-events-auto w-[380px] bg-[#071A2E]/95 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl overflow-hidden">
+    // xl:hidden: at xl:+ (1280px), DesktopDashboardBar takes over as the
+    // horizontal top-center layout — this vertical card stays as-is for the
+    // 1024–1279px range so nothing regresses there.
+    <div className="hidden lg:block xl:hidden absolute bottom-4 right-4 z-10 pointer-events-auto w-[380px] bg-[#071A2E]/95 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl overflow-hidden">
       <div className="p-4 border-b border-white/10 flex items-center justify-between">
         <div>
           <h1 className="text-white font-bold text-base">Unit: {unitNumber}</h1>
