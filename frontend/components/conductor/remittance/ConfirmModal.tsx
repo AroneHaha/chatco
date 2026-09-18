@@ -1,5 +1,6 @@
 // app/components/conductor/remittance/ConfirmModal.tsx
 import { useCallback, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { fmt } from "@/app/(conductor)/conductor-dashboard/end-of-day/helpers";
 
 interface ConfirmModalProps {
@@ -120,8 +121,13 @@ export default function ConfirmModal({
       ? "Release to confirm"
       : "Slide to confirm remittance";
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4">
+  // Portaled to <body>: inside the xl:+ End-of-Day popover this sits within a
+  // scrolling panel whose entrance animation leaves a `transform`, and a
+  // transformed ancestor becomes the containing block for `position: fixed`
+  // descendants — so the overlay was pinned to the panel's scrollable content
+  // instead of the viewport. z-[110] keeps it above the popover (z-[100]).
+  return createPortal(
+    <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={!isRemitting ? onClose : undefined} />
       <div className="relative w-full max-w-sm bg-[#0B1E33] border border-white/10 rounded-3xl overflow-hidden shadow-2xl animate-slide-up max-h-[90vh] overflow-y-auto">
         <div className="p-6 space-y-5">
@@ -233,6 +239,7 @@ export default function ConfirmModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

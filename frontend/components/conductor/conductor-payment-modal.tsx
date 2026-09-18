@@ -53,13 +53,11 @@ export default function ConductorPaymentModal() {
     return () => window.removeEventListener("conductor:open-payment", handler);
   }, [shift]);
 
-  // ConductorDock dispatches this on every one of its own item clicks
-  // (including this modal's own Payment button) so switching to a
-  // different tab/popover doesn't require closing this one first — see
-  // ConductorDock's closePopovers. A same-click reopen (Payment clicked
-  // while already open) still nets out to open: React batches this
-  // synchronous close with the conductor:open-payment handler above that
-  // fires right after it in the same click.
+  // ConductorDock dispatches this on every one of its own item clicks so
+  // switching to a different tab/popover doesn't require closing this one
+  // first — see ConductorDock's closePopovers. Clicking this modal's own
+  // Payment button while it's open closes it: the dock checks its active
+  // state and only dispatches this, skipping the open event.
   useEffect(() => {
     const handler = () => setShowFareCalc(false);
     window.addEventListener("conductor:close-popovers", handler);

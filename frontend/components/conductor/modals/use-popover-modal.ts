@@ -1,6 +1,31 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
+
+/**
+ * Spread onto a popover's backdrop element to close it when the user clicks
+ * outside the panel. Only a press that both started AND ended on the
+ * backdrop itself counts — a drag that starts inside the panel (selecting
+ * text, say) and releases over the backdrop must not dismiss it, and a click
+ * that bubbles up from the panel has a different `target` anyway. Pass
+ * `undefined` to disable dismissal (e.g. mid-payment steps).
+ *
+ * Uses click, not pointerdown, so below xl: (where the backdrop unmounts
+ * instantly) the tap can't fall through onto whatever sits underneath.
+ */
+export function useBackdropDismiss(onDismiss?: () => void) {
+  const pressStartedOnBackdrop = useRef(false);
+  return {
+    onPointerDown: (e: PointerEvent<HTMLElement>) => {
+      pressStartedOnBackdrop.current = e.target === e.currentTarget;
+    },
+    onClick: (e: MouseEvent<HTMLElement>) => {
+      const shouldDismiss = pressStartedOnBackdrop.current && e.target === e.currentTarget;
+      pressStartedOnBackdrop.current = false;
+      if (shouldDismiss) onDismiss?.();
+    },
+  };
+}
 
 interface UsePopoverModalResult {
   /** false once the close (below xl:, instant; xl:+, after the exit

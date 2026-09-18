@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useAuth } from "@/contexts/auth-context";
 import { clearShift } from "@/lib/conductor/services/shift.service";
 import { useConductorShift } from "@/app/(conductor)/hooks/use-conductor-shift";
@@ -332,9 +333,17 @@ export default function SettingsContent({ showHeader = true }: { showHeader?: bo
       />
 
       {/* ===== Logout Confirmation Modal ===== */}
-      {showLogoutConfirm && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="relative backdrop-blur-md bg-gray-900/90 border border-white/20 rounded-xl shadow-2xl w-full max-w-sm mx-4">
+      {/* Portaled to <body>: inside the xl:+ Settings popover, this component
+          sits within a scrolling panel whose entrance animation leaves a
+          `transform` on it, and a transformed ancestor becomes the containing
+          block for `position: fixed` descendants — so the overlay was pinned
+          to the panel's scrollable content (off-screen when Log Out, at the
+          bottom, was clicked) instead of the viewport. Same shell as
+          End-of-Day's ConfirmModal (remit to admin). */}
+      {showLogoutConfirm && createPortal(
+        <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowLogoutConfirm(false)} />
+          <div className="relative w-full max-w-sm bg-[#0B1E33] border border-white/10 rounded-3xl overflow-hidden shadow-2xl animate-slide-up max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex flex-col items-center text-center space-y-4">
                 <div className="w-14 h-14 bg-red-500/15 rounded-full flex items-center justify-center">
@@ -363,7 +372,8 @@ export default function SettingsContent({ showHeader = true }: { showHeader?: bo
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

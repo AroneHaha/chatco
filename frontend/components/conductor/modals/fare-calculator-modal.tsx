@@ -38,7 +38,7 @@ import {
 } from "@/lib/conductor/services/payment.service";
 import type { PaymentMethodType } from "@/types";
 import { useConductorConnectivity } from "@/app/(conductor)/hooks/use-conductor-connectivity";
-import { usePopoverModal } from "@/components/conductor/modals/use-popover-modal";
+import { usePopoverModal, useBackdropDismiss } from "@/components/conductor/modals/use-popover-modal";
 import { PopoverTail } from "@/components/conductor/modals/popover-tail";
 
 interface FareCalcModalProps {
@@ -714,6 +714,14 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
     onClose();
   };
 
+  // Clicking outside the panel dismisses it, except mid-flight: "processing"
+  // (a payment request is in flight — closing would drop its receipt) and
+  // "qr_code" (waiting on the commuter's GCash payment — that step has its
+  // own explicit Cancel, and a stray click shouldn't abandon it).
+  const backdropDismiss = useBackdropDismiss(
+    step === "processing" || step === "qr_code" ? undefined : handleClose,
+  );
+
   // ─── Stop polling when the modal unmounts (e.g. user navigates away) ───
   useEffect(() => {
     return () => {
@@ -828,7 +836,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
   // automatically the moment a different dock item is clicked.
   if (step === "method") {
     return (
-      <div className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`}>
+      <div className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
         <PopoverTail panelColor="#071A2E" anchorOffsetPx={anchorOffset} />
         <div className={`w-full sm:max-w-md bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-white/10 shadow-2xl ${panelAnim}`} style={panelAnchorStyle}>
           {/* Header */}
@@ -951,7 +959,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
     const bothLocationsSelected = !!(pickupPoint && dropoffPoint);
 
     return (
-      <div className={`fixed inset-0 z-[100] flex flex-col bg-[#050F1A] safe-area-inset sm:items-center sm:justify-center sm:bg-black/60 sm:backdrop-blur-sm sm:p-4 xl:justify-end xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`}>
+      <div className={`fixed inset-0 z-[100] flex flex-col bg-[#050F1A] safe-area-inset sm:items-center sm:justify-center sm:bg-black/60 sm:backdrop-blur-sm sm:p-4 xl:justify-end xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
         <PopoverTail panelColor="#050F1A" anchorOffsetPx={anchorOffset} />
         <div className={`flex flex-col h-full w-full max-w-lg mx-auto sm:h-auto sm:max-h-[85vh] sm:rounded-2xl sm:border sm:border-white/10 sm:bg-[#050F1A] sm:shadow-2xl sm:overflow-hidden ${panelAnim}`} style={panelAnchorStyle}>
           {/* ── Fullscreen Header ── */}
@@ -1524,7 +1532,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
     ];
 
     return (
-      <div className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`}>
+      <div className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
         <PopoverTail panelColor="#071A2E" anchorOffsetPx={anchorOffset} />
         <div className={`w-full max-w-md rounded-2xl border border-white/10 bg-[#071A2E] shadow-2xl ${panelAnim}`} style={panelAnchorStyle}>
           <div className="border-b border-white/10 p-5">
@@ -1654,7 +1662,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
         : null;
 
     return (
-      <div className={`fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`}>
+      <div className={`fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
         <PopoverTail panelColor="#071A2E" anchorOffsetPx={anchorOffset} />
         <div className={`w-full max-w-xs bg-[#071A2E] border border-blue-500/20 rounded-3xl p-6 text-center shadow-2xl space-y-4 ${panelAnim}`} style={panelAnchorStyle}>
           <div className="flex justify-center">
@@ -1747,7 +1755,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
   // Fare is now calculated based on the detected type.
   if (step === "scan_result" && gcashFareInfo) {
     return (
-      <div className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`}>
+      <div className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
         <PopoverTail panelColor="#071A2E" anchorOffsetPx={anchorOffset} />
         <div className={`w-full sm:max-w-sm bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl ${panelAnim}`} style={panelAnchorStyle}>
           <div className="p-6">
@@ -1875,7 +1883,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
     if (!activeFareInfo) return null;
 
     return (
-      <div className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`}>
+      <div className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
         <PopoverTail panelColor="#071A2E" anchorOffsetPx={anchorOffset} />
         <div className={`w-full sm:max-w-sm bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl ${panelAnim}`} style={panelAnchorStyle}>
           <div className="p-6">
@@ -2037,7 +2045,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
   if (step === "processing") {
     return (
-      <div className={`fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`}>
+      <div className={`fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
         <PopoverTail panelColor="#071A2E" anchorOffsetPx={anchorOffset} />
         <div className={`w-full max-w-xs bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl p-8 text-center ${panelAnim}`} style={panelAnchorStyle}>
           <div className={`w-16 h-16 mx-auto mb-4 rounded-full border-4 border-t-transparent animate-spin ${
@@ -2086,7 +2094,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
     if (!activeFareInfo) return null;
 
     return (
-      <div className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`}>
+      <div className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
         <PopoverTail panelColor="#071A2E" anchorOffsetPx={anchorOffset} />
         <div className={`w-full sm:max-w-sm max-h-[92vh] overflow-y-auto bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl modal-scroll ${panelAnim}`} style={panelAnchorStyle}>
           <div className="p-6 text-center">
@@ -2255,7 +2263,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
   if (step === "failed") {
     return (
-      <div className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`}>
+      <div className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
         <PopoverTail panelColor="#071A2E" anchorOffsetPx={anchorOffset} />
         <div className={`w-full sm:max-w-sm bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl ${panelAnim}`} style={panelAnchorStyle}>
           <div className="p-6 text-center">

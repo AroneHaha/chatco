@@ -139,7 +139,7 @@ export default function ConductorDock({ pathname }: { pathname: string }) {
   }, [activeKey]);
 
   const navItemClass = (isActive: boolean) =>
-    `relative z-10 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-colors whitespace-nowrap ${
+    `relative z-10 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-colors whitespace-nowrap cursor-pointer ${
       isActive ? "text-white" : "text-white/50 hover:text-white hover:bg-white/5"
     }`;
 
@@ -200,6 +200,9 @@ export default function ConductorDock({ pathname }: { pathname: string }) {
             id="conductor-payment-anchor"
             onClick={() => {
               closePopovers();
+              // Already open -> this click is the toggle-off: closePopovers()
+              // above is the whole action, don't reopen it.
+              if (isPaymentOpen) return;
               if (typeof window !== "undefined") {
                 window.dispatchEvent(new CustomEvent("conductor:open-payment"));
               }
@@ -223,6 +226,7 @@ export default function ConductorDock({ pathname }: { pathname: string }) {
             id="conductor-end-of-day-anchor"
             onClick={() => {
               closePopovers();
+              if (isEndOfDayOpen) return;
               if (typeof window !== "undefined") {
                 window.dispatchEvent(new CustomEvent("conductor:open-end-of-day"));
               }
@@ -246,6 +250,7 @@ export default function ConductorDock({ pathname }: { pathname: string }) {
             id="conductor-metrics-anchor"
             onClick={() => {
               closePopovers();
+              if (isMetricsOpen) return;
               if (typeof window !== "undefined") {
                 window.dispatchEvent(new CustomEvent("conductor:open-metrics"));
               }
@@ -269,6 +274,7 @@ export default function ConductorDock({ pathname }: { pathname: string }) {
             id="conductor-settings-anchor"
             onClick={() => {
               closePopovers();
+              if (isSettingsOpen) return;
               if (typeof window !== "undefined") {
                 window.dispatchEvent(new CustomEvent("conductor:open-settings"));
               }

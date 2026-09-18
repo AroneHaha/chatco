@@ -50,7 +50,7 @@ export default function ConductorSidebar({ pathname }: { pathname: string }) {
               window.dispatchEvent(new CustomEvent("conductor:open-payment"));
             }
           }}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-white/50 hover:text-white hover:bg-white/5"
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 cursor-pointer text-white/50 hover:text-white hover:bg-white/5"
         >
           <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
             <path strokeLinecap="round" strokeLinejoin="round" d={paymentIconPath} />
