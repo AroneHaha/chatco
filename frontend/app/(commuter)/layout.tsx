@@ -10,6 +10,7 @@ import { RewardsProvider, useRewardsData } from "@/contexts/rewards-context";
 import MaintenanceGate from "@/components/shared/maintenance-gate";
 import { getCommuterTypeLabel } from "@/types";
 import { QrScanner } from "@/components/commuter/feedback/qr-scanner";
+import CommuterDock from "@/components/commuter/commuter-dock";
 
 /**
  * Spell out what the Rewards badge is counting for screen readers — the number
@@ -80,7 +81,11 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
     <div className="fixed inset-0 bg-[#050F1A] flex font-sans overflow-hidden">
 
       {/* --- DESKTOP SIDEBAR --- */}
-      <aside className="hidden lg:flex flex-col w-64 xl:w-72 bg-[#071A2E] border-r border-white/10 z-50 flex-shrink-0">
+      {/* 1024–1279px only. At xl:+ (1280px) CommuterDock takes over as a
+          floating bottom dock instead of a space-reserving rail (hidden
+          entirely there, not just visually) — same split as the conductor
+          app's ConductorSidebar/ConductorDock. */}
+      <aside className="hidden lg:flex xl:hidden flex-col w-64 xl:w-72 bg-[#071A2E] border-r border-white/10 z-50 flex-shrink-0">
         <div className="h-20 flex items-center px-6 border-b border-white/10">
           <img src="/logo-transparent.png" alt="CHATCO" className="w-10 h-10 rounded-xl object-contain" />
           <span className="ml-3 text-white font-extrabold text-lg tracking-tight">CHATCO</span>
@@ -146,7 +151,10 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* --- MAIN CONTENT AREA --- */}
-      <main className="flex-1 relative overflow-hidden">
+      {/* xl:pb-28 clears the floating CommuterDock on scrolling pages so their
+          last content isn't hidden behind it. Skipped on the dashboard: its
+          map is full-bleed and should run under the dock, not stop above it. */}
+      <main className={`flex-1 relative overflow-hidden ${pathname === "/dashboard" ? "" : "xl:pb-28"}`}>
         {children}
 
         {/* --- MOBILE BOTTOM NAV --- */}
@@ -219,6 +227,16 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
       </main>
+
+      {/* --- LARGE-SCREEN FLOATING DOCK (xl:+ only — see CommuterDock) --- */}
+      <CommuterDock
+        items={navItemsWithBadges}
+        pathname={pathname}
+        onFeedbackClick={() => setShowFeedbackScan(true)}
+        userInitial={userInitial}
+        userName={userName}
+        userTypeLabel={userTypeLabel}
+      />
 
       {/* --- FEEDBACK QR SCAN MODAL --- */}
       {/* No backdrop-click-to-close — a live camera stream is running, same
