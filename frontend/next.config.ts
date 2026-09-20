@@ -10,6 +10,11 @@ const nextConfig: NextConfig = {
     // pinning CPU/memory. See node_modules/next/dist/docs/.../turbopack.md.
     root: __dirname,
   },
+  // Next 16 only allows quality 75 unless listed; the landing hero's app
+  // screenshots hold fine UI text and need 90 to stay crisp.
+  images: {
+    qualities: [75, 90],
+  },
 };
 
 export default nextConfig;

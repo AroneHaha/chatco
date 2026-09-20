@@ -1,13 +1,16 @@
 "use client";
 
-import { WifiOff, BadgeCheck, Layers, type LucideIcon } from "lucide-react";
+import { QrCode, Calculator, MapPin, ShieldCheck, TriangleAlert, Receipt, type LucideIcon } from "lucide-react";
 
 type Item = { icon: LucideIcon; label: string; sub: string };
 
 const ITEMS: Item[] = [
-  { icon: WifiOff, label: "No WiFi Needed", sub: "QR works without internet" },
-  { icon: BadgeCheck, label: "LTFRB Compliant", sub: "Accurate fare rates" },
-  { icon: Layers, label: "3 Platforms", sub: "Commuter · Conductor · Admin" },
+  { icon: QrCode, label: "GCash Payments", sub: "Show your QR, the conductor scans" },
+  { icon: Calculator, label: "Accurate Fare Rates", sub: "34 official stop points" },
+  { icon: MapPin, label: "Check Nearby Units", sub: "Jeepneys within 1 km on the map" },
+  { icon: ShieldCheck, label: "Share My Ride", sub: "Live link for family and friends" },
+  { icon: TriangleAlert, label: "Emergency SOS", sub: "One tap sends your location" },
+  { icon: Receipt, label: "Digital Receipts", sub: "After every cashless trip" },
 ];
 
 export default function TrustBar() {
@@ -40,7 +43,7 @@ export default function TrustBar() {
 
       <style jsx>{`
         .ticker-track {
-          animation: trust-ticker 30s linear infinite;
+          animation: trust-ticker 60s linear infinite;
         }
         @keyframes trust-ticker {
           0% { transform: translateX(0); }
