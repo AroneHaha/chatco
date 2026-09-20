@@ -9,11 +9,16 @@
  *   POST /api/payments/{id}/simulate            -> simulate()  (dev only)
  */
 
-import { api } from "@/lib/api/client";
+import { api, ApiError } from "@/lib/api/client";
 import { CONDUCTOR_API } from "@/lib/conductor/endpoints";
 import type { Transaction } from "@/lib/conductor/persistence/transactions.store";
 import type { GroupPassengerInput } from "@/lib/conductor/services/transactions.service";
 import { CONDUCTOR_DEVICE_TYPE, getConductorDeviceId } from "@/lib/conductor/persistence/device.store";
+
+function readMessage(err: ApiError, fallback: string): string {
+  const body = err.body as { message?: string } | null;
+  return body?.message ?? fallback;
+}
 
 export type PaymentStatus =
   | "pending" | "processing" | "paid" | "failed" | "cancelled" | "expired" | "refunded";
@@ -122,7 +127,7 @@ interface StatusResponse {
 
 /**
  * Start a GCash fare. Returns the binding-QR payload the conductor renders.
- * @throws {ApiError} 422 (no active shift) / 502 (provider failure)
+ * @throws {Error} with the backend's message — 422 (no active shift) / 502 (provider failure)
  */
 export async function initiateGcash(input: {
   finalAmount: number;
@@ -135,37 +140,44 @@ export async function initiateGcash(input: {
   pickupStopId?: string;
   dropoffStopId?: string;
 }): Promise<GcashInitiation> {
-  const response = await api.post<InitiateResponse>(
-    CONDUCTOR_API.payments.gcashInitiate,
-    {
-      finalAmount: input.finalAmount,
-      from: input.from,
-      to: input.to,
-      baseFare: input.baseFare,
-      distance: input.distance,
-      discountAmount: input.discountAmount,
-      pickupStopId: input.pickupStopId,
-      dropoffStopId: input.dropoffStopId,
-      groupPassengers: input.groupPassengers?.map((passenger) => ({
-        type: passenger.passenger_type,
-        quantity: passenger.quantity,
-      })),
-      deviceId: getConductorDeviceId(),
-      deviceType: CONDUCTOR_DEVICE_TYPE,
-    }
-  );
+  try {
+    const response = await api.post<InitiateResponse>(
+      CONDUCTOR_API.payments.gcashInitiate,
+      {
+        finalAmount: input.finalAmount,
+        from: input.from,
+        to: input.to,
+        baseFare: input.baseFare,
+        distance: input.distance,
+        discountAmount: input.discountAmount,
+        pickupStopId: input.pickupStopId,
+        dropoffStopId: input.dropoffStopId,
+        groupPassengers: input.groupPassengers?.map((passenger) => ({
+          type: passenger.passenger_type,
+          quantity: passenger.quantity,
+        })),
+        deviceId: getConductorDeviceId(),
+        deviceType: CONDUCTOR_DEVICE_TYPE,
+      }
+    );
 
-  const d = response.data;
-  return {
-    transactionId: d.transaction_id,
-    qrToken: d.qr_token,
-    checkoutUrl: d.checkout_url,
-    amount: Number(d.amount) || 0,
-    expiresAt: d.expires_at,
-    groupId: d.group_id,
-    multiplePaymentReference: d.multiple_payment_reference,
-    receipts: d.receipts?.map(mapReceipt),
-  };
+    const d = response.data;
+    return {
+      transactionId: d.transaction_id,
+      qrToken: d.qr_token,
+      checkoutUrl: d.checkout_url,
+      amount: Number(d.amount) || 0,
+      expiresAt: d.expires_at,
+      groupId: d.group_id,
+      multiplePaymentReference: d.multiple_payment_reference,
+      receipts: d.receipts?.map(mapReceipt),
+    };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw new Error(readMessage(error, "Failed to start GCash payment."));
+    }
+    throw error;
+  }
 }
 
 interface PendingResponse {
@@ -216,14 +228,21 @@ export async function fetchStatus(transactionId: string): Promise<{
   payerName: string | null;
   receipts: Transaction[];
 }> {
-  const response = await api.get<StatusResponse>(
-    CONDUCTOR_API.payments.status(transactionId)
-  );
-  return {
-    status: (response.data.status?.toLowerCase() as PaymentStatus) ?? "pending",
-    payerName: response.data.payer_name ?? null,
-    receipts: (response.data.receipts ?? []).map(mapReceipt),
-  };
+  try {
+    const response = await api.get<StatusResponse>(
+      CONDUCTOR_API.payments.status(transactionId)
+    );
+    return {
+      status: (response.data.status?.toLowerCase() as PaymentStatus) ?? "pending",
+      payerName: response.data.payer_name ?? null,
+      receipts: (response.data.receipts ?? []).map(mapReceipt),
+    };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw new Error(readMessage(error, "Unable to fetch payment status."));
+    }
+    throw error;
+  }
 }
 
 /**
@@ -234,11 +253,18 @@ export async function simulate(
   transactionId: string,
   status: "PAID" | "FAILED"
 ): Promise<PaymentStatus> {
-  const response = await api.post<StatusResponse>(
-    CONDUCTOR_API.payments.simulate(transactionId),
-    { status }
-  );
-  return (response.data.status?.toLowerCase() as PaymentStatus) ?? "pending";
+  try {
+    const response = await api.post<StatusResponse>(
+      CONDUCTOR_API.payments.simulate(transactionId),
+      { status }
+    );
+    return (response.data.status?.toLowerCase() as PaymentStatus) ?? "pending";
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw new Error(readMessage(error, "Simulation failed."));
+    }
+    throw error;
+  }
 }
 
 /**
@@ -249,12 +275,19 @@ export async function simulate(
  * Use case: the commuter didn't scan the QR in time, or the conductor
  * wants to abort instead of waiting for the 5-minute TTL.
  *
- * @throws {ApiError} 404 (not found) / 403 (not your transaction) / 422 (not PENDING)
+ * @throws {Error} with the backend's message — 404 (not found) / 403 (not your transaction) / 422 (not PENDING)
  */
 export async function cancelPayment(transactionId: string): Promise<PaymentStatus> {
-  const response = await api.post<StatusResponse>(
-    `/api/payments/${encodeURIComponent(transactionId)}/cancel`,
-    {}
-  );
-  return (response.data.status?.toLowerCase() as PaymentStatus) ?? "cancelled";
+  try {
+    const response = await api.post<StatusResponse>(
+      `/api/payments/${encodeURIComponent(transactionId)}/cancel`,
+      {}
+    );
+    return (response.data.status?.toLowerCase() as PaymentStatus) ?? "cancelled";
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw new Error(readMessage(error, "Unable to cancel payment."));
+    }
+    throw error;
+  }
 }

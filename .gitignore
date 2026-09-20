@@ -1,2 +1,6 @@
 # Stray root-level Composer install (backend has its own vendor/)
 /vendor
+
+# Claude Code / design tooling (local, not part of the app)
+/.claude/
+/.impeccable/

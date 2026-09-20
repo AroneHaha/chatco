@@ -65,8 +65,8 @@ Route::prefix('auth')->group(function () {
 | /settings/fare-matrix page edits the fare_points table; changes are
 | immediately visible to all consumers on their next fetch.
 */
-Route::get('/fare-matrix', [FareMatrixController::class, 'index'])->middleware('throttle:commuter-hail');
-Route::get('/routes/active', [RouteGeometryController::class, 'active'])->middleware('throttle:commuter-hail');
+Route::get('/fare-matrix', [FareMatrixController::class, 'index'])->middleware('throttle:public-read');
+Route::get('/routes/active', [RouteGeometryController::class, 'active'])->middleware('throttle:public-read');
 
 /*
 |--------------------------------------------------------------------------

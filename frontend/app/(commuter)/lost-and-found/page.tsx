@@ -70,6 +70,22 @@ export default function LostAndFoundPage() {
   // Full-detail view — the card only shows a clamped description and a
   // thumbnail; this surfaces the complete description and a larger photo.
   const [detailItem, setDetailItem] = useState<LostItem | null>(null);
+  useEffect(() => {
+    if (!detailItem && !showClaimModal && !claimToCancel) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      // The cancel confirmation can sit on top of the detail view, so it goes first.
+      if (claimToCancel) {
+        if (!isCancellingClaim) closeCancelClaimModal();
+      } else if (showClaimModal) {
+        if (!isSubmittingClaim) setShowClaimModal(false);
+      } else {
+        setDetailItem(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [detailItem, showClaimModal, claimToCancel, isCancellingClaim, isSubmittingClaim, closeCancelClaimModal, setShowClaimModal]);
   const formatDateTime = (dateStr: string | null) => {
     if (!dateStr) return "Not yet";
     try {
@@ -96,14 +112,14 @@ export default function LostAndFoundPage() {
       
       {/* --- HEADER --- */}
       <div className="z-10 flex-shrink-0 border-b border-white/10 bg-[#071A2E]">
-        <div className="px-4 py-4 lg:px-8 lg:py-5">
-          <div className="mb-4 min-w-0">
+        <div className="px-4 py-3 lg:px-8 lg:py-5">
+          <div className="mb-3 min-w-0 lg:mb-4">
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#62A0EA]/20 bg-[#1A5FB4]/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[#8CB9F0]">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#62A0EA]/20 bg-[#1A5FB4]/15 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-[#8CB9F0]">
                 <PackageSearch className="h-3.5 w-3.5" />
                 Passenger desk
               </span>
-              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white/45">
+              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white/65">
                 {activeTabLabel}
               </span>
             </div>
@@ -116,10 +132,10 @@ export default function LostAndFoundPage() {
                 key={key}
                 type="button"
                 onClick={() => handleTabChange(key)}
-                className={`relative inline-flex h-9 min-w-0 items-center justify-center gap-2 rounded-lg border px-2 text-xs font-semibold transition-all sm:px-4 ${
+                className={`relative inline-flex h-10 min-w-0 items-center justify-center gap-2 rounded-lg border px-2 text-xs font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] sm:px-4 lg:h-9 ${
                   activeTab === key
                     ? "border-[#62A0EA]/45 bg-[#1A5FB4]/20 text-white shadow-lg shadow-[#1A5FB4]/15"
-                    : "border-transparent text-white/45 hover:bg-white/5 hover:text-white/75"
+                    : "border-transparent text-white/65 hover:bg-white/5 hover:text-white"
                 }`}
               >
                 <Icon className="h-4 w-4 flex-shrink-0" />
@@ -136,31 +152,31 @@ export default function LostAndFoundPage() {
             ))}
           </div>
 
-          <div className={`grid gap-3 lg:items-center ${isClaimsTab ? "lg:grid-cols-[minmax(0,1fr)_13rem_12rem_15rem]" : "lg:grid-cols-[minmax(0,1fr)_13rem_15rem]"}`}>
-            <div className="relative min-w-0 lg:max-w-100">
-              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+          <div className={`grid grid-cols-2 gap-2.5 lg:gap-3 lg:items-center ${isClaimsTab ? "lg:grid-cols-[minmax(0,1fr)_13rem_12rem_15rem]" : "lg:grid-cols-[minmax(0,1fr)_13rem_15rem]"}`}>
+            <div className="relative col-span-2 min-w-0 lg:col-span-1 lg:max-w-100">
+              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
               <input
                 type="text"
                 placeholder={isClaimsTab ? "Search claims by item, plate, driver, conductor..." : "Search item, plate, driver, or conductor..."}
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
-                className="h-10 w-full rounded-xl border border-white/10 bg-[#0E1628] pl-11 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/30 focus:border-[#62A0EA]"
+                className="h-10 w-full rounded-xl border border-white/10 bg-[#0E1628] pl-11 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/45 focus:border-[#62A0EA]"
               />
             </div>
             <div className="relative">
-              <CalendarDays className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+              <CalendarDays className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45 sm:left-4" />
               <input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => handleDateChange(e.target.value)}
-                className="h-10 w-full rounded-xl border border-white/10 bg-[#0E1628] pl-11 pr-10 text-sm font-semibold text-white/70 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
+                className="h-10 w-full rounded-xl border border-white/10 bg-[#0E1628] pl-9 pr-8 text-xs font-semibold text-white/80 outline-none sm:pl-11 sm:pr-10 sm:text-sm transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
                 aria-label="Filter lost and found items by posted date"
               />
               {selectedDate && (
                 <button
                   type="button"
                   onClick={() => handleDateChange("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-white/35 transition-colors hover:bg-white/5 hover:text-white/75"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-white/55 transition-colors hover:bg-white/5 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
                   aria-label="Clear date filter"
                   title="Clear date"
                 >
@@ -173,53 +189,53 @@ export default function LostAndFoundPage() {
                 <select
                   value={claimFilter}
                   onChange={(e) => handleClaimFilterChange(e.target.value as ClaimFilter)}
-                  className="h-10 w-full appearance-none rounded-xl border border-white/10 bg-[#0E1628] px-4 pr-10 text-sm font-semibold text-white/70 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
+                  className="h-10 w-full appearance-none rounded-xl border border-white/10 bg-[#0E1628] px-3 pr-9 text-sm font-semibold text-white/80 sm:px-4 sm:pr-10 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
                   aria-label="Filter claims by status"
                 >
                   {claimFilterOptions.map(opt => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
               </div>
             )}
-            <div className="relative">
+            <div className={`relative ${isClaimsTab ? "col-span-2 lg:col-span-1" : ""}`}>
               <select
                 value={activeCategory}
                 onChange={(e) => handleCategoryChange(e.target.value as ItemCategory)}
-                className="h-10 w-full appearance-none rounded-xl border border-white/10 bg-[#0E1628] px-4 pr-10 text-sm font-semibold text-white/70 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
+                className="h-10 w-full appearance-none rounded-xl border border-white/10 bg-[#0E1628] px-3 pr-9 text-sm font-semibold text-white/80 sm:px-4 sm:pr-10 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
                 aria-label="Filter lost and found items by category"
               >
                 {categories.map(cat => (
                   <option key={cat.value} value={cat.value}>{cat.label}</option>
                 ))}
               </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
             </div>
           </div>
 
           {activeFilterCount > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
               {searchQuery.trim() && (
-                <button type="button" onClick={() => handleSearch("")} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/55 hover:bg-white/[0.07] hover:text-white">
+                <button type="button" onClick={() => handleSearch("")} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/[0.07] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
                   Search
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
               {selectedDate && (
-                <button type="button" onClick={() => handleDateChange("")} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/55 hover:bg-white/[0.07] hover:text-white">
+                <button type="button" onClick={() => handleDateChange("")} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/[0.07] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
                   {formatDate(selectedDate)}
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
               {isClaimsTab && claimFilter !== "ALL" && (
-                <button type="button" onClick={() => handleClaimFilterChange("ALL")} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/55 hover:bg-white/[0.07] hover:text-white">
+                <button type="button" onClick={() => handleClaimFilterChange("ALL")} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/[0.07] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
                   {activeClaimFilterLabel}
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
               {activeCategory !== "ALL" && (
-                <button type="button" onClick={() => handleCategoryChange("ALL")} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/55 hover:bg-white/[0.07] hover:text-white">
+                <button type="button" onClick={() => handleCategoryChange("ALL")} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/[0.07] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
                   {activeCategoryLabel}
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -235,14 +251,14 @@ export default function LostAndFoundPage() {
           <div className={activeTab === "MY_CLAIMS" ? "space-y-3" : "grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"}>
             {Array.from({ length: activeTab === "MY_CLAIMS" ? 4 : 8 }).map((_, index) => (
               <div key={index} className={activeTab === "MY_CLAIMS" ? "h-44 rounded-xl border border-white/10 bg-white/[0.04]" : "h-96 rounded-xl border border-white/10 bg-white/[0.04]"}>
-                <div className="h-full w-full animate-pulse rounded-[inherit] bg-gradient-to-r from-white/[0.03] via-white/[0.07] to-white/[0.03]" />
+                <div className="h-full w-full animate-pulse motion-reduce:animate-none rounded-[inherit] bg-gradient-to-r from-white/[0.03] via-white/[0.07] to-white/[0.03]" />
               </div>
             ))}
           </div>
         ) : listError ? (
           <div className="h-full flex flex-col items-center justify-center text-center px-4">
             <p className="text-red-400 font-medium text-sm mb-3">{listError}</p>
-            <button onClick={() => handleTabChange(activeTab)} className="px-4 py-2 rounded-md text-xs font-semibold bg-[#1A5FB4] text-white">Try again</button>
+            <button onClick={() => handleTabChange(activeTab)} className="px-4 py-2.5 rounded-md text-xs font-semibold bg-[#1A5FB4] text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">Try again</button>
           </div>
         ) : activeTab === "MY_CLAIMS" && displayClaims.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center px-4">
@@ -250,7 +266,7 @@ export default function LostAndFoundPage() {
                <PackageSearch className="h-7 w-7 text-white/20" />
              </div>
              <h3 className="text-white/70 font-semibold mb-1">No claims found</h3>
-             <p className="max-w-xs text-white/40 text-sm">Try another status filter or search term.</p>
+             <p className="max-w-xs text-white/60 text-sm">Try another status filter or search term.</p>
           </div>
         ) : activeTab !== "MY_CLAIMS" && displayItems.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center px-4">
@@ -258,7 +274,7 @@ export default function LostAndFoundPage() {
                <PackageSearch className="h-7 w-7 text-white/20" />
              </div>
              <h3 className="text-white/70 font-semibold mb-1">No matching items</h3>
-             <p className="max-w-xs text-white/40 text-sm">Try another keyword or category. New found items appear here as soon as staff reports them.</p>
+             <p className="max-w-xs text-white/60 text-sm">Try another keyword or category. New found items appear here as soon as staff reports them.</p>
           </div>
         ) : (
           <>
@@ -301,7 +317,7 @@ export default function LostAndFoundPage() {
                   type="button"
                   onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                   disabled={paginationData.currentPage === 1}
-                  className={`inline-flex h-10 items-center gap-2 rounded-md border px-3 text-sm font-semibold transition-colors ${
+                  className={`inline-flex h-10 items-center gap-2 rounded-md border px-3 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${
                     paginationData.currentPage === 1
                       ? "cursor-not-allowed border-white/5 bg-white/5 text-white/20"
                       : "border-white/10 bg-[#0E1628] text-white/65 hover:bg-white/10 hover:text-white"
@@ -312,16 +328,17 @@ export default function LostAndFoundPage() {
                 </button>
                 {pageNumbers.map((page, index) => (
                   page === "ellipsis" ? (
-                    <span key={`ellipsis-${index}`} className="flex h-10 w-9 items-center justify-center text-sm font-semibold text-white/25">...</span>
+                    <span key={`ellipsis-${index}`} className="flex h-10 w-9 items-center justify-center text-sm font-semibold text-white/40">...</span>
                   ) : (
                     <button
                       key={page}
                       type="button"
                       onClick={() => setCurrentPage(page)}
-                      className={`h-10 w-10 rounded-md text-sm font-semibold transition-colors ${
+                      aria-current={paginationData.currentPage === page ? "page" : undefined}
+                      className={`h-10 w-10 rounded-md text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${
                         paginationData.currentPage === page
                           ? "bg-[#62A0EA]/15 text-[#62A0EA]"
-                          : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"
+                          : "bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
                       }`}
                     >
                       {page}
@@ -332,7 +349,7 @@ export default function LostAndFoundPage() {
                   type="button"
                   onClick={() => setCurrentPage(prev => Math.min(prev + 1, paginationData.totalPages))}
                   disabled={paginationData.currentPage === paginationData.totalPages}
-                  className={`inline-flex h-10 items-center gap-2 rounded-md border px-3 text-sm font-semibold transition-colors ${
+                  className={`inline-flex h-10 items-center gap-2 rounded-md border px-3 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${
                     paginationData.currentPage === paginationData.totalPages
                       ? "cursor-not-allowed border-white/5 bg-white/5 text-white/20"
                       : "border-white/10 bg-[#0E1628] text-white/65 hover:bg-white/10 hover:text-white"
@@ -349,7 +366,7 @@ export default function LostAndFoundPage() {
 
       {/* --- ITEM DETAIL MODAL --- */}
       {detailItem && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setDetailItem(null)}>
+        <div role="dialog" aria-modal="true" aria-labelledby="lf-detail-title" className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setDetailItem(null)}>
           <div className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-white/10 bg-[#071A2E] shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
               <div className="relative aspect-[4/3] flex-shrink-0 bg-[#0A1E33] lg:aspect-auto lg:min-h-[520px]">
@@ -358,7 +375,7 @@ export default function LostAndFoundPage() {
                 ) : (
                   <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-white/20">
                     <PackageSearch className="h-12 w-12" />
-                    <span className="text-[10px] font-semibold uppercase tracking-wider">No photo yet</span>
+                    <span className="text-[11px] font-semibold uppercase tracking-wider">No photo yet</span>
                   </div>
                 )}
                 <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-4">
@@ -366,12 +383,12 @@ export default function LostAndFoundPage() {
                     <Tag className="h-3 w-3" />
                     {detailItem.category}
                   </span>
-                  <button onClick={() => setDetailItem(null)} className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-black/50 text-white transition-colors hover:bg-black/70" aria-label="Close item details">
+                  <button autoFocus onClick={() => setDetailItem(null)} className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-black/50 text-white transition-colors hover:bg-black/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]" aria-label="Close item details">
                     <X className="h-4 w-4" />
                   </button>
                 </div>
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent p-4 pt-16">
-                  <p className="text-xs font-semibold text-white/55">Posted {formatDate(detailItem.datePosted)}</p>
+                  <p className="text-xs font-semibold text-white/75">Posted {formatDate(detailItem.datePosted)}</p>
                 </div>
               </div>
 
@@ -382,8 +399,8 @@ export default function LostAndFoundPage() {
               <div className="flex min-h-0 flex-col">
                 <div className="min-h-0 flex-1 overflow-y-auto p-5 lg:p-6">
                   <div className="mb-5">
-                    <h2 className="text-xl font-bold leading-tight text-white">{detailItem.itemName}</h2>
-                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-white/58">{detailItem.description}</p>
+                    <h2 id="lf-detail-title" className="text-xl font-bold leading-tight text-white">{detailItem.itemName}</h2>
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-white/75">{detailItem.description}</p>
                   </div>
 
                   <div className="mb-5 grid grid-cols-2 gap-3">
@@ -398,7 +415,7 @@ export default function LostAndFoundPage() {
                       <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
                       <div>
                         <p className="text-xs font-bold text-amber-100">Claim reminder</p>
-                        <p className="mt-1 text-xs leading-5 text-amber-100/65">Submit specific proof only if this item is yours. Staff may ask for a valid ID during handover.</p>
+                        <p className="mt-1 text-xs leading-5 text-amber-100/80">Submit specific proof only if this item is yours. Staff may ask for a valid ID during handover.</p>
                       </div>
                     </div>
                   </div>
@@ -439,7 +456,7 @@ export default function LostAndFoundPage() {
 
       {/* --- CLAIM MODAL --- */}
       {showClaimModal && itemToClaim && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div role="dialog" aria-modal="true" aria-labelledby="lf-claim-title" className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="flex h-[min(720px,88vh)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-white/10 bg-[#071A2E] shadow-2xl">
             <div className="flex flex-shrink-0 items-start justify-between gap-4 border-b border-white/10 p-5">
               <div className="min-w-0">
@@ -447,12 +464,12 @@ export default function LostAndFoundPage() {
                   <FileCheck2 className="h-3.5 w-3.5" />
                   Claim request
                 </div>
-                <h2 className="text-lg font-bold text-white">Proof of ownership</h2>
-                <p className="mt-1 line-clamp-1 text-xs text-white/45">
+                <h2 id="lf-claim-title" className="text-lg font-bold text-white">Proof of ownership</h2>
+                <p className="mt-1 line-clamp-1 text-xs text-white/60">
                   {itemToClaim.itemName} on {itemToClaim.plateNumber || "assigned vehicle"}
                 </p>
               </div>
-              <button onClick={handleCloseClaimModal} className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/50 transition-colors hover:bg-white/10 hover:text-white" aria-label="Close claim modal">
+              <button onClick={handleCloseClaimModal} className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/60 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]" aria-label="Close claim modal">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -472,9 +489,9 @@ export default function LostAndFoundPage() {
                   value={proofText}
                   onChange={(e) => setProofText(e.target.value)}
                   placeholder="Describe a specific detail, where you sat, unique marks, contents, or anything staff can verify."
-                  className="w-full resize-none rounded-xl border border-white/10 bg-[#0E1628] px-4 py-3 text-sm leading-6 text-white outline-none transition-colors placeholder:text-white/30 focus:border-[#62A0EA]"
+                  className="w-full resize-none rounded-xl border border-white/10 bg-[#0E1628] px-4 py-3 text-sm leading-6 text-white outline-none transition-colors placeholder:text-white/45 focus:border-[#62A0EA]"
                 />
-                <p className="mt-2 text-[10px] font-medium text-white/30">This proof is visible to the admin reviewer.</p>
+                <p className="mt-2 text-[11px] font-medium text-white/55">This proof is visible to the admin reviewer.</p>
               </div>
 
               {claimError && (
@@ -488,7 +505,7 @@ export default function LostAndFoundPage() {
                 <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
                 <div>
                   <p className="text-xs font-bold text-amber-100">Reminder</p>
-                  <p className="mt-1 text-xs leading-5 text-amber-100/65">Bring a valid ID during handover. Staff may reject claims that do not match the item details.</p>
+                  <p className="mt-1 text-xs leading-5 text-amber-100/80">Bring a valid ID during handover. Staff may reject claims that do not match the item details.</p>
                 </div>
               </div>
             </div>
@@ -507,15 +524,15 @@ export default function LostAndFoundPage() {
 
       {/* --- CANCEL CLAIM CONFIRMATION MODAL --- */}
       {claimToCancel && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div role="alertdialog" aria-modal="true" aria-labelledby="lf-cancel-title" className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md overflow-hidden rounded-xl border border-white/10 bg-[#071A2E] shadow-2xl">
             <div className="flex items-start gap-4 p-5">
               <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-red-500/30 bg-red-500/10 text-red-400">
                 <AlertTriangle className="h-5 w-5" />
               </div>
               <div className="min-w-0">
-                <h2 className="text-base font-bold text-white">Cancel this claim?</h2>
-                <p className="mt-1.5 text-sm leading-5 text-white/55">
+                <h2 id="lf-cancel-title" className="text-base font-bold text-white">Cancel this claim?</h2>
+                <p className="mt-1.5 text-sm leading-5 text-white/70">
                   {claims.get(claimToCancel)?.item?.itemName ? (
                     <>This will cancel your claim on &ldquo;<span className="font-semibold text-white/80">{claims.get(claimToCancel)?.item?.itemName}</span>&rdquo;. </>
                   ) : (
@@ -527,9 +544,10 @@ export default function LostAndFoundPage() {
             </div>
             <div className="grid grid-cols-2 gap-3 border-t border-white/10 p-5">
               <button
+                autoFocus
                 onClick={closeCancelClaimModal}
                 disabled={isCancellingClaim}
-                className="h-11 rounded-xl border border-white/10 bg-white/5 text-sm font-semibold text-white/70 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-11 rounded-xl border border-white/10 bg-white/5 text-sm font-semibold text-white/70 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
               >
                 Keep Claim
               </button>
@@ -549,7 +567,7 @@ export default function LostAndFoundPage() {
 
       {/* --- CANCEL SUCCESS TOAST --- */}
       {cancelToast && (
-        <div className="fixed bottom-6 left-1/2 z-[120] flex -translate-x-1/2 items-center gap-2 rounded-full bg-[#071A2E] px-4 py-2.5 text-sm font-medium text-white shadow-lg">
+        <div role="status" aria-live="polite" className="fixed bottom-6 left-1/2 z-[120] flex -translate-x-1/2 items-center gap-2 rounded-full bg-[#071A2E] px-4 py-2.5 text-sm font-medium text-white shadow-lg">
           <svg className="h-4 w-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
           </svg>
@@ -587,7 +605,7 @@ function DetailInfo({ icon, label, value }: { icon: ReactNode; label: string; va
         {icon}
       </div>
       <div className="min-w-0">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-white/35">{label}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-white/55">{label}</p>
         <p className="mt-0.5 break-words text-sm font-semibold text-white/85">{value}</p>
       </div>
     </div>
@@ -651,10 +669,10 @@ function ClaimRecordCard({
           type="button"
           disabled={!item}
           onClick={() => item && onOpenDetails(item)}
-          className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-[#0A1E33] text-left disabled:cursor-default"
+          className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-[#0A1E33] text-left disabled:cursor-default focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] focus-visible:ring-inset"
         >
           {item?.imageUrl ? (
-            <img src={item.imageUrl} alt={item.itemName} className="h-full w-full object-cover" />
+            <img src={item.imageUrl} alt={item.itemName} loading="lazy" decoding="async" className="h-full w-full object-cover" />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-white/20">
               <PackageSearch className="h-7 w-7" />
@@ -666,9 +684,9 @@ function ClaimRecordCard({
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="truncate text-sm font-bold text-white">{item?.itemName ?? "Deleted item"}</p>
-              <p className="mt-0.5 text-xs text-white/40">{item ? `${item.category} | ${item.plateNumber}` : "This item record is no longer available"}</p>
+              <p className="mt-0.5 text-xs text-white/60">{item ? `${item.category} | ${item.plateNumber}` : "This item record is no longer available"}</p>
             </div>
-            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${getStatusBadge(claim.status)}`}>
+            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider ${getStatusBadge(claim.status)}`}>
               {statusMeta.icon}
               {statusMeta.title}
             </span>
@@ -682,7 +700,7 @@ function ClaimRecordCard({
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-bold">{statusMeta.title}</p>
-                  <p className="mt-1 text-xs leading-5 opacity-70">{statusMeta.summary}</p>
+                  <p className="mt-1 text-xs leading-5 opacity-85">{statusMeta.summary}</p>
                 </div>
               </div>
               <div className="flex flex-shrink-0 items-center gap-2 text-xs font-semibold opacity-80">
@@ -695,7 +713,7 @@ function ClaimRecordCard({
           <button
             type="button"
             onClick={() => setIsTimelineOpen((current) => !current)}
-            className="mt-3 flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-left text-xs font-semibold text-white/65 transition-colors hover:bg-white/[0.07] hover:text-white"
+            className="mt-3 flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-left text-xs font-semibold text-white/75 transition-colors hover:bg-white/[0.07] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
             aria-expanded={isTimelineOpen}
           >
             <span>Claim history</span>
@@ -716,33 +734,33 @@ function ClaimRecordCard({
                     <div className={index < timelineSteps.length - 1 ? "pb-4" : ""}>
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                         <p className="text-sm font-bold text-white">{step.label}</p>
-                        <p className="text-xs font-semibold text-white/45">{formatDateTime(step.date)}</p>
+                        <p className="text-xs font-semibold text-white/60">{formatDateTime(step.date)}</p>
                       </div>
-                      <p className="mt-1 text-xs leading-5 text-white/50">{step.detail}</p>
+                      <p className="mt-1 text-xs leading-5 text-white/65">{step.detail}</p>
                     </div>
                   </div>
                 ))}
               </div>
               <div className="mt-3 rounded-lg border border-white/5 bg-black/15 p-3">
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/35">Proof of ownership</p>
-                <p className="text-xs leading-5 text-white/65">{claim.proof || "No proof text"}</p>
+                <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-white/55">Proof of ownership</p>
+                <p className="text-xs leading-5 text-white/75">{claim.proof || "No proof text"}</p>
               </div>
             </div>
           )}
 
           <div className="mt-3 flex flex-wrap gap-2">
             {item && (
-              <button onClick={() => onOpenDetails(item)} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white/60 hover:bg-white/5 hover:text-white">
+              <button onClick={() => onOpenDetails(item)} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white/75 hover:bg-white/5 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
                 View Details
               </button>
             )}
             {claim.status === "PENDING" && item && (
-              <button onClick={() => onCancelClaim(item.id)} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white/60 hover:bg-white/5 hover:text-white">
+              <button onClick={() => onCancelClaim(item.id)} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white/75 hover:bg-white/5 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
                 Cancel Claim
               </button>
             )}
             {claim.status === "REJECTED" && item && (
-              <button onClick={() => onClaimAgain(item)} className="rounded-lg bg-[#FF6D3A] px-3 py-2 text-xs font-bold text-white hover:bg-[#e55a2b]">
+              <button onClick={() => onClaimAgain(item)} className="rounded-lg bg-[#FF6D3A] px-3 py-2 text-xs font-bold text-white hover:bg-[#e55a2b] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
                 Claim Again
               </button>
             )}

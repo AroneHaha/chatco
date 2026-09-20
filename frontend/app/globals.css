@@ -231,9 +231,13 @@ body {
   to   { opacity: 1; }
 }
 
+/* --popover-anchor-offset defaults to 0px (viewport-centered) for every
+ * modal that shares this keyframe and never sets it — only the conductor
+ * payment modal's xl:+ popover sets a non-zero value (see globals.css's
+ * "Payment modal popover" block and fare-calculator-modal.tsx). */
 @keyframes modal-panel-in {
-  from { opacity: 0; transform: translateY(100%); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateX(var(--popover-anchor-offset, 0px)) translateY(100%); }
+  to   { opacity: 1; transform: translateX(var(--popover-anchor-offset, 0px)) translateY(0); }
 }
 
 .animate-modal-backdrop-in {
@@ -241,12 +245,104 @@ body {
 }
 
 .animate-modal-panel-in {
-  animation: modal-panel-in 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+  /* forwards: holds the "to" state (which already equals the pre-existing
+   * resting look for every OTHER modal — translateY(0), no offset) so the
+   * payment modal's non-zero --popover-anchor-offset persists after the
+   * entrance finishes instead of snapping back to viewport-center. */
+  animation: modal-panel-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Exit pair — new, mirroring the entrance above in reverse. Nothing
+ * referenced these before (every modal listed above still hard-unmounts
+ * on close), so adding them is additive: only a modal that explicitly
+ * opts in (conductor fare-calculator-modal.tsx, so far) plays an exit
+ * transition instead of vanishing instantly. */
+@keyframes modal-backdrop-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+@keyframes modal-panel-out {
+  from { opacity: 1; transform: translateX(var(--popover-anchor-offset, 0px)) translateY(0); }
+  to   { opacity: 0; transform: translateX(var(--popover-anchor-offset, 0px)) translateY(100%); }
+}
+
+.animate-modal-backdrop-out {
+  animation: modal-backdrop-out 0.18s ease-in forwards;
+}
+
+.animate-modal-panel-out {
+  animation: modal-panel-out 0.22s cubic-bezier(0.4, 0, 1, 1) forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .animate-modal-backdrop-in,
-  .animate-modal-panel-in { animation: none; }
+  .animate-modal-panel-in,
+  .animate-modal-backdrop-out,
+  .animate-modal-panel-out { animation: none; }
+}
+
+/* ─── Payment modal popover, xl:+ only ───────────────────────────────
+ * The conductor payment modal (fare-calculator-modal.tsx) reads as a
+ * bottom-sheet on phones/tablets — sliding up from the viewport edge
+ * makes sense there. At 1280px+ it's instead anchored to the Payment
+ * button in ConductorDock's floating bottom bar, so a full-height slide
+ * reads wrong; it should grow FROM that anchor point instead.
+ *
+ * These two classes are added alongside (never instead of)
+ * animate-modal-panel-in/out in fare-calculator-modal.tsx's JSX. Below
+ * 1280px this media query doesn't match, so animate-modal-panel-in/out's
+ * own slide-up/down keeps running unchanged. At 1280px+, this block wins
+ * (same specificity, later in the cascade) and swaps the animation to a
+ * small grow/shrink anchored at the bottom edge — right where the popover
+ * meets ConductorDock. No other modal references these two class names,
+ * so this cannot affect sos-modal / share-ride-modal / sos-confirm-modal.
+ */
+@keyframes popover-panel-in {
+  from { opacity: 0; transform: translateX(var(--popover-anchor-offset, 0px)) translateY(10px) scale(0.94); }
+  to   { opacity: 1; transform: translateX(var(--popover-anchor-offset, 0px)) translateY(0) scale(1); }
+}
+
+@keyframes popover-panel-out {
+  from { opacity: 1; transform: translateX(var(--popover-anchor-offset, 0px)) translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateX(var(--popover-anchor-offset, 0px)) translateY(6px) scale(0.95); }
+}
+
+@media (min-width: 1280px) {
+  .popover-panel-in {
+    /* forwards: same reason as .animate-modal-panel-in above — holds the
+     * anchor offset in place once the entrance finishes. */
+    animation: popover-panel-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    transform-origin: bottom center;
+  }
+
+  .popover-panel-out {
+    animation: popover-panel-out 0.18s cubic-bezier(0.4, 0, 1, 1) forwards;
+    transform-origin: bottom center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .popover-panel-in,
+  .popover-panel-out { animation: none; }
+}
+
+/* ─── Popover surface (End-of-Day / Metrics / Settings modals) ─────────
+ * These modals share Payment's #071A2E panel color, but they render the same
+ * *Content components as the full pages, whose cards are hard-coded
+ * bg-[#071A2E] to sit on the page's darker #050F1A. On the modal's own
+ * #071A2E panel those cards would vanish into the background, so inside a
+ * .popover-surface panel they switch to Payment's card treatment
+ * (translucent white fill + white/10 border) instead. Scoped to the panel
+ * class, so the full pages are unaffected. Limited to div/section/button so
+ * form controls (the <select>/<option> in HistorySection) keep an opaque bg.
+ * .popover-header (each modal's sticky title bar) is excluded: it must stay
+ * the solid panel color so scrolled content doesn't show through it. */
+.popover-surface div[class~="bg-[#071A2E]"]:not(.popover-header),
+.popover-surface section[class~="bg-[#071A2E]"]:not(.popover-header),
+.popover-surface button[class~="bg-[#071A2E]"]:not(.popover-header) {
+  background-color: rgb(255 255 255 / 0.05);
+  border-color: rgb(255 255 255 / 0.1);
 }
 
 /* ─── Feedback success countdown ring ──────────────────────────────────
