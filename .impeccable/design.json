@@ -1,0 +1,271 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-15T14:30:00.000Z",
+  "title": "Design System: CHATCO",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "CHATCO Blue",
+        "canonical": "oklch(45% 0.16 260)",
+        "tonalRamp": [
+          "oklch(15% 0.16 260)",
+          "oklch(25% 0.16 260)",
+          "oklch(35% 0.16 260)",
+          "oklch(45% 0.16 260)",
+          "oklch(55% 0.16 260)",
+          "oklch(65% 0.16 260)",
+          "oklch(75% 0.16 260)",
+          "oklch(90% 0.08 260)"
+        ]
+      },
+      "primary-light": {
+        "role": "primary",
+        "displayName": "Sky Blue",
+        "canonical": "oklch(68% 0.12 254)",
+        "tonalRamp": [
+          "oklch(20% 0.12 254)",
+          "oklch(30% 0.12 254)",
+          "oklch(40% 0.12 254)",
+          "oklch(50% 0.12 254)",
+          "oklch(60% 0.12 254)",
+          "oklch(68% 0.12 254)",
+          "oklch(80% 0.09 254)",
+          "oklch(92% 0.05 254)"
+        ]
+      },
+      "primary-lighter": {
+        "role": "primary",
+        "displayName": "Pale Sky",
+        "canonical": "oklch(82% 0.06 253)",
+        "tonalRamp": [
+          "oklch(30% 0.08 253)",
+          "oklch(42% 0.08 253)",
+          "oklch(54% 0.08 253)",
+          "oklch(66% 0.07 253)",
+          "oklch(74% 0.06 253)",
+          "oklch(82% 0.06 253)",
+          "oklch(90% 0.04 253)",
+          "oklch(96% 0.02 253)"
+        ]
+      },
+      "navy-deep": {
+        "role": "secondary",
+        "displayName": "Deep Navy",
+        "canonical": "oklch(18% 0.05 255)",
+        "tonalRamp": [
+          "oklch(10% 0.04 255)",
+          "oklch(18% 0.05 255)",
+          "oklch(28% 0.05 255)",
+          "oklch(38% 0.05 255)",
+          "oklch(50% 0.06 255)",
+          "oklch(62% 0.07 255)",
+          "oklch(76% 0.05 255)",
+          "oklch(90% 0.03 255)"
+        ]
+      },
+      "accent-signal": {
+        "role": "accent",
+        "displayName": "Signal Orange",
+        "canonical": "oklch(68% 0.19 35)",
+        "tonalRamp": [
+          "oklch(22% 0.14 35)",
+          "oklch(32% 0.16 35)",
+          "oklch(42% 0.18 35)",
+          "oklch(52% 0.19 35)",
+          "oklch(62% 0.19 35)",
+          "oklch(68% 0.19 35)",
+          "oklch(80% 0.13 35)",
+          "oklch(92% 0.06 35)"
+        ]
+      },
+      "success": {
+        "role": "status",
+        "displayName": "Confirmed Green",
+        "canonical": "oklch(72% 0.17 145)",
+        "tonalRamp": [
+          "oklch(24% 0.12 145)",
+          "oklch(34% 0.14 145)",
+          "oklch(44% 0.16 145)",
+          "oklch(54% 0.17 145)",
+          "oklch(64% 0.17 145)",
+          "oklch(72% 0.17 145)",
+          "oklch(84% 0.11 145)",
+          "oklch(94% 0.05 145)"
+        ]
+      },
+      "warning": {
+        "role": "status",
+        "displayName": "Caution Amber",
+        "canonical": "oklch(76% 0.17 70)",
+        "tonalRamp": [
+          "oklch(26% 0.12 70)",
+          "oklch(36% 0.14 70)",
+          "oklch(46% 0.16 70)",
+          "oklch(56% 0.17 70)",
+          "oklch(66% 0.17 70)",
+          "oklch(76% 0.17 70)",
+          "oklch(86% 0.11 70)",
+          "oklch(95% 0.05 70)"
+        ]
+      },
+      "danger": {
+        "role": "status",
+        "displayName": "Alert Red",
+        "canonical": "oklch(63% 0.19 25)",
+        "tonalRamp": [
+          "oklch(22% 0.14 25)",
+          "oklch(32% 0.16 25)",
+          "oklch(42% 0.18 25)",
+          "oklch(52% 0.19 25)",
+          "oklch(63% 0.19 25)",
+          "oklch(73% 0.15 25)",
+          "oklch(84% 0.09 25)",
+          "oklch(93% 0.04 25)"
+        ]
+      },
+      "info-sky": {
+        "role": "status",
+        "displayName": "Info Sky",
+        "canonical": "oklch(74% 0.14 230)",
+        "tonalRamp": [
+          "oklch(24% 0.10 230)",
+          "oklch(34% 0.12 230)",
+          "oklch(44% 0.13 230)",
+          "oklch(54% 0.14 230)",
+          "oklch(64% 0.14 230)",
+          "oklch(74% 0.14 230)",
+          "oklch(85% 0.08 230)",
+          "oklch(94% 0.04 230)"
+        ]
+      },
+      "admin-bg": {
+        "role": "neutral",
+        "displayName": "Control Room Black",
+        "canonical": "oklch(16% 0.03 255)",
+        "tonalRamp": [
+          "oklch(10% 0.02 255)",
+          "oklch(16% 0.03 255)",
+          "oklch(22% 0.03 255)",
+          "oklch(30% 0.03 255)",
+          "oklch(45% 0.03 255)",
+          "oklch(60% 0.02 255)",
+          "oklch(78% 0.01 255)",
+          "oklch(93% 0.005 255)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Hero H1 only, one per page. Erode (editorial serif), weight 500 — landing page exclusively." },
+      "headline": { "displayName": "Headline", "purpose": "Public landing-page section H2s and HowItWorks' per-step H3s. Erode, weight 500." },
+      "title": { "displayName": "Title", "purpose": "Card and modal headings, app-shell Poppins." },
+      "body": { "displayName": "Body", "purpose": "App-shell paragraph copy (Poppins); drops to white/opacity steps on dark surfaces." },
+      "body-editorial": { "displayName": "Body (Editorial)", "purpose": "Landing-page body copy, nav, buttons, captions — General Sans, applied once as the landing <main>'s base font." },
+      "label": { "displayName": "Label", "purpose": "Eyebrows, kickers, admin nav-group headers — uppercase, tracked out." },
+      "micro": { "displayName": "Micro", "purpose": "Status pills, timestamps, inline badges, helper captions — the system's highest-frequency text step (300+ call sites) at 10px." }
+    },
+    "shadows": [
+      { "name": "button-glow", "value": "0 20px 25px -5px rgba(26,95,180,0.3)", "purpose": "Primary CTA on public/commuter surfaces; deepens on hover." },
+      { "name": "card-float", "value": "0 25px 50px -12px rgba(0,0,0,0.1)", "purpose": "Floating cards, scrolled navbar pill, FAQ chat panel." },
+      { "name": "modal-overlay", "value": "0 25px 50px -12px rgba(0,0,0,0.25)", "purpose": "The one shadow admin/conductor surfaces use — modals breaking the flat plane." }
+    ],
+    "motion": [
+      { "name": "ease-standard", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Default hover/transition easing." },
+      { "name": "ease-reveal", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Scroll-triggered reveal and hero entrance motion (GSAP/Framer)." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Public-site primary call to action (Create Account, Learn More).",
+      "html": "<button class=\"ds-btn-primary\">Create Account</button>",
+      "css": ".ds-btn-primary { background: #1A5FB4; color: #FFFFFF; font-family: Poppins, system-ui, sans-serif; font-weight: 600; font-size: 16px; padding: 16px 32px; border: none; border-radius: 9999px; box-shadow: 0 20px 25px -5px rgba(26,95,180,0.3); transition: background 0.2s, box-shadow 0.2s, transform 0.2s; cursor: pointer; } .ds-btn-primary:hover { background: #164A8F; box-shadow: 0 25px 50px -12px rgba(26,95,180,0.4); transform: translateY(-1px); } .ds-btn-primary:focus-visible { outline: 2px solid #62A0EA; outline-offset: 2px; }"
+    },
+    {
+      "name": "Ghost Button (on navy)",
+      "kind": "button",
+      "refersTo": "button-ghost-dark",
+      "description": "Secondary CTA on dark/hero surfaces.",
+      "html": "<button class=\"ds-btn-ghost\">Learn More</button>",
+      "css": ".ds-btn-ghost { background: transparent; color: #FFFFFF; font-family: Poppins, system-ui, sans-serif; font-weight: 600; font-size: 16px; padding: 16px 32px; border: 1px solid rgba(255,255,255,0.2); border-radius: 9999px; transition: background 0.2s; cursor: pointer; } .ds-btn-ghost:hover { background: rgba(255,255,255,0.05); } .ds-btn-ghost:focus-visible { outline: 2px solid #62A0EA; outline-offset: 2px; }"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "badge",
+      "description": "Pill status indicator; success variant shown, four siblings (warning/danger/info/neutral) share the same shape with swapped colors.",
+      "html": "<span class=\"ds-badge-success\">Verified</span>",
+      "css": ".ds-badge-success { display: inline-block; background: rgba(34,197,94,0.2); color: #22C55E; border: 1px solid rgba(34,197,94,0.3); font-family: Poppins, system-ui, sans-serif; font-weight: 600; font-size: 12px; padding: 4px 10px; border-radius: 9999px; }"
+    },
+    {
+      "name": "Public Card",
+      "kind": "card",
+      "refersTo": "card-public",
+      "description": "Feature/content card on the public site — lifts and glows on hover.",
+      "html": "<div class=\"ds-card-public\"><h3 class=\"ds-card-public-title\">Live GPS Tracking</h3><p class=\"ds-card-public-body\">See nearby jeepneys on the map when they're within 1km.</p></div>",
+      "css": ".ds-card-public { background: #FFFFFF; border: 1px solid #F3F4F6; border-radius: 16px; padding: 24px; transition: transform 0.3s, box-shadow 0.3s, border-color 0.3s; } .ds-card-public:hover { transform: translateY(-4px); border-color: rgba(26,95,180,0.3); box-shadow: 0 0 20px rgba(26,95,180,0.12), 0 8px 30px rgba(0,0,0,0.06); } .ds-card-public-title { font-family: Poppins, system-ui, sans-serif; font-weight: 700; font-size: 18px; color: #111827; margin: 0 0 8px; } .ds-card-public-body { font-family: Poppins, system-ui, sans-serif; font-weight: 400; font-size: 14px; line-height: 1.6; color: #6B7280; margin: 0; }"
+    },
+    {
+      "name": "Admin Card",
+      "kind": "card",
+      "refersTo": "card-admin",
+      "description": "Flat metric/content card inside the admin or conductor shell — depth from tone and border, not shadow.",
+      "html": "<div class=\"ds-card-admin\"><p class=\"ds-card-admin-label\">Active Vehicles</p><p class=\"ds-card-admin-value\">24</p></div>",
+      "css": ".ds-card-admin { background: #131C2E; border: 1px solid #1E2D45; border-radius: 8px; padding: 16px; } .ds-card-admin-label { font-family: Poppins, system-ui, sans-serif; font-weight: 500; font-size: 12px; color: #94A3B8; margin: 0 0 8px; } .ds-card-admin-value { font-family: Poppins, system-ui, sans-serif; font-weight: 700; font-size: 20px; color: #F1F5F9; margin: 0; }"
+    },
+    {
+      "name": "Admin Sidebar Nav Item",
+      "kind": "nav",
+      "refersTo": "nav-link-admin-active",
+      "description": "Sidebar link, active state — filled at 10% opacity with a solid indicator dot; inactive rows keep a same-size transparent dot so nothing shifts width on activation.",
+      "html": "<a class=\"ds-nav-item ds-nav-item--active\" href=\"#\"><span class=\"ds-nav-dot\"></span>Dashboard</a>",
+      "css": ".ds-nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 6px; font-family: Poppins, system-ui, sans-serif; font-weight: 500; font-size: 14px; color: #94A3B8; text-decoration: none; transition: background 0.2s, color 0.2s; } .ds-nav-item:hover { background: #1A2540; color: #FFFFFF; } .ds-nav-item--active { background: rgba(98,160,234,0.1); color: #62A0EA; } .ds-nav-dot { width: 6px; height: 6px; border-radius: 9999px; background: #62A0EA; flex-shrink: 0; }"
+    },
+    {
+      "name": "FAQ Chat Bubble (FAB)",
+      "kind": "custom",
+      "refersTo": "chat-bubble-fab",
+      "description": "Signature floating action button that opens the scripted FAQ chat panel — the one place the public site borrows a messaging-app pattern.",
+      "html": "<button class=\"ds-chat-fab\" aria-label=\"Open FAQ chat\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z\"/></svg></button>",
+      "css": ".ds-chat-fab { position: fixed; bottom: 24px; right: 24px; width: 56px; height: 56px; border-radius: 9999px; background: #1A5FB4; color: #FFFFFF; border: none; display: flex; align-items: center; justify-content: center; box-shadow: 0 20px 25px -5px rgba(26,95,180,0.3); cursor: pointer; transition: transform 0.3s, box-shadow 0.3s; } .ds-chat-fab:hover { transform: scale(1.1); box-shadow: 0 25px 50px -12px rgba(26,95,180,0.4); } .ds-chat-fab:focus-visible { outline: 2px solid #62A0EA; outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Transit Control Room",
+    "overview": "CHATCO is what it feels like when a real jeepney route gets a nervous system: a live map, a payment rail, and a safety net, all reporting to the same place. The visual language borrows from a control room, not a consumer app — deep navy stands in for night and for \"the system is watching,\" and CHATCO Blue is the pulse that says something is live: a tracked vehicle, a paid fare, a signal sent. Where the product needs warmth instead of authority — the one moment a commuter is stranded and waving for a ride — the system breaks its own rule on purpose with a single orange accent. That's the whole palette's job: navy holds the weight, blue means \"tracked and working,\" orange means \"a human needs something now.\"\n\nThe system runs two registers, not one, and the split is deliberate rather than an inconsistency to fix. The public site and commuter-facing screens are in Persuade/Operate mode for a first-time or occasional visitor — soft, rounded, glowing at the edges, because trust has to be earned before a stranger hands over GCash. Admin and conductor are Operate mode for someone who already trusts the system and uses it for a full shift — flatter, tighter-cornered, denser, because at that point the job is scanning a screen fast, not being persuaded by it.",
+    "keyCharacteristics": [
+      "Navy-and-blue control-room palette with a single orange accent reserved for urgent, human moments.",
+      "Poppins throughout, at real weight (400–700) — no faux-800 extra-bold anywhere it isn't actually loaded.",
+      "Public/commuter surfaces: soft glow elevation, pill-and-2xl-radius shapes, generous whitespace.",
+      "Admin/conductor surfaces: flat, bordered, tightly-radiused, dense — depth from panel-tone layering, not shadow.",
+      "One orange accent color, one job: signaling a human waiting for help (Pick Me Up), never used decoratively."
+    ],
+    "rules": [
+      { "name": "The Two Registers Rule", "body": "Public/commuter = warm-toward-white, glowing, pill-shaped. Admin/conductor = navy-toward-black, flat, tight-cornered. A component migrating between the two worlds must re-skin, not just recolor.", "section": "colors" },
+      { "name": "The One Warm Color Rule", "body": "If a new screen wants orange for anything other than \"a person needs help right now,\" it's the wrong color — reach for blue or a status color instead.", "section": "colors" },
+      { "name": "The Opacity-Not-Palette Rule", "body": "On navy/dark surfaces, secondary and tertiary text is white at a lower opacity (text-white/60, /50, /40), not a separately-chosen gray. This keeps every dark surface tonally coherent without maintaining a parallel gray scale.", "section": "typography" },
+      { "name": "The No-Glow-In-Admin Rule", "body": "Admin and conductor screens never use a colored/glow shadow — if a new admin component wants elevation, give it a border and a lighter background tone instead.", "section": "elevation" },
+      { "name": "The Docked, Not Floating Rule", "body": "The public navbar is chrome, not a page element — it stays visually constant (always Deep Navy, always light text) regardless of scroll position or section background, rather than chameleoning to match whatever scrolls beneath it. Only opacity, blur strength, and a bottom hairline change on scroll.", "section": "components" }
+    ],
+    "dos": [
+      "Do keep Signal Orange (#FF6D3A) reserved for \"a person is waiting and needs help\" — currently only the Pick Me Up flow.",
+      "Do use opacity steps on white text for secondary/tertiary hierarchy on dark surfaces, not a second gray token.",
+      "Do treat 700 as Poppins' real maximum weight in this system — never spec 800/900 expecting it to render.",
+      "Do give admin/conductor depth through the bg → surface → surface-raised tone ladder and borders.",
+      "Do default unrecognized status values to the neutral/slate badge, never to success-green."
+    ],
+    "donts": [
+      "Don't mix registers on one screen — a public-facing marketing section should never suddenly adopt admin's flat/tight-corner language, and an admin panel should never pick up a public-style glow shadow.",
+      "Don't reintroduce a language-selection picker or multi-language marketing claim; the product is English-only by product decision, not a design gap to fill.",
+      "Don't use Deep Navy (#071A2E) and the admin background tones (#0B1120 etc.) interchangeably — they're related but distinct tokens for distinct surfaces.",
+      "Don't apply a colored glow shadow inside the admin or conductor shell; use a border + lighter surface tone instead."
+    ]
+  }
+}
