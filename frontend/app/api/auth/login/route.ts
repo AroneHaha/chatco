@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { clientIpHeaders } from "@/lib/auth/server/client-ip";
 
 const API_URL = process.env.API_URL || "http://localhost:8000";
 
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
   try {
     const res = await fetch(`${API_URL}/api/v1/auth/login`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      headers: { "Content-Type": "application/json", Accept: "application/json", ...clientIpHeaders(request) },
       body: JSON.stringify({ login: email, password, device_id, device_type }),
     });
 

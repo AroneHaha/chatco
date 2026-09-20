@@ -54,6 +54,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Track Token Last Used
+    |--------------------------------------------------------------------------
+    |
+    | When true, Sanctum runs an UPDATE on personal_access_tokens.last_used_at
+    | for EVERY authenticated request. Nothing in this app reads that column,
+    | and concurrent requests from one client (polling, GPS pings) would all
+    | write the same token row, so it is off. Set
+    | SANCTUM_TRACK_LAST_USED_AT=true to restore it.
+    |
+    */
+
+    'last_used_at' => env('SANCTUM_TRACK_LAST_USED_AT', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Token Prefix
     |--------------------------------------------------------------------------
     |

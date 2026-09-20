@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { clientIpHeaders } from "@/lib/auth/server/client-ip";
 
 /**
  * POST /api/auth/verify-reset-code
@@ -25,6 +26,7 @@ export async function POST(request: NextRequest) {
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
+        ...clientIpHeaders(request),
       },
       body: JSON.stringify({ email: body.email, code: body.code }),
     });

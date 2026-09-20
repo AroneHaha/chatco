@@ -35,6 +35,14 @@ return [
         ],
     ],
 
+    // Shared secret the Next.js server sends with the real client IP so
+    // Laravel's per-IP rate limiters see individual users instead of the
+    // Next.js host. Unset = the forwarded IP is ignored. See
+    // App\Http\Middleware\ResolveProxiedClientIp.
+    'frontend_proxy' => [
+        'secret' => env('FRONTEND_PROXY_SECRET'),
+    ],
+
     // PayMongo configuration moved to config/payments.php (provider-agnostic
     // payment layer). Secrets are still read from the same PAYMONGO_* env vars.
 

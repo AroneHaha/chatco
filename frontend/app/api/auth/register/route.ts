@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { clientIpHeaders } from "@/lib/auth/server/client-ip";
 
 /**
  * POST /api/auth/register
@@ -26,6 +27,7 @@ export async function POST(request: NextRequest) {
       method: "POST",
       headers: {
         Accept: "application/json",
+        ...clientIpHeaders(request),
       },
       body: formData,
     });

@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { AuthProvider, useAuth } from "@/contexts/auth-context";
+import { useAuth } from "@/contexts/auth-context";
 import { AnnouncementsProvider, useAnnouncements } from "@/contexts/announcements-context";
 import { RewardsProvider, useRewardsData } from "@/contexts/rewards-context";
 import MaintenanceGate from "@/components/shared/maintenance-gate";
@@ -252,21 +252,21 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Wrap with AuthProvider so all commuter pages have access to auth context.
-// The announcement and rewards providers sit inside it (both read auth to
-// decide whether to fetch) and outside the layout body, so the tab badge and
-// the rewards page share one copy of the feed and one copy of the vouchers.
+// Auth state comes from the AuthProvider in the root layout. Mounting a second
+// one here made every commuter page load fetch /api/auth/me twice (once per
+// provider), and again on the login redirect. The announcement and rewards
+// providers sit inside the root one (both read auth to decide whether to
+// fetch) and outside the layout body, so the tab badge and the rewards page
+// share one copy of the feed and one copy of the vouchers.
 export default function CommuterLayout({ children }: { children: React.ReactNode }) {
   return (
-    <AuthProvider>
-      <AnnouncementsProvider>
-        <RewardsProvider>
-          <MaintenanceGate>
-            <CommuterLayoutInner>{children}</CommuterLayoutInner>
-          </MaintenanceGate>
-        </RewardsProvider>
-      </AnnouncementsProvider>
-    </AuthProvider>
+    <AnnouncementsProvider>
+      <RewardsProvider>
+        <MaintenanceGate>
+          <CommuterLayoutInner>{children}</CommuterLayoutInner>
+        </MaintenanceGate>
+      </RewardsProvider>
+    </AnnouncementsProvider>
   );
 }
 
