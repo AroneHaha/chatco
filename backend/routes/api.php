@@ -282,6 +282,56 @@ Route::prefix('mobile/conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR']
 
 /*
 |--------------------------------------------------------------------------
+| Mobile Specific Commuter Routes (Phase 1 Isolation)
+|--------------------------------------------------------------------------
+| Dedicated namespace /api/v1/mobile/commuter/* for commuter mobile app clients.
+| Isolates mobile commuter traffic from web commuter traffic so platform-specific
+| behaviors can evolve independently without breaking web endpoints.
+|--------------------------------------------------------------------------
+*/
+Route::prefix('mobile/commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(function () {
+    Route::get('/profile', [CommuterController::class, 'profile'])->middleware('throttle:conductor-read');
+    Route::put('/profile', [CommuterController::class, 'updateProfile'])->middleware('throttle:conductor-write');
+    Route::post('/change-password/request-code', [CommuterController::class, 'requestPasswordChangeCode'])->middleware('throttle:conductor-write');
+    Route::post('/change-password/confirm', [CommuterController::class, 'confirmPasswordChange'])->middleware('throttle:conductor-write');
+    Route::get('/trips', [CommuterController::class, 'trips'])->middleware('throttle:conductor-read');
+    Route::get('/rewards', [CommuterController::class, 'rewards'])->middleware('throttle:conductor-read');
+    Route::post('/location', [CommuterController::class, 'updateLocation'])->middleware('throttle:commuter-hail');
+
+    Route::post('/share-ride', [ShareRideController::class, 'store'])->middleware('throttle:commuter-hail');
+    Route::delete('/share-ride', [ShareRideController::class, 'destroy'])->middleware('throttle:commuter-hail');
+
+    Route::post('/hail', [HailController::class, 'store'])->middleware('throttle:commuter-hail');
+    Route::delete('/hail/{id}', [HailController::class, 'destroy'])->middleware('throttle:commuter-hail');
+
+    Route::post('/payments/claim', [PaymentController::class, 'claim'])->middleware('throttle:commuter-hail');
+    Route::get('/payments', [PaymentController::class, 'history'])->middleware('throttle:conductor-read');
+    Route::post('/receipts/claim', [PaymentController::class, 'claimReceipt'])->middleware('throttle:commuter-hail');
+    Route::post('/payments/{id}/redeem-voucher', [PaymentController::class, 'redeemVoucher'])->middleware('throttle:commuter-hail');
+
+    Route::post('/feedback', [FeedbackController::class, 'store'])->middleware('throttle:commuter-feedback');
+    Route::get('/feedback', [FeedbackController::class, 'index'])->middleware('throttle:conductor-read');
+
+    Route::post('/sos', [SosController::class, 'trigger'])->middleware('throttle:sos');
+    Route::get('/sos/{id}', [SosController::class, 'show'])->middleware('throttle:conductor-read');
+
+    Route::get('/watchlist', [LostItemController::class, 'myWatchlist'])->middleware('throttle:conductor-read');
+    Route::get('/claims', [LostItemController::class, 'myClaims'])->middleware('throttle:conductor-read');
+
+    Route::post('/qr/validate', [QrController::class, 'verify'])->middleware('throttle:commuter-write');
+    Route::post('/qr/scan', [QrController::class, 'scan'])->middleware('throttle:commuter-write');
+    Route::post('/qr/scan-public', [QrController::class, 'scanPublic'])->middleware('throttle:commuter-write');
+
+    Route::get('/vehicles/locations', [VehicleLocationController::class, 'index'])->middleware('throttle:vehicle-locations');
+
+    Route::get('/announcements', [AnnouncementController::class, 'index'])->middleware('throttle:commuter-read');
+    Route::get('/announcements/unread-count', [AnnouncementController::class, 'unreadCount'])->middleware('throttle:commuter-read');
+    Route::post('/announcements/mark-all-read', [AnnouncementController::class, 'markAllRead'])->middleware('throttle:commuter-write');
+    Route::post('/announcements/{id}/read', [AnnouncementController::class, 'markRead'])->middleware('throttle:commuter-write');
+});
+
+/*
+|--------------------------------------------------------------------------
 | Vehicle Locations (Authenticated — any role)
 |--------------------------------------------------------------------------
 */
