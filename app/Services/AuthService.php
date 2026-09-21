@@ -172,7 +172,10 @@ class AuthService
             //                                     single-session security)
             if ($lockedUser->isConductor() && $deviceType !== null) {
                 $tokenName = 'auth-token:' . $deviceType;
-                $lockedUser->tokens()->where('name', $tokenName)->delete();
+                // Also sweep the legacy, non-platform-scoped token name so a
+                // session created before this platform-scoping shipped doesn't
+                // survive indefinitely (Sanctum tokens never expire).
+                $lockedUser->tokens()->whereIn('name', [$tokenName, 'auth-token'])->delete();
             } else {
                 $lockedUser->tokens()->delete();
                 $deviceType = null; // force generic token name below
