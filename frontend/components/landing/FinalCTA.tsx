@@ -10,7 +10,7 @@ export default function FinalCTA() {
       <div className="relative max-w-7xl mx-auto px-5 md:px-8 py-24">
         <div className="grid lg:grid-cols-2 gap-14 items-center">
           <div>
-            <h2 className="font-editorial-serif font-medium text-3xl md:text-5xl text-white tracking-tight leading-tight">
+            <h2 className="font-sans font-bold text-3xl md:text-4xl text-white tracking-tight leading-tight">
               Ready to Modernize
               <br />
               Jeepney Operations?

@@ -8,7 +8,7 @@ import { Hand, QrCode, MapPin, MousePointer2, Bus } from "lucide-react";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
-const QR = [1,1,1,0,1,1,1, 1,0,1,1,0,0,1, 1,1,1,0,1,1,1, 0,0,0,1,0,1,0, 1,1,0,0,1,0,1, 1,0,1,1,0,1,1, 1,1,1,0,1,0,1];
+export const QR = [1,1,1,0,1,1,1, 1,0,1,1,0,0,1, 1,1,1,0,1,1,1, 0,0,0,1,0,1,0, 1,1,0,0,1,0,1, 1,0,1,1,0,1,1, 1,1,1,0,1,0,1];
 
 type Step = {
   step: string;
@@ -139,7 +139,7 @@ function StepInner({ s, index }: { s: Step; index: number }) {
             Step {s.step}
           </span>
         </div>
-        <h3 className="mt-7 font-editorial-serif font-medium text-4xl md:text-5xl xl:text-6xl tracking-tight text-white leading-[1.05]">
+        <h3 className="mt-7 font-sans font-bold text-3xl sm:text-4xl md:text-5xl tracking-tight text-white leading-[1.05]">
           {s.title}
         </h3>
         <span className="mt-6 block h-1 w-16 rounded-full" style={{ background: s.accent }} />
@@ -251,7 +251,7 @@ export default function HowItWorks() {
 
         {/* top bar: kicker/title + counter */}
         <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between max-w-6xl mx-auto px-10 pt-28">
-          <h2 className="font-editorial-serif font-medium text-2xl tracking-tight">Three steps to smarter commuting</h2>
+          <h2 className="font-sans font-bold text-2xl tracking-tight">Three steps to smarter commuting</h2>
           <span className="font-extrabold tabular-nums text-lg">
             <span style={{ color: activeAccent }}>{STEPS[active].step}</span>
             <span className="text-white/25"> / {String(STEPS.length).padStart(2, "0")}</span>
@@ -316,7 +316,7 @@ export default function HowItWorks() {
       <div className="motion-safe:lg:hidden py-20 md:py-28">
         <div className="text-center px-6">
           <span className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">How It Works</span>
-          <h2 className="mt-3 font-editorial-serif font-medium text-3xl md:text-4xl tracking-tight">Three steps to smarter commuting</h2>
+          <h2 className="mt-3 font-sans font-bold text-3xl md:text-4xl tracking-tight">Three steps to smarter commuting</h2>
         </div>
         <div className="mt-16 space-y-24">
           {STEPS.map((s, i) => (
