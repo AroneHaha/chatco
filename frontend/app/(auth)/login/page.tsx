@@ -4,120 +4,115 @@ import logo from "../../../assets/logo-transparent.png";
 import LoginForm from "@/components/auth/login-form";
 import Footer from "@/components/landing/Footer";
 
+// Every line here is backed by the shipped product (PRODUCT.md / TrustBar):
+// unit tracking within 1 km with ETA, QR + GCash fares, per-trip receipts,
+// Share My Ride and SOS, and the 34-stop Calumpit–Meycauayan route.
+const CAPABILITIES = [
+  "Live unit tracking within 1 km, with ETA",
+  "QR and GCash fares, a receipt after every cashless trip",
+  "Share My Ride and one-tap SOS",
+];
+
 export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col bg-white">
-      
+
       {/* Main Content Area */}
       <div className="flex-1 flex">
-        
-        {/* Left Side - Branding (Hidden on mobile) */}
-        <div className="hidden lg:flex lg:w-1/2 relative hero-bg overflow-hidden flex-col">
-          {/* Background Glows */}
-          <div className="absolute top-1/4 -left-32 w-[500px] h-[500px] bg-[#1A5FB4]/20 rounded-full blur-[120px]" />
-          <div className="absolute bottom-0 right-0 w-80 h-80 bg-[#3584E4]/15 rounded-full blur-[100px]" />
-          <div className="absolute top-0 right-1/4 w-64 h-64 bg-[#62A0EA]/10 rounded-full blur-[80px]" />
 
-          {/* Subtle Grid Pattern Overlay */}
+        {/* Left Side - Branding (Hidden on mobile). Same navy field, faint grid
+            and editorial type as the landing Hero: no glow blobs, no cards. */}
+        <div className="hidden lg:flex lg:w-1/2 relative bg-[#071A2E] overflow-hidden flex-col min-h-180">
           <div
-            className="absolute inset-0 opacity-[0.04]"
+            className="absolute inset-0 opacity-[0.03] pointer-events-none"
             style={{
               backgroundImage:
-                "linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)",
-              backgroundSize: "60px 60px",
+                "linear-gradient(rgba(255,255,255,.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.6) 1px, transparent 1px)",
+              backgroundSize: "64px 64px",
             }}
           />
 
           {/* Top Section - Logo (Acts as the ONLY back button on L screens) */}
-          <div className="relative z-10 pt-12 px-16">
+          <div className="relative z-10 pt-12 px-12 xl:px-16">
             <Link
               href="/"
-              className="inline-flex items-center gap-5 hover:opacity-80 transition-opacity"
+              className="inline-flex items-center gap-4 hover:opacity-80 transition-opacity"
             >
               <Image
                 src={logo}
                 alt="CHATCO"
-                width={95}
-                height={95}
-                className="rounded-2xl"
+                width={64}
+                height={64}
+                className="rounded-full"
               />
-              <span className="text-4xl font-extrabold tracking-tight text-white">
+              <span className="text-3xl font-bold tracking-tight text-white">
                 CHATCO
               </span>
             </Link>
           </div>
 
-          {/* Center Section - Hero Content */}
-          <div className="relative z-10 flex-1 flex flex-col justify-center px-16 py-12">
-            <h1 className="text-5xl xl:text-6xl font-extrabold leading-[1.1] tracking-tight text-white">
-              Commuting
+          {/* Headline */}
+          <div className="relative z-10 px-12 xl:px-16 pt-16 xl:pt-20">
+            <h1 className="font-bold text-white leading-[1.02] tracking-[-0.035em] text-5xl xl:text-6xl">
+              Know where
               <br />
-              <span className="text-[#62A0EA]">Reimagined.</span>
+              your <span className="text-[#62A0EA]">jeepney is.</span>
             </h1>
-            <p className="mt-6 text-lg text-white/50 max-w-lg leading-relaxed">
-              Pay with GCash, track your rides in real-time, and commute smarter every day.
-            </p>
 
-            {/* Stats Row */}
-            <div className="mt-14 flex gap-10">
-              <div className="border-l-2 border-[#62A0EA]/40 pl-5">
-                <div className="text-3xl font-bold text-white">10k+</div>
-                <div className="text-sm text-white/40 mt-1">Active Commuters</div>
-              </div>
-              <div className="border-l-2 border-[#62A0EA]/40 pl-5">
-                <div className="text-3xl font-bold text-white">99.9%</div>
-                <div className="text-sm text-white/40 mt-1">Uptime</div>
-              </div>
-              <div className="border-l-2 border-[#62A0EA]/40 pl-5">
-                <div className="text-3xl font-bold text-white">1M+</div>
-                <div className="text-sm text-white/40 mt-1">Rides Completed</div>
-              </div>
-            </div>
+            <div className="mt-9 h-px w-24 bg-white/15" />
+
+            <p className="mt-8 max-w-md text-lg text-white/60 leading-[1.7]">
+              Sign in to track units on the route, pay your fare cashlessly, and stay covered on every ride.
+            </p>
           </div>
 
-          {/* Bottom Section - Floating Feature Cards */}
-          <div className="relative z-10 px-16 pb-12">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white/[0.06] backdrop-blur-sm border border-white/[0.08] rounded-2xl p-5">
-                <div className="w-10 h-10 rounded-xl bg-[#62A0EA]/20 flex items-center justify-center mb-3">
-                  <svg className="w-5 h-5 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                  </svg>
-                </div>
-                <div className="text-sm font-semibold text-white">GCash Payment</div>
-                <div className="text-xs text-white/40 mt-1">Tap & pay seamlessly</div>
+          {/* Bottom Section - what the route actually offers */}
+          <div className="relative z-10 mt-auto pt-14 px-12 xl:px-16 pb-12">
+            <div className="max-w-md">
+              <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-white/40">
+                <span>Calumpit</span>
+                <span className="w-6 h-px bg-white/20" />
+                <span>Meycauayan</span>
               </div>
-              <div className="bg-white/[0.06] backdrop-blur-sm border border-white/[0.08] rounded-2xl p-5">
-                <div className="w-10 h-10 rounded-xl bg-[#62A0EA]/20 flex items-center justify-center mb-3">
-                  <svg className="w-5 h-5 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </div>
-                <div className="text-sm font-semibold text-white">Live Tracking</div>
-                <div className="text-xs text-white/40 mt-1">Know your ride's ETA</div>
-              </div>
+              <p className="mt-2 text-xs text-white/40">34 official stop points, Bulacan</p>
+
+              <ul className="mt-6 border-t border-white/10">
+                {CAPABILITIES.map((item) => (
+                  <li key={item} className="py-3 border-b border-white/10 text-sm text-white/70">
+                    {item}
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         </div>
 
         {/* Right Side - Form */}
-        <div className="relative w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 pt-16 lg:pt-12 bg-white">
-          
-          {/* NO BACK BUTTON ON LARGE SCREENS HERE ANYMORE */}
-
+        <div className="relative w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 pt-10 lg:pt-12 bg-white">
           <div className="w-full max-w-md">
-            
-            {/* Mobile: Go back to home page (Visible on S/M, hidden on L) */}
-            <Link 
-              href="/" 
-              className="lg:hidden inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-[#1A5FB4] transition-colors mb-10"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-              </svg>
-              Go back to home page
-            </Link>
+
+            {/* Mobile: brand + way back to the home page (hidden on L, where the navy panel carries both) */}
+            <div className="lg:hidden flex items-center justify-between mb-10">
+              <Link href="/" className="inline-flex items-center gap-3">
+                <Image
+                  src={logo}
+                  alt="CHATCO"
+                  width={44}
+                  height={44}
+                  className="rounded-full"
+                />
+                <span className="text-xl font-bold tracking-tight text-[#071A2E]">CHATCO</span>
+              </Link>
+              <Link
+                href="/"
+                className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-[#1A5FB4] transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+                </svg>
+                Home
+              </Link>
+            </div>
 
             <LoginForm />
           </div>
