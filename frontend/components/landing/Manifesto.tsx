@@ -27,7 +27,7 @@ export default function Manifesto() {
       <div className="relative max-w-5xl mx-auto px-5 md:px-8 text-center">
         <GsapWords
           as="h2"
-          className="font-editorial-serif font-medium text-3xl sm:text-4xl md:text-5xl text-white leading-[1.15] tracking-tight max-w-4xl mx-auto"
+          className="font-sans font-semibold text-2xl sm:text-3xl md:text-4xl text-white leading-[1.2] tracking-tight max-w-4xl mx-auto"
           text="Every jeepney ride, made smarter, safer, and cashless — for the commuter, the conductor, and the operator alike."
           accentWords={["smarter", "safer", "cashless"]}
         />

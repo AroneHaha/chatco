@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import logo from "../../assets/logo-transparent.png";
 
 export default function Footer({ compact = false }: { compact?: boolean }) {
@@ -63,8 +64,8 @@ export default function Footer({ compact = false }: { compact?: boolean }) {
           <div>
             <h4 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-4">Company</h4>
             <ul className="space-y-2 text-sm">
-              <li><a href="#" className="hover:text-white transition-colors">About CHATCO</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Contact</a></li>
+              <li><Link href="/#about" className="hover:text-white transition-colors">About CHATCO</Link></li>
+              <li><Link href="/#contact" className="hover:text-white transition-colors">Contact</Link></li>
               <li><a href="#" className="hover:text-white transition-colors">Privacy Policy</a></li>
               <li><a href="#" className="hover:text-white transition-colors">Terms of Service</a></li>
             </ul>
