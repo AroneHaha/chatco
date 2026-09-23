@@ -20,23 +20,26 @@ export function DashboardSettingsCarousel({ modules }: DashboardSettingsCarousel
   };
 
   return (
-    <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-6 relative">
-      <div className="flex items-center justify-between mb-5">
+    // No card chrome here — this is navigation, not data, so it sits
+    // directly on the page (a hairline top rule separates it from the
+    // Recent Activity panel above) instead of matching that panel's weight.
+    <div className="relative pt-5 border-t border-[#1E2D45]">
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-base font-bold text-white">Quick Links</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Jump to configuration and management tools.</p>
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Quick Links</h2>
+          <p className="text-xs text-slate-500 mt-1">Jump to configuration and management tools.</p>
         </div>
-        
+
         <div className="flex gap-2">
           <button
             onClick={() => scroll("left")}
-            className="w-8 h-8 rounded-md bg-[#0E1628] hover:bg-[#1A2540] flex items-center justify-center text-slate-400 hover:text-white transition-colors border border-[#1E2D45]"
+            className="w-8 h-8 rounded-md bg-[#131C2E] hover:bg-[#1A2540] flex items-center justify-center text-slate-400 hover:text-white transition-colors border border-[#1E2D45]"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
           <button
             onClick={() => scroll("right")}
-            className="w-8 h-8 rounded-md bg-[#0E1628] hover:bg-[#1A2540] flex items-center justify-center text-slate-400 hover:text-white transition-colors border border-[#1E2D45]"
+            className="w-8 h-8 rounded-md bg-[#131C2E] hover:bg-[#1A2540] flex items-center justify-center text-slate-400 hover:text-white transition-colors border border-[#1E2D45]"
           >
             <ChevronRight className="w-4 h-4" />
           </button>

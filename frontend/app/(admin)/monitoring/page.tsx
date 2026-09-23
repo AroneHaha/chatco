@@ -237,24 +237,28 @@ export default function MonitoringPage() {
         </div>
       )}
 
-      {/* Top Metrics. The two count-based cards (Unresponsive, SOS) escalate
-          to a tinted border + icon chip + colored value only while their
-          count is non-zero — see the `alert` note above the metrics array. */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      {/* Top Metrics. Sized to their own content (not stretched to a
+          1/3-of-viewport grid track) — three short stat chips don't need to
+          fill a wide desktop row, and forcing them to just leaves a dead gap
+          between the icon/value and the card's own border. The two
+          count-based cards (Unresponsive, SOS) escalate to a tinted border +
+          icon chip + colored value only while their count is non-zero — see
+          the `alert` note above the metrics array. */}
+      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 mb-6">
         {metrics.map((item, index) => {
           const Icon = item.icon;
           const isRed = item.color === 'text-red-400';
           return (
           <div
             key={index}
-            className={`rounded-lg p-3 flex items-center space-x-3 border transition-colors ${
+            className={`w-full sm:w-auto rounded-lg py-3 pl-3 pr-6 flex items-center gap-3 border transition-colors ${
               item.alert
                 ? isRed ? 'bg-red-400/5 border-red-400/20' : 'bg-amber-400/5 border-amber-400/20'
                 : 'bg-[#131C2E] border-[#1E2D45]'
             }`}
           >
               <div className={`p-2.5 rounded-lg ${item.alert ? (isRed ? 'bg-red-400/15' : 'bg-amber-400/15') : 'bg-[#0E1628]'} ${item.color}`}><Icon size={20} /></div>
-              <div><p className="text-xs font-medium text-slate-400">{item.title}</p><p className={`text-xl font-bold ${item.alert ? item.color : 'text-white'}`}>{item.value}</p></div>
+              <div className="whitespace-nowrap"><p className="text-xs font-medium text-slate-400">{item.title}</p><p className={`text-xl font-bold ${item.alert ? item.color : 'text-white'}`}>{item.value}</p></div>
             </div>
           );
         })}
@@ -321,15 +325,20 @@ export default function MonitoringPage() {
         </div>
       )}
 
-      {/* Map Container */}
-      <div id="monitoring-map" className="h-[340px] sm:h-[400px] xl:h-[440px]">
-        <AdminCommuterMap
-          liveVehicles={liveMapVehicles}
-          demandZones={data.demandZones}
-          sosLocations={sosAlerts.map(a => a.coordinates)}
-          focusPosition={focusPosition}
-          focusNonce={focusNonce}
-        />
+      {/* Map Container — framed to match the tonal-ladder depth language every
+          other panel on this page uses (metrics, tracking table, history
+          logs); previously the map was the one bare, unbordered block on an
+          otherwise all-bordered-card page. */}
+      <div id="monitoring-map" className="h-[340px] sm:h-[400px] xl:h-[440px] bg-[#131C2E] border border-[#1E2D45] rounded-lg p-1">
+        <div className="w-full h-full rounded-md overflow-hidden">
+          <AdminCommuterMap
+            liveVehicles={liveMapVehicles}
+            demandZones={data.demandZones}
+            sosLocations={sosAlerts.map(a => a.coordinates)}
+            focusPosition={focusPosition}
+            focusNonce={focusNonce}
+          />
+        </div>
       </div>
 
       {/* ─── LIVE VEHICLE TRACKING TABLE ─── */}
@@ -398,10 +407,14 @@ export default function MonitoringPage() {
         </div>
       </div>
 
-      {/* ─── HISTORY LOGS GRID ─── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 pb-8">
+      {/* ─── HISTORY LOGS ─── One shared panel (hairline divider between the
+          two logs) instead of two identically-weighted bordered cards — both
+          are retrospective logs, secondary to the live Vehicle Tracking
+          table above, and read as one "History" section this way rather
+          than two more peer panels stacked under it. */}
+      <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg mt-6 mb-8 grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-[#1E2D45]">
         {/* SOS HISTORY LOG TABLE */}
-        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5">
+        <div className="p-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div className="flex items-center gap-2"><Archive size={18} className="text-slate-500" /><h2 className="text-lg font-bold text-white">SOS History</h2></div>
             <AdminDatePicker
@@ -447,7 +460,7 @@ export default function MonitoringPage() {
         </div>
 
         {/* OVERSPEEDING HISTORY LOG TABLE */}
-        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5">
+        <div className="p-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div className="flex items-center gap-2"><Gauge size={18} className="text-red-400/60" /><h2 className="text-lg font-bold text-white">Overspeeding History</h2></div>
             <AdminDatePicker
