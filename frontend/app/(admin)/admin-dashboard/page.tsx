@@ -3,7 +3,13 @@
 import { AlertCircle } from "lucide-react";
 
 import { useDashboardData } from "./data/dashboard-data";
-import { SkeletonMetric, SkeletonCard } from "@/components/admin/ui/skeleton";
+import {
+  SkeletonMetric,
+  SkeletonPreviewCard,
+  SkeletonDashboardMap,
+  SkeletonDashboardAnalytics,
+  SkeletonDashboardCarousel,
+} from "@/components/admin/ui/skeleton";
 import { DashboardQuickStats } from "@/components/admin/dashboard/dashboard-quick-stats";
 import { DashboardMapPreview } from "@/components/admin/dashboard/dashboard-map-preview";
 import { DashboardAnalyticsPreview } from "@/components/admin/dashboard/dashboard-analytics-preview";
@@ -26,18 +32,19 @@ export default function DashboardHome() {
         </div>
         <SkeletonMetric count={4} />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <SkeletonCard count={1} height="380px" />
-          <div className="space-y-6">
-            <SkeletonCard count={1} height="140px" />
-            <SkeletonCard count={1} height="216px" />
-          </div>
+          <SkeletonDashboardMap />
+          <SkeletonDashboardAnalytics />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <SkeletonCard count={3} height="200px" />
+          <SkeletonPreviewCard />
+          <SkeletonPreviewCard />
+          <SkeletonPreviewCard />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <SkeletonCard count={2} height="200px" />
+          <SkeletonPreviewCard />
+          <SkeletonPreviewCard />
         </div>
+        <SkeletonDashboardCarousel />
       </div>
     );
   }
@@ -87,9 +94,13 @@ export default function DashboardHome() {
 
       <DashboardQuickStats stats={quickStats} />
 
-      {/* Main Grid: Map & Analytics */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <DashboardMapPreview />
+      {/* Main Grid: Map leads (live tracking is the product's core surface),
+          Analytics rides alongside as the supporting column — a 2:1 split
+          instead of an even 50/50 that undersells the map. */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <DashboardMapPreview />
+        </div>
         <DashboardAnalyticsPreview paymentTendencies={paymentTendencies} topPickupPoints={topPickupPoints} />
       </div>
 

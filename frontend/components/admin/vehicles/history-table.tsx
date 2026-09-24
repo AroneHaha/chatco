@@ -131,7 +131,13 @@ export function HistoryTable({
     {
       key: 'role',
       label: 'Role',
-      render: (value: string) => <Badge variant={value === 'Driver' ? 'info' : 'warning'}>{value}</Badge>,
+      // Quiet dot + label, same as the Personnel tab's Role column.
+      render: (value: string) => (
+        <span className="inline-flex items-center gap-2 text-sm text-slate-300">
+          <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${value === 'Driver' ? 'bg-[#62A0EA]' : 'bg-amber-400'}`} />
+          {value}
+        </span>
+      ),
     },
     { key: 'vehicle', label: 'Unit', cellClassName: 'truncate' },
     { key: 'shiftDate', label: 'Shift Date', cellClassName: 'truncate' },
@@ -149,10 +155,18 @@ export function HistoryTable({
       label: 'Status',
       headerClassName: 'w-28',
       cellClassName: 'w-28',
+      // Dot + label instead of a pill: green while the shift is still running,
+      // gray once ended, amber for any other state.
       render: (value: string) => (
-        <Badge variant={value === 'ACTIVE' ? 'success' : value === 'ENDED' ? 'info' : 'warning'}>
-          {value}
-        </Badge>
+        <span className="inline-flex items-center gap-2 text-sm text-slate-300">
+          <span
+            aria-hidden="true"
+            className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+              value === 'ACTIVE' ? 'bg-emerald-400' : value === 'ENDED' ? 'bg-slate-500' : 'bg-amber-400'
+            }`}
+          />
+          {value.charAt(0) + value.slice(1).toLowerCase()}
+        </span>
       ),
     },
   ];

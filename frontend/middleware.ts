@@ -14,6 +14,8 @@ export function middleware(request: NextRequest) {
       "/lost-found",
       "/analytics",
       "/settings",
+      "/receipts",
+      "/activity-logs",
       // The /announcements page lives in the (admin) route group and is only
       // linked from the admin notification bell. Commuters read announcements
       // via a hook on their rewards page, not this route — so it must be
@@ -93,6 +95,8 @@ export const config = {
     "/lost-found/:path*",
     "/analytics/:path*",
     "/settings/:path*",
+    "/receipts/:path*",
+    "/activity-logs/:path*",
     "/dashboard/:path*",
     "/lost-and-found/:path*",
     "/rewards/:path*",

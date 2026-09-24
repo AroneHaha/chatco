@@ -8,7 +8,8 @@ import { clientIpHeaders } from "@/lib/auth/server/client-ip";
  * Body: { email: string }
  *
  * Passes the backend's status through untouched: 200 when a code was sent,
- * 404 when no account holds that email, 502 when SMTP delivery failed. The
+ * 404 when no account holds that email, 403 when the account is still
+ * pending admin approval, 502 when SMTP delivery failed. The
  * page renders `message` verbatim, so the wording lives in the backend.
  */
 const API_URL = process.env.API_URL || "http://localhost:8000";

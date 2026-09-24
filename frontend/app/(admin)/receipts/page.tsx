@@ -358,7 +358,7 @@ export default function ReceiptsPage() {
         {/* Skeleton Summary Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4 h-24" />
+            <div key={i} className="bg-[#0E1628] border border-[#1E2D45] rounded-lg p-4 h-24" />
           ))}
         </div>
         {/* Skeleton Header */}
@@ -478,7 +478,7 @@ export default function ReceiptsPage() {
       )}
 
       <div className="grid shrink-0 grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl p-3 flex items-center gap-3">
+        <div className="bg-[#0E1628] border border-[#1E2D45] rounded-xl p-3 flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-slate-500/15 flex items-center justify-center shrink-0">
             <ReceiptText size={18} className="text-slate-300" />
           </div>
@@ -487,7 +487,7 @@ export default function ReceiptsPage() {
             <p className="text-xl font-bold text-white truncate">{filteredData.length}</p>
           </div>
         </div>
-        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl p-3 flex items-center gap-3">
+        <div className="bg-[#0E1628] border border-[#1E2D45] rounded-xl p-3 flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-[#62A0EA]/15 flex items-center justify-center shrink-0">
             <Wallet size={18} className="text-[#62A0EA]" />
           </div>
@@ -496,7 +496,7 @@ export default function ReceiptsPage() {
             <p className="text-xl font-bold text-[#62A0EA] truncate">{formatPeso(totalFare)}</p>
           </div>
         </div>
-        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl p-3 flex items-center gap-3">
+        <div className="bg-[#0E1628] border border-[#1E2D45] rounded-xl p-3 flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
             <Coins size={18} className="text-emerald-400" />
           </div>
@@ -505,7 +505,7 @@ export default function ReceiptsPage() {
             <p className="text-xl font-bold text-emerald-400 truncate">{cashCount}</p>
           </div>
         </div>
-        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl p-3 flex items-center gap-3">
+        <div className="bg-[#0E1628] border border-[#1E2D45] rounded-xl p-3 flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-[#62A0EA]/15 flex items-center justify-center shrink-0">
             <Smartphone size={18} className="text-[#62A0EA]" />
           </div>
@@ -517,9 +517,11 @@ export default function ReceiptsPage() {
       </div>
 
       {/* ── Filters ──
-          Search, date picker, range presets and payment method share one card
-          and one control height so everything lines up on a single baseline. */}
-      <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl p-2.5 sm:p-3 mb-3 sm:mb-4 flex shrink-0 flex-col gap-3">
+          Search, date picker, range presets and payment method share one
+          control height so everything lines up on a single baseline — no
+          card wrapper here (matches Remittance's bare filter row) since
+          this is a toolbar, not a data panel. */}
+      <div className="mb-3 sm:mb-4 flex shrink-0 flex-col gap-3">
         <button
           type="button"
           onClick={() => setShowMobileFilters((value) => !value)}
