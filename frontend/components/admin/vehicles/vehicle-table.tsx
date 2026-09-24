@@ -59,8 +59,17 @@ export function VehicleTable({
       label: 'Status',
       cellClassName: 'whitespace-nowrap',
       render: (value: string) => {
+        // Operating is the normal state for nearly every unit, so it's a quiet
+        // dot + label; only the states that need action get a colored badge.
+        if (value === 'Operating') {
+          return (
+            <span className="inline-flex items-center gap-2 text-slate-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
+              Operating
+            </span>
+          );
+        }
         let variant: 'success' | 'warning' | 'danger' | 'info' = 'info';
-        if (value === 'Operating') variant = 'success';
         if (value === 'Under Maintenance') variant = 'warning';
         if (value === 'Out of Service / Damaged') variant = 'danger';
         return <Badge variant={variant}>{value}</Badge>;

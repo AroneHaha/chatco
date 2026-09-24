@@ -30,17 +30,17 @@ colors:
   neutral-field-bg: "#F8FAFC"
 typography:
   display:
-    fontFamily: "Erode, Georgia, serif"
-    fontSize: "clamp(2.5rem, 6vw, 6rem)"
-    fontWeight: 500
-    lineHeight: 0.98
-    letterSpacing: "-0.01em"
+    fontFamily: "Poppins, system-ui, -apple-system, sans-serif"
+    fontSize: "clamp(2.5rem, 6vw, 4rem)"
+    fontWeight: 700
+    lineHeight: 1.02
+    letterSpacing: "-0.035em"
   headline:
-    fontFamily: "Erode, Georgia, serif"
-    fontSize: "clamp(1.5rem, 4vw, 3rem)"
-    fontWeight: 500
-    lineHeight: 1.15
-    letterSpacing: "-0.01em"
+    fontFamily: "Poppins, system-ui, -apple-system, sans-serif"
+    fontSize: "clamp(1.875rem, 4vw, 3rem)"
+    fontWeight: 700
+    lineHeight: 1.1
+    letterSpacing: "-0.025em"
   title:
     fontFamily: "Poppins, system-ui, -apple-system, sans-serif"
     fontSize: "1.125rem"
@@ -49,11 +49,6 @@ typography:
   body:
     fontFamily: "Poppins, system-ui, -apple-system, sans-serif"
     fontSize: "1rem"
-    fontWeight: 400
-    lineHeight: 1.6
-  body-editorial:
-    fontFamily: "General Sans, system-ui, -apple-system, sans-serif"
-    fontSize: "1.125rem"
     fontWeight: 400
     lineHeight: 1.6
   label:
@@ -121,7 +116,7 @@ The system runs two registers, not one, and the split is deliberate rather than 
 
 **Key Characteristics:**
 - Navy-and-blue control-room palette with a single orange accent reserved for urgent, human moments.
-- Two type systems, real weight everywhere (no faux-800 extra-bold anywhere it isn't actually loaded): Poppins for the app shell, an Erode/General Sans editorial pairing for the public landing page — see Typography.
+- One type family, real weight everywhere (no faux-800 extra-bold anywhere it isn't actually loaded): Poppins across the app shell and the public landing page — see Typography.
 - Public/commuter surfaces (app-shell cards, badges, buttons): soft glow elevation, pill-and-2xl-radius shapes, generous whitespace.
 - The landing Hero is a deliberate exception to that: no cards, no glow, no illustration — an editorial composition of type, a hairline rule, and negative space directly on the navy field, closer to a mobility publication's opening spread than a product screenshot.
 - Admin/conductor surfaces: flat, bordered, tightly-radiused, dense — depth from panel-tone layering, not shadow.
@@ -163,36 +158,23 @@ The palette reads as three navy-to-blue steps doing double duty as both brand co
 
 ## Typography
 
-Two type systems now, split along the same line as the Modes framework: the **app shell** (admin, conductor, commuter — Operate mode, task-focused, already-trusted users) stays on Poppins. The **public landing page** (`app/page.tsx` and `components/landing/*` — Persuade mode, a first-time visitor deciding whether to trust CHATCO) runs its own editorial pairing. Neither font loads into the other's territory: the landing fonts are scoped via CSS variables on the landing page's own `<main>`, not the global `<body>`.
+One family across the whole product: **Poppins**, on the app shell (admin, conductor, commuter) and on the public landing page alike. The landing Hero is the reference: every other landing section follows its type, so the page reads as one voice from the first screen to the footer. (The landing page previously ran a separate Erode/General Sans editorial pairing; it was retired because it made every section after the Hero look like a different site.)
 
-### App shell: Poppins
+**Display / Body Font:** Poppins (with system-ui, -apple-system fallback) — one family, no secondary typeface. Loaded at weights 400/500/600/700 only; nothing here is a true 800. Where the code requests `font-extrabold`, the browser renders the nearest loaded weight (700) — treat 700 as the actual heaviest weight, not 800, when specifying new type.
 
-**Display / Body Font:** Poppins (with system-ui, -apple-system fallback) — one family for the whole authenticated app, no secondary typeface.
+**Character:** Rounded-geometric and confident without being playful — Poppins at 600–700 reads as "in control," which is the point.
 
-**Character:** Rounded-geometric and confident without being playful — Poppins at 600–700 reads as "in control," which is the point. The font is only loaded at weights 400/500/600/700; nothing here is a true 800. Where the code requests `font-extrabold`, the browser renders the nearest loaded weight (700) — treat 700 as the actual heaviest weight, not 800, when specifying new type in admin/conductor/commuter screens.
-
-#### Hierarchy
+### Hierarchy
+- **Display** (700, `text-5xl` → 64px, 1.02 line-height, -0.035em tracking): the landing Hero H1 only.
+- **Headline** (700, `text-3xl` → `text-5xl`, ~1.1 line-height, tight tracking): every landing section H2/H3. One step below Display so the Hero stays the largest type on the page. Long statements (Manifesto, About's closing line) use 600 so a full sentence doesn't read as a shout.
 - **Title** (700, 18px, 1.4): card and component headings (feature card titles, modal titles).
-- **Body** (400, 16px, 1.6): paragraph copy. On dark navy surfaces, body text drops to white at 40–60% opacity rather than a separate gray token — legibility comes from opacity steps, not a second color.
+- **Body** (400, 16–18px, 1.6–1.7): paragraph copy. On dark navy surfaces, body text drops to white at 40–60% opacity rather than a separate gray token — legibility comes from opacity steps, not a second color.
 - **Label** (600, 12px, 0.1em tracking, uppercase): eyebrows and section kickers, admin nav-group headers.
 - **Micro** (600, 10px, 0.05em tracking): the system's most common text step by raw usage count (300+ call sites) — status pills, timestamps ("now", "3 min"), inline badge/chip text, and fine-print helper captions under form fields. Weight and case flex by context, but the 10px size itself is a real, deliberate step below Label, not a one-off.
 
-### Landing page: the editorial pairing
-
-**Display Font:** Erode (self-hosted Fontshare serif) — headlines only (Hero H1, every section H2, HowItWorks' per-step H3s). Weight 500 (medium): the face is only loaded at 400/500/600/700, and a serif display reads more confident at size than at heavy weight — let scale carry the authority, not boldness.
-**Body Font:** General Sans (self-hosted Fontshare grotesk) — everything else on the landing page: paragraph copy, nav, buttons, labels, captions. Applied once as the landing `<main>`'s base font-family; individual components don't need to set it.
-
-**Character:** A classic editorial pairing — think a considered mobility/transit publication (Monocle-adjacent), not a SaaS marketing site. The serif carries weight and intent at headline scale; the grotesk stays quiet and legible everywhere else. This is a deliberate register shift from the app shell's single-family Poppins system, justified by Persuade vs. Operate: a first-time visitor is being persuaded, not completing a task.
-
-#### Hierarchy
-- **Display** (Erode 500, responsive `text-5xl` → `text-8xl`, capped at 6rem at the largest step, 0.98 line-height): the Hero H1 only.
-- **Headline** (Erode 500, `text-3xl` → `text-5xl` depending on section): every other landing section's H2/H3, e.g. "Every jeepney ride, made smarter…", HowItWorks' per-step titles.
-- **Body** (General Sans 400, 16–18px, relaxed leading): paragraph copy, inherited from `<main>`.
-- **Label / Micro**: unchanged in size and role from the app-shell scale above (10px/12px), just rendered in General Sans instead of Poppins since they inherit the landing page's base font.
-
 ### Named Rules
 **The Opacity-Not-Palette Rule.** On navy/dark surfaces, secondary and tertiary text is white at a lower opacity (`text-white/60`, `/50`, `/40`), not a separately-chosen gray. This keeps every dark surface tonally coherent without maintaining a parallel gray scale.
-**The Two Typefaces, Two Modes Rule.** Poppins never appears on the public landing page and the Erode/General Sans pairing never appears in the authenticated app. If a component moves between the two contexts, its font must switch with it — there is no shared default to fall back on.
+**The One Family Rule.** Poppins is the only typeface, on the landing page and in the app. A new section or screen does not introduce a second family; it gets its hierarchy from size, weight (400–700) and opacity. Third-party surfaces (e.g. Leaflet map controls and attribution) inherit Poppins rather than falling back to their library defaults.
 
 ## Layout
 

@@ -8,6 +8,7 @@ use App\Exceptions\RegistrationPendingException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Mail\PasswordResetCodeMail;
+use App\Models\CommuterProfile;
 use App\Models\User;
 use App\Rules\PhilippineMobileNumber;
 use App\Rules\StrongPassword;
@@ -34,6 +35,10 @@ class AuthController extends Controller
 
     /** Failed verification attempts allowed before a code is burned. */
     private const MAX_CODE_ATTEMPTS = 5;
+
+    /** Shown when a commuter awaiting approval tries to reset a password. */
+    private const PENDING_RESET_MESSAGE = 'Your account is still pending admin approval. '
+        .'You can reset your password once it has been approved.';
 
     public function __construct(
         private AuthService $authService,
@@ -266,6 +271,10 @@ class AuthController extends Controller
      * Note the SoftDeletes scope means a REJECTED applicant — whose email is
      * rewritten to rejected+{uuid}@chatco.local on rejection — is not found
      * here, hence the message covering pending/rejected registrations.
+     *
+     * A commuter still PENDING approval does exist here, so it is refused
+     * explicitly: the account cannot log in yet, and letting it reset a
+     * password contradicts the message above.
      */
     public function forgotPassword(Request $request): JsonResponse
     {
@@ -280,7 +289,7 @@ class AuthController extends Controller
         // (No "SELECT *"; no scanning unrelated columns.)
         $user = User::query()
             ->where('email', $email)
-            ->first(['id', 'email']);
+            ->first(['id', 'email', 'role']);
 
         if (! $user) {
             Log::info('Password reset requested for unknown email', ['email' => $email]);
@@ -291,6 +300,10 @@ class AuthController extends Controller
                 .'a password yet.',
                 404
             );
+        }
+
+        if ($this->isPendingApproval($user)) {
+            return $this->errorResponse(self::PENDING_RESET_MESSAGE, 403);
         }
 
         $code = $this->generateResetCode();
@@ -393,6 +406,14 @@ class AuthController extends Controller
             return $this->errorResponse('We could not find an account with that email.', 400);
         }
 
+        // Re-checked here, not only when the code is requested, so a code
+        // issued before this guard existed still cannot change the password.
+        if ($this->isPendingApproval($user)) {
+            DB::table('password_reset_tokens')->where('email', $email)->delete();
+
+            return $this->errorResponse(self::PENDING_RESET_MESSAGE, 403);
+        }
+
         $user->forceFill([
             'password' => Hash::make($request->password),
             'remember_token' => Str::random(60),
@@ -460,6 +481,16 @@ class AuthController extends Controller
     private function generateResetCode(): string
     {
         return str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Whether this is a commuter whose registration is still awaiting admin
+     * approval. Reads only the status column, and only for commuters.
+     */
+    private function isPendingApproval(User $user): bool
+    {
+        return $user->isCommuter()
+            && CommuterProfile::whereKey($user->id)->value('account_status') === 'PENDING';
     }
 
     /**

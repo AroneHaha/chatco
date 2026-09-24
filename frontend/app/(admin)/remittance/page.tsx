@@ -156,7 +156,7 @@ export default function RemittancePage() {
             below).
 
             Every element inside — the outer search/date/dropdowns row, and
-            each sub-group within it — now shares that one md: breakpoint
+            each sub-group within it — shares that one md: breakpoint
             (previously a mix of sm:/lg:). Two independent breakpoints meant
             the layout reflowed twice as the viewport narrowed (a "row" state
             between lg and sm, then a second, different layout below sm) with
@@ -164,7 +164,18 @@ export default function RemittancePage() {
             the row didn't break until lg) — that mismatch is what looked like
             the date filter's position "changing" on smaller screens. One
             shared breakpoint means exactly one transition: a single stacked
-            column below md:, one full row at md: and up. */}
+            column below md:, one full row at md: and up.
+
+            Within that row, `md:flex-wrap` on the outer row lets the 4
+            dropdowns (range/status/conductor/driver) drop to their own line
+            under search+date instead of forcing all 6 controls into one
+            non-wrapping ~1100px-wide row, which doesn't fit any admin
+            content column below roughly 1440px viewport width (sidebar +
+            padding already claim ~300-320px) and would otherwise clip on an
+            ordinary 1366px laptop. On that line, the 4 dropdowns are a 2x2
+            grid below lg: (their own ~644px still doesn't fit the ~464-500px
+            available at the bottom of the md: range) and a single row at
+            lg: and up, where it comfortably does. */}
         <div
           className="overflow-hidden transition-all duration-300 ease-in-out md:max-h-none!"
           style={{ maxHeight: isMobileFiltersExpanded ? '700px' : '0px' }}
@@ -173,7 +184,7 @@ export default function RemittancePage() {
             <RemittanceSummary selectedDate={selectedDate} />
 
             {/* Search + date (left) — range/status/conductor/driver dropdowns (right, shorter) */}
-            <div className="flex flex-col md:flex-row md:items-center gap-3 w-full">
+            <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-3 w-full">
               <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
                 <SearchBar
                   placeholder="Search by Conductor or ID..."
@@ -196,14 +207,14 @@ export default function RemittancePage() {
                 </div>
               </div>
 
-              <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto md:ml-auto">
+              <div className="grid grid-cols-2 lg:flex lg:flex-row gap-3 w-full lg:w-auto lg:ml-auto">
                 {/* Shows every shift in range — Pending (still active/not yet
                     remitted) and Remitted alike — so activity is one click away. */}
                 <select
                   value={rangePreset}
                   onChange={(e) => handlePickRange(e.target.value as RangePreset)}
                   aria-label="Filter by date range"
-                  className="w-full md:w-36 rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white scheme-dark"
+                  className="w-full lg:w-36 rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white scheme-dark"
                 >
                   {RANGE_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                 </select>
@@ -211,7 +222,7 @@ export default function RemittancePage() {
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as RemittanceStatus | 'All')}
                   aria-label="Filter by status"
-                  className="w-full md:w-44 rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white scheme-dark"
+                  className="w-full lg:w-44 rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white scheme-dark"
                 >
                   {quickFilters.map((filter) => <option key={filter} value={filter}>{filter}</option>)}
                 </select>
@@ -219,7 +230,7 @@ export default function RemittancePage() {
                   value={conductorFilter}
                   onChange={(e) => setConductorFilter(e.target.value)}
                   aria-label="Filter by conductor"
-                  className="w-full md:w-36 rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white scheme-dark"
+                  className="w-full lg:w-36 rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white scheme-dark"
                 >
                   <option value="">All conductors</option>
                   {conductorOptions.map((name) => <option key={name} value={name}>{name}</option>)}
@@ -228,7 +239,7 @@ export default function RemittancePage() {
                   value={driverFilter}
                   onChange={(e) => setDriverFilter(e.target.value)}
                   aria-label="Filter by driver"
-                  className="w-full md:w-36 rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white scheme-dark"
+                  className="w-full lg:w-36 rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white scheme-dark"
                 >
                   <option value="">All drivers</option>
                   {driverOptions.map((name) => <option key={name} value={name}>{name}</option>)}

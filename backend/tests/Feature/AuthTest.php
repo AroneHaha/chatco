@@ -3,13 +3,16 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
+use App\Mail\PasswordResetCodeMail;
 use App\Models\AdminProfile;
 use App\Models\CommuterProfile;
 use App\Models\ConductorProfile;
 use App\Models\ShiftLog;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class AuthTest extends TestCase
@@ -508,6 +511,63 @@ class AuthTest extends TestCase
             ->assertUnauthorized();
 
         $this->assertSame(2, $commuter->tokens()->count());
+    }
+
+    // ─── Forgot / Reset Password ──────────────────────────────────
+
+    public function test_forgot_password_sends_code_to_approved_commuter(): void
+    {
+        Mail::fake();
+        $this->seedCommuter();
+
+        $response = $this->postJson('/api/v1/auth/forgot-password', [
+            'email' => 'commuter1@gmail.com',
+        ]);
+
+        $response->assertStatus(200);
+        Mail::assertSent(PasswordResetCodeMail::class);
+        $this->assertDatabaseHas('password_reset_tokens', ['email' => 'commuter1@gmail.com']);
+    }
+
+    public function test_forgot_password_is_refused_while_registration_is_pending(): void
+    {
+        Mail::fake();
+        $commuter = $this->seedCommuter();
+        CommuterProfile::whereKey($commuter->id)->update(['account_status' => 'PENDING']);
+
+        $response = $this->postJson('/api/v1/auth/forgot-password', [
+            'email' => 'commuter1@gmail.com',
+        ]);
+
+        $response->assertStatus(403)
+            ->assertJsonPath('message', 'Your account is still pending admin approval. You can reset your password once it has been approved.');
+        Mail::assertNothingSent();
+        $this->assertDatabaseMissing('password_reset_tokens', ['email' => 'commuter1@gmail.com']);
+    }
+
+    public function test_reset_password_is_refused_while_registration_is_pending_even_with_a_valid_code(): void
+    {
+        $commuter = $this->seedCommuter();
+        CommuterProfile::whereKey($commuter->id)->update(['account_status' => 'PENDING']);
+
+        // A code issued before the pending guard existed.
+        DB::table('password_reset_tokens')->insert([
+            'email' => 'commuter1@gmail.com',
+            'token' => Hash::make('123456'),
+            'attempts' => 0,
+            'created_at' => now(),
+        ]);
+
+        $response = $this->postJson('/api/v1/auth/reset-password', [
+            'email' => 'commuter1@gmail.com',
+            'code' => '123456',
+            'password' => 'Chatco@123',
+            'password_confirmation' => 'Chatco@123',
+        ]);
+
+        $response->assertStatus(403);
+        $this->assertTrue(Hash::check('password123', $commuter->fresh()->password));
+        $this->assertDatabaseMissing('password_reset_tokens', ['email' => 'commuter1@gmail.com']);
     }
 }
 

@@ -601,6 +601,7 @@ class AdminService
                 'name' => trim((string) $row->name),
                 'role' => (string) $row->role,
                 'contact' => (string) $row->contact,
+                'birthday' => $row->birthday !== null ? (string) $row->birthday : null,
                 'profile_picture_url' => $row->profile_picture_url,
                 'status' => (string) $row->status,
             ]);
@@ -645,6 +646,7 @@ class AdminService
                 DB::raw("{$driverNameExpr} as name"),
                 DB::raw("'Driver' as role"),
                 'contact',
+                'birthday',
                 'profile_picture_url',
                 DB::raw("{$driverStatusExpr} as status"),
                 DB::raw('0 as role_order'),
@@ -659,6 +661,7 @@ class AdminService
                 DB::raw("{$driverNameExpr} as name"),
                 DB::raw("'Conductor' as role"),
                 DB::raw("COALESCE(contact, '-') as contact"),
+                'birthday',
                 'profile_picture_url',
                 DB::raw("{$conductorStatusExpr} as status"),
                 DB::raw('1 as role_order'),

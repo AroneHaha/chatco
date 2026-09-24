@@ -23,10 +23,14 @@ interface DashboardPreviewCardsProps {
 
 export function DashboardPreviewCards({ recentVehicles, recentLostFound, recentUsers, recentAnnouncements, recentActivityLogs }: DashboardPreviewCardsProps) {
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    // One shared panel instead of five identically-weighted cards — hairline
+    // dividers do the grouping instead of five repeated bg+border wrappers,
+    // so the five lists read as one "Recent Activity" section, not five
+    // peer panels competing with the map/analytics above them.
+    <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl overflow-hidden">
+      <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-[#1E2D45]">
         {/* Vehicles / Fleet */}
-        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5 flex flex-col">
+        <div className="p-5 flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-white flex items-center gap-2">
               <Truck className="w-4 h-4 text-[#62A0EA]" /> Vehicles
@@ -51,7 +55,7 @@ export function DashboardPreviewCards({ recentVehicles, recentLostFound, recentU
         </div>
 
         {/* Lost & Found */}
-        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5 flex flex-col">
+        <div className="p-5 flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-white flex items-center gap-2">
               <Search className="w-4 h-4 text-[#62A0EA]" /> Lost & Found
@@ -74,7 +78,7 @@ export function DashboardPreviewCards({ recentVehicles, recentLostFound, recentU
         </div>
 
         {/* User Management */}
-        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5 flex flex-col">
+        <div className="p-5 flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-white flex items-center gap-2">
               <Users className="w-4 h-4 text-[#62A0EA]" /> Users
@@ -99,12 +103,12 @@ export function DashboardPreviewCards({ recentVehicles, recentLostFound, recentU
         </div>
       </div>
 
-      {/* Announcements / Activity Logs — a second, equal-width row rather
-          than a 5-up grid, so every card in the row stays the same size
-          instead of the last row leaving an uneven gap. */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Announcements / Activity Logs — a second row, separated by a
+          hairline rather than its own card, so it reads as more of the
+          same section instead of a new one. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#1E2D45] border-t border-[#1E2D45]">
         {/* Announcements */}
-        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5 flex flex-col">
+        <div className="p-5 flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-white flex items-center gap-2">
               <Megaphone className="w-4 h-4 text-[#62A0EA]" /> Announcements
@@ -129,7 +133,7 @@ export function DashboardPreviewCards({ recentVehicles, recentLostFound, recentU
         </div>
 
         {/* Activity Logs */}
-        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5 flex flex-col">
+        <div className="p-5 flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-white flex items-center gap-2">
               <History className="w-4 h-4 text-[#62A0EA]" /> Activity Logs

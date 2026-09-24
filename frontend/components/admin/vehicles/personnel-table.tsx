@@ -5,7 +5,8 @@ import { useState } from "react";
 import { DataTable } from "@/components/admin/ui/data-table";
 import { TablePagination } from "@/components/admin/ui/table-pagination";
 import { SearchBar } from "@/components/admin/ui/search-bar";
-import { Edit, Trash, IdCard, Plus, UserPlus } from "lucide-react";
+import { Edit, Trash, Plus, UserPlus } from "lucide-react";
+import { formatLogDate } from "@/lib/utils/format";
 import type { PageMeta, Personnel, PersonnelRoleFilter } from "@/app/(admin)/vehicles/data/vehicles-data";
 import { DriverDetailModal } from "@/components/admin/vehicles/driver-detail-modal";
 import { ConductorDetailModal } from "@/components/admin/vehicles/conductor-detail-modal";
@@ -61,35 +62,38 @@ export function PersonnelTable({
           }`}>
             {value.split(" ").map(part => part[0]).join("").slice(0, 2)}
           </div>
-          <div className="min-w-0">
-            <p className="truncate font-medium text-white">{value}</p>
-            <p className="flex items-center gap-1 text-[10px] text-slate-600 font-mono">
-              <IdCard size={10} />
-              <span className="truncate">{row.id}</span>
-            </p>
-          </div>
+          <p className="min-w-0 truncate font-medium text-white">{value}</p>
         </div>
       ),
     },
     {
       key: "role",
       label: "Role",
+      // Role is a category, not an alert, so it's a quiet dot + label (same
+      // treatment as the vehicle table's "Operating"). The dot keeps the
+      // blue/amber role color already used by the avatar beside it.
       render: (value: string) => {
         const isDriver = value === "Driver";
         return (
-          <span
-            className={`text-xs font-semibold px-2.5 py-1 rounded-md ${
-              isDriver
-                ? "bg-[#62A0EA]/15 text-[#62A0EA]"
-                : "bg-amber-400/15 text-amber-400"
-            }`}
-          >
+          <span className="inline-flex items-center gap-2 text-sm text-slate-300">
+            <span
+              aria-hidden="true"
+              className={`h-1.5 w-1.5 shrink-0 rounded-full ${isDriver ? "bg-[#62A0EA]" : "bg-amber-400"}`}
+            />
             {value}
           </span>
         );
       },
     },
     { key: "contact", label: "Contact", cellClassName: "truncate" },
+    {
+      key: "birthday",
+      label: "Birthdate",
+      cellClassName: "truncate",
+      // Local midnight so a date-only value never shifts a day across timezones.
+      render: (value: string | null) =>
+        value ? formatLogDate(`${value}T00:00:00`) : <span className="text-slate-500">Not recorded</span>,
+    },
     {
       key: "status",
       label: "Status",

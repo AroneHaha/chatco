@@ -1,6 +1,22 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import Image from "next/image";
+import {
+  ArrowLeft,
+  Bus,
+  ChevronRight,
+  CircleHelp,
+  Gift,
+  MessageCircleQuestion,
+  QrCode,
+  Route,
+  RotateCcw,
+  ShieldCheck,
+  X,
+  type LucideIcon,
+} from "lucide-react";
+import logo from "../../assets/logo-transparent.png";
 import {
   faqCategories as fallbackCategories,
   FAQ_CATEGORIES,
@@ -8,6 +24,24 @@ import {
   type FAQCategory,
   type ApiFaqItem,
 } from "@/lib/shared/data/faq-data";
+
+// Category glyphs live here, not in the shared FAQ data: that data's `emoji`
+// field is also read by the admin FAQ form, so the chat maps ids to icons itself.
+const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  "getting-started": Route,
+  payments: QrCode,
+  riding: Bus,
+  safety: ShieldCheck,
+  rewards: Gift,
+};
+
+function CategoryIcon({ id, ...props }: { id: string; size?: number; strokeWidth?: number; className?: string }) {
+  const Icon = CATEGORY_ICONS[id] ?? CircleHelp;
+  return <Icon {...props} />;
+}
+
+const WELCOME =
+  "Hi, I can answer common questions about riding, paying and staying safe. Pick a topic below.";
 
 interface ChatMessage {
   id: number;
@@ -38,7 +72,7 @@ export default function FAQChatBubble() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Mouse wheel → horizontal scroll on category pills
+  // Mouse wheel → horizontal scroll on category tabs
   const handleCategoryWheel = useCallback((e: React.WheelEvent) => {
     const el = categoryScrollRef.current;
     if (!el) return;
@@ -46,7 +80,7 @@ export default function FAQChatBubble() {
     el.scrollLeft += e.deltaY * 2;
   }, []);
 
-  // Drag to scroll on category pills
+  // Drag to scroll on category tabs
   const handleDragStart = useCallback((e: React.MouseEvent) => {
     const el = categoryScrollRef.current;
     if (!el) return;
@@ -106,17 +140,19 @@ export default function FAQChatBubble() {
     };
   }, []);
 
+  // Escape closes the panel
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setIsOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isOpen]);
+
   // Welcome message on open
   useEffect(() => {
     if (isOpen && messages.length === 0) {
       const timer = setTimeout(() => {
-        setMessages([
-          {
-            id: msgIdRef.current++,
-            type: "answer",
-            text: "Hey there! 👋 How can I help you today? Pick a category or ask away!",
-          },
-        ]);
+        setMessages([{ id: msgIdRef.current++, type: "answer", text: WELCOME }]);
       }, 300);
       return () => clearTimeout(timer);
     }
@@ -149,13 +185,7 @@ export default function FAQChatBubble() {
   };
 
   const handleClearChat = () => {
-    setMessages([
-      {
-        id: msgIdRef.current++,
-        type: "answer",
-        text: "Hey there! 👋 How can I help you today? Pick a category or ask away!",
-      },
-    ]);
+    setMessages([{ id: msgIdRef.current++, type: "answer", text: WELCOME }]);
     setShowCategories(true);
     setActiveCategory(categories[0]?.id ?? "");
   };
@@ -164,80 +194,63 @@ export default function FAQChatBubble() {
 
   return (
     <>
-      {/* Chat Bubble Button */}
+      {/* Launcher */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-[#1A5FB4] text-white shadow-lg shadow-[#1A5FB4]/30 flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-xl hover:shadow-[#1A5FB4]/40 active:scale-95 ${
-          isOpen ? "rotate-0" : "animate-bounce-slow"
-        }`}
-        aria-label="Open FAQ chat"
+        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-2xl bg-[#1A5FB4] text-white shadow-lg shadow-[#1A5FB4]/30 flex items-center justify-center transition-[background-color,transform] duration-200 hover:bg-[#164A8F] active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#1A5FB4]"
+        aria-label={isOpen ? "Close FAQ chat" : "Open FAQ chat"}
+        aria-expanded={isOpen}
+        aria-controls="faq-chat-panel"
       >
-        {isOpen ? (
-          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-          </svg>
-        ) : (
-          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
-          </svg>
-        )}
+        {isOpen ? <X size={24} strokeWidth={2} /> : <MessageCircleQuestion size={26} strokeWidth={1.8} />}
       </button>
 
-      {/* Chat Panel */}
+      {/* Chat panel */}
       <div
+        id="faq-chat-panel"
+        role="dialog"
+        aria-label="CHATCO FAQ"
+        inert={!isOpen}
         className={`fixed bottom-24 right-6 z-50 transition-all duration-300 ease-out origin-bottom-right ${
-          isOpen
-            ? "opacity-100 translate-y-0 scale-100"
-            : "opacity-0 translate-y-4 scale-95 pointer-events-none"
+          isOpen ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-4 scale-95 pointer-events-none"
         }`}
         style={{ width: "400px", maxWidth: "calc(100vw - 3rem)" }}
       >
-        <div className="bg-white rounded-2xl shadow-2xl shadow-black/10 border border-gray-100 overflow-hidden flex flex-col" style={{ height: "560px", maxHeight: "calc(100vh - 8rem)" }}>
-
-          {/* Header */}
-          <div className="bg-[#1A5FB4] px-5 py-4 flex items-center justify-between flex-shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
-                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-white font-bold text-sm">CHATCO FAQ</p>
-                <p className="text-white/60 text-xs">We're here to help!</p>
+        <div
+          className="bg-white rounded-2xl shadow-2xl shadow-[#071A2E]/25 border border-[#071A2E]/10 ring-1 ring-white/15 overflow-hidden flex flex-col"
+          style={{ height: "580px", maxHeight: "calc(100vh - 8rem)" }}
+        >
+          {/* Header: the site's navy and the brand mark, not a generic help glyph */}
+          <div className="bg-[#071A2E] px-5 py-4 flex items-center justify-between gap-3 shrink-0">
+            <div className="flex items-center gap-3 min-w-0">
+              <Image src={logo} alt="" width={40} height={40} className="rounded-lg shrink-0" />
+              <div className="min-w-0">
+                <p className="font-sans font-bold text-lg leading-tight text-white">Ask CHATCO</p>
+                <p className="text-xs text-white/55">Ready-made answers. Not a live agent.</p>
               </div>
             </div>
             <button
+              type="button"
               onClick={handleClearChat}
-              className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/20 hover:text-white transition-colors"
+              aria-label="Clear chat"
               title="Clear chat"
+              className="grid place-items-center w-9 h-9 rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-              </svg>
-              Clear Chat
+              <RotateCcw size={16} />
             </button>
           </div>
 
-          {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+          {/* Conversation */}
+          <div className="flex-1 overflow-y-auto px-4 py-5 space-y-3" role="log" aria-live="polite">
             {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex ${msg.type === "question" ? "justify-end" : "justify-start"}`}
-              >
+              <div key={msg.id} className={`flex ${msg.type === "question" ? "justify-end" : "justify-start"}`}>
                 <div
-                  className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
+                  className={`max-w-[85%] px-4 py-2.5 text-sm leading-relaxed ${
                     msg.type === "question"
-                      ? "bg-[#1A5FB4] text-white rounded-br-md"
-                      : "bg-gray-100 text-gray-800 rounded-bl-md"
+                      ? "bg-[#1A5FB4] text-white rounded-2xl rounded-br-sm"
+                      : "bg-[#F0F7FF] border border-[#DAEEFF] text-gray-800 rounded-2xl rounded-bl-sm"
                   }`}
                 >
-                  {msg.type === "answer" && msg.category && (
-                    <span className="inline-block text-[10px] font-semibold text-[#1A5FB4] bg-[#1A5FB4]/10 px-2 py-0.5 rounded-full mr-1 mb-1">
-                      {msg.category}
-                    </span>
-                  )}
                   {msg.text}
                 </div>
               </div>
@@ -245,68 +258,78 @@ export default function FAQChatBubble() {
             <div ref={chatEndRef} />
           </div>
 
-          {/* Divider */}
-          <div className="flex-shrink-0 h-px bg-gray-100 mx-4" />
-
-          {/* Category Pills - scrollable by wheel + drag */}
-          <div className="px-4 pt-3 pb-1 flex-shrink-0">
-            <div
-              ref={categoryScrollRef}
-              onWheel={handleCategoryWheel}
-              onMouseDown={handleDragStart}
-              onMouseMove={handleDragMove}
-              onMouseUp={handleDragEnd}
-              onMouseLeave={handleDragEnd}
-              className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide cursor-grab active:cursor-grabbing select-none"
-              style={{ touchAction: "pan-x" }}
-            >
-              {categories.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => handleCategoryChange(cat.id)}
-                  className={`flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold transition-all duration-200 ${
-                    activeCategory === cat.id
-                      ? "bg-[#1A5FB4] text-white shadow-md shadow-[#1A5FB4]/20"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                  }`}
-                >
-                  <span>{cat.emoji}</span>
-                  <span>{cat.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Questions List */}
-          {showCategories && currentCategory && (
-            <div className="px-4 pb-4 space-y-1.5 flex-shrink-0 overflow-y-auto" style={{ touchAction: "pan-y" }}>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-1">
-                {currentCategory.emoji} {currentCategory.label}
-              </p>
-              {currentCategory.items.map((item, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleQuestionClick(item, currentCategory.label)}
-                  className="w-full text-left px-3 py-2.5 rounded-xl text-sm text-gray-700 hover:bg-[#1A5FB4]/5 hover:text-[#1A5FB4] transition-all duration-200 flex items-center gap-2 group"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#1A5FB4]/40 group-hover:bg-[#1A5FB4] transition-colors flex-shrink-0" />
-                  {item.question}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Back to questions button */}
-          {!showCategories && (
-            <div className="px-4 pb-4 flex-shrink-0">
-              <button
-                onClick={() => setShowCategories(true)}
-                className="w-full text-center py-2.5 rounded-xl text-sm font-semibold text-[#1A5FB4] hover:bg-[#1A5FB4]/5 transition-all duration-200"
+          {/* Topic and question tray */}
+          <div className="shrink-0 border-t border-gray-100 bg-[#F8FAFC]">
+            <div className="px-4 pt-3">
+              <div
+                ref={categoryScrollRef}
+                onWheel={handleCategoryWheel}
+                onMouseDown={handleDragStart}
+                onMouseMove={handleDragMove}
+                onMouseUp={handleDragEnd}
+                onMouseLeave={handleDragEnd}
+                role="tablist"
+                aria-label="FAQ topics"
+                className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-hide cursor-grab active:cursor-grabbing select-none"
+                style={{ touchAction: "pan-x" }}
               >
-                ← Back to questions
-              </button>
+                {categories.map((cat) => {
+                  const on = activeCategory === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={on}
+                      onClick={() => handleCategoryChange(cat.id)}
+                      className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1A5FB4] ${
+                        on
+                          ? "bg-[#1A5FB4] border-[#1A5FB4] text-white"
+                          : "bg-white border-gray-200 text-gray-600 hover:border-[#1A5FB4]/40 hover:text-[#1A5FB4]"
+                      }`}
+                    >
+                      <CategoryIcon id={cat.id} size={14} strokeWidth={2} />
+                      {cat.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          )}
+
+            {showCategories && currentCategory ? (
+              <div className="px-4 pb-3 max-h-56 overflow-y-auto" style={{ touchAction: "pan-y" }}>
+                <p className="flex items-center gap-1.5 py-2 text-xs font-semibold text-gray-500">
+                  <CategoryIcon id={currentCategory.id} size={13} className="text-[#1A5FB4]" />
+                  {currentCategory.label}
+                </p>
+                <ul className="divide-y divide-gray-200/70">
+                  {currentCategory.items.map((item, idx) => (
+                    <li key={idx}>
+                      <button
+                        type="button"
+                        onClick={() => handleQuestionClick(item, currentCategory.label)}
+                        className="group w-full flex items-center justify-between gap-3 py-2.5 text-left text-sm text-gray-700 hover:text-[#1A5FB4] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1A5FB4] rounded-md"
+                      >
+                        {item.question}
+                        <ChevronRight size={16} className="shrink-0 text-gray-300 group-hover:text-[#1A5FB4] group-hover:translate-x-0.5 transition" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="px-4 pb-4 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowCategories(true)}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-gray-200 bg-white text-sm font-semibold text-[#1A5FB4] hover:border-[#1A5FB4]/40 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1A5FB4]"
+                >
+                  <ArrowLeft size={15} />
+                  More questions
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </>
