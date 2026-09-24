@@ -7,6 +7,8 @@ export interface Personnel {
   name: string;
   role: 'Driver' | 'Conductor';
   contact: string;
+  /** YYYY-MM-DD, or null when not recorded. */
+  birthday: string | null;
   profilePic: string;
   status: 'ACTIVE' | 'DEACTIVATED';
 }
@@ -236,6 +238,7 @@ function mapPersonnel(apiPersonnel: Record<string, unknown>[]): Personnel[] {
       name,
       role,
       contact: String(p.contact ?? '-'),
+      birthday: p.birthday ? String(p.birthday).slice(0, 10) : null,
       profilePic: p.profile_picture_url
         ? String(p.profile_picture_url)
         : `https://placehold.co/150x150/0A1E33/${role === 'Driver' ? '62A0EA' : 'F59E0B'}?text=${name[0] ?? role[0]}`,
