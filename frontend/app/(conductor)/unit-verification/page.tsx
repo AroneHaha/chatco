@@ -25,6 +25,9 @@ export default function ConductorLoginPage() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // Reason shown when an unavailable unit/driver is tapped — the same text
+  // the backend would refuse the shift with.
+  const [selectionError, setSelectionError] = useState<string | null>(null);
   const [isCheckingShift, setIsCheckingShift] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -47,17 +50,25 @@ export default function ConductorLoginPage() {
   }
 
   const handleSelectUnit = (unit: ConductorUnit) => {
+    setSelectionError(null);
     setSelectedUnit(unit);
     setStep("select-driver");
   };
 
   const handleSelectDriver = (driver: ConductorDriver) => {
+    setSelectionError(null);
+    setSubmitError(null);
     setSelectedDriver(driver);
     setShowConfirmModal(true);
   };
 
+  const handleUnavailable = (item: ConductorUnit | ConductorDriver) => {
+    setSelectionError(item.unavailableReason ?? "This option can't be used for a shift right now.");
+  };
+
   const goBack = () => {
     if (step === "select-driver") {
+      setSelectionError(null);
       setSelectedDriver(null);
       setStep("select-unit");
     }
@@ -160,7 +171,12 @@ export default function ConductorLoginPage() {
                 Choose the vehicle unit assigned to you for this shift.
               </p>
             </div>
-            <UnitList units={units} onSelect={handleSelectUnit} />
+            {selectionError && (
+              <p role="alert" className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-2.5 text-center text-xs font-medium text-red-300">
+                {selectionError}
+              </p>
+            )}
+            <UnitList units={units} onSelect={handleSelectUnit} onUnavailable={handleUnavailable} />
           </div>
         )}
 
@@ -204,17 +220,18 @@ export default function ConductorLoginPage() {
                 </p>
               </div>
             ) : (
-              <DriverList drivers={drivers} onSelect={handleSelectDriver} />
+              <>
+                {selectionError && (
+                  <p role="alert" className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-2.5 text-center text-xs font-medium text-red-300">
+                    {selectionError}
+                  </p>
+                )}
+                <DriverList drivers={drivers} onSelect={handleSelectDriver} onUnavailable={handleUnavailable} />
+              </>
             )}
           </div>
         )}
       </div>
-
-      {submitError && (
-        <div className="px-4 pb-4 max-w-md mx-auto w-full">
-          <p className="text-center text-xs text-red-300">{submitError}</p>
-        </div>
-      )}
 
       <StartShiftModal
         show={showConfirmModal}
@@ -222,8 +239,9 @@ export default function ConductorLoginPage() {
         driver={selectedDriver}
         conductorName={profile?.name ?? "Conductor"}
         isProcessing={isProcessing}
+        error={submitError}
         onConfirm={handleConfirmShift}
-        onCancel={() => setShowConfirmModal(false)}
+        onCancel={() => { setShowConfirmModal(false); setSubmitError(null); }}
       />
 
       <style jsx global>{`

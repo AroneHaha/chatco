@@ -20,7 +20,7 @@ export async function GET() {
   } catch {
     // Fail open — never lock users out because the status check failed.
     return NextResponse.json(
-      { success: true, data: { maintenance_mode: false, maintenance_message: "" } },
+      { success: true, data: { maintenance_mode: false, maintenance_message: "", require_id_upload: true } },
       { status: 200 }
     );
   }

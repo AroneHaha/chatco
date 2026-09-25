@@ -9,7 +9,7 @@ import { mapVehicle, mapArray } from "@/lib/conductor/server/mappers";
  * Proxies to Laravel `GET /api/v1/conductor/units` (role:CONDUCTOR).
  */
 export async function GET(request: NextRequest) {
-  const result = await proxyToLaravel(request, "/conductor/units");
+  const result = await proxyToLaravel(request, "/conductor/units?include_unavailable=1");
 
   if (result.ok) {
     const units = mapArray(result.data, mapVehicle);

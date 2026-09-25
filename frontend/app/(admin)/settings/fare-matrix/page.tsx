@@ -10,6 +10,7 @@ import * as routeService from '@/lib/admin/services/route.service';
 import type { AdminRoute } from '@/lib/admin/services/route.service';
 import type { RouteCoordinate } from '@/lib/admin/services/route.service';
 import { formatPeso } from '@/lib/utils/display';
+import { Modal } from '@/components/admin/ui/modal';
 
 const RouteEditor = dynamic(() => import('@/components/admin/routes/route-editor'), {
   ssr: false,
@@ -169,6 +170,9 @@ export default function FareMatrixPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [showCreateRoute, setShowCreateRoute] = useState(false);
   const [newRouteName, setNewRouteName] = useState('');
+  const [isDeleteRouteOpen, setIsDeleteRouteOpen] = useState(false);
+  const [isDeletingRoute, setIsDeletingRoute] = useState(false);
+  const [deleteRouteError, setDeleteRouteError] = useState<string | null>(null);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingPoint, setEditingPoint] = useState<number | null>(null);
@@ -427,6 +431,25 @@ export default function FareMatrixPage() {
     }
   };
 
+  // The backend refuses (409) while vehicles or Fare Points still use the
+  // route; that reason is shown inside the confirm dialog, which stays open.
+  const handleDeleteRoute = async () => {
+    if (!selectedRoute || isDeletingRoute) return;
+    setIsDeletingRoute(true);
+    setDeleteRouteError(null);
+    try {
+      await routeService.deleteRoute(selectedRoute.id);
+      setIsDeleteRouteOpen(false);
+      setSelectedRouteId('');
+      await fetchRoutes();
+      showSuccess(`Route "${selectedRoute.name}" deleted.`);
+    } catch (err) {
+      setDeleteRouteError(err instanceof Error ? err.message : 'Failed to delete route');
+    } finally {
+      setIsDeletingRoute(false);
+    }
+  };
+
   const handleMovePoint = async (pointNumber: number, direction: -1 | 1) => {
     if (!selectedRouteId) return;
     const currentIndex = apiFarePoints.findIndex((point) => point.point_number === pointNumber);
@@ -510,6 +533,14 @@ export default function FareMatrixPage() {
             </div>
             <button type="button" onClick={() => setShowCreateRoute((visible) => !visible)} className="flex items-center justify-center gap-2 rounded-xl border border-[#62A0EA]/30 px-4 py-2.5 text-sm font-semibold text-[#93C5FD] hover:bg-[#1A5FB4]/10">
               <Plus size={16} /> New Route
+            </button>
+            <button
+              type="button"
+              onClick={() => { setDeleteRouteError(null); setIsDeleteRouteOpen(true); }}
+              disabled={!selectedRoute}
+              className="flex items-center justify-center gap-2 rounded-xl border border-red-500/25 px-4 py-2.5 text-sm font-semibold text-red-300 hover:bg-red-500/10 disabled:opacity-40"
+            >
+              <Trash2 size={16} /> Delete Route
             </button>
           </div>
           {showCreateRoute && (
@@ -830,6 +861,42 @@ export default function FareMatrixPage() {
           </div>
         </form>
       </div>
+
+      <Modal isOpen={isDeleteRouteOpen} onClose={() => { if (!isDeletingRoute) setIsDeleteRouteOpen(false); }}>
+        <div className="space-y-5">
+          <div>
+            <h2 className="text-lg font-bold text-white">Delete route?</h2>
+            <p className="mt-1 text-sm text-slate-400">
+              {selectedRoute?.name ?? 'This route'} will be removed. A route can only be deleted once no vehicle
+              is assigned to it and it has no Fare Points.
+            </p>
+          </div>
+          {deleteRouteError && (
+            <div role="alert" className="rounded-md border border-red-500/30 bg-red-500/10 p-3">
+              <p className="text-sm text-red-400">{deleteRouteError}</p>
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setIsDeleteRouteOpen(false)}
+              disabled={isDeletingRoute}
+              className="rounded-md border border-[#1E2D45] px-5 py-2.5 text-slate-300 hover:bg-[#131C2E] disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleDeleteRoute()}
+              disabled={isDeletingRoute}
+              className="flex items-center gap-2 rounded-md bg-red-600 px-5 py-2.5 font-medium text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              <Trash2 size={16} />
+              {isDeletingRoute ? 'Deleting...' : 'Delete Route'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

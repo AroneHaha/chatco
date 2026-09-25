@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\UserRole;
 use App\Models\Announcement;
 use App\Models\CommuterProfile;
+use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -195,6 +196,48 @@ class AuthRegisterTest extends TestCase
             ->assertStatus(422)
             ->assertJsonPath('success', false)
             ->assertJsonStructure(['errors' => ['id_image']]);
+    }
+
+    /** TC-ADMIN-SET-130: "Force Valid ID Upload" off lets a REGULAR commuter skip the ID. */
+    public function test_regular_commuter_may_register_without_id_when_the_setting_is_off(): void
+    {
+        Setting::query()->updateOrCreate(
+            ['key' => Setting::REQUIRE_ID_UPLOAD_KEY],
+            ['value' => 'false', 'category' => 'app'],
+        );
+        $payload = $this->validPayload(['applied_type' => 'REGULAR']);
+        $this->markEmailVerified($payload['email']);
+
+        $this->post('/api/v1/auth/register', $payload, ['Accept' => 'application/json'])
+            ->assertStatus(201);
+
+        $this->assertDatabaseHas('commuter_profiles', ['email' => $payload['email'], 'id_image_url' => null]);
+    }
+
+    public function test_discount_applicant_still_needs_id_when_the_setting_is_off(): void
+    {
+        Setting::query()->updateOrCreate(
+            ['key' => Setting::REQUIRE_ID_UPLOAD_KEY],
+            ['value' => 'false', 'category' => 'app'],
+        );
+        $payload = $this->validPayload(['applied_type' => 'STUDENT']);
+        $this->markEmailVerified($payload['email']);
+
+        $this->post('/api/v1/auth/register', $payload, ['Accept' => 'application/json'])
+            ->assertStatus(422)
+            ->assertJsonStructure(['errors' => ['id_image']]);
+    }
+
+    public function test_regular_commuter_needs_id_while_the_setting_is_on(): void
+    {
+        $payload = $this->validPayload(['applied_type' => 'REGULAR']);
+        $this->markEmailVerified($payload['email']);
+
+        $this->post('/api/v1/auth/register', $payload, ['Accept' => 'application/json'])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.id_image.0', 'A valid ID image is required to complete registration.');
+
+        $this->getJson('/api/v1/system-status')->assertJsonPath('data.require_id_upload', true);
     }
 
     public function test_register_rejects_invalid_applied_type_with_422(): void

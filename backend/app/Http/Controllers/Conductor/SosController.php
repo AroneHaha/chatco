@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Conductor;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Conductor\SosRequest;
+use App\Models\Setting;
 use App\Services\SosService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -39,7 +40,14 @@ class SosController extends Controller
             return $this->errorResponse($e->getMessage(), 422);
         }
 
-        return $this->successResponse($alert, 'SOS alert triggered', 201);
+        // The admin-configured emergency hotline (Settings > Safety &
+        // Notifications) rides along so the conductor's SOS screen can offer
+        // it during the emergency. Additive field; null when not configured.
+        $hotline = Setting::where('key', 'emergency_hotline')->value('value');
+        $payload = $alert->toArray();
+        $payload['emergency_hotline'] = is_string($hotline) && trim($hotline) !== '' ? trim($hotline) : null;
+
+        return $this->successResponse($payload, 'SOS alert triggered', 201);
     }
 
     /**

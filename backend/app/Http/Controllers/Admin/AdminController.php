@@ -866,7 +866,15 @@ class AdminController extends Controller
         $firstNameParts = preg_split('/\s+/', $firstNameTrimmed);
         $firstPart = strtolower($firstNameParts[0]);
         $restParts = implode('', array_map('strtolower', array_slice($firstNameParts, 1)));
-        $generatedPassword = $firstPart.'.'.$restParts.$birthdayFormatted;
+        $basePassword = $firstPart.'.'.$restParts.$birthdayFormatted;
+
+        // The base is derived only from name + birthday, so on its own it
+        // reproduces the password being replaced and the "reset" would not
+        // lock the old one out. A random 4-digit suffix makes it new; the
+        // loop guards the 1-in-10,000 chance of drawing the current one.
+        do {
+            $generatedPassword = $basePassword.'-'.str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
+        } while (Hash::check($generatedPassword, $user->password));
 
         // Ensure username uniqueness — append a number if taken.
         $originalUsername = $generatedUsername;
@@ -1051,6 +1059,7 @@ class AdminController extends Controller
             'emergency_contact_relationship' => $conductor->emergency_contact_relationship,
             'profile_picture_url' => $conductor->profile_picture_url,
             'generated_username' => $conductor->generated_username,
+            'status' => $conductor->status ?? 'ACTIVE',
             'vehicle' => $conductor->vehicle ? [
                 'id' => $conductor->vehicle->id,
                 'unit_number' => $conductor->vehicle->unit_number,

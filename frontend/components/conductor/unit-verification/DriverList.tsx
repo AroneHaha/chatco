@@ -1,19 +1,28 @@
 // app/components/conductor/unit-verification/DriverList.tsx
 import type { ConductorDriver } from "@/lib/conductor/types";
 
+const unavailableLabel: Record<Exclude<ConductorDriver["status"], "available">, string> = {
+  "on-shift": "On Shift",
+  inactive: "Inactive",
+  assigned: "Assigned",
+};
+
 export default function DriverList({
   drivers,
   onSelect,
+  onUnavailable,
 }: {
   drivers: ConductorDriver[];
   onSelect: (driver: ConductorDriver) => void;
+  /** Tapping a driver who can't be used reports why instead of selecting. */
+  onUnavailable?: (driver: ConductorDriver) => void;
 }) {
   return (
     <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain rounded-2xl border border-white/[0.04] bg-white/[0.015] p-1 pr-2 sm:max-h-[64dvh] lg:max-h-[70dvh]">
       {drivers.map((driver) => {
         const isAvailable = driver.status === "available";
         return (
-          <button key={driver.id} onClick={() => isAvailable && onSelect(driver)} disabled={!isAvailable}
+          <button key={driver.id} onClick={() => (isAvailable ? onSelect(driver) : onUnavailable?.(driver))} aria-disabled={!isAvailable}
             className={`w-full text-left rounded-2xl border p-4 transition-all duration-200 ${isAvailable ? "bg-[#071A2E] border-white/[0.06] hover:border-[#1A5FB4]/40 hover:bg-[#071A2E]/80 active:scale-[0.98]" : "bg-[#071A2E]/40 border-white/[0.03] opacity-50 cursor-not-allowed"}`}>
             <div className="flex items-center gap-3">
               <div className={`w-10 h-10 rounded-full ${isAvailable ? "bg-[#1A5FB4]/15" : "bg-white/5"} flex items-center justify-center flex-shrink-0`}>
@@ -21,10 +30,12 @@ export default function DriverList({
               </div>
               <div className="min-w-0 flex-1">
                 <p className={`font-bold text-sm ${isAvailable ? "text-white" : "text-white/40"}`}>{driver.name}</p>
-                <p className="text-[11px] text-white/35 font-medium mt-0.5">{isAvailable ? "Ready for dispatch" : "Currently on shift"}</p>
+                <p className={`text-[11px] font-medium mt-0.5 ${isAvailable ? "text-white/35" : "text-amber-300/80"}`}>
+                  {isAvailable ? "Ready for dispatch" : driver.unavailableReason ?? "Currently on shift"}
+                </p>
               </div>
               <span className={`flex-shrink-0 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${isAvailable ? "text-emerald-400 bg-emerald-500/15 border-emerald-500/25" : "text-white/30 bg-white/5 border-white/10"}`}>
-                {isAvailable ? "Available" : "On Shift"}
+                {driver.status === "available" ? "Available" : unavailableLabel[driver.status]}
               </span>
             </div>
           </button>

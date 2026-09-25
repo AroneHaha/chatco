@@ -5,7 +5,7 @@ import { useState } from "react";
 import { DataTable } from "@/components/admin/ui/data-table";
 import { TablePagination } from "@/components/admin/ui/table-pagination";
 import { SearchBar } from "@/components/admin/ui/search-bar";
-import { Edit, Trash, Plus, UserPlus } from "lucide-react";
+import { Edit, Eye, Trash, Plus, UserPlus } from "lucide-react";
 import { formatLogDate } from "@/lib/utils/format";
 import type { PageMeta, Personnel, PersonnelRoleFilter } from "@/app/(admin)/vehicles/data/vehicles-data";
 import { DriverDetailModal } from "@/components/admin/vehicles/driver-detail-modal";
@@ -24,6 +24,9 @@ interface PersonnelTableProps {
   onCreateConductor: () => void;
   onEdit: (personnel: Personnel) => void;
   onDelete: (personnel: Personnel) => void;
+  /** Called after an action in a detail modal changed the record (e.g. a
+   *  conductor was disabled), so the list can show the new status. */
+  onPersonnelChanged?: () => void;
   isLoading?: boolean;
   // Kept for backwards compatibility — no longer used by the new detail modals
   // (they fetch their own data from the API). Will be removed in a future cleanup.
@@ -43,10 +46,22 @@ export function PersonnelTable({
   onCreateConductor,
   onEdit,
   onDelete,
+  onPersonnelChanged,
   isLoading = false,
 }: PersonnelTableProps) {
   const [selectedDriver, setSelectedDriver] = useState<Personnel | null>(null);
   const [selectedConductor, setSelectedConductor] = useState<Personnel | null>(null);
+
+  // The detail modals hold the conductor's Reset Credentials / Disable
+  // Account actions. Row double-click still opens them; the explicit button
+  // below makes them reachable without knowing about the double-click.
+  const openDetails = (p: Personnel) => {
+    if (p.role === "Driver") {
+      setSelectedDriver(p);
+    } else if (p.role === "Conductor") {
+      setSelectedConductor(p);
+    }
+  };
 
   const columns = [
     {
@@ -118,10 +133,19 @@ export function PersonnelTable({
       key: "actions",
       label: "Actions",
       align: "center" as const,
-      headerClassName: "w-24",
-      cellClassName: "w-24",
+      headerClassName: "w-32",
+      cellClassName: "w-32",
       render: (_: unknown, row: Personnel) => (
         <div className="flex items-center justify-center gap-2">
+          <button
+            onClick={(event) => { event.stopPropagation(); openDetails(row); }}
+            onDoubleClick={(event) => event.stopPropagation()}
+            aria-label={`View details for ${row.name}`}
+            title="View details"
+            className="p-1.5 text-slate-400 hover:text-sky-400 hover:bg-sky-400/10 rounded-md transition-colors"
+          >
+            <Eye size={16} />
+          </button>
           <button
             onClick={(event) => { event.stopPropagation(); onEdit(row); }}
             onDoubleClick={(event) => event.stopPropagation()}
@@ -199,14 +223,7 @@ export function PersonnelTable({
             stickyHeader
             allowHorizontalScroll={false}
             tableClassName="table-fixed"
-            onRowDoubleClick={(item) => {
-              const p = item as Personnel;
-              if (p.role === "Driver") {
-                setSelectedDriver(p);
-              } else if (p.role === "Conductor") {
-                setSelectedConductor(p);
-              }
-            }}
+            onRowDoubleClick={(item) => openDetails(item as Personnel)}
           />
         )}
 
@@ -231,6 +248,7 @@ export function PersonnelTable({
       <ConductorDetailModal
         conductor={selectedConductor}
         onClose={() => setSelectedConductor(null)}
+        onChanged={onPersonnelChanged}
       />
     </>
   );

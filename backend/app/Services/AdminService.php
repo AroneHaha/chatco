@@ -1041,15 +1041,18 @@ class AdminService
             return false;
         }
 
-        if ($user->id === $actingAdmin->id) {
-            throw ValidationException::withMessages([
-                'user' => ['You cannot delete your own account.'],
-            ]);
-        }
-
+        // Last-admin is checked first: with a single admin the target is
+        // always the caller, so checking self first made this guard
+        // unreachable and hid the more important reason for the refusal.
         if ($user->isAdmin() && $this->activeAdminCount() <= 1) {
             throw ValidationException::withMessages([
                 'user' => ['Cannot delete the last administrator account.'],
+            ]);
+        }
+
+        if ($user->id === $actingAdmin->id) {
+            throw ValidationException::withMessages([
+                'user' => ['You cannot delete your own account.'],
             ]);
         }
 

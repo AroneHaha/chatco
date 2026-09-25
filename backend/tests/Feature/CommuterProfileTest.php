@@ -233,8 +233,8 @@ class CommuterProfileTest extends TestCase
         $this->withHeader('Authorization', "Bearer {$token}")
             ->postJson('/api/v1/commuter/change-password/request-code', [
                 'current_password'      => 'password123',
-                'password'              => 'NewSecret123',
-                'password_confirmation' => 'NewSecret123',
+                'password'              => 'NewSecret@123',
+                'password_confirmation' => 'NewSecret@123',
             ])
             ->assertStatus(200)
             ->assertJsonPath('success', true)
@@ -263,8 +263,8 @@ class CommuterProfileTest extends TestCase
         $this->withHeader('Authorization', "Bearer {$token}")
             ->postJson('/api/v1/commuter/change-password/request-code', [
                 'current_password'      => 'wrong-password',
-                'password'              => 'NewSecret123',
-                'password_confirmation' => 'NewSecret123',
+                'password'              => 'NewSecret@123',
+                'password_confirmation' => 'NewSecret@123',
             ])
             ->assertStatus(422)
             ->assertJsonStructure(['errors' => ['current_password']]);
@@ -274,17 +274,37 @@ class CommuterProfileTest extends TestCase
 
     public function test_request_code_rejects_same_password(): void
     {
+        // Strong current password, so only the "must differ" rule can fail.
+        $commuter = $this->seedCommuter('Current@123');
+        $token = $this->tokenFor($commuter);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->postJson('/api/v1/commuter/change-password/request-code', [
+                'current_password'      => 'Current@123',
+                'password'              => 'Current@123',
+                'password_confirmation' => 'Current@123',
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.password.0', 'The new password must be different from your current password.');
+    }
+
+    /** TC-COMM-PROFILE-228: same strength rules as signup and Forgot Password. */
+    public function test_request_code_rejects_password_without_uppercase_or_symbol(): void
+    {
+        Mail::fake();
         $commuter = $this->seedCommuter('password123');
         $token = $this->tokenFor($commuter);
 
         $this->withHeader('Authorization', "Bearer {$token}")
             ->postJson('/api/v1/commuter/change-password/request-code', [
                 'current_password'      => 'password123',
-                'password'              => 'password123',
-                'password_confirmation' => 'password123',
+                'password'              => 'password1',
+                'password_confirmation' => 'password1',
             ])
             ->assertStatus(422)
-            ->assertJsonStructure(['errors' => ['password']]);
+            ->assertJsonValidationErrors(['password']);
+
+        Mail::assertNothingSent();
     }
 
     public function test_request_code_requires_strong_new_password(): void
@@ -308,8 +328,8 @@ class CommuterProfileTest extends TestCase
         $token = $this->tokenFor($commuter);
         $payload = [
             'current_password'      => 'password123',
-            'password'              => 'NewSecret123',
-            'password_confirmation' => 'NewSecret123',
+            'password'              => 'NewSecret@123',
+            'password_confirmation' => 'NewSecret@123',
         ];
 
         $this->withHeader('Authorization', "Bearer {$token}")
@@ -331,8 +351,8 @@ class CommuterProfileTest extends TestCase
         $this->withHeader('Authorization', "Bearer {$token}")
             ->postJson('/api/v1/commuter/change-password/request-code', [
                 'current_password'      => 'password123',
-                'password'              => 'NewSecret123',
-                'password_confirmation' => 'NewSecret123',
+                'password'              => 'NewSecret@123',
+                'password_confirmation' => 'NewSecret@123',
             ])
             ->assertStatus(403);
     }
@@ -345,8 +365,8 @@ class CommuterProfileTest extends TestCase
         $token = $this->tokenFor($commuter);
         $payload = [
             'current_password'      => 'password123',
-            'password'              => 'NewSecret123',
-            'password_confirmation' => 'NewSecret123',
+            'password'              => 'NewSecret@123',
+            'password_confirmation' => 'NewSecret@123',
         ];
 
         $code = $this->requestCodeAndCapture($token, $payload);
@@ -357,7 +377,7 @@ class CommuterProfileTest extends TestCase
             ->assertJsonPath('success', true);
 
         $commuter->refresh();
-        $this->assertTrue(Hash::check('NewSecret123', $commuter->password));
+        $this->assertTrue(Hash::check('NewSecret@123', $commuter->password));
         $this->assertFalse(Hash::check('password123', $commuter->password));
 
         // The code is one-time use — the row is consumed on success.
@@ -373,8 +393,8 @@ class CommuterProfileTest extends TestCase
         $token = $this->tokenFor($commuter);
         $payload = [
             'current_password'      => 'password123',
-            'password'              => 'NewSecret123',
-            'password_confirmation' => 'NewSecret123',
+            'password'              => 'NewSecret@123',
+            'password_confirmation' => 'NewSecret@123',
         ];
 
         $this->requestCodeAndCapture($token, $payload);
@@ -396,8 +416,8 @@ class CommuterProfileTest extends TestCase
         $this->withHeader('Authorization', "Bearer {$token}")
             ->postJson('/api/v1/commuter/change-password/confirm', [
                 'current_password'      => 'password123',
-                'password'              => 'NewSecret123',
-                'password_confirmation' => 'NewSecret123',
+                'password'              => 'NewSecret@123',
+                'password_confirmation' => 'NewSecret@123',
                 'code'                   => '123456',
             ])
             ->assertStatus(422)
@@ -410,8 +430,8 @@ class CommuterProfileTest extends TestCase
         $token = $this->tokenFor($commuter);
         $payload = [
             'current_password'      => 'password123',
-            'password'              => 'NewSecret123',
-            'password_confirmation' => 'NewSecret123',
+            'password'              => 'NewSecret@123',
+            'password_confirmation' => 'NewSecret@123',
         ];
 
         $code = $this->requestCodeAndCapture($token, $payload);
@@ -444,8 +464,8 @@ class CommuterProfileTest extends TestCase
         $other   = $commuter->createToken('other');
         $payload = [
             'current_password'      => 'password123',
-            'password'              => 'NewSecret123',
-            'password_confirmation' => 'NewSecret123',
+            'password'              => 'NewSecret@123',
+            'password_confirmation' => 'NewSecret@123',
         ];
 
         $this->assertDatabaseCount('personal_access_tokens', 2);
@@ -474,8 +494,8 @@ class CommuterProfileTest extends TestCase
         $this->withHeader('Authorization', "Bearer {$token}")
             ->postJson('/api/v1/commuter/change-password/confirm', [
                 'current_password'      => 'password123',
-                'password'              => 'NewSecret123',
-                'password_confirmation' => 'NewSecret123',
+                'password'              => 'NewSecret@123',
+                'password_confirmation' => 'NewSecret@123',
                 'code'                   => '123456',
             ])
             ->assertStatus(403);

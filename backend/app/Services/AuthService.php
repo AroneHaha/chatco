@@ -76,6 +76,16 @@ class AuthService
             );
         }
 
+        // An admin-disabled conductor (AdminController::disableConductor) had
+        // only their tokens revoked, so without this check the same username
+        // and password signed straight back in. Resetting credentials sets
+        // the status back to ACTIVE, which is how the account is re-enabled.
+        if ($user->isConductor() && $user->conductorProfile?->status === 'DISABLED') {
+            throw new AccountSuspendedException(
+                'This conductor account has been disabled. Ask an administrator to reset your credentials.'
+            );
+        }
+
         if ($user->isCommuter()) {
             $status = $user->commuterProfile?->account_status;
 
@@ -339,7 +349,9 @@ class AuthService
         // uploaded filename, rather than letting the `creating` hook mint a
         // different one.
         $userId = (string) Str::uuid();
-        $idImagePath = $this->storeIdImage($userId, $data['id_image']);
+        // Optional only for a REGULAR commuter while "Force Valid ID Upload"
+        // is off (RegisterRequest enforces who must provide one).
+        $idImagePath = ! empty($data['id_image']) ? $this->storeIdImage($userId, $data['id_image']) : null;
 
         // The exists() check above is a TOCTOU race: two requests for the same
         // email submitted close together can both pass it and both reach
@@ -397,7 +409,9 @@ class AuthService
                 ];
             });
         } catch (\Throwable $e) {
-            $this->deleteIdImage($idImagePath);
+            if ($idImagePath !== null) {
+                $this->deleteIdImage($idImagePath);
+            }
 
             throw $e instanceof QueryException ? $this->translateUniqueViolation($e) : $e;
         }

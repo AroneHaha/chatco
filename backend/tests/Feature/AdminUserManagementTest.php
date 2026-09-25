@@ -310,6 +310,62 @@ class AdminUserManagementTest extends TestCase
         $this->assertSoftDeleted('users', ['id' => $otherAdmin->id]);
     }
 
+    public function test_delete_self_is_refused_when_other_admins_exist(): void
+    {
+        [$admin, $headers] = $this->asAdmin();
+        $this->makeAdmin('admin2@gmail.com');
+
+        $this->withHeaders($headers)
+            ->deleteJson("/api/v1/admin/users/{$admin->id}")
+            ->assertStatus(422)
+            ->assertJsonPath('errors.user.0', 'You cannot delete your own account.');
+
+        $this->assertNotSoftDeleted('users', ['id' => $admin->id]);
+    }
+
+    public function test_delete_last_admin_is_refused(): void
+    {
+        [$admin, $headers] = $this->asAdmin();
+
+        $this->withHeaders($headers)
+            ->deleteJson("/api/v1/admin/users/{$admin->id}")
+            ->assertStatus(422)
+            ->assertJsonPath('errors.user.0', 'Cannot delete the last administrator account.');
+
+        $this->assertNotSoftDeleted('users', ['id' => $admin->id]);
+    }
+
+    public function test_suspend_self_is_refused(): void
+    {
+        [$admin, $headers] = $this->asAdmin();
+
+        $this->withHeaders($headers)
+            ->postJson("/api/v1/admin/users/{$admin->id}/suspend", [
+                'reason_code' => 'POLICY_VIOLATION',
+                'reason' => 'Testing self suspension',
+                'is_permanent' => true,
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.user.0', 'You cannot suspend your own account.');
+    }
+
+    public function test_suspend_reason_shorter_than_five_characters_is_refused(): void
+    {
+        [$admin, $headers] = $this->asAdmin();
+        $commuter = $this->makeCommuter('short-reason@gmail.com');
+
+        $this->withHeaders($headers)
+            ->postJson("/api/v1/admin/users/{$commuter->id}/suspend", [
+                'reason_code' => 'POLICY_VIOLATION',
+                'reason' => 'bad',
+                'is_permanent' => true,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['reason']);
+
+        $this->assertDatabaseHas('commuter_profiles', ['id' => $commuter->id, 'account_status' => 'ACTIVE']);
+    }
+
     public function test_delete_returns_404_for_missing_user(): void
     {
         [$admin, $headers] = $this->asAdmin();

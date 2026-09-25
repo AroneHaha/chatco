@@ -15,6 +15,9 @@ import { DeletePersonnelModal } from '@/components/admin/vehicles/delete-personn
 import { CreateConductorAccountModal } from '@/components/admin/vehicles/create-conductor-account-modal';
 import { ConductorAccountSuccessModal } from '@/components/admin/vehicles/conductor-account-success-modal';
 import { HistoryTable } from '@/components/admin/vehicles/history-table';
+import { DeleteVehicleModal } from '@/components/admin/vehicles/delete-vehicle-modal';
+import { OperationResultModal } from '@/components/admin/ui/operation-result-modal';
+import { remove as removeVehicle } from '@/lib/admin/services/vehicle.service';
 import { Users, Car, Archive, AlertCircle, RefreshCw } from 'lucide-react';
 import { useVehiclesData } from './data/vehicles-data';
 import type { FleetHistoryTab, FleetShiftHistoryRange, PersonnelRoleFilter, Vehicle, Personnel } from './data/vehicles-data';
@@ -40,6 +43,8 @@ export default function VehiclesPage() {
     generated_password: string;
   } | null>(null);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
+  const [deletingVehicle, setDeletingVehicle] = useState<Vehicle | null>(null);
+  const [vehicleDeletedMessage, setVehicleDeletedMessage] = useState<string | null>(null);
   const [shiftHistoryVehicle, setShiftHistoryVehicle] = useState<Vehicle | null>(null);
   /** id of the vehicle whose details + permanent QR modal is open. null = closed. */
   const [detailsVehicleId, setDetailsVehicleId] = useState<string | null>(null);
@@ -167,6 +172,17 @@ export default function VehiclesPage() {
   // After PUT succeeds — the EditVehicleModal calls onSaved() which triggers this.
   // We refetch from the API to get the canonical record with fresh relationships.
   const handleVehicleUpdated = () => { refetch(); handleCloseEditModal(); };
+
+  // Delete — the modal awaits this and shows a thrown error (e.g. the 409
+  // active-shift conflict) inline, staying open; on success it closes.
+  const handleOpenDeleteVehicle = (vehicle: Vehicle) => { setDeletingVehicle(vehicle); };
+  const handleCloseDeleteVehicle = () => { setDeletingVehicle(null); };
+  const handleConfirmDeleteVehicle = async () => {
+    if (!deletingVehicle) return;
+    await removeVehicle(deletingVehicle.id);
+    setVehicleDeletedMessage(`Vehicle deleted successfully. Unit ${deletingVehicle.unitNumber} (${deletingVehicle.plateNumber}) was removed from the fleet.`);
+    refetch();
+  };
 
   // Shift History Handlers — opens the modal that fetches /api/admin/shift-logs?vehicle_id=
   const handleOpenShiftHistory = (vehicle: Vehicle) => { setShiftHistoryVehicle(vehicle); setIsShiftHistoryOpen(true); };
@@ -336,6 +352,7 @@ export default function VehiclesPage() {
           onAddVehicle={handleOpenVehicleModal}
           onEdit={handleOpenEditModal}
           onEditShift={handleOpenShiftHistory}
+          onDelete={handleOpenDeleteVehicle}
           onRowDoubleClick={handleOpenDetails}
           isLoading={isLoading}
         />
@@ -352,6 +369,7 @@ export default function VehiclesPage() {
           onCreateConductor={handleOpenCreateConductor}
           onEdit={handleOpenEditPersonnel}
           onDelete={handleOpenDeletePersonnel}
+          onPersonnelChanged={refetch}
           driverProfiles={data.driverProfiles}
           driverRatings={data.driverRatings}
           isLoading={isLoading}
@@ -402,6 +420,20 @@ export default function VehiclesPage() {
 
       <CreateConductorAccountModal isOpen={isCreateConductorOpen} onClose={handleCloseCreateConductor} onCreated={handleConductorCreated} />
       <ConductorAccountSuccessModal isOpen={isSuccessModalOpen} onClose={handleCloseSuccessModal} accountData={createdAccountData} />
+      <DeleteVehicleModal
+        key={deletingVehicle?.id ?? 'closed-delete-vehicle'}
+        isOpen={deletingVehicle !== null}
+        onClose={handleCloseDeleteVehicle}
+        onConfirm={handleConfirmDeleteVehicle}
+        vehicle={deletingVehicle}
+      />
+      <OperationResultModal
+        isOpen={vehicleDeletedMessage !== null}
+        type="success"
+        title="Vehicle deleted"
+        message={vehicleDeletedMessage ?? ''}
+        onClose={() => setVehicleDeletedMessage(null)}
+      />
     </>
   );
 }

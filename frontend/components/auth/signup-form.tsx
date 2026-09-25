@@ -101,6 +101,9 @@ export default function SignupForm() {
     confirmPassword: "",
   });
   const [idImage, setIdImage] = useState<File | null>(null);
+  // Admin setting "Force Valid ID Upload" (public via /api/system-status).
+  // Defaults to required, so a failed or slow lookup never relaxes the rule.
+  const [idUploadRequired, setIdUploadRequired] = useState(true);
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   // Blurred "Take a Picture" / "Upload an Image" choice shown over the ID box.
@@ -202,6 +205,20 @@ export default function SignupForm() {
 
   // Whether the selected commuter type requires an ID upload
   const requiresId = formData.appliedType && formData.appliedType !== "REGULAR";
+  // Student/Senior/PWD always prove their discount; a Regular commuter's ID
+  // follows the admin setting.
+  const idNeeded = Boolean(requiresId) || idUploadRequired;
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/system-status", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (!cancelled && json?.data?.require_id_upload === false) setIdUploadRequired(false);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   /**
    * Per-step client checks. Writes field-level errors (keyed by backend field
@@ -236,7 +253,7 @@ export default function SignupForm() {
         errors.contact_number = [CONTACT_NUMBER_ERROR];
       }
 
-      if (!idImage) {
+      if (!idImage && idNeeded) {
         setFileError(
           requiresId
             ? "Upload the valid ID that proves your Student, Senior, or PWD discount."
@@ -262,7 +279,7 @@ export default function SignupForm() {
 
     setFieldErrors(errors);
 
-    const blockedByFile = stepNum === 2 && !idImage;
+    const blockedByFile = stepNum === 2 && !idImage && idNeeded;
     if (Object.keys(errors).length > 0 || blockedByFile) return false;
 
     setServerError(null);
@@ -405,7 +422,7 @@ export default function SignupForm() {
 
     if (!validateStep(LAST_STEP)) return;
 
-    if (!idImage) {
+    if (!idImage && idNeeded) {
       setFileError("A valid ID image is required.");
       setStep(2);
       return;
@@ -639,7 +656,9 @@ export default function SignupForm() {
               </div>
               <div>
                 <label className={labelClasses}>
-                  {formData.appliedType ? ID_UPLOAD_LABELS[formData.appliedType] : "Valid ID Upload *"}
+                  {formData.appliedType === "REGULAR" && !idNeeded
+                    ? "Upload Valid ID (optional)"
+                    : formData.appliedType ? ID_UPLOAD_LABELS[formData.appliedType] : "Valid ID Upload *"}
                 </label>
                 <div
                   role="button"
@@ -862,7 +881,7 @@ export default function SignupForm() {
           )}
 
           {step === 3 ? (
-            <button key="nav-verify" type="button" onClick={handleVerifyCode} disabled={isVerifyingCode || isSendingCode || code.length !== 6} className="flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-xl text-base font-semibold bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-colors shadow-md shadow-[#1A5FB4]/20 disabled:opacity-70 disabled:cursor-not-allowed">
+            <button key="nav-verify" type="button" onClick={handleVerifyCode} disabled={isVerifyingCode || isSendingCode} className="flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-xl text-base font-semibold bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-colors shadow-md shadow-[#1A5FB4]/20 disabled:opacity-70 disabled:cursor-not-allowed">
               {isVerifyingCode ? (
                 <Spinner />
               ) : (

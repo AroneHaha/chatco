@@ -60,6 +60,43 @@ class DynamicRouteTest extends TestCase
             ->assertJsonPath('data.coordinates.1.0', 14.85);
     }
 
+    public function test_detour_ending_before_it_starts_is_refused_with_a_clear_message(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $route = Route::factory()->create();
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/admin/routes/{$route->id}/publish", [
+                'effective_from' => now()->addDays(2)->toIso8601String(),
+                'effective_until' => now()->addDay()->toIso8601String(),
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.effective_until.0', 'The detour expiration must be after its start time.');
+
+        // No explicit start means the detour starts now, so an expiration in
+        // the past is the same mistake and gets the same message.
+        $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/admin/routes/{$route->id}/publish", [
+                'effective_until' => now()->subHour()->toIso8601String(),
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.effective_until', ['The detour expiration must be after its start time.']);
+    }
+
+    public function test_route_still_used_by_a_vehicle_cannot_be_deleted(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $route = Route::factory()->create();
+        \App\Models\Vehicle::factory()->create(['route_id' => $route->id]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->deleteJson("/api/v1/admin/routes/{$route->id}")
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Move assigned vehicles and Fare Points before deleting this route.');
+
+        $this->assertDatabaseHas('routes', ['id' => $route->id]);
+    }
+
     public function test_expired_temporary_detour_falls_back_to_previous_version(): void
     {
         $route = Route::factory()->create();

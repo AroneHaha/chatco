@@ -132,6 +132,50 @@ class OperationalLifecycleTest extends TestCase
             ->assertJsonMissing(['id' => $otherDriver->id]);
     }
 
+    public function test_unit_verification_can_list_unavailable_resources_with_the_start_shift_reason(): void
+    {
+        [, $busyDriver, $busyVehicle] = $this->activeShift();
+        $conductor = User::factory()->conductor()->create();
+        $otherConductor = User::factory()->conductor()->create();
+        $route = Route::factory()->create();
+        $freeVehicle = Vehicle::factory()->create(['route_id' => $route->id]);
+        $maintenanceVehicle = Vehicle::factory()->create(['route_id' => $route->id, 'status' => 'MAINTENANCE']);
+        $freeDriver = Driver::factory()->create();
+        $takenDriver = Driver::factory()->create();
+        $takenVehicle = Vehicle::factory()->create([
+            'route_id' => $route->id,
+            'driver_id' => $takenDriver->id,
+            'conductor_id' => $otherConductor->id,
+        ]);
+
+        $units = collect($this->actingAs($conductor)
+            ->getJson('/api/v1/conductor/units?include_unavailable=1')
+            ->assertOk()
+            ->json('data'))->pluck('unavailable_reason', 'id');
+
+        $this->assertNull($units[$freeVehicle->id]);
+        $this->assertSame('Vehicle already on active shift', $units[$busyVehicle->id]);
+        $this->assertSame('The assigned vehicle and driver must both be active.', $units[$maintenanceVehicle->id]);
+        $this->assertSame('Vehicle is assigned to another conductor.', $units[$takenVehicle->id]);
+
+        $drivers = collect($this->actingAs($conductor)
+            ->getJson('/api/v1/conductor/drivers?include_unavailable=1')
+            ->assertOk()
+            ->json('data'))->pluck('unavailable_reason', 'id');
+
+        $this->assertNull($drivers[$freeDriver->id]);
+        $this->assertSame('Driver already on active shift', $drivers[$busyDriver->id]);
+        $this->assertSame('Driver is assigned to another conductor.', $drivers[$takenDriver->id]);
+
+        // Without the flag the lists are unchanged: available resources only.
+        $this->actingAs($conductor)
+            ->getJson('/api/v1/conductor/units')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $freeVehicle->id])
+            ->assertJsonMissing(['id' => $busyVehicle->id])
+            ->assertJsonMissing(['id' => $maintenanceVehicle->id]);
+    }
+
     public function test_remitted_vehicle_and_driver_return_to_available_conductor_lists(): void
     {
         [$conductor, $driver, $vehicle, , $shift] = $this->activeShift();

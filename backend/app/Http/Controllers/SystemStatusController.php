@@ -24,7 +24,7 @@ class SystemStatusController extends Controller
     public function index(): JsonResponse
     {
         $settings = Setting::query()
-            ->whereIn('key', ['maintenance_mode', 'maintenance_message'])
+            ->whereIn('key', ['maintenance_mode', 'maintenance_message', Setting::REQUIRE_ID_UPLOAD_KEY])
             ->pluck('value', 'key');
 
         $message = $settings['maintenance_message'] ?? null;
@@ -34,6 +34,9 @@ class SystemStatusController extends Controller
             'maintenance_message' => ($message !== null && trim($message) !== '')
                 ? $message
                 : self::DEFAULT_MESSAGE,
+            // Read by the public signup form so a REGULAR commuter's ID
+            // upload is only marked required when the admin requires it.
+            'require_id_upload' => ($settings[Setting::REQUIRE_ID_UPLOAD_KEY] ?? 'true') === 'true',
         ], 'System status retrieved');
     }
 }

@@ -127,6 +127,11 @@ export async function DELETE(
     method: "DELETE",
   });
 
+  // 409 = on an active shift. Forward the errors map, which carries the
+  // human-readable reason under Laravel's generic "Conflict" message.
+  if (!result.ok && result.status === 409) {
+    return jsonValidationError(result.message ?? "Conflict", result.errors, 409);
+  }
   if (!result.ok) return jsonError(result.message ?? "Failed to delete vehicle.", result.status);
   return jsonData(result.data);
 }

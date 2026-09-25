@@ -18,6 +18,8 @@ interface LaravelVehicle {
   status: string;
   capacity_status: string | null;
   route?: LaravelRoute | null;
+  /** Only present with ?include_unavailable=1 (Unit Verification). */
+  unavailable_reason?: string | null;
 }
 
 interface LaravelDriver {
@@ -26,6 +28,9 @@ interface LaravelDriver {
   middle_name: string | null;
   last_name: string;
   status: string;
+  active_shift_id?: string | null;
+  /** Only present with ?include_unavailable=1 (Unit Verification). */
+  unavailable_reason?: string | null;
 }
 
 interface LaravelHailCommuter {
@@ -139,13 +144,21 @@ import type { PaymentMethodType } from "@/types";
 
 export function mapVehicle(v: unknown): ConductorUnit {
   const vehicle = v as LaravelVehicle;
+  const reason = vehicle.unavailable_reason ?? null;
   return {
     id: vehicle.id,
     unitNumber: vehicle.unit_number,
     plateNumber: vehicle.plate_number,
     route: vehicle.route?.name ?? "—",
     routeId: vehicle.route_id ?? undefined,
-    status: "available",
+    status: !reason
+      ? "available"
+      : vehicle.status !== "ACTIVE"
+        ? "maintenance"
+        : /another conductor/i.test(reason)
+          ? "assigned"
+          : "in-use",
+    unavailableReason: reason,
   };
 }
 
@@ -155,10 +168,18 @@ export function mapDriver(d: unknown): ConductorDriver {
     .filter(Boolean)
     .join(" ")
     .trim();
+  const reason = driver.unavailable_reason ?? null;
   return {
     id: driver.id,
     name: name || "Unknown Driver",
-    status: "available",
+    status: !reason
+      ? "available"
+      : driver.active_shift_id
+        ? "on-shift"
+        : driver.status !== "ACTIVE"
+          ? "inactive"
+          : "assigned",
+    unavailableReason: reason,
   };
 }
 

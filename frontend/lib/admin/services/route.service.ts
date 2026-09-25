@@ -52,7 +52,11 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const body = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw new RouteServiceError(body?.message ?? `Request failed (HTTP ${response.status})`, response.status);
+    // Validation failures carry the real reason (e.g. "The detour expiration
+    // must be after its start time.") in `errors`, under a generic message.
+    const errors = body?.errors as Record<string, string[]> | undefined;
+    const specific = errors ? Object.values(errors).flat().find(Boolean) : undefined;
+    throw new RouteServiceError(specific ?? body?.message ?? `Request failed (HTTP ${response.status})`, response.status);
   }
 
   return body.data as T;
@@ -87,6 +91,10 @@ export function publishRoute(
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+export function deleteRoute(routeId: string): Promise<null> {
+  return request<null>(`/api/admin/routes/${routeId}`, { method: "DELETE" });
 }
 
 export function listRouteVersions(routeId: string): Promise<RouteVersion[]> {

@@ -130,6 +130,14 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
               <IdCard className="h-4 w-4 text-[#62A0EA]" />
               <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">ID Document</h3>
             </div>
+            {/* A REGULAR applicant may register without an ID while the
+                "Force Valid ID Upload" setting is off. */}
+            {!request.idImageUrl ? (
+              <p className="rounded-lg border border-dashed border-white/10 px-4 py-10 text-center text-sm text-slate-400">
+                No ID uploaded. ID upload was optional for this registration.
+              </p>
+            ) : (
+            <>
             {/* Click to view full size, since the thumbnail is too small to
                 actually verify text/photo details against. */}
             <button
@@ -145,6 +153,8 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
               </div>
             </button>
             <p className="mt-2 text-center text-xs text-slate-500">Uploaded Valid ID · tap to enlarge</p>
+            </>
+            )}
           </section>
 
           {/* `min-w-0` on each cell is required for `truncate` to work inside

@@ -5,14 +5,18 @@ const statusConfig: Record<ConductorUnit["status"], { label: string; color: stri
   available: { label: "Available", color: "text-emerald-400", bg: "bg-emerald-500/15 border-emerald-500/25" },
   "in-use": { label: "In Use", color: "text-white/30", bg: "bg-white/5 border-white/10" },
   maintenance: { label: "Maintenance", color: "text-amber-400", bg: "bg-amber-500/15 border-amber-500/25" },
+  assigned: { label: "Assigned", color: "text-white/30", bg: "bg-white/5 border-white/10" },
 };
 
 export default function UnitList({
   units,
   onSelect,
+  onUnavailable,
 }: {
   units: ConductorUnit[];
   onSelect: (unit: ConductorUnit) => void;
+  /** Tapping a unit that can't be used reports why instead of selecting it. */
+  onUnavailable?: (unit: ConductorUnit) => void;
 }) {
   return (
     <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain rounded-2xl border border-white/[0.04] bg-white/[0.015] p-1 pr-2 sm:max-h-[68dvh] lg:max-h-[74dvh]">
@@ -20,7 +24,7 @@ export default function UnitList({
         const cfg = statusConfig[unit.status];
         const isAvailable = unit.status === "available";
         return (
-          <button key={unit.id} onClick={() => isAvailable && onSelect(unit)} disabled={!isAvailable}
+          <button key={unit.id} onClick={() => (isAvailable ? onSelect(unit) : onUnavailable?.(unit))} aria-disabled={!isAvailable}
             className={`w-full text-left rounded-2xl border p-4 transition-all duration-200 ${isAvailable ? "bg-[#071A2E] border-white/[0.06] hover:border-[#1A5FB4]/40 hover:bg-[#071A2E]/80 active:scale-[0.98]" : "bg-[#071A2E]/40 border-white/[0.03] opacity-50 cursor-not-allowed"}`}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
@@ -36,6 +40,9 @@ export default function UnitList({
                 <div className="flex items-center gap-4 pl-[50px]">
                   <span className="text-[11px] text-white/35 font-medium">{unit.plateNumber}</span>
                 </div>
+                {!isAvailable && unit.unavailableReason && (
+                  <p className="mt-1.5 pl-[50px] text-[11px] font-medium text-amber-300/80">{unit.unavailableReason}</p>
+                )}
               </div>
               <span className={`flex-shrink-0 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
             </div>

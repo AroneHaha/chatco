@@ -216,10 +216,20 @@ export function useProfile() {
       setPasswordErrorField("confirmNewPassword");
       return;
     }
-    if (passwordData.newPassword.length < 8) {
-      setPasswordError(
-        "Password must be at least 8 characters, with letters and numbers."
-      );
+    // Same rule and wording as the backend's StrongPassword (also used by
+    // signup and Forgot Password), so the message matches either way.
+    const newPassword = passwordData.newPassword;
+    const missing = [
+      newPassword.length < 8 && "at least 8 characters",
+      !/[A-Z]/.test(newPassword) && "an uppercase letter",
+      !/[0-9]/.test(newPassword) && "a number",
+      !/[^A-Za-z0-9\s]/.test(newPassword) && "a symbol (like ! ? @ #)",
+    ].filter((item): item is string => Boolean(item));
+    if (missing.length > 0) {
+      const joined = missing.length === 1
+        ? missing[0]
+        : `${missing.slice(0, -1).join(", ")} and ${missing[missing.length - 1]}`;
+      setPasswordError(`Your password needs ${joined}.`);
       setPasswordErrorField("newPassword");
       return;
     }

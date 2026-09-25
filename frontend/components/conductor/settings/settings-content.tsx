@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "@/contexts/auth-context";
 import { clearShift } from "@/lib/conductor/services/shift.service";
@@ -8,6 +8,13 @@ import { useConductorShift } from "@/app/(conductor)/hooks/use-conductor-shift";
 import { useRemittanceData } from "@/app/(conductor)/hooks/use-remittance-data";
 import { SettingsSkeleton } from "@/components/conductor/ui/skeleton";
 import SosConfirmModal from "@/components/conductor/modals/sos-confirm-modal";
+import ClearCacheModal from "@/components/conductor/modals/clear-cache-modal";
+import {
+  clearConductorCache,
+  getScanSoundEnabled,
+  setScanSoundEnabled,
+  subscribeScanSound,
+} from "@/lib/conductor/persistence/app-cache";
 
 /**
  * The actual Settings body — everything except page chrome (the outer
@@ -33,7 +40,21 @@ export default function SettingsContent({ showHeader = true }: { showHeader?: bo
   const { logout } = useAuth();
   const { shift, status: shiftStatus, error: shiftError } = useConductorShift();
   const { history, transactions, status: remitStatus, error: remitError } = useRemittanceData();
-  const [scanSound, setScanSound] = useState(true);
+  // Scan Sound is a per-device preference kept in localStorage. The server
+  // snapshot (on) matches the default, so hydration never mismatches.
+  const scanSound = useSyncExternalStore(subscribeScanSound, getScanSoundEnabled, () => true);
+  const [showClearCache, setShowClearCache] = useState(false);
+  const [cacheNotice, setCacheNotice] = useState<string | null>(null);
+
+  const toggleScanSound = () => {
+    setScanSoundEnabled(!scanSound);
+  };
+
+  const confirmClearCache = () => {
+    clearConductorCache(shift?.shiftId ?? null);
+    setShowClearCache(false);
+    setCacheNotice("Cache cleared. Your active shift and any unsynced cash were kept.");
+  };
 
   // ── Fetch the conductor's real profile (username) from the API ──
   const [conductorProfile, setConductorProfile] = useState<{ name: string; username: string } | null>(null);
@@ -223,7 +244,10 @@ export default function SettingsContent({ showHeader = true }: { showHeader?: bo
             </p>
           </div>
           <button
-            onClick={() => setScanSound(!scanSound)}
+            onClick={toggleScanSound}
+            role="switch"
+            aria-checked={scanSound}
+            aria-label="Scan Sound"
             className={`relative w-12 h-7 rounded-full transition-colors duration-300 flex-shrink-0 ${
               scanSound ? "bg-[#1A5FB4]" : "bg-gray-600"
             }`}
@@ -235,6 +259,24 @@ export default function SettingsContent({ showHeader = true }: { showHeader?: bo
             />
           </button>
         </div>
+
+        <button
+          onClick={() => { setCacheNotice(null); setShowClearCache(true); }}
+          className="mt-3 w-full flex items-center justify-between bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.06] rounded-xl px-4 py-3.5 transition-all active:scale-[0.99]"
+        >
+          <div className="text-left">
+            <p className="text-sm text-white font-semibold">Clear App Cache</p>
+            <p className="text-xs text-white/30 mt-0.5">
+              Remove saved copies of history. Your shift is not affected.
+            </p>
+          </div>
+          <svg className="w-4 h-4 text-white/30 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
+          </svg>
+        </button>
+        {cacheNotice && (
+          <p role="status" className="mt-2 text-xs font-medium text-emerald-400">{cacheNotice}</p>
+        )}
       </section>
 
       {/* ===== Emergency SOS ===== */}
@@ -331,6 +373,15 @@ export default function SettingsContent({ showHeader = true }: { showHeader?: bo
         isOpen={showSOS}
         onClose={() => setShowSOS(false)}
       />
+
+      {showClearCache && createPortal(
+        <ClearCacheModal
+          isOpen={showClearCache}
+          onClose={() => setShowClearCache(false)}
+          onConfirm={confirmClearCache}
+        />,
+        document.body,
+      )}
 
       {/* ===== Logout Confirmation Modal ===== */}
       {/* Portaled to <body>: inside the xl:+ Settings popover, this component
