@@ -414,13 +414,20 @@ class AuthController extends Controller
             return $this->errorResponse(self::PENDING_RESET_MESSAGE, 403);
         }
 
-        $user->forceFill([
-            'password' => Hash::make($request->password),
-            'remember_token' => Str::random(60),
-        ])->save();
+        // Sign out every existing session (web and mobile): a reset usually
+        // means the old password is forgotten or compromised, so a token
+        // issued under it must not outlive it. Consume the code — one
+        // successful reset per code — in the same transaction.
+        DB::transaction(function () use ($user, $request, $email) {
+            $user->forceFill([
+                'password' => Hash::make($request->password),
+                'remember_token' => Str::random(60),
+            ])->save();
 
-        // Consume the code — one successful reset per code.
-        DB::table('password_reset_tokens')->where('email', $email)->delete();
+            $user->tokens()->delete();
+
+            DB::table('password_reset_tokens')->where('email', $email)->delete();
+        });
 
         return $this->successResponse(null, 'Password reset successfully. You can now log in.');
     }
