@@ -512,7 +512,7 @@ export default function ProfilePage() {
                       autoComplete="new-password"
                     />
                     <p className="text-[10px] text-white/30 mt-1">
-                      Min 8 characters, with letters and numbers.
+                      At least 8 characters, with an uppercase letter, a number and a symbol.
                     </p>
                   </div>
                   <div>

@@ -521,6 +521,28 @@ class ConductorController extends Controller
     public function units(Request $request): JsonResponse
     {
         $profileId = $request->user()->conductorProfile?->id;
+
+        // Opt-in (web Unit Verification): list every unit, each with the
+        // reason it can't be used, worded exactly as ShiftService::startShift
+        // would refuse it. Default output is unchanged for other clients.
+        if ($request->boolean('include_unavailable')) {
+            $units = Vehicle::with('route')
+                ->orderBy('unit_number')
+                ->get()
+                ->each(function (Vehicle $vehicle) use ($profileId) {
+                    $vehicle->setAttribute('unavailable_reason', match (true) {
+                        $vehicle->active_shift_id !== null => 'Vehicle already on active shift',
+                        $vehicle->status !== 'ACTIVE' => 'The assigned vehicle and driver must both be active.',
+                        $vehicle->conductor_id !== null && $vehicle->conductor_id !== $profileId => 'Vehicle is assigned to another conductor.',
+                        default => null,
+                    });
+                })
+                ->sortBy(fn (Vehicle $vehicle) => $vehicle->unavailable_reason === null ? 0 : 1)
+                ->values();
+
+            return $this->successResponse($units, 'Vehicles retrieved');
+        }
+
         $units = Vehicle::with('route')
             ->where('status', 'ACTIVE')
             ->whereDoesntHave('activeShift')
@@ -540,6 +562,34 @@ class ConductorController extends Controller
     public function drivers(Request $request): JsonResponse
     {
         $profileId = $request->user()->conductorProfile?->id;
+
+        // Same opt-in as units(): every driver plus the startShift refusal
+        // that would apply to them.
+        if ($request->boolean('include_unavailable')) {
+            $assignedElsewhere = Vehicle::query()
+                ->whereNotNull('driver_id')
+                ->whereNotNull('conductor_id')
+                ->where('conductor_id', '!=', $profileId)
+                ->pluck('driver_id')
+                ->flip();
+
+            $drivers = Driver::query()
+                ->orderBy('first_name')
+                ->get()
+                ->each(function (Driver $driver) use ($assignedElsewhere) {
+                    $driver->setAttribute('unavailable_reason', match (true) {
+                        $driver->active_shift_id !== null => 'Driver already on active shift',
+                        $driver->status !== 'ACTIVE' => 'The assigned vehicle and driver must both be active.',
+                        $assignedElsewhere->has($driver->id) => 'Driver is assigned to another conductor.',
+                        default => null,
+                    });
+                })
+                ->sortBy(fn (Driver $driver) => $driver->unavailable_reason === null ? 0 : 1)
+                ->values();
+
+            return $this->successResponse($drivers, 'Drivers retrieved');
+        }
+
         $drivers = Driver::query()
             ->where('status', 'ACTIVE')
             ->whereDoesntHave('activeShift')

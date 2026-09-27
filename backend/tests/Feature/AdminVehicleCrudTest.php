@@ -166,6 +166,27 @@ class AdminVehicleCrudTest extends TestCase
         ]);
     }
 
+    /** TC-SYS-RELIABILITY-341: two admins save the same vehicle; last save wins. */
+    public function test_two_admins_saving_the_same_vehicle_last_save_wins(): void
+    {
+        $adminA = $this->makeAdmin();
+        $adminB = User::create([
+            'email' => 'admin2@gmail.com', 'password' => Hash::make('password123'), 'role' => UserRole::ADMIN,
+        ]);
+        AdminProfile::create(['id' => $adminB->id, 'first_name' => 'Second', 'last_name' => 'Admin']);
+        $vehicle = $this->makeVehicle(['status' => 'ACTIVE']);
+
+        $this->actingAs($adminA)->putJson("/api/v1/admin/vehicles/{$vehicle->id}", [
+            'plate_number' => 'AAA-1111', 'status' => 'MAINTENANCE',
+        ])->assertOk();
+
+        $this->actingAs($adminB)->putJson("/api/v1/admin/vehicles/{$vehicle->id}", [
+            'plate_number' => 'BBB-2222', 'status' => 'INACTIVE',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('vehicles', ['id' => $vehicle->id, 'plate_number' => 'BBB-2222', 'status' => 'INACTIVE']);
+    }
+
     public function test_update_allows_keeping_own_plate_number(): void
     {
         $admin = $this->makeAdmin();

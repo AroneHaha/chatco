@@ -35,6 +35,8 @@ interface ConductorDetail {
   emergency_contact_relationship: string | null;
   profile_picture_url: string | null;
   generated_username: string | null;
+  /** ACTIVE, or DISABLED after "Disable Account" (cleared by a reset). */
+  status: string;
   vehicle: {
     id: string;
     unit_number: string;
@@ -68,6 +70,19 @@ const SHIFT_LOGS_PER_PAGE = 10;
 interface ConductorDetailModalProps {
   conductor: Personnel | null;
   onClose: () => void;
+  /** Fired after Reset Credentials / Disable Account succeeds so the
+   *  Personnel list can refresh the conductor's status. */
+  onChanged?: () => void;
+}
+
+/**
+ * The backend puts the specific reason for a refusal ("The password you
+ * entered is incorrect.", the active-shift conflict) in `errors`, under a
+ * generic top-level message such as "Validation failed" or "Conflict".
+ */
+function responseErrorMessage(data: { message?: string; errors?: Record<string, string[]> } | null, fallback: string): string {
+  const first = data?.errors ? Object.values(data.errors).flat().find(Boolean) : undefined;
+  return first ?? data?.message ?? fallback;
 }
 
 function calculateAge(birthday: string | null): string {
@@ -113,7 +128,7 @@ function formatDateTime(dateStr: string | null): string {
   }
 }
 
-export function ConductorDetailModal({ conductor, onClose }: ConductorDetailModalProps) {
+export function ConductorDetailModal({ conductor, onClose, onChanged }: ConductorDetailModalProps) {
   const [details, setDetails] = useState<ConductorDetail | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -151,12 +166,16 @@ export function ConductorDetailModal({ conductor, onClose }: ConductorDetailModa
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({ current_password: password }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => null);
     if (!res.ok) {
-      throw new Error(data.message ?? 'Failed to reset credentials.');
+      throw new Error(responseErrorMessage(data, 'Failed to reset credentials.'));
     }
     const d = data.data;
-    setActionResult(`New credentials — Username: ${d.generated_username} | Password: ${d.generated_password}`);
+    setActionResult(
+      `${data.message ?? 'Credentials reset successfully. The conductor must log in with the new credentials.'} New credentials — Username: ${d.generated_username} | Password: ${d.generated_password}`
+    );
+    setDetails(prev => (prev ? { ...prev, status: 'ACTIVE', generated_username: d.generated_username } : prev));
+    onChanged?.();
   };
 
   const handleDisableAccount = async (password: string) => {
@@ -167,11 +186,15 @@ export function ConductorDetailModal({ conductor, onClose }: ConductorDetailModa
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({ current_password: password }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => null);
     if (!res.ok) {
-      throw new Error(data.message ?? 'Failed to disable account.');
+      throw new Error(responseErrorMessage(data, 'Failed to disable account.'));
     }
-    setActionResult('Account disabled. All sessions revoked — the conductor cannot log in until credentials are reset.');
+    setActionResult(
+      `${data?.message ?? 'Conductor account disabled. All sessions revoked.'} The conductor cannot log in until credentials are reset.`
+    );
+    setDetails(prev => (prev ? { ...prev, status: 'DISABLED' } : prev));
+    onChanged?.();
   };
 
   const fetchDetails = async () => {
@@ -304,7 +327,11 @@ export function ConductorDetailModal({ conductor, onClose }: ConductorDetailModa
             <span className="inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-md bg-amber-400/15 text-amber-400">
               Conductor
             </span>
-            <Badge variant="success">ACTIVE</Badge>
+            {details?.status === 'DISABLED' ? (
+              <Badge variant="danger">DEACTIVATED</Badge>
+            ) : (
+              <Badge variant="success">ACTIVE</Badge>
+            )}
           </div>
           <p className="text-[10px] text-slate-600 font-mono mt-1.5">
             ID: {conductor.id.slice(0, 8)}…

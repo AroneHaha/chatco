@@ -64,6 +64,9 @@ export function AnnouncementFormModal({
   // Whether the free-form "Other" category textbox is showing. Only relevant
   // while the modal is open; derived from the loaded type on open (see below).
   const [isOtherMode, setIsOtherMode] = useState(false);
+  // Blank-field errors found before anything is sent. Shown in the same slot
+  // as the backend's 422 field errors.
+  const [localErrors, setLocalErrors] = useState<{ title?: string; message?: string }>({});
   // Track the previous open-state + target so we can reset the form whenever
   // the modal opens or switches target. Per the React docs, this "adjust state
   // during render" pattern is preferred over syncing via useEffect (which
@@ -78,6 +81,7 @@ export function AnnouncementFormModal({
         ? { title: initial.title, message: initial.message, type: initial.type }
         : emptyForm;
       setFormData(nextForm);
+      setLocalErrors({});
       // A saved type that isn't one of the suggested chips (e.g. a custom
       // category typed in a previous edit) means "Other" was in effect.
       setIsOtherMode(!!nextForm.type && !TYPE_SUGGESTIONS.includes(nextForm.type));
@@ -89,6 +93,9 @@ export function AnnouncementFormModal({
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    if (name === 'title' || name === 'message') {
+      setLocalErrors((prev) => ({ ...prev, [name]: undefined }));
+    }
   };
 
   const handleTypeChip = (type: string) => {
@@ -111,6 +118,12 @@ export function AnnouncementFormModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const errors = {
+      title: formData.title.trim() ? undefined : 'The title is required.',
+      message: formData.message.trim() ? undefined : 'The message is required.',
+    };
+    setLocalErrors(errors);
+    if (errors.title || errors.message) return;
     void onSubmit(formData);
   };
 
@@ -132,7 +145,7 @@ export function AnnouncementFormModal({
           : 'Publish a new announcement. It will appear in the commuter bell within 30s.'}
       </p>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} noValidate className="space-y-4">
         {/* Title */}
         <div>
           <label htmlFor="title" className="block text-xs font-medium text-slate-300 mb-1.5">
@@ -148,11 +161,11 @@ export function AnnouncementFormModal({
             maxLength={200}
             placeholder="e.g., Route 14 Detour Starting Monday"
             className={inputClasses}
-            aria-invalid={!!fieldErrors?.title}
+            aria-invalid={!!(localErrors.title || fieldErrors?.title)}
           />
           <div className="flex items-center justify-between mt-1">
             <p className="text-[11px] text-red-400">
-              {fieldErrors?.title?.[0] ?? ''}
+              {localErrors.title ?? fieldErrors?.title?.[0] ?? ''}
             </p>
             <p className="text-[10px] text-slate-600">{titleLen}/200</p>
           </div>
@@ -242,11 +255,11 @@ export function AnnouncementFormModal({
             rows={6}
             placeholder="Write the full announcement body. Commuters will see this when they click the bell."
             className={`${inputClasses} resize-y min-h-[140px]`}
-            aria-invalid={!!fieldErrors?.message}
+            aria-invalid={!!(localErrors.message || fieldErrors?.message)}
           />
           <div className="flex items-center justify-between mt-1">
             <p className="text-[11px] text-red-400">
-              {fieldErrors?.message?.[0] ?? ''}
+              {localErrors.message ?? fieldErrors?.message?.[0] ?? ''}
             </p>
             <p className="text-[10px] text-slate-600">{messageLen}/5000</p>
           </div>
@@ -274,7 +287,7 @@ export function AnnouncementFormModal({
           </button>
           <button
             type="submit"
-            disabled={isSubmitting || !formData.title.trim() || !formData.message.trim()}
+            disabled={isSubmitting}
             className="flex items-center justify-center gap-2 px-4 py-2 bg-[#62A0EA] text-white text-xs font-semibold rounded-md hover:bg-[#4A8BD4] transition-colors shadow-lg shadow-[#62A0EA]/30 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting && (

@@ -20,7 +20,9 @@ export interface RegisterInput {
   password_confirmation: string;
   applied_type: AppliedType;
   language_preference?: string;
-  id_image: File;
+  /** Optional only for a REGULAR commuter while the admin's "Force Valid ID
+   *  Upload" setting is off; the backend enforces who must send one. */
+  id_image: File | null;
 }
 
 export interface RegisterResult {
@@ -66,7 +68,7 @@ export async function register(input: RegisterInput): Promise<RegisterResult> {
   formData.append("password_confirmation", input.password_confirmation);
   formData.append("applied_type", input.applied_type);
   if (input.language_preference) formData.append("language_preference", input.language_preference);
-  formData.append("id_image", input.id_image);
+  if (input.id_image) formData.append("id_image", input.id_image);
 
   const res = await fetch("/api/auth/register", {
     method: "POST",

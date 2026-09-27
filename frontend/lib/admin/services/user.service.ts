@@ -405,19 +405,7 @@ export async function remove(id: string): Promise<void> {
     credentials: "include",
   });
 
-  if (!res.ok) {
-    const message = await safeMessage(res);
-    if (res.status === 422) {
-      const errorBody = await safeJson(res);
-      throw new UserOperationError(
-        "validation",
-        message,
-        undefined,
-        errorBody?.errors ?? undefined
-      );
-    }
-    throw translateError(res.status, message);
-  }
+  if (!res.ok) throw await operationError(res);
 }
 
 export async function suspend(id: string, input: SuspendUserInput): Promise<AdminUser> {
@@ -433,7 +421,7 @@ export async function suspend(id: string, input: SuspendUserInput): Promise<Admi
     }),
   });
 
-  if (!res.ok) throw translateError(res.status, await safeMessage(res));
+  if (!res.ok) throw await operationError(res);
   const json = await res.json();
   return mapUser(json.data as RawUser);
 }
@@ -467,6 +455,22 @@ async function safeJson(res: Response): Promise<{ message?: string; errors?: Rec
   } catch {
     return null;
   }
+}
+
+/**
+ * Build the error for a failed delete/suspend. The backend wraps guard
+ * failures ("You cannot delete your own account.", "Cannot delete the last
+ * administrator account.", the 5-character reason rule) in a 422 envelope
+ * whose top-level message is the generic "Validation failed", so the
+ * specific text is lifted from the `errors` map where the guard put it.
+ */
+async function operationError(res: Response): Promise<UserOperationError> {
+  const message = await safeMessage(res);
+  if (res.status !== 422) return translateError(res.status, message);
+
+  const errors = (await safeJson(res))?.errors ?? undefined;
+  const first = errors ? Object.values(errors).flat().find(Boolean) : undefined;
+  return new UserOperationError("validation", first ?? message, undefined, errors);
 }
 
 function translateError(status: number, message: string): UserOperationError {

@@ -215,6 +215,7 @@ export default function UsersPage() {
 
   // Suspend / Reactivate — toggles account_status via the API.
   const handleDeactivateUser = (user: ActiveUser): void => {
+    setActionError(null);
     setSuspensionUser(user);
   };
 
@@ -645,7 +646,8 @@ export default function UsersPage() {
         user={suspensionUser}
         isOpen={!!suspensionUser}
         isProcessing={isSuspensionProcessing}
-        onClose={() => setSuspensionUser(null)}
+        error={suspensionUser ? actionError : null}
+        onClose={() => { setSuspensionUser(null); setActionError(null); }}
         onSuspend={handleSuspendUser}
         onUnsuspend={handleUnsuspendUser}
       />

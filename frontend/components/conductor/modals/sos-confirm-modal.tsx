@@ -35,6 +35,8 @@ type SosStatus =
 interface AlertPayload {
   id: string;
   status: "ACTIVE" | "ACKNOWLEDGED" | "RESOLVED";
+  /** Admin-configured emergency hotline, returned when the SOS is sent. */
+  emergency_hotline?: string | null;
 }
 
 const POLL_INTERVAL_MS = 3000;
@@ -51,6 +53,7 @@ export default function SosConfirmModal({
   const [activeSeconds, setActiveSeconds] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [alertId, setAlertId] = useState<string | null>(null);
+  const [hotline, setHotline] = useState<string | null>(null);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -156,6 +159,7 @@ export default function SosConfirmModal({
       }
 
       setAlertId(alert.id);
+      setHotline(alert.emergency_hotline ?? null);
       setStatus("active");
     } catch {
       setStatus("error");
@@ -299,6 +303,16 @@ export default function SosConfirmModal({
               <svg className="w-5 h-5 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.362 5.214A8.252 8.252 0 0 1 12 21 8.25 8.25 0 0 1 6.038 7.047 8.287 8.287 0 0 0 9 9.601a8.983 8.983 0 0 1 3.361-6.867 8.21 8.21 0 0 0 3 2.48Z" /></svg>
               {formatTimer(activeSeconds)}
             </div>
+
+            {hotline && (
+              <a
+                href={`tel:${hotline.replace(/[^\d+]/g, "")}`}
+                className="mx-auto mb-5 flex max-w-[260px] items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-3 text-sm font-bold text-red-700 hover:bg-red-50"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" /></svg>
+                Emergency hotline: {hotline}
+              </a>
+            )}
 
             <p className="text-xs text-gray-400 leading-relaxed max-w-[250px] mx-auto">
               Please keep the app open. This screen will automatically update once the admin responds.

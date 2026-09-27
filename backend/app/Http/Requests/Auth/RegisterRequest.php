@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\Setting;
 use App\Rules\PhilippineMobileNumber;
 use App\Rules\StrongPassword;
 use Illuminate\Foundation\Http\FormRequest;
@@ -89,7 +90,13 @@ class RegisterRequest extends FormRequest
             'password' => ['required', 'string', 'confirmed', new StrongPassword],
             'language_preference' => ['nullable', 'string', 'max:20'],
             'applied_type' => ['required', 'string', Rule::in(['REGULAR', 'STUDENT', 'SENIOR', 'PWD'])],
-            'id_image' => ['required', 'file', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
+            // Discount types must prove eligibility, so their ID is always
+            // required; a REGULAR commuter's ID follows the admin's
+            // "Force Valid ID Upload" setting.
+            'id_image' => [
+                Rule::requiredIf(fn () => $this->input('applied_type') !== 'REGULAR' || Setting::requiresIdUpload()),
+                'nullable', 'file', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120',
+            ],
         ];
     }
 

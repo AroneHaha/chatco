@@ -5,7 +5,7 @@ import { DataTable } from '@/components/admin/ui/data-table';
 import { TablePagination } from '@/components/admin/ui/table-pagination';
 import { Badge } from '@/components/admin/ui/badge';
 import { SearchBar } from '@/components/admin/ui/search-bar';
-import { Pencil, Clock, Car, Plus } from 'lucide-react'; // Added icons
+import { Pencil, Clock, Car, Plus, Trash2 } from 'lucide-react'; // Added icons
 import type { PageMeta, Vehicle } from '@/app/(admin)/vehicles/data/vehicles-data';
 import { SkeletonTable } from '@/components/admin/ui/skeleton';
 
@@ -20,6 +20,7 @@ interface VehicleTableProps {
   onAddVehicle: () => void;
   onEdit: (vehicle: Vehicle) => void;
   onEditShift: (vehicle: Vehicle) => void;
+  onDelete: (vehicle: Vehicle) => void;
   /** Double-clicking a row opens the vehicle details (incl. permanent QR). */
   onRowDoubleClick?: (vehicle: Vehicle) => void;
   isLoading?: boolean;
@@ -34,6 +35,7 @@ export function VehicleTable({
   onAddVehicle,
   onEdit,
   onEditShift,
+  onDelete,
   onRowDoubleClick,
   isLoading = false,
 }: VehicleTableProps) {
@@ -79,8 +81,8 @@ export function VehicleTable({
       key: 'actions',
       label: 'Actions',
       align: 'center' as const,
-      headerClassName: 'w-24',
-      cellClassName: 'w-24',
+      headerClassName: 'w-32',
+      cellClassName: 'w-32',
       // We pass the whole row (vehicle) to the render function so we can trigger the modals
       render: (_: unknown, row: Vehicle) => (
         // Stop double-click on the action buttons from also opening the
@@ -113,6 +115,20 @@ export function VehicleTable({
             className="p-1.5 text-slate-400 hover:text-white hover:bg-[#1A2540] rounded-md transition-colors"
           >
             <Pencil size={16} />
+          </button>
+
+          {/* Delete Vehicle Button (trash icon) — the backend refuses with
+              409 while the unit is on an active shift; the modal shows why. */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(row);
+            }}
+            title="Delete vehicle"
+            aria-label={`Delete vehicle ${row.plateNumber}`}
+            className="p-1.5 text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
+          >
+            <Trash2 size={16} />
           </button>
         </div>
       )

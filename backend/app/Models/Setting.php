@@ -58,6 +58,22 @@ class Setting extends Model
         });
     }
 
+    /** Settings > App Configuration > "Force Valid ID Upload". */
+    public const REQUIRE_ID_UPLOAD_KEY = 'require_id_upload';
+
+    /**
+     * Whether a REGULAR commuter must upload an ID to register. Defaults to
+     * true (the behaviour before this setting was read) until an admin saves
+     * the toggle. Student, Senior and PWD applicants always need an ID: it is
+     * the proof of their discount, so this toggle never relaxes it for them.
+     */
+    public static function requiresIdUpload(): bool
+    {
+        $value = static::query()->where('key', self::REQUIRE_ID_UPLOAD_KEY)->value('value');
+
+        return $value === null || $value === 'true';
+    }
+
     /**
      * Return a calculation-safe reward threshold.
      *

@@ -569,5 +569,49 @@ class AuthTest extends TestCase
         $this->assertTrue(Hash::check('password123', $commuter->fresh()->password));
         $this->assertDatabaseMissing('password_reset_tokens', ['email' => 'commuter1@gmail.com']);
     }
-}
 
+    public function test_reset_password_revokes_existing_web_and_mobile_sessions(): void
+    {
+        $commuter = $this->seedCommuter();
+
+        $tokens = [];
+        foreach (['WEB' => 'web-commuter-device-123', 'MOBILE' => 'mobile-commuter-device-456'] as $type => $deviceId) {
+            $tokens[] = $this->postJson('/api/v1/auth/login', [
+                'login' => 'commuter1@gmail.com',
+                'password' => 'password123',
+                'device_id' => $deviceId,
+                'device_type' => $type,
+            ])->assertOk()->json('data.token');
+        }
+        $this->assertSame(2, $commuter->tokens()->count());
+
+        DB::table('password_reset_tokens')->insert([
+            'email' => 'commuter1@gmail.com',
+            'token' => Hash::make('123456'),
+            'attempts' => 0,
+            'created_at' => now(),
+        ]);
+
+        $this->postJson('/api/v1/auth/reset-password', [
+            'email' => 'commuter1@gmail.com',
+            'code' => '123456',
+            'password' => 'Chatco@123',
+            'password_confirmation' => 'Chatco@123',
+        ])->assertOk();
+
+        $this->assertSame(0, $commuter->tokens()->count());
+        $this->assertDatabaseMissing('password_reset_tokens', ['email' => 'commuter1@gmail.com']);
+
+        foreach ($tokens as $token) {
+            app('auth')->forgetGuards();
+            $this->withHeader('Authorization', "Bearer {$token}")
+                ->getJson('/api/v1/user')
+                ->assertUnauthorized();
+        }
+
+        $this->postJson('/api/v1/auth/login', [
+            'login' => 'commuter1@gmail.com',
+            'password' => 'Chatco@123',
+        ])->assertOk();
+    }
+}

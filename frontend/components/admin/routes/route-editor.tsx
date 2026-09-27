@@ -482,17 +482,31 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
         </div>
       </div>
 
-      <div className="grid gap-2 md:grid-cols-3">
-        {versions.slice(0, 3).map((version) => (
-          <div key={version.id} className="rounded-xl border border-white/5 bg-[#050F1A]/70 px-3 py-2 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-white">v{version.number}</span>
-              <span className={version.status === "PUBLISHED" ? "text-emerald-400" : "text-amber-400"}>{version.status}</span>
-            </div>
-            <p className="mt-1 truncate text-white/35">{version.notes || "No revision note"}</p>
-            <p className="mt-1 text-[10px] text-white/25">{formatVersionDate(version.published_at)}</p>
+      {/* Route versions — every version, newest first, with its publish date
+          and revision note. Previously only the latest three were shown with
+          no heading, so older published versions were unreachable. */}
+      <div>
+        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-white/35">
+          Route versions ({versions.length})
+        </p>
+        {versions.length === 0 ? (
+          <p className="rounded-xl border border-white/5 bg-[#050F1A]/70 px-3 py-2 text-xs text-white/35">No versions saved yet.</p>
+        ) : (
+          <div className="grid max-h-56 gap-2 overflow-y-auto pr-1 md:grid-cols-3">
+            {versions.map((version) => (
+              <div key={version.id} className="rounded-xl border border-white/5 bg-[#050F1A]/70 px-3 py-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-white">v{version.number}</span>
+                  <span className={version.status === "PUBLISHED" ? "text-emerald-400" : "text-amber-400"}>
+                    {version.status}{version.is_temporary ? " · DETOUR" : ""}
+                  </span>
+                </div>
+                <p className="mt-1 truncate text-white/35" title={version.notes ?? undefined}>{version.notes || "No revision note"}</p>
+                <p className="mt-1 text-[10px] text-white/25">{formatVersionDate(version.published_at)}</p>
+              </div>
+            ))}
           </div>
-        ))}
+        )}
       </div>
 
       <p className="flex items-center gap-1.5 text-[10px] text-white/30">

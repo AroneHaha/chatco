@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { jsonError, jsonData } from "@/lib/conductor/server/response";
+import { jsonError, jsonData, jsonValidationError } from "@/lib/conductor/server/response";
 import { proxyToLaravel } from "@/lib/conductor/server/proxy";
 
 /**
@@ -30,6 +30,12 @@ export async function POST(
     body,
   });
 
+  // Pass the errors map through: it carries the specific reason ("The
+  // password you entered is incorrect.", the active-shift conflict) under a
+  // generic top-level message.
+  if (!result.ok && (result.status === 422 || result.status === 409)) {
+    return jsonValidationError(result.message ?? "Request failed.", result.errors, result.status);
+  }
   if (!result.ok) return jsonError(result.message ?? "Failed to reset credentials.", result.status);
   return jsonData(result.data);
 }

@@ -6,6 +6,9 @@ interface Props {
   driver: ConductorDriver | null;
   conductorName: string;
   isProcessing: boolean;
+  /** Why the backend refused to start the shift (e.g. "Vehicle is assigned
+   *  to another driver."). Shown here because the page behind is covered. */
+  error?: string | null;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -16,6 +19,7 @@ export default function StartShiftModal({
   driver,
   conductorName,
   isProcessing,
+  error = null,
   onConfirm,
   onCancel,
 }: Props) {
@@ -96,6 +100,12 @@ export default function StartShiftModal({
               Action cannot be undone without admin assistance.
             </p>
           </div>
+
+          {error && (
+            <p role="alert" className="mb-3 rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-center text-xs font-medium text-red-300">
+              {error}
+            </p>
+          )}
 
           <div className="flex gap-3">
             <button

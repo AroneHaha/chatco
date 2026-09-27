@@ -13,7 +13,11 @@ return [
         'http://127.0.0.1:8082',
     ],
 
-    'allowed_origins_patterns' => [
+    // Any-port localhost and private-LAN origins, for Expo/Metro dev servers
+    // and phones testing over Wi-Fi. Native mobile builds don't send an Origin
+    // (CORS is browser-only), so production doesn't need these and doesn't
+    // open credentialed CORS to every private-network host.
+    'allowed_origins_patterns' => env('APP_ENV', 'production') === 'production' ? [] : [
         '#^http://localhost(:\d+)?$#',
         '#^http://127\.0\.0\.1(:\d+)?$#',
         '#^http://192\.168\.\d+\.\d+(:\d+)?$#',

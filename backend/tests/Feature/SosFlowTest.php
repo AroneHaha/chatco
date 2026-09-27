@@ -136,6 +136,31 @@ class SosFlowTest extends TestCase
         $response->assertStatus(422);
     }
 
+    /** TC-ADMIN-SET-139 (hotline part): the conductor's SOS shows the configured hotline. */
+    public function test_conductor_sos_returns_the_configured_emergency_hotline(): void
+    {
+        \App\Models\Setting::query()->updateOrCreate(
+            ['key' => 'emergency_hotline'],
+            ['value' => '0917 555 0911', 'category' => 'safety'],
+        );
+        Sanctum::actingAs($this->conductor);
+
+        // The SQLite test schema keeps sos_alerts.commuter_id NOT NULL (the
+        // migration that relaxes it skips SQLite), so a conductor alert can't
+        // be inserted here. Stub the service; this test covers the controller
+        // adding the hotline to the response.
+        $this->mock(\App\Services\SosService::class, function ($mock) {
+            $mock->shouldReceive('triggerForConductor')->once()->andReturn(
+                (new SosAlert)->forceFill(['id' => 'sos-1', 'sender_role' => 'CONDUCTOR', 'status' => 'ACTIVE'])
+            );
+        });
+
+        $this->postJson('/api/v1/conductor/sos', ['lat' => 14.84, 'lng' => 120.87])
+            ->assertStatus(201)
+            ->assertJsonPath('data.status', 'ACTIVE')
+            ->assertJsonPath('data.emergency_hotline', '0917 555 0911');
+    }
+
     public function test_admin_cannot_trigger_sos(): void
     {
         $this->admin();

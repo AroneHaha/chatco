@@ -9,7 +9,7 @@ import { mapDriver, mapArray } from "@/lib/conductor/server/mappers";
  * Proxies to Laravel `GET /api/v1/conductor/drivers` (role:CONDUCTOR).
  */
 export async function GET(request: NextRequest) {
-  const result = await proxyToLaravel(request, "/conductor/drivers");
+  const result = await proxyToLaravel(request, "/conductor/drivers?include_unavailable=1");
 
   if (result.ok) {
     const drivers = mapArray(result.data, mapDriver);

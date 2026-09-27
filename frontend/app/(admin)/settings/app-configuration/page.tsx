@@ -143,7 +143,7 @@ export default function AppConfigurationPage() {
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex-1">
                   <p className="text-white font-medium">Force Valid ID Upload</p>
-                  <p className="text-xs text-slate-500 mt-0.5">Commuters cannot register without uploading a picture of their ID.</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Regular commuters cannot register without uploading a picture of their ID. Student, Senior, and PWD applicants always upload one to prove their discount.</p>
                 </div>
                 <div className="w-full sm:w-auto flex justify-start sm:justify-end flex-shrink-0">
                   <label className="relative inline-flex items-center cursor-pointer">

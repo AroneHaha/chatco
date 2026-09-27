@@ -10,6 +10,8 @@ interface SuspensionModalProps {
   user: ActiveUser | null;
   isOpen: boolean;
   isProcessing: boolean;
+  /** Server-side rejection (e.g. "You cannot suspend your own account."). */
+  error?: string | null;
   onClose: () => void;
   onSuspend: (input: SuspendUserInput) => Promise<void>;
   onUnsuspend: () => Promise<void>;
@@ -28,6 +30,7 @@ export function SuspensionModal({
   user,
   isOpen,
   isProcessing,
+  error = null,
   onClose,
   onSuspend,
   onUnsuspend,
@@ -36,9 +39,25 @@ export function SuspensionModal({
   const [reason, setReason] = useState("");
   const [duration, setDuration] = useState<1 | 3 | 7 | 14 | 30 | 90>(7);
   const [isPermanent, setIsPermanent] = useState(false);
+  const [reasonError, setReasonError] = useState<string | null>(null);
 
   if (!user) return null;
   const suspended = user.status === "Suspended";
+
+  // Same 5-character floor the backend enforces; checked on click so the
+  // admin sees why nothing happened instead of a silently disabled button.
+  const handleConfirm = () => {
+    if (suspended) {
+      void onUnsuspend();
+      return;
+    }
+    if (reason.trim().length < 5) {
+      setReasonError("The reason must be at least 5 characters.");
+      return;
+    }
+    setReasonError(null);
+    void onSuspend({ reasonCode, reason: reason.trim(), isPermanent, durationDays: isPermanent ? undefined : duration });
+  };
 
   return (
     <Modal isOpen={isOpen} onClose={() => { if (!isProcessing) onClose(); }}>
@@ -84,13 +103,20 @@ export function SuspensionModal({
               <span className="mb-2 block text-sm font-medium text-slate-300">Details</span>
               <textarea
                 value={reason}
-                onChange={(event) => setReason(event.target.value)}
+                onChange={(event) => { setReason(event.target.value); setReasonError(null); }}
                 disabled={isProcessing}
                 rows={3}
                 maxLength={500}
                 placeholder="Explain why this account is being suspended."
-                className="w-full resize-none rounded-lg border border-[#1E2D45] bg-[#0E1628] px-3 py-2.5 text-white placeholder:text-slate-600"
+                aria-invalid={Boolean(reasonError)}
+                aria-describedby={reasonError ? "suspension-reason-error" : undefined}
+                className={`w-full resize-none rounded-lg border bg-[#0E1628] px-3 py-2.5 text-white placeholder:text-slate-600 ${
+                  reasonError ? "border-red-500/60" : "border-[#1E2D45]"
+                }`}
               />
+              {reasonError && (
+                <span id="suspension-reason-error" className="mt-1.5 block text-sm text-red-400">{reasonError}</span>
+              )}
             </label>
 
             <label className="flex items-center gap-3 text-sm text-slate-300">
@@ -120,6 +146,12 @@ export function SuspensionModal({
           </>
         )}
 
+        {error && (
+          <div role="alert" className="rounded-md border border-red-500/30 bg-red-500/10 p-3">
+            <p className="text-sm text-red-400">{error}</p>
+          </div>
+        )}
+
         <div className="flex justify-end gap-3">
           <button
             type="button"
@@ -131,10 +163,8 @@ export function SuspensionModal({
           </button>
           <button
             type="button"
-            disabled={isProcessing || (!suspended && reason.trim().length < 5)}
-            onClick={() => suspended
-              ? void onUnsuspend()
-              : void onSuspend({ reasonCode, reason: reason.trim(), isPermanent, durationDays: isPermanent ? undefined : duration })}
+            disabled={isProcessing}
+            onClick={handleConfirm}
             className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 ${
               suspended ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700"
             }`}

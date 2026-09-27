@@ -3,7 +3,7 @@
 namespace App\Http\Requests\Commuter;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rules\Password;
+use App\Rules\StrongPassword;
 
 /**
  * Validates POST /api/v1/commuter/change-password.
@@ -28,7 +28,7 @@ class ChangePasswordRequest extends FormRequest
     {
         return [
             'current_password' => ['required', 'string'],
-            'password' => ['required', 'confirmed', Password::min(8)->letters()->numbers()],
+            'password' => ['required', 'confirmed', new StrongPassword],
         ];
     }
 
