@@ -22,7 +22,10 @@ class AnnouncementSeeder extends Seeder
 {
     public function run(): void
     {
-        $admin = User::where('role', UserRole::ADMIN)->first();
+        // Prefer the system admin; with several admins seeded, first() alone
+        // would pick an arbitrary one (UUID primary keys have no insert order).
+        $admin = User::where('email', 'admin@gmail.com')->first()
+            ?? User::where('role', UserRole::ADMIN)->first();
 
         // [type, title, message, status, daysAgo]
         $items = [
