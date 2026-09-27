@@ -159,18 +159,20 @@ class AuthService
                 }
             }
 
-            // --- Phase 3: Platform-scoped session isolation for conductors ---
-            // A conductor logging in on MOBILE must not revoke the active WEB
-            // token (and vice-versa), so each platform maintains its own token
-            // slot.  Only tokens belonging to the same platform are replaced.
+            // --- Platform-scoped session isolation for conductors & commuters ---
+            // A conductor or commuter logging in on MOBILE must not revoke the
+            // active WEB token (and vice-versa). Each platform maintains its own
+            // token slot.
             //
             // Rules:
-            //   • conductor + known deviceType  → delete same-platform tokens only
-            //   • conductor + null deviceType   → delete all tokens (legacy path,
-            //                                     keeps all existing AuthTests green)
-            //   • any other role                → delete all tokens (standard
-            //                                     single-session security)
-            if ($lockedUser->isConductor() && $deviceType !== null) {
+            //   • (conductor or commuter) + known deviceType → delete same-platform tokens only
+            //   • null deviceType                           → delete all tokens (legacy path,
+            //                                                 keeps all existing AuthTests green)
+            //   • any other role (admin)                    → delete all tokens (standard
+            //                                                 single-session security)
+            $isPlatformScopedRole = $lockedUser->isConductor() || $lockedUser->isCommuter();
+
+            if ($isPlatformScopedRole && $deviceType !== null) {
                 $tokenName = 'auth-token:' . $deviceType;
                 // Also sweep the legacy, non-platform-scoped token name so a
                 // session created before this platform-scoping shipped doesn't
@@ -181,7 +183,7 @@ class AuthService
                 $deviceType = null; // force generic token name below
             }
 
-            $tokenName = ($lockedUser->isConductor() && $deviceType !== null)
+            $tokenName = ($isPlatformScopedRole && $deviceType !== null)
                 ? 'auth-token:' . $deviceType
                 : 'auth-token';
 

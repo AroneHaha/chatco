@@ -451,6 +451,68 @@ class AuthTest extends TestCase
         $this->assertEquals('Jose', $response->json('data.profile.first_name'));
     }
 
+    public function test_commuter_login_cross_platform_session_isolation(): void
+    {
+        $commuter = $this->seedCommuter();
+
+        // 1. Commuter logs in on WEB
+        $webRes = $this->postJson('/api/v1/auth/login', [
+            'login' => 'commuter1@gmail.com',
+            'password' => 'password123',
+            'device_id' => 'web-commuter-device-123',
+            'device_type' => 'WEB',
+        ])->assertOk();
+        $webToken = $webRes->json('data.token');
+
+        // 2. Commuter logs in on MOBILE
+        $mobileRes1 = $this->postJson('/api/v1/auth/login', [
+            'login' => 'commuter1@gmail.com',
+            'password' => 'password123',
+            'device_id' => 'mobile-commuter-device-456',
+            'device_type' => 'MOBILE',
+        ])->assertOk();
+        $mobileToken1 = $mobileRes1->json('data.token');
+
+        // Both platform tokens must be valid simultaneously
+        $this->withHeader('Authorization', "Bearer {$webToken}")
+            ->getJson('/api/v1/user')
+            ->assertOk();
+
+        $this->withHeader('Authorization', "Bearer {$mobileToken1}")
+            ->getJson('/api/v1/user')
+            ->assertOk();
+
+        $this->assertSame(2, $commuter->tokens()->count());
+
+        // 3. Commuter logs in on a second MOBILE device
+        $mobileRes2 = $this->postJson('/api/v1/auth/login', [
+            'login' => 'commuter1@gmail.com',
+            'password' => 'password123',
+            'device_id' => 'mobile-commuter-device-789',
+            'device_type' => 'MOBILE',
+        ])->assertOk();
+        $mobileToken2 = $mobileRes2->json('data.token');
+
+        // WEB token remains active
+        $this->withHeader('Authorization', "Bearer {$webToken}")
+            ->getJson('/api/v1/user')
+            ->assertOk();
+
+        // Second MOBILE token is active
+        $this->withHeader('Authorization', "Bearer {$mobileToken2}")
+            ->getJson('/api/v1/user')
+            ->assertOk();
+
+        app('auth')->forgetGuards();
+
+        // First MOBILE token is revoked
+        $this->withHeader('Authorization', "Bearer {$mobileToken1}")
+            ->getJson('/api/v1/user')
+            ->assertUnauthorized();
+
+        $this->assertSame(2, $commuter->tokens()->count());
+    }
+
     // ─── Forgot / Reset Password ──────────────────────────────────
 
     public function test_forgot_password_sends_code_to_approved_commuter(): void
@@ -508,3 +570,4 @@ class AuthTest extends TestCase
         $this->assertDatabaseMissing('password_reset_tokens', ['email' => 'commuter1@gmail.com']);
     }
 }
+
