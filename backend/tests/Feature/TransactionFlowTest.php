@@ -1940,4 +1940,49 @@ SQL);
             $this->assertSame($status, $e->getStatusCode());
         }
     }
+
+    public function test_fare_calculation_handles_string_landmarks_and_sub_stops_gracefully(): void
+    {
+        $route = Route::create([
+            'name' => 'Test Route String Landmarks',
+            'origin' => 'Point 1',
+            'destination' => 'Point 2',
+            'status' => 'ACTIVE',
+            'is_active' => true,
+        ]);
+
+        $pickup = FarePoint::create([
+            'route_id' => $route->id,
+            'point_number' => 1,
+            'code' => 'P1',
+            'name' => 'Point 1',
+            'regular_fare' => 15.00,
+            'discounted_fare' => 12.00,
+            'landmarks' => 'Landmark A, Landmark B', // String format in DB
+            'sub_stops' => 'Substop X',              // Plain string format in DB
+        ]);
+
+        $dropoff = FarePoint::create([
+            'route_id' => $route->id,
+            'point_number' => 2,
+            'code' => 'P2',
+            'name' => 'Point 2',
+            'regular_fare' => 25.00,
+            'discounted_fare' => 20.00,
+            'landmarks' => null,
+            'sub_stops' => null,
+        ]);
+
+        $service = app(\App\Services\FareCalculationService::class);
+        $result = $service->calculateFromRequest([
+            'pickup_stop_id' => $pickup->id,
+            'pickup_name' => 'Point 1 · Substop X',
+            'dropoff_stop_id' => $dropoff->id,
+            'dropoff_name' => 'Point 2',
+        ], [['passenger_type' => 'REGULAR', 'quantity' => 1]]);
+
+        $this->assertNotNull($result);
+        $this->assertSame('Point 1 · Substop X', $result['pickup_name']);
+    }
 }
+

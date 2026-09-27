@@ -150,9 +150,12 @@ class FareCalculationService
 
     private function allowedNames(FarePoint $point): array
     {
+        $subStops = $this->parseStringList($point->sub_stops);
+        $landmarks = $this->parseStringList($point->landmarks);
+
         $children = collect([
-            ...($point->sub_stops ?? []),
-            ...($point->landmarks ?? []),
+            ...$subStops,
+            ...$landmarks,
         ])->filter(fn ($value): bool => is_string($value) && trim($value) !== '')
             ->map(fn (string $value): string => trim($value))
             ->unique(fn (string $value): string => $this->normalizeName($value))
@@ -164,6 +167,32 @@ class FareCalculationService
             ->filter(fn ($value): bool => is_string($value) && trim($value) !== '')
             ->values()
             ->all();
+    }
+
+    /**
+     * Safely parse sub_stops or landmarks value into an array regardless of whether
+     * it is stored as an array, JSON string, comma-separated string, or null.
+     */
+    private function parseStringList(mixed $value): array
+    {
+        if (empty($value)) {
+            return [];
+        }
+
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if (! is_string($value)) {
+            return [];
+        }
+
+        $decoded = json_decode($value, true);
+        if (is_array($decoded)) {
+            return $decoded;
+        }
+
+        return array_map('trim', array_filter(explode(',', $value)));
     }
 
     private function normalizeName(?string $value): string
