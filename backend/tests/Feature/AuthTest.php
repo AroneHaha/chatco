@@ -545,6 +545,46 @@ class AuthTest extends TestCase
         $this->assertDatabaseMissing('password_reset_tokens', ['email' => 'commuter1@gmail.com']);
     }
 
+    public function test_forgot_password_is_refused_for_a_rejected_registration(): void
+    {
+        Mail::fake();
+        $commuter = $this->seedCommuter();
+        CommuterProfile::whereKey($commuter->id)->update(['account_status' => 'REJECTED']);
+
+        $response = $this->postJson('/api/v1/auth/forgot-password', [
+            'email' => 'commuter1@gmail.com',
+        ]);
+
+        $response->assertStatus(403)
+            ->assertJsonPath('message', 'Your registration was not approved, so this account cannot reset a password.');
+        Mail::assertNothingSent();
+        $this->assertDatabaseMissing('password_reset_tokens', ['email' => 'commuter1@gmail.com']);
+    }
+
+    public function test_reset_password_is_refused_for_a_rejected_registration_even_with_a_valid_code(): void
+    {
+        $commuter = $this->seedCommuter();
+        CommuterProfile::whereKey($commuter->id)->update(['account_status' => 'REJECTED']);
+
+        DB::table('password_reset_tokens')->insert([
+            'email' => 'commuter1@gmail.com',
+            'token' => Hash::make('123456'),
+            'attempts' => 0,
+            'created_at' => now(),
+        ]);
+
+        $response = $this->postJson('/api/v1/auth/reset-password', [
+            'email' => 'commuter1@gmail.com',
+            'code' => '123456',
+            'password' => 'Chatco@123',
+            'password_confirmation' => 'Chatco@123',
+        ]);
+
+        $response->assertStatus(403);
+        $this->assertTrue(Hash::check('password123', $commuter->fresh()->password));
+        $this->assertDatabaseMissing('password_reset_tokens', ['email' => 'commuter1@gmail.com']);
+    }
+
     public function test_reset_password_is_refused_while_registration_is_pending_even_with_a_valid_code(): void
     {
         $commuter = $this->seedCommuter();
