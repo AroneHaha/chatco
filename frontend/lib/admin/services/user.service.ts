@@ -80,7 +80,7 @@ interface Paginator<T> {
 // ─── Frontend view-model ────────────────────────────────────────────
 
 export type UserRole = "ADMIN" | "CONDUCTOR" | "COMMUTER";
-export type AccountStatus = "ACTIVE" | "SUSPENDED" | "APPROVED" | "PENDING" | "REJECTED";
+export type AccountStatus = "ACTIVE" | "SUSPENDED" | "DISABLED" | "APPROVED" | "PENDING" | "REJECTED";
 export type CommuterType = "REGULAR" | "STUDENT" | "SENIOR" | "PWD";
 
 /**
@@ -90,6 +90,7 @@ export type CommuterType = "REGULAR" | "STUDENT" | "SENIOR" | "PWD";
  * UI-friendly mapping of `account_status`:
  *   ACTIVE / APPROVED → "Active"
  *   SUSPENDED          → "Suspended"
+ *   DISABLED           → "Disabled" (conductors — Disable Account)
  *   PENDING / REJECTED → passthrough (for the pending/rejected tabs)
  */
 export interface AdminUser {
@@ -206,6 +207,8 @@ function mapStatusLabel(raw: string | null): string {
       return "Active";
     case "SUSPENDED":
       return "Suspended";
+    case "DISABLED":
+      return "Disabled";
     case "PENDING":
       return "Pending";
     case "REJECTED":
@@ -438,6 +441,23 @@ export async function unsuspend(id: string): Promise<AdminUser> {
   return mapUser(json.data as RawUser);
 }
 
+/**
+ * Disable a conductor account — the conductor's only block mechanism
+ * (conductors are never suspended). Same endpoint as Fleet Management's
+ * Disable Account: the backend re-checks the admin's password and refuses
+ * while the conductor is on an active shift (409).
+ */
+export async function disableConductor(id: string, currentPassword: string): Promise<void> {
+  const res = await fetch(`/api/admin/conductors/${encodeURIComponent(id)}/disable`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ current_password: currentPassword }),
+  });
+
+  if (!res.ok) throw await operationError(res);
+}
+
 // ─── Error helpers ──────────────────────────────────────────────────
 
 async function safeMessage(res: Response): Promise<string> {
@@ -458,15 +478,16 @@ async function safeJson(res: Response): Promise<{ message?: string; errors?: Rec
 }
 
 /**
- * Build the error for a failed delete/suspend. The backend wraps guard
- * failures ("You cannot delete your own account.", "Cannot delete the last
- * administrator account.", the 5-character reason rule) in a 422 envelope
- * whose top-level message is the generic "Validation failed", so the
- * specific text is lifted from the `errors` map where the guard put it.
+ * Build the error for a failed delete/suspend/disable. The backend wraps
+ * guard failures ("You cannot delete your own account.", "Cannot delete the
+ * last administrator account.", the 5-character reason rule, the conductor
+ * active-shift conflict) in a 422/409 envelope whose top-level message is
+ * generic ("Validation failed", "Conflict"), so the specific text is lifted
+ * from the `errors` map where the guard put it.
  */
 async function operationError(res: Response): Promise<UserOperationError> {
   const message = await safeMessage(res);
-  if (res.status !== 422) return translateError(res.status, message);
+  if (res.status !== 422 && res.status !== 409) return translateError(res.status, message);
 
   const errors = (await safeJson(res))?.errors ?? undefined;
   const first = errors ? Object.values(errors).flat().find(Boolean) : undefined;
