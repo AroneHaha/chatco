@@ -11,6 +11,7 @@ import type { PageMeta, Personnel, PersonnelRoleFilter } from "@/app/(admin)/veh
 import { DriverDetailModal } from "@/components/admin/vehicles/driver-detail-modal";
 import { ConductorDetailModal } from "@/components/admin/vehicles/conductor-detail-modal";
 import { SkeletonTable } from "@/components/admin/ui/skeleton";
+import { RowActionsMenu } from "@/components/admin/ui/row-actions-menu";
 
 interface PersonnelTableProps {
   personnel: Personnel[];
@@ -133,38 +134,17 @@ export function PersonnelTable({
       key: "actions",
       label: "Actions",
       align: "center" as const,
-      headerClassName: "w-32",
-      cellClassName: "w-32",
+      headerClassName: "w-20",
+      cellClassName: "w-20",
       render: (_: unknown, row: Personnel) => (
-        <div className="flex items-center justify-center gap-2">
-          <button
-            onClick={(event) => { event.stopPropagation(); openDetails(row); }}
-            onDoubleClick={(event) => event.stopPropagation()}
-            aria-label={`View details for ${row.name}`}
-            title="View details"
-            className="p-1.5 text-slate-400 hover:text-sky-400 hover:bg-sky-400/10 rounded-md transition-colors"
-          >
-            <Eye size={16} />
-          </button>
-          <button
-            onClick={(event) => { event.stopPropagation(); onEdit(row); }}
-            onDoubleClick={(event) => event.stopPropagation()}
-            aria-label={`Edit ${row.name}`}
-            title="Edit personnel"
-            className="p-1.5 text-slate-400 hover:text-[#62A0EA] hover:bg-[#62A0EA]/10 rounded-md transition-colors"
-          >
-            <Edit size={16} />
-          </button>
-          <button
-            onClick={(event) => { event.stopPropagation(); onDelete(row); }}
-            onDoubleClick={(event) => event.stopPropagation()}
-            aria-label={`Remove ${row.name}`}
-            title="Remove personnel"
-            className="p-1.5 text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
-          >
-            <Trash size={16} />
-          </button>
-        </div>
+        <RowActionsMenu
+          label={`Actions for ${row.name}`}
+          actions={[
+            { label: "View Details", icon: Eye, onSelect: () => openDetails(row) },
+            { label: "Edit", icon: Edit, onSelect: () => onEdit(row) },
+            { label: "Remove", icon: Trash, onSelect: () => onDelete(row), tone: "danger" },
+          ]}
+        />
       ),
     },
   ];
