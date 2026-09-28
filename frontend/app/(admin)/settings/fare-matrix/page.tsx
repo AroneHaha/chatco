@@ -11,6 +11,7 @@ import type { AdminRoute } from '@/lib/admin/services/route.service';
 import type { RouteCoordinate } from '@/lib/admin/services/route.service';
 import { formatPeso } from '@/lib/utils/display';
 import { Modal } from '@/components/admin/ui/modal';
+import { SkeletonFareMatrix } from '@/components/admin/ui/skeleton';
 
 const RouteEditor = dynamic(() => import('@/components/admin/routes/route-editor'), {
   ssr: false,
@@ -475,14 +476,7 @@ export default function FareMatrixPage() {
 
   // ── Loading State ──
   if (isLoading) {
-    return (
-      <div className="min-h-screen pb-12 px-4 sm:px-6">
-        <div className="mx-auto w-full max-w-5xl space-y-6">
-          <div className="h-8 w-64 rounded bg-gray-700 animate-pulse" />
-          <div className="space-y-3">{[...Array(6)].map((_, i) => <div key={i} className="h-16 bg-[#071A2E] border border-white/[0.06] rounded-2xl animate-pulse" />)}</div>
-        </div>
-      </div>
-    );
+    return <SkeletonFareMatrix />;
   }
 
   return (
