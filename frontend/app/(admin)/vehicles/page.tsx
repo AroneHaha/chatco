@@ -22,6 +22,7 @@ import { Users, Car, Archive, AlertCircle, RefreshCw } from 'lucide-react';
 import { useVehiclesData } from './data/vehicles-data';
 import type { FleetHistoryTab, FleetShiftHistoryRange, PersonnelRoleFilter, Vehicle, Personnel } from './data/vehicles-data';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
+import { PageTabs } from '@/components/admin/ui/page-tabs';
 
 export default function VehiclesPage() {
   const router = useRouter();
@@ -130,7 +131,7 @@ export default function VehiclesPage() {
   const tabs = [
     { id: 'vehicles' as const, label: 'Vehicles', count: counts.vehicles, icon: Car },
     { id: 'personnel' as const, label: 'Personnel', count: counts.personnel, icon: Users },
-    { id: 'history' as const, label: 'Records', count: historyRecords, icon: Archive },
+    { id: 'history' as const, label: 'Records', count: historyRecords, icon: Archive, accent: 'red' as const },
   ];
 
   // ─── Error State ───
@@ -314,32 +315,7 @@ export default function VehiclesPage() {
       </StickyPageHeader>
 
       {/* Tab Navigation */}
-      <div className="mb-3 flex w-full gap-1.5 rounded-lg border border-[#1E2D45] bg-[#0E1628] p-1">
-        {tabs.map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
-                isActive
-                  ? tab.id === 'history'
-                    ? 'bg-red-400/15 text-red-200 shadow-[inset_0_0_0_1px_rgba(248,113,113,0.18)]'
-                    : 'bg-[#62A0EA]/15 text-white shadow-[inset_0_0_0_1px_rgba(98,160,234,0.18)]'
-                  : 'text-slate-400 hover:bg-[#172238] hover:text-white'
-              }`}
-            >
-              <tab.icon size={15} className={isActive && tab.id === 'history' ? 'text-red-300' : isActive ? 'text-[#62A0EA]' : 'text-slate-500'} />
-              <span>{tab.label}</span>
-              <span className={`rounded px-1.5 py-0.5 text-[10px] ${
-                isActive ? 'bg-black/20 text-slate-100' : 'bg-[#1A2540] text-slate-500'
-              }`}>
-                {tab.count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      <PageTabs tabs={tabs} activeId={activeTab} onChange={setActiveTab} className="mb-3" />
 
       {/* Tab Content */}
       {activeTab === 'vehicles' ? (

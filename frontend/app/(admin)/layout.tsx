@@ -17,7 +17,12 @@ import { SidebarSkeleton, ContentSkeleton, MobileSkeleton } from '@/components/a
 function AdminLayoutInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { isLoading: authLoading, isAuthenticated, logout } = useAuth();
+  const { isLoading: authLoading, user, logout } = useAuth();
+  // Role comes from /api/auth/me (verified by Laravel), not the editable
+  // chatco_role cookie the middleware reads. This is the second layer: any
+  // (admin) page the middleware route list misses, or a tampered role cookie,
+  // still can't render the admin shell for a Commuter or Conductor.
+  const isAdmin = user?.role === 'ADMIN';
   const { closeSettingsDrawer } = useSettingsDrawer();
   const [isMobile, setIsMobile] = useState(false);
   const [moreOpenPathname, setMoreOpenPathname] = useState<string | null>(null);
@@ -44,12 +49,12 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
     closeSettingsDrawer();
   }, [pathname, closeSettingsDrawer]);
 
-  // Auth Guard
+  // Auth Guard — same destination as the middleware's role redirect.
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      window.location.href = '/login';
+    if (!authLoading && !isAdmin) {
+      window.location.href = `/login?redirect=${encodeURIComponent(pathname)}`;
     }
-  }, [authLoading, isAuthenticated]);
+  }, [authLoading, isAdmin, pathname]);
 
   // Show skeleton while auth is checking
   if (authLoading) {
@@ -64,8 +69,8 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
     );
   }
 
-  // Not authenticated — redirect will happen via useEffect
-  if (!isAuthenticated) {
+  // Not an authenticated admin — redirect will happen via useEffect
+  if (!isAdmin) {
     return null;
   }
 

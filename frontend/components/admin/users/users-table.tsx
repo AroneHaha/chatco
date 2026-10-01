@@ -4,7 +4,7 @@ import { DataTable } from '@/components/admin/ui/data-table';
 import { TablePagination } from '@/components/admin/ui/table-pagination';
 import { Badge } from '@/components/admin/ui/badge';
 import { Modal } from '@/components/admin/ui/modal';
-import { UserIcon, Mail, Phone, CreditCard, Pencil, Trash2, AtSign, Calendar, ShieldCheck } from 'lucide-react';
+import { UserIcon, Mail, Phone, CreditCard, Pencil, Trash2, AtSign, Calendar, ShieldCheck, UserRound, Tag, BusFront, CarFront, type LucideIcon } from 'lucide-react';
 import type { ActiveUser, RejectedUser } from '@/app/(admin)/users/data/users-data';
 
 type User = ActiveUser | RejectedUser;
@@ -14,6 +14,22 @@ const ROLE_LABELS: Record<string, string> = {
   CONDUCTOR: 'Conductor',
   ADMIN: 'Admin',
   DRIVER: 'Driver',
+};
+
+// Type column: a muted icon per role so rows scan without looking clickable.
+// Discounted commuter types (Student, Senior Citizen, PWD) share the tag icon.
+const ROLE_ICONS: Record<string, LucideIcon> = {
+  ADMIN: ShieldCheck,
+  CONDUCTOR: BusFront,
+  DRIVER: CarFront,
+};
+
+// Status column: dot + label, same treatment as Fleet Management's Personnel table.
+const STATUS_DOT: Record<string, string> = {
+  Active: 'bg-emerald-400',
+  Suspended: 'bg-amber-400',
+  Disabled: 'bg-slate-600',
+  Rejected: 'bg-red-400',
 };
 
 function formatJoinedDate(value: string | null): string {
@@ -36,6 +52,8 @@ interface UsersTableProps {
   users: User[];
   searchQuery: string;
   onDeactivate: (user: ActiveUser) => void;
+  /** Conductor rows: Disable Account (conductors are never suspended). */
+  onDisableConductor: (user: ActiveUser) => void;
   onEdit: (user: ActiveUser) => void;
   onDelete: (user: ActiveUser) => void;
   isRejectedTab: boolean;
@@ -60,7 +78,7 @@ interface UsersTableProps {
   isRefreshing?: boolean;
 }
 
-export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete, isRejectedTab, selectedUser, onSelectUser, onRowDoubleClick, headerContent, pagination, onPageChange, isRefreshing }: UsersTableProps) {
+export function UsersTable({ users, searchQuery, onDeactivate, onDisableConductor, onEdit, onDelete, isRejectedTab, selectedUser, onSelectUser, onRowDoubleClick, headerContent, pagination, onPageChange, isRefreshing }: UsersTableProps) {
   const columns = [
     {
       key: 'name',
@@ -79,7 +97,19 @@ export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete,
       label: 'Type',
       headerClassName: 'px-2 sm:px-4',
       cellClassName: 'whitespace-nowrap px-2 sm:px-4',
-      render: (value: string) => <Badge variant="info">{value}</Badge>,
+      // Commuters show their fare type; every other role has none, so the
+      // column shows the role itself (Admin, Conductor, Driver).
+      render: (value: string, item: User) => {
+        const role = 'role' in item ? item.role : 'COMMUTER';
+        const isCommuter = role === 'COMMUTER';
+        const Icon = isCommuter ? (value === 'Regular' ? UserRound : Tag) : (ROLE_ICONS[role] ?? UserRound);
+        return (
+          <span className="inline-flex items-center gap-1.5 text-sm text-slate-300">
+            <Icon size={14} className="shrink-0 text-slate-500" aria-hidden="true" />
+            {isCommuter ? value : (ROLE_LABELS[role] ?? role)}
+          </span>
+        );
+      },
     },
     {
       key: 'createdAt',
@@ -93,7 +123,12 @@ export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete,
       label: 'Status',
       headerClassName: 'px-2 sm:px-4',
       cellClassName: 'whitespace-nowrap px-2 sm:px-4',
-      render: (value: string) => <Badge variant={value === 'Active' ? 'success' : value === 'Suspended' ? 'warning' : 'danger'}>{value}</Badge>
+      render: (value: string) => (
+        <span className="inline-flex items-center gap-1.5">
+          <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[value] ?? 'bg-slate-600'}`} />
+          <span className={`text-xs font-medium ${value === 'Active' ? 'text-slate-300' : 'text-slate-400'}`}>{value}</span>
+        </span>
+      )
     },
     ...(isRejectedTab ? [{
       key: 'rejectionReason', label: 'Reason', cellClassName: 'whitespace-nowrap', render: (value: string) => <span className="text-xs text-slate-400 italic">{value || 'N/A'}</span>
@@ -196,7 +231,7 @@ export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete,
                 <p className="text-lg font-bold text-white">{selectedUser.name}</p>
                 <div className="flex flex-wrap items-center gap-2 mt-1">
                   <p className="text-sm text-slate-400">ID: {selectedUser.id}</p>
-                  <Badge variant={selectedUser.status === 'Active' ? 'success' : 'warning'}>{selectedUser.status}</Badge>
+                  <Badge variant={selectedUser.status === 'Active' ? 'success' : selectedUser.status === 'Suspended' ? 'warning' : 'danger'}>{selectedUser.status}</Badge>
                   {role && <Badge variant="neutral">{roleLabel}</Badge>}
                 </div>
               </div>
@@ -282,7 +317,15 @@ export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete,
               >
                 Edit {roleLabel}
               </button>
-              {role !== 'DRIVER' && (
+              {role === 'CONDUCTOR' && selectedUser.status === 'Active' && (
+                <button
+                  onClick={() => { onDisableConductor(selectedUser as ActiveUser); onSelectUser(null); }}
+                  className="flex-1 py-2.5 rounded-md text-sm font-medium transition-colors bg-red-400/10 text-red-400 border border-red-400/20 hover:bg-red-400/20"
+                >
+                  Disable Account
+                </button>
+              )}
+              {role !== 'DRIVER' && role !== 'CONDUCTOR' && (
                 <button
                   onClick={() => { onDeactivate(selectedUser as ActiveUser); onSelectUser(null); }}
                   className={`flex-1 py-2.5 rounded-md text-sm font-medium transition-colors ${
@@ -295,6 +338,11 @@ export function UsersTable({ users, searchQuery, onDeactivate, onEdit, onDelete,
                 </button>
               )}
             </div>
+            {role === 'CONDUCTOR' && selectedUser.status === 'Disabled' && (
+              <p className="rounded-md border border-[#1E2D45] bg-[#0E1628] p-3 text-center text-sm text-slate-400">
+                This conductor is disabled. Reset their credentials in Fleet Management to re-enable the account.
+              </p>
+            )}
             {role === 'DRIVER' && (
               <p className="rounded-md border border-[#1E2D45] bg-[#0E1628] p-3 text-center text-sm text-slate-400">
                 Driver account status is managed in Fleet Management.

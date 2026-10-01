@@ -2,9 +2,26 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Save, AlertCircle } from 'lucide-react';
+import { Save, AlertCircle, Percent, Gift, Lock, UserRound, GraduationCap, HeartHandshake, Accessibility, type LucideIcon } from 'lucide-react';
 import { defaultFinancialRules, type FinancialRulesConfig } from '@/app/(admin)/settings/data/settings-data';
 import { getSettings, updateSetting } from '@/lib/admin/services/setting.service';
+import { SkeletonFinancialRules } from '@/components/admin/ui/skeleton';
+import { SettingsSection, UnitInput } from '@/components/admin/ui/settings-section';
+
+// Editable discount types (Regular is fixed at full fare, rendered separately).
+const DISCOUNT_FIELDS: { name: keyof FinancialRulesConfig; label: string; icon: LucideIcon }[] = [
+  { name: 'studentDiscount', label: 'Student', icon: GraduationCap },
+  { name: 'seniorDiscount', label: 'Senior Citizen', icon: HeartHandshake },
+  { name: 'pwdDiscount', label: 'PWD', icon: Accessibility },
+];
+
+function TypeIcon({ icon: Icon, muted = false }: { icon: LucideIcon; muted?: boolean }) {
+  return (
+    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${muted ? 'bg-white/5 text-slate-500' : 'bg-[#62A0EA]/10 text-[#8CB9F0]'}`}>
+      <Icon size={16} aria-hidden="true" />
+    </span>
+  );
+}
 
 export default function FinancialRulesPage() {
   const [rules, setRules] = useState<FinancialRulesConfig>({ ...defaultFinancialRules });
@@ -67,18 +84,10 @@ export default function FinancialRulesPage() {
 
   // ── Loading State ──
   if (isLoading) {
-    return (
-      <div className="min-h-screen pb-12 px-4 sm:px-6">
-        <div className="mx-auto w-full max-w-3xl space-y-6">
-          <div className="h-8 w-48 rounded bg-gray-700 animate-pulse mx-auto" />
-          <div className="space-y-4">
-            <div className="h-40 bg-[#131C2E] border border-[#1E2D45] rounded-lg animate-pulse" />
-            <div className="h-32 bg-[#131C2E] border border-[#1E2D45] rounded-lg animate-pulse" />
-          </div>
-        </div>
-      </div>
-    );
+    return <SkeletonFinancialRules />;
   }
+
+  const rides = Number(rules.ridesForFreeReward);
 
   return (
     <div className="min-h-screen pb-12 px-4 sm:px-6">
@@ -86,6 +95,7 @@ export default function FinancialRulesPage() {
 
         <div className="text-center">
           <h1 className="text-2xl sm:text-3xl font-bold text-white">Financial Rules</h1>
+          <p className="mt-1 text-sm text-slate-400">Commuter discount rates and the loyalty reward.</p>
         </div>
 
         {/* Error Banner */}
@@ -98,73 +108,61 @@ export default function FinancialRulesPage() {
 
         <form onSubmit={handleSave} className="space-y-6">
 
-          <div className="bg-[#131C2E] border border-[#1E2D45] p-4 sm:p-6 rounded-lg">
-            <h2 className="text-lg sm:text-xl font-semibold text-white mb-4">Commuter Discount Rates (%)</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">Regular</label>
-                <input
-                  type="number"
-                  name="regularDiscount"
-                  value={rules.regularDiscount}
-                  onChange={handleChange}
-                  readOnly
-                  className="block w-full px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-slate-500 cursor-not-allowed"
-                />
+          <SettingsSection icon={Percent} title="Commuter Discount Rates" description="Discount percentage for each commuter type.">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {/* Regular always pays full fare — shown as a fixed fact, not a
+                  disabled input that looks editable. */}
+              <div className="flex items-center gap-3 rounded-lg border border-[#1E2D45] bg-[#0E1628]/60 p-3">
+                <TypeIcon icon={UserRound} muted />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-slate-300">Regular</p>
+                  <p className="text-xs text-slate-500">Pays the full fare</p>
+                </div>
+                <span className="inline-flex items-center gap-1.5 text-sm font-semibold tabular-nums text-slate-400">
+                  <Lock size={13} aria-hidden="true" className="text-slate-500" />
+                  {rules.regularDiscount}%
+                </span>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">Student</label>
-                <input
-                  type="number"
-                  name="studentDiscount"
-                  value={rules.studentDiscount}
-                  onChange={handleChange}
-                  required
-                  className="block w-full px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">Senior Citizen</label>
-                <input
-                  type="number"
-                  name="seniorDiscount"
-                  value={rules.seniorDiscount}
-                  onChange={handleChange}
-                  required
-                  className="block w-full px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">PWD</label>
-                <input
-                  type="number"
-                  name="pwdDiscount"
-                  value={rules.pwdDiscount}
-                  onChange={handleChange}
-                  required
-                  className="block w-full px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors"
-                />
-              </div>
+              {DISCOUNT_FIELDS.map((field) => (
+                <label key={field.name} className="flex items-center gap-3 rounded-lg border border-[#1E2D45] bg-[#0E1628] p-3 transition-colors focus-within:border-[#62A0EA]/60">
+                  <TypeIcon icon={field.icon} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium text-white">{field.label}</span>
+                    <span className="block text-xs text-slate-500">Discount rate</span>
+                  </span>
+                  <span className="relative w-24 shrink-0">
+                    <input
+                      type="number"
+                      name={field.name}
+                      value={rules[field.name]}
+                      onChange={handleChange}
+                      min={0}
+                      max={100}
+                      step="any"
+                      required
+                      className="block w-full rounded-md border border-[#1E2D45] bg-[#131C2E] py-2 pl-3 pr-7 text-right text-sm font-semibold tabular-nums text-white focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors"
+                    />
+                    <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-slate-500">%</span>
+                  </span>
+                </label>
+              ))}
             </div>
-          </div>
+          </SettingsSection>
 
-          <div className="bg-[#131C2E] border border-[#1E2D45] p-4 sm:p-6 rounded-lg">
-            <h2 className="text-lg sm:text-xl font-semibold text-white mb-4">Loyalty Program (Rewards)</h2>
-            <div className="max-w-sm w-full">
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">Paid rides required for 1 Free Ride</label>
-              <input
-                type="number"
-                name="ridesForFreeReward"
-                value={rules.ridesForFreeReward}
-                onChange={handleChange}
-                min={1}
-                max={100}
-                step={1}
-                required
-                className="block w-full px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors"
-              />
+          <SettingsSection icon={Gift} title="Loyalty Program" description="Commuters earn a free ride after a set number of paid rides.">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+              <label className="block w-full sm:max-w-56">
+                <span className="mb-1.5 block text-xs font-medium text-slate-300">Paid rides for 1 free ride</span>
+                <UnitInput name="ridesForFreeReward" value={rules.ridesForFreeReward} onChange={handleChange} min={1} max={100} step={1} required unit="rides" />
+              </label>
+              {/* Live read-back of what the number means for commuters. */}
+              <p className="flex-1 rounded-lg border border-[#62A0EA]/15 bg-[#62A0EA]/5 px-4 py-3 text-sm text-slate-300">
+                {Number.isInteger(rides) && rides >= 1
+                  ? <>After every <span className="font-semibold text-white">{rides} paid {rides === 1 ? 'ride' : 'rides'}</span>, the commuter earns <span className="font-semibold text-[#8CB9F0]">1 free ride</span>.</>
+                  : 'Enter a whole number from 1 to 100.'}
+              </p>
             </div>
-          </div>
+          </SettingsSection>
 
           <div className="flex justify-center pt-2 pb-8">
             <button

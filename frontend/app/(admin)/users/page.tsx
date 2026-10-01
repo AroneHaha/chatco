@@ -23,6 +23,8 @@ import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 import { SuspensionModal } from '@/components/admin/users/suspension-modal';
 import type { SuspendUserInput } from '@/lib/admin/services/user.service';
 import { OperationResultModal } from '@/components/admin/ui/operation-result-modal';
+import { ConfirmPasswordModal } from '@/components/admin/ui/confirm-password-modal';
+import { PageTabs } from '@/components/admin/ui/page-tabs';
 
 export default function UsersPage() {
   const router = useRouter();
@@ -52,6 +54,7 @@ export default function UsersPage() {
     rejectRegistrationApi,
     suspendUserApi,
     unsuspendUserApi,
+    disableConductorApi,
   } = useUsersData(activeTab);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -60,6 +63,7 @@ export default function UsersPage() {
   const [isReviewProcessing, setIsReviewProcessing] = useState(false);
   const [suspensionUser, setSuspensionUser] = useState<ActiveUser | null>(null);
   const [isSuspensionProcessing, setIsSuspensionProcessing] = useState(false);
+  const [disablingConductor, setDisablingConductor] = useState<ActiveUser | null>(null);
   const [reviewResult, setReviewResult] = useState<{
     type: 'success' | 'error';
     title: string;
@@ -249,6 +253,16 @@ export default function UsersPage() {
     }
   };
 
+  // Conductors are never suspended — Disable Account is their only block
+  // (same endpoint as Fleet Management). The password modal keeps itself
+  // open and shows the error inline when this throws (wrong password,
+  // active-shift conflict).
+  const handleDisableConductor = async (password: string): Promise<void> => {
+    if (!disablingConductor) return;
+    await disableConductorApi(disablingConductor.id, password);
+    setSuccessMessage('Conductor account disabled. All sessions revoked.');
+  };
+
   // ─── Registration handlers (real API) ───
   // handleSaveRegistration is async — the modal stays open with a spinner
   // until the POST resolves. On success: close + refetch + success banner.
@@ -428,7 +442,9 @@ export default function UsersPage() {
                 >
                   <option value="" className="bg-gray-800">All Statuses</option>
                   <option value="ACTIVE" className="bg-gray-800">Active</option>
-                  <option value="SUSPENDED" className="bg-gray-800">Suspended</option>
+                  <option value="SUSPENDED" className="bg-gray-800">
+                    {filters.role === 'CONDUCTOR' ? 'Disabled' : filters.role === '' ? 'Suspended / Disabled' : 'Suspended'}
+                  </option>
                 </select>
                 <select
                   value={filters.sort}
@@ -473,49 +489,40 @@ export default function UsersPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <StickyPageHeader className="mb-4 shrink-0">
+      {/* From md up, Register Onsite sits on the title row. Below md the
+          sticky header can't hold it (it reserves the bell's space and
+          StickyPageHeader must stay the page's first child, unwrapped), so
+          the full-width button renders under the header instead. */}
+      <StickyPageHeader className="mb-4 shrink-0 md:flex md:items-center md:justify-between md:gap-4">
         <h1 className="text-2xl font-bold text-white">User Management</h1>
+        <button
+          onClick={handleOpenRegisterModal}
+          className="hidden h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-4 text-sm font-bold text-white shadow-lg shadow-[#62A0EA]/25 transition-colors hover:bg-[#4A8BD4] md:inline-flex"
+        >
+          <Plus size={16} />
+          <span>Register Onsite</span>
+        </button>
       </StickyPageHeader>
 
       <button
         onClick={handleOpenRegisterModal}
-        className="mb-3 inline-flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-4 text-sm font-bold text-white shadow-lg shadow-[#62A0EA]/25 transition-colors hover:bg-[#4A8BD4] sm:w-auto lg:ml-auto"
+        className="mb-3 inline-flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-4 text-sm font-bold text-white shadow-lg shadow-[#62A0EA]/25 transition-colors hover:bg-[#4A8BD4] sm:w-auto md:hidden"
       >
         <Plus size={16} />
         <span>Register Onsite</span>
       </button>
 
-      {/* 3 Tabs — pill bar, matching Fleet Management's tab style */}
-      <div className="mb-3 flex w-full shrink-0 gap-1.5 overflow-x-auto rounded-lg border border-[#1E2D45] bg-[#0E1628] p-1 scrollbar-themed">
-        {([
-          { id: 'active' as const, label: `Active ${activeRoleLabel}`, count: pagination?.total ?? activeUsers.length, icon: UserCheck, accent: 'sky' as const },
-          { id: 'pending' as const, label: 'Pending Verification', count: pendingTotal, icon: Users, accent: 'amber' as const },
-          { id: 'rejected' as const, label: 'Rejected', count: rejectedTotal, icon: XCircle, accent: 'red' as const },
-        ]).map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => { setActiveTab(tab.id); if (tab.id === 'active') setSelectedUser(null); }}
-              className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
-                isActive
-                  ? tab.accent === 'red'
-                    ? 'bg-red-400/15 text-red-200 shadow-[inset_0_0_0_1px_rgba(248,113,113,0.18)]'
-                    : tab.accent === 'amber'
-                      ? 'bg-amber-400/15 text-amber-200 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.18)]'
-                      : 'bg-[#62A0EA]/15 text-white shadow-[inset_0_0_0_1px_rgba(98,160,234,0.18)]'
-                  : 'text-slate-400 hover:bg-[#172238] hover:text-white'
-              }`}
-            >
-              <tab.icon size={15} className={isActive ? (tab.accent === 'red' ? 'text-red-300' : tab.accent === 'amber' ? 'text-amber-300' : 'text-[#62A0EA]') : 'text-slate-500'} />
-              <span className="truncate">{tab.label}</span>
-              <span className={`rounded px-1.5 py-0.5 text-[10px] ${isActive ? 'bg-black/20 text-slate-100' : 'bg-[#1A2540] text-slate-500'}`}>
-                {tab.count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      {/* 3 Tabs — shared with Fleet Management */}
+      <PageTabs
+        className="mb-3"
+        activeId={activeTab}
+        onChange={(id) => { setActiveTab(id); if (id === 'active') setSelectedUser(null); }}
+        tabs={[
+          { id: 'active', label: `Active ${activeRoleLabel}`, count: pagination?.total ?? activeUsers.length, icon: UserCheck },
+          { id: 'pending', label: 'Pending Verification', count: pendingTotal, icon: Users, accent: 'amber' },
+          { id: 'rejected', label: 'Rejected', count: rejectedTotal, icon: XCircle, accent: 'red' },
+        ]}
+      />
 
       {/* Action error banner */}
       {actionError && (
@@ -566,6 +573,7 @@ export default function UsersPage() {
                 users={activeUsers}
                 searchQuery=""
                 onDeactivate={handleDeactivateUser}
+                onDisableConductor={setDisablingConductor}
                 onEdit={handleOpenEditModal}
                 onDelete={handleOpenDeleteModal}
                 onRowDoubleClick={handleRowDoubleClick}
@@ -650,6 +658,16 @@ export default function UsersPage() {
         onClose={() => { setSuspensionUser(null); setActionError(null); }}
         onSuspend={handleSuspendUser}
         onUnsuspend={handleUnsuspendUser}
+      />
+      <ConfirmPasswordModal
+        key={disablingConductor?.id ?? 'closed-disable'}
+        isOpen={!!disablingConductor}
+        onClose={() => setDisablingConductor(null)}
+        onConfirm={handleDisableConductor}
+        title="Disable Conductor Account"
+        description={`This revokes all active sessions for ${disablingConductor?.name ?? 'this conductor'} immediately.`}
+        confirmLabel="Disable Account"
+        variant="danger"
       />
       <OperationResultModal
         isOpen={reviewResult !== null}

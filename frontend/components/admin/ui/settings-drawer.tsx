@@ -216,7 +216,9 @@ export function SettingsDrawer() {
 
         {/* ── View 2: Sub-page Content (rendered directly, no iframe) ── */}
         {activeHref && ActiveComponent && (
-          <div key={activeHref} className="flex-1 bg-[#0B1120] overflow-y-auto">
+          // pt-6: every settings page's wrapper is pb-only, so without this the
+          // page title sat flush against the drawer's header bar.
+          <div key={activeHref} className="flex-1 bg-[#0B1120] overflow-y-auto pt-6">
             <Suspense fallback={<DrawerLoader />}>
               <ActiveComponent />
             </Suspense>

@@ -458,4 +458,88 @@ class AdminUserManagementTest extends TestCase
             'password' => 'password123',
         ])->assertOk();
     }
+
+    // ── Conductors: Disable only, never suspended ──────────────────
+
+    public function test_suspend_is_refused_for_a_conductor(): void
+    {
+        [$admin, $headers] = $this->asAdmin();
+        $conductor = $this->makeConductor();
+        $this->tokenFor($conductor);
+
+        $this->withHeaders($headers)
+            ->postJson("/api/v1/admin/users/{$conductor->id}/suspend", [
+                'reason_code' => 'POLICY_VIOLATION',
+                'reason' => 'Should go through Disable Account instead.',
+                'is_permanent' => true,
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.user.0', 'Conductors cannot be suspended. Use Disable Account instead.');
+
+        $this->assertDatabaseMissing('user_suspensions', ['user_id' => $conductor->id]);
+        $this->assertDatabaseHas('personal_access_tokens', ['tokenable_id' => $conductor->id]);
+    }
+
+    public function test_unsuspend_is_refused_for_a_conductor(): void
+    {
+        [$admin, $headers] = $this->asAdmin();
+        $conductor = $this->makeConductor();
+
+        $this->withHeaders($headers)
+            ->postJson("/api/v1/admin/users/{$conductor->id}/unsuspend")
+            ->assertStatus(422)
+            ->assertJsonPath('errors.user.0', 'A disabled conductor is re-enabled by resetting their credentials in Fleet Management.');
+    }
+
+    public function test_conductor_status_in_user_list_follows_disable_account(): void
+    {
+        [$admin, $headers] = $this->asAdmin();
+        $active = $this->makeConductor('active-conductor@gmail.com');
+        $disabled = $this->makeConductor('disabled-conductor@gmail.com');
+        ConductorProfile::whereKey($disabled->id)->update(['status' => 'DISABLED']);
+
+        $this->withHeaders($headers)->getJson("/api/v1/admin/users/{$active->id}")
+            ->assertOk()->assertJsonPath('data.account_status', 'ACTIVE');
+        $this->withHeaders($headers)->getJson("/api/v1/admin/users/{$disabled->id}")
+            ->assertOk()->assertJsonPath('data.account_status', 'DISABLED')
+            ->assertJsonPath('data.suspension', null);
+
+        $blocked = $this->withHeaders($headers)
+            ->getJson('/api/v1/admin/users?role=CONDUCTOR&account_status=SUSPENDED')
+            ->assertOk();
+        $this->assertSame([$disabled->id], array_column($blocked->json('data.data'), 'id'));
+
+        $activeList = $this->withHeaders($headers)
+            ->getJson('/api/v1/admin/users?role=CONDUCTOR&account_status=ACTIVE')
+            ->assertOk();
+        $this->assertSame([$active->id], array_column($activeList->json('data.data'), 'id'));
+    }
+
+    public function test_migration_converts_active_conductor_suspensions_to_disabled(): void
+    {
+        [$admin] = $this->asAdmin();
+        $suspendedConductor = $this->makeConductor('legacy-suspended@gmail.com');
+        $expiredConductor = $this->makeConductor('legacy-expired@gmail.com');
+        $commuter = $this->makeCommuter('still-suspended@gmail.com');
+
+        $suspend = fn (User $user, array $extra) => \App\Models\UserSuspension::create(array_merge([
+            'user_id' => $user->id,
+            'reason_code' => 'OTHER',
+            'reason' => 'Legacy suspension',
+            'starts_at' => now()->subDay(),
+            'suspended_by' => $admin->id,
+        ], $extra));
+        $suspend($suspendedConductor, ['is_permanent' => true]);
+        $suspend($expiredConductor, ['is_permanent' => false, 'ends_at' => now()->subHour()]);
+        $suspend($commuter, ['is_permanent' => true]);
+
+        (require database_path('migrations/2026_09_28_000001_convert_conductor_suspensions_to_disabled.php'))->up();
+
+        $this->assertDatabaseHas('conductor_profiles', ['id' => $suspendedConductor->id, 'status' => 'DISABLED']);
+        $this->assertDatabaseMissing('user_suspensions', ['user_id' => $suspendedConductor->id, 'lifted_at' => null]);
+        // An already-expired suspension no longer blocks, so nothing to carry over.
+        $this->assertDatabaseMissing('conductor_profiles', ['id' => $expiredConductor->id, 'status' => 'DISABLED']);
+        // Commuter suspensions are untouched.
+        $this->assertDatabaseHas('user_suspensions', ['user_id' => $commuter->id, 'lifted_at' => null]);
+    }
 }

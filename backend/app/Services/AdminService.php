@@ -872,14 +872,18 @@ class AdminService
             $this->applySearch($query, trim($filters['search']));
         }
 
+        // SUSPENDED is the "blocked" filter: suspended accounts plus disabled
+        // conductors (a conductor's only block mechanism).
         if (! empty($filters['account_status'])) {
             if ($filters['account_status'] === 'SUSPENDED') {
                 $query->where(function (Builder $statusQuery) {
                     $statusQuery->whereHas('activeSuspension')
-                        ->orWhereHas('commuterProfile', fn (Builder $profile) => $profile->where('account_status', 'SUSPENDED'));
+                        ->orWhereHas('commuterProfile', fn (Builder $profile) => $profile->where('account_status', 'SUSPENDED'))
+                        ->orWhereHas('conductorProfile', fn (Builder $profile) => $profile->where('status', 'DISABLED'));
                 });
             } else {
                 $query->whereDoesntHave('activeSuspension')
+                    ->whereDoesntHave('conductorProfile', fn (Builder $profile) => $profile->where('status', 'DISABLED'))
                     ->where(function (Builder $statusQuery) {
                         $statusQuery->whereDoesntHave('commuterProfile')
                             ->orWhereHas('commuterProfile', fn (Builder $profile) => $profile->whereIn('account_status', ['ACTIVE', 'APPROVED']));
@@ -1075,6 +1079,16 @@ class AdminService
             ]);
         }
 
+        // Conductors have one block mechanism: Disable Account
+        // (AdminController::disableConductor), which re-checks the admin's
+        // password and refuses during an active shift. A suspension here
+        // would skip both checks.
+        if ($user->isConductor()) {
+            throw ValidationException::withMessages([
+                'user' => ['Conductors cannot be suspended. Use Disable Account instead.'],
+            ]);
+        }
+
         $endsAt = ! empty($data['is_permanent'])
             ? null
             : Carbon::now()->addDays((int) $data['duration_days']);
@@ -1111,6 +1125,12 @@ class AdminService
             abort(404, 'User not found.');
         }
 
+        if ($user->isConductor()) {
+            throw ValidationException::withMessages([
+                'user' => ['A disabled conductor is re-enabled by resetting their credentials in Fleet Management.'],
+            ]);
+        }
+
         DB::transaction(function () use ($user, $actingAdmin) {
             UserSuspension::where('user_id', $user->id)
                 ->whereNull('lifted_at')
@@ -1144,7 +1164,7 @@ class AdminService
     {
         return [
             'adminProfile:id,first_name,middle_name,last_name',
-            'conductorProfile:id,first_name,middle_name,last_name,generated_username',
+            'conductorProfile:id,first_name,middle_name,last_name,generated_username,status',
             'commuterProfile:id,first_name,middle_name,surname,birthdate,contact_number,commuter_type,account_status,verified_at,username',
             'activeSuspension',
         ];
@@ -1193,7 +1213,12 @@ class AdminService
     {
         $commuter = $user->commuterProfile;
 
-        $suspension = $user->activeSuspension;
+        // A conductor's status is the Disable Account flag, never a suspension.
+        $isConductor = $user->isConductor();
+        $suspension = $isConductor ? null : $user->activeSuspension;
+        $accountStatus = $isConductor
+            ? ($user->conductorProfile?->status === 'DISABLED' ? 'DISABLED' : 'ACTIVE')
+            : ($suspension ? 'SUSPENDED' : $commuter?->account_status);
 
         return [
             'id' => $user->id,
@@ -1203,7 +1228,7 @@ class AdminService
             'first_name' => $commuter?->first_name,
             'middle_name' => $commuter?->middle_name,
             'last_name' => $commuter?->surname,
-            'account_status' => $suspension ? 'SUSPENDED' : $commuter?->account_status,
+            'account_status' => $accountStatus,
             'commuter_type' => $commuter?->commuter_type,
             'username' => $commuter?->username,
             'contact_number' => $commuter?->contact_number,

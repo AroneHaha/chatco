@@ -5,9 +5,10 @@ import { DataTable } from '@/components/admin/ui/data-table';
 import { TablePagination } from '@/components/admin/ui/table-pagination';
 import { Badge } from '@/components/admin/ui/badge';
 import { SearchBar } from '@/components/admin/ui/search-bar';
-import { Pencil, Clock, Car, Plus, Trash2 } from 'lucide-react'; // Added icons
+import { Pencil, Clock, Car, Plus, Trash2, Eye } from 'lucide-react'; // Added icons
 import type { PageMeta, Vehicle } from '@/app/(admin)/vehicles/data/vehicles-data';
 import { SkeletonTable } from '@/components/admin/ui/skeleton';
+import { RowActionsMenu } from '@/components/admin/ui/row-actions-menu';
 
 // REMOVED the hardcoded mockVehicles array since we are getting it from the page now
 
@@ -81,56 +82,21 @@ export function VehicleTable({
       key: 'actions',
       label: 'Actions',
       align: 'center' as const,
-      headerClassName: 'w-32',
-      cellClassName: 'w-32',
-      // We pass the whole row (vehicle) to the render function so we can trigger the modals
+      headerClassName: 'w-20',
+      cellClassName: 'w-20',
+      // Delete: the backend refuses with 409 while the unit is on an active
+      // shift; the delete modal shows why.
       render: (_: unknown, row: Vehicle) => (
-        // Stop double-click on the action buttons from also opening the
-        // details modal — the row-level onDoubleClick handles that intent.
-        <div
-          className="flex items-center justify-center gap-2"
-          onDoubleClick={(e) => e.stopPropagation()}
-        >
-          {/* Shift History Button (clock icon) */}
-          <button 
-            onClick={(e) => {
-              e.stopPropagation();
-              onEditShift(row);
-            }}
-            title="View shift history"
-            aria-label={`View shift history for ${row.plateNumber}`}
-            className="p-1.5 text-slate-400 hover:text-[#62A0EA] hover:bg-[#62A0EA]/10 rounded-md transition-colors"
-          >
-            <Clock size={16} />
-          </button>
-
-          {/* Edit Vehicle Button (pencil icon) */}
-          <button 
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(row);
-            }}
-            title="Edit vehicle"
-            aria-label={`Edit vehicle ${row.plateNumber}`}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-[#1A2540] rounded-md transition-colors"
-          >
-            <Pencil size={16} />
-          </button>
-
-          {/* Delete Vehicle Button (trash icon) — the backend refuses with
-              409 while the unit is on an active shift; the modal shows why. */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(row);
-            }}
-            title="Delete vehicle"
-            aria-label={`Delete vehicle ${row.plateNumber}`}
-            className="p-1.5 text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
-          >
-            <Trash2 size={16} />
-          </button>
-        </div>
+        <RowActionsMenu
+          label={`Actions for ${row.plateNumber}`}
+          actions={[
+            // Same details view as double-clicking the row.
+            ...(onRowDoubleClick ? [{ label: 'View Details', icon: Eye, onSelect: () => onRowDoubleClick(row) }] : []),
+            { label: 'Shift History', icon: Clock, onSelect: () => onEditShift(row) },
+            { label: 'Edit', icon: Pencil, onSelect: () => onEdit(row) },
+            { label: 'Delete', icon: Trash2, onSelect: () => onDelete(row), tone: 'danger' },
+          ]}
+        />
       )
     },
   ];

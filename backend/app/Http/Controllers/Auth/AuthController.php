@@ -40,6 +40,10 @@ class AuthController extends Controller
     private const PENDING_RESET_MESSAGE = 'Your account is still pending admin approval. '
         .'You can reset your password once it has been approved.';
 
+    /** Shown when a commuter whose registration was rejected tries to reset a password. */
+    private const REJECTED_RESET_MESSAGE = 'Your registration was not approved, so this account '
+        .'cannot reset a password.';
+
     public function __construct(
         private AuthService $authService,
         private EmailVerificationService $emailVerification,
@@ -272,9 +276,10 @@ class AuthController extends Controller
      * rewritten to rejected+{uuid}@chatco.local on rejection — is not found
      * here, hence the message covering pending/rejected registrations.
      *
-     * A commuter still PENDING approval does exist here, so it is refused
-     * explicitly: the account cannot log in yet, and letting it reset a
-     * password contradicts the message above.
+     * A commuter still PENDING approval (or a REJECTED one that kept its
+     * email) does exist here, so it is refused explicitly: only approved
+     * accounts can log in, and letting any other reset a password
+     * contradicts the message above.
      */
     public function forgotPassword(Request $request): JsonResponse
     {
@@ -302,8 +307,8 @@ class AuthController extends Controller
             );
         }
 
-        if ($this->isPendingApproval($user)) {
-            return $this->errorResponse(self::PENDING_RESET_MESSAGE, 403);
+        if ($blocked = $this->resetBlockedMessage($user)) {
+            return $this->errorResponse($blocked, 403);
         }
 
         $code = $this->generateResetCode();
@@ -408,10 +413,10 @@ class AuthController extends Controller
 
         // Re-checked here, not only when the code is requested, so a code
         // issued before this guard existed still cannot change the password.
-        if ($this->isPendingApproval($user)) {
+        if ($blocked = $this->resetBlockedMessage($user)) {
             DB::table('password_reset_tokens')->where('email', $email)->delete();
 
-            return $this->errorResponse(self::PENDING_RESET_MESSAGE, 403);
+            return $this->errorResponse($blocked, 403);
         }
 
         // Sign out every existing session (web and mobile): a reset usually
@@ -491,13 +496,25 @@ class AuthController extends Controller
     }
 
     /**
-     * Whether this is a commuter whose registration is still awaiting admin
-     * approval. Reads only the status column, and only for commuters.
+     * Why this account may not reset its password, or null when it may.
+     *
+     * Only approved accounts can reset — the same statuses AuthService::login
+     * refuses as "not approved" (PENDING, REJECTED) are refused here.
+     * Rejection normally soft-deletes the account and rewrites its email, so
+     * REJECTED is a second line of defence for rows that kept their email.
+     * Reads only the status column, and only for commuters.
      */
-    private function isPendingApproval(User $user): bool
+    private function resetBlockedMessage(User $user): ?string
     {
-        return $user->isCommuter()
-            && CommuterProfile::whereKey($user->id)->value('account_status') === 'PENDING';
+        if (! $user->isCommuter()) {
+            return null;
+        }
+
+        return match (CommuterProfile::whereKey($user->id)->value('account_status')) {
+            'PENDING' => self::PENDING_RESET_MESSAGE,
+            'REJECTED' => self::REJECTED_RESET_MESSAGE,
+            default => null,
+        };
     }
 
     /**

@@ -36,38 +36,69 @@ class DatabaseSeeder extends Seeder
             'profile_picture_url' => null,
         ]);
 
-        // ── Conductors ──
-        $conductor1 = User::create([
-            'email' => 'conductor1@gmail.com',
-            'password' => Hash::make('password123'),
-            'role' => UserRole::CONDUCTOR,
-        ]);
-        ConductorProfile::create([
-            'id' => $conductor1->id,
-            'first_name' => 'Juan',
-            'middle_name' => null,
-            'last_name' => 'Dela Cruz',
-            'birthday' => '1990-03-15',
-            'profile_picture_url' => null,
-            'generated_username' => 'conductor001',
-            'generated_password' => Hash::make('password123'),
-        ]);
+        // admin1@gmail.com … admin10@gmail.com
+        $adminSpecs = [
+            ['Andrea',    null,        'Bautista'],
+            ['Benjamin',  'Ramos',     'Aquino'],
+            ['Cristina',  null,        'Navarro'],
+            ['Daniel',    'Castro',    'Mercado'],
+            ['Elena',     null,        'Salvador'],
+            ['Francisco', 'Lopez',     'Domingo'],
+            ['Gabriela',  null,        'Pascual'],
+            ['Hector',    'Rivera',    'Gonzales'],
+            ['Isabel',    null,        'Fernandez'],
+            ['Julian',    'Morales',   'Castillo'],
+        ];
 
-        $conductor2 = User::create([
-            'email' => 'conductor2@gmail.com',
-            'password' => Hash::make('password123'),
-            'role' => UserRole::CONDUCTOR,
-        ]);
-        ConductorProfile::create([
-            'id' => $conductor2->id,
-            'first_name' => 'Maria',
-            'middle_name' => 'Santos',
-            'last_name' => 'Reyes',
-            'birthday' => '1992-07-20',
-            'profile_picture_url' => null,
-            'generated_username' => 'conductor002',
-            'generated_password' => Hash::make('password123'),
-        ]);
+        foreach ($adminSpecs as $i => [$firstName, $middleName, $lastName]) {
+            $user = User::create([
+                'email' => 'admin'.($i + 1).'@gmail.com',
+                'password' => Hash::make('password123'),
+                'role' => UserRole::ADMIN,
+            ]);
+            AdminProfile::create([
+                'id' => $user->id,
+                'first_name' => $firstName,
+                'middle_name' => $middleName,
+                'last_name' => $lastName,
+                'profile_picture_url' => null,
+            ]);
+        }
+
+        // ── Conductors ──
+        // conductor1@gmail.com … conductor10@gmail.com, usernames
+        // conductor001 … conductor010.
+        $conductorSpecs = [
+            ['Juan',      null,        'Dela Cruz',   '1990-03-15'],
+            ['Maria',     'Santos',    'Reyes',       '1992-07-20'],
+            ['Paolo',     null,        'Manalo',      '1991-02-11'],
+            ['Kristine',  'Abad',      'Soriano',     '1994-09-03'],
+            ['Mark',      null,        'Villareal',   '1989-12-27'],
+            ['Angelica',  'Dizon',     'Ocampo',      '1995-05-08'],
+            ['Jerome',    null,        'Panganiban',  '1988-10-19'],
+            ['Rowena',    'Tan',       'Lacson',      '1993-01-30'],
+            ['Nestor',    null,        'Galang',      '1987-06-14'],
+            ['Liza',      'Cortez',    'Samonte',     '1996-04-22'],
+        ];
+
+        foreach ($conductorSpecs as $i => [$firstName, $middleName, $lastName, $birthday]) {
+            $number = $i + 1;
+            $user = User::create([
+                'email' => "conductor{$number}@gmail.com",
+                'password' => Hash::make('password123'),
+                'role' => UserRole::CONDUCTOR,
+            ]);
+            ConductorProfile::create([
+                'id' => $user->id,
+                'first_name' => $firstName,
+                'middle_name' => $middleName,
+                'last_name' => $lastName,
+                'birthday' => $birthday,
+                'profile_picture_url' => null,
+                'generated_username' => 'conductor'.str_pad($number, 3, '0', STR_PAD_LEFT),
+                'generated_password' => Hash::make('password123'),
+            ]);
+        }
 
         // ── Commuters ──
         // Seeded separately in CommuterSeeder (20 PH-celebrity accounts across
@@ -252,12 +283,11 @@ class DatabaseSeeder extends Seeder
         // ════════════════════════════════════════════════════
         // Split into focused seeders so each dataset is easy to inspect and can
         // be re-run in isolation (php artisan db:seed --class=XxxSeeder).
-        // Order matters: commuters + shifts → transactions → remittances.
+        // Shifts, transactions (receipts) and remittances start empty and
+        // come from real use. For demo history, run in this order:
+        //   db:seed --class=ShiftLogSeeder → TransactionSeeder → RemittanceSeeder
         $this->call([
             CommuterSeeder::class,      // 20 PH-celebrity commuters
-            ShiftLogSeeder::class,      // conductor shifts (ended + active today)
-            TransactionSeeder::class,   // fares (Receipts + remittance source)
-            RemittanceSeeder::class,    // completed remittances (from ended shifts)
             AnnouncementSeeder::class,  // system announcements feed
             FaqSeeder::class,           // landing-page FAQ chat content
         ]);
