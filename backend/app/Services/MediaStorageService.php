@@ -31,6 +31,11 @@ class MediaStorageService
         return $this->storePublic($file, "lost-and-found/{$itemId}");
     }
 
+    public function storeLostAndFoundClaimImage(UploadedFile $file, string $itemId): string
+    {
+        return $this->storePublic($file, "lost-and-found/{$itemId}/claims");
+    }
+
     public function storeCommuterId(UploadedFile $file, string $userId): string
     {
         $extension = strtolower($file->getClientOriginalExtension() ?: 'jpg');

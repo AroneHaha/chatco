@@ -15,6 +15,9 @@ export type AnnouncementType =
   | "MAINTENANCE"
   | "SAFETY"
   | "CLAIM_UPDATE"
+  // Lost & Found notices about an item the commuter saved to their watchlist
+  // (backend types saved_item_expiring / saved_item_taken / saved_item_back).
+  | "SAVED_ITEM"
   // A free-form admin-entered category (via "Other") that doesn't match any
   // of the keyword buckets above — see mapType() in announcements-context.
   // The original text the admin typed is preserved in `rawType` so the UI

@@ -33,15 +33,21 @@ class LostItemController extends Controller
     ) {}
 
     /**
-     * GET /lost-found?status=&category=&search=&per_page=
+     * GET /lost-found?status=&category=&search=&date=&range=&per_page=
      */
     public function index(Request $request): JsonResponse
     {
+        $range = $request->string('range')->toString() ?: null;
+        if (! $this->isValidRange($range)) {
+            return $this->errorResponse('Invalid time range filter', 422);
+        }
+
         $filters = [
             'status'   => $request->string('status')->toString() ?: null,
             'category' => $request->string('category')->toString() ?: null,
             'search'   => $request->string('search')->toString() ?: null,
             'date'     => $request->string('date')->toString() ?: null,
+            'range'    => $range,
         ];
         $perPage = min(max((int) $request->integer('per_page', 15), 1), 50);
 
@@ -74,6 +80,7 @@ class LostItemController extends Controller
                 $request->user(),
                 $itemId,
                 $request->validated(),
+                $request->file('images', []),
             );
         } catch (LostFoundException $e) {
             $status = str_contains($e->getMessage(), 'not found') ? 404 : 422;
@@ -92,14 +99,19 @@ class LostItemController extends Controller
         $status = $request->string('status')->toString() ?: null;
         $date = $request->string('date')->toString() ?: null;
         $search = $request->string('search')->toString() ?: null;
+        $range = $request->string('range')->toString() ?: null;
+        $category = $request->string('category')->toString() ?: null;
         if ($status && ! in_array($status, ['PENDING', 'APPROVED', 'REJECTED', 'RELEASED'], true)) {
             return $this->errorResponse('Invalid claim status filter', 422);
+        }
+        if (! $this->isValidRange($range)) {
+            return $this->errorResponse('Invalid time range filter', 422);
         }
 
         $perPage = min(max((int) $request->integer('per_page', 10), 1), 50);
 
         try {
-            $claims = $this->lostItemService->myClaims($request->user(), $perPage, $status, $date, $search);
+            $claims = $this->lostItemService->myClaims($request->user(), $perPage, $status, $date, $search, $range, $category);
         } catch (LostFoundException $e) {
             return $this->errorResponse($e->getMessage(), 422);
         }
@@ -167,6 +179,11 @@ class LostItemController extends Controller
         $perPage = min(max((int) $request->integer('per_page', 15), 1), 50);
         $date = $request->string('date')->toString() ?: null;
         $search = $request->string('search')->toString() ?: null;
+        $range = $request->string('range')->toString() ?: null;
+        $category = $request->string('category')->toString() ?: null;
+        if (! $this->isValidRange($range)) {
+            return $this->errorResponse('Invalid time range filter', 422);
+        }
 
         try {
             $watchlist = $this->lostItemService->myWatchlist(
@@ -174,11 +191,19 @@ class LostItemController extends Controller
                 $perPage,
                 $date,
                 $search,
+                $range,
+                $category,
             );
         } catch (LostFoundException $e) {
             return $this->errorResponse($e->getMessage(), 422);
         }
 
         return $this->successResponse($watchlist, 'Watchlist retrieved');
+    }
+
+    /** Null (no range) is valid; anything else must be one of TIME_RANGES. */
+    private function isValidRange(?string $range): bool
+    {
+        return $range === null || in_array($range, LostItemService::TIME_RANGES, true);
     }
 }

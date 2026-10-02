@@ -14,6 +14,13 @@ use Illuminate\Console\Command;
  * and can be brought back with LostItemService::reactivate() if a claimant
  * turns up late.
  *
+ * Before expiring, it auto-rejects approved claims whose pickup day passed
+ * without a release (LostItemService::rejectNoShows()).
+ *
+ * Then sends the one-time "your saved item expires soon" notice to
+ * commuters watching items within LostItemService::EXPIRY_REMINDER_DAYS of
+ * expiring (LostItemService::remindExpiringWatchedItems()).
+ *
  * Scheduled to run daily via routes/console.php:
  *   Schedule::command('lost-items:expire')->dailyAt('01:00')
  *
@@ -29,6 +36,12 @@ class ExpireStaleLostItems extends Command
 
     public function handle(LostItemService $lostItemService): int
     {
+        // First: approved claims nobody collected by the end of their pickup
+        // day. Their items return to AVAILABLE with a fresh window, so this
+        // must run before expiry or they'd be archived straight away.
+        $noShowCount = $lostItemService->rejectNoShows();
+        $this->info("{$noShowCount} uncollected approved claims auto-rejected");
+
         $expiredCount = $lostItemService->expireStale();
 
         if ($expiredCount === 0) {
@@ -36,6 +49,10 @@ class ExpireStaleLostItems extends Command
         } else {
             $this->info("{$expiredCount} lost items expired");
         }
+
+        // Runs after expiry so items archived just now are never "expiring soon".
+        $remindedCount = $lostItemService->remindExpiringWatchedItems();
+        $this->info("{$remindedCount} watchers reminded of expiring saved items");
 
         return self::SUCCESS;
     }

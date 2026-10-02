@@ -26,6 +26,19 @@ class ClaimLostItemRequest extends FormRequest
             'proof'           => 'required|string|max:1000',
             'claimant_contact'=> ['nullable', 'string', new PhilippineMobileNumber],
             'claimant_email'  => 'nullable|string|email|max:255',
+            // Same file rules as UploadLostItemImageRequest (admin item photos).
+            'images'          => 'nullable|array|max:3',
+            'images.*'        => 'image|mimes:jpg,jpeg,png,webp|max:5120',
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'images.max'      => 'You can attach up to 3 photos.',
+            'images.*.image'  => 'Each photo must be an image.',
+            'images.*.mimes'  => 'Photos must be JPG, PNG, or WEBP.',
+            'images.*.max'    => 'Each photo must be 5 MB or smaller.',
         ];
     }
 }

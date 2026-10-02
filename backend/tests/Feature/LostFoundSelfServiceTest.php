@@ -66,6 +66,16 @@ class LostFoundSelfServiceTest extends TestCase
         return Claim::findOrFail($response->json('data.id'));
     }
 
+    /** Pickup schedule the admin sets when approving an account claim. */
+    private function pickup(): array
+    {
+        return [
+            'pickup_location' => 'Calumpit Terminal Office',
+            'pickup_at' => now()->addDay()->setTime(14, 0)->toDateTimeString(),
+            'pickup_reminder' => 'Bring a valid ID.',
+        ];
+    }
+
     // ── GET /commuter/claims ────────────────────────────────────
 
     public function test_commuter_sees_only_their_own_claims_with_item(): void
@@ -96,7 +106,7 @@ class LostFoundSelfServiceTest extends TestCase
         $this->claimAs($this->commuter, $this->createItem('Item C'));
 
         Sanctum::actingAs($this->admin);
-        $this->patchJson("/api/v1/admin/lost-items/{$second->item_id}/claims/{$second->id}/approve")
+        $this->patchJson("/api/v1/admin/lost-items/{$second->item_id}/claims/{$second->id}/approve", $this->pickup())
             ->assertStatus(200);
 
         Sanctum::actingAs($this->commuter);
@@ -130,6 +140,27 @@ class LostFoundSelfServiceTest extends TestCase
             ->assertJsonCount(1, 'data.data')
             ->assertJsonPath('data.data.0.id', $oldClaim->id)
             ->assertJsonPath('data.data.0.item.item_name', 'Old Posted Item');
+    }
+
+    public function test_my_claims_filter_by_item_posted_time_range(): void
+    {
+        $this->travelTo(now()->setTime(12, 0));
+        $oldItem = $this->createItem('Last Month Item');
+        $newItem = $this->createItem('This Week Item');
+
+        $this->claimAs($this->commuter, $oldItem);
+        $newClaim = $this->claimAs($this->commuter, $newItem);
+        LostItem::where('id', $oldItem->id)->update(['created_at' => now()->subDays(40)]);
+        LostItem::where('id', $newItem->id)->update(['created_at' => now()->subDays(2)]);
+
+        Sanctum::actingAs($this->commuter);
+        $this->getJson('/api/v1/commuter/claims?range=week')
+            ->assertStatus(200)
+            ->assertJsonCount(1, 'data.data')
+            ->assertJsonPath('data.data.0.id', $newClaim->id);
+        $this->getJson('/api/v1/commuter/claims?range=year')
+            ->assertStatus(200)
+            ->assertJsonCount(2, 'data.data');
     }
 
     public function test_my_claims_search_item_transport_details(): void
@@ -212,7 +243,7 @@ class LostFoundSelfServiceTest extends TestCase
         $claim = $this->claimAs($this->commuter, $item);
 
         Sanctum::actingAs($this->admin);
-        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/approve")
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/approve", $this->pickup())
             ->assertStatus(200);
 
         Sanctum::actingAs($this->commuter);
@@ -230,7 +261,7 @@ class LostFoundSelfServiceTest extends TestCase
         $claim = $this->claimAs($this->commuter, $item);
 
         Sanctum::actingAs($this->admin);
-        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/approve")
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/approve", $this->pickup())
             ->assertStatus(200);
         $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim->id}/release")
             ->assertStatus(200);

@@ -1,25 +1,12 @@
-import { NextRequest } from "next/server";
-import { proxyToLaravel, API_V1 } from "@/lib/commuter/server/proxy";
+import { NextRequest, NextResponse } from "next/server";
+import { API_URL, API_V1, getCommuterToken, unauthorizedResponse } from "@/lib/commuter/server/proxy";
 
 /**
  * POST /api/lost-found/{itemId}/claim
  *
- * Sprint 6 (S6-T8) — commuter submits a claim with proof of ownership.
- *
- * Proxies to Laravel POST /api/v1/lost-found/{itemId}/claim, forwarding the
- * { proof, claimant_contact?, claimant_email? } body verbatim. The backend
- * derives claimant_name + claimant_id from the auth user's commuter profile
- * (never trusts client input for those), creates a PENDING claim, and flips
- * the item → CLAIMED if it was AVAILABLE.
- *
- * Role:COMMUTER is enforced at the Laravel route. Throttled at commuter-write.
- *
- * Response codes (passed through to the client service):
- *   201 — claim created (returns the Claim row)
- *   409 — item already CLAIMED/APPROVED/RELEASED/CLOSED (can't claim)
- *   422 — validation (proof missing/too long, etc.)
- *   403 — caller is not a COMMUTER
- *   401 — session expired
+ * Forwards the multipart claim (proof text + optional `images[]`) to Laravel.
+ * Can't use proxyToLaravel — it forces a JSON Content-Type, and multipart
+ * needs fetch to set its own boundary (same as the admin photos route).
  */
 export async function POST(
   request: NextRequest,
@@ -27,13 +14,40 @@ export async function POST(
 ) {
   const { id } = await params;
   if (!id || id === "undefined") {
-    return new Response(JSON.stringify({ message: "Item ID is required." }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
+    return NextResponse.json({ message: "Item ID is required." }, { status: 400 });
   }
-  return proxyToLaravel(request, `${API_V1}/lost-found/${id}/claim`, {
-    method: "POST",
-    body: await request.text(),
-  });
+
+  const token = getCommuterToken(request);
+  if (!token) {
+    return unauthorizedResponse();
+  }
+
+  let formData: FormData;
+  try {
+    formData = await request.formData();
+  } catch {
+    return NextResponse.json({ message: "Request body must be multipart form data." }, { status: 400 });
+  }
+
+  try {
+    const res = await fetch(`${API_URL}${API_V1}/lost-found/${id}/claim`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+      body: formData,
+    });
+
+    const body = await res.json().catch(() => null);
+    return NextResponse.json(
+      body ?? { success: false, message: "Request failed.", data: null, errors: null, meta: null },
+      { status: res.status }
+    );
+  } catch {
+    return NextResponse.json(
+      { success: false, message: "Unable to connect to the server.", data: null, errors: null, meta: null },
+      { status: 502 }
+    );
+  }
 }

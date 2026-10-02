@@ -74,6 +74,10 @@ function mapType(rawType: string): AnnouncementType {
   if (CLAIM_UPDATE_TYPES.some((type) => t.includes(type))) {
     return "CLAIM_UPDATE";
   }
+  // Watchlist notices (LostItemService::notifyWatchers / remindExpiringWatchedItems).
+  if (t.startsWith("saved_item")) {
+    return "SAVED_ITEM";
+  }
   if (["safety", "alert", "sos", "warning"].some((k) => t.includes(k))) {
     return "SAFETY";
   }

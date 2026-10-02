@@ -11,6 +11,7 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Sprint 6 (T4) — Announcements business logic.
@@ -206,6 +207,37 @@ class AnnouncementService
             'status'  => self::STATUS_ACTIVE,
             'reference_id' => $referenceId,
         ]);
+    }
+
+    /**
+     * Same as notifyUser(), fanned out to many recipients in ONE insert —
+     * for system notices that can reach an arbitrary number of commuters
+     * (e.g. everyone watching a Lost & Found item), where a create() per
+     * recipient would be one query each.
+     *
+     * @param  iterable<string>  $userIds
+     */
+    public function notifyUsers(iterable $userIds, string $type, string $title, string $message, ?string $referenceId = null): void
+    {
+        $now = now();
+        $rows = [];
+        foreach ($userIds as $userId) {
+            $rows[] = [
+                'id' => (string) Str::uuid(),
+                'user_id' => $userId,
+                'type' => $type,
+                'title' => $title,
+                'message' => $message,
+                'status' => self::STATUS_ACTIVE,
+                'reference_id' => $referenceId,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        foreach (array_chunk($rows, 500) as $chunk) {
+            Announcement::insert($chunk);
+        }
     }
 
     /**

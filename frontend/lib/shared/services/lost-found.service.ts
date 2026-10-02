@@ -8,7 +8,7 @@
  *   COMMUTER (role:COMMUTER for claim/watch; any auth role for browse):
  *     GET  /api/lost-found                         → list({ status?, category?, search?, page? })
  *     GET  /api/lost-found/{id}                    → show(id)
- *     POST /api/lost-found/{id}/claim              → claim(id, { proof, contact?, email? })
+ *     POST /api/lost-found/{id}/claim              → claim(id, { proof, contact?, email?, images? })
  *
  *   ADMIN (role:ADMIN):
  *     GET  /api/admin/lost-items                   → listForAdmin({ status?, statuses?, category?, page? })
@@ -81,6 +81,8 @@ interface RawLostItem {
   closed_by_name: string | null;
   closed_at: string | null;
   expired_at: string | null;
+  /** When an AVAILABLE item drops out of Lost & Found (LostItem::getClaimableUntilAttribute); null otherwise. */
+  claimable_until: string | null;
   created_at: string;
   updated_at: string;
   // Eager-loaded only on the admin list (listForAdmin)
@@ -115,7 +117,14 @@ interface RawClaim {
   rejected_at: string | null;
   released_at: string | null;
   rejection_reason: string | null;
+  pickup_location: string | null;
+  pickup_at: string | null;
+  pickup_reminder: string | null;
+  /** Set when an approved claimant never collected the item and the claim was auto-rejected. */
+  no_show_at: string | null;
   created_at: string;
+  // Proof-of-ownership photos — loaded on claim create + the admin claim lists only.
+  photos?: RawPhoto[];
   // Eager-loaded on GET /commuter/claims (myClaims)
   item?: RawLostItem | null;
   // Eager-loaded on the admin claim list (claims.claimant) — null for walk-in
@@ -193,6 +202,8 @@ export interface LostFoundItem {
   closedByName: string | null;
   /** When lost-items:expire auto-archived this item; null if never expired. */
   expiredAt: string | null;
+  /** Last day an unclaimed (AVAILABLE) item stays listed; null for any other status. */
+  claimableUntil: string | null;
   /** Up to 3 photos, position 0 first (the thumbnail — same URL as imageUrl). */
   photos: { id: string; url: string }[];
 }
@@ -210,6 +221,8 @@ export interface LostFoundClaim {
   /** Display status for the admin UI (Pending/Approved/Rejected). */
   displayStatus: string;
   proof: string;
+  /** Proof-of-ownership photos (up to 3), position order. */
+  proofPhotos: { id: string; url: string }[];
   rejectionReason: string | null;
   /** Admin who approved/rejected this claim; null until reviewed. */
   reviewedByName: string | null;
@@ -217,6 +230,12 @@ export interface LostFoundClaim {
   approvedAt: string | null;
   rejectedAt: string | null;
   releasedAt: string | null;
+  /** Where/when the approved claimant collects the item, set by the admin at approval. */
+  pickupLocation: string | null;
+  pickupAt: string | null;
+  pickupReminder: string | null;
+  /** When an uncollected approved claim was auto-rejected ("did not proceed"); null otherwise. */
+  noShowAt: string | null;
   /** The registered account that filed this claim; null for walk-in claimants. */
   linkedAccount: { id: string; name: string; username: string; accountStatus: string } | null;
 }
@@ -346,6 +365,7 @@ function mapItem(raw: RawLostItem): LostFoundItem {
     closedAt: raw.closed_at,
     closedByName: raw.closed_by_name ?? null,
     expiredAt: raw.expired_at,
+    claimableUntil: raw.claimable_until ?? null,
     photos: (raw.photos ?? []).map((p) => ({ id: p.id, url: p.url })),
   };
 }
@@ -361,12 +381,17 @@ function mapClaim(raw: RawClaim): LostFoundClaim {
     status: raw.status,
     displayStatus: mapClaimDisplayStatus(raw.status),
     proof: raw.proof ?? "",
+    proofPhotos: (raw.photos ?? []).map((photo) => ({ id: photo.id, url: photo.url })),
     rejectionReason: raw.rejection_reason ?? null,
     reviewedByName: raw.reviewed_by_name ?? null,
     reviewedAt: raw.reviewed_at,
     approvedAt: raw.approved_at,
     rejectedAt: raw.rejected_at,
     releasedAt: raw.released_at,
+    pickupLocation: raw.pickup_location ?? null,
+    pickupAt: raw.pickup_at ?? null,
+    pickupReminder: raw.pickup_reminder ?? null,
+    noShowAt: raw.no_show_at ?? null,
     linkedAccount: raw.claimant
       ? {
           id: raw.claimant.id,
@@ -417,6 +442,9 @@ function buildQuery(params: Record<string, string | number | undefined | null>):
 
 // ─── Service: browse (any auth role) ────────────────────────────────
 
+/** Posted-within window for the commuter list endpoints (backend `range` param). */
+export type LostFoundTimeRange = "today" | "week" | "month" | "year";
+
 /**
  * Fetch a paginated list of lost items (the public browse endpoint).
  *
@@ -427,6 +455,7 @@ export async function list(params: {
   category?: string;
   search?: string;
   date?: string;
+  range?: LostFoundTimeRange;
   page?: number;
   perPage?: number;
   /** Cancels this request if a newer one supersedes it (e.g. rapid filter changes). */
@@ -437,6 +466,7 @@ export async function list(params: {
     category: params.category === "ALL" ? undefined : params.category,
     search: params.search,
     date: params.date,
+    range: params.range,
     page: params.page,
     per_page: params.perPage,
   });
@@ -592,10 +622,12 @@ export async function myWatchlist(params: {
   perPage?: number;
   date?: string;
   search?: string;
+  range?: LostFoundTimeRange;
+  category?: string;
   /** Cancels this request if a newer one supersedes it (e.g. rapid filter changes). */
   signal?: AbortSignal;
 } = {}): Promise<LostFoundPage> {
-  const qs = buildQuery({ page: params.page, per_page: params.perPage, date: params.date, search: params.search });
+  const qs = buildQuery({ page: params.page, per_page: params.perPage, date: params.date, search: params.search, range: params.range, category: params.category });
   try {
     const response = await api.get<ApiResponseEnvelope<PaginatedEnvelope<RawWatchlistEntry>>>(
       `/api/commuter/watchlist${qs}`,
@@ -632,10 +664,12 @@ export async function myClaims(params: {
   status?: BackendClaimStatus;
   date?: string;
   search?: string;
+  range?: LostFoundTimeRange;
+  category?: string;
   /** Cancels this request if a newer one supersedes it (e.g. rapid filter changes). */
   signal?: AbortSignal;
 } = {}): Promise<MyClaimsPage> {
-  const qs = buildQuery({ page: params.page, per_page: params.perPage, status: params.status, date: params.date, search: params.search });
+  const qs = buildQuery({ page: params.page, per_page: params.perPage, status: params.status, date: params.date, search: params.search, range: params.range, category: params.category });
   try {
     const response = await api.get<ApiResponseEnvelope<PaginatedEnvelope<RawClaim>>>(
       `/api/commuter/claims${qs}`,
@@ -855,32 +889,45 @@ export async function reactivate(itemId: string): Promise<LostFoundItem> {
 // ─── Service: commuter claim (POST /lost-found/{id}/claim) ──────────
 
 /**
- * Commuter submits a claim on a lost item with proof of ownership.
+ * Commuter submits a claim on a lost item with proof of ownership, plus up
+ * to 3 optional proof photos.
+ *
+ * Multipart via raw fetch, same as addPhoto() — the shared api client always
+ * sends `Content-Type: application/json`. Photo limits per the backend
+ * ClaimLostItemRequest: `images[]`, jpg/jpeg/png/webp, max 5MB each.
  *
  * @throws {LostFoundOperationError}
  *   - 409 → conflict (item already CLAIMED/APPROVED/RELEASED/CLOSED)
- *   - 422 → validation (proof missing/too long)
+ *   - 422 → validation (proof missing/too long, bad/oversized photo, >3 photos)
  *   - 403 → non-commuter
  *   - 401 → unauthenticated
  */
 export async function claim(
   itemId: string,
-  params: { proof: string; contact?: string; email?: string }
+  params: { proof: string; contact?: string; email?: string; images?: File[] }
 ): Promise<LostFoundClaim> {
+  const formData = new FormData();
+  formData.append("proof", params.proof);
+  if (params.contact) formData.append("claimant_contact", params.contact);
+  if (params.email) formData.append("claimant_email", params.email);
+  for (const image of params.images ?? []) formData.append("images[]", image);
+
   try {
-    const response = await api.post<ApiResponseEnvelope<RawClaim>>(
-      `/api/lost-found/${itemId}/claim`,
-      {
-        proof: params.proof,
-        ...(params.contact ? { claimant_contact: params.contact } : {}),
-        ...(params.email ? { claimant_email: params.email } : {}),
-      }
-    );
-    return mapClaim(response.data);
-  } catch (err) {
-    if (err instanceof ApiError) {
-      throw classifyError(err, "Unable to submit this claim.");
+    const res = await fetch(`/api/lost-found/${itemId}/claim`, {
+      method: "POST",
+      body: formData,
+      credentials: "include",
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw classifyError(
+        new ApiError(res.status, res.statusText, body),
+        "Unable to submit this claim."
+      );
     }
+    return mapClaim((body as ApiResponseEnvelope<RawClaim>).data);
+  } catch (err) {
+    if (err instanceof LostFoundOperationError) throw err;
     throw new LostFoundOperationError(
       "network",
       err instanceof Error ? err.message : "Unable to reach the backend service."
@@ -941,10 +988,20 @@ export async function recordManualClaim(
  * Approve a pending claim. Flips the item → APPROVED (ready for release).
  * @throws {LostFoundOperationError} 404/422 (claim not PENDING)/401/403/5xx
  */
-export async function approveClaim(itemId: string, claimId: string): Promise<LostFoundClaim> {
+/** Where/when the approved claimant collects the item. `pickupAt` is local "YYYY-MM-DDTHH:mm". */
+export interface PickupSchedule {
+  location: string;
+  pickupAt: string;
+  reminder?: string;
+}
+
+export async function approveClaim(itemId: string, claimId: string, pickup?: PickupSchedule): Promise<LostFoundClaim> {
   try {
     const response = await api.patch<ApiResponseEnvelope<RawClaim>>(
-      `/api/admin/lost-items/${itemId}/claims/${claimId}/approve`
+      `/api/admin/lost-items/${itemId}/claims/${claimId}/approve`,
+      pickup
+        ? { pickup_location: pickup.location, pickup_at: pickup.pickupAt, pickup_reminder: pickup.reminder || null }
+        : {}
     );
     return mapClaim(response.data);
   } catch (err) {

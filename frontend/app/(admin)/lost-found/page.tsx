@@ -47,6 +47,7 @@ import {
   LostFoundOperationError,
   type LostFoundItem as ServiceItem,
   type LostFoundClaim as ServiceClaim,
+  type PickupSchedule,
 } from '@/lib/shared/services/lost-found.service';
 
 type AdminTab = 'ALL' | 'PENDING_CLAIMS' | 'TO_RELEASE' | 'HISTORY' | 'EXPIRED';
@@ -360,30 +361,38 @@ export default function LostFoundPage() {
 
   /**
    * Admin claim action: Approve / Release / Reject.
-   * Maps the modal's action labels to the backend endpoints. After a successful
-   * action, refetch the claims for this item + refresh the grid so the status
-   * badge updates.
+   * Maps the modal's action labels to the backend endpoints.
+   *
+   * Resolves as soon as the action itself succeeds: the acted-on claim is
+   * patched straight from the endpoint's response, so the modal closes and
+   * the grid updates immediately. The item's full claim list (approve
+   * auto-rejects other pending claims) and the grid are then reconciled in
+   * the background, in parallel. Previously the modal waited on a second,
+   * sequential claims fetch before closing, which is what made Release feel
+   * slow.
    */
   const handleClaimAction = async (
     itemId: string,
     action: 'Approve' | 'Release' | 'Reject',
-    claimId: string
+    claimId: string,
+    pickup?: PickupSchedule,
   ) => {
     setActionError(null);
     setIsActing(true);
     try {
-      if (action === 'Approve') {
-        await apiApproveClaim(itemId, claimId);
-      } else if (action === 'Release') {
-        await apiReleaseClaim(itemId, claimId);
-      } else if (action === 'Reject') {
-        await apiRejectClaim(itemId, claimId);
-      }
-      // Refetch claims for this item + the full list (status changed).
-      try {
-        const fresh = await claimsForItem(itemId);
-        setClaimsByItem((prev) => ({ ...prev, [itemId]: fresh.map(mapServiceClaimToAdmin) }));
-      } catch { /* claims modal will show stale; non-fatal */ }
+      const updated = action === 'Approve'
+        ? await apiApproveClaim(itemId, claimId, pickup)
+        : action === 'Release'
+          ? await apiReleaseClaim(itemId, claimId)
+          : await apiRejectClaim(itemId, claimId);
+      const updatedClaim = mapServiceClaimToAdmin(updated);
+      setClaimsByItem((prev) => ({
+        ...prev,
+        [itemId]: (prev[itemId] ?? []).map((claim) => (claim.id === claimId ? updatedClaim : claim)),
+      }));
+      void claimsForItem(itemId)
+        .then((fresh) => setClaimsByItem((prev) => ({ ...prev, [itemId]: fresh.map(mapServiceClaimToAdmin) })))
+        .catch(() => { /* the grid refresh below still reseeds claims; non-fatal */ });
       void refresh();
     } catch (err) {
       setActionError(err instanceof LostFoundOperationError ? err.message : 'Unable to process this claim.');
@@ -669,7 +678,12 @@ function mapServiceClaimToAdmin(claim: ServiceClaim): Claim {
     rejectedAt: claim.rejectedAt,
     releasedAt: claim.releasedAt,
     reviewedByName: claim.reviewedByName,
+    pickupLocation: claim.pickupLocation,
+    pickupAt: claim.pickupAt,
+    pickupReminder: claim.pickupReminder,
+    noShowAt: claim.noShowAt,
     proof: claim.proof,
+    proofPhotos: claim.proofPhotos,
     linkedAccount: claim.linkedAccount,
   };
 }

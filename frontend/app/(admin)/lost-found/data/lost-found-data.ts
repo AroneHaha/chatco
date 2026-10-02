@@ -43,8 +43,16 @@ export interface Claim {
   releasedAt?: string | null;
   /** Admin who approved/rejected this claim; null until reviewed. */
   reviewedByName?: string | null;
+  /** Where/when the claimant collects the item, set at approval. */
+  pickupLocation?: string | null;
+  pickupAt?: string | null;
+  pickupReminder?: string | null;
+  /** Approved but never collected by the pickup date; auto-rejected by the daily job. */
+  noShowAt?: string | null;
   /** The commuter's proof-of-ownership description (admin review only). */
   proof?: string;
+  /** Proof-of-ownership photos the commuter attached (admin review only). */
+  proofPhotos?: { id: string; url: string }[];
   /** The registered account that filed this claim; null/undefined for walk-in claimants. */
   linkedAccount?: { id: string; name: string; username: string; accountStatus: string } | null;
 }
