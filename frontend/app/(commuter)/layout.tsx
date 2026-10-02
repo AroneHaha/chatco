@@ -11,6 +11,7 @@ import MaintenanceGate from "@/components/shared/maintenance-gate";
 import { getCommuterTypeLabel } from "@/types";
 import { QrScanner } from "@/components/commuter/feedback/qr-scanner";
 import CommuterDock from "@/components/commuter/commuter-dock";
+import CommuterProfileModal from "@/components/commuter/commuter-profile-modal";
 
 /**
  * Spell out what the Rewards badge is counting for screen readers — the number
@@ -237,6 +238,9 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
         userName={userName}
         userTypeLabel={userTypeLabel}
       />
+
+      {/* --- PROFILE POPOVER (xl:+, opened from CommuterDock) --- */}
+      <CommuterProfileModal />
 
       {/* --- FEEDBACK QR SCAN MODAL --- */}
       {/* No backdrop-click-to-close — a live camera stream is running, same
