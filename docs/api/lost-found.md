@@ -44,7 +44,8 @@ Claim: PENDING ──(admin approves)──► APPROVED ──(admin releases)�
 - **An item can carry several `PENDING` claims at once.** It becomes `CLAIMED` on the first one. Approving one claim auto-rejects every other `PENDING` claim on that item in the same request.
 - **`RELEASED` is set directly on the item as `CLOSED`.** The admin release action (phase 5) sets the item straight to `CLOSED` with `released_to` and `released_at`, and the claim itself to `RELEASED`. There is no item status literally named `RELEASED` — only the claim has one.
 - **Rejection is reversible by a new claim, up to a limit.** A commuter whose claim was rejected can submit a new claim on the same item, up to **3** rejected claims per commuter per item (`LostItemService::MAX_REJECTIONS_PER_COMMUTER_ITEM`). The 4th attempt is refused.
-- **The claimant is notified** (an [announcement](announcements.md), type `claim_approved` / `claim_rejected` / `claim_released`) on every admin review decision, unless the claim has no `claimant_id` (an admin-recorded walk-in claim).
+- **The claimant is notified** (an [announcement](announcements.md), type `claim_approved` / `claim_rejected` / `claim_released`) on every admin review decision, unless the claim has no `claimant_id` (an admin-recorded walk-in claim). An approved claim carries `pickup_location`, `pickup_at` and `pickup_reminder`: where and when to collect the item, set by the admin at approval and repeated in the `claim_approved` message.
+- **Each item reports `claimable_until`.** For an `AVAILABLE` item it's the moment it becomes eligible for auto-expiry (`COALESCE(available_since, created_at)` + 30 days); for every other status it's `null`, because only unclaimed items run that clock.
 - **Browsing only ever shows `AVAILABLE` and `CLAIMED` items.** `APPROVED`, `CLOSED` and `EXPIRED` items drop out of the commuter/conductor feed — there is nothing left to do with them. Admins see every status (phase 5).
 
 ---
@@ -63,6 +64,7 @@ Paginated browse, open to any signed-in role.
 | `status` | Optional exact match. Combined with the fixed `AVAILABLE`/`CLAIMED` visibility — `status=APPROVED` returns an empty page, not an error. |
 | `category` | Optional exact match. Free text set by the admin when reporting the item (no fixed enum). |
 | `date` | `YYYY-MM-DD`. The day the item was **reported** (`created_at`). |
+| `range` | Optional. `today`, `week`, `month` or `year`: items reported within a rolling window ending now (`today` = since midnight, `week` = last 7 days, `month` = last 30, `year` = last 365, all in the app timezone). Anything else returns `422 "Invalid time range filter"`. Can be combined with `date`, but the commuter app sends one or the other. |
 | `search` | Matches item name, description, plate number, driver name or conductor name |
 | `per_page` | Default 15, clamped to 1–50 |
 | `page` | |
@@ -109,13 +111,14 @@ Submit a claim. **COMMUTER only.**
 - **Limiter:** commuter-write (20/min)
 - **Request:** `ClaimLostItemRequest` → `LostItemService::claim`
 
-**Body (JSON)**
+**Body (JSON, or `multipart/form-data` when attaching photos — the web app always sends multipart)**
 
 | Field | Rules |
 |---|---|
 | `proof` | Required, max 1000. Identifying details only the real owner would know. |
 | `claimant_contact` | Optional. `09XXXXXXXXX`. Defaults to the commuter's profile number. |
 | `claimant_email` | Optional, email, max 255. Defaults to the commuter's account email, then their profile email. |
+| `images[]` | Optional, up to 3 files. Each jpg/jpeg/png/webp, max 5 MB — the same rules as admin item photos. Stored on the public media disk under `lost-and-found/{itemId}/claims/` via `MediaStorageService`, and saved as `claim_photos` rows in the same transaction as the claim. Uploaded files are deleted again if the claim fails to save. |
 
 `claimant_name` is always the commuter's own profile name — never accepted from the body.
 
@@ -140,7 +143,8 @@ Submit a claim. **COMMUTER only.**
     "proof": "It has a small tear near the handle and my initials on the strap.",
     "reviewed_by_name": null,
     "created_at": "…",
-    "item": { "id": "…", "status": "CLAIMED" }
+    "item": { "id": "…", "status": "CLAIMED" },
+    "photos": [ { "id": "…", "claim_id": "…", "url": "https://…/lost-and-found/…/claims/….jpg", "position": 0 } ]
   },
   "message": "Claim submitted"
 }
@@ -185,6 +189,14 @@ This **deletes** the claim row — it is a withdrawal, not a review, so no `REJE
 
 A bookmark list. It does not affect the item or claim lifecycle at all — it exists so a commuter can track an item they think might be theirs before they are ready to claim it. The list itself is read at [`GET /commuter/watchlist`](commuter.md#get-commuterwatchlist).
 
+Watchers are notified (announcement types, `reference_id` = item id) when a saved item changes in a way that matters to them:
+
+| Type | When |
+|---|---|
+| `saved_item_taken` | Another commuter's claim on it is approved (it leaves the board) |
+| `saved_item_back` | That approval is reversed and the item is open for claims again |
+| `saved_item_expiring` | It's within 3 days of auto-expiry (`LostItemService::EXPIRY_REMINDER_DAYS`); sent once per availability window by `lost-items:expire` |
+
 ### POST /lost-found/{itemId}/watchlist
 
 **COMMUTER only.** Idempotent.
@@ -216,6 +228,8 @@ A concurrent double-tap is handled at the database level (a unique `(item_id, co
 
 `lost-items:expire` runs daily at 01:00 Asia/Manila ([README](README.md#scheduled-jobs-that-change-api-state)):
 
+- **First, closes uncollected approvals.** An `APPROVED` claim whose `pickup_at` day has ended (app timezone) without a release is auto-rejected as a no-show: status `REJECTED`, `rejection_reason` = `LostItemService::NO_SHOW_REASON`, `no_show_at` set, an audit row with `rejected_by: null`. There is no rescheduling. The item goes back to `AVAILABLE` with `available_since` reset (so the same run doesn't expire it), the claimant gets a `claim_rejected` notice titled "Claim Not Completed", and watchers get `saved_item_back`. The claimant claims again online (it counts toward the 3-rejection cap) or as a walk-in at the office. Walk-in approvals without a `pickup_at` are never swept.
+- **Then reminds watchers** of `AVAILABLE` items within 3 days of expiring (`saved_item_expiring`). `lost_item_watchlists.expiry_reminded_at` records the send, so each watcher is reminded once per window; a reactivated item gets a fresh one.
 - **Archives every `AVAILABLE` item** that has sat unclaimed for **30 days** (`LostItemService::EXPIRY_DAYS`), measured from `available_since` if set, otherwise `created_at`.
 - **Never touches an item with any claim history.** `CLAIMED`, `APPROVED` and `CLOSED` items are left alone regardless of age.
 - **Not deletion.** The row, its photos, and any past rejected claims stay intact. An admin can reactivate an `EXPIRED` item back to `AVAILABLE` (phase 5), which resets `available_since` to that moment — so a reactivated item gets a fresh 30-day window, not credit for its original report date.

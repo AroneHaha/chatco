@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Enums\ActivityLogCategory;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\LostFound\ApproveClaimRequest;
 use App\Http\Requests\LostFound\RejectClaimRequest;
 use App\Http\Requests\LostFound\StoreLostItemRequest;
 use App\Http\Requests\LostFound\UpdateLostItemRequest;
@@ -231,13 +232,14 @@ class AdminLostItemController extends Controller
     /**
      * PATCH /admin/lost-items/{itemId}/claims/{claimId}/approve
      */
-    public function approveClaim(Request $request, string $itemId, string $claimId): JsonResponse
+    public function approveClaim(ApproveClaimRequest $request, string $itemId, string $claimId): JsonResponse
     {
         try {
             $claim = $this->lostItemService->approveClaim(
                 $request->user(),
                 $itemId,
                 $claimId,
+                $request->validated(),
             );
         } catch (LostFoundException $e) {
             $status = str_contains($e->getMessage(), 'not found') ? 404 : 422;

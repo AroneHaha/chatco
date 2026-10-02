@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ItemCategory, ClaimFilter, ClaimStatus, LostItem, ClaimData, PaginatedAPIResponse, ViewTab } from "./types";
+import { ItemCategory, ClaimFilter, ClaimStatus, LostItem, ClaimData, PaginatedAPIResponse, TimeRange, ViewTab } from "./types";
 import { CLAIMS_PER_PAGE, ITEMS_PER_PAGE } from "./data";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { RequestCancelledError } from "@/lib/api/client";
@@ -14,6 +14,7 @@ import {
   LostFoundOperationError,
   type BackendClaimStatus,
   type LostFoundItem,
+  type LostFoundTimeRange,
 } from "@/lib/shared/services/lost-found.service";
 
 /** Server-side cap on `per_page` for Lost & Found list endpoints (see LostItemController). */
@@ -27,7 +28,7 @@ const MAX_WATCHLIST_PAGES = 500;
 /**
  * Sprint 6 (S6-T8) — Commuter Lost & Found hook, fully DB-backed.
  *
- *   list()        → GET    /api/v1/lost-found (paginated, category/search)
+ *   list()        → GET    /api/v1/lost-found (paginated, category/search/date/range)
  *   claim()       → POST   /api/v1/lost-found/{id}/claim (proof of ownership)
  *   myClaims()    → GET    /api/v1/commuter/claims (item eager-loaded)
  *   cancelClaim() → DELETE /api/v1/lost-found/claims/{claimId}
@@ -45,7 +46,9 @@ const MAX_WATCHLIST_PAGES = 500;
  * Tabs:
  *   ALL       → server-paginated browse list
  *   WATCHLIST → server-paginated GET /commuter/watchlist
- *   MY_CLAIMS → items attached to the commuter's own claims (no extra fetch)
+ *   MY_CLAIMS → server-paginated GET /commuter/claims
+ * Every tab sends category/date/range/search to the server, so pagination
+ * always matches what's shown.
  *
  * Claim status mapping (backend → UI): PENDING→PENDING, APPROVED→VALIDATED,
  * REJECTED→REJECTED. When a commuter has several claims on one item (e.g.
@@ -61,11 +64,15 @@ export function useLostAndFound() {
   // (and DB query) per keystroke.
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 400);
   const [selectedDate, setSelectedDate] = useState("");
+  // Posted-within window ("ALL" = no limit, the default newest-first list).
+  // Mutually exclusive with `selectedDate` — see the handlers below.
+  const [timeRange, setTimeRange] = useState<TimeRange>("ALL");
   const [currentPage, setCurrentPage] = useState(1);
 
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [itemToClaim, setItemToClaim] = useState<LostItem | null>(null);
   const [proofText, setProofText] = useState("");
+  const [proofImages, setProofImages] = useState<File[]>([]);
   const [claimError, setClaimError] = useState<string | null>(null);
   const [isSubmittingClaim, setIsSubmittingClaim] = useState(false);
   // Cancel-claim confirmation flow: `claimToCancel` (an item id) drives the
@@ -105,7 +112,7 @@ export function useLostAndFound() {
   };
 
   /** Reload one page of the commuter's own claims from the DB. */
-  const loadClaims = useCallback(async (page = currentPage, filter = claimFilter, date = selectedDate, search = debouncedSearchQuery, signal?: AbortSignal) => {
+  const loadClaims = useCallback(async (page = currentPage, filter = claimFilter, date = selectedDate, search = debouncedSearchQuery, range = timeRange, category = activeCategory, signal?: AbortSignal) => {
     setIsLoading(true);
     setListError(null);
     try {
@@ -115,6 +122,8 @@ export function useLostAndFound() {
         status: toBackendClaimStatus(filter),
         date: date || undefined,
         search: search.trim() || undefined,
+        range: toBackendRange(range),
+        category: category === "ALL" ? undefined : category,
         signal,
       });
       const next = new Map<string, ClaimData>();
@@ -131,6 +140,10 @@ export function useLostAndFound() {
           rejectedAt: row.rejectedAt,
           releasedAt: row.releasedAt,
           rejectionReason: row.rejectionReason,
+          pickupLocation: row.pickupLocation,
+          pickupAt: row.pickupAt,
+          pickupReminder: row.pickupReminder,
+          noShowAt: row.noShowAt,
           item: row.item ? mapServiceItemToViewModel(row.item) : null,
         });
       }
@@ -150,7 +163,7 @@ export function useLostAndFound() {
       setClaimPageData({ totalPages: 1, totalItems: 0, currentPage: page });
       setIsLoading(false);
     }
-  }, [claimFilter, currentPage, selectedDate, debouncedSearchQuery]);
+  }, [claimFilter, currentPage, selectedDate, debouncedSearchQuery, timeRange, activeCategory]);
 
   // Flips true once fetchWatchlistItems() has returned a result whose single
   // page already covers the whole watchlist (lastPage === 1) — at that point
@@ -184,7 +197,7 @@ export function useLostAndFound() {
 
   useEffect(() => { void loadWatchlistIds(); }, [loadWatchlistIds]);
 
-  const fetchLostItems = useCallback(async (page: number, limit: number, category: ItemCategory, search: string, date: string, signal?: AbortSignal) => {
+  const fetchLostItems = useCallback(async (page: number, limit: number, category: ItemCategory, search: string, date: string, range: TimeRange, signal?: AbortSignal) => {
     setIsLoading(true);
     setListError(null);
     try {
@@ -194,6 +207,7 @@ export function useLostAndFound() {
         category: category === "ALL" ? undefined : category,
         search: search.trim() || undefined,
         date: date || undefined,
+        range: toBackendRange(range),
         signal,
       });
       setApiData({
@@ -211,7 +225,7 @@ export function useLostAndFound() {
     }
   }, []);
 
-  const fetchWatchlistItems = useCallback(async (page: number, limit: number, date: string, search: string, signal?: AbortSignal) => {
+  const fetchWatchlistItems = useCallback(async (page: number, limit: number, date: string, search: string, range: TimeRange, category: ItemCategory, signal?: AbortSignal) => {
     setIsLoading(true);
     setListError(null);
     try {
@@ -220,6 +234,8 @@ export function useLostAndFound() {
         perPage: limit,
         date: date || undefined,
         search: search.trim() || undefined,
+        range: toBackendRange(range),
+        category: category === "ALL" ? undefined : category,
         signal,
       });
       setApiData({
@@ -230,7 +246,10 @@ export function useLostAndFound() {
       });
       // This page came straight from the watchlist endpoint, so every item
       // on it is watched by definition — keep the heart id-set in sync.
-      if (result.lastPage === 1) {
+      // Only an unfiltered single page is the whole watchlist; a filtered
+      // one is a subset, so it may only add ids, never replace the set.
+      const isUnfiltered = category === "ALL" && range === "ALL" && !date && !search.trim();
+      if (result.lastPage === 1 && isUnfiltered) {
         // This one page IS the entire watchlist — it's now the authoritative
         // full set, making the separate multi-page walk in loadWatchlistIds()
         // redundant, so stop/skip it rather than re-fetching the same rows.
@@ -259,24 +278,31 @@ export function useLostAndFound() {
   useEffect(() => {
     const controller = new AbortController();
     if (activeTab === "MY_CLAIMS") {
-      void loadClaims(currentPage, claimFilter, selectedDate, debouncedSearchQuery, controller.signal);
+      void loadClaims(currentPage, claimFilter, selectedDate, debouncedSearchQuery, timeRange, activeCategory, controller.signal);
     } else if (activeTab === "WATCHLIST") {
-      void fetchWatchlistItems(currentPage, ITEMS_PER_PAGE, selectedDate, debouncedSearchQuery, controller.signal);
+      void fetchWatchlistItems(currentPage, ITEMS_PER_PAGE, selectedDate, debouncedSearchQuery, timeRange, activeCategory, controller.signal);
     } else {
-      void fetchLostItems(currentPage, ITEMS_PER_PAGE, activeCategory, debouncedSearchQuery, selectedDate, controller.signal);
+      void fetchLostItems(currentPage, ITEMS_PER_PAGE, activeCategory, debouncedSearchQuery, selectedDate, timeRange, controller.signal);
     }
     return () => controller.abort();
-  }, [activeTab, fetchLostItems, fetchWatchlistItems, loadClaims, currentPage, activeCategory, claimFilter, debouncedSearchQuery, selectedDate]);
+  }, [activeTab, fetchLostItems, fetchWatchlistItems, loadClaims, currentPage, activeCategory, claimFilter, debouncedSearchQuery, selectedDate, timeRange]);
 
-  const handleTabChange = (tab: ViewTab) => { setActiveTab(tab); setActiveCategory("ALL"); setSearchQuery(""); setSelectedDate(""); setCurrentPage(1); };
+  const handleTabChange = (tab: ViewTab) => { setActiveTab(tab); setActiveCategory("ALL"); setSearchQuery(""); setSelectedDate(""); setTimeRange("ALL"); setCurrentPage(1); };
   const handleCategoryChange = (cat: ItemCategory) => { setActiveCategory(cat); setCurrentPage(1); };
   const handleClaimFilterChange = (filter: ClaimFilter) => { setClaimFilter(filter); setCurrentPage(1); };
   const handleSearch = (val: string) => { setSearchQuery(val); setCurrentPage(1); };
-  const handleDateChange = (date: string) => { setSelectedDate(date); setCurrentPage(1); };
+  // A specific posted date and a posted-within window would AND together into
+  // either a redundant or an empty result, so picking one clears the other.
+  const handleDateChange = (date: string) => { setSelectedDate(date); if (date) setTimeRange("ALL"); setCurrentPage(1); };
+  const handleTimeRangeChange = (range: TimeRange) => { setTimeRange(range); if (range !== "ALL") setSelectedDate(""); setCurrentPage(1); };
 
-  /** Local category/search filter for tabs whose data isn't server-filtered. */
+  /**
+   * Instant search feedback while the debounced server search catches up.
+   * Category is NOT filtered here: every tab sends it to the server, so the
+   * page and its pagination already match it (filtering a fetched page
+   * client-side would leave short pages and wrong page counts).
+   */
   const matchesLocalFilters = (item: LostItem): boolean => {
-    if (activeCategory !== "ALL" && item.category !== activeCategory) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       const fields = [
@@ -316,7 +342,7 @@ export function useLostAndFound() {
       try {
         if (wasWatched) await apiUnwatch(id);
         else await apiWatch(id);
-        if (activeTab === "WATCHLIST") void fetchWatchlistItems(currentPage, ITEMS_PER_PAGE, selectedDate, debouncedSearchQuery);
+        if (activeTab === "WATCHLIST") void fetchWatchlistItems(currentPage, ITEMS_PER_PAGE, selectedDate, debouncedSearchQuery, timeRange, activeCategory);
       } catch {
         // Revert the optimistic flip.
         setWatchlist(prev => { const next = new Set(prev); if (wasWatched) next.add(id); else next.delete(id); return next; });
@@ -327,6 +353,7 @@ export function useLostAndFound() {
   const openClaimModal = (item: LostItem) => {
     setItemToClaim(item);
     setProofText("");
+    setProofImages([]);
     setClaimError(null);
     setShowClaimModal(true);
   };
@@ -341,7 +368,7 @@ export function useLostAndFound() {
     setIsSubmittingClaim(true);
     setClaimError(null);
     try {
-      await claimItem(itemToClaim.id, { proof: proofText.trim() });
+      await claimItem(itemToClaim.id, { proof: proofText.trim(), images: proofImages });
       await loadClaims(1, "ALL");
       setShowClaimModal(false);
       return true;
@@ -420,15 +447,21 @@ export function useLostAndFound() {
 
   return {
     activeTab, handleTabChange, activeCategory, handleCategoryChange, claimFilter, handleClaimFilterChange, searchQuery, handleSearch,
-    selectedDate, handleDateChange,
+    selectedDate, handleDateChange, timeRange, handleTimeRangeChange,
     currentPage, setCurrentPage, apiData, isLoading, listError,
     watchlist, toggleWatchlist, claims, claimPageData,
     openClaimModal,
     claimToCancel, requestCancelClaim, closeCancelClaimModal, confirmCancelClaim, isCancellingClaim, cancelToast,
     showClaimModal, setShowClaimModal, itemToClaim, proofText, setProofText,
+    proofImages, setProofImages,
     submitClaim, claimError, isSubmittingClaim,
     displayItems, displayClaims, formatDate, getStatusBadge,
   };
+}
+
+/** UI time range → backend `range` param ("ALL" sends nothing). */
+function toBackendRange(range: TimeRange): LostFoundTimeRange | undefined {
+  return range === "ALL" ? undefined : range;
 }
 
 /** Map the shared service's LostFoundItem → the local LostItem view-model. */
@@ -444,5 +477,7 @@ function mapServiceItemToViewModel(item: LostFoundItem): LostItem {
     estimatedTimeLost: item.estimatedTimeLost,
     category: (item.category || "OTHER") as LostItem["category"],
     datePosted: item.datePosted,
+    photos: item.photos,
+    claimableUntil: item.claimableUntil,
   };
 }

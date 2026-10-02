@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, type ComponentType } from "react";
+import { useEffect, useRef, useState, type ComponentType } from "react";
+import { PROFILE_ANCHOR_ID } from "@/components/commuter/commuter-profile-modal";
 
 export interface CommuterDockItem {
   href: string;
@@ -34,7 +35,9 @@ interface CommuterDockProps {
  *
  * Layout only: every item routes/opens exactly what the sidebar's does (the
  * layout passes the same badge-augmented list to both), so there is no
- * second source of truth for what the commuter nav contains.
+ * second source of truth for what the commuter nav contains. The one
+ * exception is Profile, which opens CommuterProfileModal as a popover here
+ * instead of navigating, the same way ConductorDock opens Settings.
  */
 export default function CommuterDock({
   items,
@@ -51,11 +54,26 @@ export default function CommuterDock({
   const pillRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef(new Map<string, HTMLElement>());
 
+  // Profile is a popover, not a route, so opening it doesn't change
+  // `pathname`. CommuterProfileModal reports its open state so Profile can
+  // show as active while it's up, and the route's tab again once it closes.
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  useEffect(() => {
+    const handler = (e: Event) => setIsProfileOpen((e as CustomEvent<{ active: boolean }>).detail.active);
+    window.addEventListener("commuter:profile-active-changed", handler);
+    return () => window.removeEventListener("commuter:profile-active-changed", handler);
+  }, []);
+  const activeKey = isProfileOpen ? "/profile" : pathname;
+
+  // Every dock click closes an open popover first, so moving to another tab
+  // never leaves the profile floating over it.
+  const closePopovers = () => window.dispatchEvent(new CustomEvent("commuter:close-popovers"));
+
   useEffect(() => {
     const applyPillPosition = () => {
       const pill = pillRef.current;
       if (!pill) return;
-      const activeEl = itemRefs.current.get(pathname);
+      const activeEl = itemRefs.current.get(activeKey);
       // On a route that isn't one of the five tabs, hide the pill rather
       // than leaving it parked on whichever tab was active last.
       if (!activeEl) {
@@ -72,7 +90,7 @@ export default function CommuterDock({
     // position can shift without the route changing.
     window.addEventListener("resize", applyPillPosition);
     return () => window.removeEventListener("resize", applyPillPosition);
-  }, [pathname, items]);
+  }, [activeKey, items]);
 
   const itemClass = (isActive: boolean) =>
     `relative z-10 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-colors whitespace-nowrap cursor-pointer ${
@@ -97,7 +115,7 @@ export default function CommuterDock({
           />
 
           {items.map((item) => {
-            const isActive = pathname === item.href;
+            const isActive = activeKey === item.href;
             const ariaLabel = item.badge > 0 ? `${item.label} — ${item.badgeLabel}` : undefined;
             const content = (
               <>
@@ -116,12 +134,39 @@ export default function CommuterDock({
               </>
             );
 
+            if (item.href === "/profile") {
+              return (
+                <button
+                  key={item.href}
+                  ref={(el) => { if (el) itemRefs.current.set(item.href, el); }}
+                  id={PROFILE_ANCHOR_ID}
+                  type="button"
+                  onClick={() => {
+                    closePopovers();
+                    // Clicking Profile while it's open just closes it.
+                    if (isProfileOpen) return;
+                    window.dispatchEvent(new CustomEvent("commuter:open-profile"));
+                  }}
+                  aria-label={ariaLabel}
+                  aria-haspopup="dialog"
+                  aria-expanded={isProfileOpen}
+                  title={item.label}
+                  className={itemClass(isActive)}
+                >
+                  {content}
+                </button>
+              );
+            }
+
             return item.href === "/feedback" ? (
               <button
                 key={item.href}
                 ref={(el) => { if (el) itemRefs.current.set(item.href, el); }}
                 type="button"
-                onClick={onFeedbackClick}
+                onClick={() => {
+                  closePopovers();
+                  onFeedbackClick();
+                }}
                 aria-label={ariaLabel}
                 title={item.label}
                 className={itemClass(isActive)}
@@ -133,6 +178,7 @@ export default function CommuterDock({
                 key={item.href}
                 ref={(el) => { if (el) itemRefs.current.set(item.href, el); }}
                 href={item.href}
+                onClick={closePopovers}
                 aria-label={ariaLabel}
                 title={item.label}
                 className={itemClass(isActive)}

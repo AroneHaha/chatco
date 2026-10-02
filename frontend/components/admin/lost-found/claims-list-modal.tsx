@@ -4,11 +4,14 @@
 import { useState } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import { Badge } from '@/components/admin/ui/badge';
+import { ApproveClaimModal } from '@/components/admin/lost-found/approve-claim-modal';
+import type { PickupSchedule } from '@/lib/shared/services/lost-found.service';
 import {
   CalendarDays,
   CheckCircle2,
   Clock3,
   Mail,
+  MapPin,
   Phone,
   RotateCcw,
   UserPlus,
@@ -27,7 +30,8 @@ interface ClaimsListModalProps {
   /** Admin who released/closed the item — the "Released" timeline step lives
    * on the item (closed_by), not the claim, since release closes the item. */
   releasedByName?: string | null;
-  onClaimAction: (itemId: string, action: ClaimAction, claimId: string) => Promise<void>;
+  /** `pickup` is required when approving an account claimant (see ApproveClaimModal). */
+  onClaimAction: (itemId: string, action: ClaimAction, claimId: string, pickup?: PickupSchedule) => Promise<void>;
   onRecordManualClaim: (itemId: string, input: {
     name: string;
     contact?: string;
@@ -72,7 +76,10 @@ function getProcessTimeline(
   return [
     { label: 'Submitted', date: claim.claimDate, tone: 'text-slate-300', by: null },
     { label: 'Approved', date: claim.approvedAt ?? null, tone: 'text-emerald-300', by: claim.reviewedByName ?? null },
-    { label: 'Rejected', date: claim.rejectedAt ?? null, tone: 'text-red-300', by: claim.reviewedByName ?? null },
+    // A no-show is closed by the daily job, not an admin, so it has no "by".
+    claim.noShowAt
+      ? { label: 'Not collected', date: claim.noShowAt, tone: 'text-slate-300', by: 'System' }
+      : { label: 'Rejected', date: claim.rejectedAt ?? null, tone: 'text-red-300', by: claim.reviewedByName ?? null },
     { label: 'Released', date: claim.releasedAt ?? null, tone: 'text-[#8CB9F0]', by: releasedByName ?? null },
   ].filter((step) => Boolean(step.date));
 }
@@ -109,6 +116,8 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
   const [manualForm, setManualForm] = useState({ name: '', contact: '', email: '', proof: '' });
   const [manualError, setManualError] = useState<string | null>(null);
   const [isSavingManual, setIsSavingManual] = useState(false);
+  // Account claimant awaiting the pickup-schedule step before approval.
+  const [approveTarget, setApproveTarget] = useState<Claim | null>(null);
   const orderedClaims = [...claims].sort((a, b) => {
     if (isAcceptedStatus(a.status) !== isAcceptedStatus(b.status)) {
       return isAcceptedStatus(a.status) ? -1 : 1;
@@ -119,6 +128,14 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
   });
 
   const handleAction = async (claimId: string, action: ClaimAction) => {
+    // Account claimants only learn the pickup details through the app, so
+    // approving them goes through the schedule step first. Walk-ins are
+    // already at the desk and approve directly.
+    const target = claims.find((claim) => claim.id === claimId);
+    if (action === 'Approve' && target?.linkedAccount) {
+      setApproveTarget(target);
+      return;
+    }
     setPendingAction({ claimId, action });
     try {
       await onClaimAction(itemId, action, claimId);
@@ -128,6 +145,14 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
     } finally {
       setPendingAction(null);
     }
+  };
+
+  const handleConfirmApproval = async (pickup: PickupSchedule) => {
+    if (!approveTarget) return;
+    // Errors propagate so ApproveClaimModal can show them inline.
+    await onClaimAction(itemId, 'Approve', approveTarget.id, pickup);
+    setApproveTarget(null);
+    onClose();
   };
 
   const handleManualSubmit = async (event: React.FormEvent) => {
@@ -218,7 +243,9 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
                     </div>
                   </div>
                 </div>
-                <Badge variant={getBadgeVariant(claim.status)}>{claim.status}</Badge>
+                {claim.noShowAt
+                  ? <Badge variant="neutral">Did not proceed</Badge>
+                  : <Badge variant={getBadgeVariant(claim.status)}>{claim.status}</Badge>}
               </div>
 
               {isAccepted && (
@@ -232,6 +259,20 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
                   ) : (
                     <p className="mt-1 text-xs text-emerald-100/70">Walk-in claimant without linked account</p>
                   )}
+                </div>
+              )}
+
+              {claim.pickupLocation && (
+                <div className="mt-3 rounded-lg border border-white/5 bg-white/[0.04] p-3">
+                  <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                    <MapPin className="h-3.5 w-3.5" />
+                    Pickup schedule
+                  </div>
+                  <p className="text-xs font-semibold text-slate-200">
+                    {claim.pickupLocation}
+                    {claim.pickupAt && <span className="font-medium text-slate-400"> &middot; {formatClaimDate(claim.pickupAt)}</span>}
+                  </p>
+                  {claim.pickupReminder && <p className="mt-1 text-xs leading-5 text-slate-400">{claim.pickupReminder}</p>}
                 </div>
               )}
 
@@ -281,6 +322,22 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
                 <div className="mt-3 rounded-lg border border-white/5 bg-white/[0.04] p-3">
                   <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Proof of ownership</p>
                   <p className="text-xs leading-5 text-slate-300">{claim.proof}</p>
+                  {claim.proofPhotos && claim.proofPhotos.length > 0 && (
+                    <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
+                      {claim.proofPhotos.map((photo, index) => (
+                        <a
+                          key={photo.id}
+                          href={photo.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="aspect-square overflow-hidden rounded-md border border-white/10 transition-colors hover:border-[#62A0EA]/45"
+                          title="Open full size"
+                        >
+                          <img src={photo.url} alt={`Proof photo ${index + 1}`} className="h-full w-full object-cover" />
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -320,6 +377,13 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
           </div>
         )}
       </div>
+
+      <ApproveClaimModal
+        isOpen={approveTarget !== null}
+        claimantName={approveTarget?.claimantName ?? ''}
+        onClose={() => setApproveTarget(null)}
+        onConfirm={handleConfirmApproval}
+      />
     </Modal>
   );
 }

@@ -32,7 +32,10 @@ Per-area docs:
 | [conductor.md](conductor.md) | Shifts, devices, fares, remittance, hails, mobile namespace | Done |
 | [lost-found.md](lost-found.md) | Lost & Found browse, claims, watchlist | Done |
 | [announcements.md](announcements.md) | Notification feed and read state | Done |
-| admin-*.md | Admin dashboard, users, personnel, fleet, routes, fares, settings, finance, safety | Planned (phase 5) |
+| [admin-people.md](admin-people.md) | Users, registrations (+ rejection cooldown), personnel, terminated personnel, drivers, conductors | Done |
+| [admin-fleet.md](admin-fleet.md) | Vehicles, routes (draft/publish/versions, detours), fare points, unit-QR issuance | Done |
+| [admin-operations.md](admin-operations.md) | Dashboard/analytics, monitoring, overspeed, demand zones, shift logs, device recovery, transactions, remittances, SOS, feedback, activity logs | Done |
+| [admin-content.md](admin-content.md) | Settings, vouchers, remittance options, FAQs, announcements CRUD, Lost & Found management | Done |
 
 ---
 
@@ -479,84 +482,85 @@ Every route below also exists under `/mobile/conductor/*`. One difference: the m
 | POST | `/announcements/mark-all-read` | any | commuter-write |
 | POST | `/announcements/{id}/read` | any | commuter-write |
 
-### Admin: phase 5
+### Admin
 
-Everything here requires role `A`. Rows marked `PUT/PATCH` accept either method. The limiter is `conductor-read` for GETs and `conductor-write` for writes unless noted.
+Everything here requires role `A`. Rows marked `PUT/PATCH` accept either method. The limiter is `conductor-read` for GETs and `conductor-write` for writes unless noted. Full docs are split across four files by area — see each row's link.
 
-| Area | Method | Path | Notes |
-|---|---|---|---|
-| Dashboard | GET | `/admin/dashboard` | no throttle |
-| Analytics | GET | `/admin/analytics` | |
-| Monitoring | GET | `/admin/monitoring` | |
-| | GET | `/admin/monitoring/overspeed` | |
-| | GET | `/admin/monitoring/demand-zones` | |
-| Users | GET | `/admin/users` | |
-| | GET | `/admin/users/{id}` | |
-| | PUT/PATCH | `/admin/users/{id}` | |
-| | DELETE | `/admin/users/{id}` | |
-| | POST | `/admin/users/{id}/suspend` | admin-write |
-| | POST | `/admin/users/{id}/unsuspend` | admin-write |
-| | GET | `/admin/users/{id}/suspensions` | |
-| | GET | `/admin/users/{id}/activity` | |
-| Registrations | GET | `/admin/registrations` | pending |
-| | GET | `/admin/registrations/rejected` | |
-| | POST | `/admin/registrations` | onsite registration |
-| | POST | `/admin/registrations/{id}/approve` | |
-| | POST | `/admin/registrations/{id}/reject` | |
-| Personnel | GET | `/admin/personnel` | |
-| | GET | `/admin/terminated-personnel` | |
-| Drivers | GET, POST | `/admin/drivers` | |
-| | GET, PUT/PATCH, DELETE | `/admin/drivers/{id}` | |
-| | POST | `/admin/drivers/{id}/license-images` | multipart |
-| | GET, DELETE | `/admin/drivers/{id}/license-images/{side}` | |
-| | GET | `/admin/drivers/{id}/shift-logs` | |
-| Conductors | GET, POST | `/admin/conductors` | |
-| | GET, PUT/PATCH, DELETE | `/admin/conductors/{id}` | |
-| | GET | `/admin/conductors/{id}/shift-logs` | |
-| | POST | `/admin/conductors/{id}/disable` | |
-| | POST | `/admin/conductors/{id}/reset-credentials` | |
-| Vehicles | GET, POST | `/admin/vehicles` | |
-| | GET, PUT/PATCH, DELETE | `/admin/vehicles/{id}` | |
-| Routes | GET, POST | `/admin/routes` | |
-| | GET, PUT/PATCH, DELETE | `/admin/routes/{id}` | |
-| | PUT | `/admin/routes/{id}/draft` | |
-| | POST | `/admin/routes/{id}/publish` | |
-| | GET | `/admin/routes/{id}/versions` | |
-| Fare points | GET, POST | `/admin/fare-points` | |
-| | PUT | `/admin/fare-points/reorder` | |
-| | PUT/PATCH, DELETE | `/admin/fare-points/{id}` | |
-| Settings | GET | `/admin/settings` | |
-| | PUT | `/admin/settings/{key}` | |
-| Vouchers | GET, POST | `/admin/vouchers` | |
-| | DELETE | `/admin/vouchers/{id}` | |
-| Remittance options | GET, POST | `/admin/remittance-options` | |
-| | PUT, DELETE | `/admin/remittance-options/{id}` | |
-| FAQs | GET, POST | `/admin/faqs` | |
-| | PUT, DELETE | `/admin/faqs/{id}` | |
-| Finance | GET | `/admin/transactions` | |
-| | GET | `/admin/remittances` | |
-| | POST | `/admin/remittances/{shiftId}/cash-declaration` | admin-write |
-| Shifts | GET | `/admin/shift-logs` | |
-| | POST | `/admin/shifts/{shift}/device/recover` | admin-write |
-| Announcements | GET, POST | `/admin/announcements` | POST: admin-write |
-| | GET, PUT/PATCH | `/admin/announcements/{id}` | writes: admin-write |
-| | PATCH | `/admin/announcements/{id}/archive` | admin-write |
-| Lost & Found | GET, POST | `/admin/lost-items` | writes: admin-write |
-| | GET, PATCH | `/admin/lost-items/{itemId}` | |
-| | POST | `/admin/lost-items/{itemId}/photos` | multipart |
-| | DELETE | `/admin/lost-items/{itemId}/photos/{photoId}` | |
-| | PATCH | `/admin/lost-items/{itemId}/reactivate` | |
-| | PATCH | `/admin/lost-items/{itemId}/close` | |
-| | GET | `/admin/lost-items/{itemId}/claims` | |
-| | POST | `/admin/lost-items/{itemId}/claims/manual` | |
-| | PATCH | `/admin/lost-items/{itemId}/claims/{claimId}/approve` | |
-| | PATCH | `/admin/lost-items/{itemId}/claims/{claimId}/release` | |
-| | PATCH | `/admin/lost-items/{itemId}/claims/{claimId}/reject` | |
-| SOS | GET | `/admin/sos` | |
-| | PATCH | `/admin/sos/{id}/acknowledge` | admin-write |
-| | PATCH | `/admin/sos/{id}/resolve` | admin-write |
-| Feedback | GET | `/admin/feedback` | `?conductor_id=` or `?driver_id=` |
-| Audit | GET | `/admin/activity-logs` | |
+| Area | Method | Path | Notes | Docs |
+|---|---|---|---|---|
+| Dashboard | GET | `/admin/dashboard` | **no throttle** | [admin-operations.md](admin-operations.md#get-admindashboard) |
+| Analytics | GET | `/admin/analytics` | | [admin-operations.md](admin-operations.md#get-adminanalytics) |
+| Monitoring | GET | `/admin/monitoring` | | [admin-operations.md](admin-operations.md#get-adminmonitoring) |
+| | GET | `/admin/monitoring/overspeed` | | [admin-operations.md](admin-operations.md#get-adminmonitoringoverspeed) |
+| | GET | `/admin/monitoring/demand-zones` | | [admin-operations.md](admin-operations.md#get-adminmonitoringdemand-zones) |
+| Users | GET | `/admin/users` | | [admin-people.md](admin-people.md#get-adminusers) |
+| | GET | `/admin/users/{id}` | | [admin-people.md](admin-people.md#get-adminusersid) |
+| | PUT/PATCH | `/admin/users/{id}` | | [admin-people.md](admin-people.md#putpatch-adminusersid) |
+| | DELETE | `/admin/users/{id}` | | [admin-people.md](admin-people.md#delete-adminusersid) |
+| | POST | `/admin/users/{id}/suspend` | admin-write | [admin-people.md](admin-people.md#post-adminusersidsuspend) |
+| | POST | `/admin/users/{id}/unsuspend` | admin-write | [admin-people.md](admin-people.md#post-adminusersidunsuspend) |
+| | GET | `/admin/users/{id}/suspensions` | | [admin-people.md](admin-people.md#get-adminusersidsuspensions) |
+| | GET | `/admin/users/{id}/activity` | | [admin-people.md](admin-people.md#get-adminusersidactivity) |
+| Registrations | GET | `/admin/registrations` | pending | [admin-people.md](admin-people.md#get-adminregistrations) |
+| | GET | `/admin/registrations/rejected` | | [admin-people.md](admin-people.md#get-adminregistrationsrejected) |
+| | POST | `/admin/registrations` | onsite registration | [admin-people.md](admin-people.md#post-adminregistrations-onsite) |
+| | POST | `/admin/registrations/{id}/approve` | | [admin-people.md](admin-people.md#post-adminregistrationsidapprove) |
+| | POST | `/admin/registrations/{id}/reject` | | [admin-people.md](admin-people.md#post-adminregistrationsidreject) |
+| Personnel | GET | `/admin/personnel` | | [admin-people.md](admin-people.md#get-adminpersonnel) |
+| | GET | `/admin/terminated-personnel` | | [admin-people.md](admin-people.md#get-adminterminated-personnel) |
+| Drivers | GET, POST | `/admin/drivers` | | [admin-people.md](admin-people.md#drivers) |
+| | GET, PUT/PATCH, DELETE | `/admin/drivers/{id}` | | [admin-people.md](admin-people.md#drivers) |
+| | POST | `/admin/drivers/{id}/license-images` | multipart | [admin-people.md](admin-people.md#license-images) |
+| | GET, DELETE | `/admin/drivers/{id}/license-images/{side}` | | [admin-people.md](admin-people.md#license-images) |
+| | GET | `/admin/drivers/{id}/shift-logs` | | [admin-people.md](admin-people.md#get-admindriversidshift-logs) |
+| Conductors | GET, POST | `/admin/conductors` | | [admin-people.md](admin-people.md#conductors) |
+| | GET, PUT/PATCH, DELETE | `/admin/conductors/{id}` | | [admin-people.md](admin-people.md#conductors) |
+| | GET | `/admin/conductors/{id}/shift-logs` | | [admin-people.md](admin-people.md#get-adminconductorsidshift-logs) |
+| | POST | `/admin/conductors/{id}/disable` | | [admin-people.md](admin-people.md#post-adminconductorsiddisable) |
+| | POST | `/admin/conductors/{id}/reset-credentials` | | [admin-people.md](admin-people.md#post-adminconductorsidreset-credentials) |
+| Vehicles | GET, POST | `/admin/vehicles` | | [admin-fleet.md](admin-fleet.md#vehicles) |
+| | GET, PUT/PATCH, DELETE | `/admin/vehicles/{id}` | | [admin-fleet.md](admin-fleet.md#vehicles) |
+| Routes | GET, POST | `/admin/routes` | | [admin-fleet.md](admin-fleet.md#routes) |
+| | GET, PUT/PATCH, DELETE | `/admin/routes/{id}` | | [admin-fleet.md](admin-fleet.md#routes) |
+| | PUT | `/admin/routes/{id}/draft` | | [admin-fleet.md](admin-fleet.md#put-adminroutesiddraft) |
+| | POST | `/admin/routes/{id}/publish` | | [admin-fleet.md](admin-fleet.md#post-adminroutesidpublish) |
+| | GET | `/admin/routes/{id}/versions` | | [admin-fleet.md](admin-fleet.md#get-adminroutesidversions) |
+| Fare points | GET, POST | `/admin/fare-points` | | [admin-fleet.md](admin-fleet.md#fare-points) |
+| | PUT | `/admin/fare-points/reorder` | | [admin-fleet.md](admin-fleet.md#put-adminfare-pointsreorder) |
+| | PUT/PATCH, DELETE | `/admin/fare-points/{id}` | | [admin-fleet.md](admin-fleet.md#fare-points) |
+| Unit QR | POST | `/qr/generate` | admin-write, outside `/admin` prefix | [admin-fleet.md](admin-fleet.md#post-qrgenerate) |
+| Settings | GET | `/admin/settings` | | [admin-content.md](admin-content.md#settings) |
+| | PUT | `/admin/settings/{key}` | | [admin-content.md](admin-content.md#put-adminsettingskey) |
+| Vouchers | GET, POST | `/admin/vouchers` | | [admin-content.md](admin-content.md#vouchers) |
+| | DELETE | `/admin/vouchers/{id}` | | [admin-content.md](admin-content.md#vouchers) |
+| Remittance options | GET, POST | `/admin/remittance-options` | | [admin-content.md](admin-content.md#remittance-options) |
+| | PUT, DELETE | `/admin/remittance-options/{id}` | | [admin-content.md](admin-content.md#remittance-options) |
+| FAQs | GET, POST | `/admin/faqs` | | [admin-content.md](admin-content.md#faqs) |
+| | PUT, DELETE | `/admin/faqs/{id}` | | [admin-content.md](admin-content.md#faqs) |
+| Finance | GET | `/admin/transactions` | | [admin-operations.md](admin-operations.md#get-admintransactions) |
+| | GET | `/admin/remittances` | | [admin-operations.md](admin-operations.md#get-adminremittances) |
+| | POST | `/admin/remittances/{shiftId}/cash-declaration` | admin-write | [admin-operations.md](admin-operations.md#post-adminremittancesshiftidcash-declaration) |
+| Shifts | GET | `/admin/shift-logs` | | [admin-operations.md](admin-operations.md#get-adminshift-logs) |
+| | POST | `/admin/shifts/{shift}/device/recover` | admin-write | [admin-operations.md](admin-operations.md#post-adminshiftsshiftdevicerecover) |
+| Announcements | GET, POST | `/admin/announcements` | POST: admin-write | [admin-content.md](admin-content.md#announcements) |
+| | GET, PUT/PATCH | `/admin/announcements/{id}` | writes: admin-write | [admin-content.md](admin-content.md#announcements) |
+| | PATCH | `/admin/announcements/{id}/archive` | admin-write | [admin-content.md](admin-content.md#patch-adminannouncementsidarchive) |
+| Lost & Found | GET, POST | `/admin/lost-items` | writes: admin-write | [admin-content.md](admin-content.md#lost--found-management) |
+| | GET, PATCH | `/admin/lost-items/{itemId}` | | [admin-content.md](admin-content.md#lost--found-management) |
+| | POST | `/admin/lost-items/{itemId}/photos` | multipart | [admin-content.md](admin-content.md#photos) |
+| | DELETE | `/admin/lost-items/{itemId}/photos/{photoId}` | | [admin-content.md](admin-content.md#photos) |
+| | PATCH | `/admin/lost-items/{itemId}/reactivate` | | [admin-content.md](admin-content.md#patch-adminlost-itemsitemidreactivate) |
+| | PATCH | `/admin/lost-items/{itemId}/close` | **unreachable — see quirks** | [admin-content.md](admin-content.md#patch-adminlost-itemsitemidclose) |
+| | GET | `/admin/lost-items/{itemId}/claims` | | [admin-content.md](admin-content.md#claims) |
+| | POST | `/admin/lost-items/{itemId}/claims/manual` | | [admin-content.md](admin-content.md#claims) |
+| | PATCH | `/admin/lost-items/{itemId}/claims/{claimId}/approve` | | [admin-content.md](admin-content.md#claims) |
+| | PATCH | `/admin/lost-items/{itemId}/claims/{claimId}/release` | | [admin-content.md](admin-content.md#claims) |
+| | PATCH | `/admin/lost-items/{itemId}/claims/{claimId}/reject` | | [admin-content.md](admin-content.md#claims) |
+| SOS | GET | `/admin/sos` | | [admin-operations.md](admin-operations.md#get-adminsos) |
+| | PATCH | `/admin/sos/{id}/acknowledge` | admin-write | [admin-operations.md](admin-operations.md#patch-adminsosidacknowledge) |
+| | PATCH | `/admin/sos/{id}/resolve` | admin-write | [admin-operations.md](admin-operations.md#patch-adminsosidresolve) |
+| Feedback | GET | `/admin/feedback` | `?conductor_id=` or `?driver_id=` | [admin-operations.md](admin-operations.md#get-adminfeedback) |
+| Audit | GET | `/admin/activity-logs` | | [admin-operations.md](admin-operations.md#get-adminactivity-logs) |
 
 ---
 
@@ -587,4 +591,7 @@ These are current behaviours, documented so nobody is surprised by them. None of
 12. **Lost & Found and announcements quirks** are in their own docs:
    - [lost-found.md](lost-found.md#known-quirks): error status is decided by substring-matching the message text for "not found"; `lost_items.claimed_by` is a dead column; `category` has no fixed value set.
    - [announcements.md](announcements.md#known-quirks): `markRead` can mark an `ARCHIVED` row as read despite its comment; `GET /announcements` does not clamp `per_page`.
-  
+13. **`GET /admin/dashboard` has no rate limit.** Confirmed directly in `routes/api.php` — every other admin route carries a `throttle:` middleware; this one, which runs the full analytics aggregation, has none. See [admin-operations.md](admin-operations.md#known-quirks).
+14. **`ConductorProfile.generated_password` has no `$hidden` array**, so several admin endpoints that serialize a raw conductor (or a vehicle with its conductor relation eager-loaded) leak the conductor's plaintext-equivalent login password where only the create/reset-credentials endpoints should ever return it: `GET /admin/conductors`, `PUT/PATCH /admin/conductors/{id}`, and every `GET`/`POST`/`PUT`/`PATCH /admin/vehicles*` response that includes an assigned conductor. See [admin-people.md](admin-people.md#known-quirks) and [admin-fleet.md](admin-fleet.md#known-quirks).
+15. **Admin-content quirks** are in [admin-content.md](admin-content.md#known-quirks): admin-generated vouchers (`POST /admin/vouchers`) are created with `status: "Active"` instead of the `"AVAILABLE"` constant the redemption check requires, so they can never be redeemed; `PATCH /admin/lost-items/{itemId}/close` can never succeed, because `releaseClaim()` sets the item straight to `CLOSED` and never passes through the `RELEASED` status `close()` requires; several Settings keys (`regular_discount`, `student_discount`, `senior_discount`, `pwd_discount`, `require_phone_verification`, `sender_gmail`, `ride_receipt_template`) are saved by an admin page but read by nothing; `base_fare_regular`/`base_fare_discounted` are live fare-calculation inputs with no admin page exposing them at all.
+16. **Admin-fleet and admin-people quirks** are in their own docs: [admin-fleet.md](admin-fleet.md#known-quirks) covers the route-draft geometry being silently cleared by unrelated fare-point edits and the overlapping "unit QR" concepts sharing the `/qr` prefix; [admin-people.md](admin-people.md#known-quirks) covers `DELETE /admin/users/{id}` bypassing the active-shift guard and termination record that `DELETE /admin/conductors/{id}` enforces, and the two independent ways a commuter's "suspended" state can be set.

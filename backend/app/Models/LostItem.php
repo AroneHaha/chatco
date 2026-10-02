@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Services\LostItemService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 class LostItem extends Model
@@ -45,8 +47,8 @@ class LostItem extends Model
         'available_since' => 'datetime',
     ];
 
-    /** Always include the resolved admin name in JSON — see getClosedByNameAttribute(). */
-    protected $appends = ['closed_by_name'];
+    /** Always include these computed fields in JSON — see the accessors below. */
+    protected $appends = ['closed_by_name', 'claimable_until'];
 
     /**
      * Auto-generate UUID on creation.
@@ -99,6 +101,24 @@ class LostItem extends Model
     public function getClosedByNameAttribute(): ?string
     {
         return $this->closedBy?->getDisplayName();
+    }
+
+    /**
+     * When an unclaimed item drops out of Lost & Found — the same
+     * COALESCE(available_since, created_at) + EXPIRY_DAYS cutoff that
+     * LostItemService::expireStale() archives on. Only AVAILABLE items run
+     * this clock (an item with a pending or approved claim never expires),
+     * so it's null for every other status.
+     */
+    public function getClaimableUntilAttribute(): ?Carbon
+    {
+        if ($this->status !== 'AVAILABLE') {
+            return null;
+        }
+
+        $base = $this->available_since ?? $this->created_at;
+
+        return $base?->copy()->addDays(LostItemService::EXPIRY_DAYS);
     }
 
     /**

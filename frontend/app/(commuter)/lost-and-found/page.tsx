@@ -5,13 +5,18 @@ import { useAnnouncements } from "@/contexts/announcements-context";
 import { useLostAndFound } from "./use-lost-and-found";
 import { categories } from "./data";
 import LostItemCard from "@/components/commuter/lost-and-found/lost-item-card";
-import { ClaimData, ClaimFilter, ClaimStatus, ItemCategory, LostItem, ViewTab } from "./types";
+import ProofPhotoPicker from "@/components/commuter/lost-and-found/proof-photo-picker";
+import RubberSegment from "@/components/ui/rubber-segment";
+import { getClaimDeadline } from "./claim-deadline";
+import { AdminDatePicker } from "@/components/admin/ui/admin-date-picker";
+import { ClaimData, ClaimFilter, ClaimStatus, LostItem, TimeRange, ViewTab } from "./types";
 import {
   AlertTriangle,
   Bookmark,
   BookmarkCheck,
   BusFront,
   CalendarDays,
+  CalendarX2,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
@@ -20,6 +25,7 @@ import {
   Clock3,
   FileCheck2,
   IdCard,
+  MapPin,
   PackageSearch,
   Search,
   ShieldCheck,
@@ -32,11 +38,12 @@ import {
 export default function LostAndFoundPage() {
   const {
     activeTab, handleTabChange, activeCategory, handleCategoryChange, claimFilter, handleClaimFilterChange, searchQuery, handleSearch,
-    selectedDate, handleDateChange,
+    selectedDate, handleDateChange, timeRange, handleTimeRangeChange,
     setCurrentPage, apiData, isLoading, listError,
     watchlist, toggleWatchlist, claims, claimPageData, openClaimModal,
     claimToCancel, requestCancelClaim, closeCancelClaimModal, confirmCancelClaim, isCancellingClaim, cancelToast,
     showClaimModal, setShowClaimModal, itemToClaim, proofText, setProofText,
+    proofImages, setProofImages,
     submitClaim, claimError, isSubmittingClaim,
     displayItems, displayClaims, formatDate, getStatusBadge
   } = useLostAndFound();
@@ -54,8 +61,6 @@ export default function LostAndFoundPage() {
     { key: "WATCHLIST", label: "Watchlist", icon: BookmarkCheck },
     { key: "MY_CLAIMS", label: "Claims", icon: ClipboardList },
   ];
-  const activeTabLabel = tabs.find((tab) => tab.key === activeTab)?.label ?? "All Items";
-  const activeCategoryLabel = categories.find((cat) => cat.value === activeCategory)?.label ?? "All";
   const claimFilterOptions: { value: ClaimFilter; label: string }[] = [
     { value: "ALL", label: "All Statuses" },
     { value: "PENDING", label: "Pending" },
@@ -65,11 +70,41 @@ export default function LostAndFoundPage() {
   ];
   const activeClaimFilterLabel = claimFilterOptions.find((opt) => opt.value === claimFilter)?.label ?? "All Statuses";
   const isClaimsTab = activeTab === "MY_CLAIMS";
-  const activeFilterCount = Number(Boolean(searchQuery.trim())) + Number(Boolean(selectedDate)) + Number(activeCategory !== "ALL") + Number(isClaimsTab && claimFilter !== "ALL");
+  // Category isn't a chip — the category strip already shows the active one.
+  const activeChipCount = Number(Boolean(searchQuery.trim())) + Number(Boolean(selectedDate)) + Number(isClaimsTab && claimFilter !== "ALL");
+  // Only the All Items count is exact: Watchlist and Claims apply the category
+  // filter client-side on top of the server total, so they get a fixed line.
+  const headerSummary =
+    activeTab === "ALL"
+      ? isLoading || listError
+        ? "Items found on board, posted by staff"
+        : `${apiData.totalItems} item${apiData.totalItems === 1 ? "" : "s"} found on board${TIME_RANGE_PHRASES[timeRange]}`
+      : activeTab === "WATCHLIST"
+        ? "Items you saved to keep an eye on"
+        : "Track the status of items you claimed";
 
   // Full-detail view — the card only shows a clamped description and a
   // thumbnail; this surfaces the complete description and a larger photo.
   const [detailItem, setDetailItem] = useState<LostItem | null>(null);
+  const [detailPhotoIndex, setDetailPhotoIndex] = useState(0);
+  const openDetails = (item: LostItem) => {
+    setDetailPhotoIndex(0);
+    setDetailItem(item);
+  };
+  // All photos (up to 3); older rows without a photos list fall back to the cover image.
+  const detailPhotos = detailItem
+    ? detailItem.photos?.length
+      ? detailItem.photos
+      : detailItem.imageUrl
+        ? [{ id: "cover", url: detailItem.imageUrl }]
+        : []
+    : [];
+  const activeDetailPhoto = detailPhotos[detailPhotoIndex] ?? detailPhotos[0] ?? null;
+  const detailDeadline = detailItem && (claims.get(detailItem.id)?.status ?? "NONE") === "NONE"
+    ? getClaimDeadline(detailItem.claimableUntil)
+    : null;
+  const stepDetailPhoto = (step: number) =>
+    setDetailPhotoIndex((index) => (index + step + detailPhotos.length) % detailPhotos.length);
   useEffect(() => {
     if (!detailItem && !showClaimModal && !claimToCancel) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -111,110 +146,125 @@ export default function LostAndFoundPage() {
     <div className="h-full w-full flex flex-col overflow-hidden bg-[#050F1A] relative">
       
       {/* --- HEADER --- */}
+      {/* Storefront-style: search is the focal control, categories are a
+          scrollable strip instead of a dropdown, and everything sits in the
+          same max-w-7xl column as the grid so wide screens don't stretch it. */}
       <div className="z-10 flex-shrink-0 border-b border-white/10 bg-[#071A2E]">
-        <div className="px-4 py-3 lg:px-8 lg:py-5">
-          <div className="mb-3 min-w-0 lg:mb-4">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#62A0EA]/20 bg-[#1A5FB4]/15 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-[#8CB9F0]">
-                <PackageSearch className="h-3.5 w-3.5" />
-                Passenger desk
-              </span>
-              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white/65">
-                {activeTabLabel}
-              </span>
+        <div className="mx-auto w-full max-w-7xl px-4 pt-4 pb-3 lg:px-8 lg:pt-6 lg:pb-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold leading-tight text-white lg:text-2xl">Lost & Found</h1>
+              <p className="mt-1 text-xs text-white/55">{headerSummary}</p>
             </div>
-            <h1 className="text-xl font-bold leading-tight text-white lg:text-2xl">Lost & Found</h1>
+
+            <div className="grid grid-cols-3 rounded-lg border border-white/10 bg-[#0E1628] p-1 md:w-[25rem]">
+              {tabs.map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => handleTabChange(key)}
+                  aria-pressed={activeTab === key}
+                  className={`relative inline-flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-md border px-2 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${
+                    activeTab === key
+                      ? "border-[#62A0EA]/45 bg-[#1A5FB4]/20 text-white"
+                      : "border-transparent text-white/60 hover:bg-white/5 hover:text-white"
+                  }`}
+                >
+                  <Icon className="h-4 w-4 flex-shrink-0" />
+                  <span className="truncate">{label}</span>
+                  {key === "MY_CLAIMS" && claimUpdatesUnreadCount > 0 && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-[#FF6D3A] rounded-full text-[9px] font-bold text-white flex items-center justify-center ring-2 ring-[#0E1628] tabular-nums"
+                    >
+                      {claimUpdatesUnreadCount > 99 ? "99+" : claimUpdatesUnreadCount}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="mb-3 grid grid-cols-3 rounded-xl border border-white/10 bg-[#0E1628] p-1">
-            {tabs.map(({ key, label, icon: Icon }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => handleTabChange(key)}
-                className={`relative inline-flex h-10 min-w-0 items-center justify-center gap-2 rounded-lg border px-2 text-xs font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] sm:px-4 lg:h-9 ${
-                  activeTab === key
-                    ? "border-[#62A0EA]/45 bg-[#1A5FB4]/20 text-white shadow-lg shadow-[#1A5FB4]/15"
-                    : "border-transparent text-white/65 hover:bg-white/5 hover:text-white"
-                }`}
-              >
-                <Icon className="h-4 w-4 flex-shrink-0" />
-                <span className="truncate">{label}</span>
-                {key === "MY_CLAIMS" && claimUpdatesUnreadCount > 0 && (
-                  <span
-                    aria-hidden="true"
-                    className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-[#FF6D3A] rounded-full text-[9px] font-bold text-white flex items-center justify-center ring-2 ring-[#0E1628] tabular-nums"
-                  >
-                    {claimUpdatesUnreadCount > 99 ? "99+" : claimUpdatesUnreadCount}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-
-          <div className={`grid grid-cols-2 gap-2.5 lg:gap-3 lg:items-center ${isClaimsTab ? "lg:grid-cols-[minmax(0,1fr)_13rem_12rem_15rem]" : "lg:grid-cols-[minmax(0,1fr)_13rem_15rem]"}`}>
-            <div className="relative col-span-2 min-w-0 lg:col-span-1 lg:max-w-100">
-              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
+          {/* Search is capped at lg: so it doesn't stretch; the date picker (and
+              claim status) stays pinned to the right edge. */}
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2.5">
+            <div className="relative min-w-0 sm:flex-1 lg:max-w-md">
+              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
               <input
-                type="text"
+                type="search"
                 placeholder={isClaimsTab ? "Search claims by item, plate, driver, conductor..." : "Search item, plate, driver, or conductor..."}
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
-                className="h-10 w-full rounded-xl border border-white/10 bg-[#0E1628] pl-11 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/45 focus:border-[#62A0EA]"
+                aria-label={isClaimsTab ? "Search claims" : "Search lost and found items"}
+                className="h-10 w-full rounded-lg border border-white/10 bg-[#0E1628] pl-10 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/45 focus:border-[#62A0EA] [&::-webkit-search-cancel-button]:hidden"
               />
             </div>
-            <div className="relative">
-              <CalendarDays className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45 sm:left-4" />
-              <input
-                type="date"
+            <div className={`grid gap-2 sm:ml-auto sm:flex sm:gap-2.5 ${isClaimsTab ? "grid-cols-2" : "grid-cols-1"}`}>
+              <AdminDatePicker
+                accent="blue"
+                align="right"
+                ariaLabel="Filter lost and found items by posted date"
                 value={selectedDate}
-                onChange={(e) => handleDateChange(e.target.value)}
-                className="h-10 w-full rounded-xl border border-white/10 bg-[#0E1628] pl-9 pr-8 text-xs font-semibold text-white/80 outline-none sm:pl-11 sm:pr-10 sm:text-sm transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
-                aria-label="Filter lost and found items by posted date"
+                onChange={handleDateChange}
+                triggerClassName="h-10 w-full sm:w-48"
+                className="w-full sm:w-48"
               />
-              {selectedDate && (
-                <button
-                  type="button"
-                  onClick={() => handleDateChange("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-white/55 transition-colors hover:bg-white/5 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
-                  aria-label="Clear date filter"
-                  title="Clear date"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
+              {isClaimsTab && (
+                <div className="relative sm:w-40">
+                  <select
+                    value={claimFilter}
+                    onChange={(e) => handleClaimFilterChange(e.target.value as ClaimFilter)}
+                    className="h-10 w-full appearance-none rounded-lg border border-white/10 bg-[#0E1628] px-3 pr-9 text-sm font-semibold text-white/80 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
+                    aria-label="Filter claims by status"
+                  >
+                    {claimFilterOptions.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
+                </div>
               )}
-            </div>
-            {isClaimsTab && (
-              <div className="relative">
-                <select
-                  value={claimFilter}
-                  onChange={(e) => handleClaimFilterChange(e.target.value as ClaimFilter)}
-                  className="h-10 w-full appearance-none rounded-xl border border-white/10 bg-[#0E1628] px-3 pr-9 text-sm font-semibold text-white/80 sm:px-4 sm:pr-10 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
-                  aria-label="Filter claims by status"
-                >
-                  {claimFilterOptions.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
-              </div>
-            )}
-            <div className={`relative ${isClaimsTab ? "col-span-2 lg:col-span-1" : ""}`}>
-              <select
-                value={activeCategory}
-                onChange={(e) => handleCategoryChange(e.target.value as ItemCategory)}
-                className="h-10 w-full appearance-none rounded-xl border border-white/10 bg-[#0E1628] px-3 pr-9 text-sm font-semibold text-white/80 sm:px-4 sm:pr-10 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
-                aria-label="Filter lost and found items by category"
-              >
-                {categories.map(cat => (
-                  <option key={cat.value} value={cat.value}>{cat.label}</option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
             </div>
           </div>
 
-          {activeFilterCount > 0 && (
+          {/* Posted-within window on the left, categories to its right. Stacks
+              on phones so neither control has to scroll inside the other. */}
+          <div className="mt-3 flex flex-col gap-2.5 md:flex-row md:items-center md:gap-3">
+          <RubberSegment<TimeRange>
+            items={TIME_RANGE_OPTIONS}
+            value={timeRange}
+            onChange={handleTimeRangeChange}
+            aria-label="Filter by date posted"
+            size="md"
+            radius={8}
+            inset={3}
+            trackColor="#0E1628"
+            thumbColor="#143A6B"
+            textColor="#FFFFFF"
+            activeTextColor="#FFFFFF"
+            className="w-full flex-shrink-0 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] md:w-auto"
+          />
+          <span aria-hidden="true" className="hidden h-6 w-px flex-shrink-0 bg-white/10 md:block" />
+          <div role="group" aria-label="Filter by category" className="-mx-4 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:px-0 [&::-webkit-scrollbar]:hidden">
+            {categories.map(cat => (
+              <button
+                key={cat.value}
+                type="button"
+                onClick={() => handleCategoryChange(cat.value)}
+                aria-pressed={activeCategory === cat.value}
+                className={`h-9 flex-shrink-0 rounded-md border px-3 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${
+                  activeCategory === cat.value
+                    ? "border-[#62A0EA]/45 bg-[#1A5FB4]/20 text-white"
+                    : "border-white/10 bg-[#0E1628] text-white/60 hover:border-white/20 hover:text-white"
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+          </div>
+
+          {activeChipCount > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
               {searchQuery.trim() && (
                 <button type="button" onClick={() => handleSearch("")} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/[0.07] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
@@ -234,34 +284,44 @@ export default function LostAndFoundPage() {
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
-              {activeCategory !== "ALL" && (
-                <button type="button" onClick={() => handleCategoryChange("ALL")} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/[0.07] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
-                  {activeCategoryLabel}
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
             </div>
           )}
         </div>
       </div>
 
       {/* --- GRID --- */}
-      <div className="flex-1 overflow-y-auto p-4 pb-28 lg:p-8 lg:pb-8">
+      <div className="flex-1 overflow-y-auto">
+       <div className="mx-auto flex min-h-full w-full max-w-7xl flex-col p-4 pb-28 lg:p-8 lg:pb-8">
         {isLoading ? (
-          <div className={activeTab === "MY_CLAIMS" ? "space-y-3" : "grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"}>
-            {Array.from({ length: activeTab === "MY_CLAIMS" ? 4 : 8 }).map((_, index) => (
-              <div key={index} className={activeTab === "MY_CLAIMS" ? "h-44 rounded-xl border border-white/10 bg-white/[0.04]" : "h-96 rounded-xl border border-white/10 bg-white/[0.04]"}>
-                <div className="h-full w-full animate-pulse motion-reduce:animate-none rounded-[inherit] bg-gradient-to-r from-white/[0.03] via-white/[0.07] to-white/[0.03]" />
-              </div>
-            ))}
-          </div>
+          activeTab === "MY_CLAIMS" ? (
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="h-44 rounded-xl border border-white/10 bg-white/[0.04]">
+                  <div className="h-full w-full animate-pulse motion-reduce:animate-none rounded-[inherit] bg-gradient-to-r from-white/[0.03] via-white/[0.07] to-white/[0.03]" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className={ITEM_GRID_CLASS}>
+              {Array.from({ length: 10 }).map((_, index) => (
+                <div key={index} className="overflow-hidden rounded-lg border border-white/8 bg-[#0B1E33]">
+                  <div className="aspect-square w-full animate-pulse motion-reduce:animate-none bg-white/5" />
+                  <div className="space-y-2 p-2.5 sm:p-3">
+                    <div className="h-3 w-4/5 rounded bg-white/6" />
+                    <div className="h-3 w-1/2 rounded bg-white/6" />
+                    <div className="h-8 w-full rounded-md bg-white/4" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
         ) : listError ? (
-          <div className="h-full flex flex-col items-center justify-center text-center px-4">
+          <div className="flex flex-1 flex-col items-center justify-center text-center px-4">
             <p className="text-red-400 font-medium text-sm mb-3">{listError}</p>
             <button onClick={() => handleTabChange(activeTab)} className="px-4 py-2.5 rounded-md text-xs font-semibold bg-[#1A5FB4] text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">Try again</button>
           </div>
         ) : activeTab === "MY_CLAIMS" && displayClaims.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center px-4">
+          <div className="flex flex-1 flex-col items-center justify-center text-center px-4">
              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-xl border border-white/10 bg-white/5">
                <PackageSearch className="h-7 w-7 text-white/20" />
              </div>
@@ -269,7 +329,7 @@ export default function LostAndFoundPage() {
              <p className="max-w-xs text-white/60 text-sm">Try another status filter or search term.</p>
           </div>
         ) : activeTab !== "MY_CLAIMS" && displayItems.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center px-4">
+          <div className="flex flex-1 flex-col items-center justify-center text-center px-4">
              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-xl border border-white/10 bg-white/5">
                <PackageSearch className="h-7 w-7 text-white/20" />
              </div>
@@ -288,12 +348,12 @@ export default function LostAndFoundPage() {
                     getStatusBadge={getStatusBadge}
                     onCancelClaim={requestCancelClaim}
                     onClaimAgain={openClaimModal}
-                    onOpenDetails={setDetailItem}
+                    onOpenDetails={openDetails}
                   />
                 ))}
               </div>
             ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
+            <div className={ITEM_GRID_CLASS}>
               {displayItems.map(item => (
                 <LostItemCard
                   key={item.id}
@@ -303,7 +363,7 @@ export default function LostAndFoundPage() {
                   onToggleWatchlist={toggleWatchlist}
                   onOpenClaimModal={openClaimModal}
                   onCancelClaim={requestCancelClaim}
-                  onOpenDetails={setDetailItem}
+                  onOpenDetails={openDetails}
                   formatDate={formatDate}
                   getStatusBadge={getStatusBadge}
                 />
@@ -362,6 +422,7 @@ export default function LostAndFoundPage() {
             )}
           </>
         )}
+       </div>
       </div>
 
       {/* --- ITEM DETAIL MODAL --- */}
@@ -370,8 +431,12 @@ export default function LostAndFoundPage() {
           <div className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-white/10 bg-[#071A2E] shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
               <div className="relative aspect-[4/3] flex-shrink-0 bg-[#0A1E33] lg:aspect-auto lg:min-h-[520px]">
-                {detailItem.imageUrl ? (
-                  <img src={detailItem.imageUrl} alt={detailItem.itemName} className="h-full w-full object-cover" />
+                {activeDetailPhoto ? (
+                  <img
+                    src={activeDetailPhoto.url}
+                    alt={detailPhotos.length > 1 ? `${detailItem.itemName}, photo ${detailPhotoIndex + 1} of ${detailPhotos.length}` : detailItem.itemName}
+                    className="h-full w-full object-cover"
+                  />
                 ) : (
                   <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-white/20">
                     <PackageSearch className="h-12 w-12" />
@@ -387,8 +452,36 @@ export default function LostAndFoundPage() {
                     <X className="h-4 w-4" />
                   </button>
                 </div>
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent p-4 pt-16">
+                {detailPhotos.length > 1 && (
+                  <>
+                    <button type="button" onClick={() => stepDetailPhoto(-1)} className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/50 text-white transition-colors hover:bg-black/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]" aria-label="Previous photo">
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <button type="button" onClick={() => stepDetailPhoto(1)} className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/50 text-white transition-colors hover:bg-black/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]" aria-label="Next photo">
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </>
+                )}
+                <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 bg-gradient-to-t from-black/85 via-black/35 to-transparent p-4 pt-16">
                   <p className="text-xs font-semibold text-white/75">Posted {formatDate(detailItem.datePosted)}</p>
+                  {detailPhotos.length > 1 && (
+                    <div className="flex flex-shrink-0 gap-1.5">
+                      {detailPhotos.map((photo, index) => (
+                        <button
+                          key={photo.id}
+                          type="button"
+                          onClick={() => setDetailPhotoIndex(index)}
+                          aria-label={`Show photo ${index + 1}`}
+                          aria-current={index === detailPhotoIndex ? "true" : undefined}
+                          className={`h-11 w-11 overflow-hidden rounded-md border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${
+                            index === detailPhotoIndex ? "border-[#62A0EA]" : "border-white/25 opacity-70 hover:opacity-100"
+                          }`}
+                        >
+                          <img src={photo.url} alt="" className="h-full w-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -400,6 +493,12 @@ export default function LostAndFoundPage() {
                 <div className="min-h-0 flex-1 overflow-y-auto p-5 lg:p-6">
                   <div className="mb-5">
                     <h2 id="lf-detail-title" className="text-xl font-bold leading-tight text-white">{detailItem.itemName}</h2>
+                    {detailDeadline && (
+                      <p className={`mt-1.5 flex items-center gap-1.5 text-xs font-semibold ${detailDeadline.isUrgent ? "text-amber-300" : "text-white/60"}`}>
+                        <CalendarDays className="h-3.5 w-3.5" />
+                        Claim by {detailDeadline.dateLabel} &middot; {detailDeadline.label}
+                      </p>
+                    )}
                     <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-white/75">{detailItem.description}</p>
                   </div>
 
@@ -494,6 +593,8 @@ export default function LostAndFoundPage() {
                 <p className="mt-2 text-[11px] font-medium text-white/55">This proof is visible to the admin reviewer.</p>
               </div>
 
+              <ProofPhotoPicker files={proofImages} onChange={setProofImages} disabled={isSubmittingClaim} />
+
               {claimError && (
                 <div className="flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3">
                   <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-400" />
@@ -578,6 +679,27 @@ export default function LostAndFoundPage() {
   );
 }
 
+const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
+  { value: "ALL", label: "All" },
+  { value: "today", label: "Today" },
+  { value: "week", label: "Week" },
+  { value: "month", label: "Month" },
+  { value: "year", label: "Year" },
+];
+
+// Spells out the rolling windows the backend applies (LostItemService::applyRangeFilter).
+const TIME_RANGE_PHRASES: Record<TimeRange, string> = {
+  ALL: "",
+  today: " today",
+  week: " in the last 7 days",
+  month: " in the last 30 days",
+  year: " in the last year",
+};
+
+// Storefront density: 2 tiles on phones up to 5 on desktop. lg stays at 4
+// because the 1024–1279px sidebar narrows the content column there.
+const ITEM_GRID_CLASS = "grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 xl:grid-cols-5";
+
 function buildVisiblePages(currentPage: number, totalPages: number): (number | "ellipsis")[] {
   if (totalPages <= 7) {
     return Array.from({ length: totalPages }, (_, index) => index + 1);
@@ -641,17 +763,28 @@ function ClaimRecordCard({
     VALIDATED: {
       icon: <CheckCircle2 className="h-4 w-4" />,
       title: "Ready for Release",
-      summary: "Your claim was approved. Bring a valid ID for handover.",
+      summary: claim.pickupLocation
+        ? "Your claim was approved. Collect the item at the place and time below."
+        : "Your claim was approved. Bring a valid ID for handover.",
       dateValue: formatDateTime(claim.approvedAt ?? claim.reviewedAt),
       panelClass: "border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
     },
-    REJECTED: {
-      icon: <XCircle className="h-4 w-4" />,
-      title: "Rejected",
-      summary: claim.rejectionReason ?? "Staff rejected this claim.",
-      dateValue: formatDateTime(claim.rejectedAt ?? claim.reviewedAt),
-      panelClass: "border-red-500/20 bg-red-500/10 text-red-100",
-    },
+    // A no-show isn't a judgement on the claim, so it reads neutral, not red.
+    REJECTED: claim.noShowAt
+      ? {
+          icon: <CalendarX2 className="h-4 w-4" />,
+          title: "Not Collected",
+          summary: "You didn't collect the item on the pickup date, so this claim was closed. Submit a new claim or visit the office to claim it in person.",
+          dateValue: formatDateTime(claim.noShowAt),
+          panelClass: "border-slate-400/20 bg-slate-400/10 text-slate-200",
+        }
+      : {
+          icon: <XCircle className="h-4 w-4" />,
+          title: "Rejected",
+          summary: claim.rejectionReason ?? "Staff rejected this claim.",
+          dateValue: formatDateTime(claim.rejectedAt ?? claim.reviewedAt),
+          panelClass: "border-red-500/20 bg-red-500/10 text-red-100",
+        },
     RELEASED: {
       icon: <ShieldCheck className="h-4 w-4" />,
       title: "Released",
@@ -686,7 +819,7 @@ function ClaimRecordCard({
               <p className="truncate text-sm font-bold text-white">{item?.itemName ?? "Deleted item"}</p>
               <p className="mt-0.5 text-xs text-white/60">{item ? `${item.category} | ${item.plateNumber}` : "This item record is no longer available"}</p>
             </div>
-            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider ${getStatusBadge(claim.status)}`}>
+            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider ${claim.noShowAt ? "border-slate-400/30 bg-slate-400/15 text-slate-300" : getStatusBadge(claim.status)}`}>
               {statusMeta.icon}
               {statusMeta.title}
             </span>
@@ -709,6 +842,24 @@ function ClaimRecordCard({
               </div>
             </div>
           </div>
+
+          {/* Where/when to collect, set by staff at approval. Shown only while
+              the item is waiting for pickup; after release it's history. */}
+          {claim.status === "VALIDATED" && claim.pickupLocation && (
+            <section aria-label="Pickup schedule" className="mt-3 rounded-xl border border-emerald-500/20 bg-[#0E1628] p-3">
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-emerald-200/70">Pickup schedule</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <DetailInfo icon={<MapPin className="h-4 w-4" />} label="Where" value={claim.pickupLocation} />
+                <DetailInfo icon={<CalendarDays className="h-4 w-4" />} label="When" value={formatDateTime(claim.pickupAt)} />
+              </div>
+              {claim.pickupReminder && (
+                <div className="mt-2 flex items-start gap-2 rounded-lg border border-amber-400/20 bg-amber-400/10 px-3 py-2">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-amber-300" />
+                  <p className="text-xs leading-5 text-amber-100/90">{claim.pickupReminder}</p>
+                </div>
+              )}
+            </section>
+          )}
 
           <button
             type="button"
@@ -793,7 +944,8 @@ function buildClaimTimeline(claim: ClaimData, item: LostItem | null): ClaimTimel
     },
   ];
 
-  if (claim.status === "VALIDATED" || claim.status === "RELEASED") {
+  // A no-show was approved first, so its history shows that step too.
+  if (claim.status === "VALIDATED" || claim.status === "RELEASED" || claim.noShowAt) {
     steps.push({
       key: "approved",
       label: "Approved",
@@ -815,7 +967,16 @@ function buildClaimTimeline(claim: ClaimData, item: LostItem | null): ClaimTimel
     });
   }
 
-  if (claim.status === "REJECTED") {
+  if (claim.status === "REJECTED" && claim.noShowAt) {
+    steps.push({
+      key: "not-collected",
+      label: "Not Collected",
+      date: claim.noShowAt,
+      detail: "The item wasn't collected by the end of the pickup date, so the claim was closed. It can be claimed again online or at the office.",
+      icon: <CalendarX2 className="h-3.5 w-3.5" />,
+      tone: "border-slate-400/35 bg-slate-400/15 text-slate-300",
+    });
+  } else if (claim.status === "REJECTED") {
     steps.push({
       key: "rejected",
       label: "Rejected",
