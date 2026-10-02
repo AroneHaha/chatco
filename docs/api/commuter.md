@@ -616,6 +616,8 @@ Items the commuter bookmarked. Only items still `AVAILABLE` or `CLAIMED` are inc
 | `per_page` | Default 15, clamped to 1–50 |
 | `page` | |
 | `date` | `YYYY-MM-DD`. The day the item was logged. |
+| `range` | `today`, `week`, `month` or `year`, applied to when the item was logged. Same windows and 422 as [`GET /lost-found`](lost-found.md#get-lost-found). |
+| `category` | Exact item category. Filtered server-side so pagination matches. |
 | `search` | Matches item name, description, plate, driver name or conductor name |
 
 **200 OK.** A Laravel paginator of watchlist rows, each with `item` and `item.vehicle` loaded:
@@ -638,6 +640,8 @@ Claims the commuter has filed. This drives the "My Claims" tab and the claim bad
 | `page` | |
 | `status` | `PENDING`, `APPROVED`, `REJECTED` or `RELEASED`. Anything else returns `422 "Invalid claim status filter"`. |
 | `date` | `YYYY-MM-DD`. The day the **item** was logged. |
+| `range` | `today`, `week`, `month` or `year`, applied to when the **item** was logged. Same windows and 422 as [`GET /lost-found`](lost-found.md#get-lost-found). |
+| `category` | Exact category of the claimed **item**. |
 | `search` | Same item fields as the watchlist |
 
-**200 OK.** A Laravel paginator of Claim models with `item` and `item.vehicle` loaded. Each claim includes `status`, `proof`, `rejection_reason`, `reviewed_at`, `approved_at`, `released_at` and `reviewed_by_name`.
+**200 OK.** A Laravel paginator of Claim models with `item` and `item.vehicle` loaded. Each claim includes `status`, `proof`, `rejection_reason`, `reviewed_at`, `approved_at`, `released_at`, `reviewed_by_name`, the pickup schedule set at approval (`pickup_location`, `pickup_at`, `pickup_reminder`; `null` until approved), and `no_show_at` (set when an approved claim was auto-rejected because the item wasn't collected by the pickup date).
