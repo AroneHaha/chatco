@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Loader2, MapPin } from "lucide-react";
+import { Loader2, MapPin, X } from "lucide-react";
 import { haversineMeters } from "@/lib/utils/geo";
 
 // The public tracking page (app/share/[token]/page.tsx) polls every 5s, so
@@ -225,52 +225,44 @@ export default function ShareRideModal({ commuterName, lat: propLat, lng: propLn
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={!isLoading ? onClose : undefined} />
-      <div className="relative bg-white sm:rounded-3xl rounded-t-3xl shadow-2xl w-full sm:max-w-md overflow-hidden animate-slide-in-from-bottom duration-300 pb-safe">
+      <div className="relative bg-[#071A2E] text-white border border-white/10 sm:rounded-2xl rounded-t-2xl shadow-2xl w-full sm:max-w-md max-h-[95dvh] overflow-y-auto animate-slide-in-from-bottom duration-300 pb-safe">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-gray-100">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold text-[#071A2E]">Share Live Location</h2>
-            {!isExpired && !isLoading && (
-              <span className="flex items-center gap-1 bg-green-50 text-green-600 text-[10px] font-bold px-2 py-0.5 rounded-full border border-green-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                LIVE
-              </span>
-            )}
-          </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
-            <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+        <div className="flex items-center justify-between gap-3 p-5 border-b border-white/10">
+          <h2 className="text-lg font-bold text-white">Share Live Location</h2>
+          <button onClick={onClose} aria-label="Close share live location" title="Close" className="w-8 h-8 shrink-0 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white flex items-center justify-center transition-colors">
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         <div className="p-5 space-y-5">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
-              <Loader2 className="w-8 h-8 text-[#1A5FB4] animate-spin" />
-              <p className="text-sm text-gray-500">Creating your share link…</p>
+              <Loader2 className="w-8 h-8 text-[#62A0EA] animate-spin" />
+              <p className="text-sm text-white/60">Creating your share link…</p>
             </div>
           ) : isStopped ? (
             <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-600">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500/10 text-green-400">
                 <svg className="h-9 w-9" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
               </div>
-              <h3 className="text-lg font-bold text-[#071A2E]">Location sharing stopped</h3>
-              <p className="text-sm text-gray-500">The tracking link is no longer active.</p>
+              <h3 className="text-lg font-bold text-white">Location sharing stopped</h3>
+              <p className="text-sm text-white/60">The tracking link is no longer active.</p>
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center py-8 gap-3">
-              <p className="text-sm text-red-500 text-center">{error}</p>
-              <button onClick={onClose} className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm font-semibold hover:bg-gray-200">Close</button>
+              <p className="text-sm text-red-400 text-center">{error}</p>
+              <button onClick={onClose} className="px-4 py-2 rounded-lg bg-white/5 text-white/80 text-sm font-semibold hover:bg-white/10">Close</button>
             </div>
           ) : (
             <>
               {/* GPS Status indicator */}
               <div className={`flex items-center gap-2 p-3 rounded-lg text-xs font-medium ${
-                gpsStatus === "success" ? "bg-green-50 text-green-600 border border-green-200" :
-                gpsStatus === "error" ? "bg-red-50 text-red-600 border border-red-200" :
-                gpsStatus === "requesting" ? "bg-blue-50 text-blue-600 border border-blue-200" :
-                "bg-gray-50 text-gray-500 border border-gray-200"
+                gpsStatus === "success" ? "bg-green-500/10 text-green-400 border border-green-500/20" :
+                gpsStatus === "error" ? "bg-red-500/10 text-red-400 border border-red-500/20" :
+                gpsStatus === "requesting" ? "bg-[#62A0EA]/10 text-[#62A0EA] border border-[#62A0EA]/20" :
+                "bg-white/5 text-white/60 border border-white/10"
               }`}>
-                <MapPin size={14} />
+                <MapPin size={14} className="shrink-0" />
                 {gpsStatus === "success" && "GPS connected — sharing live position"}
                 {gpsStatus === "error" && "GPS unavailable — sharing link without position. Move to an open area for better signal."}
                 {gpsStatus === "requesting" && "Connecting to GPS…"}
@@ -278,24 +270,24 @@ export default function ShareRideModal({ commuterName, lat: propLat, lng: propLn
               </div>
 
               {/* Info Text */}
-              <p className="text-sm text-gray-600 leading-relaxed">
+              <p className="text-sm text-white/60 leading-relaxed">
                 Anyone with this link can track your live location on the map for 30 minutes.
-                <span className="font-semibold text-[#071A2E]"> Do not share with untrusted individuals.</span>
+                <span className="font-semibold text-white/90"> Do not share with untrusted individuals.</span>
               </p>
 
               {/* URL Box */}
-              <div className="bg-[#F8FAFC] rounded-xl border border-gray-200 p-1 flex items-center gap-2">
-                <div className="flex-1 px-3 py-2.5 truncate">
-                  <p className="text-xs text-gray-500 font-medium truncate">{shareUrl}</p>
+              <div className="bg-[#0E1628] rounded-xl border border-white/10 p-1 flex items-center gap-2">
+                <div className="min-w-0 flex-1 px-3 py-2.5 truncate">
+                  <p className="text-xs text-white/60 font-medium truncate">{shareUrl}</p>
                 </div>
                 <button
                   onClick={handleCopy}
                   disabled={isExpired}
                   className={`px-4 py-2.5 rounded-lg text-xs font-semibold transition-all flex-shrink-0 ${
                     isCopied
-                      ? "bg-green-100 text-green-700"
+                      ? "bg-green-500/15 text-green-400"
                       : isExpired
-                        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                        ? "bg-white/5 text-white/30 cursor-not-allowed"
                         : "bg-[#1A5FB4] text-white hover:bg-[#164A8F] shadow-sm"
                   }`}
                 >
@@ -306,30 +298,30 @@ export default function ShareRideModal({ commuterName, lat: propLat, lng: propLn
               {/* Countdown Timer */}
               <div className={`flex items-center justify-center gap-3 p-4 rounded-xl border transition-colors ${
                 isExpired
-                  ? "bg-red-50 border-red-200"
+                  ? "bg-red-500/10 border-red-500/20"
                   : timeLeft <= 300
-                    ? "bg-amber-50 border-amber-200"
-                    : "bg-[#F0F7FF] border-[#DAEEFF]"
+                    ? "bg-amber-500/10 border-amber-500/20"
+                    : "bg-[#62A0EA]/10 border-[#62A0EA]/20"
               }`}>
-                <svg className={`w-5 h-5 ${isExpired ? "text-red-500" : timeLeft <= 300 ? "text-amber-500" : "text-[#1A5FB4]"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className={`w-5 h-5 ${isExpired ? "text-red-400" : timeLeft <= 300 ? "text-amber-400" : "text-[#62A0EA]"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                 </svg>
                 <div className="text-center">
-                  <p className={`text-2xl font-extrabold tracking-wider ${isExpired ? "text-red-600" : timeLeft <= 300 ? "text-amber-600" : "text-[#1A5FB4]"}`}>
+                  <p className={`text-2xl font-bold tabular-nums ${isExpired ? "text-red-400" : timeLeft <= 300 ? "text-amber-400" : "text-[#62A0EA]"}`}>
                     {isExpired ? "00:00" : formatTime(timeLeft)}
                   </p>
-                  <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider mt-0.5">
+                  <p className="text-[10px] font-medium text-white/60 uppercase mt-0.5">
                     {isExpired ? "Link Expired" : "Time Remaining"}
                   </p>
                 </div>
               </div>
 
               {/* Disclaimer */}
-              <div className="flex gap-2 bg-gray-50 p-3 rounded-lg">
-                <svg className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <div className="flex gap-2 bg-white/5 p-3 rounded-lg">
+                <svg className="w-4 h-4 text-white/50 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
                 </svg>
-                <p className="text-[11px] text-gray-500 leading-relaxed">
+                <p className="text-[11px] text-white/60 leading-relaxed">
                   Link automatically stops sharing after 30 minutes. Keep this app open for live updates.
                 </p>
               </div>
@@ -340,14 +332,14 @@ export default function ShareRideModal({ commuterName, lat: propLat, lng: propLn
                   <button
                     onClick={handleStopSharing}
                     disabled={isStopping}
-                    className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold border border-red-200 text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                    className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
                   >
                     {isStopping ? "Stopping…" : "Stop Sharing"}
                   </button>
                 )}
                 <button
                   onClick={onClose}
-                  className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold border border-white/10 text-white/80 hover:bg-white/5 transition-colors"
                 >
                   {isExpired ? "Close" : "Keep Sharing"}
                 </button>
