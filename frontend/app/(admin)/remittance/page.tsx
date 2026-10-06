@@ -181,7 +181,11 @@ export default function RemittancePage() {
           style={{ maxHeight: isMobileFiltersExpanded ? '700px' : '0px' }}
         >
           <div className="flex flex-col gap-4">
-            <RemittanceSummary selectedDate={selectedDate} />
+            <RemittanceSummary
+              selectedDate={selectedDate}
+              dateFrom={rangeStart}
+              rangeLabel={RANGE_OPTIONS.find((option) => option.value === rangePreset)?.label ?? 'Today'}
+            />
 
             {/* Search + date (left) — range/status/conductor/driver dropdowns (right, shorter) */}
             <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-3 w-full">

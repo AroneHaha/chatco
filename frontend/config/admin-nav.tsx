@@ -33,7 +33,7 @@ export const operationsNav: NavItem[] = [
 export const managementNav: NavItem[] = [
   { href: "/vehicles", label: "Fleet Management", icon: Car },
   { href: "/lost-found", label: "Lost & Found", icon: Package },
-  { href: "/announcements", label: "Announcements", icon: Megaphone },
+  { href: "/announcements", label: "Updates Center", icon: Megaphone },
   { href: "/users", label: "User Management", icon: Users },
 ];
 
@@ -59,7 +59,7 @@ export const mobileOverflowItems: NavItem[] = [
 export const mobileMoreItems: NavItem[] = [
   { href: "/vehicles", label: "Fleet Management", icon: Car },
   { href: "/lost-found", label: "Lost & Found", icon: Package },
-  { href: "/announcements", label: "Announcements", icon: Megaphone },
+  { href: "/announcements", label: "Updates Center", icon: Megaphone },
   { href: "/users", label: "User Management", icon: Users },
   { href: "/activity-logs", label: "Activity Logs", icon: History },
   { href: "/settings", label: "Settings", icon: Sliders },

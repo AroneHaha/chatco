@@ -8,6 +8,7 @@ import { haversineMeters } from "@/lib/utils/geo";
 import type { ConductorHailRequest } from "@/lib/conductor/types";
 import { useRouteGeometry } from "@/hooks/use-route-geometry";
 import DynamicRouteViewport from "@/components/maps/dynamic-route-viewport";
+import UnitPopup, { capacityTone } from "@/components/maps/unit-popup";
 
 const RADIUS_M = 1000;
 const ROUTE_COORDS: [number, number][] = [
@@ -195,28 +196,15 @@ export default function ConductorMap({
         <Circle center={vehiclePosition} radius={RADIUS_M} pathOptions={{ color: markerPresentation.color, fillColor: markerPresentation.color, fillOpacity: 0.05, weight: 1.5, opacity: 0.3, dashArray: '8 4' }} />
 
         <Marker position={vehiclePosition} icon={vehicleIcon}>
-          <Popup>
-            <div className="space-y-2 min-w-[180px]">
-              <div className="flex items-center justify-between">
-                <div className="font-bold" style={{ color: markerPresentation.color }}>{unitNumber} (You)</div>
-                <span
-                  className="rounded border px-1.5 py-0.5 text-[9px] font-bold uppercase"
-                  style={{
-                    backgroundColor: `${markerPresentation.color}1A`,
-                    borderColor: `${markerPresentation.color}4D`,
-                    color: markerPresentation.color,
-                  }}
-                >
-                  {isOnBreak ? "On Break" : "Active"}
-                </span>
-              </div>
-              <div className="text-xs text-gray-500 space-y-0.5 pt-1 border-t border-gray-100">
-                <p><span className="font-medium text-gray-700">Status:</span> {markerPresentation.label}</p>
-                {isOnBreak && <p><span className="font-medium text-gray-700">Capacity:</span> {capacityStatus}</p>}
-                <p><span className="font-medium text-gray-700">Radius:</span> 1 km pickup zone</p>
-              </div>
-            </div>
-          </Popup>
+          <UnitPopup
+            title={unitNumber}
+            subtitle="Your unit"
+            status={{ label: markerPresentation.label, tone: isOnBreak ? "info" : capacityTone(capacityStatus) }}
+            details={[
+              ...(isOnBreak ? [{ label: "Capacity", value: capacityStatus }] : []),
+              { label: "Pickup zone", value: "1 km radius" },
+            ]}
+          />
         </Marker>
 
         {visibleHails.map((hail) => (

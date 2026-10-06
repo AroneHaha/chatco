@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ChevronRight, KeyRound, Loader2, LogOut, Pencil, Save, X } from "lucide-react";
 import { useProfile } from "@/app/(commuter)/profile/use-profile";
 import { AccountStatus } from "@/app/(commuter)/profile/types";
+import { getCommuterTypeLabel } from "@/types";
 
 /**
  * The commuter Profile body, shared by both shells — same split as the
@@ -30,6 +32,7 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
   // re-entering credentials, so it goes through a confirmation first — same
   // treatment the admin side already gives it (components/admin/ui/sign-out-modal).
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const subdialogRef = useRef<HTMLDivElement>(null);
   const {
     profile,
     loadState,
@@ -63,6 +66,36 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
     handleReuploadId,
     handleLogout,
   } = useProfile();
+
+  useEffect(() => {
+    if (isPage || (!showLogoutConfirm && !showPasswordModal)) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const controls = () => Array.from(subdialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), [tabindex="0"]') ?? []);
+    controls()[0]?.focus();
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !isChangingPassword) {
+        setShowLogoutConfirm(false);
+        closePasswordModal();
+      }
+      if (event.key !== "Tab") return;
+      const items = controls();
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault(); last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault(); first?.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+      previous?.focus();
+    };
+  // The hook's close handler changes identity on render; keep focus stable
+  // while typing rather than re-focusing the first field on every keystroke.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPage, showLogoutConfirm, showPasswordModal, isChangingPassword]);
 
   // ─── Load error ───────────────────────────────────────────────────
   if (loadState === "error") {
@@ -143,27 +176,27 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
 
   return (
     <div className={isPage ? "h-full w-full bg-[#050F1A] overflow-y-auto pb-28 lg:pb-8" : undefined}>
-      <div className={isPage ? "max-w-2xl mx-auto p-6 lg:p-8 space-y-6" : "p-5 space-y-6"}>
+      <div className={isPage ? "max-w-2xl mx-auto p-6 lg:p-8 space-y-6" : "px-5 py-6 sm:px-6 space-y-6"}>
         {/* Header & Avatar */}
-        <div className="flex flex-col sm:flex-row items-center gap-5">
-          <div className="w-24 h-24 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-black text-3xl shadow-xl border-4 border-white/10 flex-shrink-0">
+        <div className={isPage ? "flex flex-col sm:flex-row items-center gap-5" : "flex items-start gap-4 border-b border-white/10 pb-6"}>
+          <div className={isPage ? "w-24 h-24 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-black text-3xl shadow-xl border-4 border-white/10 flex-shrink-0" : "flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-[#62A0EA]/30 bg-[#1A5FB4]/20 text-xl font-bold text-[#99C1F1]"}>
             {profile.firstName[0]}
             {profile.surname[0]}
           </div>
-          <div className="text-center sm:text-left flex-1">
-            <h1 className="text-white font-bold text-2xl">
+          <div className={isPage ? "text-center sm:text-left flex-1" : "min-w-0 flex-1"}>
+            <h1 className={isPage ? "text-white font-bold text-2xl" : "break-words text-white font-bold text-lg leading-snug"}>
               {profile.firstName} {profile.surname}
             </h1>
-            <p className="text-white/40 text-sm mt-1">@{profile.username}</p>
-            <div className="flex flex-wrap gap-2 mt-3 justify-center sm:justify-start">
+            <p className="text-white/50 text-sm mt-1 break-words">@{profile.username}</p>
+            <div className={isPage ? "flex flex-wrap gap-2 mt-3 justify-center sm:justify-start" : "flex flex-wrap items-center gap-2 mt-3"}>
               <span
-                className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border ${statusConfig.color}`}
+                className={`${isPage ? "text-[10px] font-bold uppercase tracking-wider" : "text-[11px] font-medium"} px-2.5 py-1 rounded-full border ${statusConfig.color}`}
               >
                 {statusConfig.text}
               </span>
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border bg-[#62A0EA]/10 text-[#62A0EA] border-[#62A0EA]/30">
-                {profile.commuterType}{" "}
-                {discountPercentage > 0 && `(${discountPercentage}% Off)`}
+              <span className={isPage ? "text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border bg-[#62A0EA]/10 text-[#62A0EA] border-[#62A0EA]/30" : "text-xs text-white/60"}>
+                {isPage ? profile.commuterType : getCommuterTypeLabel(profile.commuterType)}{" "}
+                {isPage && discountPercentage > 0 && `(${discountPercentage}% Off)`}
               </span>
             </div>
           </div>
@@ -171,7 +204,7 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
 
         {/* Transient success banner */}
         {successMessage && (
-          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div role="status" className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
             <svg
               className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5"
               fill="none"
@@ -259,6 +292,7 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
         )}
 
         {/* Action Buttons */}
+        {isPage ? <>
         <div className="flex gap-3">
           <button
             onClick={isEditing ? cancelEditing : startEditing}
@@ -423,6 +457,48 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
         >
           Log Out
         </button>
+        </> : <>
+          <section aria-labelledby="profile-details-heading">
+            <h3 id="profile-details-heading" className="text-sm font-semibold text-white">Personal details</h3>
+            <dl className="mt-4 grid grid-cols-1 gap-x-5 gap-y-5 sm:grid-cols-2">
+              <div><dt className="text-xs text-white/50">First name</dt><dd className="mt-1 break-words text-sm text-white/90">{profile.firstName}</dd></div>
+              <div><dt className="text-xs text-white/50">Surname</dt><dd className="mt-1 break-words text-sm text-white/90">{profile.surname}</dd></div>
+              <div><dt className="text-xs text-white/50">Birthdate</dt><dd className="mt-1 text-sm text-white/90">{profile.birthdate && Number.isFinite(new Date(profile.birthdate).getTime()) ? new Date(profile.birthdate).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" }) : "Not provided"}</dd></div>
+              <div><dt className="text-xs text-white/50">Commuter type</dt><dd className="mt-1 text-sm text-white/90">{getCommuterTypeLabel(profile.commuterType)}</dd></div>
+              <div className="sm:col-span-2"><dt className="text-xs text-white/50">Email address</dt><dd className="mt-1 break-all text-sm text-white/90">{profile.email || "Not provided"}</dd></div>
+            </dl>
+          </section>
+
+          <section aria-labelledby="profile-contact-heading" className="border-t border-white/10 pt-5">
+            <div className="flex items-center justify-between gap-3">
+              <h3 id="profile-contact-heading" className="text-sm font-semibold text-white">Contact number</h3>
+              {!isEditing && <button type="button" onClick={startEditing} className="inline-flex min-h-9 items-center gap-2 rounded-lg px-2 text-xs font-medium text-[#99C1F1] hover:bg-white/5 hover:text-white"><Pencil size={14} /> Edit</button>}
+            </div>
+            {isEditing ? (
+              <form onSubmit={event => { event.preventDefault(); if (!isSaving) void saveProfile(); }} className="mt-3">
+                <label htmlFor="profile-modal-contact" className="sr-only">Contact number</label>
+                <input id="profile-modal-contact" type="tel" inputMode="numeric" autoComplete="tel-national" autoFocus disabled={isSaving} value={editData.contactNumber ?? profile.contactNumber} onChange={event => handleEditChange("contactNumber", event.target.value)} maxLength={11} placeholder="09171234567" aria-invalid={!!saveError} aria-describedby={saveError ? "profile-modal-contact-error" : undefined} className={`${saveError ? errorInputClasses : enabledInputClasses} disabled:opacity-50`} />
+                {saveError && <p id="profile-modal-contact-error" role="alert" className="mt-2 text-xs text-red-400">{saveError}</p>}
+                <div className="mt-3 flex justify-end gap-2">
+                  <button type="button" onClick={cancelEditing} disabled={isSaving} className="min-h-10 rounded-lg border border-white/10 px-4 text-sm font-medium text-white/70 hover:bg-white/5 disabled:opacity-50">Cancel</button>
+                  <button type="submit" disabled={isSaving || editData.contactNumber === profile.contactNumber} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#1A5FB4] px-4 text-sm font-semibold text-white hover:bg-[#164A8F] disabled:opacity-50">
+                    {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}{isSaving ? "Saving..." : "Save changes"}
+                  </button>
+                </div>
+              </form>
+            ) : <p className="mt-1 text-sm text-white/90">{profile.contactNumber || "Not provided"}</p>}
+          </section>
+
+          <section aria-labelledby="profile-security-heading" className="border-t border-white/10 pt-5">
+            <h3 id="profile-security-heading" className="mb-2 text-sm font-semibold text-white">Account security</h3>
+            <button type="button" onClick={() => setShowPasswordModal(true)} className="flex min-h-12 w-full items-center gap-3 rounded-lg py-3 text-left text-sm text-white/80 hover:bg-white/5">
+              <KeyRound size={18} className="shrink-0 text-white/50" /><span className="flex-1">Change password</span><ChevronRight size={16} className="text-white/40" />
+            </button>
+          </section>
+          <div className="border-t border-white/10 pt-4">
+            <button type="button" onClick={() => setShowLogoutConfirm(true)} className="inline-flex min-h-10 items-center gap-2 rounded-lg px-2 text-sm font-medium text-red-400 hover:bg-red-500/10"><LogOut size={17} /> Log out</button>
+          </div>
+        </>}
       </div>
 
       {/* --- LOG OUT CONFIRMATION --- */}
@@ -435,6 +511,8 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
           aria-labelledby="logout-confirm-title"
         >
           <div
+            ref={subdialogRef}
+            data-profile-subdialog="logout"
             className="bg-[#071A2E] w-full max-w-sm rounded-2xl border border-white/10 shadow-2xl p-6 text-center animate-fade-in"
             onClick={(e) => e.stopPropagation()}
           >
@@ -478,11 +556,17 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
           onClick={closePasswordModal}
         >
           <div
-            className="bg-[#071A2E] w-full max-w-sm rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-hidden"
+            ref={subdialogRef}
+            data-profile-subdialog="password"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="profile-password-title"
+            className="bg-[#071A2E] w-full max-w-sm max-h-[90dvh] rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-y-auto modal-scroll"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-6 border-b border-white/10">
-              <h2 className="text-white font-bold text-lg">Change Password</h2>
+            <div className="p-6 border-b border-white/10 relative">
+              <h2 id="profile-password-title" className="text-white font-bold text-lg pr-8">Change Password</h2>
+              {!isPage && <button type="button" onClick={closePasswordModal} disabled={isChangingPassword} aria-label="Close change password" title="Close" className="absolute right-4 top-5 flex h-8 w-8 items-center justify-center rounded-lg text-white/50 hover:bg-white/5 hover:text-white disabled:opacity-50"><X size={18} /></button>}
               <p className="text-white/40 text-xs mt-1">
                 {passwordStep === "form"
                   ? "Ensure your account stays secure"
@@ -493,16 +577,19 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
             {passwordStep === "form" ? (
               <>
                 <div className="p-6 space-y-4">
-                  {passwordError && (
-                    <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium p-3 rounded-lg">
+                  {passwordError && (isPage || !passwordErrorField) && (
+                    <div role="alert" className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium p-3 rounded-lg">
                       {passwordError}
                     </div>
                   )}
                   <div>
-                    <label className="block text-xs font-medium text-white/50 mb-1.5">
+                    <label htmlFor="profile-current-password" className="block text-xs font-medium text-white/50 mb-1.5">
                       Current Password
                     </label>
                     <input
+                      id="profile-current-password"
+                      aria-invalid={passwordErrorField === "currentPassword"}
+                      aria-describedby={!isPage && passwordErrorField === "currentPassword" ? "profile-current-password-error" : undefined}
                       type="password"
                       value={passwordData.currentPassword}
                       onChange={(e) =>
@@ -515,12 +602,16 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
                       className={fieldClass("currentPassword")}
                       autoComplete="current-password"
                     />
+                    {!isPage && passwordErrorField === "currentPassword" && <p id="profile-current-password-error" role="alert" className="mt-2 text-xs text-red-400">{passwordError}</p>}
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-white/50 mb-1.5">
+                    <label htmlFor="profile-new-password" className="block text-xs font-medium text-white/50 mb-1.5">
                       New Password
                     </label>
                     <input
+                      id="profile-new-password"
+                      aria-invalid={passwordErrorField === "newPassword"}
+                      aria-describedby={!isPage && passwordErrorField === "newPassword" ? "profile-new-password-error" : "profile-password-rules"}
                       type="password"
                       value={passwordData.newPassword}
                       onChange={(e) =>
@@ -533,15 +624,19 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
                       className={fieldClass("newPassword")}
                       autoComplete="new-password"
                     />
-                    <p className="text-[10px] text-white/30 mt-1">
+                    {!isPage && passwordErrorField === "newPassword" && <p id="profile-new-password-error" role="alert" className="mt-2 text-xs text-red-400">{passwordError}</p>}
+                    <p id="profile-password-rules" className="text-[10px] text-white/50 mt-1">
                       At least 8 characters, with an uppercase letter, a number and a symbol.
                     </p>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-white/50 mb-1.5">
+                    <label htmlFor="profile-confirm-password" className="block text-xs font-medium text-white/50 mb-1.5">
                       Confirm New Password
                     </label>
                     <input
+                      id="profile-confirm-password"
+                      aria-invalid={passwordErrorField === "confirmNewPassword"}
+                      aria-describedby={!isPage && passwordErrorField === "confirmNewPassword" ? "profile-confirm-password-error" : undefined}
                       type="password"
                       value={passwordData.confirmNewPassword}
                       onChange={(e) =>
@@ -554,6 +649,7 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
                       className={fieldClass("confirmNewPassword")}
                       autoComplete="new-password"
                     />
+                    {!isPage && passwordErrorField === "confirmNewPassword" && <p id="profile-confirm-password-error" role="alert" className="mt-2 text-xs text-red-400">{passwordError}</p>}
                   </div>
                 </div>
 
@@ -581,8 +677,8 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
             ) : (
               <>
                 <div className="p-6 space-y-4">
-                  {passwordError && (
-                    <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium p-3 rounded-lg">
+                  {passwordError && (isPage || !passwordErrorField) && (
+                    <div role="alert" className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium p-3 rounded-lg">
                       {passwordError}
                     </div>
                   )}
@@ -590,10 +686,13 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
                     We emailed a 6-digit code to your registered address. Enter it below to finish changing your password.
                   </p>
                   <div>
-                    <label className="block text-xs font-medium text-white/50 mb-1.5">
+                    <label htmlFor="profile-verification-code" className="block text-xs font-medium text-white/50 mb-1.5">
                       Verification Code
                     </label>
                     <input
+                      id="profile-verification-code"
+                      aria-invalid={passwordErrorField === "code"}
+                      aria-describedby={!isPage && passwordErrorField === "code" ? "profile-verification-code-error" : undefined}
                       type="text"
                       inputMode="numeric"
                       maxLength={6}
@@ -605,6 +704,7 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
                       className={`${fieldClass("code")} text-center tracking-[0.5em] font-mono`}
                       autoComplete="one-time-code"
                     />
+                    {!isPage && passwordErrorField === "code" && <p id="profile-verification-code-error" role="alert" className="mt-2 text-xs text-red-400">{passwordError}</p>}
                   </div>
                   <div className="flex items-center justify-between">
                     <button

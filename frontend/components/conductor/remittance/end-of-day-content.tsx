@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef } from "react";
+import { useAuth } from "@/contexts/auth-context";
 import { clearShift } from "@/lib/conductor/services/shift.service";
 import { submitRemittance, type RemittanceRecord } from "@/lib/conductor/services/remittance.service";
 import {
@@ -34,6 +35,7 @@ import OfficialReportModal, { buildPrintHTML } from "@/components/conductor/remi
  * mounted — the page no longer needs its own copy of this hook.
  */
 export default function EndOfDayContent() {
+  const { logout } = useAuth();
   const { shift, transactions, earnings, history, status, error } = useRemittanceData();
 
   const [showConfirm, setShowConfirm] = useState(false);
@@ -104,15 +106,7 @@ export default function EndOfDayContent() {
     isLoggingOutAfterRemit.current = true;
     setShowSuccess(false);
 
-    try {
-      await fetch("/api/auth/logout", {
-        method: "POST",
-        credentials: "include",
-        cache: "no-store",
-      });
-    } finally {
-      window.location.replace("/login");
-    }
+    await logout();
   };
 
   const filteredHistory = useMemo(() => {

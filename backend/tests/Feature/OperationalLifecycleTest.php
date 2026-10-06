@@ -768,4 +768,50 @@ class OperationalLifecycleTest extends TestCase
             'paid_at' => $status === PaymentStatus::PAID ? now() : null,
         ], $overrides));
     }
+
+    public function test_shift_ended_notifications_identify_manual_actor_and_automatic_reason_without_duplicates(): void
+    {
+        $admin = User::factory()->admin()->create();
+        foreach ([ShiftCloseoutService::REASON_MANUAL, ShiftCloseoutService::REASON_STALE, ShiftCloseoutService::REASON_MIDNIGHT] as $reason) {
+            [$conductor, , , , $shift] = $this->activeShift();
+            app(ShiftCloseoutService::class)->close($shift->shift_id, 0, $reason, $conductor->id);
+            $notice = Announcement::where('type', 'SHIFT_ENDED')->where('reference_id', $shift->shift_id)->firstOrFail();
+            $this->assertSame($admin->id, $notice->user_id);
+            $this->assertStringContainsString($shift->unit_number, $notice->message);
+            $this->assertStringContainsString($shift->conductor_name, $notice->message);
+            $this->assertStringContainsString($shift->driver_name, $notice->message);
+            if ($reason !== ShiftCloseoutService::REASON_MANUAL) {
+                $this->assertStringContainsString('System ended', $notice->message);
+                app(ShiftCloseoutService::class)->close($shift->shift_id, null, $reason);
+            }
+            $this->assertSame(1, Announcement::where('type', 'SHIFT_ENDED')->where('reference_id', $shift->shift_id)->count());
+        }
+    }
+
+    public function test_overdue_remittance_notifies_only_admins_and_obeys_repeat_interval(): void
+    {
+        $admin = User::factory()->admin()->create();
+        [$conductor, , , , $shift] = $this->activeShift();
+        $this->fare($shift, PaymentMethod::CASH, PaymentStatus::PAID, 50);
+        app(ShiftCloseoutService::class)->close($shift->shift_id, null, ShiftCloseoutService::REASON_STALE);
+        $this->artisan('remittances:send-reminders')->assertSuccessful();
+        $this->assertSame(0, Announcement::where('type', 'REMITTANCE_OVERDUE')->count());
+        Remittance::where('shift_id', $shift->shift_id)->update(['remittance_due_at' => now()->subMinutes(10)]);
+        $this->artisan('remittances:send-reminders')->assertSuccessful();
+        $this->artisan('remittances:send-reminders')->assertSuccessful();
+        $notice = Announcement::where('type', 'REMITTANCE_OVERDUE')->sole();
+        $this->assertSame($admin->id, $notice->user_id);
+        $this->assertSame($shift->shift_id, $notice->reference_id);
+        $this->assertStringContainsString('50.00', $notice->message);
+        $this->assertStringContainsString($shift->conductor_name, $notice->message);
+        $this->travel(61)->minutes();
+        $this->artisan('remittances:send-reminders')->assertSuccessful();
+        $this->assertSame(2, Announcement::where('type', 'REMITTANCE_OVERDUE')->count());
+        app(ShiftCloseoutService::class)->close($shift->shift_id, 50, ShiftCloseoutService::REASON_MANUAL, $conductor->id);
+        $this->travel(61)->minutes();
+        $this->artisan('remittances:send-reminders')->assertSuccessful();
+        $this->assertSame(2, Announcement::where('type', 'REMITTANCE_OVERDUE')->count());
+        $this->assertSame(1, Announcement::where('type', 'SHIFT_ENDED')->count());
+    }
+
 }

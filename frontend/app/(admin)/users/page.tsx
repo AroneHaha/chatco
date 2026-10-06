@@ -13,7 +13,7 @@ import { EditUserModal } from '@/components/admin/users/edit-user-modal';
 import { DeleteUserModal } from '@/components/admin/users/delete-user-modal';
 import { FeedbackModal, type FeedbackModalStaff } from '@/components/admin/users/feedback-modal';
 import { SearchBar } from '@/components/admin/ui/search-bar';
-import { Plus, UserCheck, Users, XCircle, AlertCircle, RefreshCw, CheckCircle, ChevronUp } from 'lucide-react';
+import { Plus, UserCheck, Users, XCircle, AlertCircle, RefreshCw, CheckCircle, ChevronUp, SlidersHorizontal } from 'lucide-react';
 import { useUsersData } from './data/users-data';
 import type { ActiveUser, PendingRequest, RejectedUser, RejectedRequest } from './data/users-data';
 import type { UpdateUserInput } from '@/lib/admin/services/user.service';
@@ -84,12 +84,8 @@ export default function UsersPage() {
   const [deletingUser, setDeletingUser] = useState<ActiveUser | null>(null);
   const [feedbackStaff, setFeedbackStaff] = useState<FeedbackModalStaff | null>(null);
 
-  // Mobile-only collapse: the search/dropdown filter row (rendered inside
-  // each table's card via filterBar below) hides behind a toggle so just the
-  // title + Register Onsite button in the sticky header, and the tabs, stay
-  // visible on small screens — same pattern as Announcements/Remittance/Lost
-  // & Found.
-  const [isMobileFiltersExpanded, setIsMobileFiltersExpanded] = useState(true);
+  // Extra filters collapse on phones; search, tabs, and registration stay visible.
+  const [isMobileFiltersExpanded, setIsMobileFiltersExpanded] = useState(false);
 
   // ─── Deep-link from the notification bell ──────────────────────
   // A NEW_REGISTRATION notification links here as
@@ -269,11 +265,10 @@ export default function UsersPage() {
   // On error: throw so the modal shows the message inline (modal stays open).
   const handleSaveRegistration = async (data: {
     firstName: string;
-    middleInitial: string;
+    middleName: string;
     lastName: string;
     birthday: string;
     username: string;
-    password: string;
     email: string;
     phoneNumber: string;
     commuterType: string;
@@ -299,13 +294,12 @@ export default function UsersPage() {
     // Laravel so $request->file('id_image') works.
     const formData = new FormData();
     formData.append('first_name', data.firstName);
-    if (data.middleInitial) formData.append('middle_name', data.middleInitial);
+    if (data.middleName.trim()) formData.append('middle_name', data.middleName.trim());
     formData.append('surname', data.lastName);
     formData.append('birthdate', data.birthday);
     formData.append('email', data.email);
     formData.append('contact_number', data.phoneNumber);
     formData.append('username', data.username);
-    formData.append('password', data.password);
     formData.append('applied_type', appliedType);
     formData.append('id_image', data.idImageFile);
 
@@ -337,7 +331,7 @@ export default function UsersPage() {
   };
 
   const handleApproveRequest = async () => {
-    if (!selectedRequest) return;
+    if (!selectedRequest || isReviewProcessing) return;
     setActionError(null);
     setSuccessMessage(null);
     setIsReviewProcessing(true);
@@ -361,7 +355,7 @@ export default function UsersPage() {
   };
 
   const handleRejectRequest = async (reason: string) => {
-    if (!selectedRequest) return;
+    if (!selectedRequest || isReviewProcessing) return;
     setActionError(null);
     setSuccessMessage(null);
     setIsReviewProcessing(true);
@@ -404,125 +398,119 @@ export default function UsersPage() {
     activeTab === 'pending' ? pendingPagination !== null :
     rejectedPagination !== null;
 
-  // Search bar (left) + tab-specific filters, pushed to the right via
-  // ml-auto — rendered inside each table card's header, matching the
-  // Remittance/Announcements page layout. Collapses behind a mobile-only
-  // toggle so the table stays reachable without scrolling past every filter;
-  // the Register Onsite button lives in the sticky header instead, so it
-  // stays visible even while this is collapsed.
+  const selectFilterClasses = 'h-11 min-w-0 w-full rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 text-base text-white focus:outline-none focus:ring-1 focus:ring-[#62A0EA]/30 scheme-dark md:w-auto md:text-sm';
+
+  // Search stays visible while tab-specific filters collapse on phones.
   const filterBar = (
-    <div className="flex w-full flex-col">
+    <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center">
+      <div className="flex min-w-0 items-center gap-2 lg:w-64 lg:shrink-0">
+        <SearchBar placeholder="Search users..." value={searchQuery} onChange={setSearchQuery} className="min-w-0 flex-1 [&_input]:h-11 [&_input]:text-base md:[&_input]:text-sm" />
+        {activeTab !== 'rejected' && (
+          <button
+            type="button"
+            onClick={() => setIsMobileFiltersExpanded((prev) => !prev)}
+            aria-expanded={isMobileFiltersExpanded}
+            aria-controls="user-management-filters"
+            className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors md:hidden ${isMobileFiltersExpanded ? 'border-[#62A0EA]/40 bg-[#62A0EA]/10 text-[#62A0EA]' : 'border-[#1E2D45] bg-[#0E1628] text-slate-300'}`}
+          >
+            <SlidersHorizontal size={16} aria-hidden="true" />
+            Filters
+            <ChevronUp size={14} className={isMobileFiltersExpanded ? '' : 'rotate-180'} aria-hidden="true" />
+          </button>
+        )}
+      </div>
       <div
-        className="overflow-hidden transition-all duration-300 ease-in-out md:max-h-none!"
-        style={{ maxHeight: isMobileFiltersExpanded ? '400px' : '0px' }}
+        id="user-management-filters"
+        className={`${isMobileFiltersExpanded ? 'block' : 'hidden'} md:block lg:ml-auto`}
       >
-        <div className="flex w-full flex-col gap-3 pb-1 lg:flex-row lg:items-center">
-          <SearchBar placeholder="Search users..." value={searchQuery} onChange={setSearchQuery} className="w-full sm:w-64" />
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:ml-auto">
-            {activeTab === 'active' && (
+        <div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap md:items-center md:gap-3">
+          {activeTab === 'active' && (
+            <select
+              value={filters.role ?? ''}
+              onChange={(e) => setFilters({ role: e.target.value as typeof filters.role })}
+              aria-label="Filter users by role"
+              className={selectFilterClasses}
+            >
+              <option value="" className="bg-gray-800">All Roles</option>
+              <option value="COMMUTER" className="bg-gray-800">Commuters</option>
+              <option value="CONDUCTOR" className="bg-gray-800">Conductors</option>
+              <option value="DRIVER" className="bg-gray-800">Drivers</option>
+              <option value="ADMIN" className="bg-gray-800">Admins</option>
+            </select>
+          )}
+          {activeTab === 'active' && (
+            <>
               <select
-                value={filters.role ?? ''}
-                onChange={(e) => setFilters({ role: e.target.value as typeof filters.role })}
-                className="px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] [color-scheme:dark]"
+                value={filters.accountStatus}
+                onChange={(e) => setFilters({ accountStatus: e.target.value as typeof filters.accountStatus })}
+                aria-label="Filter by account status"
+                className={selectFilterClasses}
               >
-                <option value="" className="bg-gray-800">All Roles</option>
-                <option value="COMMUTER" className="bg-gray-800">Commuters</option>
-                <option value="CONDUCTOR" className="bg-gray-800">Conductors</option>
-                <option value="DRIVER" className="bg-gray-800">Drivers</option>
-                <option value="ADMIN" className="bg-gray-800">Admins</option>
+                <option value="" className="bg-gray-800">All Statuses</option>
+                <option value="ACTIVE" className="bg-gray-800">Active</option>
+                <option value="SUSPENDED" className="bg-gray-800">
+                  {filters.role === 'CONDUCTOR' ? 'Disabled' : filters.role === '' ? 'Suspended / Disabled' : 'Suspended'}
+                </option>
               </select>
-            )}
-            {activeTab === 'active' && (
-              <>
-                <select
-                  value={filters.accountStatus}
-                  onChange={(e) => setFilters({ accountStatus: e.target.value as typeof filters.accountStatus })}
-                  aria-label="Filter by account status"
-                  className="px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] [color-scheme:dark]"
-                >
-                  <option value="" className="bg-gray-800">All Statuses</option>
-                  <option value="ACTIVE" className="bg-gray-800">Active</option>
-                  <option value="SUSPENDED" className="bg-gray-800">
-                    {filters.role === 'CONDUCTOR' ? 'Disabled' : filters.role === '' ? 'Suspended / Disabled' : 'Suspended'}
-                  </option>
-                </select>
-                <select
-                  value={filters.sort}
-                  onChange={(e) => setFilters({ sort: e.target.value as typeof filters.sort })}
-                  aria-label="Sort users"
-                  className="px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] [color-scheme:dark]"
-                >
-                  <option value="recent" className="bg-gray-800">Recent</option>
-                  <option value="alphabetical" className="bg-gray-800">Alphabetical</option>
-                  <option value="oldest" className="bg-gray-800">Oldest</option>
-                </select>
-              </>
-            )}
-            {activeTab === 'pending' && (
               <select
-                value={pendingType}
-                onChange={(event) => setPendingType(event.target.value as typeof pendingType)}
-                aria-label="Filter pending registrations by commuter type"
-                className="px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm [color-scheme:dark]"
+                value={filters.sort}
+                onChange={(e) => setFilters({ sort: e.target.value as typeof filters.sort })}
+                aria-label="Sort users"
+                className={`${selectFilterClasses} col-span-2`}
               >
-                <option value="">All Types</option>
-                <option value="REGULAR">Regular</option>
-                <option value="STUDENT">Student</option>
-                <option value="SENIOR">Senior Citizen</option>
-                <option value="PWD">PWD</option>
+                <option value="recent" className="bg-gray-800">Recent</option>
+                <option value="alphabetical" className="bg-gray-800">Alphabetical</option>
+                <option value="oldest" className="bg-gray-800">Oldest</option>
               </select>
-            )}
-          </div>
+            </>
+          )}
+          {activeTab === 'pending' && (
+            <select
+              value={pendingType}
+              onChange={(event) => setPendingType(event.target.value as typeof pendingType)}
+              aria-label="Filter pending registrations by commuter type"
+              className={`${selectFilterClasses} col-span-2`}
+            >
+              <option value="">All Types</option>
+              <option value="REGULAR">Regular</option>
+              <option value="STUDENT">Student</option>
+              <option value="SENIOR">Senior Citizen</option>
+              <option value="PWD">PWD</option>
+            </select>
+          )}
         </div>
       </div>
-      <button
-        type="button"
-        onClick={() => setIsMobileFiltersExpanded((prev) => !prev)}
-        aria-expanded={isMobileFiltersExpanded}
-        aria-label={isMobileFiltersExpanded ? 'Collapse filters' : 'Expand filters'}
-        className="flex w-full shrink-0 items-center justify-center border-t border-white/5 py-1.5 text-slate-500 transition-colors hover:bg-white/5 hover:text-slate-300 active:bg-white/10 md:hidden"
-      >
-        <ChevronUp className={`h-4 w-4 transition-transform duration-300 ${isMobileFiltersExpanded ? 'rotate-180' : ''}`} />
-      </button>
     </div>
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      {/* From md up, Register Onsite sits on the title row. Below md the
-          sticky header can't hold it (it reserves the bell's space and
-          StickyPageHeader must stay the page's first child, unwrapped), so
-          the full-width button renders under the header instead. */}
-      <StickyPageHeader className="mb-4 shrink-0 md:flex md:items-center md:justify-between md:gap-4">
-        <h1 className="text-2xl font-bold text-white">User Management</h1>
+    <div className="flex h-full min-h-[32rem] min-w-0 flex-col md:min-h-0">
+      <StickyPageHeader className="mb-4 shrink-0">
+        <h1 className="text-xl font-bold text-white md:text-2xl">User Management</h1>
+      </StickyPageHeader>
+
+      {/* 3 Tabs — shared with Fleet Management */}
+      <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[#1E2D45]">
+        <div className="min-w-0 basis-full md:flex-1 md:basis-auto">
+          <PageTabs
+            className="border-b-0! [&>button]:min-h-11 [&>button]:flex-none"
+            activeId={activeTab}
+            onChange={(id) => { setActiveTab(id); if (id === 'active') setSelectedUser(null); }}
+            tabs={[
+              { id: 'active', label: `Active ${activeRoleLabel}`, count: pagination?.total ?? activeUsers.length, icon: UserCheck },
+              { id: 'pending', label: 'Pending Verification', count: pendingTotal, icon: Users, accent: 'amber' },
+              { id: 'rejected', label: 'Rejected', count: rejectedTotal, icon: XCircle, accent: 'red' },
+            ]}
+          />
+        </div>
         <button
           onClick={handleOpenRegisterModal}
-          className="hidden h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-4 text-sm font-bold text-white shadow-lg shadow-[#62A0EA]/25 transition-colors hover:bg-[#4A8BD4] md:inline-flex"
+          className="ml-auto inline-flex h-11 -translate-y-1 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-4 text-sm font-bold text-white shadow-lg shadow-[#62A0EA]/25 transition-colors hover:bg-[#4A8BD4]"
         >
           <Plus size={16} />
           <span>Register Onsite</span>
         </button>
-      </StickyPageHeader>
-
-      <button
-        onClick={handleOpenRegisterModal}
-        className="mb-3 inline-flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-4 text-sm font-bold text-white shadow-lg shadow-[#62A0EA]/25 transition-colors hover:bg-[#4A8BD4] sm:w-auto md:hidden"
-      >
-        <Plus size={16} />
-        <span>Register Onsite</span>
-      </button>
-
-      {/* 3 Tabs — shared with Fleet Management */}
-      <PageTabs
-        className="mb-3"
-        activeId={activeTab}
-        onChange={(id) => { setActiveTab(id); if (id === 'active') setSelectedUser(null); }}
-        tabs={[
-          { id: 'active', label: `Active ${activeRoleLabel}`, count: pagination?.total ?? activeUsers.length, icon: UserCheck },
-          { id: 'pending', label: 'Pending Verification', count: pendingTotal, icon: Users, accent: 'amber' },
-          { id: 'rejected', label: 'Rejected', count: rejectedTotal, icon: XCircle, accent: 'red' },
-        ]}
-      />
+      </div>
 
       {/* Action error banner */}
       {actionError && (

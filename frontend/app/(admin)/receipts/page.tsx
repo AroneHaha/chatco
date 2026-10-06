@@ -479,39 +479,39 @@ export default function ReceiptsPage() {
 
       <div className="grid shrink-0 grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <div className="bg-[#0E1628] border border-[#1E2D45] rounded-xl p-3 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-slate-500/15 flex items-center justify-center shrink-0">
-            <ReceiptText size={18} className="text-slate-300" />
+          <div className="w-10 h-10 rounded-lg border border-[#62A0EA]/15 bg-[#62A0EA]/10 flex items-center justify-center shrink-0">
+            <ReceiptText size={18} className="text-[#62A0EA]" />
           </div>
           <div className="min-w-0">
             <p className="text-[10px] text-slate-500 uppercase tracking-wider">Receipts Shown</p>
-            <p className="text-xl font-bold text-white truncate">{filteredData.length}</p>
+            <p className="text-xl font-bold text-slate-100 truncate">{filteredData.length}</p>
           </div>
         </div>
         <div className="bg-[#0E1628] border border-[#1E2D45] rounded-xl p-3 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-[#62A0EA]/15 flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-lg border border-[#62A0EA]/15 bg-[#62A0EA]/10 flex items-center justify-center shrink-0">
             <Wallet size={18} className="text-[#62A0EA]" />
           </div>
           <div className="min-w-0">
             <p className="text-[10px] text-slate-500 uppercase tracking-wider">Settled Fares</p>
-            <p className="text-xl font-bold text-[#62A0EA] truncate">{formatPeso(totalFare)}</p>
+            <p className="text-xl font-bold text-slate-100 truncate">{formatPeso(totalFare)}</p>
           </div>
         </div>
         <div className="bg-[#0E1628] border border-[#1E2D45] rounded-xl p-3 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
-            <Coins size={18} className="text-emerald-400" />
+          <div className="w-10 h-10 rounded-lg border border-[#62A0EA]/15 bg-[#62A0EA]/10 flex items-center justify-center shrink-0">
+            <Coins size={18} className="text-[#62A0EA]" />
           </div>
           <div className="min-w-0">
             <p className="text-[10px] text-slate-500 uppercase tracking-wider">Cash Settled</p>
-            <p className="text-xl font-bold text-emerald-400 truncate">{cashCount}</p>
+            <p className="text-xl font-bold text-slate-100 truncate">{cashCount}</p>
           </div>
         </div>
         <div className="bg-[#0E1628] border border-[#1E2D45] rounded-xl p-3 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-[#62A0EA]/15 flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-lg border border-[#62A0EA]/15 bg-[#62A0EA]/10 flex items-center justify-center shrink-0">
             <Smartphone size={18} className="text-[#62A0EA]" />
           </div>
           <div className="min-w-0">
             <p className="text-[10px] text-slate-500 uppercase tracking-wider">GCash Settled</p>
-            <p className="text-xl font-bold text-[#62A0EA] truncate">{gcashCount}</p>
+            <p className="text-xl font-bold text-slate-100 truncate">{gcashCount}</p>
           </div>
         </div>
       </div>

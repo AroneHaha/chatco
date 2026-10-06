@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
+use App\Mail\PasswordResetCodeMail;
 use App\Models\AdminProfile;
 use App\Models\CommuterProfile;
 use App\Models\ConductorProfile;
@@ -11,6 +12,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -169,21 +171,24 @@ class AdminRegistrationTest extends TestCase
         Storage::fake('public');
 
         $response = $this->actingAs($this->admin)->post('/api/v1/admin/registrations', [
-            'first_name' => 'Onsite',
-            'surname' => 'Applicant',
+            'first_name' => '  jUAN  cARLOS ',
+            'surname' => ' dELA  cRUZ  ',
             'birthdate' => '1995-01-01',
             'gender' => 'Male',
             'email' => 'onsite.success@example.com',
+            'middle_name' => ' dELA  cRUZ ',
             'contact_number' => '09171112223',
             'username' => 'onsite.success',
-            'password' => 'SecurePass123!',
             'applied_type' => 'REGULAR',
             'id_image' => UploadedFile::fake()->image('id.jpg', 800, 600),
         ], ['Accept' => 'application/json']);
 
-        $response->assertStatus(201);
+        $response->assertStatus(201)
+            ->assertJsonPath('data.account_status', 'PENDING')
+            ->assertJsonMissingPath('data.password');
 
         $user = User::where('email', 'onsite.success@example.com')->first();
+        $this->assertNotSame('unknown', password_get_info($user->password)['algoName']);
 
         // 'id' is intentionally excluded from User::$fillable, so this only
         // holds if store() assigns it directly ($user->id = $userId) rather
@@ -191,6 +196,54 @@ class AdminRegistrationTest extends TestCase
         // silently drop it and let the `creating` hook mint a different,
         // mismatched UUID than the one baked into the uploaded filename.
         $this->assertStringContainsString($user->id, $user->commuterProfile->id_image_url);
+        $this->assertSame('Juan Carlos', $user->commuterProfile->first_name);
+        $this->assertSame('Dela Cruz', $user->commuterProfile->middle_name);
+        $this->assertSame('Dela Cruz', $user->commuterProfile->surname);
+    }
+
+    public function test_onsite_commuter_can_set_their_password_after_approval(): void
+    {
+        Storage::fake('public');
+        Mail::fake();
+
+        $this->actingAs($this->admin)->post('/api/v1/admin/registrations', [
+            'first_name' => 'Onsite',
+            'surname' => 'Commuter',
+            'birthdate' => '1995-01-01',
+            'email' => 'onsite.setup@example.com',
+            'contact_number' => '09171112224',
+            'username' => 'onsite.setup',
+            'applied_type' => 'STUDENT',
+            'id_image' => UploadedFile::fake()->image('id.jpg', 800, 600),
+        ], ['Accept' => 'application/json'])->assertStatus(201);
+
+        $user = User::where('email', 'onsite.setup@example.com')->firstOrFail();
+
+        $this->postJson('/api/v1/auth/forgot-password', ['email' => $user->email])
+            ->assertStatus(403);
+        Mail::assertNothingSent();
+
+        $this->actingAs($this->admin)
+            ->postJson("/api/v1/admin/registrations/{$user->id}/approve")
+            ->assertStatus(200);
+
+        $this->postJson('/api/v1/auth/forgot-password', ['email' => $user->email])
+            ->assertStatus(200);
+        Mail::assertSent(PasswordResetCodeMail::class, fn ($mail) => $mail->hasTo($user->email));
+        $code = Mail::sent(PasswordResetCodeMail::class)->first()->code;
+
+        $this->postJson('/api/v1/auth/reset-password', [
+            'email' => $user->email,
+            'code' => $code,
+            'password' => 'CommuterSetup123!',
+            'password_confirmation' => 'CommuterSetup123!',
+        ])->assertStatus(200);
+
+        $this->assertTrue(Hash::check('CommuterSetup123!', $user->fresh()->password));
+        $this->postJson('/api/v1/auth/login', [
+            'login' => $user->email,
+            'password' => 'CommuterSetup123!',
+        ])->assertStatus(200);
     }
 
     // Failure-path cleanup: any failure inside the transaction must delete

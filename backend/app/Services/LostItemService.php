@@ -381,6 +381,13 @@ class LostItemService
                     $item->update(['status' => self::ITEM_CLAIMED]);
                 }
 
+                $this->announcementService->notifyAdmins(
+                    'NEW_CLAIM',
+                    'New Lost & Found claim',
+                    "{$claim->claimant_name} submitted a claim for \"{$item->item_name}\" and is awaiting review.",
+                    $item->id,
+                );
+
                 return $claim->load(['item', 'photos']);
             });
         } catch (\Throwable $e) {
@@ -421,6 +428,13 @@ class LostItemService
             if ($item->status === self::ITEM_AVAILABLE) {
                 $item->update(['status' => self::ITEM_CLAIMED]);
             }
+
+            $this->announcementService->notifyAdmins(
+                'NEW_CLAIM',
+                'New Lost & Found claim',
+                "{$claim->claimant_name} submitted a walk-in claim for \"{$item->item_name}\", recorded by {$admin->getDisplayName()}, and is awaiting review.",
+                $item->id,
+            );
 
             return $claim->load('item');
         });

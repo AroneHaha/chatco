@@ -57,6 +57,7 @@ export type AnnouncementStatus = "ACTIVE" | "ARCHIVED";
  */
 interface RawAnnouncement {
   id: string;
+  user_id?: string | null;
   type: string | null;
   title: string;
   message: string;
@@ -106,6 +107,8 @@ interface PaginatedEnvelope<T> {
  */
 export interface Announcement {
   id: string;
+  /** Null for published announcements; set for a recipient's notification. */
+  recipientId?: string | null;
   type: string;
   title: string;
   message: string;
@@ -191,6 +194,7 @@ function mapAnnouncement(raw: RawAnnouncement): Announcement {
 
   return {
     id: raw.id,
+    recipientId: raw.user_id ?? null,
     type: raw.type ?? "",
     title: raw.title ?? "",
     message: raw.message ?? "",
@@ -260,6 +264,7 @@ export async function list(params: {
   unreadOnly?: boolean;
   page?: number;
   perPage?: number;
+  signal?: AbortSignal;
 } = {}): Promise<AnnouncementPage> {
   const qs = buildQuery({
     unread_only: params.unreadOnly,
@@ -268,7 +273,9 @@ export async function list(params: {
   });
   try {
     const response = await api.get<ApiResponseEnvelope<PaginatedEnvelope<RawAnnouncement>>>(
-      `/api/announcements${qs}`
+      `/api/announcements${qs}`,
+      undefined,
+      { signal: params.signal }
     );
     const p = response.data;
     return {
@@ -278,6 +285,7 @@ export async function list(params: {
       total: p?.total ?? 0,
     };
   } catch (err) {
+    if (err instanceof RequestCancelledError) throw err;
     if (err instanceof ApiError) {
       throw classifyError(err, "Unable to load announcements.");
     }
@@ -468,13 +476,16 @@ export async function countForAdmin(params: {
  * Fetch a single announcement by ID (admin detail view).
  * @throws {AnnouncementOperationError} 404/401/403/5xx
  */
-export async function show(id: string): Promise<Announcement> {
+export async function show(id: string, signal?: AbortSignal): Promise<Announcement> {
   try {
     const response = await api.get<ApiResponseEnvelope<RawAnnouncement>>(
-      `/api/admin/announcements/${id}`
+      `/api/admin/announcements/${encodeURIComponent(id)}`,
+      undefined,
+      { signal }
     );
     return mapAnnouncement(response.data);
   } catch (err) {
+    if (err instanceof RequestCancelledError) throw err;
     if (err instanceof ApiError) {
       throw classifyError(err, "Unable to load this announcement.");
     }

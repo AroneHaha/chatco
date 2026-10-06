@@ -32,7 +32,12 @@ Schedule::command('shifts:auto-end-stale --all')
     ->withoutOverlapping(60);
 
 Schedule::command('remittances:send-reminders')
-    ->dailyAt('00:05')
+    ->everyFiveMinutes()
+    ->timezone('Asia/Manila')
+    ->withoutOverlapping(5);
+
+Schedule::command('registrations:send-reminders')
+    ->hourly()
     ->timezone('Asia/Manila')
     ->withoutOverlapping(60);
 

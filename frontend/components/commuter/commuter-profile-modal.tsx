@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import ProfileContent from "@/components/commuter/profile/profile-content";
 import { usePopoverModal, useBackdropDismiss } from "@/components/conductor/modals/use-popover-modal";
@@ -25,6 +26,7 @@ export const PROFILE_ANCHOR_ID = "commuter-profile-anchor";
  */
 export default function CommuterProfileModal() {
   const [isOpen, setIsOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -55,6 +57,32 @@ export default function CommuterProfileModal() {
   const { isRendered, backdropAnim, panelAnim, panelAnchorStyle, anchorOffset } = usePopoverModal(isOpen, PROFILE_ANCHOR_ID);
   const backdropDismiss = useBackdropDismiss(() => setIsOpen(false));
 
+  useEffect(() => {
+    if (!isOpen || !isRendered) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const panel = panelRef.current;
+    const controls = () => Array.from(panel?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), a[href], [tabindex="0"]') ?? []);
+    controls()[0]?.focus();
+    const handleKey = (event: KeyboardEvent) => {
+      if (document.querySelector("[data-profile-subdialog]")) return;
+      if (event.key === "Escape") setIsOpen(false);
+      if (event.key !== "Tab") return;
+      const items = controls();
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault(); last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault(); first?.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+      previous?.focus();
+    };
+  }, [isOpen, isRendered]);
+
   if (!isRendered) return null;
 
   const close = () => setIsOpen(false);
@@ -63,29 +91,30 @@ export default function CommuterProfileModal() {
     <div className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
       <PopoverTail panelColor="#071A2E" anchorOffsetPx={anchorOffset} />
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="commuter-profile-title"
-        className={`w-full sm:max-w-lg max-h-[85vh] sm:max-h-[80vh] xl:h-[70vh] overflow-y-auto bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-white/10 shadow-2xl modal-scroll ${panelAnim}`}
+        className={`flex w-full flex-col sm:max-w-xl max-h-[85dvh] sm:max-h-[80dvh] xl:h-[min(680px,75dvh)] overflow-hidden bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-white/10 shadow-2xl ${panelAnim}`}
         style={panelAnchorStyle}
       >
-        <div className="sticky top-0 z-10 bg-[#071A2E] p-5 border-b border-white/10">
+        <div className="shrink-0 bg-[#071A2E] px-5 py-4 border-b border-white/10">
           <div className="flex items-center justify-between">
             <h2 id="commuter-profile-title" className="text-lg font-bold text-white">Profile</h2>
             <button
               onClick={close}
               aria-label="Close profile"
-              className="text-white/40 hover:text-white transition-colors cursor-pointer"
+              title="Close profile"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-white/50 hover:bg-white/5 hover:text-white transition-colors cursor-pointer"
             >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-              </svg>
+              <X size={20} />
             </button>
           </div>
-          <p className="text-sm text-white/40 mt-1">Your account details and sign-in settings</p>
         </div>
 
-        <ProfileContent variant="modal" />
+        <div className="min-h-0 flex-1 overflow-y-auto modal-scroll">
+          <ProfileContent variant="modal" />
+        </div>
       </div>
     </div>
   );

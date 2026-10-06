@@ -49,7 +49,7 @@ class AnnouncementController extends Controller
         $filters = [
             'unread_only' => $request->boolean('unread_only'),
         ];
-        $perPage = (int) $request->integer('per_page', 15);
+        $perPage = max(1, min(100, (int) $request->integer('per_page', 15)));
 
         $announcements = $this->announcementService->listForUser(
             $request->user(),
