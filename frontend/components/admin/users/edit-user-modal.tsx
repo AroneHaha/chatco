@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
+import styles from './commuter-details.module.css';
 import type { ActiveUser } from '@/app/(admin)/users/data/users-data';
 import type { UpdateUserInput } from '@/lib/admin/services/user.service';
 import {
@@ -171,12 +172,27 @@ export function EditUserModal({ isOpen, onClose, onSave, editingUser }: EditUser
   const inputClasses = "mt-1 block w-full px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors";
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
+    <Modal isOpen={isOpen} onClose={onClose} maxWidth={isCommuter ? 'max-w-md lg:max-w-2xl' : 'max-w-md'}>
+      <div className={isCommuter ? styles.commuter : ''}>
+      <div className={styles.header}>
       <h2 className="text-lg sm:text-xl font-bold text-white mb-5">{modalTitle}</h2>
-      <form onSubmit={handleSubmit} className="space-y-4">
+      {isCommuter && <p className="hidden lg:block mt-1 text-sm text-slate-400">Update the commuter&apos;s profile information</p>}
+      </div>
+      {isCommuter && editingUser && (
+        <div className={`hidden lg:flex items-center gap-4 mt-6 mb-6 ${styles.profile}`}>
+          <div className={`flex shrink-0 items-center justify-center rounded-full border border-sky-400/25 ${styles.avatar}`}>
+            {editingUser.name.charAt(0)}
+          </div>
+          <div className={styles.identity}>
+            <p className={`text-lg font-bold text-white ${styles.name}`}>{editingUser.name}</p>
+            <p className="mt-1 text-sm text-slate-400 wrap-anywhere">{editingUser.email}</p>
+          </div>
+        </div>
+      )}
+      <form onSubmit={handleSubmit} className={`space-y-4 ${isCommuter ? styles.editForm : ''}`}>
         {isCommuter ? (
           <>
-            <div className="grid grid-cols-2 gap-3">
+            <div className={`grid grid-cols-2 gap-3 ${styles.nameFields}`}>
               <div>
                 <label htmlFor="edit-firstName" className="block text-xs font-medium text-slate-300 mb-1.5">First Name</label>
                 <input
@@ -289,18 +305,19 @@ export function EditUserModal({ isOpen, onClose, onSave, editingUser }: EditUser
         )}
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-md p-3">
+          <div className={`bg-red-500/10 border border-red-500/30 rounded-md p-3 ${styles.formError}`}>
             <p className="text-sm text-red-400">{error}</p>
           </div>
         )}
 
-        <div className="flex justify-end gap-2 pt-4 border-t border-[#1E2D45]">
+        <div className={`flex justify-end gap-2 pt-4 border-t border-[#1E2D45] ${styles.actions}`}>
           <button type="button" onClick={onClose} disabled={isSaving} className="px-5 py-2.5 border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#131C2E] transition-colors disabled:opacity-50">Cancel</button>
           <button type="submit" disabled={isSaving || isDriver} className="px-5 py-2.5 bg-[#62A0EA] text-white font-medium rounded-md hover:bg-[#4A8BD4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             {isSaving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </form>
+      </div>
     </Modal>
   );
 }
