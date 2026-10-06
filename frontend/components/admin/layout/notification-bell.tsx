@@ -2,12 +2,12 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Bell, AlertTriangle, CheckCircle, Info, Megaphone } from 'lucide-react';
 import {
   unreadCount as fetchUnreadCount,
   list as listAnnouncements,
   markRead as markAnnouncementRead,
+  markAllRead as markAllAnnouncementsRead,
   AnnouncementOperationError,
   type Announcement,
 } from '@/lib/shared/services/announcement.service';
@@ -44,7 +44,10 @@ function formatRelativeTime(iso: string): string {
  */
 function getNotificationStyle(type: string) {
   const t = (type ?? '').toLowerCase();
-  if (['safety', 'warning', 'maintenance', 'alert', 'sos', 'overspeed'].some((k) => t.includes(k))) {
+  if (['sos_resolved', 'remittance_completed', 'shift_ended'].includes(t)) {
+    return { Icon: CheckCircle, color: 'text-emerald-400', bg: 'bg-emerald-500/10' };
+  }
+  if (['safety', 'warning', 'maintenance', 'alert', 'sos', 'overspeed', 'overdue', 'waiting'].some((k) => t.includes(k))) {
     return { Icon: AlertTriangle, color: 'text-amber-400', bg: 'bg-amber-500/10' };
   }
   if (['promo', 'success', 'holiday', 'reward'].some((k) => t.includes(k))) {
@@ -60,27 +63,28 @@ function getNotificationStyle(type: string) {
  * backend.
  *
  *   unreadCount() → GET /api/v1/announcements/unread-count (polled every 30s)
- *   list({ unreadOnly: true }) → GET /api/v1/announcements?unread_only=1
+ *   list({ unreadOnly }) → GET /api/v1/announcements?unread_only=0|1
  *   markRead(id) → POST /api/v1/announcements/{id}/read
  *
  * Flow:
  *   - Badge shows the polled unread count (capped at '99+' for display).
- *   - Clicking the bell opens a dropdown of unread notifications, loaded 10
+ *   - Unread and All views load notifications (including read history) 10
  *     at a time (title + first 100 chars of message + time-ago). Scrolling to
  *     the bottom of the currently loaded list fetches the next page of 10 and
  *     appends it — the already-rendered items are never replaced or reloaded.
  *   - Clicking an unread item → markRead(id) → badge decrements → the item
- *     is removed from the dropdown → the detail modal opens with the full body.
- *   - "Mark all read" iterates the visible unread items + calls markRead for
- *     each, then refetches the count.
+ *     leaves Unread but remains in All → opens the full message before optional navigation.
+ *   - "Mark all read" uses the existing bulk endpoint, including unloaded pages,
+ *     then refreshes the feed and count.
  *   - "View all" links to the admin /announcements management page.
  *
  * The bell is role-agnostic on the client (the backend route is open to any
  * authenticated role), but it's only mounted in the admin layout today.
  */
 export function NotificationBell() {
-  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
+  const [unreadOnly, setUnreadOnly] = useState(true);
+  const [isMarkingAll, setIsMarkingAll] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [items, setItems] = useState<Announcement[]>([]);
   const [isLoadingList, setIsLoadingList] = useState(false);
@@ -88,6 +92,7 @@ export function NotificationBell() {
   const [listError, setListError] = useState<string | null>(null);
   const [markingIds, setMarkingIds] = useState<Set<string>>(new Set());
   const [detailItem, setDetailItem] = useState<Announcement | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const listScrollRef = useRef<HTMLDivElement>(null);
   // Next page to fetch + whether the server has more pages, per the last
@@ -97,6 +102,8 @@ export function NotificationBell() {
   // guard below and double-fetch the same page.
   const paginationRef = useRef({ nextPage: 2, hasMore: false });
   const isFetchingRef = useRef(false);
+  const feedGenerationRef = useRef(0);
+  const invalidateFeed = useCallback(() => { feedGenerationRef.current++; }, []);
 
   // ─── Poll unread count on mount + every 30s ──────────────────────────
   const refreshCount = useCallback(async () => {
@@ -120,14 +127,18 @@ export function NotificationBell() {
 
   // ─── Fetch page 1 when the bell opens ─────────────────────────────────
   const refreshList = useCallback(async () => {
+    const generation = ++feedGenerationRef.current;
     isFetchingRef.current = true;
     setIsLoadingList(true);
+    setIsLoadingMore(false);
     setListError(null);
     try {
-      const result = await listAnnouncements({ unreadOnly: true, page: 1, perPage: PAGE_SIZE });
+      const result = await listAnnouncements({ unreadOnly, page: 1, perPage: PAGE_SIZE });
+      if (generation !== feedGenerationRef.current) return;
       setItems(result.items);
       paginationRef.current = { nextPage: 2, hasMore: result.page < result.lastPage };
     } catch (err) {
+      if (generation !== feedGenerationRef.current) return;
       setListError(
         err instanceof AnnouncementOperationError
           ? err.message
@@ -136,10 +147,12 @@ export function NotificationBell() {
       setItems([]);
       paginationRef.current = { nextPage: 2, hasMore: false };
     } finally {
-      setIsLoadingList(false);
-      isFetchingRef.current = false;
+      if (generation === feedGenerationRef.current) {
+        setIsLoadingList(false);
+        isFetchingRef.current = false;
+      }
     }
-  }, []);
+  }, [unreadOnly]);
 
   useEffect(() => {
     if (isOpen) {
@@ -147,16 +160,19 @@ export function NotificationBell() {
       // A fresh open always starts scrolled to the top of the new page-1 list.
       listScrollRef.current?.scrollTo({ top: 0 });
     }
-  }, [isOpen, refreshList]);
+    return invalidateFeed;
+  }, [isOpen, refreshList, invalidateFeed]);
 
   // ─── Fetch the next page and append it once the user nears the bottom ──
   const loadMore = useCallback(async () => {
     if (isFetchingRef.current || !paginationRef.current.hasMore) return;
     isFetchingRef.current = true;
+    const generation = feedGenerationRef.current;
     setIsLoadingMore(true);
     const { nextPage } = paginationRef.current;
     try {
-      const result = await listAnnouncements({ unreadOnly: true, page: nextPage, perPage: PAGE_SIZE });
+      const result = await listAnnouncements({ unreadOnly, page: nextPage, perPage: PAGE_SIZE });
+      if (generation !== feedGenerationRef.current) return;
       // Guard against a page the server already gave us (e.g. a duplicate
       // scroll-triggered call that slipped past isFetchingRef) landing twice.
       setItems((prev) => {
@@ -168,10 +184,12 @@ export function NotificationBell() {
     } catch {
       // Leave hasMore as-is so scrolling back to the bottom retries the same page.
     } finally {
-      setIsLoadingMore(false);
-      isFetchingRef.current = false;
+      if (generation === feedGenerationRef.current) {
+        setIsLoadingMore(false);
+        isFetchingRef.current = false;
+      }
     }
-  }, []);
+  }, [unreadOnly]);
 
   const handleListScroll = useCallback(() => {
     const el = listScrollRef.current;
@@ -186,11 +204,11 @@ export function NotificationBell() {
   // is actually scrollable or there's nothing left to fetch.
   useEffect(() => {
     const el = listScrollRef.current;
-    if (!el || isLoadingList || isLoadingMore) return;
+    if (!isOpen || !el || isLoadingList || isLoadingMore) return;
     if (paginationRef.current.hasMore && el.scrollHeight <= el.clientHeight) {
       void loadMore();
     }
-  }, [items, isLoadingList, isLoadingMore, loadMore]);
+  }, [isOpen, items, isLoadingList, isLoadingMore, loadMore]);
 
   // ─── Close dropdown when clicking outside ────────────────────────────
   useEffect(() => {
@@ -206,16 +224,23 @@ export function NotificationBell() {
   // ─── Click an unread item → markRead + open detail modal (or deep-link) ─
   const handleClickItem = useCallback(
     async (item: Announcement) => {
-      // Optimistic: remove from the dropdown immediately.
-      setItems((prev) => prev.filter((i) => i.id !== item.id));
-      setUnreadCount((c) => Math.max(0, c - 1));
+      if (markingIds.has(item.id) || isMarkingAll) return;
+      setDetailError(null);
+      setDetailItem(item);
+      setIsOpen(false);
       setMarkingIds((prev) => new Set(prev).add(item.id));
       try {
-        await markAnnouncementRead(item.id);
+        if (!item.isRead) {
+          await markAnnouncementRead(item.id);
+          setItems((prev) => unreadOnly
+            ? prev.filter((i) => i.id !== item.id)
+            : prev.map((i) => i.id === item.id ? { ...i, isRead: true } : i));
+          void refreshCount();
+          setDetailItem((current) => current?.id === item.id ? { ...current, isRead: true } : current);
+        }
       } catch {
-        // On failure, restore the item + count (best-effort).
-        setItems((prev) => [item, ...prev]);
-        setUnreadCount((c) => c + 1);
+        setDetailError('Unable to mark this update as read. You can still view its message.');
+        return;
       } finally {
         setMarkingIds((prev) => {
           const next = new Set(prev);
@@ -223,71 +248,25 @@ export function NotificationBell() {
           return next;
         });
       }
-      setIsOpen(false);
-
-      // A new-registration notice deep-links straight to that applicant's
-      // Review Registration Request modal on the Pending Verification tab,
-      // instead of the generic text detail modal.
-      if (item.type === 'NEW_REGISTRATION' && item.referenceId) {
-        router.push(`/users?tab=pending&registrationId=${item.referenceId}`);
-        return;
-      }
-
-      // A shift-started notice deep-links to that unit's Vehicle Details
-      // modal on Fleet Management (referenceId is the vehicle's id).
-      if (item.type === 'SHIFT_STARTED' && item.referenceId) {
-        router.push(`/vehicles?vehicleId=${item.referenceId}`);
-        return;
-      }
-
-      // A remittance-completed notice deep-links to that shift's Conductor
-      // Detail modal on the Remittance tracker (referenceId is the shift_id).
-      if (item.type === 'REMITTANCE_COMPLETED' && item.referenceId) {
-        router.push(`/remittance?shiftId=${item.referenceId}`);
-        return;
-      }
-
-      // An SOS notice deep-links to Live Monitoring, scrolled to and
-      // highlighting that specific alert card (referenceId is the alert's id).
-      if (item.type === 'SOS_TRIGGERED' && item.referenceId) {
-        router.push(`/monitoring?sosId=${item.referenceId}`);
-        return;
-      }
-
-      // An overspeed notice deep-links to Live Monitoring's Overspeeding
-      // History row for that episode (referenceId is the OverspeedEvent id).
-      if (item.type === 'OVERSPEED_FLAGGED' && item.referenceId) {
-        router.push(`/monitoring?overspeedId=${item.referenceId}`);
-        return;
-      }
-
-      // Open the detail modal with the full body.
-      setDetailItem(item);
     },
-    [router]
+    [unreadOnly, refreshCount, markingIds, isMarkingAll]
   );
 
-  // ─── Mark all visible unread as read ─────────────────────────────────
+  // ─── Mark all recipient-visible notifications read in one request ────
   const handleMarkAllRead = useCallback(async () => {
-    const targets = items.filter((i) => !markingIds.has(i.id));
-    if (targets.length === 0) return;
-    // Optimistic: clear the list + zero the visible count contribution.
-    const targetIds = new Set(targets.map((t) => t.id));
-    setItems((prev) => prev.filter((i) => !targetIds.has(i.id)));
-    setUnreadCount((c) => Math.max(0, c - targets.length));
-    setMarkingIds((prev) => new Set([...prev, ...targetIds]));
+    if (isMarkingAll || markingIds.size > 0) return;
+    setIsMarkingAll(true);
     try {
-      await Promise.all(targets.map((t) => markAnnouncementRead(t.id)));
-      // Re-sync the authoritative count from the server.
+      await markAllAnnouncementsRead();
+      await refreshList();
       void refreshCount();
     } catch {
-      // Restore on failure + re-sync.
-      setItems((prev) => [...targets, ...prev]);
+      setListError('Unable to mark notifications as read. Please try again.');
       void refreshCount();
     } finally {
-      setMarkingIds(new Set());
+      setIsMarkingAll(false);
     }
-  }, [items, markingIds, refreshCount]);
+  }, [isMarkingAll, markingIds, refreshCount, refreshList]);
 
   const displayedBadge = unreadCount > 99 ? '99+' : String(unreadCount);
 
@@ -329,15 +308,30 @@ export function NotificationBell() {
                 </span>
               )}
             </div>
-            {items.length > 0 && (
+            {unreadCount > 0 && (
               <button
                 onClick={handleMarkAllRead}
-                disabled={markingIds.size > 0}
+                disabled={markingIds.size > 0 || isMarkingAll || isLoadingList || isLoadingMore}
                 className="text-[11px] font-medium text-[#62A0EA] hover:text-[#7AB8F4] transition-colors disabled:opacity-50"
               >
-                Mark all read
+                {isMarkingAll ? 'Marking…' : 'Mark all read'}
               </button>
             )}
+          </div>
+
+          <div role="group" aria-label="Notification filter" className="flex gap-1 border-b border-white/5 px-4 py-2">
+            {([{ label: 'Unread', value: true }, { label: 'All', value: false }]).map(({ label, value }) => (
+              <button
+                key={label}
+                type="button"
+                aria-pressed={unreadOnly === value}
+                disabled={isMarkingAll || markingIds.size > 0}
+                onClick={() => setUnreadOnly(value)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${unreadOnly === value ? 'bg-[#62A0EA]/15 text-[#62A0EA]' : 'text-white/50 hover:bg-white/5 hover:text-white'}`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
           {/* List */}
@@ -365,7 +359,7 @@ export function NotificationBell() {
             ) : items.length === 0 ? (
               <div className="px-4 py-12 text-center">
                 <Bell size={32} className="mx-auto text-white/10 mb-2" />
-                <p className="text-sm text-white/30">You&apos;re all caught up</p>
+                <p className="text-sm text-white/30">{unreadOnly ? 'You’re all caught up' : 'No notifications yet'}</p>
               </div>
             ) : (
               <>
@@ -379,11 +373,11 @@ export function NotificationBell() {
                   <button
                     key={item.id}
                     onClick={() => void handleClickItem(item)}
-                    disabled={markingIds.has(item.id)}
+                    disabled={markingIds.has(item.id) || isMarkingAll || isLoadingMore}
                     className="group w-full text-left px-4 py-3 hover:bg-white/[0.03] transition-colors relative disabled:opacity-60"
                   >
                     {/* Unread dot */}
-                    <span className="absolute left-1.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-[#62A0EA]" />
+                    {!item.isRead && <span aria-label="Unread" className="absolute left-1.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-[#62A0EA]" />}
 
                     <div className="flex items-start gap-3 pl-3">
                       {/* Icon */}
@@ -426,7 +420,7 @@ export function NotificationBell() {
               className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-white/40 hover:text-white/70 transition-colors py-1"
             >
               <Megaphone size={12} />
-              View all announcements
+              View all updates
             </Link>
           </div>
         </div>
@@ -434,6 +428,9 @@ export function NotificationBell() {
 
       {/* Detail modal — opens when an unread item is clicked */}
       <AnnouncementDetailModal
+        managementView
+        showUpdatesCenterLink
+        errorMessage={detailError}
         announcement={detailItem}
         isOpen={detailItem !== null}
         onClose={() => setDetailItem(null)}

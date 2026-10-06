@@ -435,4 +435,26 @@ class SosFlowTest extends TestCase
         $response = $this->patchJson('/api/v1/admin/sos/nonexistent-id/resolve');
         $response->assertStatus(404);
     }
+
+    public function test_resolution_notifies_admins_once_with_resolver_and_time(): void
+    {
+        $otherAdmin = User::factory()->admin()->create();
+        $alert = SosAlert::create([
+            'sender_role' => 'COMMUTER',
+            'commuter_id' => $this->commuter->id,
+            'lat' => 14.59,
+            'lng' => 120.98,
+            'status' => 'ACTIVE',
+        ]);
+        $this->admin();
+        $this->patchJson("/api/v1/admin/sos/{$alert->id}/resolve")->assertOk();
+        $this->patchJson("/api/v1/admin/sos/{$alert->id}/resolve")->assertStatus(422);
+        $notices = Announcement::where('type', 'SOS_RESOLVED')->get();
+        $this->assertCount(2, $notices);
+        $this->assertEqualsCanonicalizing([$this->admin->id, $otherAdmin->id], $notices->pluck('user_id')->all());
+        $this->assertStringContainsString($this->admin->getDisplayName(), $notices->first()->message);
+        $this->assertStringContainsString($this->commuter->getDisplayName(), $notices->first()->message);
+        $this->assertSame($alert->id, $notices->first()->reference_id);
+    }
+
 }

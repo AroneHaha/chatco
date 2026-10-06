@@ -1,7 +1,7 @@
 // app/(admin)/monitoring/page.tsx
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import {
@@ -79,12 +79,20 @@ export default function MonitoringPage() {
   // element instead, same idea as handleFocusVehicle's scroll-into-view for
   // a fleet row.
   const [highlightedSosId, setHighlightedSosId] = useState<string | null>(null);
+  const [highlightedResolvedSosId, setHighlightedResolvedSosId] = useState<string | null>(null);
+  const focusedResolvedSosRef = useRef<string | null>(null);
   const [highlightedOverspeedId, setHighlightedOverspeedId] = useState<string | null>(null);
   useEffect(() => {
     const sosId = searchParams.get('sosId');
+    const resolvedSosId = searchParams.get('resolvedSosId');
     const overspeedId = searchParams.get('overspeedId');
-    if (!sosId && !overspeedId) return;
+    if (!sosId && !overspeedId && !resolvedSosId) return;
     if (sosId) setHighlightedSosId(sosId);
+    if (resolvedSosId) {
+      setHighlightedResolvedSosId(resolvedSosId);
+      setHistoryTab('sos');
+      setFilterSosDate('');
+    }
     if (overspeedId) {
       setHighlightedOverspeedId(overspeedId);
       setHistoryTab('overspeed');
@@ -182,6 +190,17 @@ export default function MonitoringPage() {
   const safeSosPage = Math.min(Math.max(sosPage, 1), totalSosPages);
   const goToSosPage = (page: number) => setSosPage(Math.min(Math.max(page, 1), totalSosPages));
   const currentSosData = filteredSosHistory.slice((safeSosPage - 1) * ROWS_PER_PAGE, safeSosPage * ROWS_PER_PAGE);
+
+  useEffect(() => {
+    if (!highlightedResolvedSosId || focusedResolvedSosRef.current === highlightedResolvedSosId || historyTab !== 'sos') return;
+    const index = filteredSosHistory.findIndex((alert) => alert.id === highlightedResolvedSosId);
+    if (index >= 0) setSosPage(Math.floor(index / ROWS_PER_PAGE) + 1);
+    const row = document.getElementById(`sos-history-${highlightedResolvedSosId}`);
+    if (row) {
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      focusedResolvedSosRef.current = highlightedResolvedSosId;
+    }
+  }, [highlightedResolvedSosId, filteredSosHistory, safeSosPage, historyTab, isLoading]);
 
   const totalOverspeedPages = Math.max(1, data.overspeedLastPage);
   const safeOverspeedPage = Math.min(Math.max(overspeedPage, 1), totalOverspeedPages);
@@ -538,7 +557,7 @@ export default function MonitoringPage() {
                     <thead><tr className="border-b border-[#1E2D45]"><th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Sender</th><th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">Triggered</th><th className="sticky top-0 z-10 bg-[#131C2E] pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Resolved</th></tr></thead>
                     <tbody className="divide-y divide-[#1E2D45]">
                       {currentSosData.map((log) => (
-                        <tr key={log.id} className="hover:bg-[#0E1628] transition-colors opacity-70 hover:opacity-100">
+                        <tr key={log.id} id={`sos-history-${log.id}`} className={`transition-colors ${highlightedResolvedSosId === log.id ? 'bg-[#62A0EA]/10 ring-1 ring-inset ring-[#62A0EA]/50' : 'hover:bg-[#0E1628] opacity-70 hover:opacity-100'}`}>
                           <td className="py-3 pr-3">
                             <span className="text-sm text-slate-300 font-medium">{log.sender}</span>
                             <span className={`ml-2 inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${log.senderRole === "CONDUCTOR" ? "bg-sky-400/15 text-sky-300" : "bg-purple-400/15 text-purple-300"}`}>{log.senderRole === "CONDUCTOR" ? "Conductor" : "Commuter"}</span>

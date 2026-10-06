@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Setting;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -167,21 +168,25 @@ class SosService
      */
     public function acknowledge(User $admin, string $id): SosAlert
     {
-        $alert = $this->findOrFail($id);
+        return DB::transaction(function () use ($admin, $id) {
+            // Use the same row lock as resolve so acknowledgement cannot revive
+            // an alert that another admin has just resolved.
+            $alert = $this->findOrFail($id, true);
 
-        if ($alert->status === self::STATUS_RESOLVED) {
-            throw new \RuntimeException('Cannot acknowledge a resolved alert');
-        }
+            if ($alert->status === self::STATUS_RESOLVED) {
+                throw new \RuntimeException('Cannot acknowledge a resolved alert');
+            }
 
-        if ($alert->status === self::STATUS_ACTIVE) {
-            $alert->update([
-                'status'          => self::STATUS_ACKNOWLEDGED,
-                'acknowledged_by' => $admin->id,
-                'acknowledged_at' => now(),
-            ]);
-        }
+            if ($alert->status === self::STATUS_ACTIVE) {
+                $alert->update([
+                    'status' => self::STATUS_ACKNOWLEDGED,
+                    'acknowledged_by' => $admin->id,
+                    'acknowledged_at' => now(),
+                ]);
+            }
 
-        return $alert->fresh(['commuter', 'conductor']);
+            return $alert->fresh(['commuter', 'conductor']);
+        }, 3);
     }
 
     /**
@@ -192,25 +197,34 @@ class SosService
      */
     public function resolve(User $admin, string $id): SosAlert
     {
-        $alert = $this->findOrFail($id);
+        return DB::transaction(function () use ($admin, $id) {
+            $alert = $this->findOrFail($id, true);
 
-        if ($alert->status === self::STATUS_RESOLVED) {
-            throw new \RuntimeException('Alert is already resolved');
-        }
+            if ($alert->status === self::STATUS_RESOLVED) {
+                throw new \RuntimeException('Alert is already resolved');
+            }
 
-        $alert->update([
-            'status'      => self::STATUS_RESOLVED,
-            'resolved_by' => $admin->id,
-            'resolved_at' => now(),
-        ]);
+            $alert->update([
+                'status' => self::STATUS_RESOLVED,
+                'resolved_by' => $admin->id,
+                'resolved_at' => now(),
+            ]);
+            $resolvedAt = $alert->resolved_at->copy()->timezone(config('app.timezone'))->format('M j, Y g:i A');
+            $this->announcementService->notifyAdmins(
+                'SOS_RESOLVED',
+                'Emergency SOS resolved',
+                "{$admin->getDisplayName()} resolved the SOS from {$this->senderName($alert)} at {$resolvedAt}.",
+                $alert->id,
+            );
 
-        return $alert->fresh(['commuter', 'conductor', 'acknowledger', 'resolver']);
+            return $alert->fresh(['commuter', 'conductor', 'acknowledger', 'resolver']);
+        }, 3);
     }
 
-    private function findOrFail(string $id): SosAlert
+    private function findOrFail(string $id, bool $lock = false): SosAlert
     {
         try {
-            return SosAlert::findOrFail($id);
+            return SosAlert::query()->when($lock, fn ($query) => $query->lockForUpdate())->findOrFail($id);
         } catch (ModelNotFoundException) {
             throw new \RuntimeException('SOS alert not found');
         }

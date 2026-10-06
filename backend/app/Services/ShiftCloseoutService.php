@@ -149,6 +149,20 @@ final class ShiftCloseoutService
                 'time_out' => $timeOut,
             ]);
 
+            $endedBy = $reason === self::REASON_MANUAL ? $shift->conductor_name : 'System';
+            $reasonLabel = match ($reason) {
+                self::REASON_STALE => 'automatic closeout after inactivity',
+                self::REASON_MIDNIGHT => 'automatic midnight closeout',
+                default => 'manual closeout',
+            };
+            $endedAt = $timeOut->copy()->timezone(config('app.timezone'))->format('M j, Y g:i A');
+            $this->announcementService->notifyAdmins(
+                'SHIFT_ENDED',
+                'Shift ended',
+                "{$endedBy} ended the shift on unit {$shift->unit_number} at {$endedAt} ({$reasonLabel}). Conductor: {$shift->conductor_name}. Driver: {$shift->driver_name}. Remittance: {$status}.",
+                $shiftId,
+            );
+
             if ($vehicle && $vehicle->active_shift_id === $shiftId) {
                 $vehicle->update([
                     'active_shift_id' => null,
