@@ -307,8 +307,8 @@ export default function VehiclesPage() {
   const handleCloseSuccessModal = () => { setIsSuccessModalOpen(false); setCreatedAccountData(null); };
 
   return (
-    <>
-      <StickyPageHeader className="mb-3">
+    <div className="flex h-full min-h-0 flex-col">
+      <StickyPageHeader className="mb-3 shrink-0">
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-bold text-white">Fleet Management</h1>
         </div>
@@ -410,6 +410,6 @@ export default function VehiclesPage() {
         message={vehicleDeletedMessage ?? ''}
         onClose={() => setVehicleDeletedMessage(null)}
       />
-    </>
+    </div>
   );
 }

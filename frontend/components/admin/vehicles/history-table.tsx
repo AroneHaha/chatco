@@ -176,8 +176,8 @@ export function HistoryTable({
 
   return (
     <>
-    <div className="min-w-0 space-y-3 rounded-lg border border-[#1E2D45] bg-[#111A2B] p-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 rounded-lg border border-[#1E2D45] bg-[#111A2B] p-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
+      <div className="flex shrink-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
           <SearchBar
             placeholder={isTerminated ? 'Search separated records...' : 'Search shift history...'}
@@ -228,45 +228,47 @@ export function HistoryTable({
         </div>
       </div>
 
-      <div className="space-y-3">
-        {isLoading ? (
-          <div className="h-[calc(100dvh-18rem)] min-h-64 overflow-hidden rounded-lg">
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
+        <div className="min-h-0 flex-1 overflow-hidden rounded-lg">
+          {isLoading ? (
             <SkeletonTable rows={8} columns={isTerminated ? 6 : 7} />
-          </div>
-        ) : isTerminated ? (
-          <DataTable
-            data={terminatedPersonnel}
-            columns={terminatedColumns}
-            searchQuery=""
-            emptyMessage={query ? 'No separated personnel match your search.' : 'No terminated personnel records found.'}
-            onRowDoubleClick={setSelectedRecord}
-            height="calc(100dvh - 18rem)"
-            stickyHeader
-            allowHorizontalScroll={false}
-            tableClassName="table-fixed"
-          />
-        ) : (
-          <DataTable
-            data={shiftHistoryLog}
-            columns={shiftColumns}
-            searchQuery=""
-            emptyMessage={query ? 'No shift records match your search.' : 'No shift history records found.'}
-            height="calc(100dvh - 18rem)"
-            stickyHeader
-            allowHorizontalScroll={false}
-            tableClassName="table-fixed"
-          />
-        )}
+          ) : isTerminated ? (
+            <DataTable
+              data={terminatedPersonnel}
+              columns={terminatedColumns}
+              searchQuery=""
+              emptyMessage={query ? 'No separated personnel match your search.' : 'No terminated personnel records found.'}
+              onRowDoubleClick={setSelectedRecord}
+              height="100%"
+              stickyHeader
+              allowHorizontalScroll={false}
+              tableClassName="table-fixed"
+            />
+          ) : (
+            <DataTable
+              data={shiftHistoryLog}
+              columns={shiftColumns}
+              searchQuery=""
+              emptyMessage={query ? 'No shift records match your search.' : 'No shift history records found.'}
+              height="100%"
+              stickyHeader
+              allowHorizontalScroll={false}
+              tableClassName="table-fixed"
+            />
+          )}
+        </div>
 
-        <TablePagination
-          currentPage={activePage.currentPage}
-          totalPages={activePage.totalPages}
-          from={activePage.from}
-          to={activePage.to}
-          total={activePage.total}
-          label="records"
-          onPageChange={isTerminated ? onTerminatedPageChange : onShiftPageChange}
-        />
+        <div className="shrink-0">
+          <TablePagination
+            currentPage={activePage.currentPage}
+            totalPages={activePage.totalPages}
+            from={activePage.from}
+            to={activePage.to}
+            total={activePage.total}
+            label="records"
+            onPageChange={isTerminated ? onTerminatedPageChange : onShiftPageChange}
+          />
+        </div>
       </div>
     </div>
     <Modal isOpen={Boolean(selectedRecord)} onClose={() => setSelectedRecord(null)}>

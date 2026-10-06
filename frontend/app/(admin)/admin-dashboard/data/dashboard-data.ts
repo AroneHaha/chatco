@@ -93,7 +93,7 @@ const SETTINGS_MODULES: SettingsModule[] = [
   { title: "Voucher Generator", desc: "Create promo codes and free ride passes.", icon: Ticket, color: "text-violet-400 bg-violet-400/15", href: "/settings/voucher-generator" },
   { title: "Safety Notifications", desc: "Manage alert triggers and templates.", icon: Bell, color: "text-amber-400 bg-amber-400/15", href: "/settings/safety-notifications" },
   { title: "App Configuration", desc: "General system preferences and UI.", icon: SlidersHorizontal, color: "text-pink-400 bg-pink-400/15", href: "/settings/app-configuration" },
-  { title: "Announcements", desc: "Publish and manage rider-facing notices.", icon: Megaphone, color: "text-indigo-400 bg-indigo-400/15", href: "/announcements" },
+  { title: "Updates Center", desc: "View notifications and manage announcements.", icon: Megaphone, color: "text-indigo-400 bg-indigo-400/15", href: "/announcements" },
   { title: "Activity Logs", desc: "Audit trail of admin and system actions.", icon: History, color: "text-teal-400 bg-teal-400/15", href: "/activity-logs" },
 ];
 
