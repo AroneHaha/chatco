@@ -8,6 +8,7 @@ use App\Exceptions\RegistrationPendingException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Mail\PasswordResetCodeMail;
+use App\Models\CommuterProfile;
 use App\Models\User;
 use App\Rules\PhilippineMobileNumber;
 use App\Rules\StrongPassword;
@@ -34,6 +35,14 @@ class AuthController extends Controller
 
     /** Failed verification attempts allowed before a code is burned. */
     private const MAX_CODE_ATTEMPTS = 5;
+
+    /** Shown when a commuter awaiting approval tries to reset a password. */
+    private const PENDING_RESET_MESSAGE = 'Your account is still pending admin approval. '
+        .'You can reset your password once it has been approved.';
+
+    /** Shown when a commuter whose registration was rejected tries to reset a password. */
+    private const REJECTED_RESET_MESSAGE = 'Your registration was not approved, so this account '
+        .'cannot reset a password.';
 
     public function __construct(
         private AuthService $authService,
@@ -266,6 +275,11 @@ class AuthController extends Controller
      * Note the SoftDeletes scope means a REJECTED applicant — whose email is
      * rewritten to rejected+{uuid}@chatco.local on rejection — is not found
      * here, hence the message covering pending/rejected registrations.
+     *
+     * A commuter still PENDING approval (or a REJECTED one that kept its
+     * email) does exist here, so it is refused explicitly: only approved
+     * accounts can log in, and letting any other reset a password
+     * contradicts the message above.
      */
     public function forgotPassword(Request $request): JsonResponse
     {
@@ -280,7 +294,7 @@ class AuthController extends Controller
         // (No "SELECT *"; no scanning unrelated columns.)
         $user = User::query()
             ->where('email', $email)
-            ->first(['id', 'email']);
+            ->first(['id', 'email', 'role']);
 
         if (! $user) {
             Log::info('Password reset requested for unknown email', ['email' => $email]);
@@ -291,6 +305,10 @@ class AuthController extends Controller
                 .'a password yet.',
                 404
             );
+        }
+
+        if ($blocked = $this->resetBlockedMessage($user)) {
+            return $this->errorResponse($blocked, 403);
         }
 
         $code = $this->generateResetCode();
@@ -393,13 +411,28 @@ class AuthController extends Controller
             return $this->errorResponse('We could not find an account with that email.', 400);
         }
 
-        $user->forceFill([
-            'password' => Hash::make($request->password),
-            'remember_token' => Str::random(60),
-        ])->save();
+        // Re-checked here, not only when the code is requested, so a code
+        // issued before this guard existed still cannot change the password.
+        if ($blocked = $this->resetBlockedMessage($user)) {
+            DB::table('password_reset_tokens')->where('email', $email)->delete();
 
-        // Consume the code — one successful reset per code.
-        DB::table('password_reset_tokens')->where('email', $email)->delete();
+            return $this->errorResponse($blocked, 403);
+        }
+
+        // Sign out every existing session (web and mobile): a reset usually
+        // means the old password is forgotten or compromised, so a token
+        // issued under it must not outlive it. Consume the code — one
+        // successful reset per code — in the same transaction.
+        DB::transaction(function () use ($user, $request, $email) {
+            $user->forceFill([
+                'password' => Hash::make($request->password),
+                'remember_token' => Str::random(60),
+            ])->save();
+
+            $user->tokens()->delete();
+
+            DB::table('password_reset_tokens')->where('email', $email)->delete();
+        });
 
         return $this->successResponse(null, 'Password reset successfully. You can now log in.');
     }
@@ -460,6 +493,28 @@ class AuthController extends Controller
     private function generateResetCode(): string
     {
         return str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Why this account may not reset its password, or null when it may.
+     *
+     * Only approved accounts can reset — the same statuses AuthService::login
+     * refuses as "not approved" (PENDING, REJECTED) are refused here.
+     * Rejection normally soft-deletes the account and rewrites its email, so
+     * REJECTED is a second line of defence for rows that kept their email.
+     * Reads only the status column, and only for commuters.
+     */
+    private function resetBlockedMessage(User $user): ?string
+    {
+        if (! $user->isCommuter()) {
+            return null;
+        }
+
+        return match (CommuterProfile::whereKey($user->id)->value('account_status')) {
+            'PENDING' => self::PENDING_RESET_MESSAGE,
+            'REJECTED' => self::REJECTED_RESET_MESSAGE,
+            default => null,
+        };
     }
 
     /**

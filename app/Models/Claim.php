@@ -39,6 +39,10 @@ class Claim extends Model
         'rejected_at',
         'released_at',
         'rejection_reason',
+        'pickup_location',
+        'pickup_at',
+        'pickup_reminder',
+        'no_show_at',
     ];
 
     protected $casts = [
@@ -46,6 +50,8 @@ class Claim extends Model
         'approved_at' => 'datetime',
         'rejected_at' => 'datetime',
         'released_at' => 'datetime',
+        'pickup_at' => 'datetime',
+        'no_show_at' => 'datetime',
     ];
 
     /** Always include the resolved admin name in JSON — see getReviewedByNameAttribute(). */
@@ -88,5 +94,10 @@ class Claim extends Model
     public function rejectionAudits()
     {
         return $this->hasMany(ClaimRejectionAudit::class, 'claim_id');
+    }
+
+    public function photos()
+    {
+        return $this->hasMany(ClaimPhoto::class, 'claim_id')->orderBy('position');
     }
 }

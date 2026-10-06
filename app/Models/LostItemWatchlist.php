@@ -31,6 +31,10 @@ class LostItemWatchlist extends Model
         'commuter_id',
     ];
 
+    protected $casts = [
+        'expiry_reminded_at' => 'datetime',
+    ];
+
     protected static function booted(): void
     {
         static::creating(function (LostItemWatchlist $entry) {

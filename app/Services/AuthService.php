@@ -76,6 +76,16 @@ class AuthService
             );
         }
 
+        // An admin-disabled conductor (AdminController::disableConductor) had
+        // only their tokens revoked, so without this check the same username
+        // and password signed straight back in. Resetting credentials sets
+        // the status back to ACTIVE, which is how the account is re-enabled.
+        if ($user->isConductor() && $user->conductorProfile?->status === 'DISABLED') {
+            throw new AccountSuspendedException(
+                'This conductor account has been disabled. Ask an administrator to reset your credentials.'
+            );
+        }
+
         if ($user->isCommuter()) {
             $status = $user->commuterProfile?->account_status;
 
@@ -92,29 +102,33 @@ class AuthService
             }
         }
 
-        // ─── Single-device enforcement (all roles) ──────────────────
-        // Every account is limited to one active session. Logging in on a new
-        // device revokes every previously issued token, so the old device's
-        // next authenticated request 401s and the shared API client
+        // ─── Single-session enforcement (per platform) ──────────────
+        // Admins, and any login that omits device_type, get one active session
+        // per account: logging in revokes every previously issued token.
+        // Conductors and commuters get one session per platform (WEB, MOBILE):
+        // logging in revokes only that platform's token, so the web portal and
+        // the mobile app can stay signed in together (see the platform-scoped
+        // block below). Either way the displaced device's next authenticated
+        // request 401s and the shared API client
         // (frontend/lib/api/client.ts handleSessionEnded) redirects it to
-        // /login?reason=session_ended — no frontend changes needed, the same
-        // mechanism already in place for staff accounts.
+        // /login?reason=session_ended.
         //
         // The revoke + issue happen inside a transaction holding a row lock
         // on the user, so concurrent login attempts (rapid double-taps, two
         // devices racing to sign in) serialize instead of interleaving.
         // Without the lock, two requests could each see "nothing to delete
-        // yet" and both survive, leaving more than one active session; with
-        // it, the second request's delete always runs after the first
-        // request's create has committed, so exactly one token is ever left
-        // standing and each request's own new token always survives its own
-        // delete (never a later request's).
+        // yet" and both survive, leaving more than one active session per
+        // slot; with it, the second request's delete always runs after the
+        // first request's create has committed, so exactly one token per slot
+        // is ever left standing and each request's own new token always
+        // survives its own delete (never a later request's).
         // For conductors, the last identified device to complete login becomes
         // the active shift's operating device. The user row and shift row are
         // locked before the handoff and token replacement, so two concurrent
         // logins serialize: exactly one device owns the shift and exactly one
-        // token remains valid after the final commit. Shift, vehicle, driver,
-        // transaction and remittance records are not recreated or reassigned.
+        // token per platform remains valid after the final commit. Shift,
+        // vehicle, driver, transaction and remittance records are not
+        // recreated or reassigned.
         //
         // A legacy conductor client that omits device_id may still log in when
         // no device owns the shift, but it cannot displace an identified owner.
@@ -166,8 +180,8 @@ class AuthService
             //
             // Rules:
             //   • (conductor or commuter) + known deviceType → delete same-platform tokens only
-            //   • null deviceType                           → delete all tokens (legacy path,
-            //                                                 keeps all existing AuthTests green)
+            //   • null deviceType                           → delete all tokens (legacy clients
+            //                                                 that don't identify a platform)
             //   • any other role (admin)                    → delete all tokens (standard
             //                                                 single-session security)
             $isPlatformScopedRole = $lockedUser->isConductor() || $lockedUser->isCommuter();
@@ -341,7 +355,9 @@ class AuthService
         // uploaded filename, rather than letting the `creating` hook mint a
         // different one.
         $userId = (string) Str::uuid();
-        $idImagePath = $this->storeIdImage($userId, $data['id_image']);
+        // Optional only for a REGULAR commuter while "Force Valid ID Upload"
+        // is off (RegisterRequest enforces who must provide one).
+        $idImagePath = ! empty($data['id_image']) ? $this->storeIdImage($userId, $data['id_image']) : null;
 
         // The exists() check above is a TOCTOU race: two requests for the same
         // email submitted close together can both pass it and both reach
@@ -399,7 +415,9 @@ class AuthService
                 ];
             });
         } catch (\Throwable $e) {
-            $this->deleteIdImage($idImagePath);
+            if ($idImagePath !== null) {
+                $this->deleteIdImage($idImagePath);
+            }
 
             throw $e instanceof QueryException ? $this->translateUniqueViolation($e) : $e;
         }
