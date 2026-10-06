@@ -7,6 +7,7 @@ import "leaflet/dist/leaflet.css";
 import { formatElapsedMinutes } from "@/lib/utils/display";
 import { useRouteGeometry } from "@/hooks/use-route-geometry";
 import DynamicRouteViewport from "@/components/maps/dynamic-route-viewport";
+import UnitPopup, { capacityTone } from "@/components/maps/unit-popup";
 
 // --- 1. TYPES (kept — these define the API contract) ---
 type VehicleCapacity = "AVAILABLE" | "STANDING" | "FULL";
@@ -509,23 +510,15 @@ export default function AdminCommuterMap({
           const config = getCapacityConfig(vehicle.capacity);
           return (
             <Marker key={vehicle.id} position={routeGeometry.routeCoords[Math.min(vehicle.routeIndex, routeGeometry.routeCoords.length - 1)]} icon={getJeepneyIcon(vehicle.capacity)} zIndexOffset={800}>
-              <Popup>
-                <div className="space-y-2 min-w-[180px]">
-                  <div className="flex items-center justify-between">
-                    <div className="font-bold text-[#071A2E]">{vehicle.plateNumber}</div>
-                    <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${config.twBg} ${config.twText} ${config.twBorder} border`}>{config.label}</span>
-                  </div>
-                  <div className="text-xs text-gray-500 space-y-0.5 pt-1 border-t border-gray-100">
-                    <p><span className="font-medium text-gray-700">Driver:</span> {vehicle.driverName}</p>
-                    <p><span className="font-medium text-gray-700">Conductor:</span> {vehicle.conductorName}</p>
-                  </div>
-                  {vehicle.capacity === "FULL" && (
-                    <div className="text-[10px] font-medium text-red-500 bg-red-50 p-1.5 rounded text-center border border-red-100">
-                      Not accepting passengers
-                    </div>
-                  )}
-                </div>
-              </Popup>
+              <UnitPopup
+                title={vehicle.plateNumber}
+                status={{ label: config.label, tone: capacityTone(vehicle.capacity) }}
+                details={[
+                  { label: "Driver", value: vehicle.driverName },
+                  { label: "Conductor", value: vehicle.conductorName },
+                ]}
+                notes={vehicle.capacity === "FULL" ? [{ message: "Not accepting passengers", tone: "danger" }] : []}
+              />
             </Marker>
           );
         })}
@@ -550,36 +543,22 @@ export default function AdminCommuterMap({
               icon={getJeepneyIcon(vehicle.capacity, vehicle.is_stale, vehicle.is_on_break)}
               zIndexOffset={vehicle.is_stale ? 700 : 800}
             >
-              <Popup>
-                <div className="space-y-2 min-w-[200px]">
-                  <div className="flex items-center justify-between">
-                    <div className="font-bold text-[#071A2E]">{vehicle.plate_number}</div>
-                    <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${statusConfig.twBg} ${statusConfig.twText} ${statusConfig.twBorder} border`}>{statusConfig.label}</span>
-                  </div>
-                  <div className="text-xs text-gray-500 space-y-0.5 pt-1 border-t border-gray-100">
-                    <p><span className="font-medium text-gray-700">Unit:</span> {vehicle.unit_number}</p>
-                    <p><span className="font-medium text-gray-700">Driver:</span> {vehicle.driver_name ?? '—'}</p>
-                    <p><span className="font-medium text-gray-700">Conductor:</span> {vehicle.conductor_name ?? '—'}</p>
-                    <p><span className="font-medium text-gray-700">Route:</span> {vehicle.route_name ?? '—'}</p>
-                    {vehicle.is_on_break && (
-                      <p><span className="font-medium text-gray-700">Capacity:</span> {capacityConfig.label}</p>
-                    )}
-                    {vehicle.speed !== null && (
-                      <p><span className="font-medium text-gray-700">Speed:</span> {vehicle.speed} km/h</p>
-                    )}
-                  </div>
-                  {vehicle.capacity === "FULL" && !vehicle.is_on_break && (
-                    <div className="text-[10px] font-medium text-red-500 bg-red-50 p-1.5 rounded text-center border border-red-100">
-                      Not accepting passengers
-                    </div>
-                  )}
-                  {vehicle.is_stale && (
-                    <div className="text-[10px] font-medium text-amber-600 bg-amber-50 p-1.5 rounded text-center border border-amber-100">
-                      ⚠ Unresponsive — last update {formatElapsedMinutes(vehicle.minutes_since_update)} ago
-                    </div>
-                  )}
-                </div>
-              </Popup>
+              <UnitPopup
+                title={vehicle.plate_number}
+                status={{ label: statusConfig.label, tone: vehicle.is_on_break ? "info" : capacityTone(vehicle.capacity) }}
+                details={[
+                  { label: "Unit", value: vehicle.unit_number },
+                  { label: "Driver", value: vehicle.driver_name ?? "—" },
+                  { label: "Conductor", value: vehicle.conductor_name ?? "—" },
+                  { label: "Route", value: vehicle.route_name ?? "—" },
+                  ...(vehicle.is_on_break ? [{ label: "Capacity", value: capacityConfig.label }] : []),
+                  ...(vehicle.speed !== null ? [{ label: "Speed", value: `${vehicle.speed} km/h` }] : []),
+                ]}
+                notes={[
+                  ...(vehicle.capacity === "FULL" && !vehicle.is_on_break ? [{ message: "Not accepting passengers", tone: "danger" as const }] : []),
+                  ...(vehicle.is_stale ? [{ message: `Unresponsive — last update ${formatElapsedMinutes(vehicle.minutes_since_update)} ago`, tone: "warning" as const }] : []),
+                ]}
+              />
             </SmoothVehicleMarker>
           );
         })}
