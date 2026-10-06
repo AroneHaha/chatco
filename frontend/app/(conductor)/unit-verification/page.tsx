@@ -11,11 +11,13 @@ import UnitList from "@/components/conductor/unit-verification/UnitList";
 import DriverList from "@/components/conductor/unit-verification/DriverList";
 import StartShiftModal from "@/components/conductor/unit-verification/StartShiftModal";
 import { UnitVerificationSkeleton } from "@/components/conductor/ui/skeleton";
+import { useAuth } from "@/contexts/auth-context";
 
 type Step = "select-unit" | "select-driver";
 
 export default function ConductorLoginPage() {
   const router = useRouter();
+  const { logout } = useAuth();
   const { profile, units, drivers, status, error, refresh } = useUnitVerification();
   const { shift, status: shiftStatus, refresh: refreshShift } = useConductorShift();
 
@@ -105,15 +107,7 @@ export default function ConductorLoginPage() {
     if (isLoggingOut) return;
     setIsLoggingOut(true);
 
-    try {
-      await fetch("/api/auth/logout", {
-        method: "POST",
-        credentials: "include",
-        cache: "no-store",
-      });
-    } finally {
-      router.replace("/login");
-    }
+    await logout();
   };
 
   return (

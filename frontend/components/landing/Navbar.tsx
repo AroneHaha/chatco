@@ -2,6 +2,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
 import { Bus, Menu, X } from "lucide-react";
 import logo from "../../assets/logo-transparent.png";
@@ -116,18 +117,19 @@ export default function Navbar() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 lg:justify-self-end">
-          <a
+          <Link
             href="/login"
+            scroll={false}
             className={`hidden sm:inline-flex items-center whitespace-nowrap px-3 py-2 rounded-md text-sm font-medium text-white/70 hover:text-white hover:bg-white/5 transition-colors ${focus}`}
           >
             Log in
-          </a>
-          <a
+          </Link>
+          <Link
             href="/signup"
             className={`hidden sm:inline-flex items-center whitespace-nowrap px-4 py-2 rounded-full text-sm font-semibold bg-[#1A5FB4] text-white hover:bg-[#164A8F] shadow-sm shadow-[#1A5FB4]/25 transition-colors ${focus}`}
           >
             Create Account
-          </a>
+          </Link>
           <button
             type="button"
             onClick={() => setMenuOpen((o) => !o)}
@@ -188,20 +190,21 @@ export default function Navbar() {
                 })}
               </ul>
               <div className="mt-5 grid grid-cols-2 gap-3">
-                <a
+                <Link
                   href="/login"
+                  scroll={false}
                   onClick={() => setMenuOpen(false)}
                   className={`text-center py-3.5 rounded-full border border-white/20 text-base font-semibold text-white hover:bg-white/5 transition-colors ${focus}`}
                 >
                   Log in
-                </a>
-                <a
+                </Link>
+                <Link
                   href="/signup"
                   onClick={() => setMenuOpen(false)}
                   className={`text-center py-3.5 rounded-full bg-[#1A5FB4] text-base font-bold text-white hover:bg-[#164A8F] transition-colors ${focus}`}
                 >
                   Create Account
-                </a>
+                </Link>
               </div>
             </div>
           </motion.div>

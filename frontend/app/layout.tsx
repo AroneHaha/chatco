@@ -26,15 +26,17 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
+  auth,
 }: Readonly<{
   children: React.ReactNode;
+  auth: React.ReactNode;
 }>) {
   return (
     <html lang="en" className="scroll-smooth">
       <body
         className={`${poppins.variable} font-sans antialiased bg-white text-gray-900`}
       >
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>{children}{auth}</AuthProvider>
       </body>
     </html>
   );
