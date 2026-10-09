@@ -119,7 +119,6 @@ export function useDashboardState() {
         throw new Error(body?.message ?? `Unable to update break status (HTTP ${res.status}).`);
       }
       await refreshShift();
-      setShowBreakModal(false);
     } catch (error) {
       setBreakError(error instanceof Error ? error.message : "Unable to update break status.");
     } finally {

@@ -11,9 +11,10 @@ import logo from "../../assets/logo-transparent.png";
 const LINKS = [
   { label: "How It Works", id: "how-it-works" },
   { label: "Features", id: "features" },
-  { label: "Platform", id: "platform" },
+  { label: "Why CHATCO", id: "platform" },
   { label: "Safety", id: "safety" },
   { label: "About", id: "about" },
+  { label: "Download", id: "download" },
   { label: "Contact", id: "contact" },
 ];
 
@@ -56,6 +57,12 @@ export default function Navbar() {
 
   useEffect(() => {
     let raf = 0;
+    const getLinkedSections = () => {
+      const anchors = navRef.current?.querySelectorAll<HTMLAnchorElement>('a[href^="#"]') ?? [];
+      const ids = new Set(Array.from(anchors, (anchor) => anchor.hash.slice(1)).filter(Boolean));
+      return Array.from(ids, (id) => document.getElementById(id))
+        .filter((section): section is HTMLElement => section !== null);
+    };
     const update = () => {
       raf = 0;
       setScrolled(window.scrollY > 40);
@@ -64,27 +71,54 @@ export default function Navbar() {
       // (Rewards, Hailing), so the underline travels link to link instead of
       // vanishing and reappearing; it clears after the final section ends.
       const probe = window.innerHeight * 0.4;
+      const sections = getLinkedSections();
       let passed = -1;
-      LINKS.forEach((l, i) => {
-        const r = document.getElementById(l.id)?.getBoundingClientRect();
-        if (r && r.top <= probe) passed = i;
+      sections.forEach((section, i) => {
+        if (section.getBoundingClientRect().top <= probe) passed = i;
       });
-      let current: string | null = passed >= 0 ? LINKS[passed].id : null;
-      if (passed === LINKS.length - 1) {
-        const last = document.getElementById(LINKS[passed].id)?.getBoundingClientRect();
-        if (last && last.bottom <= probe) current = null;
+      let current: string | null = passed >= 0 ? sections[passed].id : null;
+      if (passed >= 0 && passed === sections.length - 1) {
+        if (sections[passed].getBoundingClientRect().bottom <= probe) current = null;
       }
       setActive(current);
     };
     const onScroll = () => {
       if (!raf) raf = requestAnimationFrame(update);
     };
+    // Keep tracking the current links and sections, including streamed content.
+    const layoutObserver = new ResizeObserver(onScroll);
+    layoutObserver.observe(document.body);
+    let observedSections = new Set<HTMLElement>();
+    const syncSections = () => {
+      const sections = new Set(getLinkedSections());
+      observedSections.forEach((section) => {
+        if (!sections.has(section)) layoutObserver.unobserve(section);
+      });
+      sections.forEach((section) => {
+        if (!observedSections.has(section)) layoutObserver.observe(section);
+      });
+      observedSections = sections;
+      onScroll();
+    };
+    const contentObserver = new MutationObserver(syncSections);
+    contentObserver.observe(document.body, { childList: true, subtree: true });
+    syncSections();
+    const onRevealEnd = (event: TransitionEvent) => {
+      const target = event.target;
+      if (target instanceof HTMLElement && observedSections.has(target)) {
+        onScroll();
+      }
+    };
     update();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
+    document.addEventListener("transitionend", onRevealEnd);
     return () => {
+      layoutObserver.disconnect();
+      contentObserver.disconnect();
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
+      document.removeEventListener("transitionend", onRevealEnd);
       if (raf) cancelAnimationFrame(raf);
     };
   }, []);
@@ -115,8 +149,9 @@ export default function Navbar() {
   const focus = "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#62A0EA]";
 
   return (
-    <nav
+    <motion.nav
       ref={navRef}
+      layoutRoot
       aria-label="Main"
       className={`fixed top-0 inset-x-0 z-50 pt-safe lg:pt-0 border-b transition-[background-color,border-color,box-shadow] duration-300 ease-out ${
         scrolled || menuOpen
@@ -138,7 +173,7 @@ export default function Navbar() {
                 key={l.id}
                 href={`#${l.id}`}
                 aria-current={on ? "location" : undefined}
-                className={`relative px-3 xl:px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors rounded-md ${focus} ${
+                className={`relative px-2 xl:px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors rounded-md ${focus} ${
                   on ? "text-white" : "text-white/60 hover:text-white"
                 }`}
               >
@@ -147,8 +182,13 @@ export default function Navbar() {
                   <motion.span
                     layoutId="nav-active"
                     aria-hidden
-                    className="absolute inset-x-3 xl:inset-x-4 -bottom-0.5 h-0.5 rounded-full bg-[#62A0EA]"
-                    transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 420, damping: 34 }}
+                    initial={reduce ? false : { opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="absolute inset-x-2 xl:inset-x-4 -bottom-0.5 h-0.5 rounded-full bg-[#62A0EA]"
+                    transition={reduce ? { duration: 0 } : {
+                      layout: { type: "spring", stiffness: 420, damping: 34 },
+                      opacity: { duration: 0.2, ease: "easeOut" },
+                    }}
                   />
                 )}
               </a>
@@ -250,6 +290,6 @@ export default function Navbar() {
           </motion.div>
         )}
       </AnimatePresence>
-    </nav>
+    </motion.nav>
   );
 }

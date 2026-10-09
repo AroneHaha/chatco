@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { CONDUCTOR_DEVICE_TYPE, getConductorDeviceId } from "@/lib/conductor/persistence/device.store";
+import { cacheShift, clearShift } from "@/lib/conductor/persistence/shift.store";
 import type { AuthUser, CommuterProfile } from "@/types";
 
 interface AuthContextValue {
@@ -90,6 +91,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: data.user.email,
         role: data.user.role,
       };
+
+      if (authUser.role === "CONDUCTOR") {
+        if (data.activeShift) cacheShift(data.activeShift);
+        else clearShift();
+      }
 
       setUser(authUser);
 

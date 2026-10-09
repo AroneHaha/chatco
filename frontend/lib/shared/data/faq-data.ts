@@ -156,17 +156,17 @@ export const faqCategories: FAQCategory[] = [
       {
         question: "How does the loyalty program work?",
         answer:
-          "Every ride earns you points! The more you ride, the more you earn. Unlock perks like discounted fares, priority hailing, and exclusive vouchers.",
+          "Complete 10 paid rides to earn a free ride voucher. GCash payments through your CHATCO account count automatically. For cash payments, sign in to your account and scan the QR on your physical receipt to count the ride.",
       },
       {
         question: "How do I check my rewards?",
         answer:
-          "Check Rewards in the app! You'll see your points, available perks, and active vouchers for your next ride.",
+          "Open Rewards in your CHATCO account to see your counted rides and available free ride vouchers. You can also scan a cash receipt QR there.",
       },
       {
-        question: "Do points expire?",
+        question: "How do cash rides count toward rewards?",
         answer:
-          "Nope! Your points are yours forever. No expiration, no pressure!",
+          "Keep the physical receipt from your cash payment. Sign in to your CHATCO account, open Rewards, and scan its QR. GCash rides count automatically without a receipt scan.",
       },
     ],
   },

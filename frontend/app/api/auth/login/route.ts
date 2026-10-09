@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { clientIpHeaders } from "@/lib/auth/server/client-ip";
+import { mapShiftLog } from "@/lib/conductor/server/mappers";
+import type { ConductorShift } from "@/lib/conductor/persistence/shift.store";
 
 const API_URL = process.env.API_URL || "http://localhost:8000";
 
@@ -36,7 +38,28 @@ export async function POST(request: Request) {
 
     if (res.ok && data?.data?.token) {
       const { id, email: userEmail, role, name, token } = data.data;
-      return issueSession({ id, email: userEmail, role, name, token });
+      let activeShift: ConductorShift | null = null;
+
+      if (role === "CONDUCTOR") {
+        try {
+          const shiftResponse = await fetch(`${API_URL}/api/v1/conductor/shift`, {
+            headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+            cache: "no-store",
+          });
+          const shiftData = await shiftResponse.json();
+          if (!shiftResponse.ok || !("data" in shiftData)) {
+            throw new Error("Unable to check active shift.");
+          }
+          activeShift = shiftData.data ? mapShiftLog(shiftData.data) : null;
+        } catch {
+          return NextResponse.json(
+            { message: "Unable to check your active shift. Please try signing in again." },
+            { status: 502 }
+          );
+        }
+      }
+
+      return issueSession({ id, email: userEmail, role, name, token }, activeShift);
     }
 
     // Laravel responded but rejected the credentials (401/422) — surface that.
@@ -60,15 +83,24 @@ export async function POST(request: Request) {
   }
 }
 
-function issueSession(user: { id: string; email: string; role: string; name: string; token: string }) {
+function issueSession(
+  user: { id: string; email: string; role: string; name: string; token: string },
+  activeShift: ConductorShift | null
+) {
   const redirectPath =
     user.role === "ADMIN"
       ? "/admin-dashboard"
       : user.role === "CONDUCTOR"
-        ? "/unit-verification"
+        ? activeShift
+          ? "/conductor-dashboard"
+          : "/unit-verification"
         : "/dashboard";
 
-  const response = NextResponse.json({ user, redirectPath });
+  const response = NextResponse.json({
+    user,
+    redirectPath,
+    ...(user.role === "CONDUCTOR" ? { activeShift } : {}),
+  });
 
   // httpOnly cookie — bearer token (JavaScript CANNOT read this).
   response.cookies.set("chatco_session", user.token, {

@@ -28,7 +28,7 @@ export default function Manifesto() {
         <GsapWords
           as="h2"
           className="font-sans font-semibold text-2xl sm:text-3xl md:text-4xl text-white leading-[1.2] tracking-tight max-w-4xl mx-auto"
-          text="Every jeepney ride, made smarter, safer, and cashless — for the commuter, the conductor, and the operator alike."
+          text="Your everyday jeepney ride, made smarter, safer, and cashless — from finding your ride to reaching your destination."
           accentWords={["smarter", "safer", "cashless"]}
         />
 
@@ -38,13 +38,14 @@ export default function Manifesto() {
         <Reveal>
           <p className="mt-10 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs font-semibold uppercase tracking-wider text-white/40">
             <span>
-              <CountUp end={3} suffix="" grouped={false} className="text-white" /> platforms, one system
+              <CountUp end={2} suffix="" grouped={false} className="text-white" /> platforms, one account
             </span>
             <span className="text-white/15">·</span>
             <span>
               <CountUp end={100} suffix="%" grouped={false} className="text-white" /> cashless-ready fares
             </span>
           </p>
+          <p className="mt-3 text-sm text-white/40">Ride with CHATCO on the web or on Android.</p>
         </Reveal>
       </div>
     </section>
