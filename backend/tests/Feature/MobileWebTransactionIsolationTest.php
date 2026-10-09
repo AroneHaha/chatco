@@ -112,6 +112,91 @@ class MobileWebTransactionIsolationTest extends TestCase
         ]);
     }
 
+    public function test_web_to_mobile_handoff_keeps_one_shift_and_both_platform_sessions(): void
+    {
+        $this->postJson('/api/v1/auth/login', [
+            'login' => 'mreyes', 'password' => 'password',
+            'device_id' => 'web-handoff-device-12345', 'device_type' => 'WEB',
+        ])->assertOk();
+
+        $this->postJson('/api/v1/mobile/auth/login', [
+            'login' => 'mreyes', 'password' => 'password',
+            'device_id' => 'mobile-handoff-device-12345',
+            // The mobile endpoint must establish MOBILE even if input says WEB.
+            'device_type' => 'WEB',
+        ])->assertOk();
+
+        $this->assertSame(1, ShiftLog::where('conductor_id', $this->conductor->id)->active()->count());
+        $this->assertSame('mobile-handoff-device-12345', $this->shift->fresh()->operating_device_id);
+        $this->assertSame('MOBILE', $this->shift->fresh()->operating_device_type);
+        $this->assertSame(1, $this->conductor->tokens()->where('name', 'auth-token:WEB')->count());
+        $this->assertSame(1, $this->conductor->tokens()->where('name', 'auth-token:MOBILE')->count());
+
+        Sanctum::actingAs($this->conductor);
+        $mobile = $this->getJson('/api/v1/mobile/conductor/shift')->assertOk()->json('data');
+        $web = $this->getJson('/api/v1/conductor/shift')->assertOk()->json('data');
+        $this->assertSame($web, $mobile);
+        $this->postJson('/api/v1/mobile/conductor/shifts/start', [
+            'vehicle_id' => $this->vehicle->id, 'driver_id' => $this->driver->id,
+            'device_id' => 'mobile-handoff-device-12345', 'device_type' => 'MOBILE',
+        ])->assertStatus(409);
+    }
+
+    public function test_mobile_to_web_handoff_preserves_cash_and_rejects_previous_operator_break(): void
+    {
+        $this->postJson('/api/v1/mobile/auth/login', [
+            'login' => 'mreyes', 'password' => 'password',
+            'device_id' => 'mobile-handoff-device-12345',
+        ])->assertOk();
+
+        Sanctum::actingAs($this->conductor);
+        $this->postJson('/api/v1/mobile/conductor/transactions', [
+            'payment_method' => 'CASH', 'pickup_name' => 'Cubao', 'dropoff_name' => 'Antipolo',
+            'idempotency_key' => 'handoff-cash-ticket',
+            'device_id' => 'mobile-handoff-device-12345', 'device_type' => 'MOBILE',
+        ])->assertCreated();
+
+        $this->postJson('/api/v1/auth/login', [
+            'login' => 'mreyes', 'password' => 'password',
+            'device_id' => 'web-handoff-device-12345', 'device_type' => 'WEB',
+        ])->assertOk();
+
+        $this->assertSame('web-handoff-device-12345', $this->shift->fresh()->operating_device_id);
+        $this->assertDatabaseCount('transactions', 1);
+        $this->assertDatabaseHas('transactions', ['shift_id' => $this->shift->shift_id, 'idempotency_key' => 'handoff-cash-ticket']);
+        $this->postJson('/api/v1/mobile/conductor/break-status', [
+            'is_on_break' => true, 'device_id' => 'mobile-handoff-device-12345', 'device_type' => 'MOBILE',
+        ])->assertStatus(409);
+        $this->postJson('/api/v1/conductor/break-status', [
+            'is_on_break' => true, 'device_id' => 'web-handoff-device-12345', 'device_type' => 'WEB',
+        ])->assertOk();
+    }
+
+    public function test_mobile_payment_status_preserves_web_payload_and_ownership(): void
+    {
+        Sanctum::actingAs($this->conductor);
+        $response = $this->postJson('/api/v1/mobile/conductor/transactions', [
+            'payment_method' => 'CASH', 'pickup_name' => 'Cubao', 'dropoff_name' => 'Antipolo',
+            'device_id' => 'chatco_mobile_claimed_device_123', 'device_type' => 'MOBILE',
+        ])->assertCreated();
+        $id = $response->json('data.transaction_id');
+        $web = $this->getJson("/api/v1/payments/{$id}/status")->assertOk()->json('data');
+        $mobile = $this->getJson("/api/v1/mobile/payments/{$id}/status")->assertOk()->json('data');
+        $this->assertSame($web, $mobile);
+
+        $other = User::create(['email' => 'other-mobile@example.com', 'password' => bcrypt('password'), 'role' => UserRole::CONDUCTOR]);
+        Sanctum::actingAs($other);
+        $this->getJson("/api/v1/mobile/payments/{$id}/status")->assertForbidden();
+        $this->postJson("/api/v1/mobile/payments/{$id}/cancel")->assertForbidden();
+    }
+
+    public function test_mobile_simulation_keeps_existing_configuration_guard(): void
+    {
+        config(['payments.allow_simulation' => false]);
+        Sanctum::actingAs($this->conductor);
+        $this->postJson('/api/v1/mobile/payments/unknown/simulate', ['status' => 'PAID'])->assertForbidden();
+    }
+
     public function test_web_conductor_can_record_cash_fare_when_mobile_device_claimed_on_shift(): void
     {
         Sanctum::actingAs($this->conductor);

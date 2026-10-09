@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Enums\UserRole;
 use App\Models\CommuterProfile;
+use App\Models\Hail;
 use App\Models\User;
+use App\Models\Vehicle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Laravel\Sanctum\Sanctum;
@@ -47,6 +49,55 @@ class MobileCommuterIsolationTest extends TestCase
             'password' => Hash::make('password123'),
             'role' => UserRole::CONDUCTOR,
         ]);
+    }
+
+    public function test_mobile_and_web_commuter_login_share_account_without_revoking_other_platform(): void
+    {
+        $web = $this->postJson('/api/v1/auth/login', [
+            'login' => $this->commuter->email, 'password' => 'password123',
+            'device_id' => 'commuter-web-device-12345', 'device_type' => 'WEB',
+        ])->assertOk();
+        $mobile = $this->postJson('/api/v1/mobile/auth/login', [
+            'login' => $this->commuter->email, 'password' => 'password123',
+            'device_id' => 'commuter-mobile-device-12345',
+        ])->assertOk();
+        $this->assertSame($web->json('data.id'), $mobile->json('data.id'));
+        $this->assertSame(2, $this->commuter->tokens()->count());
+        $this->assertSame(1, $this->commuter->tokens()->where('name', 'auth-token:WEB')->count());
+        $this->assertSame(1, $this->commuter->tokens()->where('name', 'auth-token:MOBILE')->count());
+
+        Sanctum::actingAs($this->commuter);
+        $webProfile = $this->getJson('/api/v1/commuter/profile')->assertOk()->json('data');
+        $mobileProfile = $this->getJson('/api/v1/mobile/commuter/profile')->assertOk()->json('data');
+        $this->assertSame($webProfile, $mobileProfile);
+        $this->assertSame(
+            $this->getJson('/api/v1/commuter/rewards')->assertOk()->json('data'),
+            $this->getJson('/api/v1/mobile/commuter/rewards')->assertOk()->json('data'),
+        );
+    }
+
+    public function test_mobile_hail_reads_are_owned_and_report_expiration(): void
+    {
+        $vehicle = Vehicle::create(['unit_number' => 'MOBILE-1', 'plate_number' => 'MOB-001', 'status' => 'ACTIVE']);
+        $hail = Hail::create([
+            'commuter_id' => $this->commuter->id, 'vehicle_id' => $vehicle->id,
+            'commuter_lat' => 14.8, 'commuter_lng' => 120.9, 'distance_m' => 10,
+            'status' => 'PENDING', 'expires_at' => now()->addMinutes(3),
+        ]);
+        Sanctum::actingAs($this->commuter);
+        $this->getJson("/api/v1/mobile/commuter/hail/{$hail->id}")
+            ->assertOk()->assertJsonPath('data.status', 'PENDING')->assertJsonPath('data.vehicle.unit_number', 'MOBILE-1');
+        $this->getJson('/api/v1/mobile/commuter/hails/active')->assertOk()->assertJsonPath('data.id', $hail->id);
+
+        $this->travel(4)->minutes();
+        $this->getJson("/api/v1/mobile/commuter/hail/{$hail->id}")->assertOk()->assertJsonPath('data.status', 'EXPIRED');
+        $this->getJson('/api/v1/mobile/commuter/hails/active')->assertOk()->assertJsonPath('data', null);
+        $this->travelBack();
+
+        $other = User::create(['email' => 'other-commuter-mobile@example.com', 'password' => bcrypt('password'), 'role' => UserRole::COMMUTER]);
+        Sanctum::actingAs($other);
+        $this->getJson("/api/v1/mobile/commuter/hail/{$hail->id}")->assertNotFound();
+        $this->getJson('/api/v1/mobile/commuter/hails/active')->assertOk()->assertJsonPath('data', null);
     }
 
     public function test_mobile_commuter_routes_require_authentication(): void
