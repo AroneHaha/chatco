@@ -5,7 +5,10 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { register, type AppliedType, RegisterError } from "@/lib/auth/register";
 import { sendVerificationCode, verifyEmailCode, VerificationError } from "@/lib/auth/email-verification";
+import Stepper, { Step } from "@/components/Stepper";
+import styles from "./signup.module.css";
 import CodeInput from "@/components/auth/code-input";
+import { AdminDatePicker } from "@/components/admin/ui/admin-date-picker";
 import { CONTACT_NUMBER_PATTERN, CONTACT_NUMBER_ERROR, formatContactNumberInput } from "@/lib/utils/format";
 
 // Camera-dependent, so it stays out of the initial bundle and off the server.
@@ -75,13 +78,14 @@ const FIELD_STEP: Record<string, number> = {
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export default function SignupForm() {
+export default function SignupForm({ onBusyChange }: { onBusyChange?: (busy: boolean) => void }) {
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   // Timestamp of the last step change — used to ignore a phantom submit that
   // fires in the same instant we advance onto the final step.
   const lastStepChangeAt = useRef<number>(0);
@@ -122,8 +126,21 @@ export default function SignupForm() {
   const [verifiedEmail, setVerifiedEmail] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
+  useEffect(() => {
+    onBusyChange?.(isLoading || isSendingCode || isVerifyingCode || showIdCamera);
+  }, [isLoading, isSendingCode, isVerifyingCode, showIdCamera, onBusyChange]);
+
   const normalizedEmail = formData.email.trim().toLowerCase();
   const isEmailVerified = verifiedEmail !== null && verifiedEmail === normalizedEmail;
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const content = contentRef.current;
+      content?.closest("dialog")?.scrollTo({ top: 0, behavior: "instant" });
+      content?.querySelector<HTMLInputElement>("input:not([type='file'])")?.focus({ preventScroll: true });
+    }, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 420);
+    return () => clearTimeout(timer);
+  }, [step, isSuccess]);
 
   // Resend cooldown ticker.
   useEffect(() => {
@@ -491,14 +508,14 @@ export default function SignupForm() {
   // ── Success: Pending Review Screen ──
   if (isSuccess) {
     return (
-      <div className="min-h-[520px] flex flex-col items-center justify-center text-center">
+      <div className={styles.success}>
         <div className="w-20 h-20 rounded-full bg-amber-100 flex items-center justify-center mb-6">
           <svg className="w-10 h-10 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
           </svg>
         </div>
-        <h2 className="text-2xl font-bold text-[#071A2E] mb-3">Registration Submitted!</h2>
-        <p className="text-base text-gray-500 max-w-md mb-2">
+        <h2 id="signup-heading" className="text-2xl font-bold text-[#071A2E] mb-3">Registration Submitted!</h2>
+        <p id="signup-description" className="text-base text-gray-500 max-w-md mb-2">
           Your account is <span className="font-semibold text-amber-600">pending admin approval</span>.
           An administrator will review your valid ID and verify your discount tier.
         </p>
@@ -507,8 +524,8 @@ export default function SignupForm() {
           account is approved. You cannot log in until then.
         </p>
         <Link
-          href="/login"
-          className="px-8 py-3.5 rounded-xl text-base font-semibold bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-colors shadow-md shadow-[#1A5FB4]/20"
+          href="/login" replace scroll={false}
+          className={styles.primaryButton}
         >
           Back to Login
         </Link>
@@ -516,9 +533,9 @@ export default function SignupForm() {
     );
   }
 
-  const inputClasses = "w-full px-5 py-3.5 rounded-xl border border-gray-200 bg-[#F8FAFC] text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A5FB4]/20 focus:border-[#1A5FB4] transition-all";
-  const labelClasses = "block text-sm font-medium text-gray-700 mb-2";
-  const errorClasses = "text-sm text-red-500 mt-1.5";
+  const inputClasses = styles.input;
+  const labelClasses = styles.label;
+  const errorClasses = styles.fieldError;
 
   // Helper to get field error (maps form field names to backend field names)
   const getFieldError = (formField: string, backendField?: string): string | null => {
@@ -526,115 +543,216 @@ export default function SignupForm() {
     return fieldErrors[key]?.[0] ?? null;
   };
 
-  const errorRing = (field: string) => (getFieldError(field) ? "border-red-300 bg-red-50" : "");
+  const errorRing = (field: string) => (getFieldError(field) ? styles.invalid : "");
 
   return (
-    <div className="min-h-[520px] flex flex-col">
-      {/* Step Indicator */}
-      <div className="flex items-center justify-center gap-2 sm:gap-3 mb-10">
-        {[1, 2, 3, 4].map((s) => (
-          <div key={s} className="flex items-center gap-2 sm:gap-3">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
-              step > s
-                ? "bg-[#1A5FB4] text-white shadow-md shadow-[#1A5FB4]/30"
-                : step === s
-                  ? "bg-[#1A5FB4] text-white shadow-md shadow-[#1A5FB4]/30 ring-4 ring-[#1A5FB4]/15"
-                  : "bg-gray-100 text-gray-400"
-            }`}>
-              {step > s ? (
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                </svg>
-              ) : s}
-            </div>
-            {s < 4 && <div className={`w-10 sm:w-16 h-1 rounded-full transition-all ${step > s ? "bg-[#1A5FB4]" : "bg-gray-100"}`} />}
-          </div>
-        ))}
-      </div>
-
-      {/* Dynamic Header */}
-      <div className="mb-8">
-        <h2 className="text-3xl font-extrabold text-[#071A2E] tracking-tight">{STEP_COPY[step].title}</h2>
-        <p className="mt-2 text-base text-gray-500">{STEP_COPY[step].subtitle}</p>
-      </div>
-
-      {/* Server Error Banner */}
-      {serverError && (
-        <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 flex gap-3">
-          <svg className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-          </svg>
-          <p className="text-sm text-red-600 font-medium">{serverError}</p>
-        </div>
-      )}
-
+    <div ref={contentRef} className={styles.form}>
       {/* Form Content */}
-      <form onSubmit={handleSubmit} className="flex-1 flex flex-col">
-        <div className="flex-1">
-          {/* STEP 1 — Personal Info */}
-          {step === 1 && (
-            <div className="space-y-6 animate-in fade-in">
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
-                <div>
-                  <label htmlFor="firstName" className={labelClasses}>First Name *</label>
-                  <input id="firstName" name="firstName" type="text" value={formData.firstName} onChange={handleChange} className={`${inputClasses} ${errorRing("first_name")}`} placeholder="Juan" />
-                  {getFieldError("first_name") && <p className={errorClasses}>{getFieldError("first_name")}</p>}
-                </div>
-                <div>
-                  <label htmlFor="middleName" className={labelClasses}>Middle Name</label>
-                  <input id="middleName" name="middleName" type="text" value={formData.middleName} onChange={handleChange} className={inputClasses} placeholder="Santos (Optional)" />
-                </div>
-                <div>
-                  <label htmlFor="surname" className={labelClasses}>Surname *</label>
-                  <input id="surname" name="surname" type="text" value={formData.surname} onChange={handleChange} className={`${inputClasses} ${errorRing("surname")}`} placeholder="Dela Cruz" />
-                  {getFieldError("surname") && <p className={errorClasses}>{getFieldError("surname")}</p>}
-                </div>
-                <div>
-                  <label htmlFor="suffix" className={labelClasses}>Suffix</label>
-                  <select id="suffix" name="suffix" value={formData.suffix} onChange={handleChange} className={inputClasses}>
-                    <option value="">None</option>
-                    {SUFFIX_OPTIONS.map(opt => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                </div>
+      <form onSubmit={handleSubmit} className={styles.formElement} aria-busy={isLoading || isSendingCode || isVerifyingCode}>
+        <Stepper
+          currentStep={step}
+          disableStepIndicators
+          hideNavigation
+          header={
+            <>
+              {/* Dynamic Header */}
+              <div className={styles.stepHeading}>
+                <h2 id="signup-heading" className={styles.title}>
+                  {STEP_COPY[step].title}
+                </h2>
+                <p id="signup-description" className={styles.subtitle}>
+                  {STEP_COPY[step].subtitle}
+                </p>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                <div>
-                  <label htmlFor="birthdate" className={labelClasses}>Birthdate *</label>
-                  <input id="birthdate" name="birthdate" type="date" value={formData.birthdate} onChange={handleChange} className={`${inputClasses} ${errorRing("birthdate")}`} />
-                  {getFieldError("birthdate") && <p className={errorClasses}>{getFieldError("birthdate")}</p>}
+
+              {/* Server Error Banner */}
+              {serverError && (
+                <div role="alert" className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 flex gap-3">
+                  <svg className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                  </svg>
+                  <p className="text-sm text-red-600 font-medium">{serverError}</p>
                 </div>
-                <div>
-                  <label htmlFor="gender" className={labelClasses}>Gender *</label>
-                  <select id="gender" name="gender" value={formData.gender} onChange={handleChange} className={`${inputClasses} ${errorRing("gender")}`}>
-                    <option value="" disabled>Select Gender</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Prefer not to say">Prefer not to say</option>
-                  </select>
-                  {getFieldError("gender") && <p className={errorClasses}>{getFieldError("gender")}</p>}
-                </div>
-                <div>
-                  <label htmlFor="appliedType" className={labelClasses}>Commuter Type *</label>
-                  <select id="appliedType" name="appliedType" value={formData.appliedType} onChange={handleChange} className={`${inputClasses} ${errorRing("applied_type")}`}>
-                    <option value="" disabled>Select Type</option>
-                    {COMMUTER_TYPE_OPTIONS.map(opt => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
-                  {getFieldError("applied_type") && <p className={errorClasses}>{getFieldError("applied_type")}</p>}
-                </div>
+              )}
+            </>
+          }
+          footer={
+            <>
+              {/* Navigation Buttons */}
+              <div className={styles.navigation}>
+                {step > 1 && (
+                  <button
+                    type="button"
+                    onClick={handlePrev}
+                    disabled={isLoading || isSendingCode || isVerifyingCode}
+                    className={styles.backButton}
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+                    </svg>
+                    Back
+                  </button>
+                )}
+
+                {step === 3 ? (
+                  <button
+                    key="nav-verify"
+                    type="button"
+                    onClick={handleVerifyCode}
+                    disabled={isVerifyingCode || isSendingCode}
+                    className={styles.primaryButton}
+                  >
+                    {isVerifyingCode ? (
+                      <Spinner />
+                    ) : (
+                      <>
+                        Verify &amp; Continue
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                        </svg>
+                      </>
+                    )}
+                  </button>
+                ) : step < LAST_STEP ? (
+                  <button
+                    key="nav-next"
+                    type="button"
+                    onClick={handleNext}
+                    disabled={isSendingCode}
+                    className={styles.primaryButton}
+                  >
+                    {isSendingCode ? (
+                      <>
+                        <Spinner />
+                        Sending code…
+                      </>
+                    ) : (
+                      <>
+                        {step === 2 && !isEmailVerified ? "Send Code" : "Next Step"}
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                        </svg>
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    key="nav-submit"
+                    type="submit"
+                    disabled={isLoading}
+                    className={styles.primaryButton}
+                  >
+                    {isLoading ? <Spinner /> : "Create Account"}
+                  </button>
+                )}
+              </div>
+            </>
+          }
+        >
+          {/* STEP 1 — Personal Info */}
+          <Step key="1">
+            <div className={styles.personalGrid}>
+              <div>
+                <label htmlFor="firstName" className={labelClasses}>
+                  First Name *
+                </label>
+                <input id="firstName" name="firstName" type="text" value={formData.firstName} onChange={handleChange} className={`${inputClasses} ${errorRing("first_name")}`} placeholder="Juan" />
+                {getFieldError("first_name") && <p className={errorClasses}>{getFieldError("first_name")}</p>}
+              </div>
+              <div>
+                <label htmlFor="surname" className={labelClasses}>
+                  Surname *
+                </label>
+                <input id="surname" name="surname" type="text" value={formData.surname} onChange={handleChange} className={`${inputClasses} ${errorRing("surname")}`} placeholder="Dela Cruz" />
+                {getFieldError("surname") && <p className={errorClasses}>{getFieldError("surname")}</p>}
+              </div>
+              <div>
+                <label htmlFor="middleName" className={labelClasses}>
+                  Middle Name <span className={styles.optional}>Optional</span>
+                </label>
+                <input id="middleName" name="middleName" type="text" value={formData.middleName} onChange={handleChange} className={inputClasses} placeholder="Santos" />
+              </div>
+              <div>
+                <label htmlFor="suffix" className={labelClasses}>
+                  Suffix
+                </label>
+                <select id="suffix" name="suffix" value={formData.suffix} onChange={handleChange} className={inputClasses}>
+                  <option value="">None</option>
+                  {SUFFIX_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="birthdate" className={labelClasses}>
+                  Birthdate *
+                </label>
+                <AdminDatePicker
+                  id="birthdate"
+                  value={formData.birthdate}
+                  onChange={(birthdate) => {
+                    setFormData((previous) => ({ ...previous, birthdate }));
+                    setFieldErrors((previous) => {
+                      const next = { ...previous };
+                      delete next.birthdate;
+                      return next;
+                    });
+                  }}
+                  ariaLabel="Birthdate"
+                  invalid={Boolean(getFieldError("birthdate"))}
+                  errorId="signup-birthdate-error"
+                  clearLabel="Clear birthdate"
+                  popover
+                  yearNavigation
+                  className={styles.datePicker}
+                  triggerClassName={`${inputClasses} ${styles.dateTrigger} ${errorRing("birthdate")}`}
+                />
+                <input name="birthdate" type="hidden" value={formData.birthdate} />
+                {getFieldError("birthdate") && <p id="signup-birthdate-error" className={errorClasses}>{getFieldError("birthdate")}</p>}
+              </div>
+              <div>
+                <label htmlFor="gender" className={labelClasses}>
+                  Gender *
+                </label>
+                <select id="gender" name="gender" value={formData.gender} onChange={handleChange} className={`${inputClasses} ${errorRing("gender")}`}>
+                  <option value="" disabled>
+                    Select Gender
+                  </option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Prefer not to say">Prefer not to say</option>
+                </select>
+                {getFieldError("gender") && <p className={errorClasses}>{getFieldError("gender")}</p>}
+              </div>
+              <div>
+                <label htmlFor="appliedType" className={labelClasses}>
+                  Commuter Type *
+                </label>
+                <select id="appliedType" name="appliedType" value={formData.appliedType} onChange={handleChange} className={`${inputClasses} ${errorRing("applied_type")}`}>
+                  <option value="" disabled>
+                    Select Type
+                  </option>
+                  {COMMUTER_TYPE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                {getFieldError("applied_type") && <p className={errorClasses}>{getFieldError("applied_type")}</p>}
               </div>
             </div>
-          )}
+          </Step>
 
           {/* STEP 2 — Contact + ID Upload */}
-          {step === 2 && (
-            <div className="space-y-6 animate-in fade-in">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <Step key="2">
+            <div className={styles.stepFields}>
+              <div className={styles.contactFields}>
                 <div>
-                  <label htmlFor="email" className={labelClasses}>Email Address *</label>
+                  <label htmlFor="email" className={labelClasses}>
+                    Email Address *
+                  </label>
                   <input id="email" name="email" type="email" value={formData.email} onChange={handleChange} className={`${inputClasses} ${errorRing("email")}`} placeholder="juandelacruz@gmail.com" />
                   {getFieldError("email") && <p className={errorClasses}>{getFieldError("email")}</p>}
                   {isEmailVerified ? (
@@ -649,33 +767,45 @@ export default function SignupForm() {
                   )}
                 </div>
                 <div>
-                  <label htmlFor="contactNumber" className={labelClasses}>Contact Number *</label>
-                  <input id="contactNumber" name="contactNumber" type="tel" value={formData.contactNumber} onChange={handleChange} maxLength={11} className={`${inputClasses} ${errorRing("contact_number")}`} placeholder="09171234567" />
+                  <label htmlFor="contactNumber" className={labelClasses}>
+                    Contact Number *
+                  </label>
+                  <input
+                    id="contactNumber"
+                    name="contactNumber"
+                    type="tel"
+                    value={formData.contactNumber}
+                    onChange={handleChange}
+                    maxLength={11}
+                    className={`${inputClasses} ${errorRing("contact_number")}`}
+                    placeholder="09171234567"
+                  />
                   {getFieldError("contact_number") && <p className={errorClasses}>{getFieldError("contact_number")}</p>}
                 </div>
               </div>
               <div>
-                <label className={labelClasses}>
-                  {formData.appliedType === "REGULAR" && !idNeeded
-                    ? "Upload Valid ID (optional)"
-                    : formData.appliedType ? ID_UPLOAD_LABELS[formData.appliedType] : "Valid ID Upload *"}
-                </label>
+                <label className={labelClasses}>{formData.appliedType === "REGULAR" && !idNeeded ? "Upload Valid ID (optional)" : formData.appliedType ? ID_UPLOAD_LABELS[formData.appliedType] : "Valid ID Upload *"}</label>
                 <div
                   role="button"
                   tabIndex={0}
                   onClick={() => setShowIdOptions(true)}
-                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowIdOptions(true); } }}
-                  className={`group relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-2xl transition-all duration-300 cursor-pointer ${
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setShowIdOptions(true);
+                    }
+                  }}
+                  className={`${styles.uploadArea} group ${
                     fileError ? "border-red-300 bg-red-50" : fileName ? "border-green-400 bg-green-50 hover:bg-green-100" : "border-[#1A5FB4]/30 bg-[#F8FAFC] hover:bg-[#F0F7FF]"
                   }`}
                 >
                   {/*
-                    fileInputRef.current.click() (fired by the "Upload an Image" button below)
-                    dispatches a real click event that bubbles up through this input's ancestors
-                    — including the container div's onClick — undoing the setShowIdOptions(false)
-                    that same button just set. Stop it here so a completed upload doesn't
-                    immediately reopen the overlay.
-                  */}
+                      fileInputRef.current.click() (fired by the "Upload an Image" button below)
+                      dispatches a real click event that bubbles up through this input's ancestors
+                      — including the container div's onClick — undoing the setShowIdOptions(false)
+                      that same button just set. Stop it here so a completed upload doesn't
+                      immediately reopen the overlay.
+                    */}
                   <input ref={fileInputRef} id="validId" name="validId" type="file" accept="image/jpeg,image/jpg,image/png,image/webp" onChange={handleFileChange} onClick={(e) => e.stopPropagation()} className="hidden" />
                   {fileName ? (
                     <>
@@ -695,35 +825,48 @@ export default function SignupForm() {
                   )}
 
                   {/*
-                    Blurred choice overlay — click the box, pick how to provide the ID.
-                    Once an ID is already uploaded, the success state (checkmark + filename)
-                    is what's shown at rest; this overlay only reappears on hover (or a
-                    click, for touch devices without hover) so it doesn't cover the
-                    confirmation that the upload succeeded.
-                  */}
+                      Blurred choice overlay — click the box, pick how to provide the ID.
+                      Once an ID is already uploaded, the success state (checkmark + filename)
+                      is what's shown at rest; this overlay only reappears on hover (or a
+                      click, for touch devices without hover) so it doesn't cover the
+                      confirmation that the upload succeeded.
+                    */}
                   {(showIdOptions || fileName) && (
                     <div
                       className={`absolute inset-0 rounded-2xl backdrop-blur-md bg-white/70 flex flex-col items-center justify-center gap-3 px-6 transition-opacity duration-200 ${
-                        fileName && !showIdOptions
-                          ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
-                          : "opacity-100"
+                        fileName && !showIdOptions ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto" : "opacity-100"
                       }`}
-                      onClick={(e) => { e.stopPropagation(); setShowIdOptions(false); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowIdOptions(false);
+                      }}
                     >
                       <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); setShowIdOptions(false); setShowIdCamera(true); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowIdOptions(false);
+                          setShowIdCamera(true);
+                        }}
                         className="w-full max-w-xs flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-colors shadow-md shadow-[#1A5FB4]/20"
                       >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.174C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.174C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z"
+                          />
                           <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
                         </svg>
                         Take a Picture of Your ID
                       </button>
                       <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); setShowIdOptions(false); fileInputRef.current?.click(); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowIdOptions(false);
+                          fileInputRef.current?.click();
+                        }}
                         className="w-full max-w-xs flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold bg-white text-[#1A5FB4] border border-[#1A5FB4]/30 hover:bg-[#F0F7FF] transition-colors"
                       >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -738,19 +881,19 @@ export default function SignupForm() {
                 {getFieldError("id_image") && <p className={errorClasses}>{getFieldError("id_image")}</p>}
                 <p className="text-xs text-gray-400 mt-2">A valid ID is required for all registrations. Student, Senior, or PWD selections require a matching valid ID.</p>
               </div>
-
-              {showIdCamera && (
-                <IdCaptureModal onCapture={handleIdCapture} onClose={() => setShowIdCamera(false)} />
-              )}
             </div>
-          )}
+          </Step>
 
           {/* STEP 3 — Email Verification */}
-          {step === 3 && (
-            <div className="space-y-6 animate-in fade-in">
-              <div className="p-4 rounded-xl bg-[#F0F7FF] border border-[#1A5FB4]/20 flex gap-3">
+          <Step key="3">
+            <div className={styles.stepFields}>
+              <div className={styles.emailNotice}>
                 <svg className="w-5 h-5 text-[#1A5FB4] flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75"
+                  />
                 </svg>
                 <div className="min-w-0">
                   <p className="text-sm text-gray-700">
@@ -768,10 +911,13 @@ export default function SignupForm() {
               <div>
                 <label className={labelClasses}>6-Digit Code *</label>
                 {/* Checked on submit only — typing the last digit must not
-                    turn the row red before the user has asked us to look. */}
+                      turn the row red before the user has asked us to look. */}
                 <CodeInput
                   value={code}
-                  onChange={(next) => { setCode(next); setCodeError(null); }}
+                  onChange={(next) => {
+                    setCode(next);
+                    setCodeError(null);
+                  }}
                   disabled={isVerifyingCode || isSendingCode}
                   hasError={Boolean(codeError)}
                 />
@@ -779,38 +925,35 @@ export default function SignupForm() {
                 {!codeError && codeNote && <p className="text-sm text-gray-500 mt-1.5">{codeNote}</p>}
               </div>
 
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+              <div className={styles.resendRow}>
                 <span className="text-gray-500">Didn&apos;t get the email?</span>
                 {resendIn > 0 ? (
                   <span className="text-gray-400 tabular-nums">Resend available in {resendIn}s</span>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => requestCode(true)}
-                    disabled={isSendingCode}
-                    className="font-semibold text-[#1A5FB4] hover:text-[#164A8F] disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
+                  <button type="button" onClick={() => requestCode(true)} disabled={isSendingCode} className="font-semibold text-[#1A5FB4] hover:text-[#164A8F] disabled:opacity-60 disabled:cursor-not-allowed">
                     {isSendingCode ? "Sending…" : "Send a new code"}
                   </button>
                 )}
               </div>
 
-              <p className="text-xs text-gray-400">
-                Check your spam folder if it hasn&apos;t arrived after a minute. The code expires 15 minutes after it&apos;s sent.
-              </p>
+              <p className="text-xs text-gray-400">Check your spam folder if it hasn&apos;t arrived after a minute. The code expires 15 minutes after it&apos;s sent.</p>
             </div>
-          )}
+          </Step>
 
           {/* STEP 4 — Credentials */}
-          {step === 4 && (
-            <div className="space-y-6 animate-in fade-in">
+          <Step key="4">
+            <div className={styles.stepFields}>
               <div>
-                <label htmlFor="username" className={labelClasses}>Username *</label>
+                <label htmlFor="username" className={labelClasses}>
+                  Username *
+                </label>
                 <input id="username" name="username" type="text" value={formData.username} onChange={handleChange} className={`${inputClasses} ${errorRing("username")}`} placeholder="juandelacruz_01" />
                 {getFieldError("username") && <p className={errorClasses}>{getFieldError("username")}</p>}
               </div>
               <div>
-                <label htmlFor="password" className={labelClasses}>Password *</label>
+                <label htmlFor="password" className={labelClasses}>
+                  Password *
+                </label>
                 <div className="relative">
                   <input
                     id="password"
@@ -829,11 +972,19 @@ export default function SignupForm() {
                   >
                     {showPassword ? (
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243" />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243"
+                        />
                       </svg>
                     ) : (
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178Z" />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178Z"
+                        />
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
                       </svg>
                     )}
@@ -842,7 +993,7 @@ export default function SignupForm() {
                 {getFieldError("password") && <p className={errorClasses}>{getFieldError("password")}</p>}
 
                 {/* Live requirement checklist */}
-                <ul className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+                <ul className={styles.passwordRules}>
                   {PASSWORD_RULES.map((rule) => {
                     const met = rule.test(formData.password);
                     return (
@@ -863,59 +1014,32 @@ export default function SignupForm() {
                 </ul>
               </div>
               <div>
-                <label htmlFor="confirmPassword" className={labelClasses}>Confirm Password *</label>
-                <input id="confirmPassword" name="confirmPassword" type={showPassword ? "text" : "password"} value={formData.confirmPassword} onChange={handleChange} className={`${inputClasses} ${errorRing("password_confirmation")}`} placeholder="••••••••" />
+                <label htmlFor="confirmPassword" className={labelClasses}>
+                  Confirm Password *
+                </label>
+                <input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type={showPassword ? "text" : "password"}
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  className={`${inputClasses} ${errorRing("password_confirmation")}`}
+                  placeholder="••••••••"
+                />
                 {getFieldError("password_confirmation") && <p className={errorClasses}>{getFieldError("password_confirmation")}</p>}
               </div>
             </div>
-          )}
-        </div>
-
-        {/* Navigation Buttons */}
-        <div className="mt-10 flex gap-4">
-          {step > 1 && (
-            <button type="button" onClick={handlePrev} disabled={isLoading || isSendingCode || isVerifyingCode} className="flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-xl text-base font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors disabled:opacity-60">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>
-              Back
-            </button>
-          )}
-
-          {step === 3 ? (
-            <button key="nav-verify" type="button" onClick={handleVerifyCode} disabled={isVerifyingCode || isSendingCode} className="flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-xl text-base font-semibold bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-colors shadow-md shadow-[#1A5FB4]/20 disabled:opacity-70 disabled:cursor-not-allowed">
-              {isVerifyingCode ? (
-                <Spinner />
-              ) : (
-                <>
-                  Verify &amp; Continue
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
-                </>
-              )}
-            </button>
-          ) : step < LAST_STEP ? (
-            <button key="nav-next" type="button" onClick={handleNext} disabled={isSendingCode} className="flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-xl text-base font-semibold bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-colors shadow-md shadow-[#1A5FB4]/20 disabled:opacity-70 disabled:cursor-not-allowed">
-              {isSendingCode ? (
-                <>
-                  <Spinner />
-                  Sending code…
-                </>
-              ) : (
-                <>
-                  {step === 2 && !isEmailVerified ? "Send Code" : "Next Step"}
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
-                </>
-              )}
-            </button>
-          ) : (
-            <button key="nav-submit" type="submit" disabled={isLoading} className="flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-xl text-base font-semibold bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-colors shadow-md shadow-[#1A5FB4]/20 disabled:opacity-70 disabled:cursor-not-allowed">
-              {isLoading ? <Spinner /> : "Create Account"}
-            </button>
-          )}
-        </div>
+          </Step>
+        </Stepper>
       </form>
 
-      <p className="mt-8 text-center text-base text-gray-500">
+      {showIdCamera && <IdCaptureModal onCapture={handleIdCapture} onClose={() => setShowIdCamera(false)} />}
+
+      <p className={styles.accountPrompt}>
         Already have an account?{" "}
-        <Link href="/login" className="font-semibold text-[#1A5FB4] hover:text-[#164A8F]">Sign in instead</Link>
+        <Link href="/login" replace scroll={false} className="font-semibold text-[#1A5FB4] hover:text-[#164A8F]">
+          Sign in instead
+        </Link>
       </p>
     </div>
   );

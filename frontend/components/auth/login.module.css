@@ -147,6 +147,7 @@
 .close:hover { background: #f0f7ff; color: var(--login-blue); }
 .close:disabled { opacity: .5; cursor: wait; }
 .modalForm { padding: 24px 32px 28px; }
+.loginEntrance { padding: 3px; }
 .modalContext { background: var(--login-navy); color: white; }
 .modalContext summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 64px; padding: 18px 32px; list-style: none; font-size: 13px; line-height: 1.6; cursor: pointer; transition: background-color 160ms ease; }
 .modalContext summary:hover { background: rgb(255 255 255 / .05); }
@@ -177,9 +178,6 @@
 .modalRouteCaption { margin-top: 8px; font-size: 12px; }
 .modalContextBody ul { list-style: none; padding: 0; margin-top: 20px; }
 .modalContextBody li { padding-block: 10px; border-top: 1px solid rgb(255 255 255 / .15); }
-.recoverySteps { display: flex; gap: 12px; margin-top: 20px; padding: 0; list-style: none; }
-.recoverySteps li { flex: 1; padding-bottom: 8px; border-bottom: 2px solid #cbd5e1; color: var(--login-muted); font-size: 11px; text-align: center; }
-.recoverySteps li[aria-current="step"], .recoverySteps li[data-complete="true"] { border-color: var(--login-blue); color: var(--login-blue); font-weight: 500; }
 .recoveryHelp { margin-top: 16px; color: var(--login-muted); font-size: 12px; line-height: 1.8; text-align: center; overflow-wrap: anywhere; }
 .recoveryHelp strong { font-weight: 500; }
 .recoveryCode { text-align: center; font-variant-numeric: tabular-nums; letter-spacing: .3em; }
@@ -259,8 +257,6 @@
   .modal .registration { margin-top: 20px; padding-top: 18px; border-color: rgb(255 255 255 / .14); color: rgb(255 255 255 / .7); font-size: 12px; text-align: center; }
   .modal .error { margin-top: 20px; border-color: rgb(239 68 68 / .4); background: rgb(239 68 68 / .1); color: #fecaca; }
   .modal .suspended { border-color: rgb(245 158 11 / .4); background: rgb(245 158 11 / .1); color: #fde68a; }
-  .modal .recoverySteps li { border-color: rgb(255 255 255 / .23); color: rgb(255 255 255 / .7); }
-  .modal .recoverySteps li[aria-current="step"], .modal .recoverySteps li[data-complete="true"] { border-color: var(--login-sky); color: var(--login-sky); }
   .modal .recoveryHelp { color: rgb(255 255 255 / .7); }
   .modal .recoveryNote, .modal .recoverySuccess { color: var(--login-sky); }
   .modal .recoveryLogin { margin-top: 24px; }
@@ -296,10 +292,58 @@
   .darkModal .registration { border-color: rgb(255 255 255 / .14); color: rgb(255 255 255 / .7); }
   .darkModal .error { border-color: rgb(239 68 68 / .4); background: rgb(239 68 68 / .1); color: #fecaca; }
   .darkModal .suspended { border-color: rgb(245 158 11 / .4); background: rgb(245 158 11 / .1); color: #fde68a; }
-  .darkModal .recoverySteps li { border-color: rgb(255 255 255 / .23); color: rgb(255 255 255 / .7); }
-  .darkModal .recoverySteps li[aria-current="step"], .darkModal .recoverySteps li[data-complete="true"] { border-color: var(--login-sky); color: var(--login-sky); }
+}
+@media (max-width: 1023px) {
+  .darkModal .formHeading, .darkModal .formIntro, .darkModal .registration { text-align: center; }
+  .darkModal .submit { justify-content: center; gap: 12px; }
+}
+@media (max-width: 480px) {
+  .darkModal .formHeading { font-size: 24px; }
+  .darkModal .formIntro { font-size: 13px; }
+  .darkModal .modalBrand { font-size: 14px; }
+  .darkModal .label, .darkModal .fieldLabel, .darkModal .registration { font-size: 12px; }
+  .darkModal .submit { font-size: 14px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .shell *, .shell *::before, .shell *::after { animation: none; transition: none; }
   .modal, .modal::backdrop, .modalContext::details-content { transition: none; }
+}
+
+.recoveryFlow { min-width: 0; }
+.recoveryHeading { margin-bottom: 24px; }
+.recoveryFields { display: grid; gap: 20px; margin: 0; min-width: 0; }
+.recoveryFields .recoveryHelp { margin: 0; }
+.recoveryFlow .recoverySubmit { margin-top: 24px; justify-content: center; gap: 12px; }
+.recoveryStepLabel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 36px;
+  padding: 7px 8px;
+  border: 1px solid rgb(255 255 255 / .12);
+  border-radius: 999px;
+  background: rgb(255 255 255 / .035);
+  color: rgb(255 255 255 / .6);
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+  white-space: normal;
+  transition: background 180ms ease, color 180ms ease, border-color 180ms ease;
+}
+.recoveryStepLabel[data-complete="true"] { color: var(--login-sky); border-color: rgb(98 160 234 / .35); }
+.recoveryStepLabel[aria-current="step"] { color: #9fc5f4; background: rgb(98 160 234 / .14); border-color: rgb(98 160 234 / .55); }
+.recoveryFlow :global(.react-bits-stepper.outer-container) { --step-accent: var(--login-sky); padding: 0; min-height: 0; aspect-ratio: auto; display: block; flex: 0 0 auto; }
+.recoveryFlow :global(.react-bits-stepper .step-circle-container) { max-width: none; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.recoveryFlow :global(.react-bits-stepper .step-indicator-row) { display: grid; grid-template-columns: minmax(0, 1fr) 8px minmax(0, 1fr) 8px minmax(0, 1fr); column-gap: 6px; align-items: stretch; padding: 0 0 22px; }
+.recoveryFlow :global(.react-bits-stepper .step-default) { padding: 3px; }
+.recoveryFlow :global(.react-bits-stepper .step-connector) { min-width: 0; margin-inline: 0; align-self: center; height: 1px; background: rgb(255 255 255 / .14); }
+@media (max-width: 480px) {
+  .recoveryStepLabel { padding-inline: 6px; font-size: 10px; }
+  .recoveryHeading { margin-bottom: 20px; }
+  .recoveryFields { gap: 16px; }
+  .recoveryFlow .recoverySubmit { margin-top: 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .recoveryStepLabel { transition: none; }
 }

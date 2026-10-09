@@ -7,7 +7,7 @@ import { X } from "lucide-react";
 import logo from "../../assets/logo-transparent.png";
 import styles from "./login.module.css";
 
-export default function AuthModal({ children, footer, busy, headingId, descriptionId, closeLabel, focusSelector, standalone = false, className = "" }: {
+export default function AuthModal({ children, footer, busy, headingId, descriptionId, closeLabel, focusSelector, standalone = false, dismissHref, className = "", headerClassName = "", contentClassName = "" }: {
   children: ReactNode;
   footer?: ReactNode;
   busy: boolean;
@@ -16,7 +16,10 @@ export default function AuthModal({ children, footer, busy, headingId, descripti
   closeLabel: string;
   focusSelector: string;
   standalone?: boolean;
+  dismissHref?: string;
   className?: string;
+  headerClassName?: string;
+  contentClassName?: string;
 }) {
   const router = useRouter();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -47,7 +50,7 @@ export default function AuthModal({ children, footer, busy, headingId, descripti
 
   const dismiss = () => {
     if (busy) return;
-    if (standalone) router.replace("/");
+    if (dismissHref || standalone) router.replace(dismissHref ?? "/");
     else router.back();
   };
 
@@ -66,7 +69,7 @@ export default function AuthModal({ children, footer, busy, headingId, descripti
       }}
     >
       <div>
-        <div className={styles.modalHeader}>
+        <div className={`${styles.modalHeader} ${headerClassName}`}>
           <div className={styles.modalBrand}>
             <Image src={logo} alt="" width={32} height={32} />
             <span>CHATCO</span>
@@ -75,7 +78,7 @@ export default function AuthModal({ children, footer, busy, headingId, descripti
             <X size={20} aria-hidden="true" />
           </button>
         </div>
-        <div className={styles.modalForm}>{children}</div>
+        <div className={`${styles.modalForm} ${contentClassName}`}>{children}</div>
         {footer}
       </div>
     </dialog>

@@ -140,7 +140,7 @@ export default function LoginForm({ onBusyChange }: { onBusyChange?: (busy: bool
       {/* Footer Link */}
       <p className={styles.registration}>
         Don&apos;t have an account?{" "}
-        <Link href="/signup" className={styles.textLink}>
+        <Link href="/signup" scroll={false} className={styles.textLink}>
           Create an account
         </Link>
       </p>

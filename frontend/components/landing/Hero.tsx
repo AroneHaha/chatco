@@ -2,6 +2,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import heroLaptop from "../../assets/hero-laptop.png";
@@ -9,7 +10,7 @@ import heroPhone from "../../assets/hero-phone.png";
 
 export default function Hero() {
   return (
-    <header className="relative overflow-hidden bg-[#071A2E] font-sans pt-32 pb-20 lg:pt-0 lg:pb-0 lg:min-h-screen lg:flex lg:items-center">
+    <header className="relative overflow-hidden bg-[#071A2E] font-sans pt-24 pb-10 sm:pt-32 sm:pb-20 lg:pt-0 lg:pb-0 lg:min-h-screen lg:flex lg:items-center">
       {/* Faint structural texture only — no blurred color blobs on the copy side. */}
       <div
         className="absolute inset-0 opacity-[0.03] pointer-events-none"
@@ -22,31 +23,35 @@ export default function Hero() {
       <div className="relative z-10 w-full max-w-7xl mx-auto px-5 md:px-8 lg:pt-20">
         <div className="grid lg:grid-cols-2 xl:grid-cols-[0.85fr_1.15fr] gap-12 lg:gap-16 items-center">
           <motion.div
+            className="w-full max-w-md mx-auto text-center sm:max-w-xl lg:max-w-none lg:mx-0 lg:text-left"
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
           >
-            <h1 className="font-sans font-bold text-white leading-[1.02] tracking-[-0.035em] text-5xl sm:text-6xl lg:text-[52px] xl:text-[64px]">
+            <p className="mb-5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#62A0EA] lg:hidden">
+              Built for your daily commute
+            </p>
+            <h1 className="font-sans font-bold text-white leading-[1.1] lg:leading-[1.02] tracking-[-0.035em] text-[clamp(2rem,9vw,3rem)] sm:text-6xl lg:text-[52px] xl:text-[64px]">
               The Future of <br />
               <span className="text-[#62A0EA]">Jeepney Rides.</span>
             </h1>
 
-            <div className="mt-10 lg:mt-11 h-px w-24 bg-white/15" />
+            <div className="hidden lg:block mt-11 h-px w-24 bg-white/15" />
 
-            <p className="mt-8 max-w-md text-lg text-white/60 leading-[1.7]">
+            <p className="mt-5 mx-auto max-w-md text-sm sm:text-base lg:mx-0 lg:mt-8 lg:text-lg text-white/60 leading-[1.7]">
               Experience seamless commuting with real-time tracking, cashless QR payments, and smart safety features—all in your pocket.
             </p>
 
-            <div className="mt-8 lg:mt-9 flex items-center gap-8 shrink-0">
-              <a
-                href="/signup"
-                className="inline-flex items-center justify-center px-8 py-4 rounded-full text-base font-semibold bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-all shadow-xl shadow-[#1A5FB4]/30 hover:shadow-2xl hover:shadow-[#1A5FB4]/40"
+            <div className="mt-7 grid grid-cols-1 gap-3 sm:flex sm:items-center sm:justify-center lg:justify-start lg:mt-9 lg:gap-8 shrink-0">
+              <Link
+                href="/signup" scroll={false}
+                className="inline-flex items-center justify-center min-h-12 px-6 py-3 rounded-xl text-sm font-semibold whitespace-nowrap sm:px-8 lg:min-h-0 lg:py-4 lg:rounded-full lg:text-base bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-all shadow-xl shadow-[#1A5FB4]/30 hover:shadow-2xl hover:shadow-[#1A5FB4]/40 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#62A0EA]"
               >
                 Create Account
-              </a>
+              </Link>
               <a
                 href="#features"
-                className="group inline-flex items-center gap-2 text-base font-medium text-white/70 hover:text-white transition-colors"
+                className="group inline-flex items-center justify-center gap-2 min-h-12 px-6 py-3 rounded-xl border border-white/15 text-sm font-medium whitespace-nowrap lg:min-h-0 lg:p-0 lg:rounded-none lg:border-0 lg:text-base text-white/70 hover:text-white transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#62A0EA]"
               >
                 Learn more
                 <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
@@ -54,7 +59,7 @@ export default function Hero() {
             </div>
 
             {/* The real, confirmed pilot corridor (PRODUCT.md). */}
-            <div className="mt-14 lg:mt-16 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-white/40">
+            <div className="mt-7 pt-6 border-t border-white/10 flex flex-wrap items-center justify-center gap-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/40 lg:mt-16 lg:pt-0 lg:border-0 lg:justify-start lg:text-xs lg:tracking-[0.2em]">
               <span>Calumpit</span>
               <span className="w-8 h-px bg-white/20" />
               <span>Meycauayan</span>

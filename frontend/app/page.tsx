@@ -17,7 +17,7 @@ import Reveal from "@/components/landing/Reveal";
 
 export default function Home() {
   return (
-    <main className="font-sans">
+    <main className="font-sans overflow-x-clip">
       {/* Lenis + GSAP smooth-scroll layer (landing only; respects reduced motion) */}
       <SmoothScroll />
       <Navbar />
