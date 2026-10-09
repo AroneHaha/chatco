@@ -102,8 +102,8 @@ export function VehicleTable({
   ];
 
   return (
-    <div className="min-w-0 space-y-3 rounded-lg border border-[#1E2D45] bg-[#111A2B] p-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 rounded-lg border border-[#1E2D45] bg-[#111A2B] p-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
+      <div className="flex shrink-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <SearchBar
           placeholder="Search vehicles..."
           value={searchQuery}
@@ -120,30 +120,32 @@ export function VehicleTable({
           </button>
         </div>
       </div>
-      {isLoading ? (
-        <div className="h-[calc(100dvh-18rem)] min-h-64 overflow-hidden rounded-lg">
+      <div className="min-h-0 flex-1 overflow-hidden rounded-lg">
+        {isLoading ? (
           <SkeletonTable rows={8} columns={6} />
-        </div>
-      ) : (
-        <DataTable
-          data={vehicles}
-          columns={columns}
-          searchQuery=""
-          emptyMessage="No vehicles match your search."
-          height="calc(100dvh - 18rem)"
-          stickyHeader
-          onRowDoubleClick={onRowDoubleClick}
+        ) : (
+          <DataTable
+            data={vehicles}
+            columns={columns}
+            searchQuery=""
+            emptyMessage="No vehicles match your search."
+            height="100%"
+            stickyHeader
+            onRowDoubleClick={onRowDoubleClick}
+          />
+        )}
+      </div>
+      <div className="shrink-0">
+        <TablePagination
+          currentPage={page.currentPage}
+          totalPages={page.totalPages}
+          from={page.from}
+          to={page.to}
+          total={page.total}
+          label="vehicles"
+          onPageChange={onPageChange}
         />
-      )}
-      <TablePagination
-        currentPage={page.currentPage}
-        totalPages={page.totalPages}
-        from={page.from}
-        to={page.to}
-        total={page.total}
-        label="vehicles"
-        onPageChange={onPageChange}
-      />
+      </div>
     </div>
   );
 }

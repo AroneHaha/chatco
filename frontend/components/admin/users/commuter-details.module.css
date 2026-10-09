@@ -1,0 +1,107 @@
+@media (min-width: 1024px) {
+  .commuter .header {
+    padding-right: 32px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid #2a3a55;
+  }
+
+  .commuter .profile {
+    padding: 18px;
+    border: 1px solid #1e2d45;
+    border-radius: 8px;
+    background: #111a2b;
+  }
+
+  .commuter .avatar {
+    width: 56px;
+    height: 56px;
+    border-width: 1px;
+    border-color: rgb(98 160 234 / .25);
+    background: rgb(98 160 234 / .15);
+    color: #8cb9f0;
+    font-size: 22px;
+  }
+
+  .commuter .identity { min-width: 0; }
+  .commuter .name { overflow-wrap: anywhere; }
+  .commuter .profileMeta { margin-top: 8px; }
+  .commuter .accountId {
+    order: 1;
+    flex-basis: 100%;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+
+  .commuter .information { gap: 12px; }
+  .commuter .information > div {
+    min-width: 0;
+    align-items: flex-start;
+    padding: 16px;
+    border-radius: 8px;
+  }
+  .commuter .information > div > svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+    color: #62a0ea;
+  }
+  .commuter .information > div > div { min-width: 0; }
+  .commuter .information p:first-child {
+    color: #94a3b8;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .06em;
+  }
+  .commuter .information p + p {
+    margin-top: 6px;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.5;
+  }
+  .commuter .suspension { padding: 16px; border-radius: 8px; }
+  .commuter .actions {
+    justify-content: flex-end;
+    gap: 12px;
+    padding-top: 20px;
+    border-top: 1px solid #2a3a55;
+  }
+  .commuter .actions button { flex: 0 1 auto; min-height: 44px; padding-inline: 20px; }
+  .commuter .editAction { border-color: #62a0ea; background: #62a0ea; color: white; }
+  .commuter .editAction:hover { border-color: #4a8bd4; background: #4a8bd4; }
+  .commuter .actions button:focus-visible { outline: 2px solid #62a0ea; outline-offset: 3px; }
+
+  .commuter .header h2 { margin-bottom: 0; }
+  .commuter .editForm {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .commuter .editForm > div { margin-block: 0; }
+  .commuter .editForm .nameFields { display: contents; }
+  .commuter .editForm > div:not(.actions):not(.formError),
+  .commuter .nameFields > div {
+    min-width: 0;
+    padding: 16px;
+    border: 1px solid #1e2d45;
+    border-radius: 8px;
+    background: #0e1628;
+  }
+  .commuter .editForm label {
+    margin-bottom: 8px;
+    color: #94a3b8;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .commuter .editForm input {
+    min-height: 44px;
+    border-color: #2a3a55;
+    background: #111a2b;
+  }
+  .commuter .editForm input:disabled { cursor: not-allowed; }
+  .commuter .editForm input:focus { border-color: #62a0ea; }
+  .commuter .editForm .formError { grid-column: 1 / -1; }
+  .commuter .editForm .actions { grid-column: 1 / -1; margin-top: 8px; }
+}

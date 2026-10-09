@@ -74,6 +74,21 @@ class SendRemittanceReminders extends Command
                                     $remittance->shift_id,
                                     (float) $remittance->cash_total,
                                 ),
+                                $remittance->shift_id,
+                            );
+
+                            $overdueMinutes = max(1, (int) $remittance->remittance_due_at->diffInMinutes(now()));
+                            $this->announcements->notifyAdmins(
+                                'REMITTANCE_OVERDUE',
+                                'Overdue remittance',
+                                sprintf(
+                                    '%s on unit %s has PHP %.2f awaiting remittance (%d minutes overdue).',
+                                    $remittance->conductor_name,
+                                    $remittance->unit_number,
+                                    max(0, (float) $remittance->cash_total - (float) $remittance->remitted_amount),
+                                    $overdueMinutes,
+                                ),
+                                $remittance->shift_id,
                             );
 
                             $remittance->update([

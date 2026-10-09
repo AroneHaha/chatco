@@ -24,6 +24,7 @@ use App\Http\Controllers\Commuter\HailController;
 use App\Http\Controllers\Commuter\ShareRideController;
 use App\Http\Controllers\Commuter\SosController;
 use App\Http\Controllers\Commuter\VehicleLocationController;
+use App\Http\Controllers\Commuter\VehicleDetailsController;
 use App\Http\Controllers\Conductor\ConductorController;
 use App\Http\Controllers\Conductor\ConductorHailController;
 use App\Http\Controllers\Conductor\MobileTransactionController;
@@ -102,6 +103,7 @@ Route::middleware('auth:sanctum')->get('/user', [AuthController::class, 'user'])
 |--------------------------------------------------------------------------
 */
 Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(function () {
+    Route::get('/vehicles/{vehicle}/details', VehicleDetailsController::class)->middleware('throttle:conductor-read');
     Route::get('/profile', [CommuterController::class, 'profile'])->middleware('throttle:conductor-read');
     Route::put('/profile', [CommuterController::class, 'updateProfile'])->middleware('throttle:conductor-write');
     Route::post('/change-password/request-code', [CommuterController::class, 'requestPasswordChangeCode'])->middleware('throttle:conductor-write');

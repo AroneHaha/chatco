@@ -1,7 +1,8 @@
 // components/landing/Navbar.tsx
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
 import { Bus, Menu, X } from "lucide-react";
 import logo from "../../assets/logo-transparent.png";
@@ -19,6 +20,7 @@ const LINKS = [
 const MARKER = 18; // px, the jeepney marker's width
 
 export default function Navbar() {
+  const navRef = useRef<HTMLElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [active, setActive] = useState<string | null>(null);
@@ -29,6 +31,28 @@ export default function Navbar() {
   const { scrollYProgress } = useScroll();
   const markerLeft = useTransform(scrollYProgress, (v) => `calc((100% - ${MARKER}px) * ${v})`);
   const fillWidth = useTransform(scrollYProgress, (v) => `calc((100% - ${MARKER}px) * ${v} + ${MARKER / 2}px)`);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+
+    const updatePosition = () => {
+      const offset = window.matchMedia("(max-width: 1023px)").matches && viewport.scale === 1
+        ? Math.max(0, viewport.offsetTop)
+        : 0;
+      navRef.current?.style.setProperty("top", `${offset}px`);
+    };
+
+    updatePosition();
+    viewport.addEventListener("scroll", updatePosition, { passive: true });
+    viewport.addEventListener("resize", updatePosition, { passive: true });
+    window.addEventListener("resize", updatePosition, { passive: true });
+    return () => {
+      viewport.removeEventListener("scroll", updatePosition);
+      viewport.removeEventListener("resize", updatePosition);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, []);
 
   useEffect(() => {
     let raf = 0;
@@ -68,22 +92,39 @@ export default function Navbar() {
   useEffect(() => {
     if (!menuOpen) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMenuOpen(false);
+    const onOutsideInteraction = (event: Event) => {
+      if (event.target instanceof Node && !navRef.current?.contains(event.target)) {
+        setMenuOpen(false);
+      }
+    };
+    const onScroll = () => setMenuOpen(false);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    for (const type of ["pointerdown", "wheel", "touchmove"] as const) {
+      document.addEventListener(type, onOutsideInteraction, { capture: true, passive: true });
+    }
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScroll);
+      for (const type of ["pointerdown", "wheel", "touchmove"] as const) {
+        document.removeEventListener(type, onOutsideInteraction, true);
+      }
+    };
   }, [menuOpen]);
 
   const focus = "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#62A0EA]";
 
   return (
     <nav
+      ref={navRef}
       aria-label="Main"
-      className={`fixed top-0 inset-x-0 z-50 border-b transition-[background-color,border-color,box-shadow] duration-300 ease-out ${
+      className={`fixed top-0 inset-x-0 z-50 pt-safe lg:pt-0 border-b transition-[background-color,border-color,box-shadow] duration-300 ease-out ${
         scrolled || menuOpen
           ? "bg-[#071A2E]/92 backdrop-blur-xl border-white/10 shadow-lg shadow-black/20"
           : "bg-[#071A2E]/20 backdrop-blur-md border-transparent"
       }`}
     >
-      <div className={`max-w-7xl mx-auto px-5 md:px-8 flex items-center justify-between lg:grid lg:grid-cols-[auto_1fr_auto] xl:grid-cols-[1fr_auto_1fr] transition-[height] duration-300 ${scrolled ? "h-14" : "h-16"}`}>
+      <div className="max-w-7xl mx-auto px-5 md:px-8 flex items-center justify-between lg:grid lg:grid-cols-[auto_1fr_auto] xl:grid-cols-[1fr_auto_1fr] h-16">
         <a href="#" className={`flex items-center gap-3 shrink-0 rounded-md ${focus}`} aria-label="CHATCO, back to top">
           <Image src={logo} alt="" width={40} height={40} className="rounded-lg" priority />
           <span className="text-lg font-bold tracking-tight text-white">CHATCO</span>
@@ -116,18 +157,19 @@ export default function Navbar() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 lg:justify-self-end">
-          <a
+          <Link
             href="/login"
+            scroll={false}
             className={`hidden sm:inline-flex items-center whitespace-nowrap px-3 py-2 rounded-md text-sm font-medium text-white/70 hover:text-white hover:bg-white/5 transition-colors ${focus}`}
           >
             Log in
-          </a>
-          <a
-            href="/signup"
+          </Link>
+          <Link
+            href="/signup" scroll={false}
             className={`hidden sm:inline-flex items-center whitespace-nowrap px-4 py-2 rounded-full text-sm font-semibold bg-[#1A5FB4] text-white hover:bg-[#164A8F] shadow-sm shadow-[#1A5FB4]/25 transition-colors ${focus}`}
           >
             Create Account
-          </a>
+          </Link>
           <button
             type="button"
             onClick={() => setMenuOpen((o) => !o)}
@@ -176,7 +218,7 @@ export default function Navbar() {
                         href={`#${l.id}`}
                         onClick={() => setMenuOpen(false)}
                         aria-current={on ? "location" : undefined}
-                        className={`flex items-center justify-between py-4 font-sans text-2xl font-semibold tracking-tight transition-colors ${focus} ${
+                        className={`flex items-center justify-between py-4 font-sans text-base sm:text-lg font-semibold tracking-tight transition-colors ${focus} ${
                           on ? "text-[#62A0EA]" : "text-white"
                         }`}
                       >
@@ -188,20 +230,21 @@ export default function Navbar() {
                 })}
               </ul>
               <div className="mt-5 grid grid-cols-2 gap-3">
-                <a
+                <Link
                   href="/login"
+                  scroll={false}
                   onClick={() => setMenuOpen(false)}
-                  className={`text-center py-3.5 rounded-full border border-white/20 text-base font-semibold text-white hover:bg-white/5 transition-colors ${focus}`}
+                  className={`text-center py-3.5 rounded-full border border-white/20 text-sm sm:text-base font-semibold text-white hover:bg-white/5 transition-colors ${focus}`}
                 >
                   Log in
-                </a>
-                <a
-                  href="/signup"
+                </Link>
+                <Link
+                  href="/signup" scroll={false}
                   onClick={() => setMenuOpen(false)}
-                  className={`text-center py-3.5 rounded-full bg-[#1A5FB4] text-base font-bold text-white hover:bg-[#164A8F] transition-colors ${focus}`}
+                  className={`text-center py-3.5 rounded-full bg-[#1A5FB4] text-sm sm:text-base font-bold text-white hover:bg-[#164A8F] transition-colors ${focus}`}
                 >
                   Create Account
-                </a>
+                </Link>
               </div>
             </div>
           </motion.div>

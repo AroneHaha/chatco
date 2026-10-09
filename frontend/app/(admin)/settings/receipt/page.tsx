@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Save, AlertCircle, Printer } from 'lucide-react';
+import { Save, AlertCircle, Printer, Check } from 'lucide-react';
 import { defaultReceiptConfig, type ReceiptConfig } from '@/app/(admin)/settings/data/settings-data';
 import { getSettings, updateSetting } from '@/lib/admin/services/setting.service';
 
@@ -43,6 +43,7 @@ export default function ReceiptSettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeView, setActiveView] = useState<'settings' | 'preview'>('settings');
 
   const fetchSettings = useCallback(async () => {
     setIsLoading(true);
@@ -105,91 +106,111 @@ export default function ReceiptSettingsPage() {
     }
   };
 
-  const inputClasses = 'block w-full px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors';
-  const labelClasses = 'block text-xs font-medium text-slate-300 mb-1.5';
+  const inputClasses = 'block h-11 w-full rounded-lg border border-[#23344F] bg-[#0E1628] px-3 text-base text-white placeholder-slate-500 outline-none transition-colors focus:border-[#62A0EA] focus:ring-2 focus:ring-[#62A0EA]/20 @sm:text-sm';
+  const labelClasses = 'mb-2 block text-sm font-medium text-slate-300';
+  const sectionClasses = 'min-w-0 rounded-xl border border-[#1E2D45] bg-[#111A2B] p-4 @sm:p-5';
 
   if (isLoading) {
     return (
-      <div className="min-h-screen pb-12 px-4 sm:px-6">
-        <div className="mx-auto w-full max-w-5xl space-y-6">
-          <div className="h-8 w-56 rounded bg-gray-700 animate-pulse mx-auto" />
-          <div className="h-96 bg-[#131C2E] border border-[#1E2D45] rounded-lg animate-pulse" />
+      <div className="p-4 sm:p-6" role="status" aria-label="Loading receipt settings">
+        <div className="mx-auto w-full max-w-5xl animate-pulse space-y-4">
+          <div className="h-7 w-48 rounded bg-[#1E2D45]" />
+          <div className="h-60 rounded-xl border border-[#1E2D45] bg-[#111A2B]" />
+          <div className="h-40 rounded-xl border border-[#1E2D45] bg-[#111A2B]" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen pb-12 px-4 sm:px-6">
-      <div className="mx-auto w-full max-w-5xl space-y-6">
-        <div className="text-center">
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">Receipt</h1>
-          <p className="text-sm text-slate-400 mt-1">Controls the fare receipt printed on the thermal printer after each successful transaction.</p>
+    <div className="@container min-w-0 px-4 sm:px-6">
+      <div className="mx-auto w-full max-w-5xl space-y-5 pt-5">
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#62A0EA]/20 bg-[#62A0EA]/10 text-[#62A0EA]">
+            <Printer size={20} aria-hidden="true" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold text-white">Receipt settings</h1>
+            <p className="mt-1 text-sm leading-relaxed text-slate-400">Customize the receipt passengers receive after a payment.</p>
+          </div>
         </div>
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-center gap-2">
+          <div role="alert" className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-center gap-2">
             <AlertCircle size={16} className="text-red-400 flex-shrink-0" />
             <p className="text-sm text-red-400">{error}</p>
           </div>
         )}
 
-        <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-6 items-start">
+        <div role="group" aria-label="Receipt settings view" className="flex rounded-lg border border-[#1E2D45] bg-[#0E1628] p-1 @[48rem]:hidden">
+          {(['settings', 'preview'] as const).map((view) => (
+            <button key={view} type="button" aria-pressed={activeView === view} aria-controls={`receipt-${view}-panel`} onClick={() => setActiveView(view)} className={`min-h-11 flex-1 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]/50 ${activeView === view ? 'bg-[#62A0EA]/15 text-[#8CB9F0]' : 'text-slate-400 hover:text-white'}`}>
+              {view === 'settings' ? 'Settings' : 'Preview'}
+            </button>
+          ))}
+        </div>
+
+        <form onSubmit={handleSave} className="grid grid-cols-1 gap-5 items-start @[48rem]:grid-cols-[minmax(0,1fr)_20rem]">
           {/* ── Settings column ── */}
-          <div className="space-y-6 min-w-0">
+          <div id="receipt-settings-panel" className={`min-w-0 space-y-4 @[48rem]:block ${activeView === 'settings' ? 'block' : 'hidden'}`}>
             {/* Branding */}
-            <div className="bg-[#131C2E] border border-[#1E2D45] p-4 sm:p-6 rounded-lg space-y-4">
-              <h2 className="text-lg font-semibold text-white">Branding</h2>
+            <section className={`${sectionClasses} space-y-4`} aria-labelledby="receipt-branding-title">
               <div>
-                <label className={labelClasses}>Business / Header Name</label>
-                <input type="text" value={config.businessName} onChange={(e) => set('businessName', e.target.value)} placeholder="CHATCO" className={inputClasses} />
+                <h2 id="receipt-branding-title" className="text-sm font-semibold text-white">Receipt header & footer</h2>
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">Add your business details and a message for passengers.</p>
               </div>
               <div>
-                <label className={labelClasses}>Address / Contact Line <span className="text-slate-500 font-normal">(optional)</span></label>
-                <input type="text" value={config.addressLine} onChange={(e) => set('addressLine', e.target.value)} placeholder="e.g. Malolos, Bulacan · 0917 000 0000" className={inputClasses} />
+                <label htmlFor="receipt-business-name" className={labelClasses}>Business name</label>
+                <input id="receipt-business-name" type="text" value={config.businessName} onChange={(e) => set('businessName', e.target.value)} placeholder="CHATCO" className={inputClasses} />
               </div>
               <div>
-                <label className={labelClasses}>Footer Note</label>
-                <input type="text" value={config.footerNote} onChange={(e) => set('footerNote', e.target.value)} placeholder="Thank you for riding with Chatco!" className={inputClasses} />
+                <label htmlFor="receipt-address" className={labelClasses}>Address or contact <span className="text-xs text-slate-500 font-normal">(optional)</span></label>
+                <input id="receipt-address" type="text" value={config.addressLine} onChange={(e) => set('addressLine', e.target.value)} placeholder="e.g. Malolos, Bulacan · 0917 000 0000" className={inputClasses} />
               </div>
-            </div>
+              <div>
+                <label htmlFor="receipt-footer" className={labelClasses}>Footer message</label>
+                <input id="receipt-footer" type="text" value={config.footerNote} onChange={(e) => set('footerNote', e.target.value)} placeholder="Thank you for riding with Chatco!" className={inputClasses} />
+              </div>
+            </section>
 
             {/* Printer */}
-            <div className="bg-[#131C2E] border border-[#1E2D45] p-4 sm:p-6 rounded-lg space-y-4">
-              <h2 className="text-lg font-semibold text-white">Printer</h2>
-              <div>
-                <label className={labelClasses}>Paper Width</label>
-                <div className="flex gap-2">
+            <section className={`${sectionClasses} space-y-4`} aria-labelledby="receipt-printer-title">
+              <h2 id="receipt-printer-title" className="text-sm font-semibold text-white">Printing</h2>
+              <fieldset>
+                <legend className={labelClasses}>Paper width</legend>
+                <div className="grid grid-cols-2 gap-2">
                   {(['58', '80'] as const).map((w) => (
                     <button
                       key={w}
                       type="button"
+                      aria-pressed={config.paperWidth === w}
                       onClick={() => set('paperWidth', w)}
-                      className={`px-4 py-2 rounded-md text-sm font-medium border transition-colors ${config.paperWidth === w ? 'bg-[#62A0EA] text-white border-[#62A0EA]' : 'bg-[#0E1628] text-slate-300 border-[#1E2D45] hover:border-[#62A0EA]/50'}`}
+                      className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]/50 ${config.paperWidth === w ? 'bg-[#62A0EA]/10 text-[#8CB9F0] border-[#62A0EA]/60' : 'bg-[#0E1628] text-slate-300 border-[#23344F] hover:border-[#62A0EA]/50'}`}
                     >
                       {w} mm
+                      {config.paperWidth === w && <Check size={14} aria-hidden="true" />}
                     </button>
                   ))}
                 </div>
-              </div>
+                <p className="mt-2 text-xs text-slate-500">Match the paper loaded in your thermal printer.</p>
+              </fieldset>
               <ToggleRow
                 label="Auto-print after each transaction"
-                hint="Print the receipt automatically once a cash/GCash payment succeeds. Off = conductor prints manually."
+                hint="Print after a cash or GCash payment. Turn off to print manually."
                 checked={config.autoPrint}
                 onChange={(v) => set('autoPrint', v)}
               />
-            </div>
+            </section>
 
             {/* Details on the receipt */}
-            <div className="bg-[#131C2E] border border-[#1E2D45] p-4 sm:p-6 rounded-lg space-y-4">
+            <section className={sectionClasses} aria-labelledby="receipt-details-title">
               <div>
-                <h2 className="text-lg font-semibold text-white">Details to Print</h2>
-                <p className="text-sm text-slate-400 mt-1">Choose which transaction details appear on the receipt.</p>
+                <h2 id="receipt-details-title" className="text-sm font-semibold text-white">Transaction details</h2>
+                <p className="text-xs leading-relaxed text-slate-500 mt-1">Choose what appears on each receipt.</p>
               </div>
-              <div className="space-y-4">
-                {DETAIL_TOGGLES.map((t, i) => (
-                  <div key={t.key}>
-                    {i > 0 && <hr className="border-[#1E2D45] mb-4" />}
+              <div className="mt-3 divide-y divide-[#1E2D45]">
+                {DETAIL_TOGGLES.map((t) => (
+                  <div key={t.key} className="py-3 first:pt-1 last:pb-0">
                     <ToggleRow
                       label={t.label}
                       hint={t.hint}
@@ -199,26 +220,33 @@ export default function ReceiptSettingsPage() {
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
           </div>
 
           {/* ── Live preview column ── */}
-          <div className="lg:sticky lg:top-4">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-2">
-              <Printer size={14} /> Preview
-            </p>
-            <ReceiptPreview config={config} />
-          </div>
+          <section id="receipt-preview-panel" aria-labelledby="receipt-preview-title" className={`min-w-0 rounded-xl border border-[#1E2D45] bg-[#111A2B] @[48rem]:sticky @[48rem]:top-5 @[48rem]:block ${activeView === 'preview' ? 'block' : 'hidden'}`}>
+            <div className="flex items-center justify-between gap-2 border-b border-[#1E2D45] px-4 py-3">
+              <h2 id="receipt-preview-title" className="text-sm font-semibold text-white">Live preview</h2>
+              <span className="rounded-md bg-[#62A0EA]/10 px-2 py-1 text-xs font-medium text-[#8CB9F0]">{config.paperWidth} mm</span>
+            </div>
+            <div className="overflow-hidden rounded-b-xl bg-[#0E1628] px-3 py-6">
+              <ReceiptPreview config={config} />
+              <p className="mt-4 text-center text-xs leading-relaxed text-slate-500">Sample transaction. Updates as you edit.</p>
+            </div>
+          </section>
 
           {/* Save (spans full width under both columns) */}
-          <div className="lg:col-span-2 flex justify-center pt-2 pb-8">
+          <div className="sticky bottom-0 z-10 -mx-4 flex flex-col gap-3 border-t border-[#1E2D45] bg-[#0B1120] px-4 py-4 sm:-mx-6 sm:px-6 @sm:flex-row @sm:items-center @sm:justify-between @[48rem]:col-span-2">
+            <p role="status" className={`text-xs ${isSaved ? 'text-[#8CB9F0]' : 'text-slate-500'}`}>
+              {isSaved ? 'Receipt settings saved.' : 'Changes apply after saving.'}
+            </p>
             <button
               type="submit"
               disabled={isSaving}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 bg-[#62A0EA] text-white font-medium rounded-lg hover:bg-[#4A8BD4] transition-colors active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#4A8BD4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0B1120] disabled:opacity-50 disabled:cursor-not-allowed @sm:w-auto"
             >
-              <Save size={18} />
-              <span>{isSaving ? 'Saving...' : isSaved ? 'Receipt Settings Saved!' : 'Save Receipt Settings'}</span>
+              {isSaved ? <Check size={16} aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}
+              <span>{isSaving ? 'Saving...' : 'Save changes'}</span>
             </button>
           </div>
         </form>
@@ -229,14 +257,16 @@ export default function ReceiptSettingsPage() {
 
 function ToggleRow({ label, hint, checked, onChange }: { label: string; hint: string; checked: boolean; onChange: (v: boolean) => void; }) {
   return (
-    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-      <div className="flex-1">
+    <div className="flex items-center justify-between gap-4">
+      <div className="min-w-0 flex-1">
         <p className="text-white font-medium text-sm">{label}</p>
         <p className="text-xs text-slate-500 mt-0.5">{hint}</p>
       </div>
-      <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
-        <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="sr-only peer" />
-        <div className="w-14 h-7 bg-[#1E2D45] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-[#62A0EA]" />
+      <label className="inline-flex min-h-11 shrink-0 cursor-pointer items-center">
+        <input type="checkbox" role="switch" aria-label={label} checked={checked} onChange={(e) => onChange(e.target.checked)} className="sr-only peer" />
+        <span aria-hidden="true" className="relative h-6 w-11 rounded-full bg-[#23344F] transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-[#62A0EA]/50 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-[#111A2B] peer-checked:bg-[#62A0EA] peer-checked:[&>span]:translate-x-5">
+          <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform" />
+        </span>
       </label>
     </div>
   );
@@ -246,11 +276,10 @@ function ToggleRow({ label, hint, checked, onChange }: { label: string; hint: st
 // the current config, so the admin sees exactly what the toggles produce.
 function ReceiptPreview({ config }: { config: ReceiptConfig }) {
   const widthPx = config.paperWidth === '80' ? 300 : 230;
-  const Line = () => <div className="border-t border-dashed border-black/40 my-1.5" />;
 
   return (
     <div
-      className="bg-white text-black font-mono rounded-md shadow-lg mx-auto px-3 py-4 text-[11px] leading-snug"
+      className="bg-white text-black font-mono rounded-sm shadow-lg mx-auto px-3 py-4 text-[11px] leading-snug break-words"
       style={{ width: widthPx, maxWidth: '100%' }}
     >
       <div className="text-center">
@@ -294,6 +323,10 @@ function ReceiptPreview({ config }: { config: ReceiptConfig }) {
       <p className="text-center text-[9px] mt-1 text-black/50">This serves as your official receipt.</p>
     </div>
   );
+}
+
+function Line() {
+  return <div className="border-t border-dashed border-black/40 my-1.5" />;
 }
 
 function Row({ k, v }: { k: string; v: string }) {

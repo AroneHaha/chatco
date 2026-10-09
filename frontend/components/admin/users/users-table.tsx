@@ -2,10 +2,12 @@
 import type { ReactNode } from 'react';
 import { DataTable } from '@/components/admin/ui/data-table';
 import { TablePagination } from '@/components/admin/ui/table-pagination';
+import { RowActionsMenu } from '@/components/admin/ui/row-actions-menu';
 import { Badge } from '@/components/admin/ui/badge';
 import { Modal } from '@/components/admin/ui/modal';
 import { UserIcon, Mail, Phone, CreditCard, Pencil, Trash2, AtSign, Calendar, ShieldCheck, UserRound, Tag, BusFront, CarFront, type LucideIcon } from 'lucide-react';
 import type { ActiveUser, RejectedUser } from '@/app/(admin)/users/data/users-data';
+import styles from './commuter-details.module.css';
 
 type User = ActiveUser | RejectedUser;
 
@@ -85,13 +87,36 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
       label: 'User',
       headerClassName: 'px-2 sm:px-4',
       cellClassName: 'px-2 sm:px-4 min-w-[10rem]',
-      render: (value: string, item: User) => (
-        <div className="min-w-0">
-          <p className="whitespace-nowrap font-medium text-white">{value}</p>
-          <p className="whitespace-nowrap text-xs text-slate-500">{item.email}</p>
-        </div>
-      ),
+      render: (value: string, item: User) => {
+        const profile = 'role' in item && item.role === 'COMMUTER' ? item._raw : undefined;
+        const middleInitials = profile?.middleName?.trim().split(/\s+/).map((name) => name.charAt(0)).join('').toUpperCase();
+        const displayName = profile?.firstName && profile.lastName
+          ? [profile.firstName, middleInitials || null, profile.lastName].filter(Boolean).join(' ')
+          : value;
+        return (
+          <div className="min-w-0">
+            <p className="whitespace-nowrap font-medium text-white">{displayName}</p>
+            <p className="whitespace-nowrap text-xs text-slate-500">{item.email}</p>
+          </div>
+        );
+      },
     },
+    ...(!isRejectedTab ? [
+      {
+        key: 'username',
+        label: 'Username',
+        headerClassName: 'px-2 sm:px-4',
+        cellClassName: 'whitespace-nowrap px-2 sm:px-4',
+        render: (value: string | null) => <span className="text-sm text-slate-300">{value || '—'}</span>,
+      },
+      {
+        key: 'phoneNumber',
+        label: 'Contact',
+        headerClassName: 'px-2 sm:px-4',
+        cellClassName: 'whitespace-nowrap px-2 sm:px-4',
+        render: (value: string) => <span className="text-sm text-slate-400">{value || '—'}</span>,
+      },
+    ] : []),
     {
       key: 'commuterType',
       label: 'Type',
@@ -137,37 +162,18 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
       key: 'actions',
       label: 'Actions',
       align: 'center' as const,
-      headerClassName: 'px-2 sm:px-4',
-      cellClassName: 'whitespace-nowrap px-2 sm:px-4',
-      render: (_: unknown, item: User) => (
-        <div className="flex items-center justify-center space-x-1">
-          {!isRejectedTab && (
-            <>
-              <button 
-                onClick={(e) => { e.stopPropagation(); onSelectUser(item); }} 
-                className="text-slate-400 hover:text-sky-400 p-1 rounded-md hover:bg-sky-400/10 transition-colors" 
-                title="View Details"
-              >
-                <UserIcon size={18} />
-              </button>
-              <button 
-                onClick={(e) => { e.stopPropagation(); onEdit(item as ActiveUser); }} 
-                className="text-slate-400 hover:text-[#62A0EA] p-1 rounded-md hover:bg-[#62A0EA]/10 transition-colors" 
-                title="Edit Commuter"
-              >
-                <Pencil size={18} />
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); onDelete(item as ActiveUser); }}
-                className="text-slate-400 hover:text-red-400 p-1 rounded-md hover:bg-red-400/10 transition-colors" 
-                title="Delete User"
-              >
-                <Trash2 size={18} />
-              </button>
-            </>
-          )}
-        </div>
-      ),
+      headerClassName: 'w-20 px-2 sm:px-4',
+      cellClassName: 'w-20 whitespace-nowrap px-2 sm:px-4',
+      render: (_: unknown, item: User) => !isRejectedTab ? (
+        <RowActionsMenu
+          label={`Actions for ${item.name}`}
+          actions={[
+            { label: 'View Details', icon: UserIcon, onSelect: () => onSelectUser(item) },
+            { label: 'Edit', icon: Pencil, onSelect: () => onEdit(item as ActiveUser) },
+            { label: 'Delete', icon: Trash2, onSelect: () => onDelete(item as ActiveUser), tone: 'danger' },
+          ]}
+        />
+      ) : null,
     },
   ];
 
@@ -184,6 +190,7 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
             emptyMessage={isRejectedTab ? 'No rejected users.' : 'No users found.'}
             height="100%"
             stickyHeader
+            mobileCards
           />
           {isRefreshing && (
             <div className="absolute inset-0 z-10 flex items-center justify-center">
@@ -192,7 +199,7 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
           )}
         </div>
         {pagination && onPageChange && (
-          <div className="shrink-0">
+          <div className="shrink-0 [&_button]:min-h-11 [&_button]:min-w-11 md:[&_button]:min-h-0 md:[&_button]:min-w-0">
             <TablePagination
               currentPage={pagination.currentPage}
               totalPages={pagination.lastPage}
@@ -207,7 +214,7 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
       </div>
 
       {/* User Details Modal */}
-      <Modal isOpen={!!selectedUser} onClose={() => onSelectUser(null)}>
+      <Modal isOpen={!!selectedUser} onClose={() => onSelectUser(null)} maxWidth={selectedUser && 'role' in selectedUser && selectedUser.role === 'COMMUTER' ? 'max-w-md lg:max-w-2xl' : 'max-w-md'}>
         {selectedUser && (() => {
           const role = 'role' in selectedUser ? selectedUser.role : null;
           const roleLabel = role ? (ROLE_LABELS[role] ?? role) : 'User';
@@ -217,20 +224,23 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
           const createdAt = 'createdAt' in selectedUser ? selectedUser.createdAt : null;
 
           return (
-          <div className="space-y-6">
+          <div className={`space-y-6 ${isCommuter ? styles.commuter : ''}`}>
+            <div className={styles.header}>
             <h2 className="text-xl font-bold text-white">
               {roleLabel} Details
             </h2>
+            {isCommuter && <p className="hidden lg:block mt-1 text-sm text-slate-400">Account information and access status</p>}
+            </div>
 
             {/* Profile Header */}
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-sky-400/15 flex items-center justify-center text-2xl font-bold text-sky-400 border-2 border-sky-400/25 flex-shrink-0">
+            <div className={`flex items-center gap-4 ${styles.profile}`}>
+              <div className={`w-16 h-16 rounded-full bg-sky-400/15 flex items-center justify-center text-2xl font-bold text-sky-400 border-2 border-sky-400/25 flex-shrink-0 ${styles.avatar}`}>
                 {selectedUser.name.charAt(0)}
               </div>
-              <div>
-                <p className="text-lg font-bold text-white">{selectedUser.name}</p>
-                <div className="flex flex-wrap items-center gap-2 mt-1">
-                  <p className="text-sm text-slate-400">ID: {selectedUser.id}</p>
+              <div className={styles.identity}>
+                <p className={`text-lg font-bold text-white ${styles.name}`}>{selectedUser.name}</p>
+                <div className={`flex flex-wrap items-center gap-2 mt-1 ${styles.profileMeta}`}>
+                  <p className={`text-sm text-slate-400 ${styles.accountId}`}>ID: {selectedUser.id}</p>
                   <Badge variant={selectedUser.status === 'Active' ? 'success' : selectedUser.status === 'Suspended' ? 'warning' : 'danger'}>{selectedUser.status}</Badge>
                   {role && <Badge variant="neutral">{roleLabel}</Badge>}
                 </div>
@@ -238,7 +248,9 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
             </div>
 
             {/* Account Info Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+            {isCommuter && <h3 className="hidden lg:flex items-center gap-2 mb-3 text-xs font-semibold uppercase tracking-wider text-slate-300"><UserRound size={14} className="text-[#62A0EA]" aria-hidden="true" />Account information</h3>}
+            <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 ${styles.information}`}>
               {username && (
                 <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
                   <AtSign size={16} className="text-slate-500" />
@@ -296,10 +308,11 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
                 </div>
               )}
             </div>
+            </div>
 
             {/* Action Button */}
             {selectedUser.status === 'Suspended' && 'suspension' in selectedUser && selectedUser.suspension && (
-              <div className="rounded-md border border-amber-400/20 bg-amber-400/5 p-3 text-sm">
+              <div className={`rounded-md border border-amber-400/20 bg-amber-400/5 p-3 text-sm ${styles.suspension}`}>
                 <p className="font-semibold text-amber-300">
                   {selectedUser.suspension.isPermanent
                     ? 'Permanently suspended'
@@ -310,10 +323,10 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
                 <p className="mt-1 text-slate-300">{selectedUser.suspension.reason}</p>
               </div>
             )}
-            <div className="flex gap-2">
+            <div className={`flex gap-2 ${styles.actions}`}>
               <button
                 onClick={() => { onEdit(selectedUser as ActiveUser); onSelectUser(null); }}
-                className="flex-1 py-2.5 rounded-md text-sm font-medium bg-[#62A0EA]/10 text-[#62A0EA] border border-[#62A0EA]/20 hover:bg-[#62A0EA]/20 transition-colors"
+                className={`flex-1 py-2.5 rounded-md text-sm font-medium bg-[#62A0EA]/10 text-[#62A0EA] border border-[#62A0EA]/20 hover:bg-[#62A0EA]/20 transition-colors ${styles.editAction}`}
               >
                 Edit {roleLabel}
               </button>

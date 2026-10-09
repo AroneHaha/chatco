@@ -1,7 +1,7 @@
 // components/admin/ui/settings-drawer.tsx
 'use client';
 
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode, Suspense, lazy, useMemo } from 'react';
+import { createContext, useContext, useState, useCallback, ReactNode, Suspense, lazy, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
 import {
   X, Calculator, PiggyBank, Ticket, Gauge,
@@ -28,7 +28,7 @@ const settingsOptions = [
   { title: 'Voucher Generator', description: 'Generate bulk promo codes.', icon: Ticket, href: '/settings/voucher-generator', color: 'text-pink-400', bgColor: 'bg-pink-500/15', component: VoucherGeneratorPage },
   { title: 'Operations Rules', description: 'Speed limits, shifts, expenses.', icon: Gauge, href: '/settings/operations-rules', color: 'text-orange-400', bgColor: 'bg-orange-500/15', component: OperationsRulesPage },
   { title: 'Safety & Notifications', description: 'Emergency contacts, push templates.', icon: Shield, href: '/settings/safety-notifications', color: 'text-red-400', bgColor: 'bg-red-500/15', component: SafetyNotificationsPage },
-  { title: 'Receipt', description: 'Thermal fare-receipt content and printing.', icon: Printer, href: '/settings/receipt', color: 'text-teal-400', bgColor: 'bg-teal-500/15', component: ReceiptPage },
+  { title: 'Receipt', description: 'Thermal fare-receipt content and printing.', icon: Printer, href: '/settings/receipt', color: 'text-[#62A0EA]', bgColor: 'bg-[#62A0EA]/15', component: ReceiptPage },
   { title: 'FAQ Management', description: 'Manage commuter FAQ questions and answers.', icon: MessageCircleQuestion, href: '/settings/faq-management', color: 'text-[#62A0EA]', bgColor: 'bg-[#62A0EA]/15', component: FaqManagementPage },
   { title: 'App Configuration', description: 'Maintenance mode, registration.', icon: Settings2, href: '/settings/app-configuration', color: 'text-slate-300', bgColor: 'bg-slate-500/15', component: AppConfigurationPage },
 ];
@@ -107,11 +107,9 @@ export function SettingsDrawer() {
   const [activeHref, setActiveHref] = useState<string | null>(null);
 
   // Reset to menu whenever the drawer closes
-  useEffect(() => {
-    if (!isSettingsOpen) {
-      setActiveHref(null);
-    }
-  }, [isSettingsOpen]);
+  if (!isSettingsOpen && activeHref !== null) {
+    setActiveHref(null);
+  }
 
   // Close drawer + reset to menu
   const handleClose = () => {
@@ -136,6 +134,7 @@ export function SettingsDrawer() {
   );
 
   const ActiveComponent = activeOption?.component ?? null;
+  const isReceiptView = activeHref === '/settings/receipt';
 
   return (
     <>
@@ -150,7 +149,7 @@ export function SettingsDrawer() {
       {/* Drawer Panel — 90% on mobile, 50% on desktop, slides from RIGHT */}
       <aside
         className={`
-          fixed top-0 right-0 z-50 h-full w-[90vw] sm:w-[80vw] lg:w-1/2
+          fixed top-0 right-0 z-50 ${isReceiptView ? 'h-dvh w-full sm:w-[90vw] lg:w-[min(90vw,64rem)]' : 'h-full w-[90vw] sm:w-[80vw] lg:w-1/2'}
           bg-[#0D1424] border-l border-[#1E2D45] shadow-2xl shadow-black/40
           flex flex-col
           transform transition-transform duration-300 ease-out
@@ -164,19 +163,21 @@ export function SettingsDrawer() {
             {activeHref && (
               <button
                 onClick={handleBack}
+                aria-label="Back to Settings"
                 className="p-1.5 rounded-lg hover:bg-[#131C2E] text-slate-400 hover:text-white transition-colors active:scale-95"
                 title="Back to Settings menu"
               >
                 <ArrowLeft size={16} />
               </button>
             )}
-            <Sliders size={18} className="text-[#62A0EA]" />
+            {isReceiptView ? <Printer size={18} className="text-[#62A0EA]" /> : <Sliders size={18} className="text-[#62A0EA]" />}
             <h2 className="text-xs font-bold text-white uppercase tracking-widest">
               {activeOption ? activeOption.title : 'Settings'}
             </h2>
           </div>
           <button
             onClick={handleClose}
+            aria-label="Close Settings"
             className="p-2 rounded-lg hover:bg-[#131C2E] text-slate-400 hover:text-white transition-colors active:scale-95"
           >
             <X size={18} />
@@ -218,7 +219,7 @@ export function SettingsDrawer() {
         {activeHref && ActiveComponent && (
           // pt-6: every settings page's wrapper is pb-only, so without this the
           // page title sat flush against the drawer's header bar.
-          <div key={activeHref} className="flex-1 bg-[#0B1120] overflow-y-auto pt-6">
+          <div key={activeHref} className={`min-h-0 flex-1 bg-[#0B1120] overflow-y-auto ${isReceiptView ? '' : 'pt-6'}`}>
             <Suspense fallback={<DrawerLoader />}>
               <ActiveComponent />
             </Suspense>

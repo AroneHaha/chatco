@@ -3,8 +3,10 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class CommuterProfile extends Model
 {
@@ -39,6 +41,27 @@ class CommuterProfile extends Model
             'birthdate' => 'date',
             'verified_at' => 'datetime',
         ];
+    }
+
+    protected function firstName(): Attribute
+    {
+        return Attribute::make(
+            set: fn (string $value) => Str::title(Str::squish($value)),
+        );
+    }
+
+    protected function middleName(): Attribute
+    {
+        return Attribute::make(
+            set: fn (?string $value) => $value === null ? null : Str::title(Str::squish($value)),
+        );
+    }
+
+    protected function surname(): Attribute
+    {
+        return Attribute::make(
+            set: fn (string $value) => Str::title(Str::squish($value)),
+        );
     }
 
     public function user()

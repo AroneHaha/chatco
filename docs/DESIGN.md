@@ -106,6 +106,10 @@ components:
 
 # Design System: CHATCO
 
+### Login modal
+
+At 1024px and above, the landing-page sign-in dialog is a unified navy surface with a 460px maximum width and vertically stacked credentials. A subtle 1px Sky Blue perimeter at 38% opacity, 16px outer corners and no panel shadow give this compact component its edge. Centered CHATCO branding sits above a centered Poppins welcome heading (32px), with the close control at the top right. Closely spaced email and password fields stack vertically, with 48px minimum heights, lightly tinted backgrounds and white borders at 35% opacity; Sky Blue carries their focus treatment. A full-width Sky Blue action with centered navy text leads into a compact centered registration footer, with password recovery beside its field label. There is no sidebar, repeated route information or bottom dropdown on large screens. This is a scoped surface update within the existing CHATCO world, using its navy, blue and Poppins identity without adding global tokens or changing the wider design rules. Below 1024px, the existing modal and disclosure remain; direct `/login` keeps its existing layout. Longer error content can scroll inside the dialog.
+
 ## Overview
 
 **Creative North Star: "The Transit Control Room"**

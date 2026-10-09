@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { RequestCancelledError } from '@/lib/api/client';
 import { LostFoundGrid } from '@/components/admin/lost-found/lost-found-grid';
@@ -100,6 +101,8 @@ function readViewedClaimMarkers(): ViewedClaimMarkers {
  * Role:ADMIN enforced at the Laravel /admin route group.
  */
 export default function LostFoundPage() {
+  const searchParams = useSearchParams();
+  const notificationItemId = searchParams.get('itemId');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isClaimsModalOpen, setIsClaimsModalOpen] = useState(false);
@@ -164,7 +167,10 @@ export default function LostFoundPage() {
       // has data immediately without a second round-trip).
       const next: Record<string, Claim[]> = {};
       for (const it of result.items) next[it.id] = (it.claims ?? []).map(mapServiceClaimToAdmin);
-      setClaimsByItem(next);
+      setClaimsByItem((prev) => ({
+        ...(notificationItemId && prev[notificationItemId] ? { [notificationItemId]: prev[notificationItemId] } : {}),
+        ...next,
+      }));
       setIsLoading(false);
     } catch (err) {
       // A stale request cancelled in favor of a newer one — the newer
@@ -175,13 +181,30 @@ export default function LostFoundPage() {
       setPageMeta({ page: currentPage, lastPage: 1, total: 0 });
       setIsLoading(false);
     }
-  }, [currentPage, activeCategory, activeTab, debouncedSearchQuery, selectedDate]);
+  }, [currentPage, activeCategory, activeTab, debouncedSearchQuery, selectedDate, notificationItemId]);
 
   useEffect(() => {
     const controller = new AbortController();
     void refresh(controller.signal);
     return () => controller.abort();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!notificationItemId) return;
+    let cancelled = false;
+    // Fetch the referenced item's claims through the existing admin endpoint,
+    // even when the item is outside the current grid filters or page.
+    void claimsForItem(notificationItemId).then((claims) => {
+      if (cancelled) return;
+      const mapped = claims.map(mapServiceClaimToAdmin);
+      setClaimsByItem((prev) => ({ ...prev, [notificationItemId]: mapped }));
+      setSelectedItemId(notificationItemId);
+      setIsClaimsModalOpen(true);
+    }).catch((error) => {
+      if (!cancelled) setActionError(error instanceof Error ? error.message : 'Unable to load this claim.');
+    });
+    return () => { cancelled = true; };
+  }, [notificationItemId]);
 
   /** Merge a freshly-mutated item (from update/addPhoto/deletePhoto) back into
    * the currently-loaded list without a full refetch — keeps the detail modal

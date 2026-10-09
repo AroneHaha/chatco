@@ -206,15 +206,17 @@ class AdminUserManagementTest extends TestCase
 
         $this->withHeaders($headers)
             ->putJson("/api/v1/admin/users/{$commuter->id}", [
-                'first_name' => 'Updated',
-                'last_name'  => 'Name',
+                'first_name' => ' mARÍA  jOSE ',
+                'middle_name' => ' dELA  cRUZ ',
+                'last_name'  => ' DE  lA  PEÑA ',
             ])
             ->assertStatus(200);
 
         $this->assertDatabaseHas('commuter_profiles', [
             'id'         => $commuter->id,
-            'first_name' => 'Updated',
-            'surname'    => 'Name', // last_name maps to surname for commuters
+            'first_name' => 'María Jose',
+            'middle_name' => 'Dela Cruz',
+            'surname'    => 'De La Peña', // last_name maps to surname for commuters
         ]);
     }
 

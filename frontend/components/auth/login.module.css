@@ -1,0 +1,349 @@
+.shell {
+  --login-navy: #071a2e;
+  --login-blue: #1a5fb4;
+  --login-blue-hover: #164a8f;
+  --login-sky: #62a0ea;
+  --login-muted: #526174;
+  min-height: 100svh;
+  background: var(--login-navy);
+  color: white;
+  scrollbar-color: var(--login-sky) var(--login-navy);
+}
+
+.shell ::selection { background: var(--login-sky); color: var(--login-navy); }
+.shell a { text-underline-offset: 4px; }
+.shell a:focus-visible, .shell button:focus-visible {
+  outline: 3px solid var(--login-sky);
+  outline-offset: 5px;
+}
+.formHeading { font-size: 32px; line-height: 1.25; letter-spacing: -.035em; font-weight: 600; }
+.formIntro { margin-top: 10px; color: var(--login-muted); font-size: 14px; line-height: 1.7; }
+.form { margin-top: 32px; display: grid; gap: 24px; }
+.labelRow { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin-bottom: 9px; }
+.label { display: block; font-size: 13px; font-weight: 500; }
+.fieldLabel { composes: label; margin-bottom: 9px; }
+.textLink { color: var(--login-blue); font-weight: 500; }
+.textLink:hover { color: var(--login-blue-hover); text-decoration: underline; }
+.recovery { composes: textLink; display: inline-flex; align-items: center; min-height: 24px; font-size: 12px; }
+.input {
+  width: 100%;
+  min-height: 52px;
+  padding: 13px 15px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: var(--login-navy);
+  font-size: 16px;
+  caret-color: var(--login-blue);
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+.input::placeholder { color: var(--login-muted); opacity: 1; }
+.input:hover { border-color: #94a3b8; }
+.input:focus { outline: none; border-color: var(--login-blue); box-shadow: 0 0 0 3px rgb(26 95 180 / .16); background: white; }
+.input:disabled { opacity: .7; cursor: wait; }
+.input[aria-invalid="true"] { border-color: #b91c1c; }
+.passwordWrap { position: relative; }
+.passwordInput { composes: input; padding-right: 54px; }
+.passwordToggle {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 6px;
+  color: var(--login-muted);
+  cursor: pointer;
+}
+.passwordToggle:hover { color: var(--login-blue); background: #f0f7ff; }
+.submit {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 54px;
+  margin-top: 4px;
+  padding: 14px 18px;
+  border-radius: 8px;
+  background: var(--login-blue);
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+.submit:hover { background: var(--login-blue-hover); }
+.submit:active { background: var(--login-navy); }
+.submit:disabled { opacity: .7; cursor: wait; }
+.spinner { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.registration {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid #e2e8f0;
+  color: var(--login-muted);
+  font-size: 13px;
+  line-height: 1.9;
+}
+.registration a { display: inline-flex; align-items: center; gap: 8px; }
+.error { margin-top: 24px; padding: 14px 16px; border-radius: 8px; background: #fef2f2; color: #991b1b; font-size: 13px; line-height: 1.7; }
+.suspended { background: #fffbeb; color: #78350f; }
+.errorTitle { margin-bottom: 4px; font-weight: 600; }
+.errorRecovery { composes: textLink; display: inline-flex; margin-top: 12px; }
+
+.modal {
+  width: min(480px, calc(100% - 32px));
+  max-width: none;
+  max-height: calc(100dvh - 48px);
+  min-height: 0;
+  margin: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  background: white;
+  color: var(--login-navy);
+  box-shadow: 0 28px 96px rgb(0 0 0 / .32);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: #cbd5e1 white;
+  /* The dialog renders outside the landing page's font-sans wrapper, so it names Poppins itself. */
+  font-family: var(--font-poppins), system-ui, -apple-system, sans-serif;
+  interpolate-size: allow-keywords;
+  transition: opacity 200ms cubic-bezier(.16, 1, .3, 1), transform 320ms cubic-bezier(.16, 1, .3, 1);
+}
+.modal::backdrop {
+  background: rgb(7 26 46 / .76);
+  backdrop-filter: blur(8px);
+  transition: background-color 260ms ease-out, backdrop-filter 260ms ease-out;
+}
+@starting-style {
+  .modal[open] { opacity: 0; transform: translateY(14px) scale(.985); }
+  .modal[open]::backdrop { background-color: rgb(7 26 46 / 0); backdrop-filter: blur(0); }
+}
+.modal a:focus-visible, .modal button:focus-visible {
+  outline: 2px solid var(--login-blue);
+  outline-offset: 3px;
+}
+.modal a:focus-visible { border-radius: 4px; }
+.modal .input { border-radius: 12px; }
+.modal .input:focus { box-shadow: 0 0 0 3px rgb(26 95 180 / .2); }
+.modal .input[aria-invalid="true"]:focus { box-shadow: 0 0 0 3px rgb(185 28 28 / .16); }
+.modal .input:-webkit-autofill {
+  -webkit-text-fill-color: var(--login-navy);
+  box-shadow: 0 0 0 1000px #f0f7ff inset;
+}
+.modal .input:-webkit-autofill:focus { box-shadow: 0 0 0 1000px #f0f7ff inset, 0 0 0 3px rgb(26 95 180 / .2); }
+.modal .passwordToggle { border-radius: 8px; }
+.modal .submit { border-radius: 12px; font-size: 15px; }
+.modal .submit svg { transition: transform 220ms cubic-bezier(.16, 1, .3, 1); }
+.modal .submit:hover:not(:disabled) svg { transform: translateX(4px); }
+.modal .error { border: 1px solid #fecaca; border-radius: 12px; }
+.modal .suspended { border-color: #fde68a; }
+.modalHeader { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 0 32px; }
+.modalBrand { display: inline-flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700; letter-spacing: -.02em; }
+.close { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 8px; color: var(--login-muted); cursor: pointer; }
+.close:hover { background: #f0f7ff; color: var(--login-blue); }
+.close:disabled { opacity: .5; cursor: wait; }
+.modalForm { padding: 24px 32px 28px; }
+.loginEntrance { padding: 3px; }
+.modalContext { background: var(--login-navy); color: white; }
+.modalContext summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 64px; padding: 18px 32px; list-style: none; font-size: 13px; line-height: 1.6; cursor: pointer; transition: background-color 160ms ease; }
+.modalContext summary:hover { background: rgb(255 255 255 / .05); }
+.modalContext summary::-webkit-details-marker { display: none; }
+.modalContext::details-content { block-size: 0; overflow: clip; transition: block-size 320ms cubic-bezier(.16, 1, .3, 1), content-visibility 320ms allow-discrete; }
+.modalContext[open]::details-content { block-size: auto; }
+.modalContext summary strong { color: var(--login-sky); font-weight: 500; }
+.modalContext summary:focus-visible { outline: 3px solid var(--login-sky); outline-offset: -6px; border-radius: 8px; }
+.modalContext summary svg { flex-shrink: 0; color: var(--login-sky); transition: transform 320ms cubic-bezier(.16, 1, .3, 1); }
+.modalContext[open] summary svg { transform: rotate(180deg); }
+.modalContextBody { padding: 4px 32px 28px; color: rgb(255 255 255 / .8); font-size: 13px; line-height: 1.8; }
+.modalRoute { display: flex; align-items: center; gap: 12px; margin-top: 24px; color: white; font-weight: 500; }
+.modalRoute span:nth-child(2) { position: relative; height: 2px; flex: 1; margin-inline: 5px; background: var(--login-sky); }
+/* Terminal stops in the optional modal route illustration. */
+.modalRoute span:nth-child(2)::before, .modalRoute span:nth-child(2)::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--login-sky);
+  border-radius: 50%;
+  background: var(--login-navy);
+  transform: translateY(-50%);
+}
+.modalRoute span:nth-child(2)::before { left: -5px; }
+.modalRoute span:nth-child(2)::after { right: -5px; }
+.modalRouteCaption { margin-top: 8px; font-size: 12px; }
+.modalContextBody ul { list-style: none; padding: 0; margin-top: 20px; }
+.modalContextBody li { padding-block: 10px; border-top: 1px solid rgb(255 255 255 / .15); }
+.recoveryHelp { margin-top: 16px; color: var(--login-muted); font-size: 12px; line-height: 1.8; text-align: center; overflow-wrap: anywhere; }
+.recoveryHelp strong { font-weight: 500; }
+.recoveryCode { text-align: center; font-variant-numeric: tabular-nums; letter-spacing: .3em; }
+.recoveryActions { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 12px; }
+.recoveryActions button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; font-size: 12px; cursor: pointer; }
+.recoveryActions button:disabled { opacity: .6; cursor: wait; }
+.recoveryNote { margin-top: 16px; font-size: 12px; line-height: 1.8; color: var(--login-blue); }
+.recoverySuccess { display: block; margin: 8px auto 20px; color: var(--login-blue); }
+.recoveryLogin { margin-top: 24px; }
+@media (max-width: 480px) {
+  .modal { max-height: calc(100dvh - 32px); border-radius: 12px; }
+  .modalHeader { padding: 14px 12px 0 24px; }
+  .modalForm { padding: 20px 24px 24px; }
+  .modalContext summary { padding-inline: 24px; }
+  .modalContextBody { padding-inline: 24px; }
+  .formHeading { font-size: 28px; }
+  .form { margin-top: 28px; gap: 22px; }
+  .registration { margin-top: 24px; padding-top: 20px; }
+}
+/* Laptop-height and short phone viewports: tighten the rhythm so the closed dialog fits without scrolling. */
+@media (max-height: 720px) {
+  .modalHeader { padding-top: 10px; }
+  .modalForm { padding-block: 14px 18px; }
+  .modal .formHeading { font-size: 26px; }
+  .modal .formIntro { margin-top: 6px; }
+  .modal .form { margin-top: 22px; gap: 16px; }
+  .modal .registration { margin-top: 18px; padding-top: 16px; }
+  .modalContext summary { min-height: 54px; padding-block: 14px; }
+}
+/* Compact desktop sign-in layout. */
+@media (min-width: 1024px) {
+  .modal {
+    width: min(460px, calc(100% - 96px));
+    border: 1px solid rgb(98 160 234 / .38);
+    background: var(--login-navy);
+    color: white;
+    box-shadow: none;
+    scrollbar-color: var(--login-sky) var(--login-navy);
+  }
+  .modalHeader { position: relative; justify-content: center; min-height: 60px; padding: 16px 32px 0; background: transparent; }
+  .modalBrand { gap: 10px; font-size: 14px; }
+  .modal .close { position: absolute; top: 16px; right: 16px; color: rgb(255 255 255 / .7); }
+  .modal .close:hover { background: rgb(255 255 255 / .08); color: white; }
+  .modal a:focus-visible, .modal button:focus-visible { outline-color: var(--login-sky); }
+  .modalContext { display: none; }
+  .modalForm { padding: 12px 32px 28px; }
+  .modal .formHeading { font-size: 32px; line-height: 1.2; letter-spacing: -.03em; text-align: center; }
+  .modal .formIntro { margin-top: 8px; color: rgb(255 255 255 / .7); font-size: 13px; text-align: center; }
+  .modal .form { grid-template-columns: minmax(0, 1fr); margin-top: 22px; gap: 16px; }
+  .modal .label, .modal .fieldLabel { font-size: 12px; color: rgb(255 255 255 / .85); }
+  .modal .fieldLabel { display: flex; align-items: center; min-height: 24px; }
+  .modal .textLink { color: var(--login-sky); }
+  .modal .textLink:hover { color: #99c1f1; }
+  .modal .recovery { font-size: 11px; }
+  .modal .input {
+    min-height: 48px;
+    padding: 11px 13px;
+    border-color: rgb(255 255 255 / .35);
+    border-radius: 8px;
+    background: rgb(255 255 255 / .045);
+    color: white;
+    font-size: 14px;
+    caret-color: var(--login-sky);
+  }
+  .modal .input::placeholder { color: rgb(255 255 255 / .6); }
+  .modal .input:hover { border-color: rgb(255 255 255 / .45); }
+  .modal .input:focus { border-color: var(--login-sky); background: rgb(255 255 255 / .07); box-shadow: 0 0 0 3px rgb(98 160 234 / .16); }
+  .modal .input[aria-invalid="true"] { border-color: #ef4444; }
+  .modal .input:-webkit-autofill { -webkit-text-fill-color: white; box-shadow: 0 0 0 1000px var(--login-navy) inset; }
+  .modal .input:-webkit-autofill:focus { box-shadow: 0 0 0 1000px var(--login-navy) inset, 0 0 0 3px rgb(98 160 234 / .16); }
+  .modal .passwordInput { padding-right: 48px; }
+  .modal .passwordToggle { top: 2px; right: 2px; border-radius: 6px; color: rgb(255 255 255 / .7); }
+  .modal .passwordToggle:hover { background: rgb(255 255 255 / .08); color: white; }
+  .modal .submit { justify-content: center; gap: 12px; min-height: 48px; margin-top: 0; padding: 12px 16px; border-radius: 8px; background: var(--login-sky); color: var(--login-navy); font-size: 14px; }
+  .modal .submit:hover { background: #99c1f1; }
+  .modal .submit:active { background: var(--login-sky); }
+  .modal .registration { margin-top: 20px; padding-top: 18px; border-color: rgb(255 255 255 / .14); color: rgb(255 255 255 / .7); font-size: 12px; text-align: center; }
+  .modal .error { margin-top: 20px; border-color: rgb(239 68 68 / .4); background: rgb(239 68 68 / .1); color: #fecaca; }
+  .modal .suspended { border-color: rgb(245 158 11 / .4); background: rgb(245 158 11 / .1); color: #fde68a; }
+  .modal .recoveryHelp { color: rgb(255 255 255 / .7); }
+  .modal .recoveryNote, .modal .recoverySuccess { color: var(--login-sky); }
+  .modal .recoveryLogin { margin-top: 24px; }
+}
+/* Auth modals use the desktop palette on smaller screens too. */
+@media (max-width: 1023px) {
+  .modal.darkModal {
+    border: 1px solid rgb(98 160 234 / .38);
+    background: var(--login-navy);
+    color: white;
+    box-shadow: none;
+    scrollbar-color: var(--login-sky) var(--login-navy);
+  }
+  .darkModal .formHeading { color: white; }
+  .darkModal .formIntro, .darkModal .recoveryHelp, .darkModal .close { color: rgb(255 255 255 / .7); }
+  .darkModal .close:hover { background: rgb(255 255 255 / .08); color: white; }
+  .darkModal a:focus-visible, .darkModal button:focus-visible { outline-color: var(--login-sky); }
+  .darkModal .label, .darkModal .fieldLabel { color: rgb(255 255 255 / .85); }
+  .darkModal .input { border-color: rgb(255 255 255 / .35); background: rgb(255 255 255 / .045); color: white; caret-color: var(--login-sky); }
+  .darkModal .input::placeholder { color: rgb(255 255 255 / .6); }
+  .darkModal .input:hover { border-color: rgb(255 255 255 / .45); }
+  .darkModal .input:focus { border-color: var(--login-sky); background: rgb(255 255 255 / .07); box-shadow: 0 0 0 3px rgb(98 160 234 / .16); }
+  .darkModal .input[aria-invalid="true"] { border-color: #ef4444; }
+  .darkModal .input:-webkit-autofill { -webkit-text-fill-color: white; box-shadow: 0 0 0 1000px var(--login-navy) inset; }
+  .darkModal .input:-webkit-autofill:focus { box-shadow: 0 0 0 1000px var(--login-navy) inset, 0 0 0 3px rgb(98 160 234 / .16); }
+  .darkModal .passwordToggle { color: rgb(255 255 255 / .7); }
+  .darkModal .passwordToggle:hover { background: rgb(255 255 255 / .08); color: white; }
+  .darkModal .textLink, .darkModal .recovery, .darkModal .recoveryNote, .darkModal .recoverySuccess { color: var(--login-sky); }
+  .darkModal .textLink:hover { color: #99c1f1; }
+  .darkModal .submit { background: var(--login-sky); color: var(--login-navy); }
+  .darkModal .submit:hover { background: #99c1f1; }
+  .darkModal .submit:active { background: var(--login-sky); }
+  .darkModal .registration { border-color: rgb(255 255 255 / .14); color: rgb(255 255 255 / .7); }
+  .darkModal .error { border-color: rgb(239 68 68 / .4); background: rgb(239 68 68 / .1); color: #fecaca; }
+  .darkModal .suspended { border-color: rgb(245 158 11 / .4); background: rgb(245 158 11 / .1); color: #fde68a; }
+}
+@media (max-width: 1023px) {
+  .darkModal .formHeading, .darkModal .formIntro, .darkModal .registration { text-align: center; }
+  .darkModal .submit { justify-content: center; gap: 12px; }
+}
+@media (max-width: 480px) {
+  .darkModal .formHeading { font-size: 24px; }
+  .darkModal .formIntro { font-size: 13px; }
+  .darkModal .modalBrand { font-size: 14px; }
+  .darkModal .label, .darkModal .fieldLabel, .darkModal .registration { font-size: 12px; }
+  .darkModal .submit { font-size: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shell *, .shell *::before, .shell *::after { animation: none; transition: none; }
+  .modal, .modal::backdrop, .modalContext::details-content { transition: none; }
+}
+
+.recoveryFlow { min-width: 0; }
+.recoveryHeading { margin-bottom: 24px; }
+.recoveryFields { display: grid; gap: 20px; margin: 0; min-width: 0; }
+.recoveryFields .recoveryHelp { margin: 0; }
+.recoveryFlow .recoverySubmit { margin-top: 24px; justify-content: center; gap: 12px; }
+.recoveryStepLabel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 36px;
+  padding: 7px 8px;
+  border: 1px solid rgb(255 255 255 / .12);
+  border-radius: 999px;
+  background: rgb(255 255 255 / .035);
+  color: rgb(255 255 255 / .6);
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+  white-space: normal;
+  transition: background 180ms ease, color 180ms ease, border-color 180ms ease;
+}
+.recoveryStepLabel[data-complete="true"] { color: var(--login-sky); border-color: rgb(98 160 234 / .35); }
+.recoveryStepLabel[aria-current="step"] { color: #9fc5f4; background: rgb(98 160 234 / .14); border-color: rgb(98 160 234 / .55); }
+.recoveryFlow :global(.react-bits-stepper.outer-container) { --step-accent: var(--login-sky); padding: 0; min-height: 0; aspect-ratio: auto; display: block; flex: 0 0 auto; }
+.recoveryFlow :global(.react-bits-stepper .step-circle-container) { max-width: none; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.recoveryFlow :global(.react-bits-stepper .step-indicator-row) { display: grid; grid-template-columns: minmax(0, 1fr) 8px minmax(0, 1fr) 8px minmax(0, 1fr); column-gap: 6px; align-items: stretch; padding: 0 0 22px; }
+.recoveryFlow :global(.react-bits-stepper .step-default) { padding: 3px; }
+.recoveryFlow :global(.react-bits-stepper .step-connector) { min-width: 0; margin-inline: 0; align-self: center; height: 1px; background: rgb(255 255 255 / .14); }
+@media (max-width: 480px) {
+  .recoveryStepLabel { padding-inline: 6px; font-size: 10px; }
+  .recoveryHeading { margin-bottom: 20px; }
+  .recoveryFields { gap: 16px; }
+  .recoveryFlow .recoverySubmit { margin-top: 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .recoveryStepLabel { transition: none; }
+}

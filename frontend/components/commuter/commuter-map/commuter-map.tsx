@@ -15,7 +15,7 @@
 // When Laravel backend is integrated, only use-commuter-tracking.ts needs
 // to be updated to call API endpoints instead of client-side calculations.
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useSyncExternalStore } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { distanceToPolylineMeters } from "@/lib/utils/geo";
@@ -25,9 +25,18 @@ import { createCommuterIcon } from "./commuter-map-icons";
 import { useCommuterTracking } from "./use-commuter-tracking";
 import LocationFinder from "./location-finder";
 import VehicleMarker from "./vehicle-marker";
+import UnitDetailsPanel from "./unit-details-panel";
 import DynamicRouteViewport from "@/components/maps/dynamic-route-viewport";
 
 // --- MAIN COMPONENT ---
+
+function subscribeToDesktop(onChange: () => void) {
+  const query = window.matchMedia("(min-width: 1024px)");
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+const getDesktopSnapshot = () => window.matchMedia("(min-width: 1024px)").matches;
+const getServerDesktopSnapshot = () => false;
 
 interface CommuterMapProps {
   isDesktop?: boolean;
@@ -42,6 +51,10 @@ interface CommuterMapProps {
 
 export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange }: CommuterMapProps) {
   const [isDomReady, setIsDomReady] = useState(false);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
+  const showDesktopDetails = useSyncExternalStore(subscribeToDesktop, getDesktopSnapshot, getServerDesktopSnapshot);
+  const selectVehicle = useCallback((vehicleId: string) => setSelectedVehicleId(vehicleId), []);
+  const closeDetails = useCallback(() => setSelectedVehicleId(null), []);
   const routeGeometry = useRouteGeometry(ROUTE_COORDS);
 
   const {
@@ -164,6 +177,8 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
           return (
             <VehicleMarker
               key={vehicle.id}
+              vehicleId={vehicle.id}
+              onSelect={selectVehicle}
               lat={vehicle.lat}
               lng={vehicle.lng}
               plateNumber={vehicle.plateNumber}
@@ -176,6 +191,17 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
           );
         })}
       </MapContainer>
+
+      {showDesktopDetails && selectedVehicleId && (
+        <UnitDetailsPanel
+          key={selectedVehicleId}
+          vehicleId={selectedVehicleId}
+          vehicle={activeVehicles.find(vehicle => vehicle.id === selectedVehicleId) ?? null}
+          commuterLocation={userActualLocation}
+          gpsStatus={gpsStatus}
+          onClose={closeDetails}
+        />
+      )}
 
       <style jsx global>{`
         .commuter-map-wrapper {

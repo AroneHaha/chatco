@@ -104,20 +104,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async () => {
-    // Fire the server-side revoke in the background instead of awaiting it —
-    // the Next.js route (app/api/auth/logout/route.ts) already clears the
-    // httpOnly session cookie unconditionally and ignores failures from its
-    // own Laravel revocation call, so nothing below needs to wait on or
-    // branch on the outcome. sendBeacon (not fetch) because the immediate
-    // redirect below starts unloading this page right after — a fetch can
-    // get cancelled mid-flight by that navigation, while a beacon is
-    // guaranteed by the browser to still be sent.
-    if (typeof navigator !== "undefined" && navigator.sendBeacon) {
-      navigator.sendBeacon("/api/auth/logout");
-    } else {
-      // Older/uncommon browsers without sendBeacon — best-effort fallback,
-      // not awaited so it can't delay the redirect either.
-      void fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    // Clear the server cookies before the landing page and login modal reload.
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+      });
+    } catch {
+      // Leave the protected view even if the logout endpoint is unavailable.
     }
 
     setUser(null);
@@ -131,10 +126,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem("remittance_history");
     }
 
-    window.location.href = "/login";
+    window.location.replace("/login");
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Refresh starts the initial auth request and manages its loading state.
     refresh();
   }, [refresh]);
 

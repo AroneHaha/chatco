@@ -1,10 +1,11 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Eye } from 'lucide-react';
 import { Badge } from '@/components/admin/ui/badge';
 import { DataTable } from '@/components/admin/ui/data-table';
 import { TablePagination } from '@/components/admin/ui/table-pagination';
+import { RowActionsMenu } from '@/components/admin/ui/row-actions-menu';
 import type { PendingRequest } from '@/app/(admin)/users/data/users-data';
 import type { RegistrationPagination } from '@/lib/admin/services/registration.service';
 
@@ -12,6 +13,18 @@ function formatAppliedDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function formatWaitingTime(value: string, now: number): string {
+  const appliedAt = new Date(value).getTime();
+  if (!Number.isFinite(appliedAt)) return '—';
+  const minutes = Math.max(0, Math.floor((now - appliedAt) / 60000));
+  if (minutes === 0) return 'Less than a minute';
+  if (minutes < 60) return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+  const days = Math.floor(hours / 24);
+  return `${days} ${days === 1 ? 'day' : 'days'}`;
 }
 
 interface RegistrationRequestsTableProps {
@@ -38,6 +51,12 @@ export function RegistrationRequestsTable({
   headerContent,
   isRefreshing,
 }: RegistrationRequestsTableProps) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
   const currentPage = pagination?.currentPage ?? 1;
   const totalPages = pagination?.lastPage ?? 1;
   const total = pagination?.total ?? requests.length;
@@ -74,6 +93,14 @@ export function RegistrationRequestsTable({
       render: (value: string) => <span className="text-xs text-slate-400">{formatAppliedDate(value)}</span>,
     },
     {
+      key: 'waitingTime',
+      label: 'Time Waiting',
+      cellClassName: 'whitespace-nowrap',
+      render: (_: unknown, request: PendingRequest) => (
+        <span className="text-xs text-slate-400">{formatWaitingTime(request.createdAt, now)}</span>
+      ),
+    },
+    {
       key: 'phoneNumber',
       label: 'Contact',
       cellClassName: 'whitespace-nowrap',
@@ -89,19 +116,15 @@ export function RegistrationRequestsTable({
       key: 'actions',
       label: 'Actions',
       align: 'center' as const,
-      cellClassName: 'whitespace-nowrap',
+      headerClassName: 'w-20',
+      cellClassName: 'w-20 whitespace-nowrap',
       render: (_: unknown, request: PendingRequest) => (
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onSelectRequest(request);
-          }}
-          className="inline-flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-400 transition-colors hover:bg-[#62A0EA]/10 hover:text-[#62A0EA]"
-        >
-          <Eye size={16} />
-          Review
-        </button>
+        <RowActionsMenu
+          label={`Actions for ${request.name}`}
+          actions={[
+            { label: 'Review', icon: Eye, onSelect: () => onSelectRequest(request) },
+          ]}
+        />
       ),
     },
   ];
@@ -117,6 +140,7 @@ export function RegistrationRequestsTable({
           emptyMessage="No pending registration requests."
           height="100%"
           stickyHeader
+          mobileCards
           onRowDoubleClick={onSelectRequest}
         />
         {isRefreshing && (
@@ -125,7 +149,7 @@ export function RegistrationRequestsTable({
           </div>
         )}
       </div>
-      <div className="shrink-0">
+      <div className="shrink-0 [&_button]:min-h-11 [&_button]:min-w-11 md:[&_button]:min-h-0 md:[&_button]:min-w-0">
         <TablePagination
           currentPage={currentPage}
           totalPages={totalPages}

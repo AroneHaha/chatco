@@ -43,6 +43,20 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
   // review bleeding into the next one.
   if (!request) return null;
 
+  if (isProcessing) {
+    return (
+      <Modal isOpen={isOpen} onClose={() => {}} maxWidth="max-w-md">
+        <div role="status" aria-live="polite" className="flex flex-col items-center px-2 py-6 text-center">
+          <LoaderCircle size={36} className="mb-4 animate-spin text-[#62A0EA]" aria-hidden="true" />
+          <h2 className="text-xl font-bold text-white">
+            {showRejectConfirm ? 'Rejecting registration...' : 'Approving registration...'}
+          </h2>
+          <p className="mt-2 text-sm text-slate-400">Processing {request.name}&apos;s submission. Please wait.</p>
+        </div>
+      </Modal>
+    );
+  }
+
   const isOtherReason = selectedReason === OTHER_REASON;
   const effectiveReason = isOtherReason ? customReason.trim() : selectedReason;
   const resetRejectState = () => {
@@ -54,7 +68,6 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
   const handleRejectClick = () => {
     if (effectiveReason) {
       onReject(effectiveReason);
-      resetRejectState();
     }
   };
 

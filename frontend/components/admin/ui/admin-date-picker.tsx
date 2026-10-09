@@ -1,7 +1,7 @@
 // components/admin/ui/admin-date-picker.tsx
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 interface AdminDatePickerProps {
@@ -15,6 +15,14 @@ interface AdminDatePickerProps {
   className?: string;
   /** Overrides the trigger button's size (width/height) classes — defaults to the original `w-40 py-1.5` sizing. */
   triggerClassName?: string;
+  id?: string;
+  invalid?: boolean;
+  errorId?: string;
+  clearLabel?: string;
+  /** Use the browser's top layer inside animated, scrollable dialogs. */
+  popover?: boolean;
+  /** Jump directly to a birth year instead of paging through every month. */
+  yearNavigation?: boolean;
 }
 
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
@@ -48,11 +56,12 @@ const ACCENTS: Record<'blue' | 'red', Accent> = {
 // decide open direction before the panel itself has rendered/measured.
 const PANEL_HEIGHT_ESTIMATE = 336;
 
-export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'left', ariaLabel, className, triggerClassName }: AdminDatePickerProps) {
+export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'left', ariaLabel, className, triggerClassName, id, invalid, errorId, clearLabel = 'Clear date filter', popover = false, yearNavigation = false }: AdminDatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [openDirection, setOpenDirection] = useState<'down' | 'up'>('down');
   const [viewMonth, setViewMonth] = useState(() => (value ? parseISODate(value) : new Date()));
   const containerRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const colors = ACCENTS[accent];
 
   useEffect(() => {
@@ -62,22 +71,66 @@ export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'lef
       }
     }
     function handleEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') setIsOpen(false);
+      if (event.key !== 'Escape') return;
+      if (isOpen && popover) {
+        event.preventDefault();
+        event.stopPropagation();
+        containerRef.current?.querySelector('button')?.focus({ preventScroll: true });
+      }
+      setIsOpen(false);
     }
     document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleEscape);
+    document.addEventListener('keydown', handleEscape, popover);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener('keydown', handleEscape, popover);
     };
-  }, []);
+  }, [isOpen, popover]);
+
+  useLayoutEffect(() => {
+    if (!isOpen || !popover) return;
+    const panel = panelRef.current;
+    if (!panel) return;
+    panel.showPopover();
+    const positionPanel = () => {
+      const trigger = containerRef.current?.getBoundingClientRect();
+      if (!trigger) return;
+      const viewport = window.visualViewport;
+      const viewportLeft = viewport?.offsetLeft ?? 0;
+      const viewportTop = viewport?.offsetTop ?? 0;
+      const viewportWidth = viewport?.width ?? window.innerWidth;
+      const viewportHeight = viewport?.height ?? window.innerHeight;
+      panel.style.maxWidth = `${Math.max(0, viewportWidth - 24)}px`;
+      panel.style.maxHeight = `${Math.max(0, viewportHeight - 24)}px`;
+      const width = panel.offsetWidth;
+      const height = panel.offsetHeight;
+      const below = viewportTop + viewportHeight - trigger.bottom;
+      const above = trigger.top - viewportTop;
+      const left = align === 'right' ? trigger.right - width : trigger.left;
+      const top = below < height + 8 && above > below ? trigger.top - height - 8 : trigger.bottom + 8;
+      panel.style.left = `${Math.max(viewportLeft + 12, Math.min(left, viewportLeft + viewportWidth - width - 12))}px`;
+      panel.style.top = `${Math.max(viewportTop + 12, Math.min(top, viewportTop + viewportHeight - height - 12))}px`;
+    };
+    positionPanel();
+    window.addEventListener('scroll', positionPanel, true);
+    window.addEventListener('resize', positionPanel);
+    window.visualViewport?.addEventListener('resize', positionPanel);
+    window.visualViewport?.addEventListener('scroll', positionPanel);
+    return () => {
+      window.removeEventListener('scroll', positionPanel, true);
+      window.removeEventListener('resize', positionPanel);
+      window.visualViewport?.removeEventListener('resize', positionPanel);
+      window.visualViewport?.removeEventListener('scroll', positionPanel);
+      if (panel.matches(':popover-open')) panel.hidePopover();
+    };
+  }, [isOpen, popover, align, viewMonth]);
 
   // Re-checks on scroll/resize too (capture phase, since the admin shell's
   // content column — not the document — is usually the actual scroll
   // container), so the panel doesn't stay flipped the wrong way after the
   // page scrolls while it's open.
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || popover) return;
     const updateDirection = () => {
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
@@ -92,7 +145,7 @@ export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'lef
       window.removeEventListener('scroll', updateDirection, true);
       window.removeEventListener('resize', updateDirection);
     };
-  }, [isOpen]);
+  }, [isOpen, popover]);
 
   const openPicker = () => {
     setViewMonth(value ? parseISODate(value) : new Date());
@@ -102,6 +155,7 @@ export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'lef
   const selectDay = (day: Date) => {
     onChange(toISODate(day));
     setIsOpen(false);
+    if (popover) containerRef.current?.querySelector('button')?.focus({ preventScroll: true });
   };
 
   const today = new Date();
@@ -136,11 +190,14 @@ export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'lef
   return (
     <div className={`relative ${className ?? ''}`} ref={containerRef}>
       <button
+        id={id}
         type="button"
         onClick={openPicker}
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         aria-label={ariaLabel}
+        data-invalid={invalid || undefined}
+        aria-describedby={invalid ? errorId : undefined}
         className={`flex items-center gap-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-xs pl-8 pr-2 text-left focus:outline-none ${triggerClassName ?? 'w-40 py-1.5'} ${colors.ring} transition-colors`}
       >
         <CalendarDays size={14} className="absolute left-2.5 text-slate-500 pointer-events-none" />
@@ -151,7 +208,7 @@ export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'lef
             tabIndex={0}
             onClick={(e) => { e.stopPropagation(); onChange(''); }}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onChange(''); } }}
-            aria-label="Clear date filter"
+            aria-label={clearLabel}
             className="ml-auto text-slate-500 hover:text-white"
           >
             <X size={12} />
@@ -161,6 +218,9 @@ export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'lef
 
       {isOpen && (
         <div
+          ref={panelRef}
+          popover={popover ? 'manual' : undefined}
+          style={popover ? { position: 'fixed', inset: 'auto', margin: 0, overflowY: 'auto' } : undefined}
           role="dialog"
           aria-label={`${ariaLabel} calendar`}
           className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} ${
@@ -176,7 +236,26 @@ export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'lef
             >
               <ChevronLeft size={16} />
             </button>
-            <span className="text-sm font-semibold text-white">{MONTH_NAMES[month]} {year}</span>
+            {yearNavigation ? (
+              <div className="flex items-center gap-2">
+                <select
+                  aria-label="Calendar month"
+                  value={month}
+                  onChange={(event) => setViewMonth(new Date(year, Number(event.target.value), 1))}
+                  className="min-w-0 rounded-md border border-[#1E2D45] bg-[#0E1628] px-1 py-1 text-xs text-white outline-none focus:border-[#62A0EA]"
+                >
+                  {MONTH_NAMES.map((name, index) => <option key={name} value={index}>{name.slice(0, 3)}</option>)}
+                </select>
+                <select
+                  aria-label="Calendar year"
+                  value={year}
+                  onChange={(event) => setViewMonth(new Date(Number(event.target.value), month, 1))}
+                  className="min-w-0 rounded-md border border-[#1E2D45] bg-[#0E1628] px-1 py-1 text-xs text-white outline-none focus:border-[#62A0EA]"
+                >
+                  {Array.from({ length: Math.max(today.getFullYear(), year) - Math.min(1900, year) + 1 }, (_, index) => Math.max(today.getFullYear(), year) - index).map((option) => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </div>
+            ) : <span className="text-sm font-semibold text-white">{MONTH_NAMES[month]} {year}</span>}
             <button
               type="button"
               onClick={() => setViewMonth(new Date(year, month + 1, 1))}

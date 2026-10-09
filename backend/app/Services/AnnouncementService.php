@@ -253,9 +253,10 @@ class AnnouncementService
      */
     public function notifyAdmins(string $type, string $title, string $message, ?string $referenceId = null): void
     {
-        User::query()->where('role', UserRole::ADMIN->value)->pluck('id')->each(
-            fn (string $adminId) => $this->notifyUser($adminId, $type, $title, $message, $referenceId)
-        );
+        User::query()->where('role', UserRole::ADMIN->value)
+            ->select('id')->chunkById(500, function ($admins) use ($type, $title, $message, $referenceId) {
+                $this->notifyUsers($admins->pluck('id'), $type, $title, $message, $referenceId);
+            });
     }
 
     public function update(string $id, array $data): Announcement
@@ -308,12 +309,16 @@ class AnnouncementService
      */
     public function markRead(User $user, string $id): void
     {
-        // Verify the announcement exists + is ACTIVE (can't read an archived one).
-        $announcement = $this->show($id);
+        // Match the feed's recipient scope; do not reveal another user's notice.
+        if (! Announcement::query()->whereKey($id)->where('status', self::STATUS_ACTIVE)
+            ->where(fn ($query) => $query->whereNull('user_id')->orWhere('user_id', $user->id))
+            ->exists()) {
+            throw new \RuntimeException('Announcement not found');
+        }
 
         DB::table('announcement_reads')->upsert(
             [
-                'announcement_id' => $announcement->id,
+                'announcement_id' => $id,
                 'user_id'         => $user->id,
                 'read_at'         => now(),
             ],

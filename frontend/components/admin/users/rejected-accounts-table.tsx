@@ -2,9 +2,11 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { Eye } from 'lucide-react';
 import { Badge } from '@/components/admin/ui/badge';
 import { DataTable } from '@/components/admin/ui/data-table';
 import { TablePagination } from '@/components/admin/ui/table-pagination';
+import { RowActionsMenu } from '@/components/admin/ui/row-actions-menu';
 import type { RejectedRequest } from '@/app/(admin)/users/data/users-data';
 import type { RegistrationPagination } from '@/lib/admin/services/registration.service';
 
@@ -82,6 +84,13 @@ export function RejectedAccountsTable({
       render: (value: string) => <span className="text-xs text-slate-400">{formatAppliedDate(value)}</span>,
     },
     {
+      key: 'rejectedAt',
+      label: 'Rejected On',
+      headerClassName: 'px-2 sm:px-4',
+      cellClassName: 'whitespace-nowrap px-2 sm:px-4',
+      render: (value: string | null) => <span className="text-xs text-slate-400">{formatAppliedDate(value)}</span>,
+    },
+    {
       key: 'rejectionReason',
       label: 'Reason',
       // Full text, single line — the row no longer forces a fixed-width
@@ -107,6 +116,21 @@ export function RejectedAccountsTable({
         </div>
       ),
     },
+    {
+      key: 'actions',
+      label: 'Actions',
+      align: 'center' as const,
+      headerClassName: 'w-20 px-2 sm:px-4',
+      cellClassName: 'w-20 whitespace-nowrap px-2 sm:px-4',
+      render: (_: unknown, request: RejectedRequest) => (
+        <RowActionsMenu
+          label={`Actions for ${request.name}`}
+          actions={[
+            { label: 'View Details', icon: Eye, onSelect: () => onSelectRequest(request) },
+          ]}
+        />
+      ),
+    },
   ];
 
   return (
@@ -120,6 +144,7 @@ export function RejectedAccountsTable({
           emptyMessage="No rejected accounts."
           height="100%"
           stickyHeader
+          mobileCards
           onRowDoubleClick={onSelectRequest}
         />
         {isRefreshing && (
@@ -128,7 +153,7 @@ export function RejectedAccountsTable({
           </div>
         )}
       </div>
-      <div className="shrink-0">
+      <div className="shrink-0 [&_button]:min-h-11 [&_button]:min-w-11 md:[&_button]:min-h-0 md:[&_button]:min-w-0">
         <TablePagination
           currentPage={currentPage}
           totalPages={totalPages}

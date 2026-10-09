@@ -572,4 +572,67 @@ class AnnouncementFlowTest extends TestCase
         $this->postJson('/api/v1/announcements/mark-all-read?types=claim_approved')
             ->assertStatus(200)->assertJsonPath('data.count', 0);
     }
+
+    public function test_targeted_notification_cannot_be_read_by_another_user(): void
+    {
+        $notice = $this->createTargetedAnnouncement($this->admin->id, 'NEW_CLAIM');
+        $this->commuter();
+        $this->postJson("/api/v1/announcements/{$notice->id}/read")->assertNotFound();
+        $this->assertDatabaseMissing('announcement_reads', ['announcement_id' => $notice->id]);
+        $this->assertCount(0, $this->getJson('/api/v1/announcements')->json('data.data'));
+    }
+
+    public function test_archived_notification_cannot_be_marked_read(): void
+    {
+        $notice = $this->createAnnouncement('Archived notice', 'ARCHIVED');
+        $this->commuter();
+        $this->postJson("/api/v1/announcements/{$notice->id}/read")->assertNotFound();
+    }
+
+    public function test_notification_history_preserves_read_items_and_recipient_scoping(): void
+    {
+        $read = $this->createTargetedAnnouncement($this->admin->id, 'SHIFT_ENDED', 'Read');
+        $this->createTargetedAnnouncement($this->admin->id, 'NEW_CLAIM', 'Unread');
+        $this->createTargetedAnnouncement($this->conductor->id, 'REMITTANCE_REMINDER', 'Private');
+        $this->admin();
+        $this->postJson("/api/v1/announcements/{$read->id}/read")->assertOk();
+        $items = $this->getJson('/api/v1/announcements?unread_only=0')->assertOk()->json('data.data');
+        $this->assertCount(2, $items);
+        $this->assertTrue(collect($items)->firstWhere('id', $read->id)['is_read']);
+        $this->assertCount(1, $this->getJson('/api/v1/announcements?unread_only=1')->json('data.data'));
+        $this->getJson('/api/v1/announcements?per_page=100000')->assertJsonPath('data.per_page', 100);
+    }
+
+    public function test_registration_reminders_are_daily_and_skip_recent_processed_and_deleted_accounts(): void
+    {
+        $old = $this->commuter->commuterProfile;
+        $old->forceFill(['account_status' => 'PENDING', 'created_at' => now()->subHours(25)])->save();
+        $recent = User::factory()->commuter()->create();
+        $recent->commuterProfile->update(['account_status' => 'PENDING']);
+        $approved = User::factory()->commuter()->create();
+        $approved->commuterProfile->forceFill(['account_status' => 'APPROVED', 'created_at' => now()->subDays(3)])->save();
+        $deleted = User::factory()->commuter()->create();
+        $deleted->commuterProfile->forceFill(['account_status' => 'PENDING', 'created_at' => now()->subDays(3)])->save();
+        $deleted->delete();
+        $otherAdmin = User::factory()->admin()->create();
+        $this->artisan('registrations:send-reminders')->assertSuccessful();
+        $this->artisan('registrations:send-reminders')->assertSuccessful();
+        $notices = Announcement::where('type', 'REGISTRATION_WAITING')->get();
+        $this->assertCount(2, $notices);
+        $this->assertEqualsCanonicalizing([$this->admin->id, $otherAdmin->id], $notices->pluck('user_id')->all());
+        $this->assertSame([$old->id], $notices->pluck('reference_id')->unique()->values()->all());
+        // Archiving does not reset the repeat interval.
+        Announcement::where('type', 'REGISTRATION_WAITING')->update(['status' => 'ARCHIVED']);
+        $this->artisan('registrations:send-reminders')->assertSuccessful();
+        $this->assertSame(2, Announcement::where('type', 'REGISTRATION_WAITING')->count());
+        $recent->commuterProfile->update(['account_status' => 'APPROVED']);
+        $this->travel(25)->hours();
+        $this->artisan('registrations:send-reminders')->assertSuccessful();
+        $this->assertSame(4, Announcement::where('type', 'REGISTRATION_WAITING')->count());
+        $old->update(['account_status' => 'APPROVED']);
+        $this->travel(25)->hours();
+        $this->artisan('registrations:send-reminders')->assertSuccessful();
+        $this->assertSame(4, Announcement::where('type', 'REGISTRATION_WAITING')->count());
+    }
+
 }

@@ -313,7 +313,7 @@ export default function HowItWorks() {
       </div>
 
       {/* ── Mobile + reduced-motion: stacked ── */}
-      <div className="motion-safe:lg:hidden py-20 md:py-28">
+      <div className="motion-safe:lg:hidden overflow-x-clip py-20 md:py-28">
         <div className="text-center px-6">
           <span className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">How It Works</span>
           <h2 className="mt-3 font-sans font-bold text-3xl md:text-4xl tracking-tight">Three steps to smarter commuting</h2>

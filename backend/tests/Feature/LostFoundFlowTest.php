@@ -1488,7 +1488,8 @@ class LostFoundFlowTest extends TestCase
 
         $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim['id']}/approve");
 
-        $this->assertDatabaseCount('announcements', 0);
+        $this->assertSame(0, \App\Models\Announcement::where('type', 'claim_approved')->count());
+        $this->assertSame(1, \App\Models\Announcement::where('type', 'NEW_CLAIM')->where('user_id', $this->admin->id)->count());
     }
 
     // ── Pickup schedule on approval ─────────────────────────────
@@ -1840,4 +1841,21 @@ class LostFoundFlowTest extends TestCase
 
         return $path;
     }
+
+    public function test_new_claim_notifies_only_admins_with_claimant_and_item(): void
+    {
+        $otherAdmin = User::factory()->admin()->create();
+        $item = $this->createItem();
+        $this->commuter();
+        $this->postJson("/api/v1/lost-found/{$item->id}/claim", ['proof' => 'My backpack has a keychain'])->assertCreated();
+        $notices = \App\Models\Announcement::where('type', 'NEW_CLAIM')->get();
+        $this->assertCount(2, $notices);
+        $this->assertEqualsCanonicalizing([$this->admin->id, $otherAdmin->id], $notices->pluck('user_id')->all());
+        $this->assertStringContainsString($this->commuter->getDisplayName(), $notices->first()->message);
+        $this->assertStringContainsString($item->item_name, $notices->first()->message);
+        $this->assertSame($item->id, $notices->first()->reference_id);
+        $this->assertStringNotContainsString('keychain', $notices->first()->message);
+        $this->getJson('/api/v1/announcements')->assertJsonCount(0, 'data.data');
+    }
+
 }

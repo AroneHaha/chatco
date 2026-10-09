@@ -183,7 +183,7 @@ export function calculateDistance(
  * The vehicle speed parameter is ignored to maintain a consistent
  * production-grade assumption.
  */
-function estimateArrival(distanceMeters: number): number {
+export function estimateArrival(distanceMeters: number): number {
   const speedMetersPerMin = (JEEPNEY_SPEED_KMH * 1000) / 60;
   return Math.max(1, Math.round(distanceMeters / speedMetersPerMin));
 }
