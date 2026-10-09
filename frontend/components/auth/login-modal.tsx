@@ -3,6 +3,7 @@
 import { useState } from "react";
 import AuthModal from "./auth-modal";
 import LoginForm from "./login-form";
+import { StepContentWrapper } from "@/components/Stepper";
 import styles from "./login.module.css";
 
 export default function LoginModal({ standalone = false }: { standalone?: boolean }) {
@@ -17,8 +18,13 @@ export default function LoginModal({ standalone = false }: { standalone?: boolea
       closeLabel="Close sign in"
       focusSelector='input[autocomplete="username"]'
       standalone={standalone}
+      dismissHref="/"
     >
-      <LoginForm onBusyChange={setBusy} />
+      <StepContentWrapper>
+        <div className={styles.loginEntrance}>
+          <LoginForm onBusyChange={setBusy} />
+        </div>
+      </StepContentWrapper>
     </AuthModal>
   );
 }

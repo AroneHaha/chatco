@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, CircleCheck, LoaderCircle } from "lucide-react";
 import styles from "./login.module.css";
+import Stepper, { Step as StepperStep } from "@/components/Stepper";
 
 type Step = "email" | "code" | "password" | "done";
 
@@ -37,11 +38,12 @@ export default function ForgotPasswordForm({ onBusyChange, onReturnToLogin }: { 
   const [resendNote, setResendNote] = useState("");
 
   useEffect(() => {
-    const frame = requestAnimationFrame(() => {
+    const timer = setTimeout(() => {
       content.current?.closest("dialog")?.scrollTo({ top: 0, behavior: "instant" });
-      content.current?.querySelector<HTMLElement>(step === "done" ? 'a[href="/login"]' : "input")?.focus({ preventScroll: true });
-    });
-    return () => cancelAnimationFrame(frame);
+      const selector = step === "done" ? 'a[href="/login"]' : step === "password" ? "#new-password" : `#reset-${step}`;
+      content.current?.querySelector<HTMLElement>(selector)?.focus({ preventScroll: true });
+    }, step === "done" || window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 420);
+    return () => clearTimeout(timer);
   }, [step]);
 
   useEffect(() => {
@@ -143,48 +145,59 @@ export default function ForgotPasswordForm({ onBusyChange, onReturnToLogin }: { 
   const disabled = loading || (step === "email" ? !email : step === "code" ? code.length !== 6 : !password || !confirmation);
 
   return (
-    <div ref={content}>
-      {step === "done" && <CircleCheck className={styles.recoverySuccess} size={40} strokeWidth={1.5} aria-hidden="true" />}
-      <h2 id="reset-heading" className={styles.formHeading}>{COPY[step].title}</h2>
-      <p id="reset-description" className={styles.formIntro}>{COPY[step].description}</p>
-
-      {step !== "done" && (
-        <ol className={styles.recoverySteps} aria-label="Password recovery steps">
-          {STEPS.map((item, index) => (
-            <li key={item} aria-current={step === item ? "step" : undefined} data-complete={activeIndex > index}>
-              {item === "email" ? "Email" : item === "code" ? "Verify code" : "New password"}
-            </li>
-          ))}
-        </ol>
-      )}
-
-      {step === "code" && (
-        <div className={styles.recoveryHelp}>
-          <p>Sent to <strong>{email}</strong>. It expires in 15 minutes.</p>
-          <p>Check your spam folder if it hasn&apos;t arrived.</p>
-        </div>
-      )}
-
-      {error && <div id="reset-error" role="alert" className={styles.error}>{error}</div>}
-      {resendNote && !error && <p className={styles.recoveryNote} role="status">{resendNote}</p>}
-
+    <div ref={content} className={styles.recoveryFlow}>
       {step !== "done" ? (
         <>
-          <form className={styles.form} onSubmit={submit} aria-busy={loading}>
-            {step === "email" && (
-              <div>
-                <label htmlFor="reset-email" className={styles.fieldLabel}>Email address</label>
-                <input id="reset-email" type="email" required autoComplete="email" autoCapitalize="none" spellCheck={false} value={email} onChange={event => setEmail(event.target.value)} placeholder="you@example.com" className={styles.input} disabled={loading} aria-invalid={!!error} aria-describedby={error ? "reset-error" : undefined} />
+          <Stepper
+            currentStep={activeIndex + 1}
+            disableStepIndicators
+            hideNavigation
+            renderStepIndicator={({ step: stepNumber, currentStep }: { step: number; currentStep: number }) => (
+              <div
+                className={styles.recoveryStepLabel}
+                aria-current={stepNumber === currentStep ? "step" : undefined}
+                data-complete={stepNumber < currentStep}
+              >
+                {stepNumber === 1 ? "Email" : stepNumber === 2 ? "Verify code" : "New password"}
               </div>
             )}
-            {step === "code" && (
-              <div>
-                <label htmlFor="reset-code" className={styles.fieldLabel}>6-digit code</label>
-                <input id="reset-code" type="text" inputMode="numeric" autoComplete="one-time-code" required pattern="[0-9]{6}" value={code} onChange={event => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="123456" className={`${styles.input} ${styles.recoveryCode}`} disabled={loading} aria-invalid={!!error} aria-describedby={error ? "reset-error" : undefined} />
+            header={
+              <div className={styles.recoveryHeading}>
+                <h2 id="reset-heading" className={styles.formHeading}>{COPY[step].title}</h2>
+                <p id="reset-description" className={styles.formIntro}>{COPY[step].description}</p>
+                {error && <div id="reset-error" role="alert" className={styles.error}>{error}</div>}
+                {resendNote && !error && <p className={styles.recoveryNote} role="status">{resendNote}</p>}
               </div>
-            )}
-            {step === "password" && (
-              <>
+            }
+            footer={
+              <button type="submit" form={`password-recovery-${step}`} disabled={disabled} className={`${styles.submit} ${styles.recoverySubmit}`}>
+                <span>{buttonText}</span>
+                {loading ? <LoaderCircle className={styles.spinner} size={19} aria-hidden="true" /> : <ArrowRight size={19} aria-hidden="true" />}
+              </button>
+            }
+          >
+            <StepperStep>
+              <form id="password-recovery-email" className={styles.recoveryFields} onSubmit={submit} aria-busy={loading}>
+                <div>
+                  <label htmlFor="reset-email" className={styles.fieldLabel}>Email address</label>
+                  <input id="reset-email" type="email" required autoComplete="email" autoCapitalize="none" spellCheck={false} value={email} onChange={event => setEmail(event.target.value)} className={styles.input} disabled={loading} aria-invalid={!!error} aria-describedby={error ? "reset-error" : undefined} />
+                </div>
+              </form>
+            </StepperStep>
+            <StepperStep>
+              <form id="password-recovery-code" className={styles.recoveryFields} onSubmit={submit} aria-busy={loading}>
+                <div className={styles.recoveryHelp}>
+                  <p>Sent to <strong>{email}</strong>. It expires in 15 minutes.</p>
+                  <p>Check your spam folder if it hasn&apos;t arrived.</p>
+                </div>
+                <div>
+                  <label htmlFor="reset-code" className={styles.fieldLabel}>6-digit code</label>
+                  <input id="reset-code" type="text" inputMode="numeric" autoComplete="one-time-code" required pattern="[0-9]{6}" value={code} onChange={event => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="123456" className={`${styles.input} ${styles.recoveryCode}`} disabled={loading} aria-invalid={!!error} aria-describedby={error ? "reset-error" : undefined} />
+                </div>
+              </form>
+            </StepperStep>
+            <StepperStep>
+              <form id="password-recovery-password" className={styles.recoveryFields} onSubmit={submit} aria-busy={loading}>
                 <div>
                   <label htmlFor="new-password" className={styles.fieldLabel}>New password</label>
                   <input id="new-password" type="password" autoComplete="new-password" required minLength={8} value={password} onChange={event => setPassword(event.target.value)} placeholder="At least 8 characters" className={styles.input} disabled={loading} aria-invalid={!!error} aria-describedby={error ? "reset-error" : undefined} />
@@ -193,13 +206,9 @@ export default function ForgotPasswordForm({ onBusyChange, onReturnToLogin }: { 
                   <label htmlFor="confirm-new-password" className={styles.fieldLabel}>Confirm new password</label>
                   <input id="confirm-new-password" type="password" autoComplete="new-password" required minLength={8} value={confirmation} onChange={event => setConfirmation(event.target.value)} placeholder="Repeat your password" className={styles.input} disabled={loading} aria-invalid={!!error} aria-describedby={error ? "reset-error" : undefined} />
                 </div>
-              </>
-            )}
-            <button type="submit" disabled={disabled} className={styles.submit}>
-              <span>{buttonText}</span>
-              {loading ? <LoaderCircle className={styles.spinner} size={19} aria-hidden="true" /> : <ArrowRight size={19} aria-hidden="true" />}
-            </button>
-          </form>
+              </form>
+            </StepperStep>
+          </Stepper>
           {step === "code" && (
             <div className={styles.recoveryActions}>
               <button type="button" className={styles.textLink} disabled={loading} onClick={() => { setStep("email"); setError(""); setResendNote(""); setCode(""); }}><ArrowLeft size={14} aria-hidden="true" />Change email</button>
@@ -212,6 +221,9 @@ export default function ForgotPasswordForm({ onBusyChange, onReturnToLogin }: { 
         </>
       ) : (
         <>
+          <CircleCheck className={styles.recoverySuccess} size={40} strokeWidth={1.5} aria-hidden="true" />
+          <h2 id="reset-heading" className={styles.formHeading}>{COPY.done.title}</h2>
+          <p id="reset-description" className={styles.formIntro}>{COPY.done.description}</p>
           <Link href="/login" replace className={`${styles.submit} ${styles.recoveryLogin}`} onClick={event => { event.preventDefault(); onReturnToLogin(); }}><span>Go to login</span><ArrowRight size={19} aria-hidden="true" /></Link>
           <p className={styles.recoveryHelp} role="status">Redirecting you automatically…</p>
         </>

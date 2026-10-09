@@ -15,7 +15,7 @@ export default function ForgotPasswordModal({ standalone = false }: { standalone
   }, [router, standalone]);
 
   return (
-    <AuthModal className={styles.darkModal} busy={busy} headingId="reset-heading" descriptionId="reset-description" closeLabel="Close password recovery" focusSelector="#reset-email" standalone={standalone}>
+    <AuthModal className={styles.darkModal} busy={busy} headingId="reset-heading" descriptionId="reset-description" closeLabel="Close password recovery" focusSelector="#reset-email" standalone={standalone} dismissHref="/">
       <ForgotPasswordForm onBusyChange={setBusy} onReturnToLogin={returnToLogin} />
     </AuthModal>
   );
