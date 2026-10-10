@@ -41,8 +41,14 @@ export function DashboardAnalyticsPreview({ paymentTendencies, topPickupPoints }
 
       {/* Top Pickup Points */}
       <div className="flex-1 min-h-0 flex flex-col bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5">
-        <h3 className="shrink-0 text-sm font-semibold text-white mb-4">Top Pickup Points</h3>
+        <div className="shrink-0 mb-4">
+          <h3 className="text-sm font-semibold text-white">Top Pickup Points</h3>
+          <p className="text-[11px] text-slate-400 mt-1">This week</p>
+        </div>
         <div className="flex-1 min-h-0 overflow-y-auto scrollbar-themed pr-1 space-y-3">
+          {topPickupPoints.length === 0 && (
+            <p className="text-xs text-slate-400">No pickups this week.</p>
+          )}
           {topPickupPoints.map((p, i) => (
             <div key={p.name} className="flex items-center gap-3">
               <span className="text-xs font-bold text-slate-500 w-3">{i + 1}</span>

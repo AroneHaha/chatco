@@ -18,7 +18,7 @@ import { DashboardSettingsCarousel } from "@/components/admin/dashboard/dashboar
 import { StickyPageHeader } from "@/components/admin/layout/sticky-page-header";
 
 export default function DashboardHome() {
-  const { data, isLoading, error, refetch } = useDashboardData();
+  const { data, isLoading, error, refetch, activityFeed } = useDashboardData();
 
   // Loading State
   if (isLoading) {
@@ -35,14 +35,18 @@ export default function DashboardHome() {
           <SkeletonDashboardMap />
           <SkeletonDashboardAnalytics />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <SkeletonPreviewCard />
-          <SkeletonPreviewCard />
-          <SkeletonPreviewCard />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <SkeletonPreviewCard />
-          <SkeletonPreviewCard />
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+            <div className="min-w-0 lg:col-span-5"><SkeletonPreviewCard variant="fleet" /></div>
+            <div className="min-h-0 min-w-0 lg:relative lg:col-span-7">
+              <div className="max-h-[360px] overflow-hidden lg:absolute lg:inset-0 lg:max-h-none"><SkeletonPreviewCard variant="timeline" rows={10} /></div>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
+            <div className="min-w-0 md:col-span-2 xl:col-span-5"><SkeletonPreviewCard variant="featured" /></div>
+            <div className="min-w-0 xl:col-span-4"><SkeletonPreviewCard variant="featured" /></div>
+            <div className="min-w-0 xl:col-span-3"><SkeletonPreviewCard /></div>
+          </div>
         </div>
         <SkeletonDashboardCarousel />
       </div>
@@ -105,11 +109,13 @@ export default function DashboardHome() {
       </div>
 
       <DashboardPreviewCards
+        activeVehicles={quickStats.find((stat) => stat.link === "/monitoring")?.value ?? "—"}
         recentVehicles={recentVehicles}
         recentLostFound={recentLostFound}
         recentUsers={recentUsers}
         recentAnnouncements={recentAnnouncements}
         recentActivityLogs={recentActivityLogs}
+        activityFeed={activityFeed}
       />
 
       <DashboardSettingsCarousel modules={settingsModules} />

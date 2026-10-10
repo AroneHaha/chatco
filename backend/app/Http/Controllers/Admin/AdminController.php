@@ -69,9 +69,11 @@ class AdminController extends Controller
      */
     public function analytics(Request $request): JsonResponse
     {
+        $request->validate(['pickup_period' => 'sometimes|in:week']);
         $filters = [
             'date_from' => $request->string('date_from')->toString() ?: null,
             'date_to' => $request->string('date_to')->toString() ?: null,
+            'pickup_period' => $request->string('pickup_period')->toString() ?: null,
         ];
 
         $data = $this->adminService->analytics($filters);
@@ -83,8 +85,8 @@ class AdminController extends Controller
      * GET /api/v1/admin/monitoring
      * Returns the live fleet monitoring view: all vehicles with an ACTIVE
      * shift, their latest GPS position, capacity status, speed, driver +
-     * conductor names, and a `is_stale` flag (true if the last location
-     * update was more than 10 minutes ago).
+     * conductor names, active break status and elapsed break minutes,
+     * and a `is_stale` flag for GPS gaps outside a scheduled break.
      *
      * Designed for 5-second polling from the admin monitoring dashboard.
      */

@@ -1,159 +1,214 @@
 import Link from "next/link";
-import { Truck, Search, Users, Megaphone, History } from "lucide-react";
-import type { VehicleItem, LostFoundItem, UserItem, AnnouncementItem, ActivityLogItem } from "@/app/(admin)/admin-dashboard/data/dashboard-data";
+import { useEffect, useRef } from "react";
+import { ArrowUpRight } from "lucide-react";
+import { formatDateTime } from "@/lib/utils/format";
+import type { VehicleItem, LostFoundItem, UserItem, AnnouncementItem, ActivityLogItem, DashboardActivityFeed } from "@/app/(admin)/admin-dashboard/data/dashboard-data";
 
-/** "LOST_FOUND" → "Lost Found" — the raw backend category enum, prettified
- * for a compact preview row (the full Activity Logs page has its own
- * curated label map; this is just a fallback title-case). */
 function formatCategory(category: string): string {
-  return category
-    .toLowerCase()
-    .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
+  return category.toLowerCase().split("_").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
 }
 
 interface DashboardPreviewCardsProps {
+  activeVehicles: string;
   recentVehicles: VehicleItem[];
   recentLostFound: LostFoundItem[];
   recentUsers: UserItem[];
   recentAnnouncements: AnnouncementItem[];
   recentActivityLogs: ActivityLogItem[];
+  activityFeed: DashboardActivityFeed;
 }
 
-export function DashboardPreviewCards({ recentVehicles, recentLostFound, recentUsers, recentAnnouncements, recentActivityLogs }: DashboardPreviewCardsProps) {
+function PreviewHeader({ title, href, detail }: { title: string; href: string; detail?: string }) {
   return (
-    // One shared panel instead of five identically-weighted cards — hairline
-    // dividers do the grouping instead of five repeated bg+border wrappers,
-    // so the five lists read as one "Recent Activity" section, not five
-    // peer panels competing with the map/analytics above them.
-    <div className="bg-[#131C2E] border border-[#1E2D45] rounded-xl overflow-hidden">
-      <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-[#1E2D45]">
-        {/* Vehicles / Fleet */}
-        <div className="p-5 flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-              <Truck className="w-4 h-4 text-[#62A0EA]" /> Vehicles
-            </h3>
-            <Link href="/vehicles" className="text-xs text-[#62A0EA] hover:underline">View All</Link>
-          </div>
-          <div className="space-y-3 flex-1">
-            {recentVehicles.map((v) => (
-              <div key={v.unit} className="flex items-center justify-between bg-[#0E1628] rounded-md p-2.5">
-                <div>
-                  <p className="text-xs font-semibold text-slate-200">{v.unit}</p>
-                  <p className="text-xs text-slate-500">{v.driver}</p>
-                </div>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-md ${
-                  v.status === "Active" ? "bg-sky-400/15 text-sky-400" : "bg-amber-400/15 text-amber-400"
-                }`}>
-                  {v.status}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
+    <div className="flex items-center justify-between gap-3 px-5 pt-5">
+      <h3 className="text-sm font-semibold text-white">{title}{detail && <span className="ml-2 text-[10px] font-normal text-white/45">{detail}</span>}</h3>
+      <Link href={href} aria-label={`View all ${title.toLowerCase()}`} className="flex shrink-0 items-center gap-1 text-[11px] text-[#62A0EA] transition-colors hover:text-[#99C1F1] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#62A0EA]">
+        View all <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+      </Link>
+    </div>
+  );
+}
 
-        {/* Lost & Found */}
-        <div className="p-5 flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-              <Search className="w-4 h-4 text-[#62A0EA]" /> Lost & Found
-            </h3>
-            <Link href="/lost-found" className="text-xs text-[#62A0EA] hover:underline">View All</Link>
-          </div>
-          <div className="space-y-3 flex-1">
-            {recentLostFound.map((item) => (
-              <div key={item.item} className="flex items-center justify-between bg-[#0E1628] rounded-md p-2.5">
-                <p className="text-xs text-slate-200">{item.item}</p>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-md ${
-                  item.status === "Returned" ? "bg-sky-400/15 text-sky-400" :
-                  item.status === "Under Review" ? "bg-[#62A0EA]/15 text-[#62A0EA]" : "bg-amber-400/15 text-amber-400"
-                }`}>
-                  {item.status}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
+export function DashboardPreviewCards({ activeVehicles, recentVehicles, recentLostFound, recentUsers, recentAnnouncements, recentActivityLogs, activityFeed }: DashboardPreviewCardsProps) {
+  const activityScrollRef = useRef<HTMLDivElement>(null);
+  const { isLoading: isLoadingActivity, hasMore: hasMoreActivity, error: activityError, loadMore: loadMoreActivity } = activityFeed;
+  useEffect(() => {
+    const list = activityScrollRef.current;
+    if (!list || !hasMoreActivity || isLoadingActivity || activityError) return;
+    // A short page or a larger viewport can leave no scrollbar. Fetch enough
+    // to fill the pane, rather than making further pages unreachable.
+    const fillPane = () => {
+      if (list.clientHeight > 0 && list.scrollHeight <= list.clientHeight + 1) void loadMoreActivity();
+    };
+    fillPane();
+    const observer = new ResizeObserver(fillPane);
+    observer.observe(list);
+    return () => observer.disconnect();
+  }, [recentActivityLogs, hasMoreActivity, isLoadingActivity, activityError, loadMoreActivity]);
+  const [latestAnnouncement, ...olderAnnouncements] = recentAnnouncements;
+  // These are previews of three recent accounts/items, not system-wide totals.
+  const roleCounts = Array.from(new Set(recentUsers.map((user) => user.role))).map((role) => ({
+    role, count: recentUsers.filter((user) => user.role === role).length,
+  }));
+  const featuredItemIndex = Math.max(0, recentLostFound.findIndex((item) => item.status !== "Returned"));
+  const featuredItem = recentLostFound[featuredItemIndex];
+  const otherItems = recentLostFound.filter((_, index) => index !== featuredItemIndex);
 
-        {/* User Management */}
-        <div className="p-5 flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-              <Users className="w-4 h-4 text-[#62A0EA]" /> Users
-            </h3>
-            <Link href="/users" className="text-xs text-[#62A0EA] hover:underline">View All</Link>
-          </div>
-          <div className="space-y-3 flex-1">
-            {recentUsers.map((u) => (
-              <div key={u.name} className="flex items-center justify-between bg-[#0E1628] rounded-md p-2.5">
-                <div>
-                  <p className="text-xs font-semibold text-slate-200">{u.name}</p>
-                  <p className="text-xs text-slate-500">{u.role}</p>
-                </div>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-md ${
-                  u.status === "Active" ? "bg-sky-400/15 text-sky-400" : "bg-slate-500/15 text-slate-300"
-                }`}>
-                  {u.status}
-                </span>
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <section aria-label="Recent vehicles" className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-[#1E2D45] bg-[#131C2E] lg:col-span-5">
+          <PreviewHeader title="Vehicles" href="/vehicles" />
+          <div className="flex flex-1 flex-col px-5 pb-5">
+            <div className="flex flex-wrap items-end justify-between gap-4 py-6">
+              <div>
+                <p className="text-5xl font-semibold leading-none tracking-tight text-white tabular-nums">{activeVehicles}</p>
+                <p className="mt-2 text-xs text-white/60">Active vehicles across the fleet</p>
               </div>
-            ))}
+              <Link href="/monitoring" className="flex items-center gap-1 text-xs text-[#62A0EA] hover:text-[#99C1F1] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#62A0EA]">
+                Open tracking <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </Link>
+            </div>
+            <div className="mt-auto border-t border-[#1E2D45] pt-4">
+              <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-white/40">Recent vehicles</p>
+              {recentVehicles.length === 0 ? <p className="text-xs text-white/45">No recent vehicles.</p> : (
+                <ul className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  {recentVehicles.map((vehicle, index) => (
+                    <li key={`${vehicle.unit}-${index}`} className="min-w-0 border-l-2 border-[#2A3A55] pl-3">
+                      <p className="truncate text-sm font-semibold text-white/90" title={vehicle.unit}>{vehicle.unit}</p>
+                      <p className="mt-1 truncate text-[11px] text-white/45" title={vehicle.driver}>{vehicle.driver}</p>
+                      <p className={`mt-2 text-[11px] ${vehicle.status === "Active" ? "text-[#62A0EA]" : "text-amber-300"}`}>{vehicle.status}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
-        </div>
+        </section>
+
+        <section aria-label="Recent activity logs" className="min-h-0 min-w-0 overflow-hidden rounded-lg border border-[#1E2D45] bg-[#131C2E] lg:relative lg:col-span-7">
+          {/* Let Vehicles set the desktop row height; the timeline fills that
+              space and scrolls rather than stretching both cards. */}
+          <div className="flex min-h-0 flex-col lg:absolute lg:inset-0">
+            <PreviewHeader title="Activity Logs" href="/activity-logs" detail="Today" />
+            <div ref={activityScrollRef} role="region" aria-label="Recent activity timeline" aria-busy={isLoadingActivity} tabIndex={0} onScroll={(event) => {
+              const list = event.currentTarget;
+              if (hasMoreActivity && !isLoadingActivity && !activityError && list.scrollHeight - list.scrollTop - list.clientHeight <= 48) void loadMoreActivity();
+            }} className="scrollbar-themed min-h-0 max-h-80 overflow-y-auto overscroll-contain px-5 py-4 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#62A0EA] lg:max-h-none lg:flex-1">
+              <ol className="space-y-2">
+                {recentActivityLogs.map((log, index) => {
+                  const timestamp = formatDateTime(log.createdAt, "Asia/Manila");
+                  return (
+                    <li key={log.id} className={`relative grid grid-cols-1 gap-x-5 gap-y-2 overflow-hidden rounded-md py-2 pl-6 pr-3 sm:grid-cols-[minmax(0,1fr)_9rem] ${index === 0 ? "bg-[#62A0EA]/10" : index % 2 === 1 ? "bg-[#1A2540]/45" : ""}`}>
+                      {index < recentActivityLogs.length - 1 && <span aria-hidden="true" className="absolute top-6 bottom-2 left-[11px] border-l border-dashed border-[#40516D]" />}
+                      <span aria-hidden="true" className={`absolute top-4 left-[7px] h-[9px] w-[9px] rounded-full border ${index === 0 ? "border-[#62A0EA] bg-[#62A0EA]" : "border-[#64748B] bg-[#131C2E]"}`} />
+                      <p className={`min-w-0 break-words text-sm leading-6 ${index === 0 ? "font-medium text-white" : "text-white/85"}`}>{log.description}</p>
+                      <div className="min-w-0 text-xs leading-5 sm:border-l sm:border-[#2A3A55] sm:pl-3 sm:text-right">
+                        <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 sm:justify-end">
+                          <span className={`min-w-0 break-words ${index === 0 ? "text-[#62A0EA]" : "text-white/45"}`}>{formatCategory(log.category)}</span>
+                          <time dateTime={log.createdAt} title={`${timestamp.full} (Philippine time)`} className={`whitespace-nowrap tabular-nums ${index === 0 ? "font-medium text-[#62A0EA]" : "text-white/60"}`}>{timestamp.time}</time>
+                        </p>
+                        <p className="mt-1 break-words text-white/60">{log.by}</p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+              {isLoadingActivity && <p role="status" className="mt-3 text-sm text-white/45">Loading activity…</p>}
+              {activityError && <div role="alert" className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+                <p className="text-white/60">{activityError}</p>
+                <button type="button" onClick={() => void loadMoreActivity()} className="text-[#62A0EA] hover:text-[#99C1F1] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#62A0EA]">Try again</button>
+              </div>}
+              {!isLoadingActivity && !activityError && recentActivityLogs.length === 0 && <p className="text-sm text-white/45">No activity today.</p>}
+              {!isLoadingActivity && !activityError && !hasMoreActivity && recentActivityLogs.length > 0 && <p className="mt-4 text-xs text-white/35">No more activity today.</p>}
+            </div>
+          </div>
+        </section>
       </div>
 
-      {/* Announcements / Activity Logs — a second row, separated by a
-          hairline rather than its own card, so it reads as more of the
-          same section instead of a new one. */}
-      <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#1E2D45] border-t border-[#1E2D45]">
-        {/* Announcements */}
-        <div className="p-5 flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-              <Megaphone className="w-4 h-4 text-[#62A0EA]" /> Announcements
-            </h3>
-            <Link href="/announcements" className="text-xs text-[#62A0EA] hover:underline">View All</Link>
-          </div>
-          <div className="space-y-3 flex-1">
-            {recentAnnouncements.map((a, i) => (
-              <div key={`${a.title}-${i}`} className="flex items-center justify-between bg-[#0E1628] rounded-md p-2.5">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-slate-200 truncate">{a.title}</p>
-                  <p className="text-xs text-slate-500">{a.type}</p>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
+        <section aria-label="Recent announcements" className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-[#1E2D45] bg-[#131C2E] md:col-span-2 xl:col-span-5">
+          <PreviewHeader title="Announcements" href="/announcements" />
+          {latestAnnouncement ? (
+            <div className="flex flex-1 flex-col px-5 pb-5">
+              <div className="py-5">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-white/40">Latest announcement</p>
+                <p className="mt-3 line-clamp-3 break-words text-lg font-medium leading-7 tracking-tight text-white/90" title={latestAnnouncement.title}>{latestAnnouncement.title}</p>
+                <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+                  <span className="text-white/45">{formatCategory(latestAnnouncement.type)}</span>
+                  <span className={latestAnnouncement.status === "Active" ? "text-[#62A0EA]" : "text-white/35"}>{latestAnnouncement.status}</span>
                 </div>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-md shrink-0 ${
-                  a.status === "Active" ? "bg-sky-400/15 text-sky-400" : "bg-slate-500/15 text-slate-300"
-                }`}>
-                  {a.status}
-                </span>
               </div>
-            ))}
-          </div>
-        </div>
+              {olderAnnouncements.length > 0 && (
+                <div className="mt-auto border-t border-[#1E2D45] pt-3">
+                  <p className="text-[10px] text-white/40">Also recent</p>
+                  <ul className="mt-2 space-y-2">
+                    {olderAnnouncements.map((announcement, index) => (
+                      <li key={`${announcement.title}-${index}`} className="flex items-start justify-between gap-3 text-[11px] leading-5">
+                        <span className="min-w-0 line-clamp-2 break-words text-white/65" title={announcement.title}>{announcement.title}</span>
+                        <span className={`shrink-0 ${announcement.status === "Active" ? "text-[#62A0EA]" : "text-white/35"}`}>{announcement.status}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          ) : <p className="px-5 py-6 text-xs text-white/45">No recent announcements.</p>}
+        </section>
 
-        {/* Activity Logs */}
-        <div className="p-5 flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-              <History className="w-4 h-4 text-[#62A0EA]" /> Activity Logs
-            </h3>
-            <Link href="/activity-logs" className="text-xs text-[#62A0EA] hover:underline">View All</Link>
-          </div>
-          <div className="space-y-3 flex-1">
-            {recentActivityLogs.map((l, i) => (
-              <div key={`${l.description}-${i}`} className="flex items-center justify-between bg-[#0E1628] rounded-md p-2.5">
-                <div className="min-w-0">
-                  <p className="text-xs text-slate-200 truncate">{l.description}</p>
-                  <p className="text-xs text-slate-500">{l.by}</p>
-                </div>
-                <span className="text-xs font-medium px-2 py-0.5 rounded-md shrink-0 bg-[#62A0EA]/15 text-[#62A0EA]">
-                  {formatCategory(l.category)}
-                </span>
+        <section aria-label="Recent lost and found items" className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-[#1E2D45] bg-[#131C2E] xl:col-span-4">
+          <PreviewHeader title="Lost & Found" href="/lost-found" />
+          {featuredItem ? (
+            <div className="flex flex-1 flex-col px-5 pb-5">
+              <div className="py-5">
+                <p className={`text-[10px] font-medium uppercase tracking-wider ${featuredItem.status === "Returned" ? "text-white/40" : "text-amber-300"}`}>{featuredItem.status === "Returned" ? "Recently returned" : "Awaiting follow-up"}</p>
+                <p className="mt-3 line-clamp-3 break-words text-base font-medium leading-6 text-white/90" title={featuredItem.item}>{featuredItem.item}</p>
+                <p className="mt-3 text-[11px] text-white/50">{featuredItem.status}</p>
               </div>
-            ))}
-          </div>
-        </div>
+              {otherItems.length > 0 && (
+                <ul className="mt-auto space-y-3 border-t border-[#1E2D45] pt-4">
+                  {otherItems.map((item, index) => (
+                    <li key={`${item.item}-${index}`} className="flex items-start gap-2">
+                      <span aria-hidden="true" className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${item.status === "Returned" ? "bg-[#62A0EA]" : "bg-amber-300"}`} />
+                      <div className="min-w-0">
+                        <p className="line-clamp-2 break-words text-xs leading-5 text-white/75" title={item.item}>{item.item}</p>
+                        <p className="mt-0.5 text-[10px] text-white/40">{item.status}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : <p className="px-5 py-6 text-xs text-white/45">No recent lost items.</p>}
+        </section>
+
+        <section aria-label="Recent users" className="min-w-0 overflow-hidden rounded-lg border border-[#1E2D45] bg-[#131C2E] xl:col-span-3">
+          <PreviewHeader title="Users" href="/users" />
+          {recentUsers.length > 0 ? (
+            <div className="px-5 pb-5">
+              <p className="mt-5 text-[10px] font-medium uppercase tracking-wider text-white/40">Recently joined</p>
+              <dl className="my-4 grid grid-cols-3 gap-2" aria-label="Roles of recent accounts">
+                {roleCounts.map(({ role, count }) => (
+                  <div key={role} className="min-w-0">
+                    <dd className="text-2xl font-semibold text-white/90 tabular-nums">{count}</dd>
+                    <dt className="mt-1 break-words text-[10px] text-white/45">{role}</dt>
+                  </div>
+                ))}
+              </dl>
+              <ul className="space-y-3 border-t border-[#1E2D45] pt-4">
+                {recentUsers.map((user, index) => (
+                  <li key={`${user.name}-${index}`} className="flex min-w-0 items-center gap-3">
+                    <span aria-hidden="true" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#1A2540] text-[10px] font-medium text-white/60">{user.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>
+                    <div className="min-w-0">
+                      <p className="truncate text-xs text-white/85" title={user.name}>{user.name}</p>
+                      <p className="mt-0.5 text-[10px] text-white/40">{user.role} <span aria-hidden="true">·</span> {user.status}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : <p className="px-5 py-6 text-xs text-white/45">No recent users.</p>}
+        </section>
       </div>
     </div>
   );

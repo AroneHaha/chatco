@@ -57,7 +57,8 @@ class ActivityLogService
      */
     private function adminListQuery(array $filters): Builder
     {
-        $query = ActivityLog::query()->orderByDesc('created_at');
+        // Actions can share a timestamp; the ID keeps page boundaries stable.
+        $query = ActivityLog::query()->orderByDesc('created_at')->orderByDesc('id');
 
         if (! empty($filters['category'])) {
             $query->where('category', $filters['category']);
