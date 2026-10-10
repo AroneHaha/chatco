@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
     const res = await fetch(`${API_URL}/api/v1/user`, {
       method: "GET",
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      cache: "no-store",
     });
 
     if (res.ok) {

@@ -29,7 +29,7 @@ export default function LoginForm({ onBusyChange }: { onBusyChange?: (busy: bool
       // Use auth context login — this calls /api/auth/login, sets httpOnly cookie,
       // and updates the global auth state. Role-based redirect is handled here.
       const redirectPath = await login(email, password);
-      router.push(redirectPath);
+      router.replace(redirectPath);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred.");
     } finally {

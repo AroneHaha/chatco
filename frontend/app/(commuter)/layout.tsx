@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { useAuth } from "@/contexts/auth-context";
+import { RequireRole, useAuth } from "@/contexts/auth-context";
 import { AnnouncementsProvider, useAnnouncements } from "@/contexts/announcements-context";
 import { RewardsProvider, useRewardsData } from "@/contexts/rewards-context";
 import MaintenanceGate from "@/components/shared/maintenance-gate";
@@ -264,6 +264,7 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
 // share one copy of the feed and one copy of the vouchers.
 export default function CommuterLayout({ children }: { children: React.ReactNode }) {
   return (
+    <RequireRole role="COMMUTER">
     <AnnouncementsProvider>
       <RewardsProvider>
         <MaintenanceGate>
@@ -271,6 +272,7 @@ export default function CommuterLayout({ children }: { children: React.ReactNode
         </MaintenanceGate>
       </RewardsProvider>
     </AnnouncementsProvider>
+    </RequireRole>
   );
 }
 

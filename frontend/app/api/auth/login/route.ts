@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { clientIpHeaders } from "@/lib/auth/server/client-ip";
 import { mapShiftLog } from "@/lib/conductor/server/mappers";
 import type { ConductorShift } from "@/lib/conductor/persistence/shift.store";
+import { getRoleDashboard } from "@/types/user";
 
 const API_URL = process.env.API_URL || "http://localhost:8000";
 
@@ -87,14 +88,10 @@ function issueSession(
   user: { id: string; email: string; role: string; name: string; token: string },
   activeShift: ConductorShift | null
 ) {
-  const redirectPath =
-    user.role === "ADMIN"
-      ? "/admin-dashboard"
-      : user.role === "CONDUCTOR"
-        ? activeShift
-          ? "/conductor-dashboard"
-          : "/unit-verification"
-        : "/dashboard";
+  const redirectPath = getRoleDashboard(user.role);
+  if (!redirectPath) {
+    return NextResponse.json({ message: "Unable to sign in." }, { status: 403 });
+  }
 
   const response = NextResponse.json({
     user,
@@ -111,7 +108,7 @@ function issueSession(
     maxAge: 60 * 60 * 24,
   });
 
-  // Readable role cookie — the client uses this for route guards / nav.
+  // Readable role hint; page and API authorization use the verified session.
   response.cookies.set("chatco_role", user.role, {
     httpOnly: false,
     secure: process.env.NODE_ENV === "production",

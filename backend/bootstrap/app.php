@@ -19,6 +19,10 @@ $app = Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // This backend serves APIs. Let the 401 renderer handle browser requests
+        // too, rather than Laravel looking up a nonexistent named login route.
+        $middleware->redirectGuestsTo(fn (Request $request) => null);
+
         $middleware->api(prepend: [
             \App\Http\Middleware\ResolveProxiedClientIp::class,
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,

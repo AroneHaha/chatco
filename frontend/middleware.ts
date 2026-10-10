@@ -1,8 +1,16 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { getAuthenticatedSession } from "@/lib/conductor/server/auth";
+import { getRoleDashboard } from "@/types/user";
 
-export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+export async function middleware(request: NextRequest) {
+  // Decode before classifying so encoded module URLs receive the same guard.
+  let pathname: string;
+  try {
+    pathname = decodeURIComponent(request.nextUrl.pathname);
+  } catch {
+    return new NextResponse("Invalid request.", { status: 400 });
+  }
 
   const routeGroups: Record<string, string[]> = {
     admin: [
@@ -48,63 +56,43 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  if (!matchedGroup) {
+  const isEntryPage = pathname === "/" || pathname === "/login" || pathname === "/signup";
+  if (!matchedGroup && !isEntryPage) {
     return NextResponse.next();
   }
 
-  // Check for session cookie
-  const sessionToken = request.cookies.get("chatco_session")?.value;
+  try {
+    const session = await getAuthenticatedSession(request);
+    let response: NextResponse;
 
-  if (!sessionToken) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(loginUrl);
+    if (!session) {
+      response = matchedGroup
+        ? NextResponse.redirect(new URL("/login", request.url))
+        : NextResponse.next();
+      // Rejected/revoked tokens must not cause a landing/login redirect loop.
+      if (request.cookies.has("chatco_session")) {
+        response.cookies.delete("chatco_session");
+        response.cookies.delete("chatco_role");
+      }
+    } else if (isEntryPage || session.role.toLowerCase() !== matchedGroup) {
+      response = NextResponse.redirect(new URL(getRoleDashboard(session.role)!, request.url));
+    } else {
+      response = NextResponse.next();
+    }
+
+    response.headers.set("Cache-Control", "private, no-store");
+    return response;
+  } catch {
+    // A timeout/outage is not a logout. Keep the cookie but render no module.
+    return new NextResponse("Unable to verify your session. Please try again.", {
+      status: 503,
+      headers: { "Cache-Control": "private, no-store", "Retry-After": "5" },
+    });
   }
-
-  // Read role from the chatco_role cookie
-  const userRole = request.cookies.get("chatco_role")?.value || "";
-
-  if (matchedGroup === "admin" && userRole !== "ADMIN") {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  if (matchedGroup === "commuter" && userRole !== "COMMUTER") {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  if (matchedGroup === "conductor" && userRole !== "CONDUCTOR") {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  return NextResponse.next();
 }
 
 export const config = {
-  matcher: [
-    "/admin-dashboard/:path*",
-    "/users/:path*",
-    "/remittance/:path*",
-    "/monitoring/:path*",
-    "/vehicles/:path*",
-    "/lost-found/:path*",
-    "/analytics/:path*",
-    "/settings/:path*",
-    "/receipts/:path*",
-    "/activity-logs/:path*",
-    "/dashboard/:path*",
-    "/lost-and-found/:path*",
-    "/rewards/:path*",
-    "/feedback/:path*",
-    "/profile/:path*",
-    "/announcements/:path*",
-    "/unit-verification/:path*",
-    "/conductor-dashboard/:path*",
-    "/gcash/return/:path*",
-  ],
+  // Include encoded paths and RSC/prefetch requests. API handlers retain their
+  // existing bearer-token proxies and backend authentication/role checks.
+  matcher: ["/((?!api/|_next/static/|_next/image|favicon.ico).*)"],
 };

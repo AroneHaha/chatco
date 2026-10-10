@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { RequireRole } from "@/contexts/auth-context";
 import ConductorSidebar from "@/components/conductor/conductor-sidebar";
 import ConductorDock from "@/components/conductor/conductor-dock";
 import ConductorBottomNav from "@/components/conductor/conductor-bottom-nav";
@@ -30,6 +31,7 @@ export default function ConductorLayout({ children }: { children: React.ReactNod
   const isDashboardHome = pathname === "/conductor-dashboard";
 
   return (
+    <RequireRole role="CONDUCTOR">
     <MaintenanceGate>
       <ConductorShiftProvider>
 <div className={`fixed inset-0 flex flex-col font-sans md:flex-row ${isUnitVerification ? "bg-[#050F1A]" : "bg-gray-50"}`}>
@@ -84,5 +86,6 @@ export default function ConductorLayout({ children }: { children: React.ReactNod
     </div>
       </ConductorShiftProvider>
     </MaintenanceGate>
+    </RequireRole>
   );
 }

@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { jsonError } from "@/lib/conductor/server/response";
+import { getRoleDashboard } from "@/types/user";
 
 export interface ConductorSession {
   userId: string;
@@ -14,6 +15,35 @@ export interface ConductorSession {
  */
 const API_URL = process.env.API_URL || "http://localhost:8000";
 
+/** Verify pages against Sanctum, never the editable role cookie.
+ * Service failures throw so callers can deny access without ending a session.
+ */
+export async function getAuthenticatedSession(
+  request: NextRequest
+): Promise<ConductorSession | null> {
+  const token = request.cookies.get("chatco_session")?.value;
+  if (!token) return null;
+
+  const res = await fetch(`${API_URL}/api/v1/user`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(5000),
+  });
+  if (res.status === 401 || res.status === 403) return null;
+  if (!res.ok) throw new Error("Unable to verify session.");
+
+  const body = await res.json();
+  const user = body?.data?.user ?? body?.user;
+  if (!user?.id || !getRoleDashboard(user.role)) return null;
+
+  return {
+    userId: String(user.id),
+    role: user.role,
+    email: user.email,
+    name: user.name,
+  };
+}
+
 /**
  * Resolve the conductor session from the Sanctum bearer token stored in the
  * `chatco_session` cookie.
@@ -26,35 +56,9 @@ const API_URL = process.env.API_URL || "http://localhost:8000";
 export async function getConductorSession(
   request: NextRequest
 ): Promise<ConductorSession | null> {
-  const token = request.cookies.get("chatco_session")?.value;
-  if (!token) return null;
-
   try {
-    const res = await fetch(`${API_URL}/api/v1/user`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      },
-    });
-
-    if (!res.ok) {
-      // Laravel is up but rejected the token.
-      return null;
-    }
-
-    const body = await res.json();
-    // Laravel ApiResponse envelope: { success, data: { user, profile }, … }
-    const user = body?.data?.user ?? body?.user;
-
-    if (!user || user.role !== "CONDUCTOR") return null;
-
-    return {
-      userId: String(user.id),
-      role: user.role,
-      email: user.email,
-      name: user.name,
-    };
+    const session = await getAuthenticatedSession(request);
+    return session?.role === "CONDUCTOR" ? session : null;
   } catch {
     // Backend unreachable / network error.
     return null;

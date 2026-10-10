@@ -32,7 +32,9 @@ use Tests\TestCase;
  *  4. No admin-only field leaks (password hash, tokens, other users' rows).
  *  5. grep confirms no remaining notImplementedResponse() on shipped S5 routes.
  *
- * NOTE: Tests use actingAs($user) (session guard) rather than Bearer tokens
+ * NOTE: The original matrix uses actingAs($user) (session guard).
+ * Direct URL checks below additionally use real Sanctum Bearer tokens.
+ * The session guard is used in the original matrix
  * because the app's default guard is 'web' (session), not 'sanctum'. The
  * role:ADMIN/CONDUCTOR/COMMUTER middleware checks $request->user() which is
  * populated by the session guard. This matches the pattern used by the
@@ -102,6 +104,73 @@ class RoleAccessMatrixTest extends TestCase
     // ═════════════════════════════════════════════════════════════════════
     // SECTION 1: Cross-role access matrix — data providers
     // ═════════════════════════════════════════════════════════════════════
+
+    public function test_every_role_namespace_has_server_authentication_and_role_middleware(): void
+    {
+        $checked = 0;
+        foreach (app('router')->getRoutes() as $route) {
+            if (! preg_match('#^api/v1/(?:mobile/)?(admin|conductor|commuter)(?:/|$)#', $route->uri(), $match)) {
+                continue;
+            }
+
+            $middleware = $route->gatherMiddleware();
+            $this->assertContains('auth:sanctum', $middleware, $route->uri());
+            $this->assertContains('role:'.strtoupper($match[1]), $middleware, $route->uri());
+            $checked++;
+        }
+        $this->assertGreaterThan(100, $checked);
+    }
+
+    public function test_direct_bearer_requests_use_the_token_role_and_reveal_no_forbidden_data(): void
+    {
+        $endpoints = [
+            '/api/v1/admin/vehicles' => UserRole::ADMIN,
+            '/api/v1/conductor/profile' => UserRole::CONDUCTOR,
+            '/api/v1/commuter/profile' => UserRole::COMMUTER,
+            '/api/v1/mobile/conductor/profile' => UserRole::CONDUCTOR,
+            '/api/v1/mobile/commuter/profile' => UserRole::COMMUTER,
+        ];
+
+        foreach ([$this->admin, $this->conductor, $this->commuter] as $user) {
+            $token = $user->createToken('direct-url-check')->plainTextToken;
+            foreach ($endpoints as $uri => $role) {
+                app('auth')->forgetGuards();
+                $response = $this->withCookie('chatco_role', $role->value)
+                    ->withHeader('Authorization', 'Bearer '.$token)->getJson($uri);
+                if ($user->role === $role) {
+                    $response->assertOk();
+                } else {
+                    $response->assertForbidden()->assertJsonPath('data', null)
+                        ->assertJsonPath('message', 'Forbidden');
+                    $response->assertDontSee($role->value, false);
+                }
+            }
+        }
+    }
+
+    public function test_missing_invalid_revoked_and_expired_tokens_cannot_access_protected_data(): void
+    {
+        $revoked = $this->admin->createToken('revoked-url-check');
+        $revoked->accessToken->delete();
+        $expired = $this->admin->createToken('expired-url-check', ['*'], now()->subMinute());
+
+        foreach ([null, 'invalid-token', $revoked->plainTextToken, $expired->plainTextToken] as $token) {
+            foreach (['/api/v1/user', '/api/v1/admin/vehicles', '/api/v1/conductor/profile', '/api/v1/commuter/profile'] as $uri) {
+                app('auth')->forgetGuards();
+                $this->withHeader('Authorization', $token ? 'Bearer '.$token : '')
+                    ->getJson($uri)->assertUnauthorized()->assertJsonPath('data', null);
+            }
+        }
+    }
+
+    public function test_direct_browser_api_navigation_returns_no_protected_content(): void
+    {
+        foreach (['/api/v1/admin/vehicles', '/api/v1/conductor/profile', '/api/v1/commuter/profile'] as $uri) {
+            app('auth')->forgetGuards();
+            $this->withHeader('Accept', 'text/html')->get($uri)
+                ->assertUnauthorized()->assertJsonPath('data', null);
+        }
+    }
 
     /**
      * @return array<string, array{method: string, uri: string, allowed: list<string>}>

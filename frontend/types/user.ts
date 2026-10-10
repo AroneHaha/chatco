@@ -13,6 +13,16 @@
 // ─── Role ────────────────────────────────────────────────────────────
 export type UserRole = "COMMUTER" | "ADMIN" | "CONDUCTOR";
 
+/** Shared destinations for verified roles; unknown roles have no access. */
+export function getRoleDashboard(role: string | null | undefined): string | null {
+  switch (role) {
+    case "ADMIN": return "/admin-dashboard";
+    case "CONDUCTOR": return "/conductor-dashboard";
+    case "COMMUTER": return "/dashboard";
+    default: return null;
+  }
+}
+
 // ─── Auth User (from Laravel Sanctum /api/user) ─────────────────────
 export interface AuthUser {
   id: string;
