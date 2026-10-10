@@ -46,7 +46,7 @@ export default function CommuterHome() {
   const [hailPending, setHailPending] = useState(false);
   const [hailError, setHailError] = useState<string | null>(null);
   const [sosTapHint, setSosTapHint] = useState(false);
-  const lastSosTapRef = useRef(0);
+  const lastSosTapRef = useRef<number | null>(null);
   const sosHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ─── CONDUCTOR RADIUS + GPS TRACKING ────────────────────────────────
@@ -210,12 +210,16 @@ export default function CommuterHome() {
     if (sosHintTimerRef.current) clearTimeout(sosHintTimerRef.current);
   }, []);
 
+  const resetSosTap = useCallback(() => {
+    if (sosHintTimerRef.current) clearTimeout(sosHintTimerRef.current);
+    lastSosTapRef.current = null;
+    setSosTapHint(false);
+  }, []);
+
   const handleSosDoubleTap = useCallback(() => {
-    const now = Date.now();
-    if (now - lastSosTapRef.current <= 1200) {
-      if (sosHintTimerRef.current) clearTimeout(sosHintTimerRef.current);
-      lastSosTapRef.current = 0;
-      setSosTapHint(false);
+    const now = performance.now();
+    if (lastSosTapRef.current !== null && now - lastSosTapRef.current <= 600) {
+      resetSosTap();
       setShowSOS(true);
       return;
     }
@@ -223,11 +227,8 @@ export default function CommuterHome() {
     lastSosTapRef.current = now;
     setSosTapHint(true);
     if (sosHintTimerRef.current) clearTimeout(sosHintTimerRef.current);
-    sosHintTimerRef.current = setTimeout(() => {
-      lastSosTapRef.current = 0;
-      setSosTapHint(false);
-    }, 1200);
-  }, []);
+    sosHintTimerRef.current = setTimeout(resetSosTap, 600);
+  }, [resetSosTap]);
 
   const quickActions = [
     {
@@ -522,7 +523,7 @@ export default function CommuterHome() {
           {/* Quick Actions Grid */}
           <div className="grid grid-cols-2 gap-3 mt-4">
             {quickActions.map((action) => (
-              <button key={action.label} onClick={action.action} className={`flex items-center justify-center gap-2 py-2.5 rounded-xl transition-colors ${action.isSos ? "bg-red-500/10 hover:bg-red-500/20 border border-red-500/20" : "bg-white/5 hover:bg-white/10 border border-white/10"}`}>
+              <button key={action.label} onClick={action.action} onBlur={action.isSos ? resetSosTap : undefined} title={action.isSos ? "Double-click or double-tap to open SOS confirmation" : undefined} className={`flex items-center justify-center gap-2 py-2.5 rounded-xl transition-colors ${action.isSos ? "touch-manipulation bg-red-500/10 hover:bg-red-500/20 border border-red-500/20" : "bg-white/5 hover:bg-white/10 border border-white/10"}`}>
                 <svg className={`w-4 h-4 ${action.isSos ? "text-red-400" : "text-blue-300"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d={action.iconPath} />
                 </svg>
@@ -604,7 +605,7 @@ export default function CommuterHome() {
             <h3 className="text-xs font-semibold text-white/30 uppercase tracking-wider mb-2">Quick Actions</h3>
             <div className="grid grid-cols-2 gap-3">
               {quickActions.map((action) => (
-                <button key={action.label} onClick={action.action} className={`flex items-center justify-center gap-2 py-2.5 rounded-xl transition-colors ${action.isSos ? "bg-red-500/10 hover:bg-red-500/20 border border-red-500/20" : "bg-white/5 hover:bg-white/10 border border-white/10"}`}>
+                <button key={action.label} onClick={action.action} onBlur={action.isSos ? resetSosTap : undefined} title={action.isSos ? "Double-click or double-tap to open SOS confirmation" : undefined} className={`flex items-center justify-center gap-2 py-2.5 rounded-xl transition-colors ${action.isSos ? "touch-manipulation bg-red-500/10 hover:bg-red-500/20 border border-red-500/20" : "bg-white/5 hover:bg-white/10 border border-white/10"}`}>
                   <svg className={`w-4 h-4 ${action.isSos ? "text-red-400" : "text-blue-300"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d={action.iconPath} />
                   </svg>
@@ -720,7 +721,9 @@ export default function CommuterHome() {
                 <button
                   key={action.label}
                   onClick={action.action}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer border ${action.isSos ? "bg-red-500/10 hover:bg-red-500/20 border-red-500/20 text-red-400" : "bg-white/5 hover:bg-white/10 border-white/10 text-white/70"}`}
+                  onBlur={action.isSos ? resetSosTap : undefined}
+                  title={action.isSos ? "Double-click or double-tap to open SOS confirmation" : undefined}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer border ${action.isSos ? "touch-manipulation bg-red-500/10 hover:bg-red-500/20 border-red-500/20 text-red-400" : "bg-white/5 hover:bg-white/10 border-white/10 text-white/70"}`}
                 >
                   <svg className={`w-3.5 h-3.5 ${action.isSos ? "text-red-400" : "text-blue-300"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d={action.iconPath} />
@@ -792,13 +795,13 @@ export default function CommuterHome() {
           onClose={() => setShowShareRide(false)}
         />
       )}
-      {showSOS && (
-        <SosModal
-          commuterId={commuterId}
-          commuterName={displayName}
-          onClose={() => setShowSOS(false)}
-        />
-      )}
+      <SosModal
+        key={commuterId}
+        isOpen={showSOS}
+        commuterId={commuterId}
+        commuterName={displayName}
+        onClose={() => setShowSOS(false)}
+      />
     </div>
   );
 }

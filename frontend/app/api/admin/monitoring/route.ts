@@ -6,7 +6,7 @@ import { proxyToLaravel } from "@/lib/conductor/server/proxy";
  * GET /api/admin/monitoring
  * Proxies to Laravel GET /api/v1/admin/monitoring.
  * Returns the live fleet (vehicles with active shifts) with GPS positions,
- * capacity status, speed, and a `is_stale` flag (>10 min since last update).
+ * capacity, speed, break status/duration, and a `is_stale` flag for GPS gaps.
  *
  * Designed for 5-second polling from the admin monitoring dashboard.
  */

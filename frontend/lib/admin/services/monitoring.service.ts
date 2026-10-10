@@ -27,6 +27,8 @@ export interface FleetVehicle {
   minutes_since_update: number | null;
   is_on_break: boolean;
   break_started_at: string | null;
+  /** Elapsed break time from the active shift; null outside a break. */
+  break_duration_minutes: number | null;
   /** False when the unit is on shift but has never posted a GPS ping. */
   has_gps: boolean;
   is_stale: boolean;
@@ -56,11 +58,21 @@ export async function getFleet(signal?: AbortSignal): Promise<FleetVehicle[]> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => null);
+    if (res.status === 429) {
+      const retrySeconds = Number(res.headers.get("Retry-After")) || 60;
+      throw new FleetRateLimitError(body?.message ?? "Monitoring updates are temporarily rate limited.", retrySeconds);
+    }
     throw new Error(body?.message ?? `Failed to fetch fleet (HTTP ${res.status})`);
   }
 
   const json = await res.json();
   return (json.data ?? []) as FleetVehicle[];
+}
+
+class FleetRateLimitError extends Error {
+  constructor(message: string, readonly retrySeconds: number) {
+    super(message);
+  }
 }
 
 // ─── Polling hook ─────────────────────────────────────────────────────
@@ -81,11 +93,14 @@ export function useFleetPoll(intervalMs: number = 5000): MonitoringState {
   const [error, setError] = useState<string | null>(null);
   const [lastFetchedAt, setLastFetchedAt] = useState<Date | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const retryAtRef = useRef(0);
 
   const fetchFleet = useCallback(async () => {
-    abortRef.current?.abort();
+    // A slow poll or focus event must not start another backend request.
+    if (abortRef.current || Date.now() < retryAtRef.current) return;
     const controller = new AbortController();
     abortRef.current = controller;
+    setIsRefreshing(true);
 
     try {
       const data = await getFleet(controller.signal);
@@ -94,10 +109,16 @@ export function useFleetPoll(intervalMs: number = 5000): MonitoringState {
       setLastFetchedAt(new Date());
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
+      if (err instanceof FleetRateLimitError) {
+        retryAtRef.current = Date.now() + Math.max(1, err.retrySeconds) * 1000;
+      }
       setError(err instanceof Error ? err.message : "Failed to load fleet");
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
     }
   }, []);
 
@@ -106,13 +127,11 @@ export function useFleetPoll(intervalMs: number = 5000): MonitoringState {
 
     const intervalId = setInterval(() => {
       if (document.hidden) return;
-      setIsRefreshing(true);
       fetchFleet();
     }, intervalMs);
 
     const onVisibilityChange = () => {
       if (!document.hidden) {
-        setIsRefreshing(true);
         fetchFleet();
       }
     };
@@ -122,6 +141,7 @@ export function useFleetPoll(intervalMs: number = 5000): MonitoringState {
       clearInterval(intervalId);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       abortRef.current?.abort();
+      abortRef.current = null;
     };
   }, [fetchFleet, intervalMs]);
 

@@ -19,12 +19,16 @@
 //
 // State transitions are one-way except for a "Try again" button on the error
 // screen which returns to `confirming`. The screen is locked (no backdrop
-// click-to-close) while locating/sending/active so the commuter cannot
-// accidentally dismiss an active emergency.
+// click-to-close) while locating/sending/active. The explicit Close screen
+// action hides the modal while keeping the alert active.
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { Check, Clock3, Info, LoaderCircle, ShieldAlert } from "lucide-react";
+import { clearSosSession, readSosSession, saveSosSession } from "@/lib/shared/sos-session";
+import SosActions from "@/components/shared/sos-actions";
 
 interface SosModalProps {
+  isOpen?: boolean;
   commuterId: string;
   commuterName: string;
   onClose: () => void;
@@ -35,6 +39,8 @@ type SosStatus =
   | "locating"
   | "sending"
   | "active"
+  | "acknowledged"
+  | "stopped"
   | "responded"
   | "error";
 
@@ -53,21 +59,34 @@ const POLL_INTERVAL_MS = 3000;
 const DEFAULT_LOCATION: { lat: number; lng: number } = { lat: 14.8434, lng: 120.875 };
 
 export default function SosModal({
-  commuterId: _commuterId,
-  commuterName: _commuterName,
+  isOpen = true,
+  commuterId,
   onClose,
 }: SosModalProps) {
-  const [status, setStatus] = useState<SosStatus>("confirming");
-  const [activeSeconds, setActiveSeconds] = useState(0);
+  const [savedSession] = useState(() => readSosSession("commuter", commuterId));
+  const [status, setStatus] = useState<SosStatus>(savedSession ? "active" : "confirming");
+  const [activeSeconds, setActiveSeconds] = useState(() => savedSession ? Math.max(0, Math.floor((Date.now() - savedSession.startedAt) / 1000)) : 0);
   const [errorMessage, setErrorMessage] = useState<string>("");
-  const [alertId, setAlertId] = useState<string | null>(null);
+  const [alertId, setAlertId] = useState<string | null>(savedSession?.id ?? null);
+  const stoppedAlertRef = useRef<string | null>(null);
+  const isAlertActive = status === "active" || status === "acknowledged";
+
+  const handleClose = () => {
+    if (!isAlertActive) {
+      setStatus("confirming");
+      setActiveSeconds(0);
+      setErrorMessage("");
+      setAlertId(null);
+    }
+    onClose();
+  };
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Active-state elapsed timer ──
   useEffect(() => {
-    if (status === "active") {
+    if (isAlertActive) {
       timerRef.current = setInterval(() => {
         setActiveSeconds((prev) => prev + 1);
       }, 1000);
@@ -78,7 +97,7 @@ export default function SosModal({
         timerRef.current = null;
       }
     };
-  }, [status]);
+  }, [isAlertActive]);
 
   // ── Poll the alert status while active ──
   const stopPolling = useCallback(() => {
@@ -97,8 +116,10 @@ export default function SosModal({
         if (!res.ok) return; // keep polling on transient errors
         const data = await res.json();
         const alert: AlertPayload | undefined = data.data;
-        if (!alert) return;
-        if (alert.status === "ACKNOWLEDGED" || alert.status === "RESOLVED") {
+        if (!alert || stoppedAlertRef.current === id) return;
+        if (alert.status === "ACKNOWLEDGED") setStatus("acknowledged");
+        if (alert.status === "RESOLVED") {
+          clearSosSession("commuter", commuterId);
           stopPolling();
           setStatus("responded");
         }
@@ -106,18 +127,36 @@ export default function SosModal({
         // Network blip — keep polling, the admin may still respond.
       }
     },
-    [stopPolling]
+    [stopPolling, commuterId]
   );
 
   useEffect(() => {
-    if (status === "active" && alertId) {
+    let initialPoll: ReturnType<typeof setTimeout> | undefined;
+    if (isAlertActive && alertId) {
+      initialPoll = setTimeout(() => void pollAlert(alertId), 0);
       pollRef.current = setInterval(() => void pollAlert(alertId), POLL_INTERVAL_MS);
     }
-    return stopPolling;
-  }, [status, alertId, pollAlert, stopPolling]);
+    return () => {
+      clearTimeout(initialPoll);
+      stopPolling();
+    };
+  }, [isAlertActive, alertId, pollAlert, stopPolling, isOpen]);
 
   // Clean up everything on unmount.
   useEffect(() => stopPolling, [stopPolling]);
+
+  const handleStop = async () => {
+    if (!alertId) throw new Error("No active SOS to stop.");
+    const res = await fetch(`/api/commuter/sos/${encodeURIComponent(alertId)}/stop`, { method: "PATCH", credentials: "include" });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.message ?? "Unable to stop SOS. Please try again.");
+    if (data?.data?.status !== "RESOLVED") throw new Error("SOS is still active. Please try again.");
+    stoppedAlertRef.current = alertId;
+    stopPolling();
+    clearSosSession("commuter", commuterId);
+    setAlertId(null);
+    setStatus("stopped");
+  };
 
   // ── Send the SOS to the backend ──
   const sendSos = useCallback(
@@ -157,19 +196,20 @@ export default function SosModal({
         }
 
         // If the admin already responded to a resumed alert, skip straight to responded.
-        if (alert.status === "ACKNOWLEDGED" || alert.status === "RESOLVED") {
+        if (alert.status === "RESOLVED") {
           setStatus("responded");
           return;
         }
 
+        saveSosSession("commuter", commuterId, { id: alert.id, startedAt: Date.now() });
         setAlertId(alert.id);
-        setStatus("active");
+        setStatus(alert.status === "ACKNOWLEDGED" ? "acknowledged" : "active");
       } catch {
         setStatus("error");
         setErrorMessage("Network error. Please check your connection and try again.");
       }
     },
-    []
+    [commuterId]
   );
 
   // ── Trigger: capture GPS, POST, go active ──
@@ -215,51 +255,57 @@ export default function SosModal({
   const canCloseViaBackdrop =
     status === "confirming" || status === "responded" || status === "error";
 
+  if (!isOpen) return null;
+
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
       {/* Backdrop */}
       <div
-        className={`absolute inset-0 backdrop-blur-sm transition-colors duration-500 ${
-          status === "active" || status === "sending"
-            ? "bg-red-900/60"
-            : status === "locating"
-            ? "bg-red-900/40"
+        className={`absolute inset-0 backdrop-blur-sm animate-modal-backdrop-in transition-colors duration-500 ${
+          isAlertActive || status === "stopped"
+            ? "bg-[#020812]/80"
             : "bg-black/60"
         }`}
-        onClick={canCloseViaBackdrop ? onClose : undefined}
+        onClick={canCloseViaBackdrop ? handleClose : undefined}
       />
 
       {/* Modal Card */}
       <div
-        className={`relative sm:rounded-3xl rounded-t-3xl shadow-2xl w-full sm:max-w-md overflow-hidden animate-slide-in-from-bottom duration-300 pb-safe border-2 transition-colors duration-300 ${
-          status === "active" || status === "locating" || status === "sending"
-            ? "bg-white border-red-500"
-            : "bg-white border-transparent"
+        key={isAlertActive ? "active" : "inactive"}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Emergency SOS"
+        className={`relative sm:rounded-3xl rounded-t-3xl shadow-2xl w-full sm:max-w-md animate-modal-panel-in pb-safe transition-colors duration-300 ${
+          isAlertActive || status === "stopped"
+            ? "max-h-[90dvh] overflow-y-auto modal-scroll border border-white/10 bg-[#071A2E] shadow-black/40"
+            : status === "locating" || status === "sending"
+            ? "overflow-hidden border-2 bg-white border-red-500"
+            : "overflow-hidden border-2 bg-[#1A2540] border-[#2A3A55]"
         }`}
       >
         {/* ── CONFIRMING ── */}
         {status === "confirming" && (
           <div className="p-6 text-center">
-            <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-5 border-2 border-red-100">
-              <svg className="w-10 h-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <div className="w-20 h-20 rounded-full bg-red-500/15 border-2 border-red-500/25 flex items-center justify-center mx-auto mb-5">
+              <svg className="w-10 h-10 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
               </svg>
             </div>
 
-            <h2 className="text-xl font-extrabold text-[#071A2E] mb-2">Send Emergency SOS?</h2>
-            <p className="text-sm text-gray-500 leading-relaxed mb-8">
-              This will immediately share your <span className="font-bold text-[#071A2E]">real-time live location</span> with the CHATCO Admin team.
+            <h2 className="text-xl font-extrabold text-white mb-2">Send Emergency SOS?</h2>
+            <p className="text-sm text-white/40 leading-relaxed mb-8">
+              This will immediately share your <span className="font-bold text-white">real-time live location</span> with the CHATCO Admin dispatch team.
               <br /><br />
-              <span className="text-red-500 font-semibold">Only use this in actual emergencies.</span>
+              <span className="text-red-400 font-semibold">Only use this in actual emergencies.</span>
             </p>
 
             <div className="flex gap-3">
-              <button onClick={onClose} className="flex-1 px-4 py-3.5 rounded-xl text-sm font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors">
+              <button onClick={handleClose} className="flex-1 px-4 py-3.5 rounded-xl text-sm font-semibold border border-white/10 text-white/70 hover:bg-white/10 transition-colors">
                 Cancel
               </button>
               <button
                 onClick={handleActivate}
-                className="flex-1 px-4 py-3.5 rounded-xl text-sm font-bold bg-red-600 text-white hover:bg-red-700 transition-colors shadow-lg shadow-red-600/30 flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-3.5 rounded-xl text-sm font-bold bg-red-500 text-white hover:bg-red-600 transition-colors shadow-lg shadow-red-500/30 flex items-center justify-center gap-2"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
@@ -304,35 +350,50 @@ export default function SosModal({
         )}
 
         {/* ── ACTIVE / TRACKING (locked screen, polling) ── */}
-        {status === "active" && (
-          <div className="p-6 text-center">
-            <div className="relative w-32 h-32 mx-auto mb-6 flex items-center justify-center">
-              <div className="absolute inset-0 rounded-full bg-red-500/20 animate-ping" />
-              <div className="absolute inset-4 rounded-full bg-red-500/30 animate-ping [animation-delay:0.5s]" />
-              <div className="relative w-20 h-20 rounded-full bg-red-600 flex items-center justify-center shadow-2xl shadow-red-600/50 z-10">
-                <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-                </svg>
+        {isAlertActive && (
+          <div>
+            <div aria-hidden="true" className="h-1 bg-red-500/80" />
+            <div className="p-5 sm:p-6">
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-red-400/20 bg-red-500/10 text-red-300">
+                  <ShieldAlert size={23} aria-hidden="true" />
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full border border-red-400/20 bg-red-500/10 px-3 py-1.5 text-[11px] font-semibold text-red-300">
+                  <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-red-400" />Active alert
+                </span>
               </div>
+
+              <h2 className="mt-5 text-2xl font-bold tracking-tight text-white">SOS is active</h2>
+              <p className="mt-2 text-sm leading-relaxed text-white/55">Your emergency alert has been sent to CHATCO dispatch.</p>
+
+              <div className="mt-6 rounded-2xl border border-white/10 bg-[#050F1A]/60 px-5 py-5">
+                <p className="flex items-center gap-2 text-xs font-medium text-white/45"><Clock3 size={14} aria-hidden="true" />Time elapsed</p>
+                <p role="timer" aria-label="Time since SOS was sent" className="mt-3 text-4xl font-semibold leading-none tracking-tight text-white tabular-nums">{formatTimer(activeSeconds)}</p>
+                <div role="status" className="mt-5 border-t border-white/10 pt-4">
+                  <div className="flex items-center gap-2 text-xs text-white/60"><Check size={15} aria-hidden="true" className="shrink-0 text-emerald-400" />Alert sent</div>
+                  <div className="mt-3 flex items-center gap-2 text-sm font-medium text-[#B6D3F6]">{status === "acknowledged" ? <Check size={15} aria-hidden="true" className="shrink-0 text-emerald-400" /> : <LoaderCircle size={15} aria-hidden="true" className="shrink-0 animate-spin motion-reduce:animate-none" />}{status === "acknowledged" ? "Dispatch has received your alert" : "Waiting for dispatch to respond"}</div>
+                </div>
+              </div>
+
+              <div className="mt-5 flex items-start gap-2.5 text-xs leading-relaxed text-white/45">
+                <Info size={15} aria-hidden="true" className="mt-0.5 shrink-0 text-white/35" />
+                <p>You can close this screen. Your SOS stays active and dispatch can still respond.</p>
+              </div>
+              <SosActions onClose={handleClose} onStop={handleStop} />
             </div>
-
-            <h2 className="text-xl font-extrabold text-red-600 mb-1">SOS IS ACTIVE</h2>
-            <p className="text-sm text-gray-500 mb-4">Admin is tracking your live location</p>
-
-            <div className="inline-flex items-center gap-2 bg-red-50 text-red-700 font-mono text-2xl font-extrabold px-6 py-2 rounded-lg border border-red-200 mb-6">
-              <svg className="w-5 h-5 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.362 5.214A8.252 8.252 0 0 1 12 21 8.25 8.25 0 0 1 6.038 7.047 8.287 8.287 0 0 0 9 9.601a8.983 8.983 0 0 1 3.361-6.867 8.21 8.21 0 0 0 3 2.48Z" />
-              </svg>
-              {formatTimer(activeSeconds)}
-            </div>
-
-            <p className="text-xs text-gray-400 leading-relaxed max-w-[250px] mx-auto">
-              Please keep the app open. This screen will automatically update once the admin responds.
-            </p>
           </div>
         )}
 
         {/* ── RESPONDED ── */}
+        {status === "stopped" && (
+          <div className="p-6 text-center">
+            <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-300"><Check size={26} aria-hidden="true" /></div>
+            <h2 className="text-2xl font-bold tracking-tight text-white">SOS stopped</h2>
+            <p className="mt-2 text-sm leading-relaxed text-white/55">Your alert is closed. Dispatch has been notified.</p>
+            <button type="button" onClick={handleClose} className="mt-6 min-h-11 w-full rounded-xl bg-[#1A5FB4] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#164A8F]">Done</button>
+          </div>
+        )}
+
         {status === "responded" && (
           <div className="p-6 text-center animate-in fade-in duration-300">
             <div className="w-20 h-20 rounded-full bg-[#F0FDF4] flex items-center justify-center mx-auto mb-5 border-2 border-green-100">
@@ -341,15 +402,13 @@ export default function SosModal({
               </svg>
             </div>
 
-            <h2 className="text-xl font-extrabold text-[#071A2E] mb-2">Signal Received</h2>
+            <h2 className="text-xl font-extrabold text-white mb-2">SOS closed</h2>
             <p className="text-sm text-gray-500 leading-relaxed mb-8">
-              The CHATCO Admin team has successfully received your distress signal.
-              <br /><br />
-              <span className="font-semibold text-[#071A2E]">Respondents are being dispatched to your location. Please stay calm and keep your location services turned on.</span>
+              Dispatch has closed your emergency alert.
             </p>
 
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="w-full px-4 py-3.5 rounded-xl text-sm font-bold bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-colors shadow-md shadow-[#1A5FB4]/20 mb-2"
             >
               Understood
@@ -360,20 +419,20 @@ export default function SosModal({
         {/* ── ERROR ── */}
         {status === "error" && (
           <div className="p-6 text-center">
-            <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-5 border-2 border-red-100">
-              <svg className="w-10 h-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <div className="w-20 h-20 rounded-full bg-red-500/15 border-2 border-red-500/25 flex items-center justify-center mx-auto mb-5">
+              <svg className="w-10 h-10 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
               </svg>
             </div>
 
-            <h2 className="text-xl font-extrabold text-[#071A2E] mb-2">SOS Could Not Be Sent</h2>
-            <p className="text-sm text-gray-500 leading-relaxed mb-8">{errorMessage}</p>
+            <h2 className="text-xl font-extrabold text-white mb-2">SOS Could Not Be Sent</h2>
+            <p className="text-sm text-white/40 leading-relaxed mb-8">{errorMessage}</p>
 
             <div className="flex gap-3">
-              <button onClick={onClose} className="flex-1 px-4 py-3.5 rounded-xl text-sm font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors">
+              <button onClick={handleClose} className="flex-1 px-4 py-3.5 rounded-xl text-sm font-semibold border border-white/10 text-white/70 hover:bg-white/10 transition-colors">
                 Close
               </button>
-              <button onClick={handleRetry} className="flex-1 px-4 py-3.5 rounded-xl text-sm font-bold bg-red-600 text-white hover:bg-red-700 transition-colors shadow-lg shadow-red-600/30">
+              <button onClick={handleRetry} className="flex-1 px-4 py-3.5 rounded-xl text-sm font-bold bg-red-500 text-white hover:bg-red-600 transition-colors shadow-lg shadow-red-500/30">
                 Try Again
               </button>
             </div>

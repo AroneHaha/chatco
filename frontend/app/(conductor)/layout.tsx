@@ -9,6 +9,7 @@ import ConductorPaymentModal from "@/components/conductor/conductor-payment-moda
 import ConductorEndOfDayModal from "@/components/conductor/conductor-end-of-day-modal";
 import ConductorMetricsModal from "@/components/conductor/conductor-metrics-modal";
 import ConductorSettingsModal from "@/components/conductor/conductor-settings-modal";
+import ConductorSosModal from "@/components/conductor/conductor-sos-modal";
 import ConductorLocationBroadcaster from "@/components/conductor/conductor-location-broadcaster";
 import MaintenanceGate from "@/components/shared/maintenance-gate";
 import ConductorConnectivityBanner from "@/components/conductor/conductor-connectivity-banner";
@@ -79,6 +80,9 @@ export default function ConductorLayout({ children }: { children: React.ReactNod
 
       {/* Global Settings Modal (xl:+ trigger; see ConductorDock) — full page still exists for smaller screens */}
       {!isUnitVerification && <ConductorSettingsModal />}
+
+      {/* Keep SOS polling and resolution notifications alive across modules. */}
+      <ConductorSosModal />
 
       {/* Broadcast conductor GPS while on shift (so commuters see the vehicle) */}
       {!isUnitVerification && <ConductorLocationBroadcaster />}

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import type { ConnectionStatus } from 'laravel-echo';
 import { getEcho } from '@/lib/echo';
 
@@ -41,70 +41,133 @@ interface UseVehicleLocationsResult {
 // Fallback poll of the seed endpoint so the map still updates if the Pusher
 // socket is unavailable. Pusher remains the primary (near-instant) path.
 const POLL_INTERVAL_MS = 8000;
+const RECONCILE_INTERVAL_MS = 60000;
+
+function normalizeLocation(location: VehicleLocation): VehicleLocation | null {
+  // Database decimals may arrive as strings. Capacity changes can also be
+  // broadcast before the first GPS fix, when coordinates are still null.
+  if (location.lat == null || location.lng == null) return null;
+  const lat = Number(location.lat);
+  const lng = Number(location.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { ...location, lat, lng };
+}
+
+function applyLocationUpdate(vehicles: VehicleLocation[], event: VehicleLocation): VehicleLocation[] {
+  const location = normalizeLocation(event);
+  const index = vehicles.findIndex((vehicle) => vehicle.vehicle_id === event.vehicle_id);
+  if (!location) return index === -1 ? vehicles : vehicles.filter((vehicle) => vehicle.vehicle_id !== event.vehicle_id);
+  if (index === -1) return [...vehicles, location];
+  const updated = [...vehicles];
+  updated[index] = location;
+  return updated;
+}
 
 export function useVehicleLocations(): UseVehicleLocationsResult {
   const [vehicles, setVehicles] = useState<VehicleLocation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const refreshInFlight = useRef<Promise<void> | null>(null);
+  const refreshPending = useRef(false);
+  const updatesDuringFetch = useRef(new Map<string, VehicleLocation>());
 
   const fetchInitial = useCallback(async () => {
-    try {
-      // Same-origin Next proxy: it reads the httpOnly chatco_session cookie and
-      // forwards it as a Bearer token to Laravel. (Calling Laravel directly with
-      // a localStorage 'token' failed — the token lives in the cookie, not LS.)
-      const response = await fetch('/api/vehicles/locations', {
-        headers: { Accept: 'application/json' },
-        credentials: 'include',
-      });
-      const json = await response.json();
-      setVehicles(Array.isArray(json?.data) ? json.data : []);
-      setError(null);
-    } catch (err) {
-      setError(err as Error);
-    } finally {
-      setLoading(false);
+    if (refreshInFlight.current) {
+      refreshPending.current = true;
+      return refreshInFlight.current;
     }
+
+    const request = (async () => {
+      try {
+        // Same-origin Next proxy: it reads the httpOnly chatco_session cookie
+        // and forwards it as a Bearer token to Laravel.
+        do {
+          refreshPending.current = false;
+          updatesDuringFetch.current.clear();
+          const response = await fetch('/api/vehicles/locations', {
+            headers: { Accept: 'application/json' },
+            credentials: 'include',
+            cache: 'no-store',
+          });
+          if (!response.ok) throw new Error(`Unable to load vehicle locations (HTTP ${response.status}).`);
+          const json = await response.json();
+          const locations: VehicleLocation[] = Array.isArray(json?.data) ? json.data : [];
+          let latest = locations.map(normalizeLocation).filter((location): location is VehicleLocation => location !== null);
+          // A seed/poll response must not undo a newer capacity or GPS event
+          // received while that request was taking its database snapshot.
+          for (const event of updatesDuringFetch.current.values()) latest = applyLocationUpdate(latest, event);
+          setVehicles(latest);
+          setError(null);
+        } while (refreshPending.current);
+      } catch (err) {
+        setError(err as Error);
+      } finally {
+        updatesDuringFetch.current.clear();
+        refreshInFlight.current = null;
+        setLoading(false);
+      }
+    })();
+    refreshInFlight.current = request;
+    return request;
   }, []);
 
   useEffect(() => {
     fetchInitial();
 
-    // Whether the realtime socket is confirmed connected right now. The 8s
-    // poll below checks this and skips itself while true, so a healthy
-    // Pusher connection doesn't also pay for a redundant REST round-trip +
-    // full-array state replacement every 8s on top of the WebSocket events.
-    // Starts false so the very first tick(s) still poll until the socket
-    // reports in — this is a fallback, not a race with Echo.
-    let isSocketConnected = false;
+    let isSubscribed = false;
+    let lastRefreshAt = Date.now();
     let unsubscribeConnectionChange: (() => void) | null = null;
+    let unsubscribeChannel: (() => void) | null = null;
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState !== 'visible' || !navigator.onLine) return;
+      lastRefreshAt = Date.now();
+      void fetchInitial();
+    };
 
     const pollId = window.setInterval(() => {
-      if (isSocketConnected) return;
-      fetchInitial();
+      // Subscription health matters, not just transport connectivity. A slow
+      // safety refresh also reconciles missed events and vehicles leaving duty.
+      const refreshMs = isSubscribed ? RECONCILE_INTERVAL_MS : POLL_INTERVAL_MS;
+      if (Date.now() - lastRefreshAt >= refreshMs) refreshWhenVisible();
     }, POLL_INTERVAL_MS);
+
+    window.addEventListener('focus', refreshWhenVisible);
+    window.addEventListener('online', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
 
     let echo: ReturnType<typeof getEcho> | null = null;
     try {
       echo = getEcho();
-      isSocketConnected = echo.connector.connectionStatus() === 'connected';
       unsubscribeConnectionChange = echo.connector.onConnectionChange((status: ConnectionStatus) => {
-        isSocketConnected = status === 'connected';
+        if (status !== 'connected') isSubscribed = false;
       });
 
       // Leading dot = listen for the exact broadcastAs name
       // ('VehicleLocationUpdated') rather than Echo's namespaced default.
-      echo.channel('vehicles').listen('.VehicleLocationUpdated', (event: VehicleLocation) => {
-        setVehicles((prev) => {
-          // Match by vehicle_id (snake_case) — same key the backend broadcasts.
-          const index = prev.findIndex((v) => v.vehicle_id === event.vehicle_id);
-          if (index === -1) {
-            return [...prev, event];
-          }
-          const updated = [...prev];
-          updated[index] = event;
-          return updated;
-        });
-      });
+      const onLocationUpdated = (event: VehicleLocation) => {
+        if (refreshInFlight.current) updatesDuringFetch.current.set(event.vehicle_id, event);
+        setVehicles((prev) => applyLocationUpdate(prev, event));
+      };
+      const onSubscribed = () => {
+        isSubscribed = true;
+        refreshWhenVisible();
+      };
+      const onSubscriptionError = () => {
+        isSubscribed = false;
+        refreshWhenVisible();
+      };
+      const channel = echo.channel('vehicles');
+      channel.listen('.VehicleLocationUpdated', onLocationUpdated);
+      // Bind named callbacks so cleanup removes only this hook's listeners.
+      channel.on('pusher:subscription_succeeded', onSubscribed);
+      channel.on('pusher:subscription_error', onSubscriptionError);
+      isSubscribed = channel.subscription.subscribed;
+      unsubscribeChannel = () => {
+        channel.stopListening('.VehicleLocationUpdated', onLocationUpdated);
+        channel.subscription.unbind('pusher:subscription_succeeded', onSubscribed);
+        channel.subscription.unbind('pusher:subscription_error', onSubscriptionError);
+      };
     } catch (err) {
       console.warn('Echo subscription failed, falling back to polling:', err);
     }
@@ -112,9 +175,10 @@ export function useVehicleLocations(): UseVehicleLocationsResult {
     return () => {
       window.clearInterval(pollId);
       unsubscribeConnectionChange?.();
-      if (echo) {
-        echo.channel('vehicles').stopListening('.VehicleLocationUpdated');
-      }
+      unsubscribeChannel?.();
+      window.removeEventListener('focus', refreshWhenVisible);
+      window.removeEventListener('online', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
   }, [fetchInitial]);
 

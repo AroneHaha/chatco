@@ -37,6 +37,8 @@ export interface SosHistoryLog {
   note: string;
   triggeredAt: string;
   resolvedAt: string;
+  resolvedBy: string | null;
+  status: "RESOLVED" | "CANCELLED";
   triggeredDate: string;
   coordinates: [number, number];
 }
@@ -98,7 +100,9 @@ function formatAbsoluteTime(iso: string): string {
 }
 
 function dateKey(iso: string): string {
-  return new Date(iso).toISOString().split("T")[0];
+  // Use the same local calendar day as the date picker and displayed timestamps.
+  const date = new Date(iso);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 /* ─── BACKEND → FRONTEND MAPPERS ─── */
@@ -128,6 +132,10 @@ interface BackendAlert {
   acknowledged_at: string | null;
   resolved_by: string | null;
   resolved_at: string | null;
+  resolver?: {
+    email: string;
+    admin_profile: { first_name: string | null; last_name: string | null } | null;
+  } | null;
   created_at: string;
   updated_at: string;
   commuter: BackendCommuter | null;
@@ -173,6 +181,11 @@ function mapAlert(raw: BackendAlert): SosAlert {
 }
 
 function mapHistory(raw: BackendAlert): SosHistoryLog {
+  const senderId = senderRole(raw) === "CONDUCTOR" ? raw.conductor_id : raw.commuter_id;
+  const isCancelled = raw.resolved_by != null && raw.resolved_by === senderId;
+  const adminName = raw.resolver?.admin_profile
+    ? [raw.resolver.admin_profile.first_name, raw.resolver.admin_profile.last_name].filter(Boolean).join(" ").trim()
+    : "";
   return {
     id: raw.id,
     sender: senderName(raw),
@@ -180,6 +193,8 @@ function mapHistory(raw: BackendAlert): SosHistoryLog {
     note: raw.note ?? defaultNote(raw),
     triggeredAt: formatAbsoluteTime(raw.created_at),
     resolvedAt: raw.resolved_at ? formatAbsoluteTime(raw.resolved_at) : "—",
+    resolvedBy: isCancelled ? null : adminName || raw.resolver?.email || null,
+    status: isCancelled ? "CANCELLED" : "RESOLVED",
     triggeredDate: dateKey(raw.created_at),
     coordinates: [parseFloat(String(raw.lat)), parseFloat(String(raw.lng))],
   };
@@ -202,48 +217,68 @@ export function useMonitoringData(overspeedPage = 1, overspeedDate = "") {
   // Track in-flight resolves so the poll doesn't clobber an optimistic update
   // with stale server data before the PATCH lands.
   const resolvingIds = useRef<Set<string>>(new Set());
+  const closedIds = useRef<Set<string>>(new Set());
+  const activeRequestId = useRef(0);
+  const historyRequestId = useRef(0);
+  const retryAtRef = useRef(0);
+
+  const requestMonitoring = useCallback(async (url: string) => {
+    if (Date.now() < retryAtRef.current) return null;
+    const res = await fetch(url, { credentials: "include", cache: "no-store" });
+    if (res.status === 429) {
+      const retrySeconds = Number(res.headers.get("Retry-After")) || 60;
+      retryAtRef.current = Date.now() + Math.max(1, retrySeconds) * 1000;
+    }
+    return res;
+  }, []);
 
   const fetchActive = useCallback(async () => {
+    const requestId = ++activeRequestId.current;
     try {
-      const res = await fetch("/api/admin/sos?status=ACTIVE&per_page=100", {
-        credentials: "include",
-      });
+      const res = await requestMonitoring("/api/admin/sos?status=ACTIVE&per_page=100");
+      if (!res) return;
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      if (requestId !== activeRequestId.current) return;
       const rawAlerts = (data.data ?? []) as BackendAlert[];
       const mapped = rawAlerts
-        .filter((a) => !resolvingIds.current.has(a.id))
+        .filter((a) => (a.status === "ACTIVE" || a.status === "ACKNOWLEDGED")
+          && !resolvingIds.current.has(a.id) && !closedIds.current.has(a.id))
         .map(mapAlert);
       setSosAlerts(mapped);
       setError(null);
     } catch (err) {
+      if (requestId !== activeRequestId.current) return;
       setError(err instanceof Error ? err.message : "Failed to load SOS alerts.");
     } finally {
-      setIsLoading(false);
+      if (requestId === activeRequestId.current) setIsLoading(false);
     }
-  }, []);
+  }, [requestMonitoring]);
 
   const fetchHistory = useCallback(async () => {
+    const requestId = ++historyRequestId.current;
     try {
-      const res = await fetch("/api/admin/sos?status=RESOLVED&per_page=50", {
-        credentials: "include",
-      });
+      const res = await requestMonitoring("/api/admin/sos?status=RESOLVED&per_page=50");
+      if (!res) return;
       if (!res.ok) return;
       const data = await res.json();
-      const rawAlerts = (data.data ?? []) as BackendAlert[];
+      if (requestId !== historyRequestId.current) return;
+      const rawAlerts = ((data.data ?? []) as BackendAlert[]).filter((a) => a.status === "RESOLVED");
+      // A closed alert stays out of attention even if an older live response lands later.
+      rawAlerts.forEach((a) => closedIds.current.add(a.id));
+      setSosAlerts((prev) => prev.filter((a) => !closedIds.current.has(a.id)));
       setSosHistory(rawAlerts.map(mapHistory));
     } catch {
       // History is best-effort on poll; don't surface as a hard error.
     }
-  }, []);
+  }, [requestMonitoring]);
 
   const fetchOverspeed = useCallback(async () => {
     try {
       const params = new URLSearchParams({ page: String(overspeedPage), per_page: "10" });
       if (overspeedDate) params.set("date", overspeedDate);
-      const res = await fetch(`/api/admin/monitoring/overspeed?${params}`, {
-        credentials: "include",
-      });
+      const res = await requestMonitoring(`/api/admin/monitoring/overspeed?${params}`);
+      if (!res) return;
       if (!res.ok) return;
       const data = await res.json();
       const paginator = data.data ?? {};
@@ -268,13 +303,12 @@ export function useMonitoringData(overspeedPage = 1, overspeedDate = "") {
     } catch {
       // Overspeed is best-effort
     }
-  }, [overspeedDate, overspeedPage]);
+  }, [overspeedDate, overspeedPage, requestMonitoring]);
 
   const fetchDemandZones = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/monitoring/demand-zones", {
-        credentials: "include",
-      });
+      const res = await requestMonitoring("/api/admin/monitoring/demand-zones");
+      if (!res) return;
       if (!res.ok) return;
       const body = await res.json();
       const raw = (body.data ?? []) as Array<{
@@ -295,34 +329,46 @@ export function useMonitoringData(overspeedPage = 1, overspeedDate = "") {
     } catch {
       // Demand overlay is best-effort; other monitoring remains live.
     }
-  }, []);
+  }, [requestMonitoring]);
 
-  // Initial fetch + polling.
+  // Pagination/date changes fetch only the affected feed, without restarting
+  // the SOS/demand polling loop or refetching its unrelated endpoints.
+  const fetchOverspeedRef = useRef(fetchOverspeed);
   useEffect(() => {
-    const refreshLiveData = () => {
+    fetchOverspeedRef.current = fetchOverspeed;
+    void fetchOverspeed();
+  }, [fetchOverspeed]);
+
+  // Initial fetch + polling. Coalesce focus/online/visibility events and let
+  // slow refreshes finish before issuing the next batch.
+  useEffect(() => {
+    let inFlight = false;
+    let lastRefreshAt = 0;
+    const refreshAll = (includeOverspeed = true) => {
       if (document.visibilityState !== "visible") return;
-      void Promise.all([fetchActive(), fetchOverspeed(), fetchDemandZones()]);
-    };
-    const refreshAll = () => {
-      if (document.visibilityState !== "visible") return;
-      void Promise.all([fetchActive(), fetchHistory(), fetchOverspeed(), fetchDemandZones()]);
+      if (inFlight || Date.now() - lastRefreshAt < 1000) return;
+      inFlight = true;
+      lastRefreshAt = Date.now();
+      void Promise.all([
+        fetchActive(), fetchHistory(), fetchDemandZones(),
+        ...(includeOverspeed ? [fetchOverspeedRef.current()] : []),
+      ]).finally(() => { inFlight = false; });
     };
 
-    refreshAll();
-    const id = setInterval(() => {
-      refreshLiveData();
-    }, POLL_INTERVAL_MS);
-    window.addEventListener("focus", refreshAll);
-    window.addEventListener("online", refreshAll);
-    document.addEventListener("visibilitychange", refreshAll);
+    refreshAll(false);
+    const onRefresh = () => refreshAll();
+    const id = setInterval(onRefresh, POLL_INTERVAL_MS);
+    window.addEventListener("focus", onRefresh);
+    window.addEventListener("online", onRefresh);
+    document.addEventListener("visibilitychange", onRefresh);
 
     return () => {
       clearInterval(id);
-      window.removeEventListener("focus", refreshAll);
-      window.removeEventListener("online", refreshAll);
-      document.removeEventListener("visibilitychange", refreshAll);
+      window.removeEventListener("focus", onRefresh);
+      window.removeEventListener("online", onRefresh);
+      document.removeEventListener("visibilitychange", onRefresh);
     };
-  }, [fetchActive, fetchHistory, fetchOverspeed, fetchDemandZones]);
+  }, [fetchActive, fetchHistory, fetchDemandZones]);
 
   // ── Actions ──
 
@@ -372,6 +418,7 @@ export function useMonitoringData(overspeedPage = 1, overspeedDate = "") {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.message ?? "Failed to resolve SOS.");
         }
+        closedIds.current.add(alertId);
         // Pull the resolved alert into history.
         void fetchHistory();
         void fetchActive();

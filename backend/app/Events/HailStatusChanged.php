@@ -5,7 +5,8 @@ namespace App\Events;
 use App\Models\Hail;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Contracts\Broadcasting\ShouldRescue;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
@@ -18,6 +19,8 @@ use Illuminate\Queue\SerializesModels;
  * sides converge immediately after an authorized lifecycle transition.
  *
  * Both private channels are protected by routes/channels.php.
+ * Sends immediately after commit without a queue worker. Transport failures
+ * are reported while the committed status remains available through the API.
  *
  * Triggered by:
  *   - HailService::cancelHail()
@@ -25,7 +28,7 @@ use Illuminate\Queue\SerializesModels;
  *   - HailService::rejectHail()
  *   - HailService::expireStaleHails() (per-hail broadcast in the loop)
  */
-class HailStatusChanged implements ShouldBroadcast
+class HailStatusChanged implements ShouldBroadcastNow, ShouldRescue
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 

@@ -97,4 +97,71 @@ class ConductorBreakModeTest extends TestCase
             ->postJson('/api/v1/conductor/break-status', ['is_on_break' => true])
             ->assertUnprocessable();
     }
+
+    public function test_admin_monitoring_tracks_elapsed_break_time_without_gps_and_clears_it_on_resume(): void
+    {
+        $this->travelTo(now()->startOfMinute());
+        $shift = ShiftLog::factory()->create();
+        Vehicle::whereKey($shift->vehicle_id)->update(['active_shift_id' => $shift->shift_id]);
+        $conductor = User::findOrFail($shift->conductor_id);
+        $admin = User::factory()->admin()->create();
+
+        $this->actingAs($conductor)->postJson('/api/v1/conductor/break-status', ['is_on_break' => true])->assertOk();
+        $startedAt = $shift->fresh()->break_started_at->toISOString();
+        $this->travel(12)->minutes();
+        // Repeated requests must preserve the original break start time.
+        $this->postJson('/api/v1/conductor/break-status', ['is_on_break' => true])->assertOk();
+        $this->assertSame($startedAt, $shift->fresh()->break_started_at->toISOString());
+
+        $this->actingAs($admin)->getJson('/api/v1/admin/monitoring')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $shift->vehicle_id)
+            ->assertJsonPath('data.0.conductor_name', $shift->conductor_name)
+            ->assertJsonPath('data.0.is_on_break', true)
+            ->assertJsonPath('data.0.break_duration_minutes', 12)
+            ->assertJsonPath('data.0.has_gps', false)
+            ->assertJsonPath('data.0.is_stale', false);
+
+        $this->actingAs($conductor)->postJson('/api/v1/conductor/break-status', ['is_on_break' => false])->assertOk();
+        $this->actingAs($admin)->getJson('/api/v1/admin/monitoring')
+            ->assertOk()
+            ->assertJsonPath('data.0.is_on_break', false)
+            ->assertJsonPath('data.0.break_started_at', null)
+            ->assertJsonPath('data.0.break_duration_minutes', null);
+    }
+
+    public function test_monitoring_reads_breaks_in_one_query_and_excludes_ended_shifts(): void
+    {
+        foreach ([['SFT-BREAK-01', 'ACTIVE', true], ['SFT-ACTIVE-02', 'ACTIVE', false], ['SFT-ENDED-03', 'ENDED', true]] as [$id, $status, $onBreak]) {
+            $shift = ShiftLog::factory()->create([
+                'shift_id' => $id,
+                'status' => $status,
+                'is_on_break' => $onBreak,
+                'break_started_at' => $onBreak ? now()->subMinutes(5) : null,
+            ]);
+            Vehicle::whereKey($shift->vehicle_id)->update(['active_shift_id' => $shift->shift_id]);
+        }
+
+        $connection = DB::connection();
+        $connection->flushQueryLog();
+        $connection->enableQueryLog();
+        try {
+            $fleet = app(LocationService::class)->getMonitoringFleet();
+            $this->assertCount(1, $connection->getQueryLog());
+        } finally {
+            $connection->disableQueryLog();
+        }
+        $this->assertCount(2, $fleet);
+        $this->assertCount(1, $fleet->where('is_on_break', true));
+        $this->assertSame(5, $fleet->firstWhere('is_on_break', true)['break_duration_minutes']);
+        $this->assertNull($fleet->firstWhere('is_on_break', false)['break_duration_minutes']);
+    }
+
+    public function test_monitoring_break_duration_never_goes_negative(): void
+    {
+        $shift = ShiftLog::factory()->create(['is_on_break' => true, 'break_started_at' => now()->addMinute()]);
+        Vehicle::whereKey($shift->vehicle_id)->update(['active_shift_id' => $shift->shift_id]);
+        $row = app(LocationService::class)->getMonitoringFleet()->firstWhere('id', $shift->vehicle_id);
+        $this->assertSame(0, $row['break_duration_minutes']);
+    }
 }

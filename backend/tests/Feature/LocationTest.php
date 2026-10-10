@@ -9,7 +9,10 @@ use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleLocation;
 use Carbon\Carbon;
+use Illuminate\Broadcasting\Broadcasters\LogBroadcaster;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Broadcast;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 /**
@@ -197,6 +200,65 @@ class LocationTest extends TestCase
         $this->assertDatabaseHas('vehicle_locations', [
             'vehicle_id' => $this->vehicle->id,
             'capacity_status' => 'STANDING',
+        ]);
+    }
+
+    public function test_gps_and_all_capacity_changes_broadcast_without_a_queue_worker(): void
+    {
+        config(['queue.default' => 'database']);
+        Queue::fake();
+        $broadcaster = \Mockery::mock(LogBroadcaster::class);
+        Broadcast::extend('vehicle-test', fn () => $broadcaster);
+        config(['broadcasting.default' => 'vehicle-test', 'broadcasting.connections.vehicle-test.driver' => 'vehicle-test']);
+        $broadcasts = [];
+        $broadcaster->shouldReceive('broadcast')->times(4)->withArgs(function ($channels, $name, $payload) use (&$broadcasts) {
+            $this->assertDatabaseHas('vehicle_locations', [
+                'vehicle_id' => $payload['vehicle_id'],
+                'capacity_status' => $payload['capacity_status'],
+                'lat' => $payload['lat'],
+                'lng' => $payload['lng'],
+            ]);
+            $broadcasts[] = $payload;
+
+            return $name === 'VehicleLocationUpdated'
+                && array_map(fn ($channel) => $channel->name, $channels) === ['vehicles']
+                && $payload['vehicle_id'] === $this->vehicle->id;
+        });
+
+        $this->actingAs($this->conductor)->postJson('/api/v1/conductor/location', [
+            'lat' => 14.5995,
+            'lng' => 120.9842,
+        ])->assertOk();
+
+        foreach (['FULL', 'STANDING', 'AVAILABLE'] as $status) {
+            $this->postJson('/api/v1/conductor/capacity-status', ['capacity_status' => $status])->assertOk();
+        }
+
+        $this->assertSame(['AVAILABLE', 'FULL', 'STANDING', 'AVAILABLE'], array_column($broadcasts, 'capacity_status'));
+        Queue::assertNothingPushed();
+
+        $commuter = User::factory()->commuter()->create();
+        $this->actingAs($commuter)->getJson('/api/v1/vehicles/locations')
+            ->assertOk()->assertJsonPath('data.0.capacity_status', 'AVAILABLE');
+    }
+
+    public function test_broadcast_outage_preserves_gps_and_capacity_changes(): void
+    {
+        $broadcaster = \Mockery::mock(LogBroadcaster::class);
+        Broadcast::extend('vehicle-test', fn () => $broadcaster);
+        config(['broadcasting.default' => 'vehicle-test', 'broadcasting.connections.vehicle-test.driver' => 'vehicle-test']);
+        $broadcaster->shouldReceive('broadcast')->twice()->andThrow(new \RuntimeException('Pusher unavailable'));
+
+        $this->actingAs($this->conductor)->postJson('/api/v1/conductor/location', [
+            'lat' => 14.5995,
+            'lng' => 120.9842,
+        ])->assertOk();
+        $this->postJson('/api/v1/conductor/capacity-status', ['capacity_status' => 'FULL'])->assertOk();
+        $this->assertDatabaseHas('vehicle_locations', [
+            'vehicle_id' => $this->vehicle->id,
+            'lat' => 14.5995,
+            'lng' => 120.9842,
+            'capacity_status' => 'FULL',
         ]);
     }
 

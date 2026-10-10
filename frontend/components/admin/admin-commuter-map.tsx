@@ -35,6 +35,7 @@ export interface LiveVehicleMarker {
   driver_name: string | null;
   conductor_name: string | null;
   is_on_break: boolean;
+  break_duration_minutes: number | null;
   is_stale: boolean;
   minutes_since_update: number | null;
 }
@@ -530,7 +531,7 @@ export default function AdminCommuterMap({
           const capacityConfig = getCapacityConfig(vehicle.capacity);
           const statusConfig = vehicle.is_on_break
             ? {
-                label: 'On Break',
+                label: 'On break',
                 twBg: 'bg-sky-500/10',
                 twText: 'text-sky-500',
                 twBorder: 'border-sky-500/30',
@@ -551,12 +552,13 @@ export default function AdminCommuterMap({
                   { label: "Driver", value: vehicle.driver_name ?? "—" },
                   { label: "Conductor", value: vehicle.conductor_name ?? "—" },
                   { label: "Route", value: vehicle.route_name ?? "—" },
+                  ...(vehicle.is_on_break ? [{ label: "Time on break", value: formatElapsedMinutes(vehicle.break_duration_minutes) }] : []),
                   ...(vehicle.is_on_break ? [{ label: "Capacity", value: capacityConfig.label }] : []),
                   ...(vehicle.speed !== null ? [{ label: "Speed", value: `${vehicle.speed} km/h` }] : []),
                 ]}
                 notes={[
                   ...(vehicle.capacity === "FULL" && !vehicle.is_on_break ? [{ message: "Not accepting passengers", tone: "danger" as const }] : []),
-                  ...(vehicle.is_stale ? [{ message: `Unresponsive — last update ${formatElapsedMinutes(vehicle.minutes_since_update)} ago`, tone: "warning" as const }] : []),
+                  ...(vehicle.is_stale ? [{ message: `GPS delayed — last update ${formatElapsedMinutes(vehicle.minutes_since_update)} ago`, tone: "warning" as const }] : []),
                 ]}
               />
             </SmoothVehicleMarker>

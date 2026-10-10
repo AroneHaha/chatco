@@ -18,8 +18,8 @@ use Illuminate\Http\Request;
  *
  * The alert lands in the same sos_alerts table (sender_role=CONDUCTOR) so the
  * admin Monitoring feed shows commuter and conductor alerts side by side, with
- * a map marker + history record. The conductor CANNOT cancel their own SOS —
- * only admins resolve it.
+ * a map marker + history record. The conductor can stop their own SOS while
+ * retaining its history.
  */
 class SosController extends Controller
 {
@@ -51,12 +51,22 @@ class SosController extends Controller
     }
 
     /**
-     * GET /conductor/sos/{id}
+     * PATCH /conductor/sos/{id}/stop — close the sender's own alert.
      *
-     * Returns the conductor's own alert (scoped to their profile in the
-     * service). The conductor SOS modal polls this to detect when the admin
-     * acknowledges / resolves the alert.
+     * Retains the history record and notifies dispatch.
      */
+    public function stop(Request $request, string $id): JsonResponse
+    {
+        try {
+            $alert = $this->sosService->stopForSender($request->user(), $id);
+        } catch (\RuntimeException $e) {
+            return $this->errorResponse($e->getMessage(), str_contains($e->getMessage(), 'not found') ? 404 : 422);
+        }
+
+        return $this->successResponse($alert, 'SOS alert stopped');
+    }
+
+    /** Return the authenticated sender's own alert for status polling. */
     public function show(Request $request, string $id): JsonResponse
     {
         try {

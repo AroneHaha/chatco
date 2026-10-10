@@ -5,7 +5,8 @@ namespace App\Events;
 use App\Models\Hail;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Contracts\Broadcasting\ShouldRescue;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
@@ -19,8 +20,10 @@ use Illuminate\Queue\SerializesModels;
  * the conductor currently operating that vehicle.
  *
  * Triggered by: HailService::createHail() after the row commits.
+ * Sends immediately without a queue worker. Transport failures are reported
+ * without failing the committed hail; clients reconcile through the hail API.
  */
-class HailCreated implements ShouldBroadcast
+class HailCreated implements ShouldBroadcastNow, ShouldRescue
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 

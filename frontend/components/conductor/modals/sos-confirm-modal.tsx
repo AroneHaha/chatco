@@ -9,7 +9,7 @@
 //   locating    → navigator.geolocation.getCurrentPosition (high accuracy, 6s)
 //   sending     → POST /api/conductor/sos { lat, lng, note? }
 //   active      → polling GET /api/conductor/sos/{id} every 3s, waiting for admin
-//   responded   → admin acknowledged/resolved → success screen
+//   responded   → admin resolved → success screen on any conductor module
 //   error       → network/API error (GPS failure falls back to a default coord)
 //
 // GPS FALLBACK: if geolocation is unavailable/denied/times out (common on
@@ -18,10 +18,16 @@
 // on the monitoring map.
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
+import { Check, Clock3, Info, LoaderCircle, Phone, ShieldAlert } from "lucide-react";
+import { useAuth } from "@/contexts/auth-context";
+import { clearSosSession, readSosSession, saveSosSession } from "@/lib/shared/sos-session";
+import SosActions from "@/components/shared/sos-actions";
 
 interface SosConfirmModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onResolved: () => void;
 }
 
 type SosStatus =
@@ -29,6 +35,8 @@ type SosStatus =
   | "locating"
   | "sending"
   | "active"
+  | "acknowledged"
+  | "stopped"
   | "responded"
   | "error";
 
@@ -48,29 +56,36 @@ const DEFAULT_LOCATION: { lat: number; lng: number } = { lat: 14.8434, lng: 120.
 export default function SosConfirmModal({
   isOpen,
   onClose,
+  onResolved,
 }: SosConfirmModalProps) {
-  const [status, setStatus] = useState<SosStatus>("confirming");
-  const [activeSeconds, setActiveSeconds] = useState(0);
+  const { user } = useAuth();
+  const userId = user?.id;
+  const [savedSession] = useState(() => readSosSession("conductor", userId));
+  const [status, setStatus] = useState<SosStatus>(savedSession ? "active" : "confirming");
+  const [activeSeconds, setActiveSeconds] = useState(() => savedSession ? Math.max(0, Math.floor((Date.now() - savedSession.startedAt) / 1000)) : 0);
   const [errorMessage, setErrorMessage] = useState<string>("");
-  const [alertId, setAlertId] = useState<string | null>(null);
-  const [hotline, setHotline] = useState<string | null>(null);
+  const [alertId, setAlertId] = useState<string | null>(savedSession?.id ?? null);
+  const settledAlertRef = useRef<string | null>(null);
+  const isAlertActive = status === "active" || status === "acknowledged";
+  const [hotline, setHotline] = useState<string | null>(savedSession?.hotline ?? null);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Reset state whenever the modal opens.
-  useEffect(() => {
-    if (isOpen) {
+  const handleClose = () => {
+    if (!isAlertActive) {
       setStatus("confirming");
       setActiveSeconds(0);
       setErrorMessage("");
       setAlertId(null);
+      setHotline(null);
     }
-  }, [isOpen]);
+    onClose();
+  };
 
   // Active-state elapsed timer.
   useEffect(() => {
-    if (status === "active") {
+    if (isAlertActive) {
       timerRef.current = setInterval(() => setActiveSeconds((p) => p + 1), 1000);
     }
     return () => {
@@ -79,7 +94,7 @@ export default function SosConfirmModal({
         timerRef.current = null;
       }
     };
-  }, [status]);
+  }, [isAlertActive]);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -95,27 +110,50 @@ export default function SosConfirmModal({
         if (!res.ok) return; // keep polling on transient errors
         const data = await res.json();
         const alert: AlertPayload | undefined = data.data;
-        if (!alert) return;
-        if (alert.status === "ACKNOWLEDGED" || alert.status === "RESOLVED") {
+        if (!alert || settledAlertRef.current === id) return;
+        if (alert.status === "ACKNOWLEDGED") setStatus("acknowledged");
+        if (alert.status === "RESOLVED") {
+          settledAlertRef.current = id;
+          clearSosSession("conductor", userId);
           stopPolling();
+          setAlertId(null);
           setStatus("responded");
+          onResolved();
         }
       } catch {
         // Network blip — keep polling, the admin may still respond.
       }
     },
-    [stopPolling]
+    [stopPolling, userId, onResolved]
   );
 
   useEffect(() => {
-    if (status === "active" && alertId) {
+    let initialPoll: ReturnType<typeof setTimeout> | undefined;
+    if (isAlertActive && alertId) {
+      initialPoll = setTimeout(() => void pollAlert(alertId), 0);
       pollRef.current = setInterval(() => void pollAlert(alertId), POLL_INTERVAL_MS);
     }
-    return stopPolling;
-  }, [status, alertId, pollAlert, stopPolling]);
+    return () => {
+      clearTimeout(initialPoll);
+      stopPolling();
+    };
+  }, [isAlertActive, alertId, pollAlert, stopPolling]);
 
   // Clean up polling on unmount.
   useEffect(() => stopPolling, [stopPolling]);
+
+  const handleStop = async () => {
+    if (!alertId) throw new Error("No active SOS to stop.");
+    const res = await fetch(`/api/conductor/sos/${encodeURIComponent(alertId)}/stop`, { method: "PATCH", credentials: "include" });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.message ?? "Unable to stop SOS. Please try again.");
+    if (data?.data?.status !== "RESOLVED") throw new Error("SOS is still active. Please try again.");
+    settledAlertRef.current = alertId;
+    stopPolling();
+    clearSosSession("conductor", userId);
+    setAlertId(null);
+    setStatus("stopped");
+  };
 
   // POST the SOS to the backend.
   const sendSos = useCallback(async (lat: number, lng: number) => {
@@ -153,19 +191,22 @@ export default function SosConfirmModal({
         return;
       }
 
-      if (alert.status === "ACKNOWLEDGED" || alert.status === "RESOLVED") {
+      if (alert.status === "RESOLVED") {
+        clearSosSession("conductor", userId);
         setStatus("responded");
+        onResolved();
         return;
       }
 
+      saveSosSession("conductor", userId, { id: alert.id, startedAt: Date.now(), hotline: alert.emergency_hotline ?? null });
       setAlertId(alert.id);
       setHotline(alert.emergency_hotline ?? null);
-      setStatus("active");
+      setStatus(alert.status === "ACKNOWLEDGED" ? "acknowledged" : "active");
     } catch {
       setStatus("error");
       setErrorMessage("Network error. Please check your connection and try again.");
     }
-  }, []);
+  }, [userId, onResolved]);
 
   // Trigger: capture GPS (falling back to a default coord), then POST.
   const handleActivate = useCallback(() => {
@@ -203,23 +244,22 @@ export default function SosConfirmModal({
     return `${m}:${s}`;
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === "undefined") return null;
 
-  const isLocked = status === "locating" || status === "sending" || status === "active";
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
-      {/* Backdrop — red while locked; cannot click to close while an SOS is in flight. */}
+  // Keep the overlay outside the transformed, scrolling Settings popover.
+  return createPortal(
+    <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-4">
+      {/* Cannot click to close while an SOS is in flight. */}
       <div
-        className={`absolute inset-0 backdrop-blur-sm transition-colors duration-500 ${
-          isLocked ? "bg-red-900/60" : "bg-black/60"
+        className={`absolute inset-0 backdrop-blur-sm animate-modal-backdrop-in transition-colors duration-500 ${
+          isAlertActive || status === "stopped" ? "bg-[#020812]/80" : "bg-black/60"
         }`}
-        onClick={status === "confirming" ? onClose : undefined}
+        onClick={status === "confirming" ? handleClose : undefined}
       />
 
       {/* Modal Card */}
-      <div className={`relative sm:rounded-3xl rounded-t-3xl shadow-2xl w-full sm:max-w-md overflow-hidden animate-slide-in-from-bottom duration-300 pb-safe border-2 transition-colors duration-300 ${
-        status === "active" || status === "locating" || status === "sending" ? "bg-white border-red-500" : "bg-[#1A2540] border-[#2A3A55]"
+      <div key={isAlertActive ? "active" : "inactive"} role="dialog" aria-modal="true" aria-label="Emergency SOS" className={`relative sm:rounded-3xl rounded-t-3xl shadow-2xl w-full sm:max-w-md animate-modal-panel-in pb-safe transition-colors duration-300 ${
+        isAlertActive || status === "stopped" ? "max-h-[90dvh] overflow-y-auto modal-scroll border border-white/10 bg-[#071A2E] shadow-black/40" : status === "locating" || status === "sending" ? "overflow-hidden border-2 bg-white border-red-500" : "overflow-hidden border-2 bg-[#1A2540] border-[#2A3A55]"
       }`}>
 
         {status === "confirming" && (
@@ -239,7 +279,7 @@ export default function SosConfirmModal({
             </p>
 
             <div className="flex gap-3">
-              <button onClick={onClose} className="flex-1 px-4 py-3.5 rounded-xl text-sm font-semibold border border-white/10 text-white/70 hover:bg-white/10 transition-colors">
+              <button onClick={handleClose} className="flex-1 px-4 py-3.5 rounded-xl text-sm font-semibold border border-white/10 text-white/70 hover:bg-white/10 transition-colors">
                 Cancel
               </button>
               <button onClick={handleActivate} className="flex-1 px-4 py-3.5 rounded-xl text-sm font-bold bg-red-500 text-white hover:bg-red-600 transition-colors shadow-lg shadow-red-500/30 flex items-center justify-center gap-2">
@@ -283,40 +323,54 @@ export default function SosConfirmModal({
           </div>
         )}
 
-        {status === "active" && (
+        {isAlertActive && (
           /* --- ACTIVE/TRACKING STATE (LOCKED SCREEN) --- */
-          <div className="p-6 text-center">
-            <div className="relative w-32 h-32 mx-auto mb-6 flex items-center justify-center">
-              <div className="absolute inset-0 rounded-full bg-red-500/20 animate-ping" />
-              <div className="absolute inset-4 rounded-full bg-red-500/30 animate-ping [animation-delay:0.5s]" />
-              <div className="relative w-20 h-20 rounded-full bg-red-600 flex items-center justify-center shadow-2xl shadow-red-600/50 z-10">
-                <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-                </svg>
+          <div>
+            <div aria-hidden="true" className="h-1 bg-red-500/80" />
+            <div className="p-5 sm:p-6">
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-red-400/20 bg-red-500/10 text-red-300">
+                  <ShieldAlert size={23} aria-hidden="true" />
+                </span>
               </div>
+
+              <h2 className="mt-5 text-2xl font-bold tracking-tight text-white">SOS is active</h2>
+              <p className="mt-2 text-sm leading-relaxed text-white/55">Your emergency alert has been sent to CHATCO dispatch.</p>
+
+              <div className="mt-6 rounded-2xl border border-white/10 bg-[#050F1A]/60 px-5 py-5">
+                <p className="flex items-center gap-2 text-xs font-medium text-white/45"><Clock3 size={14} aria-hidden="true" />Time elapsed</p>
+                <p role="timer" aria-label="Time since SOS was sent" className="mt-3 text-4xl font-semibold leading-none tracking-tight text-white tabular-nums">{formatTimer(activeSeconds)}</p>
+                <div role="status" className="mt-5 border-t border-white/10 pt-4">
+                  <div className="flex items-center gap-2 text-xs text-white/60"><Check size={15} aria-hidden="true" className="shrink-0 text-emerald-400" />Alert sent</div>
+                  <div className="mt-3 flex items-center gap-2 text-sm font-medium text-[#B6D3F6]">{status === "acknowledged" ? <Check size={15} aria-hidden="true" className="shrink-0 text-emerald-400" /> : <LoaderCircle size={15} aria-hidden="true" className="shrink-0 animate-spin motion-reduce:animate-none" />}{status === "acknowledged" ? "Dispatch has received your alert" : "Waiting for dispatch to respond"}</div>
+                </div>
+              </div>
+
+              {hotline && (
+                <a
+                  href={`tel:${hotline.replace(/[^\d+]/g, "")}`}
+                  className="mt-5 flex min-h-14 items-center justify-center gap-3 rounded-xl bg-red-500 px-4 py-3 text-white transition-colors hover:bg-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#071A2E]"
+                >
+                  <Phone size={19} aria-hidden="true" className="shrink-0" />
+                  <span className="min-w-0 text-center"><span className="block text-sm font-semibold">Call emergency hotline</span><span className="mt-0.5 block break-words text-xs text-white/75">{hotline}</span></span>
+                </a>
+              )}
+
+              <div className="mt-5 flex items-start gap-2.5 text-xs leading-relaxed text-white/45">
+                <Info size={15} aria-hidden="true" className="mt-0.5 shrink-0 text-white/35" />
+                <p>You can close this screen. Your SOS stays active and dispatch can still respond.</p>
+              </div>
+              <SosActions onClose={handleClose} onStop={handleStop} />
             </div>
+          </div>
+        )}
 
-            <h2 className="text-xl font-extrabold text-red-600 mb-1">SOS IS ACTIVE</h2>
-            <p className="text-sm text-gray-500 mb-4">Admin dispatch is tracking your live location</p>
-
-            <div className="inline-flex items-center gap-2 bg-red-50 text-red-700 font-mono text-2xl font-extrabold px-6 py-2 rounded-lg border border-red-200 mb-6">
-              <svg className="w-5 h-5 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.362 5.214A8.252 8.252 0 0 1 12 21 8.25 8.25 0 0 1 6.038 7.047 8.287 8.287 0 0 0 9 9.601a8.983 8.983 0 0 1 3.361-6.867 8.21 8.21 0 0 0 3 2.48Z" /></svg>
-              {formatTimer(activeSeconds)}
-            </div>
-
-            {hotline && (
-              <a
-                href={`tel:${hotline.replace(/[^\d+]/g, "")}`}
-                className="mx-auto mb-5 flex max-w-[260px] items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-3 text-sm font-bold text-red-700 hover:bg-red-50"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" /></svg>
-                Emergency hotline: {hotline}
-              </a>
-            )}
-
-            <p className="text-xs text-gray-400 leading-relaxed max-w-[250px] mx-auto">
-              Please keep the app open. This screen will automatically update once the admin responds.
-            </p>
+        {status === "stopped" && (
+          <div className="p-6 text-center">
+            <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-300"><Check size={26} aria-hidden="true" /></div>
+            <h2 className="text-2xl font-bold tracking-tight text-white">SOS stopped</h2>
+            <p className="mt-2 text-sm leading-relaxed text-white/55">Your alert is closed. Dispatch has been notified.</p>
+            <button type="button" onClick={handleClose} className="mt-6 min-h-11 w-full rounded-xl bg-[#1A5FB4] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#164A8F]">Done</button>
           </div>
         )}
 
@@ -329,15 +383,13 @@ export default function SosConfirmModal({
               </svg>
             </div>
 
-            <h2 className="text-xl font-extrabold text-[#071A2E] mb-2">Signal Received</h2>
+            <h2 className="text-xl font-extrabold text-white mb-2">SOS closed</h2>
             <p className="text-sm text-gray-500 leading-relaxed mb-8">
-              The CHATCO Admin dispatch team has successfully received your distress signal.
-              <br /><br />
-              <span className="font-semibold text-[#071A2E]">Respondents are being dispatched to your location. Please stay calm and keep your location services turned on.</span>
+              Dispatch has closed your emergency alert.
             </p>
 
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="w-full px-4 py-3.5 rounded-xl text-sm font-bold bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-colors shadow-md shadow-[#1A5FB4]/20 mb-2"
             >
               Understood
@@ -358,7 +410,7 @@ export default function SosConfirmModal({
             <p className="text-sm text-white/40 leading-relaxed mb-8">{errorMessage}</p>
 
             <div className="flex gap-3">
-              <button onClick={onClose} className="flex-1 px-4 py-3.5 rounded-xl text-sm font-semibold border border-white/10 text-white/70 hover:bg-white/10 transition-colors">
+              <button onClick={handleClose} className="flex-1 px-4 py-3.5 rounded-xl text-sm font-semibold border border-white/10 text-white/70 hover:bg-white/10 transition-colors">
                 Close
               </button>
               <button onClick={handleRetry} className="flex-1 px-4 py-3.5 rounded-xl text-sm font-bold bg-red-500 text-white hover:bg-red-600 transition-colors shadow-lg shadow-red-500/30">
@@ -368,6 +420,7 @@ export default function SosConfirmModal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

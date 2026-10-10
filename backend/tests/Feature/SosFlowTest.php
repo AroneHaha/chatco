@@ -5,7 +5,9 @@ namespace Tests\Feature;
 use App\Models\Announcement;
 use App\Models\SosAlert;
 use App\Models\User;
+use App\Services\SosService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -387,6 +389,13 @@ class SosFlowTest extends TestCase
             'resolved_by' => $this->admin->id,
         ]);
         $this->assertNotNull(SosAlert::find($alert->id)->resolved_at);
+
+        $history = $this->getJson('/api/v1/admin/sos?status=RESOLVED');
+        $history->assertOk()
+            ->assertJsonPath('data.data.0.resolver.id', $this->admin->id)
+            ->assertJsonPath('data.data.0.resolver.admin_profile.first_name', $this->admin->adminProfile->first_name)
+            ->assertJsonPath('data.data.0.resolver.admin_profile.last_name', $this->admin->adminProfile->last_name);
+        $this->assertArrayNotHasKey('password', $history->json('data.data.0.resolver'));
     }
 
     public function test_admin_can_resolve_acknowledged_alert(): void
@@ -455,6 +464,67 @@ class SosFlowTest extends TestCase
         $this->assertStringContainsString($this->admin->getDisplayName(), $notices->first()->message);
         $this->assertStringContainsString($this->commuter->getDisplayName(), $notices->first()->message);
         $this->assertSame($alert->id, $notices->first()->reference_id);
+    }
+
+    public function test_cancelled_and_legacy_history_do_not_attribute_resolution_to_an_admin(): void
+    {
+        foreach ([$this->conductor->id, null] as $resolverId) {
+            SosAlert::create([
+                'sender_role' => 'CONDUCTOR',
+                // SQLite retains the original NOT NULL commuter_id constraint.
+                'commuter_id' => $this->commuter->id,
+                'conductor_id' => $this->conductor->id,
+                'lat' => 14.59, 'lng' => 120.98,
+                'status' => 'RESOLVED',
+                'resolved_by' => $resolverId,
+                'resolved_at' => now(),
+            ]);
+        }
+        $this->admin();
+        $history = $this->getJson('/api/v1/admin/sos?status=RESOLVED')->assertOk();
+        foreach ($history->json('data.data') as $alert) {
+            $this->assertNull($alert['resolver']);
+        }
+    }
+
+    public function test_history_preserves_deleted_admin_names_and_batch_loads_resolvers(): void
+    {
+        $resolver = User::factory()->admin()->create();
+        $profile = $resolver->adminProfile;
+        $firstName = $profile->first_name;
+        $profile->delete();
+        $resolver->delete();
+
+        for ($i = 0; $i < 10; $i++) {
+            SosAlert::create([
+                'sender_role' => 'CONDUCTOR',
+                // SQLite retains the original NOT NULL commuter_id constraint.
+                'commuter_id' => $this->commuter->id,
+                'conductor_id' => $this->conductor->id,
+                'lat' => 14.59, 'lng' => 120.98,
+                'status' => 'RESOLVED',
+                'resolved_by' => $i % 2 ? $this->admin->id : $resolver->id,
+                'resolved_at' => now(),
+            ]);
+        }
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        try {
+            $history = app(SosService::class)->listActive($this->admin, ['status' => 'RESOLVED']);
+            $items = $history->toArray()['data'];
+            $this->assertCount(10, $items);
+            $this->assertLessThanOrEqual(6, count(DB::getQueryLog()), 'Resolver lookup must not query per row.');
+            foreach ($items as $alert) {
+                $this->assertNotNull($alert['resolver']['admin_profile']);
+                if ($alert['resolved_by'] === $resolver->id) {
+                    $this->assertSame($firstName, $alert['resolver']['admin_profile']['first_name']);
+                }
+            }
+        } finally {
+            DB::disableQueryLog();
+            DB::flushQueryLog();
+        }
     }
 
 }
