@@ -19,6 +19,7 @@ use App\Http\Controllers\Admin\AdminVoucherController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Commuter\CommuterController;
+use App\Http\Controllers\Commuter\EmailChangeController;
 use App\Http\Controllers\Commuter\FeedbackController;
 use App\Http\Controllers\Commuter\HailController;
 use App\Http\Controllers\Commuter\ShareRideController;
@@ -106,6 +107,14 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
     Route::get('/vehicles/{vehicle}/details', VehicleDetailsController::class)->middleware('throttle:conductor-read');
     Route::get('/profile', [CommuterController::class, 'profile'])->middleware('throttle:conductor-read');
     Route::put('/profile', [CommuterController::class, 'updateProfile'])->middleware('throttle:conductor-write');
+    Route::get('/change-email', [EmailChangeController::class, 'state'])->middleware('throttle:commuter-read');
+    Route::prefix('change-email')->middleware('throttle:commuter-security')->group(function () {
+        Route::post('/start', [EmailChangeController::class, 'start']);
+        Route::post('/send-code', [EmailChangeController::class, 'sendCode']);
+        Route::post('/verify-identity', [EmailChangeController::class, 'verifyIdentity']);
+        Route::post('/confirm', [EmailChangeController::class, 'confirm']);
+        Route::post('/cancel', [EmailChangeController::class, 'cancel']);
+    });
     Route::post('/change-password/request-code', [CommuterController::class, 'requestPasswordChangeCode'])->middleware('throttle:conductor-write');
     Route::post('/change-password/confirm', [CommuterController::class, 'confirmPasswordChange'])->middleware('throttle:conductor-write');
     Route::get('/trips', [CommuterController::class, 'trips'])->middleware('throttle:conductor-read');
