@@ -30,18 +30,20 @@ export function fmt(value: number | null | undefined, decimals = 2): string {
 // ─── Date & Time ─────────────────────────────────────────────────────
 
 /** Format an ISO string into a full date+time string (e.g., "May 14, 2026, 8:15 AM") */
-export function formatDateTime(iso: string): {
+export function formatDateTime(iso: string, timeZone?: string): {
   date: string;
   time: string;
   full: string;
 } {
   const d = new Date(iso);
   const date = d.toLocaleDateString("en-PH", {
+    timeZone,
     month: "short",
     day: "numeric",
     year: "numeric",
   });
   const time = d.toLocaleTimeString("en-PH", {
+    timeZone,
     hour: "numeric",
     minute: "2-digit",
     hour12: true,

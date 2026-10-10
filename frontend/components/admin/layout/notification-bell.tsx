@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useId } from 'react';
 import Link from 'next/link';
-import { Bell, AlertTriangle, CheckCircle, Info, Megaphone } from 'lucide-react';
+import { Bell, AlertTriangle, CheckCircle, Info, Megaphone, X, ArrowUpRight } from 'lucide-react';
 import {
   unreadCount as fetchUnreadCount,
   list as listAnnouncements,
@@ -40,20 +40,31 @@ function formatRelativeTime(iso: string): string {
 /**
  * The backend `type` column is a free-form string (max 20, e.g. 'holiday',
  * 'route', 'system', 'safety', 'promo', 'maintenance'). Map it heuristically
- * to the bell's three visual styles. Unknown/blank → info (blue).
+ * to the bell's status colors and operational categories.
+ * Unknown/blank types use a neutral announcement style.
  */
 function getNotificationStyle(type: string) {
   const t = (type ?? '').toLowerCase();
+  const label = t.includes('sos') ? 'SOS'
+    : t.includes('overspeed') ? 'Overspeeding'
+    : t.includes('remittance') ? 'Remittance'
+    : t.startsWith('shift_') ? 'Shift'
+    : t.includes('registration') ? 'Registration'
+    : t.includes('claim') ? 'Lost & found'
+    : 'Announcement';
+  if (t === 'sos_triggered') {
+    return { Icon: AlertTriangle, color: 'text-red-400', label };
+  }
   if (['sos_resolved', 'remittance_completed', 'shift_ended'].includes(t)) {
-    return { Icon: CheckCircle, color: 'text-emerald-400', bg: 'bg-emerald-500/10' };
+    return { Icon: CheckCircle, color: 'text-emerald-400', label };
   }
   if (['safety', 'warning', 'maintenance', 'alert', 'sos', 'overspeed', 'overdue', 'waiting'].some((k) => t.includes(k))) {
-    return { Icon: AlertTriangle, color: 'text-amber-400', bg: 'bg-amber-500/10' };
+    return { Icon: AlertTriangle, color: 'text-amber-400', label };
   }
   if (['promo', 'success', 'holiday', 'reward'].some((k) => t.includes(k))) {
-    return { Icon: CheckCircle, color: 'text-emerald-400', bg: 'bg-emerald-500/10' };
+    return { Icon: CheckCircle, color: 'text-emerald-400', label };
   }
-  return { Icon: Info, color: 'text-blue-400', bg: 'bg-blue-500/10' };
+  return { Icon: label === 'Announcement' ? Megaphone : Info, color: 'text-white/50', label };
 }
 
 // ─── Component ─────────────────────────────────────────────────────────
@@ -69,7 +80,7 @@ function getNotificationStyle(type: string) {
  * Flow:
  *   - Badge shows the polled unread count (capped at '99+' for display).
  *   - Unread and All views load notifications (including read history) 10
- *     at a time (title + first 100 chars of message + time-ago). Scrolling to
+ *     at a time (title + two-line message preview + time-ago). Scrolling to
  *     the bottom of the currently loaded list fetches the next page of 10 and
  *     appends it — the already-rendered items are never replaced or reloaded.
  *   - Clicking an unread item → markRead(id) → badge decrements → the item
@@ -82,6 +93,9 @@ function getNotificationStyle(type: string) {
  * authenticated role), but it's only mounted in the admin layout today.
  */
 export function NotificationBell() {
+  const popupId = useId();
+  const bellRef = useRef<HTMLButtonElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(true);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
@@ -104,6 +118,10 @@ export function NotificationBell() {
   const isFetchingRef = useRef(false);
   const feedGenerationRef = useRef(0);
   const invalidateFeed = useCallback(() => { feedGenerationRef.current++; }, []);
+
+  useEffect(() => {
+    if (isOpen) closeButtonRef.current?.focus();
+  }, [isOpen]);
 
   // ─── Poll unread count on mount + every 30s ──────────────────────────
   const refreshCount = useCallback(async () => {
@@ -271,12 +289,23 @@ export function NotificationBell() {
   const displayedBadge = unreadCount > 99 ? '99+' : String(unreadCount);
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative" ref={dropdownRef} onKeyDown={(event) => {
+      if (event.key === 'Escape' && isOpen) {
+        event.stopPropagation();
+        setIsOpen(false);
+        bellRef.current?.focus();
+      }
+    }}>
       {/* Bell Button */}
       <button
+        ref={bellRef}
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="relative w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white transition-all active:scale-95"
+        className="relative w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
         aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
+        aria-expanded={isOpen}
+        aria-controls={isOpen ? popupId : undefined}
+        aria-haspopup="dialog"
       >
         <Bell size={18} />
         {/* Static, not animate-pulse. A permanently pulsing badge reads as a
@@ -297,114 +326,92 @@ export function NotificationBell() {
           edge, so a hard 320px panel ran off-screen on narrow phones — the
           width is clamped to what's available and grows back at sm. */}
       {isOpen && (
-        <div className="absolute right-0 top-12 w-[calc(100vw-1.5rem)] max-w-[20rem] sm:w-96 sm:max-w-none md:left-full md:right-auto md:top-0 md:ml-3 bg-[#0D1424] border border-white/10 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden z-50">
+        <div id={popupId} role="dialog" aria-label="Notifications" className="absolute right-0 top-12 z-50 flex w-[calc(100vw-1.5rem)] max-w-[26rem] max-h-[calc(100dvh-6rem)] flex-col overflow-hidden rounded-xl border border-[#2A3A52] bg-[#131C2E] md:left-full md:right-auto md:top-0 md:ml-3 md:w-[26rem] md:max-h-[calc(100dvh-3rem)]">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-white">Notifications</h3>
-              {unreadCount > 0 && (
-                <span className="text-[10px] font-bold uppercase tracking-wider bg-red-500/15 text-red-400 px-2 py-0.5 rounded-full">
-                  {unreadCount} New
-                </span>
-              )}
+          <div className="flex shrink-0 items-start justify-between gap-3 px-5 pb-3 pt-4">
+            <div>
+              <h3 className="text-base font-semibold text-white">Notifications</h3>
+              <p className="mt-1 text-xs text-white/50">{unreadCount > 0 ? `${unreadCount} unread ${unreadCount === 1 ? 'update' : 'updates'}` : 'No unread updates'}</p>
             </div>
-            {unreadCount > 0 && (
-              <button
-                onClick={handleMarkAllRead}
-                disabled={markingIds.size > 0 || isMarkingAll || isLoadingList || isLoadingMore}
-                className="text-[11px] font-medium text-[#62A0EA] hover:text-[#7AB8F4] transition-colors disabled:opacity-50"
-              >
-                {isMarkingAll ? 'Marking…' : 'Mark all read'}
-              </button>
-            )}
+            <button ref={closeButtonRef} type="button" aria-label="Close notifications" onClick={() => { setIsOpen(false); bellRef.current?.focus(); }} className="-mr-2 -mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-white/50 transition-colors hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"><X size={16} aria-hidden="true" /></button>
           </div>
 
-          <div role="group" aria-label="Notification filter" className="flex gap-1 border-b border-white/5 px-4 py-2">
-            {([{ label: 'Unread', value: true }, { label: 'All', value: false }]).map(({ label, value }) => (
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#1E2D45] px-5">
+            <div role="group" aria-label="Notification filter" className="flex gap-5">
+              {([{ label: 'Unread', value: true }, { label: 'All', value: false }]).map(({ label, value }) => (
               <button
                 key={label}
                 type="button"
                 aria-pressed={unreadOnly === value}
                 disabled={isMarkingAll || markingIds.size > 0}
                 onClick={() => setUnreadOnly(value)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${unreadOnly === value ? 'bg-[#62A0EA]/15 text-[#62A0EA]' : 'text-white/50 hover:bg-white/5 hover:text-white'}`}
+                className={`min-h-10 border-b-2 px-0.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA] disabled:opacity-50 ${unreadOnly === value ? 'border-[#62A0EA] text-white' : 'border-transparent text-white/50 hover:text-white'}`}
               >
                 {label}
               </button>
-            ))}
+              ))}
+            </div>
+            {unreadCount > 0 && (
+              <button type="button" onClick={handleMarkAllRead} disabled={markingIds.size > 0 || isMarkingAll || isLoadingList || isLoadingMore} className="min-h-9 rounded-md px-2 text-xs font-medium text-[#62A0EA] transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] disabled:opacity-50">{isMarkingAll ? 'Marking…' : 'Mark all read'}</button>
+            )}
           </div>
 
           {/* List */}
           <div
             ref={listScrollRef}
             onScroll={handleListScroll}
-            className="max-h-96 overflow-y-auto divide-y divide-white/[0.04]"
+            aria-busy={isLoadingList || isLoadingMore}
+            className="min-h-0 max-h-[420px] flex-1 overflow-y-auto overscroll-contain modal-scroll"
           >
             {isLoadingList ? (
-              <div className="px-4 py-12 text-center">
+              <div role="status" className="px-5 py-12 text-center">
                 <div className="w-6 h-6 border-2 border-white/10 border-t-[#62A0EA] rounded-full animate-spin mx-auto mb-2" />
-                <p className="text-sm text-white/30">Loading…</p>
+                <p className="text-sm text-white/60">Loading notifications…</p>
               </div>
             ) : listError ? (
-              <div className="px-4 py-10 text-center">
+              <div role="alert" className="px-5 py-10 text-center">
                 <AlertTriangle size={28} className="mx-auto text-red-400/60 mb-2" />
                 <p className="text-sm text-red-400/80 mb-3">{listError}</p>
                 <button
+                  type="button"
                   onClick={() => void refreshList()}
-                  className="px-3 py-1.5 rounded-md text-xs font-semibold bg-[#62A0EA] text-white"
+                  className="min-h-9 px-3 py-2 rounded-md text-xs font-semibold bg-[#62A0EA] text-[#0B1120] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] focus-visible:ring-offset-2 focus-visible:ring-offset-[#131C2E]"
                 >
                   Try again
                 </button>
               </div>
             ) : items.length === 0 ? (
-              <div className="px-4 py-12 text-center">
-                <Bell size={32} className="mx-auto text-white/10 mb-2" />
-                <p className="text-sm text-white/30">{unreadOnly ? 'You’re all caught up' : 'No notifications yet'}</p>
+              <div className="px-5 py-12 text-center">
+                <p className="text-sm font-medium text-white/80">{unreadOnly ? 'You’re all caught up' : 'No notifications yet'}</p>
+                <p className="mt-2 text-xs leading-relaxed text-white/50">{unreadOnly ? 'Read updates are available in All.' : 'Fleet and account updates will appear here.'}</p>
               </div>
             ) : (
               <>
+              <ul aria-label="Notification updates" className="divide-y divide-[#1E2D45]">
               {items.map((item) => {
-                const { Icon, color, bg } = getNotificationStyle(item.type);
-                const preview =
-                  item.message.length > 100
-                    ? `${item.message.slice(0, 100)}…`
-                    : item.message;
+                const { Icon, color, label } = getNotificationStyle(item.type);
                 return (
+                  <li key={item.id}>
                   <button
-                    key={item.id}
+                    type="button"
+                    aria-label={`${item.isRead ? '' : 'Unread: '}${item.title}`}
                     onClick={() => void handleClickItem(item)}
                     disabled={markingIds.has(item.id) || isMarkingAll || isLoadingMore}
-                    className="group w-full text-left px-4 py-3 hover:bg-white/[0.03] transition-colors relative disabled:opacity-60"
+                    className={`w-full border-l-2 px-[18px] py-4 text-left transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA] disabled:opacity-60 ${item.isRead ? 'border-transparent' : 'border-[#62A0EA] bg-[#62A0EA]/[0.04]'}`}
                   >
-                    {/* Unread dot */}
-                    {!item.isRead && <span aria-label="Unread" className="absolute left-1.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-[#62A0EA]" />}
-
-                    <div className="flex items-start gap-3 pl-3">
-                      {/* Icon */}
-                      <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
-                        <Icon size={16} className={color} />
+                      <div className="flex items-center justify-between gap-3">
+                        <span className={`flex min-w-0 items-center gap-1.5 text-[11px] font-medium ${color}`}><Icon size={13} aria-hidden="true" className="shrink-0" /><span className="truncate">{label}</span></span>
+                        <time dateTime={item.createdAt} title={new Date(item.createdAt).toLocaleString()} className="shrink-0 text-[11px] text-white/40 tabular-nums">{formatRelativeTime(item.createdAt)}</time>
                       </div>
-
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-semibold text-white/90 truncate">
-                            {item.title}
-                          </p>
-                          <span className="text-[10px] text-white/30 flex-shrink-0">
-                            {formatRelativeTime(item.createdAt)}
-                          </span>
-                        </div>
-                        <p className="text-xs text-white/50 mt-0.5 leading-relaxed line-clamp-2">
-                          {preview}
-                        </p>
-                      </div>
-                    </div>
+                      <p title={item.title} className={`mt-2 line-clamp-2 text-sm leading-5 [overflow-wrap:anywhere] ${item.isRead ? 'font-medium text-white/70' : 'font-semibold text-white'}`}>{item.title}</p>
+                      <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-white/50 [overflow-wrap:anywhere]">{item.message}</p>
                   </button>
+                  </li>
                 );
               })}
+              </ul>
               {isLoadingMore && (
-                <div className="px-4 py-3 text-center">
+                <div role="status" aria-label="Loading more notifications" className="px-5 py-4 text-center">
                   <div className="w-4 h-4 border-2 border-white/10 border-t-[#62A0EA] rounded-full animate-spin mx-auto" />
                 </div>
               )}
@@ -413,14 +420,14 @@ export function NotificationBell() {
           </div>
 
           {/* Footer — link to the admin management page */}
-          <div className="px-4 py-3 border-t border-white/5">
+          <div className="shrink-0 px-5 py-3 border-t border-[#1E2D45] bg-[#101A2B]">
             <Link
               href="/announcements"
               onClick={() => setIsOpen(false)}
-              className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-white/40 hover:text-white/70 transition-colors py-1"
+              className="flex min-h-9 items-center justify-between gap-3 rounded-md text-xs font-medium text-white/70 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
             >
-              <Megaphone size={12} />
               View all updates
+              <ArrowUpRight size={15} aria-hidden="true" />
             </Link>
           </div>
         </div>

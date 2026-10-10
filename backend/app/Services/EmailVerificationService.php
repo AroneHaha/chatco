@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Mail\EmailVerificationCodeMail;
+use App\Mail\EmailChangeCodeMail;
 use App\Mail\PasswordChangeCodeMail;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -90,7 +91,7 @@ class EmailVerificationService
      *                    applicant isn't stuck behind a resend cooldown for a
      *                    code that never arrived).
      */
-    public function sendCode(string $email, string $purpose = self::PURPOSE_REGISTRATION): void
+    public function sendCode(string $email, string $purpose = self::PURPOSE_REGISTRATION, ?string $emailChangeStage = null): void
     {
         $code = $this->generateCode();
         $previous = $this->find($email, $purpose);
@@ -108,6 +109,9 @@ class EmailVerificationService
         $mailable = $purpose === self::PURPOSE_CHANGE_PASSWORD
             ? new PasswordChangeCodeMail($code, self::CODE_TTL_MINUTES)
             : new EmailVerificationCodeMail($code, self::CODE_TTL_MINUTES);
+        if (in_array($emailChangeStage, ['old', 'new'], true)) {
+            $mailable = new EmailChangeCodeMail($code, self::CODE_TTL_MINUTES, $emailChangeStage);
+        }
 
         try {
             Mail::to($email)->send($mailable);

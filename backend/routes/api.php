@@ -19,6 +19,7 @@ use App\Http\Controllers\Admin\AdminVoucherController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Commuter\CommuterController;
+use App\Http\Controllers\Commuter\EmailChangeController;
 use App\Http\Controllers\Commuter\FeedbackController;
 use App\Http\Controllers\Commuter\HailController;
 use App\Http\Controllers\Commuter\ShareRideController;
@@ -106,6 +107,14 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
     Route::get('/vehicles/{vehicle}/details', VehicleDetailsController::class)->middleware('throttle:conductor-read');
     Route::get('/profile', [CommuterController::class, 'profile'])->middleware('throttle:conductor-read');
     Route::put('/profile', [CommuterController::class, 'updateProfile'])->middleware('throttle:conductor-write');
+    Route::get('/change-email', [EmailChangeController::class, 'state'])->middleware('throttle:commuter-read');
+    Route::prefix('change-email')->middleware('throttle:commuter-security')->group(function () {
+        Route::post('/start', [EmailChangeController::class, 'start']);
+        Route::post('/send-code', [EmailChangeController::class, 'sendCode']);
+        Route::post('/verify-identity', [EmailChangeController::class, 'verifyIdentity']);
+        Route::post('/confirm', [EmailChangeController::class, 'confirm']);
+        Route::post('/cancel', [EmailChangeController::class, 'cancel']);
+    });
     Route::post('/change-password/request-code', [CommuterController::class, 'requestPasswordChangeCode'])->middleware('throttle:conductor-write');
     Route::post('/change-password/confirm', [CommuterController::class, 'confirmPasswordChange'])->middleware('throttle:conductor-write');
     Route::get('/trips', [CommuterController::class, 'trips'])->middleware('throttle:conductor-read');
@@ -156,6 +165,7 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
     // when the admin acknowledges / resolves. Read-throttled (60/min) so the
     // modal can poll every 3s. Scoped to auth commuter in the service.
     Route::get('/sos/{id}', [SosController::class, 'show'])->middleware('throttle:conductor-read');
+    Route::patch('/sos/{id}/stop', [SosController::class, 'stop'])->middleware('throttle:conductor-write');
 
     // Lost & Found watchlist (S6-T3) — commuter's bookmarked items.
     // The browse + claim + watchlist toggle endpoints live in the shared
@@ -214,6 +224,7 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->grou
     // so the modal can poll every 3s. Scoped to the auth conductor in the service.
     Route::post('/sos', [App\Http\Controllers\Conductor\SosController::class, 'trigger'])->middleware('throttle:conductor-mutation');
     Route::get('/sos/{id}', [App\Http\Controllers\Conductor\SosController::class, 'show'])->middleware('throttle:conductor-read');
+    Route::patch('/sos/{id}/stop', [App\Http\Controllers\Conductor\SosController::class, 'stop'])->middleware('throttle:conductor-write');
 
     // GPS updates — allows 5-second cadence with headroom for retries/reconnects
     Route::post('/location', [ConductorController::class, 'updateLocation'])->middleware('throttle:conductor-gps');
@@ -259,9 +270,9 @@ Route::prefix('vehicles')->middleware(['auth:sanctum'])->group(function () {
 Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(function () {
     Route::get('/dashboard', [AdminController::class, 'dashboard']);
     Route::get('/analytics', [AdminController::class, 'analytics'])->middleware('throttle:conductor-read');
-    Route::get('/monitoring', [AdminController::class, 'monitoring'])->middleware('throttle:conductor-read');
-    Route::get('/monitoring/overspeed', [AdminController::class, 'overspeed'])->middleware('throttle:conductor-read');
-    Route::get('/monitoring/demand-zones', [AdminController::class, 'demandZones'])->middleware('throttle:conductor-read');
+    Route::get('/monitoring', [AdminController::class, 'monitoring'])->middleware('throttle:admin-monitoring');
+    Route::get('/monitoring/overspeed', [AdminController::class, 'overspeed'])->middleware('throttle:admin-monitoring');
+    Route::get('/monitoring/demand-zones', [AdminController::class, 'demandZones'])->middleware('throttle:admin-monitoring');
     Route::get('/users', [AdminUserController::class, 'index'])->middleware('throttle:conductor-read');
     Route::get('/users/{id}', [AdminUserController::class, 'show'])->middleware('throttle:conductor-read');
     Route::put('/users/{id}', [AdminUserController::class, 'update'])->middleware('throttle:conductor-write');
@@ -364,7 +375,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     // ── SOS alert management (S6-T5) ────────────────────────────
     // Admins monitor the live feed, acknowledge alerts (signal 'I see this'),
     // and resolve them when the situation is handled.
-    Route::get('/sos', [AdminSosController::class, 'index'])->middleware('throttle:conductor-read');
+    Route::get('/sos', [AdminSosController::class, 'index'])->middleware('throttle:admin-monitoring');
     Route::patch('/sos/{id}/acknowledge', [AdminSosController::class, 'acknowledge'])->middleware('throttle:admin-write');
     Route::patch('/sos/{id}/resolve', [AdminSosController::class, 'resolve'])->middleware('throttle:admin-write');
 

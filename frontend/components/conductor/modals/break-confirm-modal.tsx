@@ -1,15 +1,8 @@
 "use client";
 
-// components/conductor/modals/break-confirm-modal.tsx
-//
-// Confirmation modal for toggling "Take a Break" / "Resume Duty". Replaces
-// the old instant toggle: the conductor must drag the slider fully across
-// the track (left → right) to confirm. Releasing early snaps the slider
-// back to the start and does nothing; closing the modal without completing
-// the slide cancels the action the same way. The parent only mounts this
-// component while the modal should be visible (`{show && <BreakConfirmModal ... />}`).
-
-import { useCallback, useRef, useState } from "react";
+// Uses the existing confirmation callback and parent busy/error state.
+import { useEffect, useRef, useState } from "react";
+import SlideCommit from "@/components/ui/slide-commit";
 
 interface BreakConfirmModalProps {
   isOnBreak: boolean;
@@ -19,13 +12,7 @@ interface BreakConfirmModalProps {
   onConfirm: () => void;
 }
 
-const KNOB_SIZE = 48;
-const TRACK_PADDING = 4;
-const COMPLETE_RATIO = 0.9;
-
-// The parent only mounts this component while the modal is open, so a
-// fresh mount already starts every piece of state below at its initial
-// value — no "reset on open" effect needed.
+// The parent mounts a fresh modal for each break/duty confirmation.
 export default function BreakConfirmModal({
   isOnBreak,
   busy,
@@ -33,91 +20,63 @@ export default function BreakConfirmModal({
   onClose,
   onConfirm,
 }: BreakConfirmModalProps) {
-  const trackRef = useRef<HTMLDivElement>(null);
-  const startXRef = useRef(0);
-  const pointerIdRef = useRef<number | null>(null);
-
-  const [dragX, setDragX] = useState(0);
-  const [dragging, setDragging] = useState(false);
+  const sliderContainerRef = useRef<HTMLDivElement>(null);
+  const requestRef = useRef<{ resolve: () => void; reject: (reason: Error) => void } | null>(null);
+  const requestStartedRef = useRef(false);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const [wasOnBreak] = useState(isOnBreak);
+  const [sliderWidth, setSliderWidth] = useState(280);
   const [confirmed, setConfirmed] = useState(false);
-  const [maxDrag, setMaxDrag] = useState(1);
 
-  // Let the conductor retry if the confirm request finishes with an error,
-  // instead of leaving the slider stuck at "confirmed". Adjusted during
-  // render rather than in an effect, per React's guidance for state derived
-  // from a prop transition (avoids the extra effect render pass).
   const [prevBusy, setPrevBusy] = useState(busy);
   if (busy !== prevBusy) {
     setPrevBusy(busy);
-    if (prevBusy && !busy && error) {
-      setConfirmed(false);
-      setDragX(0);
-    }
+    if (prevBusy && !busy && error) setConfirmed(false);
   }
 
+  useEffect(() => {
+    const container = sliderContainerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(([entry]) => {
+      setSliderWidth(Math.round(entry.contentRect.width));
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+
+  // Let SlideCommit display pending/error states while the existing action runs.
+  useEffect(() => {
+    if (busy) {
+      requestStartedRef.current = true;
+      return;
+    }
+    if (!requestStartedRef.current || !requestRef.current) return;
+    const request = requestRef.current;
+    requestRef.current = null;
+    requestStartedRef.current = false;
+    if (error) request.reject(new Error(error));
+    else request.resolve();
+  }, [busy, error]);
+
+  useEffect(() => () => {
+    clearTimeout(closeTimerRef.current);
+    requestRef.current?.resolve();
+    requestRef.current = null;
+  }, []);
+
+  const confirm = () => new Promise<void>((resolve, reject) => {
+    requestRef.current = { resolve, reject };
+    setConfirmed(true);
+    onConfirm();
+  });
+
   const locked = busy || confirmed;
-
-  const handlePointerDown = useCallback(
-    (event: React.PointerEvent<HTMLButtonElement>) => {
-      if (locked || !trackRef.current) return;
-      setMaxDrag(Math.max(trackRef.current.clientWidth - KNOB_SIZE - TRACK_PADDING * 2, 1));
-      startXRef.current = event.clientX - dragX;
-      pointerIdRef.current = event.pointerId;
-      event.currentTarget.setPointerCapture(event.pointerId);
-      setDragging(true);
-    },
-    [dragX, locked]
-  );
-
-  const handlePointerMove = useCallback(
-    (event: React.PointerEvent<HTMLButtonElement>) => {
-      if (!dragging || pointerIdRef.current !== event.pointerId) return;
-      const next = Math.min(Math.max(event.clientX - startXRef.current, 0), maxDrag);
-      setDragX(next);
-    },
-    [dragging, maxDrag]
-  );
-
-  const endDrag = useCallback(
-    (event: React.PointerEvent<HTMLButtonElement>) => {
-      if (pointerIdRef.current !== event.pointerId) return;
-      pointerIdRef.current = null;
-      if (!dragging) return;
-      setDragging(false);
-
-      const ratio = dragX / maxDrag;
-      if (ratio >= COMPLETE_RATIO) {
-        setDragX(maxDrag);
-        setConfirmed(true);
-        onConfirm();
-      } else {
-        // Released before completing the slide — cancel, snap back.
-        setDragX(0);
-      }
-    },
-    [dragX, dragging, maxDrag, onConfirm]
-  );
-
-  // Keyboard fallback for the drag-only control (Enter/Space confirms).
-  const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLButtonElement>) => {
-      if (locked) return;
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        setConfirmed(true);
-        onConfirm();
-      }
-    },
-    [locked, onConfirm]
-  );
-
-  const ratio = dragging || confirmed ? dragX / maxDrag : 0;
-  const accent = isOnBreak ? "emerald" : "amber";
-  const title = isOnBreak ? "Resume Duty?" : "Take a Break?";
-  const description = isOnBreak
+  const accent = wasOnBreak ? "emerald" : "amber";
+  const title = wasOnBreak ? "Resume Duty?" : "Take a Break?";
+  const description = wasOnBreak
     ? "You'll be marked back on duty and visible to commuters and hails again."
     : "Your unit pauses from the live map while on break, and won't be flagged as inactive.";
-  const instruction = busy ? "Updating..." : isOnBreak ? "Slide to resume duty" : "Slide to start break";
+  const instruction = busy ? "Updating..." : wasOnBreak ? "Slide to resume duty" : "Slide to start break";
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -157,44 +116,25 @@ export default function BreakConfirmModal({
           <h3 className="text-white font-bold text-base mb-2">{title}</h3>
           <p className="text-white/40 text-sm leading-relaxed mb-6">{description}</p>
 
-          <div
-            ref={trackRef}
-            className={`relative w-full h-14 rounded-full border select-none touch-none ${
-              accent === "emerald" ? "bg-emerald-500/10 border-emerald-500/20" : "bg-amber-500/10 border-amber-500/20"
-            }`}
-          >
-            <span
-              className={`absolute inset-0 flex items-center justify-center text-xs font-bold uppercase tracking-wider transition-opacity duration-150 ${
-                accent === "emerald" ? "text-emerald-300" : "text-amber-300"
-              } ${ratio > 0.35 ? "opacity-0" : "opacity-100"}`}
-            >
-              {instruction}
-            </span>
-            <button
-              type="button"
-              disabled={locked}
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={endDrag}
-              onPointerCancel={endDrag}
-              onKeyDown={handleKeyDown}
-              aria-label={isOnBreak ? "Slide to resume duty" : "Slide to start break"}
-              style={{
-                transform: `translateX(${dragX}px)`,
-                transition: dragging ? "none" : "transform 0.25s ease",
+          <div ref={sliderContainerRef}>
+            <SlideCommit
+              label={instruction}
+              doneLabel="Done"
+              errorLabel="Slide to try again"
+              onConfirm={confirm}
+              onDone={() => {
+                closeTimerRef.current = setTimeout(onClose, 1200);
               }}
-              className={`absolute left-1 top-1 w-12 h-12 rounded-full flex items-center justify-center shadow-lg touch-none disabled:cursor-wait ${
-                accent === "emerald" ? "bg-emerald-500 text-white" : "bg-amber-500 text-white"
-              }`}
-            >
-              {locked ? (
-                <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-              ) : (
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                </svg>
-              )}
-            </button>
+              holdMs={0}
+              width={sliderWidth}
+              height={56}
+              commitRatio={0.9}
+              trackColor={wasOnBreak ? "#163C3D" : "#34312D"}
+              handleColor={wasOnBreak ? "#34D399" : "#FBBF24"}
+              successColor={wasOnBreak ? "#34D399" : "#FBBF24"}
+              disabled={locked}
+              className="conductor-duty-slider"
+            />
           </div>
 
           {error && (

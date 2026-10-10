@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import MobileNavHighlight, { useMobileNavHighlight } from "@/components/shared/mobile-nav-highlight";
 
 const HomeIcon = ({ className }: { className?: string }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -36,10 +37,13 @@ const regularNavItems = [
 ];
 
 export default function ConductorBottomNav({ pathname }: { pathname: string }) {
+  const { navRowRef, highlightRef, iconRefs } = useMobileNavHighlight(pathname);
+
   return (
     <nav className="fixed bottom-0 inset-x-0 z-50 pb-safe">
       <div className="bg-[#0B1E33]/90 backdrop-blur-2xl shadow-[0_-4px_30px_rgba(0,0,0,0.3)] border-t border-white/[0.06]">
-        <div className="relative flex items-end justify-around px-4 pt-1 pb-1 md:pt-1.5 md:pb-1.5">
+        <div ref={navRowRef} className="relative flex items-end justify-around px-4 pt-1 pb-1 md:pt-1.5 md:pb-1.5">
+          <MobileNavHighlight highlightRef={highlightRef} />
 
           {/* Left pair */}
           {regularNavItems.slice(0, 2).map((item) => {
@@ -48,12 +52,16 @@ export default function ConductorBottomNav({ pathname }: { pathname: string }) {
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex flex-col items-center justify-center w-[72px] py-1 relative group"
+                aria-current={isActive ? "page" : undefined}
+                className="flex flex-col items-center justify-center w-[72px] py-1 relative z-10 group"
               >
-                <div className={`relative flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-2xl transition-all duration-300 ease-out ${
-                  isActive
-                    ? "bg-[#1A5FB4] shadow-lg shadow-[#1A5FB4]/25"
-                    : "hover:bg-white/[0.06]"
+                <div
+                  ref={(element) => {
+                    if (element) iconRefs.current.set(item.href, element);
+                    else iconRefs.current.delete(item.href);
+                  }}
+                  className={`relative flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-full transition-colors duration-300 ${
+                  isActive ? "" : "hover:bg-white/[0.06]"
                 }`}>
                   <item.icon className={`w-[17px] h-[17px] md:w-[18px] md:h-[18px] transition-colors duration-300 ${isActive ? "text-white" : "text-white/40 group-hover:text-white/70"}`} />
                 </div>
@@ -86,12 +94,16 @@ export default function ConductorBottomNav({ pathname }: { pathname: string }) {
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex flex-col items-center justify-center w-[72px] py-1 relative group"
+                aria-current={isActive ? "page" : undefined}
+                className="flex flex-col items-center justify-center w-[72px] py-1 relative z-10 group"
               >
-                <div className={`relative flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-2xl transition-all duration-300 ease-out ${
-                  isActive
-                    ? "bg-[#1A5FB4] shadow-lg shadow-[#1A5FB4]/25"
-                    : "hover:bg-white/[0.06]"
+                <div
+                  ref={(element) => {
+                    if (element) iconRefs.current.set(item.href, element);
+                    else iconRefs.current.delete(item.href);
+                  }}
+                  className={`relative flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-full transition-colors duration-300 ${
+                  isActive ? "" : "hover:bg-white/[0.06]"
                 }`}>
                   <item.icon className={`w-[17px] h-[17px] md:w-[18px] md:h-[18px] transition-colors duration-300 ${isActive ? "text-white" : "text-white/40 group-hover:text-white/70"}`} />
                 </div>

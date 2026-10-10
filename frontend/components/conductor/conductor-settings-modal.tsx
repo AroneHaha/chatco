@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import SettingsContent from "@/components/conductor/settings/settings-content";
+import ThemeToggle from "@/components/commuter/profile/profile-theme-toggle";
 import { usePopoverModal, useBackdropDismiss } from "@/components/conductor/modals/use-popover-modal";
 import { PopoverTail } from "@/components/conductor/modals/popover-tail";
 
@@ -65,27 +66,32 @@ export default function ConductorSettingsModal() {
     <div className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
       <PopoverTail panelColor="#071A2E" anchorOffsetPx={anchorOffset} />
       <div
-        className={`w-full sm:max-w-lg max-h-[85vh] sm:max-h-[80vh] xl:h-[70vh] overflow-y-auto bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-white/10 shadow-2xl modal-scroll popover-surface ${panelAnim}`}
+        className={`flex w-full flex-col sm:max-w-lg max-h-[85vh] sm:max-h-[80vh] xl:h-[70vh] overflow-hidden bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-white/10 shadow-2xl popover-surface ${panelAnim}`}
         style={panelAnchorStyle}
       >
         {/* Header mirrors the Payment popover's — see ConductorEndOfDayModal. */}
-        <div className="popover-header sticky top-0 z-10 bg-[#071A2E] p-5 border-b border-white/10">
+        <div className="popover-header shrink-0 z-10 bg-[#071A2E] p-5 border-b border-white/10">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-white">Settings</h2>
-            <button
-              onClick={close}
-              aria-label="Close"
-              className="text-white/40 hover:text-white transition-colors cursor-pointer"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <div className="flex items-center gap-3">
+              <ThemeToggle />
+              <button
+                onClick={close}
+                aria-label="Close"
+                className="text-white/40 hover:text-white transition-colors cursor-pointer"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
           <p className="text-sm text-white/40 mt-1">Manage your app preferences and account</p>
         </div>
 
-        <SettingsContent showHeader={false} />
+        <div className="min-h-0 flex-1 overflow-y-auto modal-scroll">
+          <SettingsContent showHeader={false} />
+        </div>
       </div>
     </div>
   );

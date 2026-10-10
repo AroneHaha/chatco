@@ -7,6 +7,7 @@ import { proxyToLaravel } from "@/lib/conductor/server/proxy";
  * Proxies to Laravel GET /api/v1/admin/analytics.
  *
  * Passes through date_from + date_to query params for range filtering.
+ * pickup_period=week requests this week's major pickup locations only.
  * Default window (if no params): last 30 days (enforced by the backend).
  *
  * Returns aggregated business metrics:
@@ -21,11 +22,13 @@ export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const dateFrom = url.searchParams.get("date_from");
   const dateTo = url.searchParams.get("date_to");
+  const pickupPeriod = url.searchParams.get("pickup_period");
 
   let laravelPath = "/admin/analytics";
   const params = new URLSearchParams();
   if (dateFrom) params.append("date_from", dateFrom);
   if (dateTo) params.append("date_to", dateTo);
+  if (pickupPeriod) params.append("pickup_period", pickupPeriod);
   if (params.toString()) laravelPath += `?${params.toString()}`;
 
   const result = await proxyToLaravel(request, laravelPath, { method: "GET" });

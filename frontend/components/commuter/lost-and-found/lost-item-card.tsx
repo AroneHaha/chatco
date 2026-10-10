@@ -79,7 +79,7 @@ export default function LostItemCard({
         <button
           type="button"
           onClick={() => onToggleWatchlist(item.id)}
-          aria-label={isWatched ? "Remove from watchlist" : "Add to watchlist"}
+          aria-label={isWatched ? "Remove bookmark" : "Bookmark item"}
           aria-pressed={isWatched}
           className={`absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-md backdrop-blur-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${
             isWatched ? "bg-[#1A5FB4]/80 text-white" : "bg-black/45 text-white/80 hover:bg-black/65 hover:text-white"

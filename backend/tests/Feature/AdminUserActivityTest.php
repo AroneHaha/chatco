@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\ShiftStatus;
 use App\Enums\UserRole;
 use App\Models\AdminProfile;
+use App\Models\ActivityLog;
 use App\Models\CommuterProfile;
 use App\Models\ConductorProfile;
 use App\Models\Driver;
@@ -133,5 +134,56 @@ class AdminUserActivityTest extends TestCase
         $this->actingAs($admin)
             ->getJson("/api/v1/admin/users/{$commuter->id}/activity")
             ->assertOk();
+    }
+
+    public function test_today_audit_feed_paginates_without_repeating_equal_timestamp_entries(): void
+    {
+        $this->travelTo(now()->setDate(2026, 10, 11)->startOfDay()->addHours(12));
+        $admin = $this->makeAdmin();
+        $create = fn ($time) => ActivityLog::forceCreate([
+            'category' => 'GENERAL', 'description' => 'Activity entry',
+            'actor_id' => $admin->id, 'actor_name' => 'System Admin',
+            'created_at' => $time, 'updated_at' => $time,
+        ])->id;
+
+        $middle = [];
+        for ($i = 0; $i < 23; $i++) {
+            $middle[] = $create(now()->startOfDay()->addHours(10));
+        }
+        rsort($middle, SORT_STRING);
+        $start = $create(now()->startOfDay());
+        $end = $create(now()->endOfDay());
+        $create(now()->subDay()->endOfDay());
+        $create(now()->addDay()->startOfDay());
+
+        $ids = [];
+        for ($page = 1; $page <= 3; $page++) {
+            $response = $this->actingAs($admin)
+                ->getJson("/api/v1/admin/activity-logs?date_range=today&per_page=10&page={$page}")
+                ->assertOk()->assertJsonPath('data.total', 25)
+                ->assertJsonPath('data.current_page', $page)
+                ->assertJsonPath('data.last_page', 3);
+            $rows = $response->json('data.data');
+            $this->assertCount($page < 3 ? 10 : 5, $rows);
+            $ids = array_merge($ids, array_column($rows, 'id'));
+        }
+        $this->assertSame([$end, ...$middle, $start], $ids);
+        $this->assertCount(25, array_unique($ids));
+    }
+
+    public function test_today_audit_feed_is_empty_when_only_other_days_have_activity(): void
+    {
+        $admin = $this->makeAdmin();
+        foreach ([now()->subDay()->endOfDay(), now()->addDay()->startOfDay()] as $time) {
+            ActivityLog::forceCreate([
+                'category' => 'GENERAL', 'description' => 'Outside today',
+                'created_at' => $time, 'updated_at' => $time,
+            ]);
+        }
+        $this->actingAs($admin)
+            ->getJson('/api/v1/admin/activity-logs?date_range=today&per_page=10&page=1')
+            ->assertOk()->assertJsonPath('data.total', 0)
+            ->assertJsonPath('data.last_page', 1)
+            ->assertJsonCount(0, 'data.data');
     }
 }

@@ -112,10 +112,10 @@ export function QrScanner({ onToken, onCancel, variant = 'page' }: QrScannerProp
         // Common cases: permission denied, no camera, insecure context (http://)
         setCameraError(
           /permission|denied/i.test(message)
-            ? 'Camera permission denied. Allow camera access or use manual entry below.'
+            ? 'Camera access is blocked. Allow access in your browser settings, or enter the QR code manually.'
             : /notfound|not found|no camera/i.test(message)
-              ? 'No camera detected on this device. Use manual entry below.'
-              : 'Unable to start camera. Try manual entry below.'
+              ? 'No camera found on this device. Enter the QR code manually to continue.'
+              : "We couldn't open your camera. Enter the QR code manually to continue."
         );
         setIsStarting(false);
       }
@@ -217,7 +217,7 @@ export function QrScanner({ onToken, onCancel, variant = 'page' }: QrScannerProp
                   onClick={() => handleSwitchMode('manual')}
                   className="text-amber-400 text-xs font-semibold mt-1 hover:underline"
                 >
-                  Switch to manual entry →
+                  Enter QR code manually →
                 </button>
               </div>
             </div>

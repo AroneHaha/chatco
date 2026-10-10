@@ -588,7 +588,7 @@ export async function watch(itemId: string): Promise<void> {
   try {
     await api.post<ApiResponseEnvelope<unknown>>(`/api/lost-found/${itemId}/watchlist`);
   } catch (err) {
-    if (err instanceof ApiError) throw classifyError(err, "Unable to add to watchlist.");
+    if (err instanceof ApiError) throw classifyError(err, "Unable to bookmark item.");
     throw new LostFoundOperationError(
       "network",
       err instanceof Error ? err.message : "Unable to reach the backend service."
@@ -604,7 +604,7 @@ export async function unwatch(itemId: string): Promise<void> {
   try {
     await api.delete<ApiResponseEnvelope<unknown>>(`/api/lost-found/${itemId}/watchlist`);
   } catch (err) {
-    if (err instanceof ApiError) throw classifyError(err, "Unable to remove from watchlist.");
+    if (err instanceof ApiError) throw classifyError(err, "Unable to remove bookmark.");
     throw new LostFoundOperationError(
       "network",
       err instanceof Error ? err.message : "Unable to reach the backend service."
@@ -645,7 +645,7 @@ export async function myWatchlist(params: {
     };
   } catch (err) {
     if (err instanceof RequestCancelledError) throw err;
-    if (err instanceof ApiError) throw classifyError(err, "Unable to load your watchlist.");
+    if (err instanceof ApiError) throw classifyError(err, "Unable to load your bookmarks.");
     throw new LostFoundOperationError(
       "network",
       err instanceof Error ? err.message : "Unable to reach the backend service."

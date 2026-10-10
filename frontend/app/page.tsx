@@ -6,8 +6,8 @@ import Manifesto from "@/components/landing/Manifesto";
 import CommuterFeatures from "@/components/landing/CommuterFeatures";
 import HeatmapShowcase from "@/components/landing/HeatmapShowcase";
 import SafetySupport from "@/components/landing/SafetySupport";
-import LoyaltyPerks from "@/components/landing/LoyaltyPerks";
 import About from "@/components/landing/About";
+import DownloadApp from "@/components/landing/DownloadApp";
 import Contact from "@/components/landing/Contact";
 import FinalCTA from "@/components/landing/FinalCTA";
 import Footer from "@/components/landing/Footer";
@@ -29,9 +29,9 @@ export default function Home() {
       <Reveal>
         <SafetySupport />
       </Reveal>
-      <LoyaltyPerks />
       <HeatmapShowcase />
       <About />
+      <DownloadApp />
       <Contact />
       <Reveal>
         <FinalCTA />

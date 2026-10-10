@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronRight, KeyRound, Loader2, LogOut, Pencil, Save, X } from "lucide-react";
+import { Check, ChevronRight, KeyRound, Loader2, LogOut, Mail, Pencil, Phone, Save, ShieldCheck, UserRound, X } from "lucide-react";
 import { useProfile } from "@/app/(commuter)/profile/use-profile";
 import { AccountStatus } from "@/app/(commuter)/profile/types";
 import { getCommuterTypeLabel } from "@/types";
+import ChangeEmailDialog from "./change-email-dialog";
+import ProfileThemeToggle from "./profile-theme-toggle";
 
 /**
  * The commuter Profile body, shared by both shells — same split as the
@@ -17,7 +19,7 @@ import { getCommuterTypeLabel } from "@/types";
  * useProfile() owns all the data/business logic, so there is exactly one
  * implementation of it.
  *
- * `variant="page"` keeps the page's original full-height scroll wrapper and
+ * `variant="page"` keeps a fixed mobile heading above the scrolling content and
  * full-height loading/error states; `variant="modal"` drops them because the
  * popover panel is the scroll container.
  *
@@ -28,6 +30,14 @@ import { getCommuterTypeLabel } from "@/types";
  */
 export default function ProfileContent({ variant = "page" }: { variant?: "page" | "modal" }) {
   const isPage = variant === "page";
+  const detailsHeadingId = useId();
+  const contactHeadingId = useId();
+  const securityHeadingId = useId();
+  const contactInputId = useId();
+  const contactFormId = useId();
+  const contactErrorId = useId();
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const closeEmailDialog = useCallback(() => setShowEmailDialog(false), []);
   // Logging out is one tap from a scrollable page and is not undoable without
   // re-entering credentials, so it goes through a confirmation first — same
   // treatment the admin side already gives it (components/admin/ui/sign-out-modal).
@@ -38,6 +48,7 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
     loadState,
     loadError,
     retryLoad,
+    applyEmailChange,
     isEditing,
     editData,
     startEditing,
@@ -68,7 +79,7 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
   } = useProfile();
 
   useEffect(() => {
-    if (isPage || (!showLogoutConfirm && !showPasswordModal)) return;
+    if ((isPage && !showPasswordModal) || (!showLogoutConfirm && !showPasswordModal)) return;
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const controls = () => Array.from(subdialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), [tabindex="0"]') ?? []);
     controls()[0]?.focus();
@@ -164,7 +175,7 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
   const discountPercentage = profile.commuterType === "REGULAR" ? 0 : 20;
 
   const inputClasses =
-    "w-full px-4 py-3 rounded-xl border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#62A0EA]/20 focus:border-[#62A0EA]";
+    `w-full px-4 py-3 rounded-xl border ${isPage ? "text-base lg:text-sm" : "text-sm"} transition-colors focus:outline-none focus:ring-2 focus:ring-[#62A0EA]/20 focus:border-[#62A0EA]`;
   const disabledInputClasses = `${inputClasses} bg-[#050F1A] border-white/5 text-white/30 cursor-not-allowed`;
   const enabledInputClasses = `${inputClasses} bg-[#050F1A] border-white/10 text-white placeholder:text-white/30`;
   const errorInputClasses = `${inputClasses} bg-[#050F1A] border-red-500/50 text-white placeholder:text-white/30 focus:ring-red-500/20 focus:border-red-500`;
@@ -175,28 +186,40 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
     passwordErrorField === field ? errorInputClasses : enabledInputClasses;
 
   return (
-    <div className={isPage ? "h-full w-full bg-[#050F1A] overflow-y-auto pb-28 lg:pb-8" : undefined}>
-      <div className={isPage ? "max-w-2xl mx-auto p-6 lg:p-8 space-y-6" : "px-5 py-6 sm:px-6 space-y-6"}>
+    <div className={isPage ? "flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#050F1A]" : undefined}>
+      {isPage && (
+          <div className="mx-auto flex w-full max-w-2xl shrink-0 items-start justify-between gap-4 px-4 pt-6 pb-5 sm:px-6 lg:hidden">
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold tracking-tight text-white">My profile</h1>
+              <p className="mt-1 text-sm text-white/50">Your details and account settings.</p>
+            </div>
+            <ProfileThemeToggle />
+          </div>
+      )}
+      <div className={isPage ? "min-h-0 flex-1 overflow-y-auto pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-8" : undefined}>
+      <div className={isPage ? "max-w-2xl mx-auto px-4 pb-6 sm:px-6 lg:p-8 space-y-5 lg:space-y-6" : "space-y-4 p-6"}>
         {/* Header & Avatar */}
-        <div className={isPage ? "flex flex-col sm:flex-row items-center gap-5" : "flex items-start gap-4 border-b border-white/10 pb-6"}>
-          <div className={isPage ? "w-24 h-24 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-black text-3xl shadow-xl border-4 border-white/10 flex-shrink-0" : "flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-[#62A0EA]/30 bg-[#1A5FB4]/20 text-xl font-bold text-[#99C1F1]"}>
+        <div className={isPage ? "flex items-center gap-4 rounded-2xl border border-[#62A0EA]/20 bg-gradient-to-br from-[#102E50] to-[#071A2E] p-5 lg:gap-5 lg:rounded-none lg:border-0 lg:bg-none lg:p-0" : "relative isolate flex items-center gap-5 overflow-hidden rounded-2xl border border-[#62A0EA]/25 bg-gradient-to-br from-[#153C66] via-[#0C2743] to-[#071A2E] p-6 shadow-lg shadow-black/10"}>
+          {!isPage && <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-16 -z-10 h-56 w-56 rounded-full border border-[#99C1F1]/10 bg-[#62A0EA]/5"><div className="absolute inset-6 rounded-full border border-[#99C1F1]/10" /><div className="absolute inset-12 rounded-full border border-[#99C1F1]/10" /></div>}
+          <div className={isPage ? "flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-[#62A0EA]/30 bg-[#1A5FB4] text-2xl font-bold text-white lg:h-24 lg:w-24 lg:rounded-full lg:border-4 lg:border-white/10 lg:text-3xl lg:shadow-xl" : "flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-[#99C1F1]/30 bg-gradient-to-br from-[#337DD2] to-[#1A5FB4] text-2xl font-bold text-white shadow-lg shadow-[#050F1A]/30 ring-4 ring-white/5"}>
             {profile.firstName[0]}
             {profile.surname[0]}
           </div>
-          <div className={isPage ? "text-center sm:text-left flex-1" : "min-w-0 flex-1"}>
-            <h1 className={isPage ? "text-white font-bold text-2xl" : "break-words text-white font-bold text-lg leading-snug"}>
+          <div className="min-w-0 flex-1">
+            {!isPage && <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#99C1F1]/80">Commuter account</p>}
+            <h2 className={isPage ? "break-words text-xl font-bold leading-snug text-white lg:text-2xl" : "break-words text-2xl font-bold leading-snug tracking-tight text-white"}>
               {profile.firstName} {profile.surname}
-            </h1>
+            </h2>
             <p className="text-white/50 text-sm mt-1 break-words">@{profile.username}</p>
-            <div className={isPage ? "flex flex-wrap gap-2 mt-3 justify-center sm:justify-start" : "flex flex-wrap items-center gap-2 mt-3"}>
+            <div className="flex flex-wrap items-center gap-2 mt-3">
               <span
-                className={`${isPage ? "text-[10px] font-bold uppercase tracking-wider" : "text-[11px] font-medium"} px-2.5 py-1 rounded-full border ${statusConfig.color}`}
+                className={`${isPage ? "text-[11px] font-medium lg:text-[10px] lg:font-bold lg:uppercase lg:tracking-wider" : "text-[11px] font-medium"} px-2.5 py-1 rounded-full border ${statusConfig.color}`}
               >
                 {statusConfig.text}
               </span>
-              <span className={isPage ? "text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border bg-[#62A0EA]/10 text-[#62A0EA] border-[#62A0EA]/30" : "text-xs text-white/60"}>
-                {isPage ? profile.commuterType : getCommuterTypeLabel(profile.commuterType)}{" "}
-                {isPage && discountPercentage > 0 && `(${discountPercentage}% Off)`}
+              <span className={isPage ? "rounded-full border border-[#62A0EA]/30 bg-[#62A0EA]/10 px-2.5 py-1 text-[11px] font-medium text-[#99C1F1] lg:text-[10px] lg:font-bold lg:uppercase lg:tracking-wider" : "rounded-full border border-[#99C1F1]/20 bg-[#62A0EA]/10 px-2.5 py-1 text-[11px] font-medium text-[#B6D3F6]"}>
+                {getCommuterTypeLabel(profile.commuterType)}{" "}
+                {discountPercentage > 0 && `(${discountPercentage}% Off)`}
               </span>
             </div>
           </div>
@@ -292,7 +315,7 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
         )}
 
         {/* Action Buttons */}
-        {isPage ? <>
+        {isPage && <div className="hidden space-y-6 lg:block">
         <div className="flex gap-3">
           <button
             onClick={isEditing ? cancelEditing : startEditing}
@@ -368,26 +391,10 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-white/50 mb-1.5">
-                Email Address
-              </label>
-              <input
-                type="email"
-                value={
-                  isEditing
-                    ? (editData.email ?? profile.email)
-                    : profile.email
-                }
-                onChange={(e) => handleEditChange("email", e.target.value)}
-                disabled={!isEditing}
-                className={isEditing ? enabledInputClasses : disabledInputClasses}
-              />
-              {isEditing && (
-                <p className="text-[10px] text-white/30 mt-1">
-                  Email changes are not saved — only contact number is
-                  editable.
-                </p>
-              )}
+              <p className="block text-xs font-medium text-white/50 mb-1.5">Email Address</p>
+              <button type="button" onClick={() => setShowEmailDialog(true)} aria-label="Change email address" className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-white/10 bg-[#050F1A] px-4 py-3 text-left text-sm text-white/90 hover:border-[#62A0EA]/40 hover:bg-white/5">
+                <span className="min-w-0 flex-1 break-all">{profile.email || "Not provided"}</span><Pencil size={16} aria-hidden="true" className="shrink-0 text-[#99C1F1]" />
+              </button>
             </div>
             <div>
               <label className="block text-xs font-medium text-white/50 mb-1.5">
@@ -457,49 +464,69 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
         >
           Log Out
         </button>
-        </> : <>
-          <section aria-labelledby="profile-details-heading">
-            <h3 id="profile-details-heading" className="text-sm font-semibold text-white">Personal details</h3>
-            <dl className="mt-4 grid grid-cols-1 gap-x-5 gap-y-5 sm:grid-cols-2">
+        </div>}
+        <div className={isPage ? "space-y-5 lg:hidden" : "grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]"}>
+          <section aria-labelledby={detailsHeadingId} className={isPage ? "rounded-2xl border border-white/10 bg-[#071A2E] p-5" : "min-w-0 rounded-2xl border border-white/10 bg-[#0B223A] p-5 xl:row-span-2 xl:self-stretch"}>
+            <h3 id={detailsHeadingId} className={`flex items-center gap-2 text-sm font-semibold text-white ${isPage ? "" : "gap-3"}`}>{isPage ? <UserRound size={17} aria-hidden="true" className="text-[#99C1F1]" /> : <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#62A0EA]/15 bg-[#62A0EA]/10 text-[#99C1F1]"><UserRound size={16} aria-hidden="true" /></span>}Personal details</h3>
+            {!isPage && <p className="mt-3 text-xs text-white/40">Your registered information</p>}
+            <dl className={isPage ? "mt-4 grid grid-cols-2 gap-x-4 gap-y-5" : "mt-5 grid grid-cols-2 gap-x-4 gap-y-5"}>
               <div><dt className="text-xs text-white/50">First name</dt><dd className="mt-1 break-words text-sm text-white/90">{profile.firstName}</dd></div>
               <div><dt className="text-xs text-white/50">Surname</dt><dd className="mt-1 break-words text-sm text-white/90">{profile.surname}</dd></div>
               <div><dt className="text-xs text-white/50">Birthdate</dt><dd className="mt-1 text-sm text-white/90">{profile.birthdate && Number.isFinite(new Date(profile.birthdate).getTime()) ? new Date(profile.birthdate).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" }) : "Not provided"}</dd></div>
               <div><dt className="text-xs text-white/50">Commuter type</dt><dd className="mt-1 text-sm text-white/90">{getCommuterTypeLabel(profile.commuterType)}</dd></div>
-              <div className="sm:col-span-2"><dt className="text-xs text-white/50">Email address</dt><dd className="mt-1 break-all text-sm text-white/90">{profile.email || "Not provided"}</dd></div>
+              <div className={isPage ? "col-span-full" : "col-span-full border-t border-white/10 pt-4"}>
+                <dt className="text-xs text-white/50">Email address</dt>
+                <dd className={isPage ? "mt-1" : "mt-2"}>
+                  <p className={isPage ? "break-all text-sm text-white/90" : "min-h-11 break-all rounded-xl border border-white/10 bg-[#071A2E] px-3 py-3 text-sm text-white/90"}>{profile.email || "Not provided"}</p>
+                </dd>
+              </div>
             </dl>
           </section>
 
-          <section aria-labelledby="profile-contact-heading" className="border-t border-white/10 pt-5">
+          <section aria-labelledby={contactHeadingId} className={isPage ? "rounded-2xl border border-white/10 bg-[#071A2E] p-5" : "min-w-0 rounded-2xl border border-white/10 bg-[#0B223A] p-5"}>
             <div className="flex items-center justify-between gap-3">
-              <h3 id="profile-contact-heading" className="text-sm font-semibold text-white">Contact number</h3>
-              {!isEditing && <button type="button" onClick={startEditing} className="inline-flex min-h-9 items-center gap-2 rounded-lg px-2 text-xs font-medium text-[#99C1F1] hover:bg-white/5 hover:text-white"><Pencil size={14} /> Edit</button>}
+              <h3 id={contactHeadingId} className={`flex items-center gap-2 text-sm font-semibold text-white ${isPage ? "" : "gap-3"}`}>{isPage ? <Phone size={17} aria-hidden="true" className="text-[#99C1F1]" /> : <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#62A0EA]/15 bg-[#62A0EA]/10 text-[#99C1F1]"><Phone size={16} aria-hidden="true" /></span>}Contact number</h3>
+              {!isEditing && <button type="button" onClick={startEditing} aria-label="Edit contact number" className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-3 text-xs font-medium text-[#99C1F1] hover:bg-white/5 hover:text-white ${isPage ? "min-h-11 bg-[#62A0EA]/10" : "min-h-9 border border-[#62A0EA]/20 bg-[#62A0EA]/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"}`}><Pencil size={14} aria-hidden="true" /> Edit</button>}
+              {isEditing && !isPage && (
+                <div className="flex shrink-0 items-center gap-2">
+                  <button type="button" onClick={cancelEditing} disabled={isSaving} aria-label="Cancel contact edit" title="Cancel" className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-white/70 transition-colors hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] disabled:opacity-50"><X size={17} aria-hidden="true" /></button>
+                  <button type="submit" form={contactFormId} disabled={isSaving || editData.contactNumber === profile.contactNumber} aria-label={isSaving ? "Saving contact number" : "Save contact number"} title={isSaving ? "Saving..." : "Save"} className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[#1A5FB4] text-white transition-colors hover:bg-[#164A8F] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] disabled:opacity-50">{isSaving ? <Loader2 size={17} aria-hidden="true" className="animate-spin" /> : <Check size={17} aria-hidden="true" />}</button>
+                </div>
+              )}
             </div>
             {isEditing ? (
-              <form onSubmit={event => { event.preventDefault(); if (!isSaving) void saveProfile(); }} className="mt-3">
-                <label htmlFor="profile-modal-contact" className="sr-only">Contact number</label>
-                <input id="profile-modal-contact" type="tel" inputMode="numeric" autoComplete="tel-national" autoFocus disabled={isSaving} value={editData.contactNumber ?? profile.contactNumber} onChange={event => handleEditChange("contactNumber", event.target.value)} maxLength={11} placeholder="09171234567" aria-invalid={!!saveError} aria-describedby={saveError ? "profile-modal-contact-error" : undefined} className={`${saveError ? errorInputClasses : enabledInputClasses} disabled:opacity-50`} />
-                {saveError && <p id="profile-modal-contact-error" role="alert" className="mt-2 text-xs text-red-400">{saveError}</p>}
-                <div className="mt-3 flex justify-end gap-2">
-                  <button type="button" onClick={cancelEditing} disabled={isSaving} className="min-h-10 rounded-lg border border-white/10 px-4 text-sm font-medium text-white/70 hover:bg-white/5 disabled:opacity-50">Cancel</button>
-                  <button type="submit" disabled={isSaving || editData.contactNumber === profile.contactNumber} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#1A5FB4] px-4 text-sm font-semibold text-white hover:bg-[#164A8F] disabled:opacity-50">
-                    {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}{isSaving ? "Saving..." : "Save changes"}
+              <form id={contactFormId} onSubmit={event => { event.preventDefault(); if (!isSaving) void saveProfile(); }} className="mt-3">
+                <label htmlFor={contactInputId} className="sr-only">Contact number</label>
+                <input id={contactInputId} type="tel" inputMode="numeric" autoComplete="tel-national" autoFocus disabled={isSaving} value={editData.contactNumber ?? profile.contactNumber} onChange={event => handleEditChange("contactNumber", event.target.value)} maxLength={11} placeholder="09171234567" aria-invalid={!!saveError} aria-describedby={saveError ? contactErrorId : undefined} className={`${saveError ? errorInputClasses : enabledInputClasses} disabled:opacity-50`} />
+                {saveError && <p id={contactErrorId} role="alert" className="mt-2 text-xs text-red-400">{saveError}</p>}
+                {isPage && <div className="mt-3 flex justify-center gap-2">
+                  <button type="button" onClick={cancelEditing} disabled={isSaving} className={`${isPage ? "min-h-11 flex-1" : "min-h-10"} rounded-lg border border-white/10 px-4 text-sm font-medium text-white/70 hover:bg-white/5 disabled:opacity-50`}>Cancel</button>
+                  <button type="submit" disabled={isSaving || editData.contactNumber === profile.contactNumber} className={`${isPage ? "min-h-11 flex-1 justify-center" : "min-h-10"} inline-flex items-center gap-2 whitespace-nowrap rounded-lg bg-[#1A5FB4] px-4 text-sm font-semibold text-white hover:bg-[#164A8F] disabled:opacity-50`}>
+                    {isSaving ? <Loader2 size={16} className="shrink-0 animate-spin" /> : <Save size={16} className="shrink-0" />}{isSaving ? "Saving..." : isPage ? "Save" : "Save changes"}
                   </button>
-                </div>
+                </div>}
               </form>
-            ) : <p className="mt-1 text-sm text-white/90">{profile.contactNumber || "Not provided"}</p>}
+            ) : <p className={isPage ? "mt-2 text-sm text-white/90" : "mt-4 rounded-xl border border-white/5 bg-[#071A2E] px-3 py-3 text-sm font-medium tracking-wide text-white/90"}>{profile.contactNumber || "Not provided"}</p>}
           </section>
 
-          <section aria-labelledby="profile-security-heading" className="border-t border-white/10 pt-5">
-            <h3 id="profile-security-heading" className="mb-2 text-sm font-semibold text-white">Account security</h3>
-            <button type="button" onClick={() => setShowPasswordModal(true)} className="flex min-h-12 w-full items-center gap-3 rounded-lg py-3 text-left text-sm text-white/80 hover:bg-white/5">
-              <KeyRound size={18} className="shrink-0 text-white/50" /><span className="flex-1">Change password</span><ChevronRight size={16} className="text-white/40" />
+          <section aria-labelledby={securityHeadingId} className={isPage ? "rounded-2xl border border-white/10 bg-[#071A2E] p-5" : "min-w-0 rounded-2xl border border-white/10 bg-[#0B223A] p-5"}>
+            <h3 id={securityHeadingId} className={`flex items-center gap-2 text-sm font-semibold text-white ${isPage ? "mb-2" : "mb-4 gap-3"}`}>{isPage ? <ShieldCheck size={17} aria-hidden="true" className="text-[#99C1F1]" /> : <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#62A0EA]/15 bg-[#62A0EA]/10 text-[#99C1F1]"><ShieldCheck size={16} aria-hidden="true" /></span>}Account security</h3>
+            <button type="button" onClick={() => setShowEmailDialog(true)} className={`flex min-h-12 w-full items-center gap-3 rounded-lg py-3 text-left text-sm text-white/80 transition-colors hover:bg-white/5 ${isPage ? "" : "rounded-xl border border-white/10 bg-[#071A2E] px-3 hover:border-[#62A0EA]/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"}`}>
+              <Mail size={18} aria-hidden="true" className={isPage ? "shrink-0 text-white/50" : "shrink-0 text-[#99C1F1]"} /><span className="min-w-0 flex-1"><span className="block">Change email</span>{!isPage && <span className="mt-1 block text-[11px] font-normal text-white/40">Verify a new address</span>}</span><ChevronRight size={16} aria-hidden="true" className="shrink-0 text-white/40" />
+            </button>
+            <button type="button" onClick={() => setShowPasswordModal(true)} className={`flex min-h-12 w-full items-center gap-3 rounded-lg py-3 text-left text-sm text-white/80 transition-colors hover:bg-white/5 ${isPage ? "" : "mt-2 rounded-xl border border-white/10 bg-[#071A2E] px-3 hover:border-[#62A0EA]/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"}`}>
+              <KeyRound size={18} aria-hidden="true" className={isPage ? "shrink-0 text-white/50" : "shrink-0 text-[#99C1F1]"} /><span className="min-w-0 flex-1"><span className="block">Change password</span>{!isPage && <span className="mt-1 block text-[11px] font-normal text-white/40">Update your sign-in password</span>}</span><ChevronRight size={16} aria-hidden="true" className="shrink-0 text-white/40" />
             </button>
           </section>
-          <div className="border-t border-white/10 pt-4">
-            <button type="button" onClick={() => setShowLogoutConfirm(true)} className="inline-flex min-h-10 items-center gap-2 rounded-lg px-2 text-sm font-medium text-red-400 hover:bg-red-500/10"><LogOut size={17} /> Log out</button>
+          <div className={isPage ? "pt-1" : "col-span-full flex justify-center border-t border-white/10 pt-4"}>
+            <button type="button" onClick={() => setShowLogoutConfirm(true)} className={`${isPage ? "flex min-h-12 w-full justify-center rounded-xl border border-red-500/20 bg-red-500/5 px-2" : "inline-flex min-h-11 w-full max-w-xs justify-center rounded-xl border border-red-500/20 bg-red-500/5 px-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"} items-center gap-2 text-sm font-medium text-red-400 transition-colors hover:bg-red-500/10`}><LogOut size={17} aria-hidden="true" /> Log out</button>
           </div>
-        </>}
+        </div>
       </div>
+
+      </div>
+
+      {showEmailDialog && <ChangeEmailDialog currentEmail={profile.email} onClose={closeEmailDialog} onChanged={applyEmailChange} />}
 
       {/* --- LOG OUT CONFIRMATION --- */}
       {showLogoutConfirm && createPortal(
@@ -552,8 +579,8 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
       {/* --- CHANGE PASSWORD MODAL --- */}
       {showPasswordModal && createPortal(
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-          onClick={closePasswordModal}
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-3 backdrop-blur-sm sm:p-6"
+          onClick={() => { if (!isChangingPassword) closePasswordModal(); }}
         >
           <div
             ref={subdialogRef}
@@ -561,187 +588,124 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
             role="dialog"
             aria-modal="true"
             aria-labelledby="profile-password-title"
-            className="bg-[#071A2E] w-full max-w-sm max-h-[90dvh] rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-y-auto modal-scroll"
+            aria-describedby="profile-password-description"
+            className="flex max-h-[90dvh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-[#62A0EA]/20 bg-[#071A2E] shadow-2xl shadow-black/40"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-6 border-b border-white/10 relative">
-              <h2 id="profile-password-title" className="text-white font-bold text-lg pr-8">Change Password</h2>
-              {!isPage && <button type="button" onClick={closePasswordModal} disabled={isChangingPassword} aria-label="Close change password" title="Close" className="absolute right-4 top-5 flex h-8 w-8 items-center justify-center rounded-lg text-white/50 hover:bg-white/5 hover:text-white disabled:opacity-50"><X size={18} /></button>}
-              <p className="text-white/40 text-xs mt-1">
-                {passwordStep === "form"
-                  ? "Ensure your account stays secure"
-                  : "Confirm it's you to finish changing your password"}
+            <div className="shrink-0 border-b border-white/10 bg-gradient-to-r from-[#153C66] to-[#071A2E] p-5 sm:p-6">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#99C1F1]/25 bg-[#62A0EA]/15 text-[#B6D3F6]"><KeyRound size={21} aria-hidden="true" /></span>
+                  <div className="min-w-0">
+                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#99C1F1]">Account security</p>
+                    <h2 id="profile-password-title" className="text-xl font-bold leading-tight tracking-tight text-white">Change password</h2>
+                  </div>
+                </div>
+                <button type="button" onClick={closePasswordModal} disabled={isChangingPassword} aria-label="Close change password" title="Close" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white/60 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] disabled:opacity-50"><X size={18} aria-hidden="true" /></button>
+              </div>
+              <p id="profile-password-description" className="mt-4 text-sm leading-relaxed text-white/55">
+                {passwordStep === "form" ? "Choose a new password, then confirm the change with a code sent to your email." : "Verify your email to finish updating your password."}
               </p>
             </div>
 
-            {passwordStep === "form" ? (
-              <>
-                <div className="p-6 space-y-4">
-                  {passwordError && (isPage || !passwordErrorField) && (
-                    <div role="alert" className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium p-3 rounded-lg">
-                      {passwordError}
-                    </div>
-                  )}
-                  <div>
-                    <label htmlFor="profile-current-password" className="block text-xs font-medium text-white/50 mb-1.5">
-                      Current Password
-                    </label>
-                    <input
-                      id="profile-current-password"
-                      aria-invalid={passwordErrorField === "currentPassword"}
-                      aria-describedby={!isPage && passwordErrorField === "currentPassword" ? "profile-current-password-error" : undefined}
-                      type="password"
-                      value={passwordData.currentPassword}
-                      onChange={(e) =>
-                        setPasswordData((prev) => ({
-                          ...prev,
-                          currentPassword: e.target.value,
-                        }))
-                      }
-                      placeholder="••••••••"
-                      className={fieldClass("currentPassword")}
-                      autoComplete="current-password"
-                    />
-                    {!isPage && passwordErrorField === "currentPassword" && <p id="profile-current-password-error" role="alert" className="mt-2 text-xs text-red-400">{passwordError}</p>}
-                  </div>
-                  <div>
-                    <label htmlFor="profile-new-password" className="block text-xs font-medium text-white/50 mb-1.5">
-                      New Password
-                    </label>
-                    <input
-                      id="profile-new-password"
-                      aria-invalid={passwordErrorField === "newPassword"}
-                      aria-describedby={!isPage && passwordErrorField === "newPassword" ? "profile-new-password-error" : "profile-password-rules"}
-                      type="password"
-                      value={passwordData.newPassword}
-                      onChange={(e) =>
-                        setPasswordData((prev) => ({
-                          ...prev,
-                          newPassword: e.target.value,
-                        }))
-                      }
-                      placeholder="••••••••"
-                      className={fieldClass("newPassword")}
-                      autoComplete="new-password"
-                    />
-                    {!isPage && passwordErrorField === "newPassword" && <p id="profile-new-password-error" role="alert" className="mt-2 text-xs text-red-400">{passwordError}</p>}
-                    <p id="profile-password-rules" className="text-[10px] text-white/50 mt-1">
-                      At least 8 characters, with an uppercase letter, a number and a symbol.
-                    </p>
-                  </div>
-                  <div>
-                    <label htmlFor="profile-confirm-password" className="block text-xs font-medium text-white/50 mb-1.5">
-                      Confirm New Password
-                    </label>
-                    <input
-                      id="profile-confirm-password"
-                      aria-invalid={passwordErrorField === "confirmNewPassword"}
-                      aria-describedby={!isPage && passwordErrorField === "confirmNewPassword" ? "profile-confirm-password-error" : undefined}
-                      type="password"
-                      value={passwordData.confirmNewPassword}
-                      onChange={(e) =>
-                        setPasswordData((prev) => ({
-                          ...prev,
-                          confirmNewPassword: e.target.value,
-                        }))
-                      }
-                      placeholder="••••••••"
-                      className={fieldClass("confirmNewPassword")}
-                      autoComplete="new-password"
-                    />
-                    {!isPage && passwordErrorField === "confirmNewPassword" && <p id="profile-confirm-password-error" role="alert" className="mt-2 text-xs text-red-400">{passwordError}</p>}
-                  </div>
-                </div>
+            <ol aria-label="Password change progress" className="grid shrink-0 grid-cols-2 gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
+              {["New password", "Verify email"].map((label, index) => {
+                const active = passwordStep === "form" ? index === 0 : index === 1;
+                const complete = passwordStep === "verify" && index === 0;
+                return (
+                  <li key={label} aria-current={active ? "step" : undefined} className={`flex items-center justify-center gap-2 text-xs font-medium transition-colors ${active ? "text-[#B6D3F6]" : complete ? "text-emerald-300" : "text-white/35"}`}>
+                    <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-colors ${active ? "border-[#62A0EA]/50 bg-[#1A5FB4]" : complete ? "border-emerald-500/30 bg-emerald-500/10" : "border-white/15 bg-white/5"}`}>{complete ? <Check size={14} aria-hidden="true" /> : index + 1}</span>
+                    {label}
+                  </li>
+                );
+              })}
+            </ol>
 
-                <div className="p-6 border-t border-white/10 flex gap-3">
-                  <button
-                    onClick={closePasswordModal}
-                    className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold border border-white/10 text-white/60 hover:bg-white/5 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleRequestPasswordChangeCode}
-                    disabled={
-                      isChangingPassword ||
-                      !passwordData.currentPassword ||
-                      !passwordData.newPassword ||
-                      !passwordData.confirmNewPassword
-                    }
-                    className="flex-1 px-4 py-3 rounded-xl text-sm font-bold bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-colors shadow-lg shadow-[#1A5FB4]/30 disabled:opacity-50"
-                  >
-                    {isChangingPassword ? "Sending code..." : "Send Code"}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="p-6 space-y-4">
-                  {passwordError && (isPage || !passwordErrorField) && (
-                    <div role="alert" className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium p-3 rounded-lg">
-                      {passwordError}
-                    </div>
-                  )}
-                  <p className="text-white/40 text-xs">
-                    We emailed a 6-digit code to your registered address. Enter it below to finish changing your password.
-                  </p>
-                  <div>
-                    <label htmlFor="profile-verification-code" className="block text-xs font-medium text-white/50 mb-1.5">
-                      Verification Code
-                    </label>
-                    <input
-                      id="profile-verification-code"
-                      aria-invalid={passwordErrorField === "code"}
-                      aria-describedby={!isPage && passwordErrorField === "code" ? "profile-verification-code-error" : undefined}
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={6}
-                      value={verificationCode}
-                      onChange={(e) =>
-                        setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))
-                      }
-                      placeholder="123456"
-                      className={`${fieldClass("code")} text-center tracking-[0.5em] font-mono`}
-                      autoComplete="one-time-code"
-                    />
-                    {!isPage && passwordErrorField === "code" && <p id="profile-verification-code-error" role="alert" className="mt-2 text-xs text-red-400">{passwordError}</p>}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <button
-                      onClick={handleBackToPasswordForm}
-                      className="text-xs font-medium text-white/40 hover:text-white/60 transition-colors"
-                    >
-                      ← Back
-                    </button>
-                    <button
-                      onClick={handleResendCode}
-                      disabled={resendSecondsLeft > 0 || isChangingPassword}
-                      className="text-xs font-medium text-[#62A0EA] hover:text-[#99C1F1] transition-colors disabled:text-white/20 disabled:cursor-not-allowed"
-                    >
-                      {resendSecondsLeft > 0
-                        ? `Resend code in ${resendSecondsLeft}s`
-                        : "Resend code"}
-                    </button>
-                  </div>
-                </div>
+            <form onSubmit={event => { event.preventDefault(); if (!isChangingPassword) { if (passwordStep === "form") void handleRequestPasswordChangeCode(); else void handleConfirmPasswordChange(); } }} className="flex min-h-0 flex-1 flex-col">
+              <div className="min-h-0 overflow-y-auto p-5 modal-scroll sm:p-6">
+                {passwordError && !passwordErrorField && <p role="alert" className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm leading-relaxed text-red-300">{passwordError}</p>}
 
-                <div className="p-6 border-t border-white/10 flex gap-3">
-                  <button
-                    onClick={closePasswordModal}
-                    className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold border border-white/10 text-white/60 hover:bg-white/5 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleConfirmPasswordChange}
-                    disabled={isChangingPassword || verificationCode.length !== 6}
-                    className="flex-1 px-4 py-3 rounded-xl text-sm font-bold bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-colors shadow-lg shadow-[#1A5FB4]/30 disabled:opacity-50"
-                  >
-                    {isChangingPassword ? "Updating..." : "Update Password"}
-                  </button>
-                </div>
-              </>
-            )}
+                {passwordStep === "form" ? (
+                  <div className="space-y-4">
+                    {([
+                      { field: "currentPassword", id: "profile-current-password", errorId: "profile-current-password-error", label: "Current password", autoComplete: "current-password" },
+                      { field: "newPassword", id: "profile-new-password", errorId: "profile-new-password-error", label: "New password", autoComplete: "new-password" },
+                      { field: "confirmNewPassword", id: "profile-confirm-password", errorId: "profile-confirm-password-error", label: "Confirm new password", autoComplete: "new-password" },
+                    ] as const).map(({ field, id, errorId, label, autoComplete }) => (
+                      <div key={field} className={field === "currentPassword" ? "border-b border-white/10 pb-5" : undefined}>
+                        <label htmlFor={id} className="mb-2 block text-sm font-medium text-white/80">{label}</label>
+                        <input
+                          id={id}
+                          type="password"
+                          value={passwordData[field]}
+                          disabled={isChangingPassword}
+                          onChange={event => setPasswordData(previous => ({ ...previous, [field]: event.target.value }))}
+                          aria-invalid={passwordErrorField === field}
+                          aria-describedby={[field === "newPassword" ? "profile-password-rules" : "", passwordErrorField === field ? errorId : ""].filter(Boolean).join(" ") || undefined}
+                          placeholder={field === "currentPassword" ? "Enter your current password" : field === "newPassword" ? "Create a new password" : "Re-enter your new password"}
+                          className={`${fieldClass(field)} text-base sm:text-sm disabled:opacity-50`}
+                          autoComplete={autoComplete}
+                        />
+                        {passwordErrorField === field && <p id={errorId} role="alert" className="mt-2 text-xs leading-relaxed text-red-300">{passwordError}</p>}
+                      </div>
+                    ))}
+                    <div id="profile-password-rules" className="rounded-xl border border-[#62A0EA]/15 bg-[#62A0EA]/5 p-4">
+                      <p className="mb-3 flex items-center gap-2 text-xs font-medium text-[#B6D3F6]"><ShieldCheck size={15} aria-hidden="true" />Your new password needs</p>
+                      <ul className="grid grid-cols-2 gap-x-3 gap-y-2 text-[11px] text-white/55">
+                        {[
+                          { label: "8+ characters", met: passwordData.newPassword.length >= 8 },
+                          { label: "An uppercase letter", met: /[A-Z]/.test(passwordData.newPassword) },
+                          { label: "A number", met: /[0-9]/.test(passwordData.newPassword) },
+                          { label: "A symbol", met: /[^A-Za-z0-9\s]/.test(passwordData.newPassword) },
+                        ].map(({ label, met }) => <li key={label} className={`flex items-center gap-1.5 transition-colors ${met ? "text-emerald-300" : ""}`}><span className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border ${met ? "border-emerald-500/40 bg-emerald-500/15" : "border-white/20"}`}>{met && <Check size={10} aria-hidden="true" />}</span>{label}<span className="sr-only">{met ? ": met" : ": not met"}</span></li>)}
+                      </ul>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-5">
+                    <div className="rounded-xl border border-[#62A0EA]/20 bg-gradient-to-br from-[#102E50] to-[#0B223A] p-4">
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#62A0EA]/10 text-[#99C1F1]"><Mail size={20} aria-hidden="true" /></span>
+                        <div>
+                          <h3 className="text-sm font-semibold text-white">Check your inbox</h3>
+                          <p className="mt-1 text-xs leading-relaxed text-white/55">We sent a six-digit code to your registered email. Enter it below to confirm your new password.</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <label htmlFor="profile-verification-code" className="mb-2 block text-sm font-medium text-white/80">Verification code</label>
+                      <input
+                        id="profile-verification-code"
+                        aria-invalid={passwordErrorField === "code"}
+                        aria-describedby={passwordErrorField === "code" ? "profile-verification-code-error" : undefined}
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={verificationCode}
+                        disabled={isChangingPassword}
+                        onChange={event => setVerificationCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                        placeholder="000000"
+                        className={`${fieldClass("code")} py-4 text-center text-xl tracking-[0.35em] font-mono disabled:opacity-50`}
+                        autoComplete="one-time-code"
+                      />
+                      {passwordErrorField === "code" && <p id="profile-verification-code-error" role="alert" className="mt-2 text-xs leading-relaxed text-red-300">{passwordError}</p>}
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <button type="button" onClick={handleBackToPasswordForm} disabled={isChangingPassword} className="min-h-10 rounded-lg px-2 text-xs font-medium text-white/55 transition-colors hover:bg-white/5 hover:text-white disabled:opacity-50">← Edit passwords</button>
+                      <button type="button" onClick={handleResendCode} disabled={resendSecondsLeft > 0 || isChangingPassword} className="min-h-10 rounded-lg px-2 text-xs font-medium text-[#99C1F1] transition-colors hover:bg-white/5 disabled:text-white/30 disabled:cursor-not-allowed">{resendSecondsLeft > 0 ? `Resend in ${resendSecondsLeft}s` : "Resend code"}</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex shrink-0 gap-3 border-t border-white/10 bg-[#0B223A] p-5 sm:px-6">
+                <button type="button" onClick={closePasswordModal} disabled={isChangingPassword} className="flex min-h-11 flex-1 items-center justify-center rounded-xl border border-white/15 px-3 text-sm font-semibold text-white/70 transition-colors hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] disabled:opacity-50">Cancel</button>
+                <button type="submit" disabled={isChangingPassword || (passwordStep === "form" ? !passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmNewPassword : verificationCode.length !== 6)} className="inline-flex min-h-11 flex-[1.4] items-center justify-center gap-2 rounded-xl bg-[#1A5FB4] px-3 text-sm font-semibold text-white shadow-lg shadow-[#1A5FB4]/20 transition-colors hover:bg-[#164A8F] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] disabled:opacity-50">
+                  {isChangingPassword && <Loader2 size={16} aria-hidden="true" className="shrink-0 animate-spin" />}
+                  {isChangingPassword ? passwordStep === "form" ? "Sending..." : "Updating..." : passwordStep === "form" ? "Send code" : "Update password"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>,
         document.body

@@ -1,11 +1,12 @@
 // app/(admin)/admin-dashboard/data/dashboard-data.ts
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   TrendingUp, MapPin, Banknote, Calculator, Receipt, Ticket, Bell,
   SlidersHorizontal, User2Icon, Megaphone, History, type LucideIcon,
 } from "lucide-react";
 import type { AnalyticsData } from "@/lib/admin/services/analytics.service";
+import { listForAdmin as listActivityLogs, type ActivityLog } from "@/lib/shared/services/activity-log.service";
 
 /* ─── INTERFACES (keep — used by components) ─── */
 
@@ -32,10 +33,13 @@ export interface AnnouncementItem {
   status: "Active" | "Archived";
 }
 
-export interface ActivityLogItem {
-  description: string;
-  category: string;
-  by: string;
+export type ActivityLogItem = ActivityLog;
+
+export interface DashboardActivityFeed {
+  isLoading: boolean;
+  hasMore: boolean;
+  error: string | null;
+  loadMore: () => Promise<void>;
 }
 
 export interface StatItem {
@@ -114,12 +118,28 @@ function formatNumber(value: number): string {
 
 /* ─── Data Hook (real API — no mock) ─── */
 
+const ACTIVITY_PREVIEW_LIMIT = 10;
+
 export function useDashboardData() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isLoadingActivity, setIsLoadingActivity] = useState(false);
+  const [activityError, setActivityError] = useState<string | null>(null);
+  const [hasMoreActivity, setHasMoreActivity] = useState(false);
+  const activityPagingRef = useRef({ page: 0, hasMore: false });
+  const activityRequestRef = useRef<AbortController | null>(null);
+  const generationRef = useRef(0);
 
   const fetchData = useCallback(async () => {
+    const generation = ++generationRef.current;
+    activityRequestRef.current?.abort();
+    const controller = new AbortController();
+    activityRequestRef.current = controller;
+    activityPagingRef.current = { page: 0, hasMore: false };
+    setIsLoadingActivity(true);
+    setActivityError(null);
+    setHasMoreActivity(false);
     setIsLoading(true);
     setError(null);
     try {
@@ -134,8 +154,8 @@ export function useDashboardData() {
       //  - vehicles:     { data: { data: [...], current_page, ... } } (paginator)
       //  - users:        { data: { data: [...], current_page, ... } } (paginator)
       //  - lost-items:   { data: { data: [...], current_page, ... } } (paginator)
-      const [analyticsRes, vehiclesRes, usersRes, lostItemsRes, announcementsRes, activityLogsRes] = await Promise.all([
-        fetch("/api/admin/analytics", { headers: { Accept: "application/json" } }),
+      const [analyticsRes, vehiclesRes, usersRes, lostItemsRes, announcementsRes, activityPage] = await Promise.all([
+        fetch("/api/admin/analytics?pickup_period=week", { headers: { Accept: "application/json" } }),
         fetch("/api/admin/vehicles?per_page=3", { headers: { Accept: "application/json" } }),
         // users + lost-items + announcements + activity-logs are best-effort:
         // if any fails (e.g. permission edge case), we still render the rest
@@ -144,9 +164,12 @@ export function useDashboardData() {
         fetch("/api/admin/users?per_page=3", { headers: { Accept: "application/json" } }).catch(() => null),
         fetch("/api/admin/lost-items?per_page=3", { headers: { Accept: "application/json" } }).catch(() => null),
         fetch("/api/admin/announcements?per_page=3", { headers: { Accept: "application/json" } }).catch(() => null),
-        fetch("/api/admin/activity-logs?per_page=3", { headers: { Accept: "application/json" } }).catch(() => null),
+        listActivityLogs({ dateRange: "today", page: 1, perPage: ACTIVITY_PREVIEW_LIMIT, signal: controller.signal })
+          .then((result) => ({ result, error: null }))
+          .catch((error: unknown) => ({ result: null, error })),
       ]);
 
+      if (generation !== generationRef.current) return;
       if (!analyticsRes.ok) throw new Error("Failed to load analytics");
       if (!vehiclesRes.ok) throw new Error("Failed to load vehicles");
 
@@ -155,7 +178,11 @@ export function useDashboardData() {
       const usersJson = usersRes?.ok ? await usersRes.json() : { data: { data: [] } };
       const lostItemsJson = lostItemsRes?.ok ? await lostItemsRes.json() : { data: { data: [] } };
       const announcementsJson = announcementsRes?.ok ? await announcementsRes.json() : { data: { data: [] } };
-      const activityLogsJson = activityLogsRes?.ok ? await activityLogsRes.json() : { data: { data: [] } };
+      if (generation !== generationRef.current) return;
+      const activityResult = activityPage.result;
+      activityPagingRef.current = { page: activityResult?.page ?? 0, hasMore: !!activityResult && activityResult.page < activityResult.lastPage };
+      setHasMoreActivity(activityPagingRef.current.hasMore);
+      setActivityError(activityPage.error ? "Unable to load today's activity. Try again." : null);
 
       const analytics: AnalyticsData | undefined = analyticsJson?.data;
 
@@ -180,21 +207,20 @@ export function useDashboardData() {
       const announcementsData = Array.isArray(announcementsRaw) ? announcementsRaw :
                                 Array.isArray(announcementsRaw?.data) ? announcementsRaw.data : [];
 
-      const activityLogsRaw = activityLogsJson.data;
-      const activityLogsData = Array.isArray(activityLogsRaw) ? activityLogsRaw :
-                               Array.isArray(activityLogsRaw?.data) ? activityLogsRaw.data : [];
-
       // ── Quick Stats from real analytics ──
-      const totalFares = analytics?.totals?.total_fares ?? 0;
-      const totalRides = analytics?.totals?.paid_count ?? 0;
+      // The default analytics window ends today in the backend's timezone.
+      // Reuse its daily series so these cards need no additional request.
+      const today = analytics?.daily_series?.find(day => day.date === analytics.date_range?.to);
+      const totalFares = (today?.cash ?? 0) + (today?.gcash ?? 0);
+      const totalRides = today?.paid_count ?? 0;
       const activeVehicles = analytics?.fleet?.active_vehicles ?? 0;
       const pendingRemittance = analytics?.remittances?.total_collected
         ? analytics.remittances.total_collected - (analytics.remittances.total_remitted ?? 0)
         : 0;
 
       const quickStats: StatItem[] = [
-        { label: "Total Revenue (30d)", value: formatPeso(totalFares), icon: TrendingUp, color: "text-sky-400 bg-[#62A0EA]/15", link: "/analytics" },
-        { label: "Total Rides (30d)", value: formatNumber(totalRides), icon: MapPin, color: "text-[#62A0EA] bg-[#62A0EA]/15", link: "/analytics" },
+        { label: "Total Revenue (Today)", value: formatPeso(totalFares), icon: TrendingUp, color: "text-sky-400 bg-[#62A0EA]/15", link: "/analytics" },
+        { label: "Total Rides (Today)", value: formatNumber(totalRides), icon: MapPin, color: "text-[#62A0EA] bg-[#62A0EA]/15", link: "/analytics" },
         { label: "Active Vehicles", value: formatNumber(activeVehicles), icon: User2Icon, color: "text-violet-400 bg-violet-400/15", link: "/monitoring" },
         { label: "Pending Remittance", value: formatPeso(pendingRemittance), icon: Banknote, color: "text-amber-400 bg-amber-400/15", link: "/remittance" },
       ];
@@ -253,15 +279,11 @@ export function useDashboardData() {
       }));
 
       // ── Recent Activity Logs ──
-      const recentActivityLogs: ActivityLogItem[] = (activityLogsData as Record<string, unknown>[]).slice(0, 3).map(l => ({
-        description: String(l.description ?? '—'),
-        category: String(l.category ?? 'GENERAL'),
-        by: String(l.actor_name ?? 'System'),
-      }));
+      const recentActivityLogs = activityResult?.items ?? [];
 
       // ── Top Pickup Points (from the analytics response) ──
-      // The backend aggregates PAID transactions by pickup_name — this gives
-      // us the top 10 most-used boarding points in the last 30 days.
+      // The backend counts this week's PAID cash/GCash rides by their major
+      // fare point, combining that point's landmarks under one location.
       // The response is untyped JSON, so narrow the row shape before mapping
       // and coerce both fields — matching how recentUsers/recentLostFound above
       // defend against missing keys.
@@ -286,20 +308,67 @@ export function useDashboardData() {
         paymentTendencies,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load dashboard data");
+      if (generation === generationRef.current) setError(err instanceof Error ? err.message : "Failed to load dashboard data");
     } finally {
-      setIsLoading(false);
+      if (generation === generationRef.current) {
+        activityRequestRef.current = null;
+        setIsLoadingActivity(false);
+        setIsLoading(false);
+      }
     }
+  }, []);
+
+  const loadMoreActivity = useCallback(async () => {
+    const { page, hasMore } = activityPagingRef.current;
+    // Page zero also allows retrying a failed first page, without reloading
+    // the map, analytics and other dashboard previews.
+    if (activityRequestRef.current || (!hasMore && page !== 0)) return;
+    const generation = generationRef.current;
+    const controller = new AbortController();
+    activityRequestRef.current = controller;
+    setIsLoadingActivity(true);
+    setActivityError(null);
+    try {
+      const result = await listActivityLogs({ dateRange: "today", page: page + 1, perPage: ACTIVITY_PREVIEW_LIMIT, signal: controller.signal });
+      if (generation !== generationRef.current) return;
+      setData((previous) => {
+        if (!previous) return previous;
+        const seen = new Set(previous.recentActivityLogs.map((log) => log.id));
+        const fresh = result.items.filter((log) => {
+          if (seen.has(log.id)) return false;
+          seen.add(log.id);
+          return true;
+        });
+        return { ...previous, recentActivityLogs: [...previous.recentActivityLogs, ...fresh] };
+      });
+      activityPagingRef.current = { page: result.page, hasMore: result.items.length > 0 && result.page < result.lastPage };
+      setHasMoreActivity(activityPagingRef.current.hasMore);
+    } catch {
+      if (generation === generationRef.current) setActivityError("Unable to load today's activity. Try again.");
+    } finally {
+      if (generation === generationRef.current) {
+        activityRequestRef.current = null;
+        setIsLoadingActivity(false);
+      }
+    }
+  }, []);
+
+  const cancelActivity = useCallback(() => {
+    generationRef.current++;
+    activityRequestRef.current?.abort();
+    activityRequestRef.current = null;
   }, []);
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+    return cancelActivity;
+  }, [fetchData, cancelActivity]);
 
   return {
     data,
     isLoading,
     error,
     refetch: fetchData,
+    activityFeed: { isLoading: isLoadingActivity, hasMore: hasMoreActivity, error: activityError, loadMore: loadMoreActivity } satisfies DashboardActivityFeed,
   };
 }

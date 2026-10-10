@@ -7,6 +7,7 @@ use App\Enums\UserRole;
 use App\Models\AdminProfile;
 use App\Models\ConductorProfile;
 use App\Models\Driver;
+use App\Models\FarePoint;
 use App\Models\Route;
 use App\Models\ShiftLog;
 use App\Models\Transaction;
@@ -83,7 +84,7 @@ class AdminAnalyticsTest extends TestCase
      * optional created_at (defaults to now). created_at is set via a raw
      * update because it is not mass-assignable.
      */
-    private function makeTransaction(string $status, string $method, float $amount, ?\DateTimeInterface $createdAt = null): void
+    private function makeTransaction(string $status, string $method, float $amount, ?\DateTimeInterface $createdAt = null, array $attributes = []): Transaction
     {
         $this->seq++;
         $tx = Transaction::create([
@@ -94,12 +95,14 @@ class AdminAnalyticsTest extends TestCase
             'status'         => $status,
             'pickup_name'    => 'A',
             'dropoff_name'   => 'B',
+            ...$attributes,
         ]);
 
         if ($createdAt !== null) {
             DB::table('transactions')->where('transaction_id', $tx->transaction_id)
                 ->update(['created_at' => $createdAt]);
         }
+        return $tx;
     }
 
     public function test_analytics_totals_reconcile_with_seeded_transactions(): void
@@ -152,6 +155,112 @@ class AdminAnalyticsTest extends TestCase
         // Only the recent 100 falls in the 7-day window.
         $this->assertEquals(100.0, $response->json('data.totals.cash_total'));
         $this->assertEquals(1, $response->json('data.totals.paid_count'));
+    }
+
+    public function test_today_daily_totals_exclude_other_days_and_unsettled_or_free_rides(): void
+    {
+        $this->travelTo(now()->startOfDay()->addMinutes(5));
+        $admin = $this->makeAdmin();
+        $today = now()->startOfDay();
+
+        $this->makeTransaction('PAID', 'CASH', 100, $today);
+        $this->makeTransaction('PAID', 'GCASH', 200, $today->copy()->endOfDay());
+        $this->makeTransaction('PAID', 'VOUCHER', 0, $today);
+        $this->makeTransaction('PENDING', 'GCASH', 999, $today);
+        $this->makeTransaction('FAILED', 'GCASH', 999, $today);
+        $this->makeTransaction('PAID', 'CASH', 700, $today->copy()->subSecond());
+        $this->makeTransaction('PAID', 'CASH', 800, $today->copy()->addDay());
+
+        $response = $this->actingAs($admin)->getJson('/api/v1/admin/analytics')->assertOk();
+        $this->assertSame($today->toDateString(), $response->json('data.date_range.to'));
+        $day = collect($response->json('data.daily_series'))->firstWhere('date', $today->toDateString());
+
+        $this->assertEquals(300, $day['cash'] + $day['gcash']);
+        $this->assertSame(2, $day['paid_count']);
+        $this->assertSame(3, $day['count']);
+        // The other dashboard metrics keep their existing 30-day window.
+        $this->assertEquals(1000, $response->json('data.totals.total_fares'));
+        $this->assertSame(3, $response->json('data.totals.paid_count'));
+    }
+
+    public function test_today_daily_totals_are_zero_when_only_earlier_days_have_rides(): void
+    {
+        $this->travelTo(now()->startOfDay()->addMinutes(5));
+        $admin = $this->makeAdmin();
+        $this->makeTransaction('PAID', 'CASH', 500, now()->subDay());
+
+        $response = $this->actingAs($admin)->getJson('/api/v1/admin/analytics')->assertOk();
+        $day = collect($response->json('data.daily_series'))->firstWhere('date', now()->toDateString());
+
+        $this->assertEquals(0, $day['cash'] + $day['gcash']);
+        $this->assertSame(0, $day['paid_count']);
+        $this->assertSame(0, $day['count']);
+        $this->assertEquals(500, $response->json('data.totals.total_fares'));
+    }
+
+    public function test_weekly_dashboard_pickups_combine_major_places_for_cash_and_gcash_only(): void
+    {
+        $this->travelTo(now()->setDate(2026, 10, 14)->setTime(12, 0));
+        $admin = $this->makeAdmin();
+        $route = Route::firstOrFail();
+        $major = FarePoint::create([
+            'route_id' => $route->id, 'point_number' => 1, 'code' => 'WAWA',
+            'name' => 'Wawa', 'regular_fare' => 15, 'discounted_fare' => 12,
+        ]);
+        $other = FarePoint::create([
+            'route_id' => $route->id, 'point_number' => 2, 'code' => 'BAL',
+            'name' => 'Balite', 'regular_fare' => 15, 'discounted_fare' => 12,
+        ]);
+        $monday = now()->startOfWeek(\Carbon\Carbon::MONDAY);
+        $from = ['pickup_stop_id' => $major->id, 'dropoff_stop_id' => $other->id];
+        $this->makeTransaction('PAID', 'CASH', 15, $monday, [...$from, 'pickup_name' => 'Wawa · Market']);
+        $this->makeTransaction('PAID', 'GCASH', 15, now(), [...$from, 'pickup_name' => 'Wawa · Church']);
+        $this->makeTransaction('PAID', 'CASH', 15, now(), [...$from, 'pickup_name' => 'Wawa']);
+        $this->makeTransaction('PAID', 'GCASH', 15, now(), [
+            'pickup_stop_id' => $other->id, 'pickup_name' => 'Balite',
+            'dropoff_stop_id' => $major->id, 'dropoff_name' => 'Wawa',
+        ]);
+        $this->makeTransaction('PAID', 'CASH', 15, $monday->copy()->subSecond(), $from);
+        $this->makeTransaction('PAID', 'GCASH', 15, now()->addDay(), $from);
+        foreach (['PENDING', 'FAILED', 'CANCELLED', 'EXPIRED'] as $status) {
+            $this->makeTransaction($status, 'GCASH', 15, now(), $from);
+        }
+        $this->makeTransaction('PAID', 'VOUCHER', 0, now(), $from);
+
+        $response = $this->actingAs($admin)->getJson('/api/v1/admin/analytics?pickup_period=week')->assertOk();
+        $this->assertSame([
+            ['name' => 'Wawa', 'count' => 3],
+            ['name' => 'Balite', 'count' => 1],
+        ], $response->json('data.pickup_points'));
+        $this->assertSame(30, $response->json('data.date_range.days'));
+        $this->assertEquals(75, $response->json('data.totals.total_fares'));
+
+        // Analytics without the dashboard option still uses its selected range.
+        $analytics = $this->actingAs($admin)->getJson('/api/v1/admin/analytics?date_from=2026-10-11&date_to=2026-10-11')->assertOk();
+        $this->assertSame([['name' => 'A', 'count' => 1]], $analytics->json('data.pickup_points'));
+    }
+
+    public function test_weekly_dashboard_pickups_reset_on_monday_and_have_an_empty_state(): void
+    {
+        $this->travelTo(now()->setDate(2026, 10, 12)->startOfDay());
+        $admin = $this->makeAdmin();
+        $point = FarePoint::create([
+            'route_id' => Route::firstOrFail()->id, 'point_number' => 1, 'code' => 'WAWA',
+            'name' => 'Wawa', 'regular_fare' => 15, 'discounted_fare' => 12,
+        ]);
+        $this->makeTransaction('PAID', 'CASH', 15, now()->subSecond(), ['pickup_stop_id' => $point->id]);
+
+        $this->actingAs($admin)->getJson('/api/v1/admin/analytics?pickup_period=week')
+            ->assertOk()->assertJsonPath('data.pickup_points', []);
+        $this->makeTransaction('PAID', 'CASH', 15, now(), ['pickup_stop_id' => $point->id]);
+        $this->actingAs($admin)->getJson('/api/v1/admin/analytics?pickup_period=week')
+            ->assertOk()->assertJsonPath('data.pickup_points', [['name' => 'Wawa', 'count' => 1]]);
+    }
+
+    public function test_dashboard_pickup_period_rejects_unsupported_values(): void
+    {
+        $this->actingAs($this->makeAdmin())->getJson('/api/v1/admin/analytics?pickup_period=month')
+            ->assertUnprocessable()->assertJsonValidationErrors('pickup_period');
     }
 
     public function test_analytics_response_shape_is_complete(): void

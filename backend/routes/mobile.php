@@ -73,6 +73,7 @@ Route::prefix('mobile/conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR']
 
     Route::post('/sos', [App\Http\Controllers\Conductor\SosController::class, 'trigger'])->middleware('throttle:conductor-mutation');
     Route::get('/sos/{id}', [App\Http\Controllers\Conductor\SosController::class, 'show'])->middleware('throttle:conductor-read');
+    Route::patch('/sos/{id}/stop', [App\Http\Controllers\Conductor\SosController::class, 'stop'])->middleware('throttle:conductor-write');
 
     Route::post('/location', [ConductorController::class, 'updateLocation'])->middleware('throttle:conductor-gps');
     Route::post('/capacity-status', [ConductorController::class, 'updateCapacityStatus'])->middleware('throttle:conductor-write');
@@ -128,6 +129,7 @@ Route::prefix('mobile/commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])-
 
     Route::post('/sos', [SosController::class, 'trigger'])->middleware('throttle:sos');
     Route::get('/sos/{id}', [SosController::class, 'show'])->middleware('throttle:conductor-read');
+    Route::patch('/sos/{id}/stop', [SosController::class, 'stop'])->middleware('throttle:conductor-write');
 
     Route::get('/watchlist', [LostItemController::class, 'myWatchlist'])->middleware('throttle:conductor-read');
     Route::get('/claims', [LostItemController::class, 'myClaims'])->middleware('throttle:conductor-read');

@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { RequireRole } from "@/contexts/auth-context";
 import ConductorSidebar from "@/components/conductor/conductor-sidebar";
 import ConductorDock from "@/components/conductor/conductor-dock";
 import ConductorBottomNav from "@/components/conductor/conductor-bottom-nav";
@@ -8,6 +9,7 @@ import ConductorPaymentModal from "@/components/conductor/conductor-payment-moda
 import ConductorEndOfDayModal from "@/components/conductor/conductor-end-of-day-modal";
 import ConductorMetricsModal from "@/components/conductor/conductor-metrics-modal";
 import ConductorSettingsModal from "@/components/conductor/conductor-settings-modal";
+import ConductorSosModal from "@/components/conductor/conductor-sos-modal";
 import ConductorLocationBroadcaster from "@/components/conductor/conductor-location-broadcaster";
 import MaintenanceGate from "@/components/shared/maintenance-gate";
 import ConductorConnectivityBanner from "@/components/conductor/conductor-connectivity-banner";
@@ -28,8 +30,10 @@ export default function ConductorLayout({ children }: { children: React.ReactNod
   // conductor routes (metrics, settings, end-of-day) are normal scrolling
   // pages and keep the default overflow.
   const isDashboardHome = pathname === "/conductor-dashboard";
+  const isSettingsPage = pathname === "/conductor-dashboard/conductor-settings";
 
   return (
+    <RequireRole role="CONDUCTOR">
     <MaintenanceGate>
       <ConductorShiftProvider>
 <div className={`fixed inset-0 flex flex-col font-sans md:flex-row ${isUnitVerification ? "bg-[#050F1A]" : "bg-gray-50"}`}>
@@ -47,7 +51,7 @@ export default function ConductorLayout({ children }: { children: React.ReactNod
           scrolling pages (metrics/settings/end-of-day) so its last content
           isn't hidden behind the dock; the dashboard home doesn't scroll
           here (see isDashboardHome above) so the padding is inert there. */}
-      <main className={`flex-1 relative xl:pb-28 ${isDashboardHome ? "overflow-hidden" : "overflow-y-auto"}`}>
+      <main className={`flex-1 relative xl:pb-28 ${isSettingsPage ? "flex min-h-0 flex-col overflow-hidden" : isDashboardHome ? "overflow-hidden" : "overflow-y-auto"}`}>
           {/* The dashboard home renders these itself, floated above its fixed
               full-bleed map — as normal flow content here they'd push its
               h-full box taller than main and get clipped by overflow-hidden. */}
@@ -78,11 +82,15 @@ export default function ConductorLayout({ children }: { children: React.ReactNod
       {/* Global Settings Modal (xl:+ trigger; see ConductorDock) — full page still exists for smaller screens */}
       {!isUnitVerification && <ConductorSettingsModal />}
 
+      {/* Keep SOS polling and resolution notifications alive across modules. */}
+      <ConductorSosModal />
+
       {/* Broadcast conductor GPS while on shift (so commuters see the vehicle) */}
       {!isUnitVerification && <ConductorLocationBroadcaster />}
 
     </div>
       </ConductorShiftProvider>
     </MaintenanceGate>
+    </RequireRole>
   );
 }

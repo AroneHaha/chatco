@@ -211,7 +211,7 @@ class AdminService
      * Only PAID transactions count toward revenue totals; pending counts
      * are exposed separately.
      *
-     * @param  array{date_from?: string, date_to?: string}  $filters
+     * @param  array{date_from?: string, date_to?: string, pickup_period?: string}  $filters
      */
     public function analytics(array $filters = []): array
     {
@@ -295,6 +295,7 @@ class AdminService
                 DB::raw("SUM(CASE WHEN payment_method = 'CASH' THEN final_amount ELSE 0 END) as cash"),
                 DB::raw("SUM(CASE WHEN payment_method = 'GCASH' THEN final_amount ELSE 0 END) as gcash"),
                 DB::raw('SUM(final_amount) as total'),
+                DB::raw("SUM(CASE WHEN payment_method IN ('CASH', 'GCASH') THEN 1 ELSE 0 END) as paid_count"),
                 DB::raw('COUNT(*) as count')
             )
             ->where('status', 'PAID')
@@ -318,6 +319,7 @@ class AdminService
                 'cash' => $row ? (float) $row->cash : 0.0,
                 'gcash' => $row ? (float) $row->gcash : 0.0,
                 'total' => $row ? (float) $row->total : 0.0,
+                'paid_count' => $row ? (int) $row->paid_count : 0,
                 'count' => $row ? (int) $row->count : 0,
             ];
         }
@@ -385,18 +387,27 @@ class AdminService
         $totalConductors = (int) DB::table('conductor_profiles')->count();
         $activeConductors = (int) ShiftLog::where('status', 'ACTIVE')->distinct('conductor_id')->count('conductor_id');
 
-        // ── Top Pickup Points (aggregate PAID transactions by pickup_name) ──
-        // Each PAID transaction has a `pickup_name` (the fare point name the
-        // conductor selected). We count how many passengers boarded at each
-        // pickup point in the date window, sorted descending. Limited to top 10.
+        // Dashboard pickups use the current calendar week and the major fare
+        // point ID, so different landmark labels belong to one location.
+        // Analytics retains its selected date window and existing labels.
+        $weeklyPickups = ($filters['pickup_period'] ?? null) === 'week';
+        $pickupDateTo = $weeklyPickups ? Carbon::now() : $dateTo;
+        $pickupDateFrom = $weeklyPickups
+            ? $pickupDateTo->copy()->startOfWeek(Carbon::MONDAY)
+            : $dateFrom;
+        $pickupNameColumn = $weeklyPickups ? 'fare_points.name' : 'transactions.pickup_name';
         $pickupPoints = DB::table('transactions')
-            ->select('pickup_name', DB::raw('COUNT(*) as pickup_count'))
-            ->where('status', 'PAID')
-            ->whereNotNull('pickup_name')
-            ->where('pickup_name', '!=', '')
-            ->whereBetween('created_at', [$dateFrom, $dateTo])
-            ->groupBy('pickup_name')
+            ->when($weeklyPickups, fn ($query) => $query
+                ->join('fare_points', 'transactions.pickup_stop_id', '=', 'fare_points.id')
+                ->whereIn('transactions.payment_method', ['CASH', 'GCASH']))
+            ->select($pickupNameColumn.' as pickup_name', DB::raw('COUNT(*) as pickup_count'))
+            ->where('transactions.status', 'PAID')
+            ->whereNotNull($pickupNameColumn)
+            ->where($pickupNameColumn, '!=', '')
+            ->whereBetween('transactions.created_at', [$pickupDateFrom, $pickupDateTo])
+            ->groupBy($pickupNameColumn)
             ->orderByDesc('pickup_count')
+            ->orderBy($pickupNameColumn)
             ->limit(10)
             ->get()
             ->map(fn ($row) => [

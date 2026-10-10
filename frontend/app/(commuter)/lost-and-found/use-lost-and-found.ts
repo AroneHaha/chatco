@@ -265,7 +265,7 @@ export function useLostAndFound() {
       setIsLoading(false);
     } catch (err) {
       if (err instanceof RequestCancelledError) return;
-      setListError(err instanceof LostFoundOperationError ? err.message : "Unable to load your watchlist.");
+      setListError(err instanceof LostFoundOperationError ? err.message : "Unable to load your bookmarks.");
       setApiData({ items: [], totalPages: 1, totalItems: 0, currentPage: page });
       setIsLoading(false);
     }

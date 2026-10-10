@@ -5,24 +5,18 @@ import { ReactNode, useState, useEffect, Suspense, useCallback } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { SignOutModal } from '@/components/admin/ui/sign-out-modal';
 import { SettingsDrawerProvider, SettingsDrawer, useSettingsDrawer } from '@/components/admin/ui/settings-drawer';
-import { useAuth } from '@/contexts/auth-context';
+import { RequireRole, useAuth } from '@/contexts/auth-context';
 import { AdminNotificationsProvider } from '@/contexts/admin-notifications-context';
 import { AdminSidebar } from '@/components/admin/layout/admin-sidebar';
 import { AdminBottomNav } from '@/components/admin/layout/admin-bottom-nav';
 import { NotificationBell } from '@/components/admin/layout/notification-bell';
-import { SidebarSkeleton, ContentSkeleton, MobileSkeleton } from '@/components/admin/layout/admin-layout-skeleton';
 
 // ─── Inner Layout (uses context) ───
 
 function AdminLayoutInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { isLoading: authLoading, user, logout } = useAuth();
-  // Role comes from /api/auth/me (verified by Laravel), not the editable
-  // chatco_role cookie the middleware reads. This is the second layer: any
-  // (admin) page the middleware route list misses, or a tampered role cookie,
-  // still can't render the admin shell for a Commuter or Conductor.
-  const isAdmin = user?.role === 'ADMIN';
+  const { logout } = useAuth();
   const { closeSettingsDrawer } = useSettingsDrawer();
   const [isMobile, setIsMobile] = useState(false);
   const [moreOpenPathname, setMoreOpenPathname] = useState<string | null>(null);
@@ -48,31 +42,6 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
   useEffect(() => {
     closeSettingsDrawer();
   }, [pathname, closeSettingsDrawer]);
-
-  // Auth Guard — same destination as the middleware's role redirect.
-  useEffect(() => {
-    if (!authLoading && !isAdmin) {
-      window.location.href = `/login?redirect=${encodeURIComponent(pathname)}`;
-    }
-  }, [authLoading, isAdmin, pathname]);
-
-  // Show skeleton while auth is checking
-  if (authLoading) {
-    if (isMobile) {
-      return <MobileSkeleton />;
-    }
-    return (
-      <div className="admin-shell flex h-screen bg-[#0B1120]">
-        <SidebarSkeleton />
-        <ContentSkeleton />
-      </div>
-    );
-  }
-
-  // Not an authenticated admin — redirect will happen via useEffect
-  if (!isAdmin) {
-    return null;
-  }
 
   // Sign Out Handler.
   // This used to just set window.location to /login without ending the
@@ -160,12 +129,14 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
-    <AdminNotificationsProvider>
-      <SettingsDrawerProvider>
-        <Suspense fallback={<div className="admin-shell min-h-screen bg-[#0B1120]" />}>
-          <AdminLayoutInner>{children}</AdminLayoutInner>
-        </Suspense>
-      </SettingsDrawerProvider>
-    </AdminNotificationsProvider>
+    <RequireRole role="ADMIN">
+      <AdminNotificationsProvider>
+        <SettingsDrawerProvider>
+          <Suspense fallback={null}>
+            <AdminLayoutInner>{children}</AdminLayoutInner>
+          </Suspense>
+        </SettingsDrawerProvider>
+      </AdminNotificationsProvider>
+    </RequireRole>
   );
 }

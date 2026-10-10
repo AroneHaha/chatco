@@ -1,26 +1,19 @@
 "use client";
 
-import { useState, useMemo, useEffect, useSyncExternalStore } from "react";
+import { useState, useMemo, useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
+import { LockKeyhole, UserRound } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { clearShift } from "@/lib/conductor/services/shift.service";
 import { useConductorShift } from "@/app/(conductor)/hooks/use-conductor-shift";
 import { useRemittanceData } from "@/app/(conductor)/hooks/use-remittance-data";
 import { SettingsSkeleton } from "@/components/conductor/ui/skeleton";
-import SosConfirmModal from "@/components/conductor/modals/sos-confirm-modal";
-import ClearCacheModal from "@/components/conductor/modals/clear-cache-modal";
-import {
-  clearConductorCache,
-  getScanSoundEnabled,
-  setScanSoundEnabled,
-  subscribeScanSound,
-} from "@/lib/conductor/persistence/app-cache";
 
 /**
  * The actual Settings body — everything except page chrome (the outer
  * sidebar-clearance wrapper, which only makes sense for the full page, not
  * the xl:+ popover — see ConductorSettingsModal). Extracted so the business
- * logic (profile fetch, active assignment, app preferences, SOS, the
+ * logic (profile fetch, active assignment, SOS, the
  * remittance-gated logout flow) has exactly one implementation shared by
  * both:
  *   - the full page (app/(conductor)/conductor-dashboard/conductor-settings/page.tsx),
@@ -37,43 +30,41 @@ import {
  * the title from here instead.
  */
 export default function SettingsContent({ showHeader = true }: { showHeader?: boolean }) {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
+  const profileHeadingId = useId();
+  const detailsHeadingId = useId();
   const { shift, status: shiftStatus, error: shiftError } = useConductorShift();
   const { history, transactions, status: remitStatus, error: remitError } = useRemittanceData();
-  // Scan Sound is a per-device preference kept in localStorage. The server
-  // snapshot (on) matches the default, so hydration never mismatches.
-  const scanSound = useSyncExternalStore(subscribeScanSound, getScanSoundEnabled, () => true);
-  const [showClearCache, setShowClearCache] = useState(false);
-  const [cacheNotice, setCacheNotice] = useState<string | null>(null);
-
-  const toggleScanSound = () => {
-    setScanSoundEnabled(!scanSound);
-  };
-
-  const confirmClearCache = () => {
-    clearConductorCache(shift?.shiftId ?? null);
-    setShowClearCache(false);
-    setCacheNotice("Cache cleared. Your active shift and any unsynced cash were kept.");
-  };
-
   // ── Fetch the conductor's real profile (username) from the API ──
-  const [conductorProfile, setConductorProfile] = useState<{ name: string; username: string } | null>(null);
+  const [conductorProfile, setConductorProfile] = useState<{ name: string | null; username: string | null; email: string | null } | null>(null);
   useEffect(() => {
     fetch("/api/conductor/profile", { headers: { Accept: "application/json" } })
       .then(r => r.ok ? r.json() : null)
       .then(json => {
         if (json?.data) {
           setConductorProfile({
-            name: json.data.name ?? "—",
-            username: json.data.username ?? "—",
+            name: json.data.name ?? null,
+            username: json.data.username ?? null,
+            email: json.data.email ?? null,
           });
         }
       })
       .catch(() => {});
   }, []);
 
-  const [showSOS, setShowSOS] = useState(false);
+  const lastSosClickRef = useRef<number | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  const handleSosClick = () => {
+    const clickedAt = performance.now();
+    const previousClickAt = lastSosClickRef.current;
+    if (previousClickAt !== null && clickedAt - previousClickAt <= 600) {
+      lastSosClickRef.current = null;
+      window.dispatchEvent(new Event("conductor:open-sos"));
+      return;
+    }
+    lastSosClickRef.current = clickedAt;
+  };
 
   // ── DEBUG ONLY ──────────────────────────────────────────────────
   // Conductors normally cannot self-logout: remittance is what closes out an
@@ -130,6 +121,11 @@ export default function SettingsContent({ showHeader = true }: { showHeader?: bo
     );
   }
 
+  const conductorName = conductorProfile?.name?.trim() || shift?.conductorName?.trim() || "Conductor";
+  const username = conductorProfile?.username?.trim();
+  const nameParts = conductorName.split(/\s+/);
+  const initials = `${nameParts[0][0]}${nameParts.length > 1 ? nameParts[nameParts.length - 1][0] : ""}`.toUpperCase();
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 lg:py-8 space-y-6">
       {/* ===== Page Header ===== */}
@@ -143,38 +139,51 @@ export default function SettingsContent({ showHeader = true }: { showHeader?: bo
       )}
 
       {/* ===== Profile Section ===== */}
-      <section className="bg-[#071A2E] border border-white/[0.06] rounded-2xl p-4 lg:p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-[10px] uppercase tracking-wider font-semibold text-white/40">
-            Profile
+      <section aria-labelledby={profileHeadingId} className="relative isolate flex items-center gap-4 overflow-hidden rounded-2xl border border-[#62A0EA]/20 bg-gradient-to-br from-[#102E50] to-[#071A2E] p-5 xl:gap-5 xl:from-[#153C66] xl:via-[#0C2743] xl:p-6">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-16 -z-10 hidden h-56 w-56 rounded-full border border-[#99C1F1]/10 bg-[#62A0EA]/5 xl:block">
+          <div className="absolute inset-6 rounded-full border border-[#99C1F1]/10" />
+          <div className="absolute inset-12 rounded-full border border-[#99C1F1]/10" />
+        </div>
+        <div aria-hidden="true" className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-[#62A0EA]/30 bg-[#1A5FB4] text-2xl font-bold text-white xl:h-20 xl:w-20 xl:border-[#99C1F1]/30 xl:bg-gradient-to-br xl:from-[#337DD2] xl:to-[#1A5FB4] xl:shadow-lg xl:shadow-[#050F1A]/30 xl:ring-4 xl:ring-white/5">
+          {initials}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#99C1F1]/80">Conductor account</p>
+          <h2 id={profileHeadingId} className="break-words text-xl font-bold leading-snug tracking-tight text-white xl:text-2xl">
+            {conductorName}
           </h2>
-          <div className="flex items-center gap-1.5 text-white/25">
-            <span className="text-[11px]">🔒</span>
-            <span className="text-[10px] font-medium">Managed by Admin</span>
+          {username && <p className="mt-1 break-words text-sm text-white/50">@{username}</p>}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-[#62A0EA]/30 bg-[#62A0EA]/10 px-2.5 py-1 text-[11px] font-medium text-[#99C1F1]">Conductor</span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-white/60">
+              <LockKeyhole size={12} aria-hidden="true" />Managed by admin
+            </span>
           </div>
         </div>
+      </section>
 
-        <div className="space-y-3">
-          {(
-            [
-              { label: "Name", value: conductorProfile?.name ?? shift?.conductorName ?? "—" },
-              { label: "Username", value: conductorProfile?.username ?? "—" },
-              { label: "Phone Number", value: "+63 917 123 4567" },
-            ] as const
-          ).map((item) => (
-            <div
-              key={item.label}
-              className="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3"
-            >
-              <span className="text-xs text-white/40 font-medium">
-                {item.label}
-              </span>
-              <span className="text-sm text-white font-semibold">
-                {item.value}
-              </span>
-            </div>
-          ))}
-        </div>
+      <section aria-labelledby={detailsHeadingId} className="rounded-2xl border border-white/10 bg-[#071A2E] p-5">
+        <h3 id={detailsHeadingId} className="flex items-center gap-2 text-sm font-semibold text-white">
+          <UserRound size={17} aria-hidden="true" className="text-[#99C1F1]" />Personal details
+        </h3>
+        <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-5">
+          <div className="col-span-full">
+            <dt className="text-xs text-white/50">Full name</dt>
+            <dd className="mt-1 break-words text-sm text-white/90">{conductorName}</dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="text-xs text-white/50">Username</dt>
+            <dd className="mt-1 break-words text-sm text-white/90">{username || "Not provided"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-white/50">Account type</dt>
+            <dd className="mt-1 text-sm text-white/90">Conductor</dd>
+          </div>
+          <div className="col-span-full border-t border-white/10 pt-4">
+            <dt className="text-xs text-white/50">Email address</dt>
+            <dd className="mt-1 break-all text-sm text-white/90">{conductorProfile?.email || user?.email || "Not provided"}</dd>
+          </div>
+        </dl>
       </section>
 
       {/* ===== Active Assignment ===== */}
@@ -189,7 +198,6 @@ export default function SettingsContent({ showHeader = true }: { showHeader?: bo
               [
                 { label: "Current Unit", value: shift.unitNumber },
                 { label: "Assigned Driver", value: shift.driverName },
-                { label: "Route", value: shift.route },
               ] as const
             ).map((item) => (
               <div
@@ -230,55 +238,6 @@ export default function SettingsContent({ showHeader = true }: { showHeader?: bo
         )}
       </section>
 
-      {/* ===== App Preferences ===== */}
-      <section className="bg-[#071A2E] border border-white/[0.06] rounded-2xl p-4 lg:p-6">
-        <h2 className="text-[10px] uppercase tracking-wider font-semibold text-white/40 mb-4">
-          App Preferences
-        </h2>
-
-        <div className="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3.5">
-          <div>
-            <p className="text-sm text-white font-semibold">Scan Sound</p>
-            <p className="text-xs text-white/30 mt-0.5">
-              Play sound on successful scan
-            </p>
-          </div>
-          <button
-            onClick={toggleScanSound}
-            role="switch"
-            aria-checked={scanSound}
-            aria-label="Scan Sound"
-            className={`relative w-12 h-7 rounded-full transition-colors duration-300 flex-shrink-0 ${
-              scanSound ? "bg-[#1A5FB4]" : "bg-gray-600"
-            }`}
-          >
-            <div
-              className={`absolute top-[3px] left-[3px] w-[22px] h-[22px] bg-white rounded-full shadow-md transition-transform duration-300 ${
-                scanSound ? "translate-x-5" : "translate-x-0"
-              }`}
-            />
-          </button>
-        </div>
-
-        <button
-          onClick={() => { setCacheNotice(null); setShowClearCache(true); }}
-          className="mt-3 w-full flex items-center justify-between bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.06] rounded-xl px-4 py-3.5 transition-all active:scale-[0.99]"
-        >
-          <div className="text-left">
-            <p className="text-sm text-white font-semibold">Clear App Cache</p>
-            <p className="text-xs text-white/30 mt-0.5">
-              Remove saved copies of history. Your shift is not affected.
-            </p>
-          </div>
-          <svg className="w-4 h-4 text-white/30 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
-          </svg>
-        </button>
-        {cacheNotice && (
-          <p role="status" className="mt-2 text-xs font-medium text-emerald-400">{cacheNotice}</p>
-        )}
-      </section>
-
       {/* ===== Emergency SOS ===== */}
       <section className="bg-[#071A2E] border border-white/[0.06] rounded-2xl p-4 lg:p-6">
         <h2 className="text-[10px] uppercase tracking-wider font-semibold text-white/40 mb-4">
@@ -286,8 +245,10 @@ export default function SettingsContent({ showHeader = true }: { showHeader?: bo
         </h2>
 
         <button
-          onClick={() => setShowSOS(true)}
-          className="w-full flex items-center gap-4 bg-red-500/[0.06] border border-red-500/15 hover:bg-red-500/[0.12] hover:border-red-500/25 rounded-2xl px-5 py-5 transition-all active:scale-[0.98]"
+          type="button"
+          onClick={handleSosClick}
+          onBlur={() => { lastSosClickRef.current = null; }}
+          className="w-full flex touch-manipulation items-center gap-4 bg-red-500/[0.06] border border-red-500/15 hover:bg-red-500/[0.12] hover:border-red-500/25 rounded-2xl px-5 py-5 transition-all active:scale-[0.98]"
         >
           <div className="w-14 h-14 rounded-2xl bg-red-500/15 border border-red-500/20 flex items-center justify-center flex-shrink-0">
             <svg
@@ -309,7 +270,7 @@ export default function SettingsContent({ showHeader = true }: { showHeader?: bo
               Emergency SOS
             </p>
             <p className="text-xs text-red-400/40 mt-0.5">
-              Send an emergency alert to dispatch
+              Double-click or double-tap to open SOS confirmation
             </p>
           </div>
         </button>
@@ -317,13 +278,6 @@ export default function SettingsContent({ showHeader = true }: { showHeader?: bo
 
       {/* ===== Logout (Bottom of scroll for both Mobile & Desktop) ===== */}
       <div className="pt-6 border-t border-white/[0.06]">
-        {debugLogoutUnlocked && (
-          <div className="flex items-center justify-center gap-1.5 mb-3">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-orange-400/80 bg-orange-500/10 border border-orange-500/20 rounded px-2 py-1">
-              Debug build — remittance lock bypassed
-            </span>
-          </div>
-        )}
         {logoutLocked && (
           <div className="flex items-center justify-center gap-1.5 mb-3">
             <svg
@@ -367,21 +321,6 @@ export default function SettingsContent({ showHeader = true }: { showHeader?: bo
           </span>
         </button>
       </div>
-
-      {/* ===== EXTRACTED MODALS ===== */}
-      <SosConfirmModal
-        isOpen={showSOS}
-        onClose={() => setShowSOS(false)}
-      />
-
-      {showClearCache && createPortal(
-        <ClearCacheModal
-          isOpen={showClearCache}
-          onClose={() => setShowClearCache(false)}
-          onConfirm={confirmClearCache}
-        />,
-        document.body,
-      )}
 
       {/* ===== Logout Confirmation Modal ===== */}
       {/* Portaled to <body>: inside the xl:+ Settings popover, this component

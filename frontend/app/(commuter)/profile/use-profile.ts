@@ -52,7 +52,7 @@ type PasswordStep = "form" | "verify";
  * dedicated profile endpoint, which the service maps to the correct shape.
  */
 export function useProfile() {
-  const { logout: authLogout } = useAuth();
+  const { logout: authLogout, refresh: refreshAuth } = useAuth();
 
   // ─── Load state ───────────────────────────────────────────────────
   const [profile, setProfile] = useState<CommuterProfile | null>(null);
@@ -374,12 +374,18 @@ export function useProfile() {
     loadProfile();
   };
 
+  const applyEmailChange = (email: string) => {
+    setProfile(previous => previous ? { ...previous, email } : previous);
+    void refreshAuth();
+  };
+
   return {
     // Data
     profile,
     loadState,
     loadError,
     retryLoad,
+    applyEmailChange,
     // Edit
     isEditing,
     editData,

@@ -6,10 +6,12 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
   type ReactNode,
 } from "react";
 import { CONDUCTOR_DEVICE_TYPE, getConductorDeviceId } from "@/lib/conductor/persistence/device.store";
-import type { AuthUser, CommuterProfile } from "@/types";
+import { cacheShift, clearShift } from "@/lib/conductor/persistence/shift.store";
+import { getRoleDashboard, type AuthUser, type CommuterProfile, type UserRole } from "@/types";
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -28,20 +30,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [commuterProfile, setCommuterProfile] =
     useState<CommuterProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const authRequestId = useRef(0);
 
   const refresh = useCallback(async () => {
+    const requestId = ++authRequestId.current;
     setIsLoading(true);
 
     try {
       const response = await fetch("/api/auth/me", {
         method: "GET",
         credentials: "include",
+        cache: "no-store",
       });
 
       if (response.ok) {
         const contentType = response.headers.get("content-type") || "";
         if (contentType.includes("application/json")) {
           const data = await response.json();
+          if (requestId !== authRequestId.current) return;
           const authUser: AuthUser = {
             id: data.user.id,
             email: data.user.email,
@@ -51,6 +57,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           if (authUser.role === "COMMUTER" && data.profile) {
             setCommuterProfile(data.profile);
+          } else {
+            setCommuterProfile(null);
           }
 
           setIsLoading(false);
@@ -61,6 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // API not available
     }
 
+    if (requestId !== authRequestId.current) return;
     setUser(null);
     setCommuterProfile(null);
     setIsLoading(false);
@@ -91,7 +100,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: data.user.role,
       };
 
+      if (authUser.role === "CONDUCTOR") {
+        if (data.activeShift) cacheShift(data.activeShift);
+        else clearShift();
+      }
+
+      // An older /me response must not overwrite a completed login.
+      authRequestId.current++;
       setUser(authUser);
+      setCommuterProfile(null);
+      setIsLoading(false);
 
       // Fetch full profile after login (sets commuterProfile if commuter)
       if (authUser.role === "COMMUTER") {
@@ -104,6 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    authRequestId.current++;
     // Clear the server cookies before the landing page and login modal reload.
     try {
       await fetch("/api/auth/logout", {
@@ -153,4 +172,19 @@ export function useAuth(): AuthContextValue {
     throw new Error("useAuth must be used within <AuthProvider>");
   }
   return ctx;
+}
+
+/** Suppress protected UI and its providers until the shared session is known.
+ * Server middleware and Laravel enforce access independently of this guard.
+ */
+export function RequireRole({ role, children }: { role: UserRole; children: ReactNode }) {
+  const { user, isLoading } = useAuth();
+  const allowed = !isLoading && user?.role === role;
+  useEffect(() => {
+    if (!isLoading && !allowed) {
+      window.location.replace(getRoleDashboard(user?.role) ?? "/login");
+    }
+  }, [isLoading, allowed, user?.role]);
+
+  return allowed ? children : null;
 }

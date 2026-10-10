@@ -20,18 +20,27 @@ export function useConductorHails(
   const [status, setStatus] = useState<UseConductorHailsResult["status"]>("loading");
   const [error, setError] = useState<string | null>(null);
   const refreshInFlight = useRef<Promise<void> | null>(null);
+  const refreshPending = useRef(false);
 
   const refresh = useCallback(async () => {
-    if (refreshInFlight.current) return refreshInFlight.current;
+    if (refreshInFlight.current) {
+      // An event can arrive after the current GET took its database snapshot.
+      // Coalesce the burst into one follow-up GET rather than losing the event.
+      refreshPending.current = true;
+      return refreshInFlight.current;
+    }
 
     const request = (async () => {
       try {
-        const { hails: fetchedHails, error: fetchError } = await fetchActiveHails();
-        setHails(fetchedHails);
-        setError(fetchError);
-        setStatus(
-          fetchError ? "error" : fetchedHails.length > 0 ? "success" : "empty"
-        );
+        do {
+          refreshPending.current = false;
+          const { hails: fetchedHails, error: fetchError } = await fetchActiveHails();
+          setHails(fetchedHails);
+          setError(fetchError);
+          setStatus(
+            fetchError ? "error" : fetchedHails.length > 0 ? "success" : "empty"
+          );
+        } while (refreshPending.current);
       } catch (err) {
         setHails([]);
         setStatus("error");
@@ -48,38 +57,49 @@ export function useConductorHails(
   useEffect(() => {
     void refresh();
 
-    let isSocketConnected = false;
+    let isSubscribed = false;
+    let lastRefreshAt = Date.now();
     let unsubscribeConnectionChange: (() => void) | null = null;
     let echo: ReturnType<typeof getEcho> | null = null;
     const channelName = vehicleId ? `vehicle.${vehicleId}.hails` : null;
 
-    const interval = window.setInterval(() => {
-      if (!isSocketConnected && document.visibilityState === "visible") {
-        void refresh();
-      }
-    }, pollMs);
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible") void refresh();
+    const refreshNow = () => {
+      if (document.visibilityState !== "visible" || !navigator.onLine) return;
+      lastRefreshAt = Date.now();
+      void refresh();
     };
-    const refreshNow = () => void refresh();
+    const interval = window.setInterval(() => {
+      // A connected transport does not guarantee private-channel delivery.
+      // Keep a slow reconciliation even when subscribed; poll faster on failure.
+      const refreshMs = isSubscribed ? Math.max(pollMs, 60000) : pollMs;
+      if (channelName && Date.now() - lastRefreshAt >= refreshMs) refreshNow();
+    }, pollMs);
 
     window.addEventListener("focus", refreshNow);
     window.addEventListener("online", refreshNow);
-    document.addEventListener("visibilitychange", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshNow);
 
     if (channelName) {
       try {
         echo = getEcho();
-        isSocketConnected = echo.connector.connectionStatus() === "connected";
         unsubscribeConnectionChange = echo.connector.onConnectionChange(
           (connectionStatus: ConnectionStatus) => {
-            isSocketConnected = connectionStatus === "connected";
+            if (connectionStatus !== "connected") isSubscribed = false;
           }
         );
         echo
           .private(channelName)
           .listen(".HailCreated", refreshNow)
-          .listen(".HailStatusChanged", refreshNow);
+          .listen(".HailStatusChanged", refreshNow)
+          .subscribed(() => {
+            isSubscribed = true;
+            // Catch hails created before authentication or during a reconnect.
+            refreshNow();
+          })
+          .error(() => {
+            isSubscribed = false;
+            refreshNow();
+          });
       } catch (subscriptionError) {
         console.warn("Hail realtime unavailable; using polling fallback:", subscriptionError);
       }
@@ -90,7 +110,7 @@ export function useConductorHails(
       unsubscribeConnectionChange?.();
       window.removeEventListener("focus", refreshNow);
       window.removeEventListener("online", refreshNow);
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshNow);
       if (echo && channelName) echo.leave(channelName);
     };
   }, [pollMs, refresh, vehicleId]);

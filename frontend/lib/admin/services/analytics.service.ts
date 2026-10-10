@@ -49,6 +49,8 @@ export interface AnalyticsDailyPoint {
   cash: number;
   gcash: number;
   total: number;
+  /** CASH and GCASH rides, matching totals.paid_count. */
+  paid_count: number;
   count: number;
 }
 

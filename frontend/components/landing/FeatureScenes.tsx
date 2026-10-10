@@ -512,6 +512,9 @@ export function RewardsScene({ tone = "light" }: { tone?: Tone }) {
             />
           ))}
         </div>
+        <p className="mt-5 text-sm leading-relaxed text-(--mute)">
+          GCash rides count automatically. Paid in cash? Scan your receipt QR from your account.
+        </p>
       </div>
     </Frame>
   );

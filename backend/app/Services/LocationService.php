@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\CapacityStatus;
+use App\Enums\ShiftStatus;
 use App\Events\VehicleLocationUpdated;
 use App\Models\OverspeedEvent;
 use App\Models\Setting;
@@ -322,6 +323,7 @@ class LocationService
      * lost connectivity or the conductor forgot to broadcast). A unit on
      * an active break is never flagged stale — the conductor deliberately
      * paused broadcasting, so a quiet GPS feed is expected, not a fault.
+     * Break status and elapsed minutes come from the same active shift join.
      *
      * Includes driver + conductor names from the active shift log.
      *
@@ -347,6 +349,7 @@ class LocationService
             ->leftJoin('shift_logs', function ($join) {
                 $join->on('vehicles.active_shift_id', '=', 'shift_logs.shift_id');
             })
+            ->where('shift_logs.status', ShiftStatus::ACTIVE->value)
             ->leftJoin('routes', 'shift_logs.route_id', '=', 'routes.id')
             ->leftJoin('drivers', 'shift_logs.driver_id', '=', 'drivers.id')
             ->leftJoin('conductor_profiles', 'shift_logs.conductor_id', '=', 'conductor_profiles.id')
@@ -379,6 +382,10 @@ class LocationService
                 // "Stale Units" metric was permanently stuck at 0.
                 $minutesSinceUpdate = $lastUpdate ? (int) abs($now->diffInMinutes($lastUpdate)) : null;
                 $hasGps = $row->lat !== null && $row->lng !== null;
+                $isOnBreak = (bool) $row->is_on_break;
+                $breakDurationMinutes = $isOnBreak && $row->break_started_at
+                    ? max(0, (int) Carbon::parse($row->break_started_at)->diffInMinutes($now, false))
+                    : null;
 
                 return [
                     'id' => $row->id,
@@ -390,15 +397,16 @@ class LocationService
                     'speed' => $row->speed !== null ? (int) $row->speed : null,
                     'heading' => $row->heading,
                     'capacity_status' => $row->capacity_status ?? 'AVAILABLE',
-                    'is_on_break' => (bool) $row->is_on_break,
+                    'is_on_break' => $isOnBreak,
                     'break_started_at' => $row->break_started_at,
+                    'break_duration_minutes' => $breakDurationMinutes,
                     'route_name' => $row->route_name,
                     'driver_name' => trim(($row->driver_first_name ?? '').' '.($row->driver_last_name ?? '')) ?: null,
                     'conductor_name' => trim(($row->conductor_first_name ?? '').' '.($row->conductor_last_name ?? '')) ?: null,
                     'last_update' => $lastUpdate?->toDateTimeString(),
                     'minutes_since_update' => $minutesSinceUpdate,
                     'has_gps' => $hasGps,
-                    'is_stale' => $minutesSinceUpdate !== null && $minutesSinceUpdate > $staleThresholdMinutes && ! $row->is_on_break,
+                    'is_stale' => $minutesSinceUpdate !== null && $minutesSinceUpdate > $staleThresholdMinutes && ! $isOnBreak,
                 ];
             });
     }

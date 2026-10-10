@@ -15,6 +15,7 @@ export type {
   CommuterProfile,
 } from "./user";
 export {
+  getRoleDashboard,
   COMMUTER_TYPE_LABELS,
   getCommuterTypeLabel,
   DISCOUNTED_TYPES,

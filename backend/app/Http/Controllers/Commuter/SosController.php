@@ -18,8 +18,7 @@ use Illuminate\Http\Request;
  * Rate-limited at 1 request per minute per commuter (throttle:sos) for
  * the trigger to prevent abuse. The poll endpoint uses conductor-read
  * (60/min) so the commuter modal can poll every 3s without hitting the
- * limit. The commuter CANNOT cancel their own SOS — only admins can
- * resolve it.
+ * limit. The commuter can stop their own SOS while retaining its history.
  */
 class SosController extends Controller
 {
@@ -44,12 +43,22 @@ class SosController extends Controller
     }
 
     /**
-     * GET /commuter/sos/{id}
+     * PATCH /commuter/sos/{id}/stop — close the sender's own alert.
      *
-     * Returns the commuter's own alert (scoped to auth()->id() in the
-     * service). The commuter modal polls this every 3s to detect when the
-     * admin acknowledges / resolves the alert.
+     * Retains the history record and notifies dispatch.
      */
+    public function stop(Request $request, string $id): JsonResponse
+    {
+        try {
+            $alert = $this->sosService->stopForSender($request->user(), $id);
+        } catch (\RuntimeException $e) {
+            return $this->errorResponse($e->getMessage(), str_contains($e->getMessage(), 'not found') ? 404 : 422);
+        }
+
+        return $this->successResponse($alert, 'SOS alert stopped');
+    }
+
+    /** Return the authenticated sender's own alert for status polling. */
     public function show(Request $request, string $id): JsonResponse
     {
         try {

@@ -69,7 +69,7 @@ const FEATURES: Feature[] = [
   {
     icon: Gift,
     title: "Ride & Earn Rewards",
-    desc: "Every cashless ride earns points. Hit the threshold and unlock free ride vouchers.",
+    desc: "Earn a free ride after 10 paid rides. GCash payments through your account count automatically. For cash payments, sign in and scan the QR on your physical receipt to count the ride.",
     scene: () => <RewardsScene />,
   },
 ];
@@ -78,6 +78,7 @@ const AUTOPLAY_MS = 7000;
 
 export default function CommuterFeatures() {
   const [active, setActive] = useState(0);
+  const [mobileExpanded, setMobileExpanded] = useState(true);
   const [autoplay, setAutoplay] = useState(true);
   // Pointer over the explorer or focus inside it pauses the rotation, so the
   // interactive scenes (fare slider, Pick Me Up) never swap out mid-use.
@@ -179,13 +180,16 @@ export default function CommuterFeatures() {
         {/* Mobile: accordion, each opens its demo */}
         <div className="lg:hidden space-y-2">
           {FEATURES.map((f, i) => {
-            const on = active === i;
+            const on = mobileExpanded && active === i;
             const Icon = f.icon;
             return (
               <div key={f.title} className={`rounded-2xl border overflow-hidden transition-colors ${on ? "border-[#DAEEFF] bg-[#F0F7FF]" : "border-gray-100"}`}>
                 <button
                   type="button"
-                  onClick={() => select(on ? -1 : i)}
+                  onClick={() => {
+                    select(i);
+                    setMobileExpanded(!on);
+                  }}
                   aria-expanded={on}
                   className="w-full flex items-center gap-3 text-left px-4 py-4"
                 >

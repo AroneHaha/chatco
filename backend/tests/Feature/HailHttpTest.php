@@ -16,8 +16,11 @@ use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleLocation;
 use App\Services\HailService;
+use Illuminate\Broadcasting\Broadcasters\LogBroadcaster;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Broadcast;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class HailHttpTest extends TestCase
@@ -174,6 +177,63 @@ class HailHttpTest extends TestCase
 
         $response->assertCreated();
         $response->assertJsonPath('data.status', 'PENDING');
+    }
+
+    public function test_hail_creation_and_cancellation_broadcast_without_a_queue_worker(): void
+    {
+        config(['queue.default' => 'database']);
+        Queue::fake();
+
+        $broadcaster = \Mockery::mock(LogBroadcaster::class);
+        Broadcast::extend('hail-test', fn () => $broadcaster);
+        config(['broadcasting.default' => 'hail-test', 'broadcasting.connections.hail-test.driver' => 'hail-test']);
+        $broadcaster->shouldReceive('broadcast')->once()->withArgs(function ($channels, $name, $payload) {
+            return $name === 'HailCreated'
+                && array_map(fn ($channel) => $channel->name, $channels) === ["private-vehicle.{$this->vehicle->id}.hails"]
+                && Hail::whereKey($payload['hail_id'])->where('status', HailStatus::PENDING)->exists();
+        });
+        $broadcaster->shouldReceive('broadcast')->once()->withArgs(function ($channels, $name, $payload) {
+            return $name === 'HailStatusChanged'
+                && array_map(fn ($channel) => $channel->name, $channels) === [
+                    "private-commuter.{$this->commuter->id}.hails",
+                    "private-vehicle.{$this->vehicle->id}.hails",
+                ]
+                && $payload['status'] === 'CANCELLED'
+                && Hail::whereKey($payload['hail_id'])->where('status', HailStatus::CANCELLED)->exists();
+        });
+
+        $created = $this->actingAs($this->commuter, 'sanctum')
+            ->postJson('/api/v1/commuter/hail', [
+                'vehicle_id' => $this->vehicle->id,
+                'commuter_lat' => $this->vehicleLat,
+                'commuter_lng' => $this->vehicleLng,
+            ])->assertCreated();
+
+        $this->deleteJson('/api/v1/commuter/hail/'.$created->json('data.id'))
+            ->assertOk()->assertJsonPath('data.status', 'CANCELLED');
+
+        Queue::assertNothingPushed();
+    }
+
+    public function test_broadcast_outage_does_not_fail_committed_hail_or_cancellation(): void
+    {
+        $broadcaster = \Mockery::mock(LogBroadcaster::class);
+        Broadcast::extend('hail-test', fn () => $broadcaster);
+        config(['broadcasting.default' => 'hail-test', 'broadcasting.connections.hail-test.driver' => 'hail-test']);
+        $broadcaster->shouldReceive('broadcast')->twice()->andThrow(new \RuntimeException('Broadcast unavailable'));
+
+        $created = $this->actingAs($this->commuter, 'sanctum')
+            ->postJson('/api/v1/commuter/hail', [
+                'vehicle_id' => $this->vehicle->id,
+                'commuter_lat' => $this->vehicleLat,
+                'commuter_lng' => $this->vehicleLng,
+            ])->assertCreated();
+        $id = $created->json('data.id');
+        $this->assertDatabaseHas('hails', ['id' => $id, 'status' => 'PENDING']);
+
+        $this->deleteJson('/api/v1/commuter/hail/'.$id)
+            ->assertOk()->assertJsonPath('data.status', 'CANCELLED');
+        $this->assertDatabaseHas('hails', ['id' => $id, 'status' => 'CANCELLED']);
     }
 
     public function test_post_hail_at_1500m_returns_422_with_outside_radius(): void

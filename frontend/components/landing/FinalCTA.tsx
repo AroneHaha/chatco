@@ -12,13 +12,12 @@ export default function FinalCTA() {
         <div className="grid lg:grid-cols-2 gap-14 items-center">
           <div>
             <h2 className="font-sans font-bold text-3xl md:text-4xl text-white tracking-tight leading-tight">
-              Ready to Modernize
+              Ready for an Easier
               <br />
-              Jeepney Operations?
+              Jeepney Ride?
             </h2>
             <p className="mt-5 text-white/50 max-w-md leading-relaxed">
-              Whether you&apos;re a daily commuter, a conductor, or a fleet operator
-              — CHATCO has a seat for you.
+              Find your ride, pay your fare, and follow your trip — all from your CHATCO account.
             </p>
           </div>
 

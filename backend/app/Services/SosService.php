@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\UserRole;
 use App\Models\SosAlert;
 use App\Models\User;
 use App\Models\Setting;
@@ -28,8 +29,8 @@ use Illuminate\Support\Facades\Mail;
  *   ACKNOWLEDGED → RESOLVED (via resolve)
  *   RESOLVED → (no further transitions — 422 if attempted)
  *
- * The alert is a paper trail once filed — commuters CANNOT cancel their own
- * SOS via the API; only admins can resolve.
+ * Senders can stop their own SOS. Stopped alerts remain in the history as
+ * RESOLVED with the sender recorded as the resolver.
  */
 class SosService
 {
@@ -151,6 +152,17 @@ class SosService
         $query = SosAlert::with(['commuter', 'conductor'])
             ->orderByDesc('created_at');
 
+        if (empty($filters['status']) || $filters['status'] === self::STATUS_RESOLVED) {
+            // History needs resolver names; batch-load only the display fields.
+            // Keep historical attribution available after an admin is deleted.
+            $query->with(['resolver' => fn ($resolver) => $resolver
+                ->withTrashed()
+                ->where('role', UserRole::ADMIN->value)
+                ->select(['id', 'role', 'email'])
+                ->with(['adminProfile' => fn ($profile) => $profile
+                    ->withTrashed()->select(['id', 'first_name', 'last_name'])])]);
+        }
+
         if (! empty($filters['status'])) {
             $query->where('status', $filters['status']);
         }
@@ -218,6 +230,46 @@ class SosService
             );
 
             return $alert->fresh(['commuter', 'conductor', 'acknowledger', 'resolver']);
+        }, 3);
+    }
+
+    public function stopForSender(User $sender, string $id): SosAlert
+    {
+        $isConductor = $sender->isConductor();
+        if (! $isConductor && ! $sender->isCommuter()) {
+            throw new \RuntimeException('SOS sender profile not found');
+        }
+        $profile = $isConductor ? $sender->conductorProfile : $sender->commuterProfile;
+        if (! $profile) {
+            throw new \RuntimeException('SOS sender profile not found');
+        }
+
+        return DB::transaction(function () use ($sender, $id, $profile, $isConductor) {
+            $alert = SosAlert::query()
+                ->where('sender_role', $isConductor ? 'CONDUCTOR' : 'COMMUTER')
+                ->where($isConductor ? 'conductor_id' : 'commuter_id', $profile->id)
+                ->lockForUpdate()
+                ->find($id);
+            if (! $alert) {
+                throw new \RuntimeException('SOS alert not found');
+            }
+            if ($alert->status === self::STATUS_RESOLVED) {
+                return $alert->load(['commuter', 'conductor', 'resolver']);
+            }
+
+            $alert->update([
+                'status' => self::STATUS_RESOLVED,
+                'resolved_by' => $sender->id,
+                'resolved_at' => now(),
+            ]);
+            $this->announcementService->notifyAdmins(
+                'SOS_RESOLVED',
+                'Emergency SOS stopped',
+                "{$this->senderName($alert)} stopped their emergency SOS alert.",
+                $alert->id,
+            );
+
+            return $alert->fresh(['commuter', 'conductor', 'resolver']);
         }, 3);
     }
 
