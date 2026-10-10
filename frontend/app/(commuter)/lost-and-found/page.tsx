@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useId, useState } from "react";
 import { useAnnouncements } from "@/contexts/announcements-context";
 import { useLostAndFound } from "./use-lost-and-found";
 import { categories } from "./data";
@@ -29,6 +29,7 @@ import {
   PackageSearch,
   Search,
   ShieldCheck,
+  SlidersHorizontal,
   Tag,
   UserRound,
   X,
@@ -58,7 +59,7 @@ export default function LostAndFoundPage() {
   const pageNumbers = buildVisiblePages(paginationData.currentPage, paginationData.totalPages);
   const tabs: { key: ViewTab; label: string; icon: typeof PackageSearch }[] = [
     { key: "ALL", label: "All Items", icon: PackageSearch },
-    { key: "WATCHLIST", label: "Watchlist", icon: BookmarkCheck },
+    { key: "WATCHLIST", label: "Bookmark", icon: BookmarkCheck },
     { key: "MY_CLAIMS", label: "Claims", icon: ClipboardList },
   ];
   const claimFilterOptions: { value: ClaimFilter; label: string }[] = [
@@ -70,7 +71,10 @@ export default function LostAndFoundPage() {
   ];
   const activeClaimFilterLabel = claimFilterOptions.find((opt) => opt.value === claimFilter)?.label ?? "All Statuses";
   const isClaimsTab = activeTab === "MY_CLAIMS";
-  // Category isn't a chip — the category strip already shows the active one.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filtersId = useId();
+  const activeFilterCount = Number(activeCategory !== "ALL") + Number(timeRange !== "ALL") + Number(Boolean(selectedDate)) + Number(isClaimsTab && claimFilter !== "ALL");
+  // Category and time range are included in the collapsed filter count.
   const activeChipCount = Number(Boolean(searchQuery.trim())) + Number(Boolean(selectedDate)) + Number(isClaimsTab && claimFilter !== "ALL");
   // Only the All Items count is exact: Watchlist and Claims apply the category
   // filter client-side on top of the server total, so they get a fixed line.
@@ -80,7 +84,7 @@ export default function LostAndFoundPage() {
         ? "Items found on board, posted by staff"
         : `${apiData.totalItems} item${apiData.totalItems === 1 ? "" : "s"} found on board${TIME_RANGE_PHRASES[timeRange]}`
       : activeTab === "WATCHLIST"
-        ? "Items you saved to keep an eye on"
+        ? "Items you bookmarked"
         : "Track the status of items you claimed";
 
   // Full-detail view — the card only shows a clamped description and a
@@ -143,7 +147,7 @@ export default function LostAndFoundPage() {
   };
 
   return (
-    <div className="h-full w-full flex flex-col overflow-hidden bg-[#050F1A] relative">
+    <div className="relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#050F1A]">
       
       {/* --- HEADER --- */}
       {/* Storefront-style: search is the focal control, categories are a
@@ -187,8 +191,8 @@ export default function LostAndFoundPage() {
 
           {/* Search is capped at lg: so it doesn't stretch; the date picker (and
               claim status) stays pinned to the right edge. */}
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2.5">
-            <div className="relative min-w-0 sm:flex-1 lg:max-w-md">
+          <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-3 lg:gap-x-2.5">
+            <div className="relative min-w-0 lg:max-w-md">
               <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
               <input
                 type="search"
@@ -196,72 +200,88 @@ export default function LostAndFoundPage() {
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
                 aria-label={isClaimsTab ? "Search claims" : "Search lost and found items"}
-                className="h-10 w-full rounded-lg border border-white/10 bg-[#0E1628] pl-10 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/45 focus:border-[#62A0EA] [&::-webkit-search-cancel-button]:hidden"
+                className="h-11 w-full rounded-lg border border-white/10 bg-[#0E1628] pl-10 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/45 focus:border-[#62A0EA] lg:h-10 [&::-webkit-search-cancel-button]:hidden"
               />
             </div>
-            <div className={`grid gap-2 sm:ml-auto sm:flex sm:gap-2.5 ${isClaimsTab ? "grid-cols-2" : "grid-cols-1"}`}>
-              <AdminDatePicker
-                accent="blue"
-                align="right"
-                ariaLabel="Filter lost and found items by posted date"
-                value={selectedDate}
-                onChange={handleDateChange}
-                triggerClassName="h-10 w-full sm:w-48"
-                className="w-full sm:w-48"
-              />
-              {isClaimsTab && (
-                <div className="relative sm:w-40">
-                  <select
-                    value={claimFilter}
-                    onChange={(e) => handleClaimFilterChange(e.target.value as ClaimFilter)}
-                    className="h-10 w-full appearance-none rounded-lg border border-white/10 bg-[#0E1628] px-3 pr-9 text-sm font-semibold text-white/80 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
-                    aria-label="Filter claims by status"
-                  >
-                    {claimFilterOptions.map(opt => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
-                </div>
-              )}
-            </div>
-          </div>
+            <button
+              type="button"
+              onClick={() => setFiltersOpen(open => !open)}
+              aria-expanded={filtersOpen}
+              aria-controls={filtersId}
+              aria-label={`Filters${activeFilterCount ? `, ${activeFilterCount} active` : ""}`}
+              className={`inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] lg:hidden ${filtersOpen || activeFilterCount > 0 ? "border-[#62A0EA]/45 bg-[#1A5FB4]/20 text-white" : "border-white/10 bg-[#0E1628] text-white/70 hover:bg-white/5"}`}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Filters</span>
+              {activeFilterCount > 0 && <span aria-hidden="true" className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#1A5FB4] px-1 text-[10px] tabular-nums text-white">{activeFilterCount}</span>}
+              <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform motion-reduce:transition-none ${filtersOpen ? "rotate-180" : ""}`} />
+            </button>
+            <div id={filtersId} className={`col-span-2 grid-cols-1 gap-y-3 ${filtersOpen ? "grid" : "hidden"} lg:contents`}>
+              <div className="grid grid-cols-1 gap-2 sm:ml-auto sm:flex sm:gap-2.5 lg:col-start-2 lg:row-start-1">
+                <AdminDatePicker
+                  popover
+                  accent="blue"
+                  align="right"
+                  ariaLabel="Filter lost and found items by posted date"
+                  value={selectedDate}
+                  onChange={handleDateChange}
+                  triggerClassName="h-11 w-full sm:w-48 lg:h-10"
+                  className="w-full sm:w-48"
+                />
+                {isClaimsTab && (
+                  <div className="relative sm:w-40">
+                    <select
+                      value={claimFilter}
+                      onChange={(e) => handleClaimFilterChange(e.target.value as ClaimFilter)}
+                      className="h-11 w-full appearance-none rounded-lg border border-white/10 bg-[#0E1628] px-3 pr-9 text-sm font-semibold text-white/80 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA] lg:h-10"
+                      aria-label="Filter claims by status"
+                    >
+                      {claimFilterOptions.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
+                  </div>
+                )}
+              </div>
 
-          {/* Posted-within window on the left, categories to its right. Stacks
-              on phones so neither control has to scroll inside the other. */}
-          <div className="mt-3 flex flex-col gap-2.5 md:flex-row md:items-center md:gap-3">
-          <RubberSegment<TimeRange>
-            items={TIME_RANGE_OPTIONS}
-            value={timeRange}
-            onChange={handleTimeRangeChange}
-            aria-label="Filter by date posted"
-            size="md"
-            radius={8}
-            inset={3}
-            trackColor="#0E1628"
-            thumbColor="#143A6B"
-            textColor="#FFFFFF"
-            activeTextColor="#FFFFFF"
-            className="w-full flex-shrink-0 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] md:w-auto"
-          />
-          <span aria-hidden="true" className="hidden h-6 w-px flex-shrink-0 bg-white/10 md:block" />
-          <div role="group" aria-label="Filter by category" className="-mx-4 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:px-0 [&::-webkit-scrollbar]:hidden">
-            {categories.map(cat => (
-              <button
-                key={cat.value}
-                type="button"
-                onClick={() => handleCategoryChange(cat.value)}
-                aria-pressed={activeCategory === cat.value}
-                className={`h-9 flex-shrink-0 rounded-md border px-3 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${
-                  activeCategory === cat.value
-                    ? "border-[#62A0EA]/45 bg-[#1A5FB4]/20 text-white"
-                    : "border-white/10 bg-[#0E1628] text-white/60 hover:border-white/20 hover:text-white"
-                }`}
-              >
-                {cat.label}
-              </button>
-            ))}
-          </div>
+              {/* Posted-within window on the left, categories to its right.
+                  Stack on phones so each control has its own row. */}
+              <div className="flex min-w-0 flex-col gap-2.5 md:flex-row md:items-center md:gap-3 lg:col-span-2">
+                <RubberSegment<TimeRange>
+                  items={TIME_RANGE_OPTIONS}
+                  value={timeRange}
+                  onChange={handleTimeRangeChange}
+                  aria-label="Filter by date posted"
+                  size="md"
+                  radius={8}
+                  inset={3}
+                  trackColor="#0E1628"
+                  thumbColor="#143A6B"
+                  textColor="#FFFFFF"
+                  activeTextColor="#FFFFFF"
+                  className="w-full flex-shrink-0 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] md:w-auto"
+                />
+                <span aria-hidden="true" className="hidden h-6 w-px flex-shrink-0 bg-white/10 md:block" />
+                <div role="group" aria-label="Filter by category" className="-mx-4 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:px-0 [&::-webkit-scrollbar]:hidden">
+                  {categories.map(cat => (
+                    <button
+                      key={cat.value}
+                      type="button"
+                      onClick={() => handleCategoryChange(cat.value)}
+                      aria-pressed={activeCategory === cat.value}
+                      className={`h-9 flex-shrink-0 rounded-md border px-3 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${
+                        activeCategory === cat.value
+                          ? "border-[#62A0EA]/45 bg-[#1A5FB4]/20 text-white"
+                          : "border-white/10 bg-[#0E1628] text-white/60 hover:border-white/20 hover:text-white"
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
 
           {activeChipCount > 0 && (
@@ -290,7 +310,7 @@ export default function LostAndFoundPage() {
       </div>
 
       {/* --- GRID --- */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto">
        <div className="mx-auto flex min-h-full w-full max-w-7xl flex-col p-4 pb-28 lg:p-8 lg:pb-8">
         {isLoading ? (
           activeTab === "MY_CLAIMS" ? (
@@ -543,7 +563,7 @@ export default function LostAndFoundPage() {
                       </button>
                     );
                   })()}
-                  <button onClick={() => toggleWatchlist(detailItem.id)} className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border transition-colors ${watchlist.has(detailItem.id) ? "border-[#62A0EA]/35 bg-[#1A5FB4]/20 text-[#62A0EA]" : "border-white/10 bg-white/5 text-white/50 hover:bg-white/10 hover:text-white"}`} aria-label={watchlist.has(detailItem.id) ? "Remove from watchlist" : "Add to watchlist"}>
+                  <button onClick={() => toggleWatchlist(detailItem.id)} className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border transition-colors ${watchlist.has(detailItem.id) ? "border-[#62A0EA]/35 bg-[#1A5FB4]/20 text-[#62A0EA]" : "border-white/10 bg-white/5 text-white/50 hover:bg-white/10 hover:text-white"}`} aria-label={watchlist.has(detailItem.id) ? "Remove bookmark" : "Bookmark item"}>
                     <Bookmark className={`h-5 w-5 ${watchlist.has(detailItem.id) ? "fill-current" : ""}`} />
                   </button>
                 </div>

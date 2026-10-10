@@ -12,6 +12,7 @@ import { getCommuterTypeLabel } from "@/types";
 import { QrScanner } from "@/components/commuter/feedback/qr-scanner";
 import CommuterDock from "@/components/commuter/commuter-dock";
 import CommuterProfileModal from "@/components/commuter/commuter-profile-modal";
+import MobileNavHighlight, { useMobileNavHighlight } from "@/components/shared/mobile-nav-highlight";
 
 /**
  * Spell out what the Rewards badge is counting for screen readers — the number
@@ -48,13 +49,8 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
   const { availableVoucherCount } = useRewardsData();
   const rewardsBadge = unreadCount + availableVoucherCount;
 
-  const [activeDotIndex, setActiveDotIndex] = useState(
-    navItems.findIndex((item) => item.href === pathname)
-  );
-
-  const handleNav = (href: string, index: number) => {
-    setActiveDotIndex(index);
-  };
+  const mobileActiveHref = showFeedbackScan ? "/feedback" : pathname;
+  const { navRowRef, highlightRef, iconRefs } = useMobileNavHighlight(mobileActiveHref);
 
   const navItemsWithBadges = navItems.map(item => {
     if (item.href === "/rewards") {
@@ -93,7 +89,7 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex-1 py-6 px-4 space-y-1">
-          {navItemsWithBadges.map((item, index) => {
+          {navItemsWithBadges.map((item) => {
             const isActive = pathname === item.href;
             const isFeedback = item.href === "/feedback";
             const className = `relative flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 min-w-0 ${
@@ -130,7 +126,6 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => handleNav(item.href, index)}
                 aria-label={label}
                 className={className}
               >
@@ -161,26 +156,25 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
         {/* --- MOBILE BOTTOM NAV --- */}
         {/* Chrome matches components/conductor/conductor-bottom-nav.tsx so both
             roles read as the same app: same surface, blur, lift shadow and
-            rounded-2xl icon chips. */}
+            circular highlight and slide animation. */}
         <nav className="absolute bottom-0 inset-x-0 z-50 lg:hidden pb-safe">
           <div className="bg-[#0B1E33]/90 backdrop-blur-2xl shadow-[0_-4px_30px_rgba(0,0,0,0.3)] border-t border-white/[0.06]">
-            <div className="relative grid grid-cols-5 max-w-lg mx-auto pt-1 pb-1 md:pt-1.5 md:pb-1.5">
-              <div
-                className="absolute top-1.5 w-1.5 h-1.5 rounded-full bg-[#62A0EA] transition-all duration-300 ease-in-out"
-                style={{ left: `calc(${activeDotIndex * (100/5) + (100/10)}% - 3px)` }}
-              />
+            <div ref={navRowRef} className="relative grid grid-cols-5 max-w-lg mx-auto pt-1 pb-1 md:pt-1.5 md:pb-1.5">
+              <MobileNavHighlight highlightRef={highlightRef} />
 
-              {navItemsWithBadges.map((item, index) => {
-                const isActive = pathname === item.href;
+              {navItemsWithBadges.map((item) => {
+                const isActive = mobileActiveHref === item.href;
                 const isFeedback = item.href === "/feedback";
                 const label = item.badge > 0 ? `${item.label} — ${item.badgeLabel}` : undefined;
                 const content = (
                   <>
                     <div
-                      className={`relative flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-2xl transition-all duration-300 ease-out ${
-                        isActive
-                          ? "bg-[#1A5FB4] shadow-lg shadow-[#1A5FB4]/25"
-                          : "hover:bg-white/[0.06]"
+                      ref={(element) => {
+                        if (element) iconRefs.current.set(item.href, element);
+                        else iconRefs.current.delete(item.href);
+                      }}
+                      className={`relative flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-full transition-colors duration-300 ${
+                        isActive ? "" : "hover:bg-white/[0.06]"
                       }`}
                     >
                       <item.icon className={`w-[17px] h-[17px] md:w-[18px] md:h-[18px] transition-colors duration-300 ${isActive ? "text-white" : "text-white/40 group-hover:text-white/70"}`} />
@@ -208,7 +202,7 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
                     type="button"
                     onClick={() => setShowFeedbackScan(true)}
                     aria-label={label}
-                    className="flex flex-col items-center justify-center py-1 relative group"
+                    className="flex flex-col items-center justify-center py-1 relative z-10 group"
                   >
                     {content}
                   </button>
@@ -216,9 +210,9 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
                   <Link
                     key={item.href}
                     href={item.href}
-                    onClick={() => handleNav(item.href, index)}
                     aria-label={label}
-                    className="flex flex-col items-center justify-center py-1 relative group"
+                    aria-current={pathname === item.href ? "page" : undefined}
+                    className="flex flex-col items-center justify-center py-1 relative z-10 group"
                   >
                     {content}
                   </Link>

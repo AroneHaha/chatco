@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import MobileNavHighlight, { useMobileNavHighlight } from "@/components/shared/mobile-nav-highlight";
 
 const HomeIcon = ({ className }: { className?: string }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -37,42 +37,13 @@ const regularNavItems = [
 ];
 
 export default function ConductorBottomNav({ pathname }: { pathname: string }) {
-  const navRowRef = useRef<HTMLDivElement>(null);
-  const highlightRef = useRef<HTMLDivElement>(null);
-  const iconRefs = useRef(new Map<string, HTMLDivElement>());
-
-  useEffect(() => {
-    const positionHighlight = () => {
-      const row = navRowRef.current;
-      const highlight = highlightRef.current;
-      const activeIcon = iconRefs.current.get(pathname);
-      if (!row || !highlight) return;
-      if (!activeIcon) {
-        highlight.style.opacity = "0";
-        return;
-      }
-
-      const rowBounds = row.getBoundingClientRect();
-      const iconBounds = activeIcon.getBoundingClientRect();
-      highlight.style.transform = `translate(${iconBounds.left - rowBounds.left}px, ${iconBounds.top - rowBounds.top}px)`;
-      highlight.style.opacity = "1";
-    };
-
-    positionHighlight();
-    const observer = new ResizeObserver(positionHighlight);
-    if (navRowRef.current) observer.observe(navRowRef.current);
-    return () => observer.disconnect();
-  }, [pathname]);
+  const { navRowRef, highlightRef, iconRefs } = useMobileNavHighlight(pathname);
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-50 pb-safe">
       <div className="bg-[#0B1E33]/90 backdrop-blur-2xl shadow-[0_-4px_30px_rgba(0,0,0,0.3)] border-t border-white/[0.06]">
         <div ref={navRowRef} className="relative flex items-end justify-around px-4 pt-1 pb-1 md:pt-1.5 md:pb-1.5">
-          <div
-            ref={highlightRef}
-            aria-hidden="true"
-            className="absolute left-0 top-0 z-0 w-9 h-9 md:w-10 md:h-10 rounded-full bg-[#1A5FB4] shadow-lg shadow-[#1A5FB4]/25 opacity-0 pointer-events-none transition-[transform,opacity] duration-300 ease-out motion-reduce:duration-0"
-          />
+          <MobileNavHighlight highlightRef={highlightRef} />
 
           {/* Left pair */}
           {regularNavItems.slice(0, 2).map((item) => {
