@@ -153,6 +153,15 @@ class AppServiceProvider extends ServiceProvider
                 ->response($rateLimitResponse);
         });
 
+        // Five monitoring reads every 5s consume 60/min before navigation.
+        // Keep polling separate from other reads, with room for two tabs and
+        // initial loads, while retaining a bounded per-admin limit.
+        RateLimiter::for('admin-monitoring', function (Request $request) use ($rateLimitResponse) {
+            return Limit::perMinute(180)
+                ->by($request->user()?->id ?: $request->ip())
+                ->response($rateLimitResponse);
+        });
+
         // Admin read endpoints (e.g. user list/detail) — 60 req/min.
         RateLimiter::for('admin-read', function (Request $request) use ($rateLimitResponse) {
             return Limit::perMinute(60)

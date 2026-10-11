@@ -19,11 +19,13 @@ use App\Http\Controllers\Admin\AdminVoucherController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Commuter\CommuterController;
+use App\Http\Controllers\Commuter\EmailChangeController;
 use App\Http\Controllers\Commuter\FeedbackController;
 use App\Http\Controllers\Commuter\HailController;
 use App\Http\Controllers\Commuter\ShareRideController;
 use App\Http\Controllers\Commuter\SosController;
 use App\Http\Controllers\Commuter\VehicleLocationController;
+use App\Http\Controllers\Commuter\VehicleDetailsController;
 use App\Http\Controllers\Conductor\ConductorController;
 use App\Http\Controllers\Conductor\ConductorHailController;
 use App\Http\Controllers\Conductor\MobileTransactionController;
@@ -102,8 +104,17 @@ Route::middleware('auth:sanctum')->get('/user', [AuthController::class, 'user'])
 |--------------------------------------------------------------------------
 */
 Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(function () {
+    Route::get('/vehicles/{vehicle}/details', VehicleDetailsController::class)->middleware('throttle:conductor-read');
     Route::get('/profile', [CommuterController::class, 'profile'])->middleware('throttle:conductor-read');
     Route::put('/profile', [CommuterController::class, 'updateProfile'])->middleware('throttle:conductor-write');
+    Route::get('/change-email', [EmailChangeController::class, 'state'])->middleware('throttle:commuter-read');
+    Route::prefix('change-email')->middleware('throttle:commuter-security')->group(function () {
+        Route::post('/start', [EmailChangeController::class, 'start']);
+        Route::post('/send-code', [EmailChangeController::class, 'sendCode']);
+        Route::post('/verify-identity', [EmailChangeController::class, 'verifyIdentity']);
+        Route::post('/confirm', [EmailChangeController::class, 'confirm']);
+        Route::post('/cancel', [EmailChangeController::class, 'cancel']);
+    });
     Route::post('/change-password/request-code', [CommuterController::class, 'requestPasswordChangeCode'])->middleware('throttle:conductor-write');
     Route::post('/change-password/confirm', [CommuterController::class, 'confirmPasswordChange'])->middleware('throttle:conductor-write');
     Route::get('/trips', [CommuterController::class, 'trips'])->middleware('throttle:conductor-read');
@@ -154,6 +165,7 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
     // when the admin acknowledges / resolves. Read-throttled (60/min) so the
     // modal can poll every 3s. Scoped to auth commuter in the service.
     Route::get('/sos/{id}', [SosController::class, 'show'])->middleware('throttle:conductor-read');
+    Route::patch('/sos/{id}/stop', [SosController::class, 'stop'])->middleware('throttle:conductor-write');
 
     // Lost & Found watchlist (S6-T3) — commuter's bookmarked items.
     // The browse + claim + watchlist toggle endpoints live in the shared
@@ -212,6 +224,7 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->grou
     // so the modal can poll every 3s. Scoped to the auth conductor in the service.
     Route::post('/sos', [App\Http\Controllers\Conductor\SosController::class, 'trigger'])->middleware('throttle:conductor-mutation');
     Route::get('/sos/{id}', [App\Http\Controllers\Conductor\SosController::class, 'show'])->middleware('throttle:conductor-read');
+    Route::patch('/sos/{id}/stop', [App\Http\Controllers\Conductor\SosController::class, 'stop'])->middleware('throttle:conductor-write');
 
     // GPS updates — allows 5-second cadence with headroom for retries/reconnects
     Route::post('/location', [ConductorController::class, 'updateLocation'])->middleware('throttle:conductor-gps');
@@ -237,98 +250,8 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->grou
     Route::post('/hails/{id}/reject', [ConductorHailController::class, 'reject'])->middleware('throttle:conductor-write');
 });
 
-/*
-|--------------------------------------------------------------------------
-| Mobile Specific Conductor Routes (Phase 1 Isolation)
-|--------------------------------------------------------------------------
-| Dedicated namespace /api/v1/mobile/conductor/* for mobile app clients.
-| Isolates mobile traffic from web conductor traffic so future platform-specific
-| behaviors can evolve independently without breaking web endpoints.
-|--------------------------------------------------------------------------
-*/
-Route::prefix('mobile/conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->group(function () {
-    Route::get('/shift', [ConductorController::class, 'shiftStatus'])->middleware('throttle:conductor-read');
-    Route::get('/shift-logs', [ConductorController::class, 'shiftLogs'])->middleware('throttle:conductor-read');
-    Route::get('/profile', [ConductorController::class, 'profile'])->middleware('throttle:conductor-read');
-    Route::get('/units', [ConductorController::class, 'units'])->middleware('throttle:conductor-read');
-    Route::get('/drivers', [ConductorController::class, 'drivers'])->middleware('throttle:conductor-read');
-    Route::get('/receipt-settings', [ConductorController::class, 'receiptSettings'])->middleware('throttle:conductor-read');
-    Route::get('/ratings', [ConductorController::class, 'ratings'])->middleware('throttle:conductor-read');
-
-    Route::post('/shifts/start', [ConductorController::class, 'startShift'])->middleware(['maintenance', 'throttle:conductor-mutation']);
-    Route::post('/shifts/device/claim', [ConductorController::class, 'claimShiftDevice'])->middleware('throttle:conductor-mutation');
-    Route::post('/shifts/device/release', [ConductorController::class, 'releaseShiftDevice'])->middleware('throttle:conductor-mutation');
-    Route::post('/remittances', [ConductorController::class, 'remittances'])->middleware('throttle:conductor-mutation');
-    Route::get('/remittances', [ConductorController::class, 'remittancesIndex'])->middleware('throttle:conductor-read');
-
-    Route::post('/sos', [App\Http\Controllers\Conductor\SosController::class, 'trigger'])->middleware('throttle:conductor-mutation');
-    Route::get('/sos/{id}', [App\Http\Controllers\Conductor\SosController::class, 'show'])->middleware('throttle:conductor-read');
-
-    Route::post('/location', [ConductorController::class, 'updateLocation'])->middleware('throttle:conductor-gps');
-    Route::post('/capacity-status', [ConductorController::class, 'updateCapacityStatus'])->middleware('throttle:conductor-write');
-    Route::post('/break-status', [ConductorController::class, 'updateBreakStatus'])->middleware('throttle:conductor-write');
-
-    Route::get('/transactions', [MobileTransactionController::class, 'index'])->middleware('throttle:conductor-read');
-    Route::post('/transactions', [MobileTransactionController::class, 'store'])->middleware('throttle:conductor-write');
-    Route::post('/transactions/sync', [MobileTransactionController::class, 'syncBatch'])->middleware('throttle:conductor-write');
-    Route::post('/payments/gcash/initiate', [ConductorController::class, 'initiateGcash'])->middleware('throttle:conductor-write');
-    Route::get('/payments/gcash/pending', [ConductorController::class, 'pendingGcash'])->middleware('throttle:conductor-read');
-    Route::get('/earnings', [ConductorController::class, 'earnings'])->middleware('throttle:conductor-read');
-
-    Route::get('/hails', [ConductorHailController::class, 'index'])->middleware('throttle:conductor-read');
-    Route::post('/hails/{id}/accept', [ConductorHailController::class, 'accept'])->middleware('throttle:conductor-write');
-    Route::post('/hails/{id}/reject', [ConductorHailController::class, 'reject'])->middleware('throttle:conductor-write');
-});
-
-/*
-|--------------------------------------------------------------------------
-| Mobile Specific Commuter Routes (Phase 1 Isolation)
-|--------------------------------------------------------------------------
-| Dedicated namespace /api/v1/mobile/commuter/* for commuter mobile app clients.
-| Isolates mobile commuter traffic from web commuter traffic so platform-specific
-| behaviors can evolve independently without breaking web endpoints.
-|--------------------------------------------------------------------------
-*/
-Route::prefix('mobile/commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(function () {
-    Route::get('/profile', [CommuterController::class, 'profile'])->middleware('throttle:conductor-read');
-    Route::put('/profile', [CommuterController::class, 'updateProfile'])->middleware('throttle:conductor-write');
-    Route::post('/change-password/request-code', [CommuterController::class, 'requestPasswordChangeCode'])->middleware('throttle:conductor-write');
-    Route::post('/change-password/confirm', [CommuterController::class, 'confirmPasswordChange'])->middleware('throttle:conductor-write');
-    Route::get('/trips', [CommuterController::class, 'trips'])->middleware('throttle:conductor-read');
-    Route::get('/rewards', [CommuterController::class, 'rewards'])->middleware('throttle:conductor-read');
-    Route::post('/location', [CommuterController::class, 'updateLocation'])->middleware('throttle:commuter-hail');
-
-    Route::post('/share-ride', [ShareRideController::class, 'store'])->middleware('throttle:commuter-hail');
-    Route::delete('/share-ride', [ShareRideController::class, 'destroy'])->middleware('throttle:commuter-hail');
-
-    Route::post('/hail', [HailController::class, 'store'])->middleware('throttle:commuter-hail');
-    Route::delete('/hail/{id}', [HailController::class, 'destroy'])->middleware('throttle:commuter-hail');
-
-    Route::post('/payments/claim', [PaymentController::class, 'claim'])->middleware('throttle:commuter-hail');
-    Route::get('/payments', [PaymentController::class, 'history'])->middleware('throttle:conductor-read');
-    Route::post('/receipts/claim', [PaymentController::class, 'claimReceipt'])->middleware('throttle:commuter-hail');
-    Route::post('/payments/{id}/redeem-voucher', [PaymentController::class, 'redeemVoucher'])->middleware('throttle:commuter-hail');
-
-    Route::post('/feedback', [FeedbackController::class, 'store'])->middleware('throttle:commuter-feedback');
-    Route::get('/feedback', [FeedbackController::class, 'index'])->middleware('throttle:conductor-read');
-
-    Route::post('/sos', [SosController::class, 'trigger'])->middleware('throttle:sos');
-    Route::get('/sos/{id}', [SosController::class, 'show'])->middleware('throttle:conductor-read');
-
-    Route::get('/watchlist', [LostItemController::class, 'myWatchlist'])->middleware('throttle:conductor-read');
-    Route::get('/claims', [LostItemController::class, 'myClaims'])->middleware('throttle:conductor-read');
-
-    Route::post('/qr/validate', [QrController::class, 'verify'])->middleware('throttle:commuter-write');
-    Route::post('/qr/scan', [QrController::class, 'scan'])->middleware('throttle:commuter-write');
-    Route::post('/qr/scan-public', [QrController::class, 'scanPublic'])->middleware('throttle:commuter-write');
-
-    Route::get('/vehicles/locations', [VehicleLocationController::class, 'index'])->middleware('throttle:vehicle-locations');
-
-    Route::get('/announcements', [AnnouncementController::class, 'index'])->middleware('throttle:commuter-read');
-    Route::get('/announcements/unread-count', [AnnouncementController::class, 'unreadCount'])->middleware('throttle:commuter-read');
-    Route::post('/announcements/mark-all-read', [AnnouncementController::class, 'markAllRead'])->middleware('throttle:commuter-write');
-    Route::post('/announcements/{id}/read', [AnnouncementController::class, 'markRead'])->middleware('throttle:commuter-write');
-});
+// Mobile contracts live separately; all legacy web routes remain registered.
+require __DIR__.'/mobile.php';
 
 /*
 |--------------------------------------------------------------------------
@@ -347,9 +270,9 @@ Route::prefix('vehicles')->middleware(['auth:sanctum'])->group(function () {
 Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(function () {
     Route::get('/dashboard', [AdminController::class, 'dashboard']);
     Route::get('/analytics', [AdminController::class, 'analytics'])->middleware('throttle:conductor-read');
-    Route::get('/monitoring', [AdminController::class, 'monitoring'])->middleware('throttle:conductor-read');
-    Route::get('/monitoring/overspeed', [AdminController::class, 'overspeed'])->middleware('throttle:conductor-read');
-    Route::get('/monitoring/demand-zones', [AdminController::class, 'demandZones'])->middleware('throttle:conductor-read');
+    Route::get('/monitoring', [AdminController::class, 'monitoring'])->middleware('throttle:admin-monitoring');
+    Route::get('/monitoring/overspeed', [AdminController::class, 'overspeed'])->middleware('throttle:admin-monitoring');
+    Route::get('/monitoring/demand-zones', [AdminController::class, 'demandZones'])->middleware('throttle:admin-monitoring');
     Route::get('/users', [AdminUserController::class, 'index'])->middleware('throttle:conductor-read');
     Route::get('/users/{id}', [AdminUserController::class, 'show'])->middleware('throttle:conductor-read');
     Route::put('/users/{id}', [AdminUserController::class, 'update'])->middleware('throttle:conductor-write');
@@ -452,7 +375,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     // ── SOS alert management (S6-T5) ────────────────────────────
     // Admins monitor the live feed, acknowledge alerts (signal 'I see this'),
     // and resolve them when the situation is handled.
-    Route::get('/sos', [AdminSosController::class, 'index'])->middleware('throttle:conductor-read');
+    Route::get('/sos', [AdminSosController::class, 'index'])->middleware('throttle:admin-monitoring');
     Route::patch('/sos/{id}/acknowledge', [AdminSosController::class, 'acknowledge'])->middleware('throttle:admin-write');
     Route::patch('/sos/{id}/resolve', [AdminSosController::class, 'resolve'])->middleware('throttle:admin-write');
 

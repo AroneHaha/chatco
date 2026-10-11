@@ -105,7 +105,8 @@ class AdminRegistrationController extends Controller
      * Mirrors AuthService::register() but:
      *   - gender is optional (defaults to 'UNSPECIFIED') — the admin onsite
      *     flow is faster and may not collect gender
-     *   - no password confirmation (the admin sets it directly)
+     *   - no password collection (the commuter sets it through Forgot password
+     *     after approval; the initial password is random and never disclosed)
      *   - no email verification flow (admin-created accounts skip it)
      *
      * The account appears in the Pending Verification tab immediately, where
@@ -125,7 +126,6 @@ class AdminRegistrationController extends Controller
             'email' => ['required', 'string', 'email:rfc', 'max:255'],
             'contact_number' => ['required', 'string', new PhilippineMobileNumber],
             'username' => ['required', 'string', 'max:50', 'unique:commuter_profiles,username'],
-            'password' => ['required', 'string', 'min:8', 'max:128'],
             'language_preference' => ['nullable', 'string', 'max:20'],
             'applied_type' => ['required', 'string', Rule::in(['REGULAR', 'STUDENT', 'SENIOR', 'PWD'])],
             'id_image' => ['required', 'file', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
@@ -179,7 +179,7 @@ class AdminRegistrationController extends Controller
             $created = DB::transaction(function () use ($validated, $userId, $idImagePath) {
                 $user = new User([
                     'email' => $validated['email'],
-                    'password' => $validated['password'], // 'hashed' cast on User
+                    'password' => Str::random(64), // 'hashed' cast on User
                     'role' => UserRole::COMMUTER,
                 ]);
                 $user->id = $userId;
