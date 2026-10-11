@@ -315,18 +315,18 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
   };
 
   return (
-    <section className="space-y-4 rounded-2xl border border-[#62A0EA]/20 bg-[#071A2E] p-5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div>
+    <section className="min-w-0 space-y-4 rounded-2xl border border-[#62A0EA]/20 bg-[#071A2E] p-5">
+      <div className="flex flex-col gap-3 @[40rem]/fare-matrix:flex-row @[40rem]/fare-matrix:items-start @[40rem]/fare-matrix:justify-between">
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <GitBranch className="text-[#62A0EA]" size={20} />
+            <GitBranch className="shrink-0 text-[#62A0EA]" size={20} />
             <h2 className="font-bold text-white">Published Route Editor</h2>
           </div>
           <p className="mt-1 max-w-2xl text-xs text-white/45">
             Use Insert Correction to fix a middle street, or Extend Route to add at the end. Drag numbered points to fine-tune. Changes remain drafts until published.
           </p>
         </div>
-        <div className="rounded-xl border border-white/10 bg-[#050F1A] px-4 py-2 text-xs text-white/60">
+        <div className="shrink-0 rounded-xl border border-white/10 bg-[#050F1A] px-4 py-2 text-xs text-white/60">
           <p>Live version: <span className="font-bold text-white">{route.active_version ? `v${route.active_version.number}` : "None"}</span></p>
           <p className="mt-0.5">{route.active_version?.is_temporary ? "Temporary detour active" : "Permanent route"}</p>
         </div>
@@ -366,45 +366,42 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
         </div>
       )}
 
-      {/* items-stretch (grid's default, made explicit here) + h-full on the
-          map: the sidebar's stacked controls run well past the map's old
-          fixed 480px, so the map stretches to match the sidebar's actual
-          height instead of sitting short beside a much taller column.
-          min-h-[480px] keeps a sane floor for the sub-xl single-column
-          layout, where the sidebar sits in its own row below the map. */}
-      <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="h-full min-h-120 overflow-hidden rounded-2xl border border-white/10">
-          <MapContainer center={mapCenter} zoom={12} className="h-full w-full" attributionControl>
-            <TileLayer
-              url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            />
-            {activeGeometry.length >= 2 && (
-              <Polyline positions={activeGeometry} pathOptions={{ color: "#64748B", weight: 6, opacity: 0.45 }} />
-            )}
-            {previewGeometry.length >= 2 && (
-              <Polyline positions={previewGeometry} pathOptions={{ color: "#60A5FA", weight: 5, opacity: 0.95 }} />
-            )}
-            {waypoints.map((coordinate, index) => (
-              <Marker
-                key={`${index}-${coordinate[0]}-${coordinate[1]}`}
-                position={coordinate}
-                icon={numberedIcon(index, warningWaypointIndexes.has(index))}
-                draggable
-                eventHandlers={{
-                  dragend(event) {
-                    const next = event.target.getLatLng();
-                    moveWaypoint(index, [next.lat, next.lng]);
-                  },
-                }}
+      {/* Stack in the drawer; stretch beside the controls when the page has room. */}
+      <div className="grid min-w-0 items-stretch gap-4 @[56rem]/fare-matrix:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="relative h-120 min-w-0 overflow-hidden rounded-2xl border border-white/10 @[56rem]/fare-matrix:h-auto @[56rem]/fare-matrix:min-h-120">
+          <div className="absolute inset-0">
+            <MapContainer center={mapCenter} zoom={12} className="h-full w-full" attributionControl>
+              <TileLayer
+                url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               />
-            ))}
-            <RouteMapEvents onAdd={addWaypoint} />
-            <FitGeometry coordinates={displayedGeometry} routeId={route.id} request={fitRequest} />
-          </MapContainer>
+              {activeGeometry.length >= 2 && (
+                <Polyline positions={activeGeometry} pathOptions={{ color: "#64748B", weight: 6, opacity: 0.45 }} />
+              )}
+              {previewGeometry.length >= 2 && (
+                <Polyline positions={previewGeometry} pathOptions={{ color: "#60A5FA", weight: 5, opacity: 0.95 }} />
+              )}
+              {waypoints.map((coordinate, index) => (
+                <Marker
+                  key={`${index}-${coordinate[0]}-${coordinate[1]}`}
+                  position={coordinate}
+                  icon={numberedIcon(index, warningWaypointIndexes.has(index))}
+                  draggable
+                  eventHandlers={{
+                    dragend(event) {
+                      const next = event.target.getLatLng();
+                      moveWaypoint(index, [next.lat, next.lng]);
+                    },
+                  }}
+                />
+              ))}
+              <RouteMapEvents onAdd={addWaypoint} />
+              <FitGeometry coordinates={displayedGeometry} routeId={route.id} request={fitRequest} />
+            </MapContainer>
+          </div>
         </div>
 
-        <div className="space-y-3">
+        <div className="min-w-0 space-y-3">
           <div className="grid grid-cols-2 gap-2 rounded-xl border border-white/10 bg-[#050F1A] p-1.5">
             <button
               type="button"
@@ -492,7 +489,7 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
         {versions.length === 0 ? (
           <p className="rounded-xl border border-white/5 bg-[#050F1A]/70 px-3 py-2 text-xs text-white/35">No versions saved yet.</p>
         ) : (
-          <div className="grid max-h-56 gap-2 overflow-y-auto pr-1 md:grid-cols-3">
+          <div className="grid max-h-56 gap-2 overflow-y-auto pr-1 @[40rem]/fare-matrix:grid-cols-2 @[56rem]/fare-matrix:grid-cols-3">
             {versions.map((version) => (
               <div key={version.id} className="rounded-xl border border-white/5 bg-[#050F1A]/70 px-3 py-2 text-xs">
                 <div className="flex items-center justify-between">
@@ -509,8 +506,8 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
         )}
       </div>
 
-      <p className="flex items-center gap-1.5 text-[10px] text-white/30">
-        <MapPin size={12} /> The gray line is live. The blue line is the preview. Publishing updates tracking and route coverage together.
+      <p className="flex items-start gap-1.5 text-[10px] text-white/30">
+        <MapPin size={12} className="shrink-0" /> The gray line is live. The blue line is the preview. Publishing updates tracking and route coverage together.
       </p>
     </section>
   );

@@ -20,7 +20,7 @@ const LINKS = [
 
 const MARKER = 18; // px, the jeepney marker's width
 
-export default function Navbar() {
+export default function Navbar({ onHomePage = true }: { onHomePage?: boolean }) {
   const navRef = useRef<HTMLElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -160,7 +160,7 @@ export default function Navbar() {
       }`}
     >
       <div className="max-w-7xl mx-auto px-5 md:px-8 flex items-center justify-between lg:grid lg:grid-cols-[auto_1fr_auto] xl:grid-cols-[1fr_auto_1fr] h-16">
-        <a href="#" className={`flex items-center gap-3 shrink-0 rounded-md ${focus}`} aria-label="CHATCO, back to top">
+        <a href={onHomePage ? "#" : "/"} className={`flex items-center gap-3 shrink-0 rounded-md ${focus}`} aria-label={onHomePage ? "CHATCO, back to top" : "CHATCO home"}>
           <Image src={logo} alt="" width={40} height={40} className="rounded-lg" priority />
           <span className="text-lg font-bold tracking-tight text-white">CHATCO</span>
         </a>
@@ -171,7 +171,7 @@ export default function Navbar() {
             return (
               <a
                 key={l.id}
-                href={`#${l.id}`}
+                href={`${onHomePage ? "" : "/"}#${l.id}`}
                 aria-current={on ? "location" : undefined}
                 className={`relative px-2 xl:px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors rounded-md ${focus} ${
                   on ? "text-white" : "text-white/60 hover:text-white"
@@ -255,7 +255,7 @@ export default function Navbar() {
                   return (
                     <li key={l.id} className="border-b border-white/10 last:border-0">
                       <a
-                        href={`#${l.id}`}
+                        href={`${onHomePage ? "" : "/"}#${l.id}`}
                         onClick={() => setMenuOpen(false)}
                         aria-current={on ? "location" : undefined}
                         className={`flex items-center justify-between py-4 font-sans text-base sm:text-lg font-semibold tracking-tight transition-colors ${focus} ${

@@ -161,17 +161,13 @@ function MetricCard({
 // A small uppercase "eyebrow" that groups a block of cards under a named
 // category — the dashboard used to lay all 8 KPI tiles out as two visually
 // identical rows with nothing distinguishing "money" from "operations to
-// watch." `live` swaps the static dot for the pulsing one already used by
-// Live Fleet, so a glance tells you whether a group is range-scoped or
-// happening right now.
+// watch." `live` uses a static green dot to distinguish current activity
+// from range-scoped groups.
 function SectionEyebrow({ children, live = false }: { children: React.ReactNode; live?: boolean }) {
   return (
     <div className="flex items-center gap-2">
       {live ? (
-        <span className="relative flex h-2 w-2 shrink-0">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-        </span>
+        <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
       ) : (
         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#62A0EA]" />
       )}

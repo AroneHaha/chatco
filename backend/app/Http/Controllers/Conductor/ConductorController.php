@@ -198,6 +198,8 @@ class ConductorController extends Controller
             'receipt_show_conductor' => 'true',
             'receipt_show_passenger' => 'true',
             'receipt_show_fare_breakdown' => 'true',
+            'receipt_show_qr_code' => 'true',
+            'receipt_show_manual_code' => 'true',
         ];
 
         $saved = Setting::where('category', 'receipt')

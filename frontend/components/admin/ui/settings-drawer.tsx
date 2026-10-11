@@ -3,6 +3,7 @@
 
 import { createContext, useContext, useState, useCallback, ReactNode, Suspense, lazy, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
+import { SkeletonFareMatrix } from './skeleton/skeleton-fare-matrix';
 import {
   X, Calculator, PiggyBank, Ticket, Gauge,
   Shield, MessageCircleQuestion, Settings2, Sliders, ArrowLeft, Printer
@@ -220,7 +221,7 @@ export function SettingsDrawer() {
           // pt-6: every settings page's wrapper is pb-only, so without this the
           // page title sat flush against the drawer's header bar.
           <div key={activeHref} className={`min-h-0 flex-1 bg-[#0B1120] overflow-y-auto ${isReceiptView ? '' : 'pt-6'}`}>
-            <Suspense fallback={<DrawerLoader />}>
+            <Suspense fallback={activeHref === '/settings/fare-matrix' ? <SkeletonFareMatrix /> : <DrawerLoader />}>
               <ActiveComponent />
             </Suspense>
           </div>
