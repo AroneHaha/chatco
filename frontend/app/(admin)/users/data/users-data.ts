@@ -141,7 +141,7 @@ function mapToActiveUser(u: AdminUser): ActiveUser {
     status: u.statusLabel === "Suspended" || u.statusLabel === "Disabled" ? u.statusLabel : "Active",
     commuterType: u.commuterTypeLabel,
     languagePreference: "English",
-    idImageUrl: "",
+    idImageUrl: u.idImageUrl ?? "",
     username: u.username,
     verifiedAt: u.verifiedAt,
     role: u.role,

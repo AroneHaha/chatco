@@ -100,7 +100,11 @@ class AdminUserManagementTest extends TestCase
     {
         [$admin, $headers] = $this->asAdmin();
         $this->makeConductor();
-        $this->makeCommuter();
+        $commuter = $this->makeCommuter();
+        $commuter->commuterProfile->update([
+            'id_image_url' => 'ids/commuters/'.$commuter->id.'/valid-id.png',
+            'middle_name' => 'Dela Cruz', 'suffix' => 'Jr.', 'applied_type' => 'STUDENT',
+        ]);
 
         $response = $this->withHeaders($headers)->getJson('/api/v1/admin/users');
 
@@ -110,6 +114,16 @@ class AdminUserManagementTest extends TestCase
         ]);
         $this->assertEquals(3, $response->json('data.total')); // admin + conductor + commuter
         $this->assertStringNotContainsStringIgnoringCase('password', $response->getContent());
+        $commuterRow = collect($response->json('data.data'))->firstWhere('id', $commuter->id);
+        $this->assertStringContainsString('ids/commuters/'.$commuter->id.'/valid-id.png', $commuterRow['id_image_url']);
+        $this->assertSame('Jose', $commuterRow['first_name']);
+        $this->assertSame('Dela Cruz', $commuterRow['middle_name']);
+        $this->assertSame('Mendoza', $commuterRow['last_name']);
+        $this->assertSame('Jr.', $commuterRow['suffix']);
+        $this->assertSame('1998-05-12', $commuterRow['birthdate']);
+        $this->assertSame('Male', $commuterRow['gender']);
+        $this->assertSame('STUDENT', $commuterRow['applied_type']);
+        $this->assertNull(collect($response->json('data.data'))->firstWhere('id', $admin->id)['id_image_url']);
     }
 
     public function test_list_filters_by_role(): void

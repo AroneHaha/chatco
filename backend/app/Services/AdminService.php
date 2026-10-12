@@ -1176,7 +1176,7 @@ class AdminService
         return [
             'adminProfile:id,first_name,middle_name,last_name',
             'conductorProfile:id,first_name,middle_name,last_name,generated_username,status',
-            'commuterProfile:id,first_name,middle_name,surname,birthdate,contact_number,commuter_type,account_status,verified_at,username',
+            'commuterProfile:id,first_name,middle_name,suffix,surname,birthdate,gender,contact_number,commuter_type,applied_type,account_status,verified_at,username,id_image_url',
             'activeSuspension',
         ];
     }
@@ -1238,12 +1238,16 @@ class AdminService
             'name' => $user->getDisplayName(),
             'first_name' => $commuter?->first_name,
             'middle_name' => $commuter?->middle_name,
+            'suffix' => $commuter?->suffix,
             'last_name' => $commuter?->surname,
             'account_status' => $accountStatus,
             'commuter_type' => $commuter?->commuter_type,
+            'applied_type' => $commuter?->applied_type,
             'username' => $commuter?->username,
             'contact_number' => $commuter?->contact_number,
             'birthdate' => optional($commuter?->birthdate)->toDateString(),
+            'gender' => $commuter?->gender,
+            'id_image_url' => $this->registrationIdUrl($commuter?->id_image_url),
             'verified_at' => optional($commuter?->verified_at)->toIso8601String(),
             'created_at' => optional($user->created_at)->toIso8601String(),
             'suspension' => $suspension ? $this->presentSuspension($suspension) : null,
