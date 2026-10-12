@@ -185,8 +185,8 @@ export default function FareMatrixPage() {
 
   // New point form state
   const [newName, setNewName] = useState('');
-  const [newRegular, setNewRegular] = useState('18');
-  const [newDiscounted, setNewDiscounted] = useState('14.4');
+  const [newRegular, setNewRegular] = useState('17');
+  const [newDiscounted, setNewDiscounted] = useState('13.6');
   const [newSubStops, setNewSubStops] = useState('');
   const [newSubStopDraft, setNewSubStopDraft] = useState('');
   const [newLocation, setNewLocation] = useState<RouteCoordinate | null>(null);
@@ -327,15 +327,15 @@ export default function FareMatrixPage() {
         point_number: farePoints.length + 1,
         code: `P${String(farePoints.length + 1).padStart(2, '0')}`,
         name: newName.trim(),
-        regular_fare: parseFloat(newRegular) || 18,
-        discounted_fare: parseFloat(newDiscounted) || 14.4,
+        regular_fare: parseFloat(newRegular) || 17,
+        discounted_fare: parseFloat(newDiscounted) || 13.6,
         landmarks: null,
         sub_stops: normalizedSubStops || null,
         latitude: newLocation[0],
         longitude: newLocation[1],
       });
       showSuccess(`Point "${newName}" added successfully.`);
-      setNewName(''); setNewRegular('18'); setNewDiscounted('14.4'); setNewSubStops(''); setNewSubStopDraft('');
+      setNewName(''); setNewRegular('17'); setNewDiscounted('13.6'); setNewSubStops(''); setNewSubStopDraft('');
       setNewLocation(null);
       setShowAddForm(false);
       await Promise.all([fetchFarePoints(), fetchRoutes()]);
@@ -376,8 +376,8 @@ export default function FareMatrixPage() {
       setEditSubStopDraft('');
       await farePointService.update(point.id, {
         name: editName.trim(),
-        regular_fare: parseFloat(editRegular) || 18,
-        discounted_fare: parseFloat(editDiscounted) || 14.4,
+        regular_fare: parseFloat(editRegular) || 17,
+        discounted_fare: parseFloat(editDiscounted) || 13.6,
         // Saving an old row migrates its legacy landmark choices into the
         // canonical sub_stops field, so removals and additions stay in sync.
         landmarks: null,
@@ -584,7 +584,7 @@ export default function FareMatrixPage() {
           <div className="grid grid-cols-1 gap-3 @[28rem]/fare-matrix:grid-cols-3">
             <div className="bg-[#050F1A]/60 rounded-xl px-4 py-3 text-center border border-white/5">
               <p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold">Base Fare</p>
-              <p className="text-xl font-extrabold text-[#62A0EA] mt-1">₱18.00</p>
+              <p className="text-xl font-extrabold text-[#62A0EA] mt-1">₱17.00</p>
               <p className="text-[10px] text-white/25 mt-0.5">First 4 barangays</p>
             </div>
             <div className="bg-[#050F1A]/60 rounded-xl px-4 py-3 text-center border border-white/5">
@@ -783,7 +783,7 @@ export default function FareMatrixPage() {
                   No fare points found. Click &quot;Add Point Area&quot; to create one.
                 </div>
               ) : filteredPoints.map((point) => {
-                const isBaseZone = point.regularFare <= 18;
+                const isBaseZone = point.regularFare <= 17;
 
                 return (
                   <div key={point.pointNumber}>

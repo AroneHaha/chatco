@@ -170,10 +170,10 @@ export async function loadFareMatrix({
       // Map config
       cachedConfig = {
         baseBarangayCount: data.config.baseBarangayCount ?? 4,
-        baseFareRegular: data.config.baseFareRegular ?? 15.0,
-        baseFareDiscounted: data.config.baseFareDiscounted ?? 12.0,
+        baseFareRegular: data.config.baseFareRegular ?? 17.0,
+        baseFareDiscounted: data.config.baseFareDiscounted ?? 13.6,
         succeedingFareRegular: data.config.succeedingFareRegular ?? 2.25,
-        succeedingFareDiscounted: data.config.succeedingFareDiscounted ?? 1.75,
+        succeedingFareDiscounted: data.config.succeedingFareDiscounted ?? 1.8,
         totalPoints: data.config.totalPoints ?? data.points.length,
       };
       cachedRouteKey = routeKey;

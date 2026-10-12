@@ -1080,7 +1080,7 @@ class TransactionService
             return null;
         }
 
-        $minimum = (float) (Setting::where('key', 'base_fare_discounted')->value('value') ?? 12);
+        $minimum = (float) (Setting::where('key', 'base_fare_discounted')->value('value') ?? 13.6);
 
         return round(max(
             abs((float) $from->discounted_fare - (float) $to->discounted_fare),

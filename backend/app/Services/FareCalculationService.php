@@ -204,7 +204,7 @@ class FareCalculationService
     {
         $column = $discounted ? 'discounted_fare' : 'regular_fare';
         $setting = $discounted ? 'base_fare_discounted' : 'base_fare_regular';
-        $default = $discounted ? 12.0 : 15.0;
+        $default = $discounted ? 13.6 : 17.0;
         $minimum = (float) (Setting::where('key', $setting)->value('value') ?? $default);
 
         return round(max(abs((float) $pickup->{$column} - (float) $dropoff->{$column}), $minimum), 2);

@@ -174,10 +174,10 @@ class DatabaseSeeder extends Seeder
         // ════════════════════════════════════════════════════
 
         $BASE_BARANGAY_COUNT = 4;
-        $BASE_FARE_REGULAR = 15.00;
-        $BASE_FARE_DISCOUNTED = 12.00;
+        $BASE_FARE_REGULAR = 17.00;
+        $BASE_FARE_DISCOUNTED = 13.60;
         $SUCCEEDING_REGULAR = 2.25;
-        $SUCCEEDING_DISCOUNTED = 1.75;
+        $SUCCEEDING_DISCOUNTED = 1.80;
 
         foreach ($barangayStops as $index => $stop) {
             $pointNumber = $index + 1;
