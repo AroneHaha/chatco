@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import { Calculator } from "lucide-react";
 import { RequireRole, useAuth } from "@/contexts/auth-context";
 import { AnnouncementsProvider, useAnnouncements } from "@/contexts/announcements-context";
 import { RewardsProvider, useRewardsData } from "@/contexts/rewards-context";
@@ -12,6 +13,7 @@ import { getCommuterTypeLabel } from "@/types";
 import { QrScanner } from "@/components/commuter/feedback/qr-scanner";
 import CommuterDock from "@/components/commuter/commuter-dock";
 import CommuterProfileModal from "@/components/commuter/commuter-profile-modal";
+import CommuterFareModal from "@/components/commuter/commuter-fare-modal";
 import MobileNavHighlight, { useMobileNavHighlight } from "@/components/shared/mobile-nav-highlight";
 
 /**
@@ -159,7 +161,7 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
             circular highlight and slide animation. */}
         <nav className="absolute bottom-0 inset-x-0 z-50 lg:hidden pb-safe">
           <div className="bg-[#0B1E33]/90 backdrop-blur-2xl shadow-[0_-4px_30px_rgba(0,0,0,0.3)] border-t border-white/[0.06]">
-            <div ref={navRowRef} className="relative grid grid-cols-5 max-w-lg mx-auto pt-1 pb-1 md:pt-1.5 md:pb-1.5">
+            <div ref={navRowRef} className="relative grid grid-cols-6 max-w-lg mx-auto pt-1 pb-1 md:pt-1.5 md:pb-1.5">
               <MobileNavHighlight highlightRef={highlightRef} />
 
               {navItemsWithBadges.map((item) => {
@@ -189,7 +191,7 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
                       )}
                     </div>
 
-                    <span className={`text-[10px] font-medium mt-0.5 md:mt-1 transition-colors duration-300 leading-none truncate max-w-[64px] text-center ${
+                    <span className={`text-[10px] font-medium mt-0.5 md:mt-1 transition-colors duration-300 leading-none truncate max-w-full px-0.5 text-center ${
                       isActive ? "text-white" : "text-white/30 group-hover:text-white/50"
                     }`}>
                       {item.shortLabel || item.label}
@@ -202,7 +204,7 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
                     type="button"
                     onClick={() => setShowFeedbackScan(true)}
                     aria-label={label}
-                    className="flex flex-col items-center justify-center py-1 relative z-10 group"
+                    className="flex min-w-0 flex-col items-center justify-center py-1 relative z-10 group"
                   >
                     {content}
                   </button>
@@ -212,7 +214,7 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
                     href={item.href}
                     aria-label={label}
                     aria-current={pathname === item.href ? "page" : undefined}
-                    className="flex flex-col items-center justify-center py-1 relative z-10 group"
+                    className="flex min-w-0 flex-col items-center justify-center py-1 relative z-10 group"
                   >
                     {content}
                   </Link>
@@ -235,6 +237,7 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
 
       {/* --- PROFILE POPOVER (xl:+, opened from CommuterDock) --- */}
       <CommuterProfileModal />
+      <CommuterFareModal />
 
       {/* --- FEEDBACK QR SCAN MODAL --- */}
       {/* No backdrop-click-to-close — a live camera stream is running, same
@@ -277,9 +280,10 @@ const GiftIcon = ({ className }: { className?: string }) => (<svg className={cla
 const BellIcon = ({ className }: { className?: string }) => (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" /></svg>);
 const UserIcon = ({ className }: { className?: string }) => (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>);
 
-// Navigation items — 5 tabs
+// Navigation items — 6 tabs
 const navItems = [
   { href: "/dashboard", label: "Home", shortLabel: "Home", icon: HomeIcon },
+  { href: "/fare", label: "Fare", shortLabel: "Fare", icon: Calculator },
   { href: "/lost-and-found", label: "Lost & Found", shortLabel: "Lost & Found", icon: LostFoundIcon },
   { href: "/rewards", label: "Rewards & Announcements", shortLabel: "Rewards", icon: GiftIcon },
   { href: "/feedback", label: "Feedback", shortLabel: "Feedback", icon: BellIcon },

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import { PROFILE_ANCHOR_ID } from "@/components/commuter/commuter-profile-modal";
+import { FARE_ANCHOR_ID } from "@/components/commuter/commuter-fare-modal";
 
 export interface CommuterDockItem {
   href: string;
@@ -26,7 +27,7 @@ interface CommuterDockProps {
 }
 
 /**
- * xl:+ (1280px) counterpart to the commuter layout's sidebar — the same five
+ * xl:+ (1280px) counterpart to the commuter layout's sidebar — the same six
  * destinations, logo, and user identity, reflowed from a full-height rail
  * into a compact floating dock at the bottom of the viewport, mirroring
  * ConductorDock. Below xl: the ordinary sidebar (lg:) and bottom tab bar
@@ -35,8 +36,8 @@ interface CommuterDockProps {
  *
  * Layout only: every item routes/opens exactly what the sidebar's does (the
  * layout passes the same badge-augmented list to both), so there is no
- * second source of truth for what the commuter nav contains. The one
- * exception is Profile, which opens CommuterProfileModal as a popover here
+ * second source of truth for what the commuter nav contains. The
+ * exceptions are Profile and Fare, which open their respective popovers here
  * instead of navigating, the same way ConductorDock opens Settings.
  */
 export default function CommuterDock({
@@ -54,16 +55,21 @@ export default function CommuterDock({
   const pillRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef(new Map<string, HTMLElement>());
 
-  // Profile is a popover, not a route, so opening it doesn't change
-  // `pathname`. CommuterProfileModal reports its open state so Profile can
-  // show as active while it's up, and the route's tab again once it closes.
+  // The popovers report their open state so the dock highlights their tab
+  // while open and returns to the underlying route when they close.
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isFareOpen, setIsFareOpen] = useState(false);
   useEffect(() => {
     const handler = (e: Event) => setIsProfileOpen((e as CustomEvent<{ active: boolean }>).detail.active);
+    const fareHandler = (e: Event) => setIsFareOpen((e as CustomEvent<{ active: boolean }>).detail.active);
     window.addEventListener("commuter:profile-active-changed", handler);
-    return () => window.removeEventListener("commuter:profile-active-changed", handler);
+    window.addEventListener("commuter:fare-active-changed", fareHandler);
+    return () => {
+      window.removeEventListener("commuter:profile-active-changed", handler);
+      window.removeEventListener("commuter:fare-active-changed", fareHandler);
+    };
   }, []);
-  const activeKey = isProfileOpen ? "/profile" : pathname;
+  const activeKey = isFareOpen ? "/fare" : isProfileOpen ? "/profile" : pathname;
 
   // Every dock click closes an open popover first, so moving to another tab
   // never leaves the profile floating over it.
@@ -74,7 +80,7 @@ export default function CommuterDock({
       const pill = pillRef.current;
       if (!pill) return;
       const activeEl = itemRefs.current.get(activeKey);
-      // On a route that isn't one of the five tabs, hide the pill rather
+      // On a route that isn't one of the six tabs, hide the pill rather
       // than leaving it parked on whichever tab was active last.
       if (!activeEl) {
         pill.style.opacity = "0";
@@ -134,22 +140,24 @@ export default function CommuterDock({
               </>
             );
 
-            if (item.href === "/profile") {
+            if (item.href === "/profile" || item.href === "/fare") {
+              const isProfile = item.href === "/profile";
+              const isOpen = isProfile ? isProfileOpen : isFareOpen;
               return (
                 <button
                   key={item.href}
                   ref={(el) => { if (el) itemRefs.current.set(item.href, el); }}
-                  id={PROFILE_ANCHOR_ID}
+                  id={isProfile ? PROFILE_ANCHOR_ID : FARE_ANCHOR_ID}
                   type="button"
                   onClick={() => {
                     closePopovers();
-                    // Clicking Profile while it's open just closes it.
-                    if (isProfileOpen) return;
-                    window.dispatchEvent(new CustomEvent("commuter:open-profile"));
+                    // Clicking the active popover's tab closes it.
+                    if (isOpen) return;
+                    window.dispatchEvent(new CustomEvent(isProfile ? "commuter:open-profile" : "commuter:open-fare"));
                   }}
                   aria-label={ariaLabel}
                   aria-haspopup="dialog"
-                  aria-expanded={isProfileOpen}
+                  aria-expanded={isOpen}
                   title={item.label}
                   className={itemClass(isActive)}
                 >
