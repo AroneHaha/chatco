@@ -69,7 +69,7 @@ export default function ConductorEndOfDayModal() {
             <button
               onClick={close}
               aria-label="Close"
-              className="text-white/40 hover:text-white transition-colors cursor-pointer"
+              className="xl:hidden text-white/40 hover:text-white transition-colors cursor-pointer"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />

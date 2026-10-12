@@ -845,7 +845,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
               <h2 className="text-lg font-bold text-white">Collect Payment</h2>
               <button
                 onClick={handleClose}
-                className="text-white/40 hover:text-white transition-colors"
+                className="xl:hidden text-white/40 hover:text-white transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -988,7 +988,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                 </span>
                 <button
                   onClick={handleClose}
-                  className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+                  className="xl:hidden w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
