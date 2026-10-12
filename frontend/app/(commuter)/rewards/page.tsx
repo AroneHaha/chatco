@@ -24,6 +24,7 @@ const announcementConfig: Record<AnnouncementType, { label: string; color: strin
   MAINTENANCE: { label: "Advisory", color: "text-red-300" },
   CLAIM_UPDATE: { label: "Claim update", color: "text-[#99C1F1]" },
   SAVED_ITEM: { label: "Saved item", color: "text-[#99C1F1]" },
+  VOUCHER: { label: "Voucher", color: "text-[#99C1F1]" },
   CUSTOM: { label: "Announcement", color: "text-white/60" },
 };
 
@@ -216,7 +217,7 @@ export default function RewardsPage() {
                             <Gift size={24} aria-hidden="true" className={`shrink-0 lg:hidden ${status === "AVAILABLE" ? "text-emerald-400" : status === "EXPIRED" ? "text-red-400" : "text-white/40"}`} />
                             <div className="min-w-0 flex-1 basis-44">
                               <div className="flex flex-wrap items-center gap-2">
-                                <h3 className="text-base font-bold lg:text-sm lg:font-semibold"><span className="lg:hidden">Free Ride Voucher</span><span className="hidden lg:inline">Free ride</span></h3>
+                                <h3 className="text-base font-bold lg:text-sm lg:font-semibold">{voucher.type === "DISCOUNT" ? `₱${(voucher.amount ?? 0).toFixed(2)} Discount Voucher` : "Free Ride Voucher"}</h3>
                                 <span className={`text-xs ${status === "AVAILABLE" ? "text-emerald-300" : status === "EXPIRED" ? "text-white/50" : "text-white/60"}`}>
                                   {status === "AVAILABLE" ? "Ready to use" : status === "USED" ? "Used" : "Expired"}
                                 </span>
@@ -297,10 +298,10 @@ export default function RewardsPage() {
           <p className="mt-6 border-t border-white/10 pt-4 text-xs leading-relaxed text-white/60">Check each voucher&apos;s expiry date before riding. Free rides paid with vouchers do not count toward the next reward.</p>
         </Modal>
         <Modal isOpen={showVoucherModal && !!activeVoucher} onClose={() => setShowVoucherModal(false)} maxWidth="max-w-sm">
-          <h2 className="pr-8 text-lg font-bold">Free ride voucher</h2>
+          <h2 className="pr-8 text-lg font-bold">{selectedVoucher?.type === "DISCOUNT" ? "Discount voucher" : "Free ride voucher"}</h2>
           {selectedVoucherAvailable ? (
             <>
-              <p className="mt-2 text-sm leading-relaxed text-white/60">Show this code to the conductor for your free fare.</p>
+              <p className="mt-2 text-sm leading-relaxed text-white/60">{selectedVoucher?.type === "DISCOUNT" ? `Show this code to the conductor for ₱${(selectedVoucher.amount ?? 0).toFixed(2)} off your fare. Pay any remaining fare in cash.` : "Show this code to the conductor for your free fare."}</p>
               <div className="my-6 border-y border-white/10 py-6">
                 <p className="text-xs text-white/50">Voucher code</p>
                 <p className="mt-2 break-all font-mono text-2xl font-bold text-[#99C1F1]">{activeVoucher}</p>
@@ -322,6 +323,7 @@ export default function RewardsPage() {
             <h2 className="mt-3 break-words pr-8 text-lg font-bold">{selectedAnnouncement.title}</h2>
             <p className="mt-2 text-xs text-white/50">{formatDate(selectedAnnouncement.createdAt)}</p>
             <p className="mt-5 whitespace-pre-wrap break-words border-t border-white/10 pt-5 text-sm leading-relaxed text-white/70">{selectedAnnouncement.message}</p>
+            {selectedAnnouncement.type === "VOUCHER" && <button type="button" onClick={() => { setSelectedAnnouncement(null); setSection("rewards"); setVoucherFilter("available"); }} className="mt-5 min-h-11 w-full rounded-lg bg-[#1A5FB4] px-4 text-sm font-semibold hover:bg-[#164A8F]">View vouchers</button>}
           </>}
         </Modal>
       </div>

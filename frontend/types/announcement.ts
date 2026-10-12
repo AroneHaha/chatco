@@ -14,6 +14,7 @@ export type AnnouncementType =
   | "PROMO"
   | "MAINTENANCE"
   | "SAFETY"
+  | "VOUCHER"
   | "CLAIM_UPDATE"
   // Lost & Found notices about an item the commuter saved to their watchlist
   // (backend types saved_item_expiring / saved_item_taken / saved_item_back).

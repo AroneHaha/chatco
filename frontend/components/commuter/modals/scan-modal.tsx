@@ -223,7 +223,7 @@ export default function ScanModal({ onClose }: ScanModalProps) {
     setError(null);
 
     try {
-      const redeemed = await redeemVoucherForGcash(claimResult.transactionId);
+      const redeemed = await redeemVoucherForGcash(claimResult.transactionId, claimResult.availableVoucher?.id);
       setClaimResult(redeemed);
       await proceedToPayment(redeemed);
     } catch (err) {
@@ -403,12 +403,14 @@ export default function ScanModal({ onClose }: ScanModalProps) {
               </svg>
             </div>
             <h2 className="text-lg font-bold text-white mb-1">
-              Use Your Free-Ride Voucher?
+              {claimResult.availableVoucher?.type === "DISCOUNT" ? "Use Your Discount Voucher?" : "Use Your Free-Ride Voucher?"}
             </h2>
             <p className="text-sm text-white/40 mb-5">
-              {claimResult.isGroup
-                ? "You have a voucher available. It can cover your own seat for free — your companions will still need to pay their share via GCash."
-                : "You have a voucher available. It can cover this entire ride for free."}
+              {claimResult.availableVoucher?.type === "DISCOUNT"
+                ? `Your voucher takes up to ${formatCurrency(claimResult.availableVoucher.amount ?? 0)} off your own fare. Pay any remaining fare${claimResult.isGroup ? " and your companions’ fares" : ""} via GCash.`
+                : claimResult.isGroup
+                  ? "Your voucher covers your own fare. Your companions still pay their share via GCash."
+                  : "Your voucher covers this entire ride for free."}
             </p>
 
             <div className="bg-white/5 rounded-xl p-4 space-y-2 mb-5 text-left">
@@ -455,7 +457,7 @@ export default function ScanModal({ onClose }: ScanModalProps) {
             Redeeming Voucher
           </h2>
           <p className="text-sm text-white/40">
-            Applying your free-ride voucher to this ride…
+            Applying your voucher to this ride…
           </p>
         </div>
       </div>

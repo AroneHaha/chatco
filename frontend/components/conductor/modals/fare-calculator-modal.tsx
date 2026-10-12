@@ -132,7 +132,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
   // ── Voucher state ──
   // When the conductor selects Voucher, they enter the voucher code shown
   // by the commuter. The backend validates it + creates a PAID/VOUCHER
-  // transaction with final_amount=0 (free ride).
+  // voucher transaction, collecting any remaining fare in cash.
   const [voucherCode, setVoucherCode] = useState("");
   const [cashReceiptToken, setCashReceiptToken] = useState<string | null>(null);
   const [receiptTransaction, setReceiptTransaction] = useState<{
@@ -929,8 +929,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                   </svg>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-white font-bold text-sm group-hover:text-violet-300 transition-colors">Voucher / Free Ride</h3>
-                  <p className="text-[11px] text-white/40 mt-0.5 leading-relaxed">Commuter shows their reward voucher code — enter it to apply a free ride</p>
+                  <h3 className="text-white font-bold text-sm group-hover:text-violet-300 transition-colors">Voucher</h3>
+                  <p className="text-[11px] text-white/40 mt-0.5 leading-relaxed">Enter the commuter’s voucher code to apply a free ride or fare discount</p>
                 </div>
                 <svg className="w-5 h-5 text-white/20 group-hover:text-violet-400 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
@@ -1873,7 +1873,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
     // discount at claim time.
     // For Cash: the conductor selects the commuter type, so the discount is
     // applied immediately.
-    // For Voucher: free ride (₱0) — the conductor enters the voucher code.
+    // Voucher amounts are calculated by the backend from the entered code.
     const groupDiscount = ((fareInfo?.regularFare ?? 0) * groupPassengerCount) - groupTotalFare;
     const activeFareInfo = isGroupMode && fareInfo
       ? { ...fareInfo, finalFare: groupTotalFare, discountAmount: groupDiscount, hasDiscount: groupDiscount > 0 }
@@ -1950,7 +1950,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
               <div className="border-t border-white/10 pt-3 flex justify-between">
                 <span className="text-white font-semibold">Total</span>
                 <span className="text-xl font-extrabold text-white">
-                  {formatCurrency(activeFareInfo.finalFare)}
+                  {selectedMethod === "Voucher" ? "Calculated when applied" : formatCurrency(activeFareInfo.finalFare)}
                 </span>
               </div>
             </div>
@@ -2002,7 +2002,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                   className="block w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm font-mono placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-violet-400 transition-colors"
                 />
                 <p className="text-[10px] text-slate-500 mt-1">
-                  Enter the code shown by the commuter&apos;s app. The ride will be recorded as a free ride (₱0).
+                  Enter the code shown by the commuter&apos;s app. Free-ride vouchers cover the fare; discount vouchers reduce it. Collect any remaining fare in cash.
                 </p>
               </div>
             )}
@@ -2031,7 +2031,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                   : selectedMethod === "GCash"
                     ? `Generate QR · ${formatCurrency(activeFareInfo.finalFare)}`
                     : selectedMethod === "Voucher"
-                      ? "Apply Voucher (Free Ride)"
+                      ? "Apply Voucher"
                       : `Pay ${formatCurrency(activeFareInfo.finalFare)}`}
               </button>
             </div>
@@ -2067,23 +2067,23 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
   // ─── STEP: Success ──────────────────────────────────────────────
 
   if (step === "success") {
-    const receiptTotalFare = isGroupMode && receiptTransactions.length > 0
+    const receiptTotalFare = (isGroupMode || selectedMethod === "Voucher") && receiptTransactions.length > 0
       ? receiptTransactions.reduce((sum, transaction) => sum + transaction.finalAmount, 0)
       : null;
-    const receiptGrossFare = isGroupMode && receiptTransactions.length > 0
+    const receiptGrossFare = (isGroupMode || selectedMethod === "Voucher") && receiptTransactions.length > 0
       ? receiptTransactions.reduce(
           (sum, transaction) => sum + (transaction.grossAmount ?? transaction.baseFare ?? transaction.finalAmount),
           0
         )
       : null;
-    const receiptDiscount = isGroupMode && receiptTransactions.length > 0
+    const receiptDiscount = (isGroupMode || selectedMethod === "Voucher") && receiptTransactions.length > 0
       ? receiptTransactions.reduce((sum, transaction) => sum + (transaction.discountAmount ?? 0), 0)
       : null;
     const successPassengerCount = isGroupMode && receiptTransactions.length > 0
       ? receiptTransactions.length
       : finalGroupPassengerCount;
     const receiptCount = Math.max(receiptTransactions.length, 1);
-    const activeFareInfo = isGroupMode && fareInfo
+    const activeFareInfo = (isGroupMode || selectedMethod === "Voucher") && fareInfo
       ? {
           ...fareInfo,
           finalFare: receiptTotalFare ?? groupTotalFare,
@@ -2109,7 +2109,9 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
             <p className="text-sm text-white/40 mb-4">
               {selectedMethod === "GCash"
                 ? "Fare has been charged via GCash"
-                : "Cash payment has been recorded"}
+                : selectedMethod === "Voucher"
+                  ? (activeFareInfo.finalFare > 0 ? "Voucher applied. Collect the remaining fare in cash." : "Voucher covered this ride in full.")
+                  : "Cash payment has been recorded"}
             </p>
 
             <div className="bg-white/5 rounded-xl p-4 text-left space-y-2 mb-6">
@@ -2247,7 +2249,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                     baseFare={transaction?.baseFare ?? activeFareInfo.regularFare}
                     discountAmount={transaction?.discountAmount ?? activeFareInfo.discountAmount}
                     finalFare={transaction?.finalAmount ?? activeFareInfo.finalFare}
-                    paymentMethod={selectedMethod ?? "—"}
+                    paymentMethod={selectedMethod === "Voucher" ? transaction?.paymentMethod ?? "Voucher" : selectedMethod ?? "—"}
                     receiptQrToken={selectedMethod === "Cash" ? transaction?.receiptQrToken ?? cashReceiptToken : null}
                   />
                 </div>

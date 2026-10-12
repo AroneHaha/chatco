@@ -9,6 +9,8 @@ export type VoucherStatus = "AVAILABLE" | "USED" | "EXPIRED";
 export interface Voucher {
   id: string;
   code: string;
+  type: "FREE_RIDE" | "DISCOUNT" | "REWARD";
+  amount: number | null;
   status: VoucherStatus;
   expiresAt: string;
   rideOrigin: string; // e.g., "10th Ride Reward"

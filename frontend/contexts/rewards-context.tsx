@@ -83,6 +83,8 @@ export function RewardsProvider({ children }: { children: React.ReactNode }) {
         return {
           id: String(v.id ?? ""),
           code: String(v.code ?? ""),
+          type: (v.type ?? "REWARD") as RewardData["vouchers"][number]["type"],
+          amount: v.amount == null ? null : Number(v.amount),
           status,
           expiresAt,
           rideOrigin: String(v.rideOrigin ?? "Reward"),

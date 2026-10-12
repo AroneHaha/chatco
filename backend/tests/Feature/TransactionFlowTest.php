@@ -23,6 +23,7 @@ use App\Models\Voucher;
 use App\Services\FareCalculationService;
 use App\Services\PaymentService;
 use App\Services\TransactionService;
+use App\Services\VoucherDistributionService;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -1846,6 +1847,161 @@ SQL);
 
     // ─── Helpers ────────────────────────────────────────────────────
 
+    public function test_distributed_discount_voucher_deducts_value_and_keeps_cash_remittable(): void
+    {
+        $batch = app(VoucherDistributionService::class)->generate($this->admin, [
+            'type' => 'DISCOUNT', 'amount' => 5, 'quantity' => 2,
+        ]);
+        $voucher = $batch['vouchers']->firstWhere('commuter_id', $this->commuter1->id);
+        $this->assertNotNull($voucher);
+        $txn = app(TransactionService::class)->recordCashFare($this->conductor, [
+            'payment_method' => 'VOUCHER', 'voucher_code' => $voucher->code,
+            'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+            'passenger_id' => $this->commuter1->id, 'final_amount' => 0,
+        ]);
+        $this->assertSame(12.0, (float) $txn->final_amount);
+        $this->assertSame(5.0, (float) $txn->discount_amount);
+        $this->assertSame(PaymentMethod::CASH, $txn->payment_method);
+        $this->assertSame('USED', $voucher->fresh()->status);
+        $this->assertFalse($txn->reward_eligible);
+        $this->assertSame(12.0, app(TransactionService::class)->getShiftEarnings($this->conductor, $this->shift->shift_id)['cash_total']);
+    }
+
+    public function test_discount_vouchers_stack_on_verified_passenger_fares_and_cap_at_zero(): void
+    {
+        $this->commuter1->commuterProfile->update(['commuter_type' => 'STUDENT']);
+        foreach ([[5, 8.6], [100, 0.0]] as [$amount, $remaining]) {
+            $voucher = $this->createRewardVoucher($this->commuter1, ['type' => 'DISCOUNT', 'amount' => $amount]);
+            $txn = app(TransactionService::class)->recordCashFare($this->conductor, [
+                'payment_method' => 'VOUCHER', 'voucher_code' => $voucher->code,
+                'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+            ]);
+            $this->assertSame($remaining, (float) $txn->final_amount);
+            $this->assertSame(round(17.0 - $remaining, 2), (float) $txn->discount_amount);
+            $this->assertSame('USED', $voucher->fresh()->status);
+        }
+    }
+
+    public function test_discount_gcash_preserves_remainder_prevents_stacking_and_recovers_on_failure(): void
+    {
+        config(['payments.gateways.paymongo.secret' => null]);
+        $this->forgetGateway();
+        $voucher = $this->createRewardVoucher($this->commuter1, ['type' => 'DISCOUNT', 'amount' => 5]);
+        $result = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+        ]);
+        $txn = $result['transaction'];
+        app(TransactionService::class)->claimGcash($this->commuter1, $txn->qr_token);
+        $originalReference = $txn->fresh()->payment_reference;
+        $redeemed = app(TransactionService::class)->redeemVoucherForGcash($this->commuter1, $txn->transaction_id);
+        $this->assertSame(12.0, $redeemed['amount']);
+        $this->assertFalse($redeemed['voucher_available']);
+        $this->assertSame(PaymentMethod::GCASH, $txn->fresh()->payment_method);
+        $this->assertSame(PaymentStatus::PENDING, $txn->fresh()->status);
+        $this->assertNotSame($originalReference, $txn->fresh()->payment_reference);
+        $second = $this->createRewardVoucher($this->commuter1);
+        $this->assertAbort(409, fn () => app(TransactionService::class)->redeemVoucherForGcash($this->commuter1, $txn->transaction_id));
+        $this->assertSame('AVAILABLE', $second->fresh()->status);
+        app(PaymentService::class)->transitionTo($txn->fresh(), PaymentStatus::FAILED);
+        $this->assertSame('AVAILABLE', $voucher->fresh()->status);
+    }
+
+    public function test_group_discount_changes_only_payer_fare_and_preserves_accounting(): void
+    {
+        config(['payments.gateways.paymongo.secret' => null]);
+        $this->forgetGateway();
+        $voucher = $this->createRewardVoucher($this->commuter1, ['type' => 'DISCOUNT', 'amount' => 5]);
+        $result = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+            'group_passengers' => [['type' => 'REGULAR', 'quantity' => 2], ['type' => 'PWD', 'quantity' => 1]],
+        ]);
+        $txn = $result['transaction'];
+        app(TransactionService::class)->claimGcash($this->commuter1, $txn->qr_token);
+        $before = Transaction::where('group_id', $txn->group_id)->where('transaction_id', '!=', $txn->transaction_id)->pluck('final_amount', 'transaction_id')->all();
+        $redeemed = app(TransactionService::class)->redeemVoucherForGcash($this->commuter1, $txn->transaction_id);
+        $this->assertSame(59.6, $redeemed['amount']);
+        $this->assertSame(12.0, (float) $txn->fresh()->final_amount);
+        $this->assertSame(59.6, (float) $txn->paymentGroup()->firstOrFail()->total_amount);
+        $this->assertSame($before, Transaction::where('group_id', $txn->group_id)->where('transaction_id', '!=', $txn->transaction_id)->pluck('final_amount', 'transaction_id')->all());
+        app(PaymentService::class)->transitionTo($txn->fresh(), PaymentStatus::PAID);
+        $this->assertSame('USED', $voucher->fresh()->status);
+        $this->assertSame(59.6, app(TransactionService::class)->getShiftEarnings($this->conductor, $this->shift->shift_id)['gcash_total']);
+    }
+
+    public function test_invalid_discount_values_and_wrong_owners_do_not_consume_vouchers(): void
+    {
+        $voucher = $this->createRewardVoucher($this->commuter1, ['type' => 'DISCOUNT', 'amount' => -5]);
+        $data = ['payment_method' => 'VOUCHER', 'voucher_code' => $voucher->code, 'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos'];
+        $this->assertAbort(422, fn () => app(TransactionService::class)->recordCashFare($this->conductor, $data));
+        $voucher->update(['amount' => 5]);
+        $this->assertAbort(422, fn () => app(TransactionService::class)->recordCashFare($this->conductor, $data + ['passenger_id' => $this->commuter2->id]));
+        $this->assertSame('AVAILABLE', $voucher->fresh()->status);
+        $this->assertDatabaseCount('transactions', 0);
+    }
+
+    public function test_distributed_free_ride_voucher_redeems_the_full_fare(): void
+    {
+        $batch = app(VoucherDistributionService::class)->generate($this->admin, ['type' => 'FREE_RIDE', 'quantity' => 2]);
+        $voucher = $batch['vouchers']->firstWhere('commuter_id', $this->commuter1->id);
+        $txn = app(TransactionService::class)->recordCashFare($this->conductor, [
+            'payment_method' => 'VOUCHER', 'voucher_code' => $voucher->code,
+            'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+        ]);
+        $this->assertSame(0.0, (float) $txn->final_amount);
+        $this->assertSame(17.0, (float) $txn->discount_amount);
+        $this->assertSame(PaymentMethod::VOUCHER, $txn->payment_method);
+        $this->assertSame('USED', $voucher->fresh()->status);
+    }
+
+    public function test_discount_voucher_is_not_consumed_when_remaining_payment_cannot_be_created(): void
+    {
+        config(['payments.gateways.paymongo.secret' => null]);
+        $this->forgetGateway();
+        $voucher = $this->createRewardVoucher($this->commuter1, ['type' => 'DISCOUNT', 'amount' => 5]);
+        $result = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+        ]);
+        $txn = $result['transaction'];
+        app(TransactionService::class)->claimGcash($this->commuter1, $txn->qr_token);
+        $reference = $txn->fresh()->payment_reference;
+        $gatewayFailure = \Mockery::mock(PaymentService::class);
+        $gatewayFailure->shouldReceive('createIntentFor')->once()
+            ->andThrow(new \App\Support\Payments\PaymentGatewayException('Simulated provider failure'));
+        $this->app->instance(PaymentService::class, $gatewayFailure);
+        $this->assertAbort(502, fn () => app(TransactionService::class)->redeemVoucherForGcash($this->commuter1, $txn->transaction_id));
+        $this->assertSame('AVAILABLE', $voucher->fresh()->status);
+        $this->assertNull($txn->fresh()->voucher_id);
+        $this->assertSame(17.0, (float) $txn->fresh()->final_amount);
+        $this->assertSame($reference, $txn->fresh()->payment_reference);
+    }
+
+    public function test_gcash_offer_preserves_selected_voucher_and_validates_owner(): void
+    {
+        config(['payments.gateways.paymongo.secret' => null]);
+        $this->forgetGateway();
+        $voucher = $this->createRewardVoucher($this->commuter1, ['type' => 'DISCOUNT', 'amount' => 5]);
+        $result = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+        ]);
+        $txn = $result['transaction'];
+        $offer = app(TransactionService::class)->claimGcash($this->commuter1, $txn->qr_token);
+        $this->assertSame($voucher->id, $offer['available_voucher']['id']);
+        $this->assertSame('DISCOUNT', $offer['available_voucher']['type']);
+        $this->assertSame('5.00', $offer['available_voucher']['amount']);
+
+        $otherOwner = $this->createRewardVoucher($this->commuter2);
+        $unused = $this->createRewardVoucher($this->commuter1, ['expires_at' => null]);
+        Sanctum::actingAs($this->commuter1);
+        $endpoint = '/api/v1/commuter/payments/'.$txn->transaction_id.'/redeem-voucher';
+        $this->postJson($endpoint, ['voucher_id' => 'invalid'])->assertUnprocessable();
+        $this->postJson($endpoint, ['voucher_id' => $otherOwner->id])->assertUnprocessable();
+        $response = $this->postJson($endpoint, ['voucher_id' => $voucher->id, 'amount' => 0, 'discount_amount' => 999])->assertOk();
+        $this->assertSame(12.0, (float) $response->json('data.amount'));
+        $this->assertSame('USED', $voucher->fresh()->status);
+        $this->assertSame('AVAILABLE', $unused->fresh()->status);
+        $this->assertSame('AVAILABLE', $otherOwner->fresh()->status);
+    }
+
     private function createPendingGcashTransaction(array $overrides = []): Transaction
     {
         $defaults = [
@@ -1986,4 +2142,3 @@ SQL);
         $this->assertSame('Point 1 · Substop X', $result['pickup_name']);
     }
 }
-
