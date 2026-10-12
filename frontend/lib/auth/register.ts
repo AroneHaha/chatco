@@ -6,7 +6,15 @@
 
 export type AppliedType = "REGULAR" | "STUDENT" | "SENIOR" | "PWD";
 
-export interface RegisterInput {
+export interface RegistrationAgreement {
+  terms_accepted: true;
+  privacy_acknowledged: true;
+  registration_confirmed: true;
+  terms_version: string;
+  privacy_version: string;
+}
+
+export interface RegisterInput extends RegistrationAgreement {
   first_name: string;
   middle_name?: string;
   suffix?: string;
@@ -67,6 +75,11 @@ export async function register(input: RegisterInput): Promise<RegisterResult> {
   formData.append("password", input.password);
   formData.append("password_confirmation", input.password_confirmation);
   formData.append("applied_type", input.applied_type);
+  formData.append("terms_accepted", String(input.terms_accepted));
+  formData.append("privacy_acknowledged", String(input.privacy_acknowledged));
+  formData.append("registration_confirmed", String(input.registration_confirmed));
+  formData.append("terms_version", input.terms_version);
+  formData.append("privacy_version", input.privacy_version);
   if (input.language_preference) formData.append("language_preference", input.language_preference);
   if (input.id_image) formData.append("id_image", input.id_image);
 

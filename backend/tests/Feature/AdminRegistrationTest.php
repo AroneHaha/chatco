@@ -477,6 +477,11 @@ class AdminRegistrationTest extends TestCase
             'password' => 'SecurePass123!',
             'password_confirmation' => 'SecurePass123!',
             'applied_type' => 'REGULAR',
+            'terms_accepted' => true,
+            'privacy_acknowledged' => true,
+            'registration_confirmed' => true,
+            'terms_version' => config('registration.terms_version'),
+            'privacy_version' => config('registration.privacy_version'),
             'id_image' => UploadedFile::fake()->image('id.jpg', 800, 600),
         ], ['Accept' => 'application/json']);
 

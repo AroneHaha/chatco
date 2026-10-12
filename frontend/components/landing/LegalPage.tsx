@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, ArrowUpRight, FileText, ShieldCheck } from "lucide-react";
 import logo from "../../assets/logo-transparent.png";
 import Footer from "./Footer";
+import { POLICY_EFFECTIVE_DATE } from "@/lib/legal/registration-policies";
 
 export interface LegalSection {
   id: string;
@@ -42,6 +43,7 @@ export default function LegalPage({ kind, description, sections }: {
             <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#62A0EA]">Riding with CHATCO</p>
             <h1 className="mt-4 text-3xl font-bold leading-tight tracking-tight sm:text-4xl md:text-5xl">{title}</h1>
             <p className="mt-5 max-w-2xl text-base leading-relaxed text-white/60 md:text-lg">{description}</p>
+            <p className="mt-4 text-sm text-white/60">Effective date: {POLICY_EFFECTIVE_DATE}</p>
             <nav aria-label="Policies" className="mt-8 flex flex-wrap gap-3">
               {[
                 { label: "Privacy Policy", href: "/privacy-policy", active: kind === "privacy" },

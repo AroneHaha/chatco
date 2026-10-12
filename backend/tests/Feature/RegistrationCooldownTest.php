@@ -177,6 +177,11 @@ class RegistrationCooldownTest extends TestCase
             'password_confirmation' => 'SecurePass123!',
             'language_preference' => 'English',
             'applied_type' => 'STUDENT',
+            'terms_accepted' => true,
+            'privacy_acknowledged' => true,
+            'registration_confirmed' => true,
+            'terms_version' => config('registration.terms_version'),
+            'privacy_version' => config('registration.privacy_version'),
         ], $overrides, ['id_image' => UploadedFile::fake()->image('valid_id.jpg', 800, 600)]);
 
         // Stand in for the sign-up form's email verification step so these

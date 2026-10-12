@@ -90,6 +90,11 @@ class RegisterRequest extends FormRequest
             'password' => ['required', 'string', 'confirmed', new StrongPassword],
             'language_preference' => ['nullable', 'string', 'max:20'],
             'applied_type' => ['required', 'string', Rule::in(['REGULAR', 'STUDENT', 'SENIOR', 'PWD'])],
+            'terms_accepted' => ['required', 'accepted'],
+            'privacy_acknowledged' => ['required', 'accepted'],
+            'registration_confirmed' => ['required', 'accepted'],
+            'terms_version' => ['required', Rule::in([config('registration.terms_version')])],
+            'privacy_version' => ['required', Rule::in([config('registration.privacy_version')])],
             // Discount types must prove eligibility, so their ID is always
             // required; a REGULAR commuter's ID follows the admin's
             // "Force Valid ID Upload" setting.
@@ -103,6 +108,14 @@ class RegisterRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'terms_accepted.required' => 'Please read and accept the Terms of Service.',
+            'terms_accepted.accepted' => 'Please read and accept the Terms of Service.',
+            'privacy_acknowledged.required' => 'Please acknowledge the Privacy Policy.',
+            'privacy_acknowledged.accepted' => 'Please acknowledge the Privacy Policy.',
+            'registration_confirmed.required' => 'Please confirm your registration details and the admin approval requirement.',
+            'registration_confirmed.accepted' => 'Please confirm your registration details and the admin approval requirement.',
+            'terms_version.in' => 'The terms have changed. Reload registration and review the current terms.',
+            'privacy_version.in' => 'The privacy policy has changed. Reload registration and review the current policy.',
             'applied_type.in' => 'The applied type must be one of: REGULAR, STUDENT, SENIOR, PWD.',
             'suffix.in' => 'The suffix must be one of: '.implode(', ', self::SUFFIX_OPTIONS).'.',
             'username.unique' => 'The username has already been taken.',

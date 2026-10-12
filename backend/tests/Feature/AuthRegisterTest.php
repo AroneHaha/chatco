@@ -55,6 +55,11 @@ class AuthRegisterTest extends TestCase
             'password_confirmation' => 'SecurePass123!',
             'language_preference' => 'English',
             'applied_type' => 'STUDENT',
+            'terms_accepted' => true,
+            'privacy_acknowledged' => true,
+            'registration_confirmed' => true,
+            'terms_version' => config('registration.terms_version'),
+            'privacy_version' => config('registration.privacy_version'),
         ], $overrides);
     }
 
@@ -153,6 +158,45 @@ class AuthRegisterTest extends TestCase
         }
         // Never broadcast to everyone — only the two admin accounts above.
         $this->assertSame(2, Announcement::where('type', 'NEW_REGISTRATION')->count());
+    }
+
+    public function test_registration_records_the_current_policies_and_each_confirmation_time(): void
+    {
+        $this->freezeTime();
+        $response = $this->registerWithFile();
+        $response->assertCreated()->assertJsonPath('data.account_status', 'PENDING')->assertJsonMissingPath('data.token');
+        $profile = CommuterProfile::findOrFail($response->json('data.id'));
+
+        $this->assertSame(config('registration.terms_version'), $profile->terms_version);
+        $this->assertSame(config('registration.privacy_version'), $profile->privacy_version);
+        foreach (['terms_accepted_at', 'privacy_acknowledged_at', 'registration_confirmed_at'] as $field) {
+            $this->assertSame(now()->toDateTimeString(), $profile->{$field}->toDateTimeString());
+        }
+        $this->assertNull($profile->verified_at);
+    }
+
+    public function test_registration_requires_each_agreement_before_creating_an_account_or_uploading_id(): void
+    {
+        Storage::fake('public');
+        foreach (['terms_accepted', 'privacy_acknowledged', 'registration_confirmed'] as $field) {
+            foreach ([null, false] as $value) {
+                $this->registerWithFile([$field => $value])
+                    ->assertUnprocessable()->assertJsonValidationErrors($field);
+                $this->assertDatabaseCount('users', 0);
+                $this->assertEmpty(Storage::disk('public')->allFiles());
+            }
+        }
+    }
+
+    public function test_registration_rejects_missing_or_outdated_policy_versions(): void
+    {
+        foreach (['terms_version', 'privacy_version'] as $field) {
+            foreach ([null, '2020-01-01'] as $version) {
+                $this->registerWithFile([$field => $version])
+                    ->assertUnprocessable()->assertJsonValidationErrors($field);
+                $this->assertDatabaseCount('users', 0);
+            }
+        }
     }
 
     public function test_register_hashes_the_password(): void

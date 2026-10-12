@@ -381,6 +381,7 @@ class AuthService
                 $user->id = $userId;
                 $user->save();
 
+                $agreedAt = now();
                 $profile = CommuterProfile::create([
                     'id' => $user->id,
                     'first_name' => $data['first_name'],
@@ -399,6 +400,11 @@ class AuthService
                     'id_image_url' => $idImagePath,
                     'verified_at' => null,
                     'rejection_reason' => null,
+                    'terms_version' => $data['terms_version'],
+                    'privacy_version' => $data['privacy_version'],
+                    'terms_accepted_at' => $agreedAt,
+                    'privacy_acknowledged_at' => $agreedAt,
+                    'registration_confirmed_at' => $agreedAt,
                 ]);
 
                 $applicantName = trim($profile->first_name.' '.$profile->surname);

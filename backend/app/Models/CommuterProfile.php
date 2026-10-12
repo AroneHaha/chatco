@@ -33,6 +33,11 @@ class CommuterProfile extends Model
         'id_image_url',
         'verified_at',
         'rejection_reason',
+        'terms_version',
+        'privacy_version',
+        'terms_accepted_at',
+        'privacy_acknowledged_at',
+        'registration_confirmed_at',
     ];
 
     protected function casts(): array
@@ -40,6 +45,9 @@ class CommuterProfile extends Model
         return [
             'birthdate' => 'date',
             'verified_at' => 'datetime',
+            'terms_accepted_at' => 'datetime',
+            'privacy_acknowledged_at' => 'datetime',
+            'registration_confirmed_at' => 'datetime',
         ];
     }
 

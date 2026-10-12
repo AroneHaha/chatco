@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { register, type AppliedType, RegisterError } from "@/lib/auth/register";
+import { register, type AppliedType, type RegistrationAgreement, RegisterError } from "@/lib/auth/register";
+import RegistrationTermsModal from "./registration-terms-modal";
 import { sendVerificationCode, verifyEmailCode, VerificationError } from "@/lib/auth/email-verification";
 import Stepper, { Step } from "@/components/Stepper";
 import styles from "./signup.module.css";
@@ -82,6 +83,8 @@ export default function SignupForm({ onBusyChange }: { onBusyChange?: (busy: boo
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
+  const registrationInFlight = useRef(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -127,8 +130,8 @@ export default function SignupForm({ onBusyChange }: { onBusyChange?: (busy: boo
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
-    onBusyChange?.(isLoading || isSendingCode || isVerifyingCode || showIdCamera);
-  }, [isLoading, isSendingCode, isVerifyingCode, showIdCamera, onBusyChange]);
+    onBusyChange?.(isLoading || isSendingCode || isVerifyingCode || showIdCamera || showTerms);
+  }, [isLoading, isSendingCode, isVerifyingCode, showIdCamera, showTerms, onBusyChange]);
 
   const normalizedEmail = formData.email.trim().toLowerCase();
   const isEmailVerified = verifiedEmail !== null && verifiedEmail === normalizedEmail;
@@ -419,6 +422,7 @@ export default function SignupForm({ onBusyChange }: { onBusyChange?: (busy: boo
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (registrationInFlight.current || showTerms) return;
 
     // Enter on the code screen should verify, not submit a half-filled form.
     if (step === 3) {
@@ -454,12 +458,20 @@ export default function SignupForm({ onBusyChange }: { onBusyChange?: (busy: boo
       return;
     }
 
+    setServerError(null);
+    setShowTerms(true);
+  };
+
+  const submitRegistration = async (agreement: RegistrationAgreement) => {
+    if (registrationInFlight.current || !showTerms) return;
+    registrationInFlight.current = true;
     setIsLoading(true);
     setServerError(null);
     setFieldErrors({});
 
     try {
       await register({
+        ...agreement,
         first_name: formData.firstName,
         middle_name: formData.middleName || undefined,
         suffix: formData.suffix || undefined,
@@ -476,6 +488,7 @@ export default function SignupForm({ onBusyChange }: { onBusyChange?: (busy: boo
       });
 
       // Success — show pending review screen (no auto-login)
+      setShowTerms(false);
       setIsSuccess(true);
     } catch (err) {
       if (err instanceof RegisterError) {
@@ -487,6 +500,7 @@ export default function SignupForm({ onBusyChange }: { onBusyChange?: (busy: boo
           .map((field) => FIELD_STEP[field])
           .filter((s): s is number => typeof s === "number");
         const earliest = steps.length > 0 ? Math.min(...steps) : LAST_STEP;
+        if (steps.length > 0) setShowTerms(false);
 
         if (earliest < LAST_STEP) {
           goToStep(earliest);
@@ -501,6 +515,7 @@ export default function SignupForm({ onBusyChange }: { onBusyChange?: (busy: boo
         setServerError("An unexpected error occurred. Please try again.");
       }
     } finally {
+      registrationInFlight.current = false;
       setIsLoading(false);
     }
   };
@@ -1034,6 +1049,18 @@ export default function SignupForm({ onBusyChange }: { onBusyChange?: (busy: boo
       </form>
 
       {showIdCamera && <IdCaptureModal onCapture={handleIdCapture} onClose={() => setShowIdCamera(false)} />}
+      {showTerms && (
+        <RegistrationTermsModal
+          busy={isLoading}
+          error={serverError}
+          onBack={() => {
+            if (registrationInFlight.current) return;
+            setShowTerms(false);
+            setServerError(null);
+          }}
+          onConfirm={submitRegistration}
+        />
+      )}
 
       <p className={styles.accountPrompt}>
         Already have an account?{" "}

@@ -2,6 +2,9 @@
 
 return [
 
+    'terms_version' => '2026-10-12',
+    'privacy_version' => '2026-10-12',
+
     /*
     |--------------------------------------------------------------------------
     | Registration Rejection Safety Net
