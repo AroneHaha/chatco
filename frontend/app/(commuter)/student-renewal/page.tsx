@@ -6,7 +6,7 @@ import { ArrowLeft, Check, FileText, ImageIcon, Loader2, Upload, X } from 'lucid
 import { useAuth } from '@/contexts/auth-context';
 import { Modal } from '@/components/shared/modal';
 import {
-  EDUCATION_LABELS, educationSummary, getRenewalState, HIGH_SCHOOL_GRADES, renewalRequest, RENEWAL_LABELS, schoolYearSummary,
+  EDUCATION_LABELS, educationSummary, ENROLLMENT_TERMS, getRenewalState, HIGH_SCHOOL_GRADES, renewalRequest, RENEWAL_LABELS, schoolYearSummary,
   type EducationLevel, type RenewalState, type RenewalStatus,
 } from '@/lib/shared/services/student-renewal.service';
 
@@ -50,8 +50,27 @@ export default function StudentRenewalPage() {
   const proofId = useId();
   const regularRef = useRef<HTMLButtonElement>(null);
   const arrivedAtRegular = useRef(false);
+  const prefilledFor = useRef('');
   const load = useCallback(async () => {
-    try { setState(await getRenewalState()); setError(''); }
+    try {
+      const next = await getRenewalState();
+      setState(next); setError('');
+      // A correction request starts the form from what the commuter last sent,
+      // so they only fix what was wrong; the proof itself is always chosen
+      // again. This runs once per revision because load() also fires on every
+      // window focus and must not overwrite edits in progress. Values the
+      // current dropdowns cannot show are left blank instead of being
+      // resubmitted unseen.
+      const previous = next.application;
+      if (previous && next.status === 'NEEDS_CORRECTION' && next.can_submit && prefilledFor.current !== `${previous.id}:${previous.revision}`) {
+        prefilledFor.current = `${previous.id}:${previous.revision}`;
+        setSchoolName(previous.school_name);
+        setEducationLevel(previous.education_level in EDUCATION_LABELS ? previous.education_level : '');
+        setGradeLevel(HIGH_SCHOOL_GRADES.some(grade => grade === previous.grade_level) ? String(previous.grade_level) : '');
+        setSchoolYear(previous.school_year);
+        setTerm(ENROLLMENT_TERMS.some(item => item === previous.enrollment_term) ? previous.enrollment_term ?? '' : '');
+      }
+    }
     catch (err) { setError(err instanceof Error ? err.message : 'Unable to load renewal.'); }
     finally { setLoading(false); }
   }, []);
@@ -113,6 +132,37 @@ export default function StudentRenewalPage() {
   };
 
   const application = state?.application ?? null;
+  // A student can also read as renewed with no application on file (their
+  // discount already runs past this cycle), so the approved view needs both.
+  const approved = state?.status === 'APPROVED' && application?.status === 'APPROVED';
+  // Pending and approved submissions list their details in the main column.
+  const detailsInMain = state?.status === 'PENDING' || approved;
+  const submittedDetails = application && (
+    <dl className="mt-4 grid gap-x-6 gap-y-5 sm:grid-cols-2">
+      <div>
+        <dt className="text-xs text-white/50">School</dt>
+        <dd className="mt-1 wrap-break-word text-sm font-medium">{application.school_name}</dd>
+      </div>
+      <div>
+        <dt className="text-xs text-white/50">Education level</dt>
+        <dd className="mt-1 text-sm font-medium">{educationSummary(application)}</dd>
+      </div>
+      <div>
+        <dt className="text-xs text-white/50">School year</dt>
+        <dd className="mt-1 wrap-break-word text-sm font-medium">{schoolYearSummary(application)}</dd>
+      </div>
+      {application.document_mime && (
+        <div>
+          <dt className="text-xs text-white/50">Enrollment proof</dt>
+          <dd className="mt-1 inline-flex items-center gap-2 text-sm font-medium">
+            {application.document_mime === 'application/pdf'
+              ? <><FileText size={16} aria-hidden="true" className="text-[#99C1F1]" />PDF document</>
+              : <><ImageIcon size={16} aria-hidden="true" className="text-[#99C1F1]" />Image</>}
+          </dd>
+        </div>
+      )}
+    </dl>
+  );
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-[#050F1A] text-white">
@@ -166,7 +216,9 @@ export default function StudentRenewalPage() {
                 <dd className="mt-1 text-sm font-medium">{state.renewal_period}</dd>
                 <dd className="mt-1 text-xs text-white/50">Philippine time</dd>
               </div>
-              {application && <>
+              {/* While a submission is pending or approved, the main column
+                  lists what was sent, so the rail does not repeat it. */}
+              {application && !detailsInMain && <>
                 <div>
                   <dt className="text-xs text-white/50">School</dt>
                   <dd className="mt-1 wrap-break-word text-sm font-medium">{application.school_name}</dd>
@@ -198,6 +250,7 @@ export default function StudentRenewalPage() {
               <section aria-labelledby={`${proofId}-title`} className="mt-8 border-t border-white/10 pt-8 xl:col-start-1 xl:row-span-4 xl:row-start-1 xl:mt-0 xl:border-t-0 xl:pt-0">
                 <h2 id={`${proofId}-title`} className="text-base font-semibold">Submit your proof</h2>
                 <p className="mt-2 text-sm leading-relaxed text-white/70">Submit a school ID showing the current school year or a document proving current enrollment. Upload a clear image or PDF of the complete document.</p>
+                {state.status === 'NEEDS_CORRECTION' && <p className="mt-2 text-sm leading-relaxed text-white/70">Your previous details are filled in below. Check them, then choose your corrected proof.</p>}
                 <form id={`${proofId}-form`} onSubmit={submit} className="mt-6 space-y-6">
                   <label className="block text-sm font-medium">School
                     <input required maxLength={150} value={schoolName} onChange={e => setSchoolName(e.target.value)} placeholder="Name of your school or university" autoComplete="organization" disabled={busy} className={field} />
@@ -217,8 +270,10 @@ export default function StudentRenewalPage() {
                     {educationLevel === 'HIGH_SCHOOL' && (
                       <label className="block text-sm font-medium">Grade level
                         <select required value={gradeLevel} onChange={e => setGradeLevel(e.target.value)} disabled={busy} className={`${field} scheme-dark`}>
-                          <option value="" disabled>Select grade</option>
-                          {HIGH_SCHOOL_GRADES.map(grade => <option key={grade} value={grade}>Grade {grade}</option>)}
+                          {/* The select's translucent fill cannot paint the native
+                              option list, so the options carry an opaque tone. */}
+                          <option value="" disabled className="bg-[#0E1628]">Select grade</option>
+                          {HIGH_SCHOOL_GRADES.map(grade => <option key={grade} value={grade} className="bg-[#0E1628]">Grade {grade}</option>)}
                         </select>
                       </label>
                     )}
@@ -228,7 +283,12 @@ export default function StudentRenewalPage() {
                       <input required maxLength={20} value={schoolYear} onChange={e => setSchoolYear(e.target.value)} placeholder={`For example, ${state.cycle_year}–${state.cycle_year + 1}`} disabled={busy} className={field} />
                     </label>
                     <label className="block text-sm font-medium">Enrollment term{educationLevel === 'HIGH_SCHOOL' && <span className="font-normal text-white/50"> (optional)</span>}
-                      <input required={educationLevel === 'COLLEGE'} maxLength={50} value={term} onChange={e => setTerm(e.target.value)} placeholder="For example, first semester" disabled={busy} className={field} />
+                      {/* The term is optional for high school, so the empty
+                          choice stays selectable there to clear a pick. */}
+                      <select required={educationLevel === 'COLLEGE'} value={term} onChange={e => setTerm(e.target.value)} disabled={busy} className={`${field} scheme-dark`}>
+                        <option value="" disabled={educationLevel !== 'HIGH_SCHOOL'} className="bg-[#0E1628]">{educationLevel === 'HIGH_SCHOOL' ? 'No term' : 'Select term'}</option>
+                        {ENROLLMENT_TERMS.map(item => <option key={item} value={item} className="bg-[#0E1628]">{item}</option>)}
+                      </select>
                     </label>
                   </div>
                   <div role="group" aria-labelledby={`${proofId}-label`}>
@@ -268,6 +328,64 @@ export default function StudentRenewalPage() {
                   </div>
                 </form>
               </section>
+            ) : state.status === 'PENDING' && application ? (
+              <section aria-labelledby={`${proofId}-pending`} className="mt-8 border-t border-white/10 pt-8 xl:col-start-1 xl:row-span-4 xl:row-start-1 xl:mt-0 xl:border-t-0 xl:pt-0">
+                <h2 id={`${proofId}-pending`} className="text-base font-semibold">Your proof is being verified</h2>
+                <p className="mt-2 text-sm leading-relaxed text-white/70">You do not need to submit again. Here is what happens next.</p>
+                {/* The three stages mirror the backend: submitted, admin review,
+                    then a decision that either settles the renewal or opens a
+                    seven-day correction window. */}
+                <ol className="mt-6 max-w-md">
+                  <li className="relative flex gap-4 pb-7">
+                    <span aria-hidden="true" className="absolute bottom-1 left-3 top-7 w-px -translate-x-1/2 bg-[#62A0EA]/40" />
+                    <span aria-hidden="true" className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#62A0EA]/40 bg-[#62A0EA]/10 text-[#99C1F1]"><Check size={14} /></span>
+                    <div className="min-w-0 pt-0.5">
+                      <p className="text-sm font-medium"><span className="sr-only">Completed: </span>Proof submitted</p>
+                      <p className="mt-1 text-xs text-white/60">{formatDateTime(application.submitted_at)}</p>
+                    </div>
+                  </li>
+                  <li aria-current="step" className="relative flex gap-4 pb-7">
+                    <span aria-hidden="true" className="absolute bottom-1 left-3 top-7 w-px -translate-x-1/2 bg-white/15" />
+                    <span aria-hidden="true" className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#62A0EA]"><span className="h-2 w-2 rounded-full bg-[#62A0EA]" /></span>
+                    <div className="min-w-0 pt-0.5">
+                      <p className="text-sm font-medium"><span className="sr-only">In progress: </span>Admin verification</p>
+                      <p className="mt-1 text-xs leading-relaxed text-white/60">An admin is checking your enrollment proof.</p>
+                    </div>
+                  </li>
+                  <li className="flex gap-4">
+                    <span aria-hidden="true" className="h-6 w-6 shrink-0 rounded-full border border-white/20" />
+                    <div className="min-w-0 pt-0.5">
+                      <p className="text-sm font-medium text-white/70"><span className="sr-only">Upcoming: </span>Result</p>
+                      <p className="mt-1 text-xs leading-relaxed text-white/60">You will get an update in Rewards &amp; Updates. If your proof needs a correction, you will have seven days to resubmit it.</p>
+                    </div>
+                  </li>
+                </ol>
+
+                <h3 className="mt-8 border-t border-white/10 pt-6 text-sm font-semibold">What you submitted</h3>
+                {submittedDetails}
+              </section>
+            ) : approved && application ? (
+              <section aria-labelledby={`${proofId}-approved`} className="mt-8 border-t border-white/10 pt-8 xl:col-start-1 xl:row-span-4 xl:row-start-1 xl:mt-0 xl:border-t-0 xl:pt-0">
+                <h2 id={`${proofId}-approved`} className="flex items-center gap-2 text-base font-semibold">
+                  <Check size={18} aria-hidden="true" className="shrink-0 text-emerald-300" />Your student renewal is approved
+                </h2>
+                <p className="mt-2 text-sm leading-relaxed text-white/70">Your enrollment proof was verified for this renewal cycle.</p>
+                <dl className="mt-6 grid gap-x-6 gap-y-5 sm:grid-cols-2">
+                  {application.reviewed_at && (
+                    <div>
+                      <dt className="text-xs text-white/50">Approved</dt>
+                      <dd className="mt-1 text-sm font-medium">{formatDateTime(application.reviewed_at)}</dd>
+                    </div>
+                  )}
+                  <div>
+                    <dt className="text-xs text-white/50">Submitted</dt>
+                    <dd className="mt-1 text-sm font-medium">{formatDateTime(application.submitted_at)}</dd>
+                  </div>
+                </dl>
+
+                <h3 className="mt-8 border-t border-white/10 pt-6 text-sm font-semibold">School details</h3>
+                {submittedDetails}
+              </section>
             ) : (
               <p className="mt-8 border-t border-white/10 pt-8 text-sm leading-relaxed text-white/80 xl:col-start-1 xl:row-span-4 xl:row-start-1 xl:mt-0 xl:border-t-0 xl:pt-0 xl:text-base">{state.status === 'PENDING' ? 'Your submission is awaiting verification. You do not need to submit again.' : state.status === 'APPROVED' ? 'Your student status is verified for this cycle.' : state.can_switch_to_regular ? `Submission opens ${new Date(state.opens_at).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' })}. You can switch to Regular at any time.` : 'Renewal is available to eligible student accounts.'}</p>
             )}
@@ -288,10 +406,14 @@ export default function StudentRenewalPage() {
             </div>
 
             <div className="xl:col-start-2 xl:row-start-4 xl:border-l xl:border-white/10 xl:pl-8">
-              {state.can_switch_to_regular && (
+              {/* Not offered once the renewal is approved: the commuter has
+                  just been verified as a student for this cycle. */}
+              {state.can_switch_to_regular && state.status !== 'APPROVED' && (
                 <div className="mt-6 flex flex-col gap-4 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:justify-between sm:gap-6 xl:flex-col xl:items-stretch xl:gap-4">
-                  <p className="text-sm leading-relaxed text-white/60">No longer enrolled? You can switch to Regular at any time.</p>
-                  <button ref={regularRef} id="regular" type="button" disabled={busy} onClick={() => { setSwitchError(''); setConfirmRegular(true); }} className={`${secondaryButton} shrink-0 cursor-pointer disabled:cursor-not-allowed`}>No Longer a Student</button>
+                  {/* Locked while a submission is under review, so a renewal the
+                      commuter just sent cannot be cancelled by a stray tap. */}
+                  <p id={`${proofId}-regular-note`} className="text-sm leading-relaxed text-white/60">{state.status === 'PENDING' ? 'Switching to Regular is unavailable while your proof is being verified.' : 'No longer enrolled? You can switch to Regular at any time.'}</p>
+                  <button ref={regularRef} id="regular" type="button" disabled={busy || state.status === 'PENDING'} aria-describedby={`${proofId}-regular-note`} onClick={() => { setSwitchError(''); setConfirmRegular(true); }} className={`${secondaryButton} shrink-0 cursor-pointer disabled:cursor-not-allowed`}>No Longer a Student</button>
                 </div>
               )}
             </div>

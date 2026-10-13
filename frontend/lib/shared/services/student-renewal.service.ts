@@ -12,6 +12,9 @@ export const EDUCATION_LABELS: Record<EducationLevel, string> = { HIGH_SCHOOL: '
 // High school covers Grades 7-12; college records no year level.
 export const HIGH_SCHOOL_GRADES = [7, 8, 9, 10, 11, 12] as const;
 
+// Stored as the label itself: enrollment_term is a free-text column (max 50).
+export const ENROLLMENT_TERMS = ['1st Semester', '2nd Semester', '3rd Semester'] as const;
+
 export function educationSummary(application: Pick<DiscountApplication, 'education_level' | 'grade_level'>) {
   const label = EDUCATION_LABELS[application.education_level] ?? application.education_level;
   return application.grade_level ? `${label}, Grade ${application.grade_level}` : label;
@@ -25,7 +28,7 @@ export interface DiscountApplication {
   id: string; request_type: 'RENEWAL'; cycle_year: number; revision: number; status: RenewalStatus;
   school_name: string; education_level: EducationLevel; grade_level: number | null;
   school_year: string; enrollment_term: string | null;
-  submitted_at: string; first_submitted_at: string; reason: string | null;
+  submitted_at: string; first_submitted_at: string; reviewed_at: string | null; reason: string | null;
   correction_due_at: string | null; document_url?: string; document_mime?: string;
   commuter?: { id: string; first_name: string; middle_name: string | null; surname: string; email: string;
     birthdate: string; gender: string; contact_number: string; username: string; commuter_type: string };
