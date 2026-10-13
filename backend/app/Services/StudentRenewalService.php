@@ -130,7 +130,15 @@ class StudentRenewalService
         $year = $state['cycle_year'];
         // Upload outside the lock; only a completed upload accepted by the server counts toward the deadline.
         $disk = self::DOCUMENT_DISK;
-        $path = $data['document']->store('ids/commuters/'.$profile->id.'/renewals', ['disk' => $disk, 'visibility' => 'private']);
+        // The private disk is configured to throw, so an unreachable or
+        // rejecting store raises instead of returning false. Both outcomes get
+        // the same retryable response; the cause is reported for the operator.
+        try {
+            $path = $data['document']->store('ids/commuters/'.$profile->id.'/renewals', ['disk' => $disk, 'visibility' => 'private']);
+        } catch (\Throwable $error) {
+            report($error);
+            $path = false;
+        }
         if (! $path) {
             abort(502, 'The document could not be stored. Please try again.');
         }

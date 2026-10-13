@@ -561,6 +561,19 @@ class StudentRenewalTest extends TestCase
         $this->assertCount(0, Storage::disk('public')->allFiles());
     }
 
+    public function test_private_storage_exception_returns_retryable_error_without_an_application(): void
+    {
+        $student = $this->commuter();
+        Sanctum::actingAs($student);
+        $disk = \Mockery::mock(FilesystemAdapter::class);
+        $disk->shouldReceive('putFileAs')->once()->andThrow(new \RuntimeException('Unable to write file: cURL error 60.'));
+        Storage::set('r2_private', $disk);
+        $this->post('/api/v1/commuter/student-renewal', $this->proof(), ['Accept' => 'application/json'])
+            ->assertStatus(502)->assertJsonPath('message', 'The document could not be stored. Please try again.');
+        $this->assertDatabaseCount('discount_applications', 0);
+        $this->assertCount(0, Storage::disk('public')->allFiles());
+    }
+
     public function test_admin_list_fetches_only_summary_columns_and_preserves_pagination_and_search(): void
     {
         $student = $this->commuter();
