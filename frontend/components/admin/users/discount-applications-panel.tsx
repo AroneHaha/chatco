@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { RotateCw } from 'lucide-react';
 import { DataTable } from '@/components/admin/ui/data-table';
 import { TablePagination } from '@/components/admin/ui/table-pagination';
 import { SearchBar } from '@/components/admin/ui/search-bar';
@@ -81,7 +82,7 @@ export function DiscountApplicationsPanel({ initialId }: { initialId?: string })
   };
   const columns = [
     { key: 'commuter', label: 'Commuter', render: (_: never, item: DiscountApplication) => <div><p className="font-medium text-white">{item.commuter?.first_name} {item.commuter?.surname}</p><p className="text-xs text-slate-400">{item.commuter?.email}</p></div> },
-    { key: 'request_type', label: 'Request', render: () => <span className="rounded-full border border-[#62A0EA]/30 bg-[#62A0EA]/10 px-2 py-1 text-xs text-[#99C1F1]">Renewal</span> },
+    { key: 'request_type', label: 'Request', render: () => <span className="inline-flex items-center gap-1.5 font-medium text-[#99C1F1]"><RotateCw size={14} aria-hidden="true" className="text-[#62A0EA]" />Renewal</span> },
     { key: 'school_name', label: 'School', render: (_: never, item: DiscountApplication) => <div><p>{item.school_name}</p><p className="text-xs text-slate-400">{educationSummary(item)}</p></div> },
     { key: 'school_year', label: 'School Year / Term', render: (_: never, item: DiscountApplication) => schoolYearSummary(item) },
     { key: 'cycle_year', label: 'Cycle' },
@@ -91,12 +92,12 @@ export function DiscountApplicationsPanel({ initialId }: { initialId?: string })
   ];
 
   return <div className="flex min-h-0 flex-1 flex-col gap-3">
-    <div className="flex flex-wrap items-center gap-3"><SearchBar value={search} onChange={setSearch} placeholder="Search discount applications..." /><select value={status} onChange={e => { setStatus(e.target.value); setPage(1); }} aria-label="Application status" className="min-h-11 rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 text-sm text-white scheme-dark"><option value="">All Statuses</option>{(['PENDING', 'NEEDS_CORRECTION', 'APPROVED', 'REJECTED', 'EXPIRED', 'CANCELLED'] as const).map(value => <option key={value} value={value}>{RENEWAL_LABELS[value]}</option>)}</select><button onClick={() => void load()} className="min-h-11 px-3 text-sm text-[#99C1F1]">Refresh</button></div>
+    <div className="flex flex-wrap items-center gap-3"><SearchBar value={search} onChange={setSearch} placeholder="Search discount applications..." /><select value={status} onChange={e => { setStatus(e.target.value); setPage(1); }} aria-label="Application status" className="min-h-11 rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 text-sm text-white scheme-dark"><option value="">All Statuses</option>{(['PENDING', 'NEEDS_CORRECTION', 'APPROVED', 'REJECTED', 'EXPIRED', 'CANCELLED'] as const).map(value => <option key={value} value={value}>{RENEWAL_LABELS[value]}</option>)}</select></div>
     {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
     {message && <p role="status" className="text-sm text-emerald-300">{message}</p>}
     {loading && <p role="status" className="text-sm text-slate-400">Loading applications...</p>}
     <DataTable data={result?.data ?? []} columns={columns} searchQuery="" emptyMessage="No discount applications match this status." onRowDoubleClick={item => void open(item.id)} height="100%" mobileCards />
     {result && <TablePagination currentPage={result.current_page} totalPages={result.last_page} total={result.total} from={result.from ?? 0} to={result.to ?? 0} onPageChange={setPage} label="applications" />}
-    <ReviewRequestModal key={selected ? `${selected.id}:${selected.revision}` : 'closed'} renewal errorMessage={error} renewalDetails={selected ? `Request: Renewal · Cycle: ${selected.cycle_year}\nSchool: ${selected.school_name}\nLevel: ${educationSummary(selected)}\nSchool year / term: ${schoolYearSummary(selected)}\nStatus: ${RENEWAL_LABELS[selected.status]}${selected.reason ? `\nReview note: ${selected.reason}` : ''}` : undefined} documentIsPdf={selected?.document_mime === 'application/pdf'} readOnly={selected?.status !== 'PENDING'} isOpen={selected !== null} request={selected ? reviewRequest(selected) : null} onClose={() => { if (!busy) setSelected(null); }} isProcessing={busy} onApprove={() => void review('APPROVED')} onReject={(reason, final) => void review(final ? 'REJECTED' : 'NEEDS_CORRECTION', reason)} />
+    <ReviewRequestModal key={selected ? `${selected.id}:${selected.revision}` : 'closed'} renewal={selected} errorMessage={error} isOpen={selected !== null} request={selected ? reviewRequest(selected) : null} onClose={() => { if (!busy) setSelected(null); }} isProcessing={busy} onApprove={() => void review('APPROVED')} onReject={(reason, final) => void review(final ? 'REJECTED' : 'NEEDS_CORRECTION', reason)} />
   </div>;
 }
