@@ -29,10 +29,17 @@ const ROLE_ICONS: Record<string, LucideIcon> = {
 // Status column: dot + label, same treatment as Fleet Management's Personnel table.
 const STATUS_DOT: Record<string, string> = {
   Active: 'bg-emerald-400',
+  'For Renewal': 'bg-yellow-400',
   Suspended: 'bg-amber-400',
   Disabled: 'bg-slate-600',
   Rejected: 'bg-red-400',
 };
+
+function displayStatus(user: User): string {
+  return user.status === 'Active' && 'role' in user && user.role === 'COMMUTER' && user._raw?.studentRenewalRequired
+    ? 'For Renewal'
+    : user.status;
+}
 
 function formatJoinedDate(value: string | null): string {
   if (!value) return '—';
@@ -148,10 +155,10 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
       label: 'Status',
       headerClassName: 'px-2 sm:px-4',
       cellClassName: 'whitespace-nowrap px-2 sm:px-4',
-      render: (value: string) => (
+      render: (_value: string, item: User) => (
         <span className="inline-flex items-center gap-1.5">
-          <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[value] ?? 'bg-slate-600'}`} />
-          <span className={`text-xs font-medium ${value === 'Active' ? 'text-slate-300' : 'text-slate-400'}`}>{value}</span>
+          <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[displayStatus(item)] ?? 'bg-slate-600'}`} />
+          <span className={`text-xs font-medium ${item.status === 'Active' ? 'text-slate-300' : 'text-slate-400'}`}>{displayStatus(item)}</span>
         </span>
       )
     },
@@ -248,8 +255,8 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
                     <p className={styles.detailName}>{selectedUser.name}</p>
                   </div>
                   <span className={styles.detailStatus}>
-                    <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[selectedUser.status] ?? 'bg-slate-600'}`} />
-                    {selectedUser.status}
+                    <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[displayStatus(selectedUser)] ?? 'bg-slate-600'}`} />
+                    {displayStatus(selectedUser)}
                   </span>
                 </header>
 

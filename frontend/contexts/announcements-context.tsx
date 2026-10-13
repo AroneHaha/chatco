@@ -69,6 +69,7 @@ const CLAIM_UPDATE_TYPES = ["claim_approved", "claim_rejected", "claim_released"
  */
 function mapType(rawType: string): AnnouncementType {
   const t = (rawType ?? "").toLowerCase().trim();
+  if (t.startsWith('student_renewal')) return 'SYSTEM';
   if (t === "voucher_received") return "VOUCHER";
   if (!t || t.includes("system")) {
     return "SYSTEM";

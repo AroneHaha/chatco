@@ -14,6 +14,7 @@ import { QrScanner } from "@/components/commuter/feedback/qr-scanner";
 import CommuterDock from "@/components/commuter/commuter-dock";
 import CommuterProfileModal from "@/components/commuter/commuter-profile-modal";
 import CommuterFareModal from "@/components/commuter/commuter-fare-modal";
+import StudentRenewalReminder from "@/components/commuter/student-renewal-reminder";
 import MobileNavHighlight, { useMobileNavHighlight } from "@/components/shared/mobile-nav-highlight";
 
 /**
@@ -238,6 +239,7 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
       {/* --- PROFILE POPOVER (xl:+, opened from CommuterDock) --- */}
       <CommuterProfileModal />
       <CommuterFareModal />
+      <StudentRenewalReminder />
 
       {/* --- FEEDBACK QR SCAN MODAL --- */}
       {/* No backdrop-click-to-close — a live camera stream is running, same

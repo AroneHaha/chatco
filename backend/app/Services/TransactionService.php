@@ -930,7 +930,7 @@ class TransactionService
                 ? [
                     'passenger_id' => $commuterProfile->id,
                     'passenger_name' => $payerName,
-                    'passenger_role' => strtoupper((string) $commuterProfile->commuter_type),
+                    'passenger_role' => strtoupper($commuterProfile->effectiveFareType()),
                     'payer_name' => $payerName,
                 ]
                 : ($isMultiPassenger ? [
@@ -938,7 +938,7 @@ class TransactionService
                 ] : [
                     'passenger_id' => $commuterProfile->id,
                     'passenger_name' => $payerName,
-                    'passenger_role' => strtoupper((string) $commuterProfile->commuter_type),
+                    'passenger_role' => strtoupper($commuterProfile->effectiveFareType()),
                 ]);
             $updates['payer_id'] = $commuterProfile->id;
             $updates['payer_name_snapshot'] = $payerName;
@@ -956,7 +956,7 @@ class TransactionService
                 ]);
             }
 
-            $commuterType = (string) $commuterProfile->commuter_type;
+            $commuterType = $commuterProfile->effectiveFareType();
             $discountedAmount = $isMultiPassenger
                 ? null
                 : $this->discountedFareFor($transaction, $commuterType);
@@ -1486,7 +1486,7 @@ class TransactionService
             if (! $profile) {
                 abort(422, 'Passenger profile was not found.');
             }
-            $value = (string) $profile->commuter_type;
+            $value = $profile->effectiveFareType();
         }
 
         try {

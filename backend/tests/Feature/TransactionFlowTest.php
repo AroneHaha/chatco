@@ -227,6 +227,32 @@ class TransactionFlowTest extends TestCase
             ->assertJsonPath('data.passenger_role', 'STUDENT');
     }
 
+    public function test_expired_account_student_discount_is_not_applied_to_gcash_claim(): void
+    {
+        $this->commuter1->commuterProfile->update([
+            'commuter_type' => 'STUDENT', 'student_discount_expires_at' => now()->subMinute(),
+        ]);
+        $transaction = $this->createPendingGcashTransaction(['final_amount' => 25]);
+        $result = app(TransactionService::class)->claimGcash($this->commuter1, $transaction->qr_token);
+
+        $this->assertSame(25.0, $result['amount']);
+        $this->assertSame('REGULAR', $result['passenger_role']);
+        $this->assertSame('STUDENT', $this->commuter1->fresh()->commuterProfile->commuter_type);
+    }
+
+    public function test_manual_student_cash_and_group_selection_remains_unchanged(): void
+    {
+        Sanctum::actingAs($this->conductor);
+        $pickup = FarePoint::where('name', 'Calumpit')->firstOrFail();
+        $dropoff = FarePoint::where('name', 'Bustos')->firstOrFail();
+        $route = ['payment_method' => 'CASH', 'pickup_stop_id' => $pickup->id, 'dropoff_stop_id' => $dropoff->id,
+            'pickup_name' => $pickup->name, 'dropoff_name' => $dropoff->name];
+        $this->postJson('/api/v1/conductor/transactions', $route + ['passenger_role' => 'STUDENT'])
+            ->assertCreated()->assertJsonPath('data.final_amount', '13.60')->assertJsonPath('data.passenger_role', 'STUDENT');
+        $this->postJson('/api/v1/conductor/transactions', $route + ['group_passengers' => [['type' => 'STUDENT', 'quantity' => 2]]])
+            ->assertCreated()->assertJsonPath('data.total_amount', 27.2);
+    }
+
     public function test_group_cash_endpoint_recalculates_every_passenger_amount(): void
     {
         $pickup = FarePoint::where('name', 'Calumpit')->firstOrFail();

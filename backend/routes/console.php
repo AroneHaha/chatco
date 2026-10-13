@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\StudentRenewalService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -7,6 +8,23 @@ use Illuminate\Support\Facades\Schedule;
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+Artisan::command('students:process-renewals', function (StudentRenewalService $renewals) {
+    $failures = $renewals->process();
+    if ($failures) {
+        foreach ($failures as $failure) {
+            $this->error("Retry required: {$failure['phase']} for commuter {$failure['commuter_id']}.");
+        }
+        $this->error(count($failures).' student renewal operation(s) failed. Rerun students:process-renewals to retry.');
+
+        return 1;
+    }
+    $this->info('Student renewal reminders and expirations processed.');
+
+    return 0;
+})->purpose('Send student renewal reminders and expire overdue student eligibility');
+
+Schedule::command('students:process-renewals')->dailyAt('00:00')->timezone('Asia/Manila')->withoutOverlapping(60);
 
 Schedule::command('vehicles:reset-daily-assignments')
     ->dailyAt('00:00')

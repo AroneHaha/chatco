@@ -37,6 +37,7 @@ use App\Http\Controllers\Payment\QrController;
 use App\Http\Controllers\RouteGeometryController;
 use App\Http\Controllers\SystemStatusController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\StudentRenewalController;
 
 /*
 |--------------------------------------------------------------------------
@@ -106,6 +107,10 @@ Route::middleware('auth:sanctum')->get('/user', [AuthController::class, 'user'])
 Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(function () {
     Route::get('/vehicles/{vehicle}/details', VehicleDetailsController::class)->middleware('throttle:conductor-read');
     Route::get('/profile', [CommuterController::class, 'profile'])->middleware('throttle:conductor-read');
+    Route::get('/student-renewal', [StudentRenewalController::class, 'state'])->middleware('throttle:commuter-read');
+    Route::post('/student-renewal', [StudentRenewalController::class, 'submit'])->middleware('throttle:conductor-write');
+    Route::post('/student-renewal/regular', [StudentRenewalController::class, 'regular'])->middleware('throttle:conductor-write');
+    Route::post('/student-renewal/reminder', [StudentRenewalController::class, 'reminder'])->middleware('throttle:conductor-write');
     Route::put('/profile', [CommuterController::class, 'updateProfile'])->middleware('throttle:conductor-write');
     Route::get('/change-email', [EmailChangeController::class, 'state'])->middleware('throttle:commuter-read');
     Route::prefix('change-email')->middleware('throttle:commuter-security')->group(function () {
@@ -286,6 +291,8 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::post('/registrations', [AdminRegistrationController::class, 'store'])->middleware('throttle:conductor-write');
     Route::post('/registrations/{id}/approve', [AdminRegistrationController::class, 'approve'])->middleware('throttle:conductor-write');
     Route::post('/registrations/{id}/reject', [AdminRegistrationController::class, 'reject'])->middleware('throttle:conductor-write');
+    Route::get('/discount-applications', [StudentRenewalController::class, 'index'])->middleware('throttle:conductor-read');
+    Route::post('/discount-applications/{id}/review', [StudentRenewalController::class, 'review'])->middleware('throttle:conductor-write');
     Route::get('/users/{id}/activity', [AdminController::class, 'userActivity'])->middleware('throttle:conductor-read');
     Route::get('/personnel', [AdminController::class, 'personnel'])->middleware('throttle:conductor-read');
     Route::get('/drivers', [AdminController::class, 'drivers'])->middleware('throttle:conductor-read');

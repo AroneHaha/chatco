@@ -33,6 +33,7 @@ interface RawUser {
   suffix: string | null;
   last_name: string | null;
   account_status: string | null;
+  student_renewal_required: boolean;
   commuter_type: string | null;
   applied_type: string | null;
   username: string | null;
@@ -110,6 +111,7 @@ export interface AdminUser {
   accountStatus: AccountStatus | null;
   /** UI-friendly label for the table badge. */
   statusLabel: string;
+  studentRenewalRequired: boolean;
   commuterType: CommuterType | null;
   /** UI-friendly commuter type label (e.g. "Senior Citizen" for SENIOR). */
   commuterTypeLabel: string;
@@ -238,6 +240,7 @@ function mapUser(raw: RawUser): AdminUser {
     lastName: raw.last_name,
     accountStatus: (raw.account_status as AccountStatus | null) ?? null,
     statusLabel: mapStatusLabel(raw.account_status),
+    studentRenewalRequired: raw.student_renewal_required ?? false,
     commuterType: (raw.commuter_type as CommuterType | null) ?? null,
     commuterTypeLabel: mapCommuterTypeLabel(raw.commuter_type),
     appliedTypeLabel: raw.applied_type ? mapCommuterTypeLabel(raw.applied_type) : null,

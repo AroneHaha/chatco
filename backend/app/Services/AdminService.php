@@ -1176,7 +1176,7 @@ class AdminService
         return [
             'adminProfile:id,first_name,middle_name,last_name',
             'conductorProfile:id,first_name,middle_name,last_name,generated_username,status',
-            'commuterProfile:id,first_name,middle_name,suffix,surname,birthdate,gender,contact_number,commuter_type,applied_type,account_status,verified_at,username,id_image_url',
+            'commuterProfile:id,first_name,middle_name,suffix,surname,birthdate,gender,contact_number,commuter_type,applied_type,account_status,verified_at,username,id_image_url,student_discount_expires_at',
             'activeSuspension',
         ];
     }
@@ -1241,6 +1241,7 @@ class AdminService
             'suffix' => $commuter?->suffix,
             'last_name' => $commuter?->surname,
             'account_status' => $accountStatus,
+            'student_renewal_required' => $commuter && ! $suspension && app(StudentRenewalService::class)->isForRenewal($commuter),
             'commuter_type' => $commuter?->commuter_type,
             'applied_type' => $commuter?->applied_type,
             'username' => $commuter?->username,
@@ -1620,6 +1621,7 @@ class AdminService
 
         $profile->update([
             'commuter_type' => $profile->applied_type ?? 'REGULAR',
+            'student_discount_expires_at' => $profile->applied_type === 'STUDENT' ? \App\Models\CommuterProfile::initialStudentExpiry() : null,
             'account_status' => 'APPROVED',
             'verified_at' => now(),
             'rejection_reason' => null,

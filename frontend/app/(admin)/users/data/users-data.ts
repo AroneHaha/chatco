@@ -191,7 +191,7 @@ function mapDriverToActiveUser(d: RawDriver): ActiveUser {
   };
 }
 
-export function useUsersData(activeTab: "active" | "pending" | "rejected" = "active"): UseUsersDataReturn {
+export function useUsersData(activeTab: "active" | "pending" | "rejected" | "discounts" = "active"): UseUsersDataReturn {
   const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [rejectedUsers, setRejectedUsers] = useState<RejectedRequest[]>([]);

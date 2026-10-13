@@ -18,6 +18,7 @@ use App\Http\Controllers\Payment\PaymentController;
 use App\Http\Controllers\Payment\QrController;
 use App\Http\Controllers\RouteGeometryController;
 use App\Http\Controllers\SystemStatusController;
+use App\Http\Controllers\StudentRenewalController;
 use Illuminate\Support\Facades\Route;
 
 // Loaded inside api.php: retains /api/v1 and the existing API middleware.
@@ -103,6 +104,10 @@ Route::prefix('mobile/conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR']
 |--------------------------------------------------------------------------
 */
 Route::prefix('mobile/commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(function () {
+    Route::get('/student-renewal', [StudentRenewalController::class, 'state'])->middleware('throttle:commuter-read');
+    Route::post('/student-renewal', [StudentRenewalController::class, 'submit'])->middleware('throttle:conductor-write');
+    Route::post('/student-renewal/regular', [StudentRenewalController::class, 'regular'])->middleware('throttle:conductor-write');
+    Route::post('/student-renewal/reminder', [StudentRenewalController::class, 'reminder'])->middleware('throttle:conductor-write');
     Route::get('/profile', [CommuterController::class, 'profile'])->middleware('throttle:conductor-read');
     Route::put('/profile', [CommuterController::class, 'updateProfile'])->middleware('throttle:conductor-write');
     Route::post('/change-password/request-code', [CommuterController::class, 'requestPasswordChangeCode'])->middleware('throttle:conductor-write');

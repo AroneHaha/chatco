@@ -326,9 +326,12 @@ These jobs run from `backend/routes/console.php` (`php artisan schedule:run` eve
 | `remittances:send-reminders` | 00:05 | Reminds conductors with `PENDING` remittances |
 | `lost-items:expire` | 01:00 | Archives `AVAILABLE` lost items unclaimed past the expiry window |
 | `announcements:prune-archived` | 02:00 | Soft-deletes `ARCHIVED` announcements older than 30 days |
+| `students:process-renewals` | 00:00 daily | Sends scheduled Student renewal reminders and converts overdue students to Regular; timely pending submissions are protected |
 | `queue:work` (short run) | every minute | Only when `QUEUE_CONNECTION=database`. Shared hosting has no long-lived worker. |
 
 Payments and hails also expire **lazily**: status polls and resume lookups apply the TTL on read, so the API stays correct even if the scheduler is down.
+
+Student account fare eligibility checks the stored October 1 expiry directly, even if the renewal command is delayed. The first September cycle defaults to `STUDENT_RENEWAL_FIRST_YEAR=2027`; the additive discount-application migration initializes existing students to October 1 of that year. Run `php artisan migrate` when deploying and keep the existing every-minute `schedule:run` cron active. Manual cash and group Student selection is unchanged.
 
 ## Shared enums
 

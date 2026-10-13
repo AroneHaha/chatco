@@ -27,16 +27,22 @@ interface ReviewRequestModalProps {
   onClose: () => void;
   request: PendingRequest | null;
   onApprove: () => void;
-  onReject: (reason: string) => void;
+  onReject: (reason: string, finalRejection?: boolean) => void;
   isProcessing?: boolean;
+  renewal?: boolean;
+  readOnly?: boolean;
+  renewalDetails?: string;
+  documentIsPdf?: boolean;
+  errorMessage?: string;
 }
 
-export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReject, isProcessing = false }: ReviewRequestModalProps) {
+export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReject, isProcessing = false, renewal = false, readOnly = false, renewalDetails, documentIsPdf = false, errorMessage }: ReviewRequestModalProps) {
   const [selectedReason, setSelectedReason] = useState('');
   const [customReason, setCustomReason] = useState('');
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
   const [showApproveConfirm, setShowApproveConfirm] = useState(false);
   const [isImageExpanded, setIsImageExpanded] = useState(false);
+  const [finalRejection, setFinalRejection] = useState(false);
 
   // Reset internal state whenever the modal is closed or a different
   // request is opened — prevents a stale rejection reason from a previous
@@ -49,7 +55,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
         <div role="status" aria-live="polite" className="flex flex-col items-center px-2 py-6 text-center">
           <LoaderCircle size={36} className="mb-4 animate-spin text-[#62A0EA]" aria-hidden="true" />
           <h2 className="text-xl font-bold text-white">
-            {showRejectConfirm ? 'Rejecting registration...' : 'Approving registration...'}
+            {renewal ? 'Reviewing renewal...' : showRejectConfirm ? 'Rejecting registration...' : 'Approving registration...'}
           </h2>
           <p className="mt-2 text-sm text-slate-400">Processing {request.name}&apos;s submission. Please wait.</p>
         </div>
@@ -67,7 +73,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
 
   const handleRejectClick = () => {
     if (effectiveReason) {
-      onReject(effectiveReason);
+      onReject(effectiveReason, finalRejection);
     }
   };
 
@@ -80,11 +86,13 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
   return (
     <Modal isOpen={isOpen} onClose={() => { if (!isProcessing) onClose(); }} maxWidth="max-w-2xl">
       <div className="pr-8">
-        <h2 className="text-xl font-bold text-white sm:text-2xl">Review Registration Request</h2>
-        <p className="mt-1 text-sm text-slate-500">Verify the applicant&apos;s details against their uploaded ID before deciding.</p>
+        <h2 className="text-xl font-bold text-white sm:text-2xl">{renewal ? 'Review Renewal' : 'Review Registration Request'}</h2>
+        <p className="mt-1 text-sm text-slate-500">{renewal ? 'Verify current enrollment and the school year against the commuter’s details.' : 'Verify the applicant’s details against their uploaded ID before deciding.'}</p>
       </div>
 
       <div className="mt-5 space-y-4">
+        {renewalDetails && <p className="whitespace-pre-wrap text-sm text-slate-300">{renewalDetails}</p>}
+        {errorMessage && <p role="alert" className="text-sm text-red-300">{errorMessage}</p>}
         {/* Applicant identity strip — the one place a human name/email/type
             summary lives, so the admin doesn't have to scan the field grid
             below just to know who they're looking at. */}
@@ -149,7 +157,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
               <p className="rounded-lg border border-dashed border-white/10 px-4 py-10 text-center text-sm text-slate-400">
                 No ID uploaded. ID upload was optional for this registration.
               </p>
-            ) : (
+            ) : documentIsPdf ? <a href={request.idImageUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center text-sm text-[#99C1F1]">Open enrollment document (PDF)</a> : (
             <>
             {/* Click to view full size, since the thumbnail is too small to
                 actually verify text/photo details against. */}
@@ -223,11 +231,11 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
         </div>
 
         {/* Rejection Reason Input (Hidden until clicked) */}
-        {showRejectConfirm && (
+        {showRejectConfirm && !readOnly && (
           <div className="rounded-xl border border-red-400/30 bg-red-400/10 p-4">
             <div className="flex items-center space-x-2 mb-2 text-red-400">
               <AlertTriangle size={16} />
-              <span className="text-sm font-semibold">Select the reason for rejection:</span>
+              <span className="text-sm font-semibold">{renewal ? 'Explain the enrollment proof issue:' : 'Select the reason for rejection:'}</span>
             </div>
             <select
               value={selectedReason}
@@ -236,7 +244,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
               className="w-full bg-black/30 border border-[#1E2D45] rounded-lg text-white text-sm p-2 focus:outline-none focus:ring-1 focus:ring-red-400 [color-scheme:dark]"
             >
               <option value="" disabled className="bg-gray-800">Select a reason...</option>
-              {REJECTION_REASONS.map((reason) => (
+              {(renewal ? ['Blurry document', 'Document does not match the commuter', 'Current school year or enrollment is not shown', 'Enrollment proof is expired'] : REJECTION_REASONS).map((reason) => (
                 <option key={reason} value={reason} className="bg-gray-800">{reason}</option>
               ))}
               <option value={OTHER_REASON} className="bg-gray-800">{OTHER_REASON}</option>
@@ -254,6 +262,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
                 className="mt-2 w-full bg-black/30 border border-[#1E2D45] rounded-lg text-white text-sm placeholder-slate-500 p-2 focus:outline-none focus:ring-1 focus:ring-red-400 resize-none"
               />
             )}
+            {renewal && <label className="mt-3 flex items-start gap-2 text-sm text-slate-300"><input type="checkbox" checked={finalRejection} onChange={e => setFinalRejection(e.target.checked)} className="mt-1" />Final rejection: switch to Regular. Leave unchecked to request corrections within seven days.</label>}
 
             <div className="mt-3 flex gap-2">
               <button
@@ -269,20 +278,19 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
                 className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isProcessing ? <LoaderCircle size={18} className="animate-spin" /> : <XCircle size={18} />}
-                <span>{isProcessing ? 'Processing...' : 'Confirm Rejection'}</span>
+                <span>{isProcessing ? 'Processing...' : renewal && !finalRejection ? 'Request Corrections' : 'Confirm Rejection'}</span>
               </button>
             </div>
           </div>
         )}
 
         {/* Approval Confirmation (Hidden until "Approve Account" is clicked) */}
-        {showApproveConfirm && (
+        {showApproveConfirm && !readOnly && (
           <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-4">
             <div className="flex items-start space-x-2 mb-3 text-emerald-300">
               <CheckCircle size={16} className="mt-0.5 shrink-0" />
               <p className="text-sm">
-                Approve <span className="font-semibold text-white">{request.name}</span>&apos;s registration as a{' '}
-                <span className="font-semibold">{request.commuterType}</span> commuter? They will be able to log in immediately.
+                {renewal ? <>Approve <span className="font-semibold text-white">{request.name}</span>&apos;s student renewal? Their student discount will be available for the new annual cycle.</> : <>Approve <span className="font-semibold text-white">{request.name}</span>&apos;s registration as a{' '}<span className="font-semibold">{request.commuterType}</span> commuter? They will be able to log in immediately.</>}
               </p>
             </div>
             <div className="flex gap-2">
@@ -311,7 +319,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
             it. Equal width keeps the pair reading as one balanced decision.
             Each escalates to a solid confirm button only once the admin has
             actually committed, in the panel below. */}
-        {!showingConfirm && (
+        {!showingConfirm && !readOnly && (
           <div className="flex gap-3 pt-2">
             <button
               onClick={() => setShowRejectConfirm(true)}
@@ -319,7 +327,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
               className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-5 py-3 font-semibold text-red-400 transition-colors hover:border-red-500/30 hover:bg-red-500/15"
             >
               <XCircle size={18} />
-              <span>Reject</span>
+              <span>{renewal ? 'Request Corrections / Reject' : 'Reject'}</span>
             </button>
             <button
               onClick={() => setShowApproveConfirm(true)}
@@ -327,7 +335,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
               className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-5 py-3 font-semibold text-emerald-400 transition-colors hover:border-emerald-500/30 hover:bg-emerald-500/15"
             >
               <CheckCircle size={18} />
-              <span>Approve Account</span>
+              <span>{renewal ? 'Approve Renewal' : 'Approve Account'}</span>
             </button>
           </div>
         )}

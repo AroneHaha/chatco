@@ -43,6 +43,9 @@ Targeted announcements are created by `AnnouncementService::notifyUser()` (one r
 | `claim_rejected` | The claimant | `LostItemService::rejectClaim` | An admin rejects their claim (initial or post-approval reversal) |
 | `claim_released` | The claimant | `LostItemService::releaseClaim` | An admin marks the item as handed back to them |
 | `NEW_REGISTRATION` | Every admin | `AuthService` | A commuter signs up and needs approval |
+| `STUDENT_RENEWAL` | Unrenewed Student commuter | `students:process-renewals` | August 25/29/31 and September 1/8/15/22/29; reading does not trigger duplicates |
+| `STUDENT_RENEWAL_NEW` | Every admin | `StudentRenewalService::submit` | New or corrected renewal proof is awaiting review; links to Discount Applications |
+| `STUDENT_RENEWAL_DONE` | The student commuter | `StudentRenewalService` | Renewal decision or overdue conversion to Regular |
 | `SOS_TRIGGERED` | Every admin | `SosService` | A commuter or conductor sends an SOS alert |
 | `SHIFT_STARTED` | Every admin | `ShiftService::startShift` | A conductor starts a shift |
 | `OVERSPEED_FLAGGED` | Every admin | `LocationService::recordOverspeedAtomic` | A new overspeed episode starts on a shift ([conductor.md](conductor.md#post-conductorlocation)) |
