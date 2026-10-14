@@ -240,6 +240,37 @@ class TransactionFlowTest extends TestCase
         $this->assertSame('STUDENT', $this->commuter1->fresh()->commuterProfile->commuter_type);
     }
 
+    public static function applicationDiscountCategories(): array
+    {
+        return [['STUDENT'], ['PWD'], ['SENIOR']];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('applicationDiscountCategories')]
+    public function test_seeded_discount_application_only_changes_new_gcash_claims_after_approval(string $type): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('r2_private');
+        $this->seed(\Database\Seeders\Commuter022Seeder::class);
+        $commuter = User::where('email', 'commuter022@gmail.com')->firstOrFail();
+        $applications = app(\App\Services\DiscountApplicationService::class);
+        $state = $applications->submit($commuter, [
+            'requested_type' => $type,
+            'document' => \Illuminate\Http\UploadedFile::fake()->image('proof.jpg'),
+            'school_name' => 'Test University', 'education_level' => 'COLLEGE',
+            'school_year' => '2026-2027', 'enrollment_term' => '1st Semester',
+        ]);
+        $transaction = $this->createPendingGcashTransaction();
+        $before = app(TransactionService::class)->claimGcash($commuter->fresh(), $transaction->qr_token);
+        $this->assertSame(25.0, $before['amount']);
+        $this->assertSame('REGULAR', $before['passenger_role']);
+        $applications->review($this->admin, $state['application']['id'], ['decision' => 'APPROVED', 'revision' => 1]);
+        $after = app(TransactionService::class)->claimGcash($commuter->fresh(), $this->createPendingGcashTransaction()->qr_token);
+        $this->assertLessThan($before['amount'], $after['amount']);
+        $this->assertSame($type, $after['passenger_role']);
+        // A checkout already claimed before approval retains its original fare.
+        $repeat = app(TransactionService::class)->claimGcash($commuter->fresh(), $transaction->qr_token);
+        $this->assertSame($before['amount'], $repeat['amount']);
+    }
+
     public function test_manual_student_cash_and_group_selection_remains_unchanged(): void
     {
         Sanctum::actingAs($this->conductor);

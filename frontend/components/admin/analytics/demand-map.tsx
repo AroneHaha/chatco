@@ -49,6 +49,7 @@ export default function DemandMap({ zones }: Props) {
       style={{ background: "#0E1628" }}
     >
       <TileLayer
+        className="map-tiles-mono"
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url={`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${process.env.NEXT_PUBLIC_CARTO_API_KEY}`}
       />

@@ -251,6 +251,8 @@ User Management has a **Discount Applications** tab. Its current request label i
 
 Both require ADMIN. Reads use `conductor-read`, writes use `conductor-write`. Approval restores Student eligibility for the new annual cycle. Corrections give seven days to resubmit. Final rejection converts to Regular while preserving the account. Profile-first locks serialize approval, opt-out and expiry; a revision check prevents approving a document replaced since it was opened. The database permits only one application per commuter/cycle. Resubmissions retain document/review history and use the existing activity log. Uploaded renewal proof never replaces the original registration ID.
 
+The same queue holds new discount applications (`request_type=APPLICATION`), filterable with `request_type` (`APPLICATION`, `RENEWAL`) and `requested_type` (`STUDENT`, `PWD`, `SENIOR`). For applications, a correction has no deadline (`correction_due_at` stays null) and a rejection keeps the account Regular. Only approval requires the commuter to still be an active, unsuspended Regular account, so a suspended commuter's application can still be rejected or sent back.
+
 ## Registrations
 
 Commuter self-registration lands here `PENDING`. An admin reviews the uploaded valid ID against the requested discount tier (`applied_type`) and approves or rejects it. Admins can also create a `PENDING` account directly for a commuter who registers onsite (e.g. a terminal kiosk).

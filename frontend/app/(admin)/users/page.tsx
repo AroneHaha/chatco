@@ -26,11 +26,13 @@ import { OperationResultModal } from '@/components/admin/ui/operation-result-mod
 import { ConfirmPasswordModal } from '@/components/admin/ui/confirm-password-modal';
 import { PageTabs } from '@/components/admin/ui/page-tabs';
 import { DiscountApplicationsPanel } from '@/components/admin/users/discount-applications-panel';
+import { useAdminNotifications } from '@/contexts/admin-notifications-context';
 
 export default function UsersPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<'active' | 'pending' | 'rejected' | 'discounts'>('active');
+  const { discountApplications } = useAdminNotifications();
   const {
     activeUsers,
     pendingRequests,
@@ -506,7 +508,7 @@ export default function UsersPage() {
               { id: 'active', label: `Active ${activeRoleLabel}`, count: pagination?.total ?? activeUsers.length, icon: UserCheck },
               { id: 'pending', label: 'Pending Verification', count: pendingTotal, icon: Users, accent: 'amber' },
               { id: 'rejected', label: 'Rejected', count: rejectedTotal, icon: XCircle, accent: 'red' },
-              { id: 'discounts', label: 'Discount Applications', icon: RefreshCw },
+              { id: 'discounts', label: 'Discount Applications', count: discountApplications.count, icon: RefreshCw, accent: 'amber' },
             ]}
           />
         </div>
@@ -546,7 +548,7 @@ export default function UsersPage() {
           screen size, instead of a fixed height that either clips or
           leaves a gap (same approach as Remittance/Announcements). */}
       <div className="flex flex-1 min-h-0 flex-col">
-        {activeTab === 'discounts' ? <DiscountApplicationsPanel initialId={searchParams.get('applicationId') ?? undefined} /> : isLoading && !hasDataForActiveTab ? (
+        {activeTab === 'discounts' ? <DiscountApplicationsPanel initialId={searchParams.get('applicationId') ?? undefined} onReviewed={discountApplications.refresh} /> : isLoading && !hasDataForActiveTab ? (
           // First load of this tab — nothing on screen yet, so the full
           // card skeleton is the right call.
           <div className="h-full min-h-64 overflow-hidden rounded-lg">

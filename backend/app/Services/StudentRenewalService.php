@@ -14,10 +14,7 @@ use Illuminate\Support\Facades\Storage;
 
 class StudentRenewalService
 {
-    // Renewal proof must never use the registration upload's public fallback.
-    private const DOCUMENT_DISK = 'r2_private';
-
-    public function __construct(private AnnouncementService $announcements, private ActivityLogService $activity) {}
+    public function __construct(private AnnouncementService $announcements, private ActivityLogService $activity, private DiscountApplicationService $applications) {}
 
     public function cycleYear(): int
     {
@@ -57,9 +54,9 @@ class StudentRenewalService
                 && ! $profile->student_discount_expires_at?->gt($this->cutoff($year)));
     }
 
-    private function assertEligible(CommuterProfile $profile): void
+    public function assertEligible(CommuterProfile $profile): void
     {
-        if (! in_array($profile->account_status, ['ACTIVE', 'APPROVED'], true)
+        if ($profile->user?->activeSuspension || ! in_array($profile->account_status, ['ACTIVE', 'APPROVED'], true)
             || ! ($profile->commuter_type === 'STUDENT' || ($profile->commuter_type === 'REGULAR' && $profile->applied_type === 'STUDENT' && $profile->student_discount_expires_at))) {
             abort(403, 'Student renewal is available only to approved student accounts and former students whose discount expired.');
         }
@@ -70,8 +67,8 @@ class StudentRenewalService
         $profile = $user->commuterProfile;
         abort_unless($profile, 404, 'Commuter profile not found.');
         $year = $this->cycleYear();
-        $outstanding = $profile->discountApplications()->outstanding()->orderBy('cycle_year')->first();
-        $application = $outstanding ?? $profile->discountApplications()->where('cycle_year', $year)->first();
+        $outstanding = $profile->discountApplications()->select(DiscountApplication::SUMMARY_COLUMNS)->where('request_type', 'RENEWAL')->outstanding()->orderBy('cycle_year')->first();
+        $application = $outstanding ?? $profile->discountApplications()->select(DiscountApplication::SUMMARY_COLUMNS)->where('request_type', 'RENEWAL')->where('cycle_year', $year)->first();
         // An unresolved request keeps its cycle and correction window after rollover.
         $year = $outstanding?->cycle_year ?? $year;
         $cutoff = $this->cutoff($year);
@@ -79,6 +76,7 @@ class StudentRenewalService
         $canApply = in_array($profile->account_status, ['ACTIVE', 'APPROVED'], true)
             && ($profile->commuter_type === 'STUDENT' || ($profile->commuter_type === 'REGULAR' && $profile->applied_type === 'STUDENT' && $profile->student_discount_expires_at))
             && now('Asia/Manila')->gte($cutoff->copy()->subMonth()) && ! $renewed
+            && ! $profile->discountApplications()->where('request_type', 'APPLICATION')->outstanding()->exists()
             && ! in_array($application?->status, ['PENDING', 'APPROVED', 'CANCELLED'], true);
         $noticeActive = ! $renewed && ($profile->commuter_type === 'STUDENT' || $canApply)
             && now('Asia/Manila')->gte($this->noticeStartsAt($year));
@@ -129,19 +127,7 @@ class StudentRenewalService
         abort_unless($state['can_submit'], 409, 'Renewal is not open or this cycle already has an active application.');
         $year = $state['cycle_year'];
         // Upload outside the lock; only a completed upload accepted by the server counts toward the deadline.
-        $disk = self::DOCUMENT_DISK;
-        // The private disk is configured to throw, so an unreachable or
-        // rejecting store raises instead of returning false. Both outcomes get
-        // the same retryable response; the cause is reported for the operator.
-        try {
-            $path = $data['document']->store('ids/commuters/'.$profile->id.'/renewals', ['disk' => $disk, 'visibility' => 'private']);
-        } catch (\Throwable $error) {
-            report($error);
-            $path = false;
-        }
-        if (! $path) {
-            abort(502, 'The document could not be stored. Please try again.');
-        }
+        $path = $this->applications->storeDocument($profile, $data['document'], 'renewals');
         try {
             DB::transaction(function () use ($user, $profile, $path, $data, $year) {
                 $locked = CommuterProfile::whereKey($profile->id)->lockForUpdate()->firstOrFail();
@@ -150,29 +136,13 @@ class StudentRenewalService
                 $state = $this->state($user);
                 abort_unless($state['can_submit'] && $state['cycle_year'] === $year, 409, 'This renewal has already been submitted or processed, or its submission window has changed.');
                 $application = DiscountApplication::firstOrNew(['commuter_id' => $locked->id, 'cycle_year' => $year]);
-                // Preserve earlier documents for review history; never overwrite the initial registration ID.
-                if ($application->exists) {
-                    $history = $application->submission_history ?? [];
-                    $history[] = $application->only(['revision', 'document_path', 'document_mime', 'school_name', 'education_level', 'grade_level', 'school_year', 'enrollment_term', 'submitted_at', 'reviewed_at', 'reviewed_by', 'status', 'reason']);
-                    $application->submission_history = $history;
-                    $this->activity->record(ActivityLogCategory::MEMBER, "Renewal {$application->id} resubmitted; previous status {$application->status}, reason: {$application->reason}", $user);
-                }
-                $retainTimelySubmission = $application->status === 'NEEDS_CORRECTION' && $application->correction_due_at?->isFuture();
-                $application->fill([
-                    'status' => 'PENDING', 'request_type' => 'RENEWAL', 'document_path' => $path,
-                    'revision' => $application->exists ? $application->revision + 1 : 1,
-                    'document_mime' => $data['document']->getMimeType(),
-                    'school_name' => $data['school_name'], 'education_level' => $data['education_level'],
-                    'grade_level' => $data['grade_level'] ?? null,
-                    'school_year' => $data['school_year'], 'enrollment_term' => ($data['enrollment_term'] ?? null) ?: null,
-                    'submitted_at' => now(),
-                    'first_submitted_at' => $retainTimelySubmission ? $application->first_submitted_at : now(),
-                    'reviewed_by' => null, 'reviewed_at' => null, 'reason' => null, 'correction_due_at' => null,
-                ])->save();
+                $application->request_type = 'RENEWAL';
+                $application->requested_type = 'STUDENT';
+                $this->applications->saveSubmission($application, $data, $path, $user);
                 $this->announcements->notifyAdmins('STUDENT_RENEWAL_NEW', 'Student renewal awaiting review', $locked->first_name.' '.$locked->surname.' submitted enrollment proof.', $application->id);
             }, 3);
         } catch (\Throwable $error) {
-            Storage::disk($disk)->delete($path);
+            Storage::disk(DiscountApplicationService::DOCUMENT_DISK)->delete($path);
             throw $error;
         }
 
@@ -185,7 +155,7 @@ class StudentRenewalService
             $profile = CommuterProfile::whereKey($user->id)->lockForUpdate()->firstOrFail();
             $this->assertEligible($profile);
             $profile->update(['commuter_type' => 'REGULAR', 'applied_type' => 'REGULAR', 'student_discount_expires_at' => null]);
-            DiscountApplication::where('commuter_id', $profile->id)->whereIn('status', ['PENDING', 'NEEDS_CORRECTION'])->update(['status' => 'CANCELLED', 'updated_at' => now()]);
+            DiscountApplication::where('commuter_id', $profile->id)->where('request_type', 'RENEWAL')->whereIn('status', ['PENDING', 'NEEDS_CORRECTION'])->update(['status' => 'CANCELLED', 'updated_at' => now()]);
             $this->activity->record(ActivityLogCategory::MEMBER, 'Student voluntarily switched to Regular: '.$profile->id, $user);
         }, 3);
 
@@ -194,72 +164,17 @@ class StudentRenewalService
 
     public function list(array $filters)
     {
-        // Table pages never show the proof; only the single-application fetch
-        // behind the review dialog gets a signed document link.
-        $withDocument = isset($filters['id']);
-        $columns = ['id', 'commuter_id', 'request_type', 'cycle_year', 'revision', 'status', 'school_name', 'education_level', 'grade_level', 'school_year', 'enrollment_term', 'reason', 'reviewed_by', 'document_mime', 'submitted_at', 'first_submitted_at', 'reviewed_at', 'correction_due_at'];
-
-        return DiscountApplication::select($withDocument ? [...$columns, 'document_path'] : $columns)
-            ->with(['commuter:id,first_name,middle_name,surname,birthdate,gender,contact_number,username,commuter_type', 'commuter.user:id,email'])
-            ->whereHas('commuter.user')
-            ->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
-            ->when($filters['id'] ?? null, fn ($q, $id) => $q->whereKey($id))
-            ->when($filters['search'] ?? null, function ($q, $search) {
-                $q->whereHas('commuter', fn ($profile) => $profile->where(fn ($p) => $p->where('first_name', 'like', "%{$search}%")->orWhere('surname', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%")));
-            })
-            ->orderBy('submitted_at')->orderBy('id')->paginate($filters['per_page'] ?? 10)
-            ->through(fn ($application) => $this->present($application, true, $withDocument));
+        return $this->applications->list($filters);
     }
 
     public function review(User $admin, string $id, array $data): array
     {
-        return DB::transaction(function () use ($admin, $id, $data) {
-            $candidate = DiscountApplication::findOrFail($id);
-            // All transitions lock the profile first, then the application.
-            $profile = CommuterProfile::whereKey($candidate->commuter_id)->lockForUpdate()->firstOrFail();
-            $application = DiscountApplication::whereKey($id)->lockForUpdate()->firstOrFail();
-            abort_unless($application->status === 'PENDING', 409, 'This application has already been processed.');
-            abort_unless($application->revision === (int) $data['revision'], 409, 'The enrollment proof has changed. Reopen the application before reviewing it.');
-            $this->assertEligible($profile);
-            $decision = $data['decision'];
-            $application->fill([
-                'status' => $decision, 'reviewed_by' => $admin->id, 'reviewed_at' => now(),
-                'reason' => $data['reason'] ?? null,
-                'correction_due_at' => $decision === 'NEEDS_CORRECTION' ? now()->addDays(7) : null,
-            ])->save();
-            if ($decision === 'APPROVED') {
-                $profile->update(['commuter_type' => 'STUDENT', 'applied_type' => 'STUDENT', 'student_discount_expires_at' => $this->cutoff($application->cycle_year + 1)]);
-            } elseif ($decision === 'REJECTED') {
-                $profile->update(['commuter_type' => 'REGULAR', 'applied_type' => 'STUDENT']);
-            }
-            $message = match ($decision) {
-                'APPROVED' => 'Your student status has been renewed. Your student discount is available.',
-                'NEEDS_CORRECTION' => 'Please submit corrected enrollment proof within seven days. '.$application->reason,
-                default => 'Your student renewal was not approved. Your commuter type is now Regular. '.$application->reason,
-            };
-            $this->announcements->notifyUser($profile->id, 'STUDENT_RENEWAL_DONE', 'Student renewal update', $message, $application->id);
-            $this->activity->record(ActivityLogCategory::MEMBER, "Renewal {$id}: {$decision}. ".($application->reason ?? ''), $admin);
-
-            return $this->present($application, true);
-        }, 3);
+        return $this->applications->review($admin, $id, $data);
     }
 
     public function present(DiscountApplication $application, bool $admin = false, bool $withDocument = true): array
     {
-        $result = $application->only(['id', 'request_type', 'cycle_year', 'revision', 'status', 'school_name', 'education_level', 'grade_level', 'school_year', 'enrollment_term', 'reason', 'reviewed_by', 'document_mime']);
-        foreach (['submitted_at', 'first_submitted_at', 'reviewed_at', 'correction_due_at'] as $field) {
-            $result[$field] = $application->$field?->toIso8601String();
-        }
-        if ($admin) {
-            $profile = $application->commuter;
-            $result['commuter'] = $profile->only(['id', 'first_name', 'middle_name', 'surname', 'birthdate', 'gender', 'contact_number', 'username', 'commuter_type']);
-            $result['commuter']['email'] = $profile->user->email;
-            if ($withDocument) {
-                $result['document_url'] = Storage::disk(self::DOCUMENT_DISK)->temporaryUrl($application->document_path, now()->addMinutes(10));
-            }
-        }
-
-        return $result;
+        return $this->applications->present($application, $admin, $withDocument);
     }
 
     private function processAccount(string $id, string $phase, \Closure $work, array &$failures): void
@@ -287,7 +202,7 @@ class StudentRenewalService
                         if ($profile->commuter_type !== 'STUDENT' || $profile->effectiveFareType() === 'STUDENT') {
                             return;
                         }
-                        $applications = $profile->discountApplications()->whereIn('status', ['PENDING', 'NEEDS_CORRECTION'])
+                        $applications = $profile->discountApplications()->where('request_type', 'RENEWAL')->whereIn('status', ['PENDING', 'NEEDS_CORRECTION'])
                             ->select(['id', 'cycle_year', 'status', 'first_submitted_at', 'correction_due_at'])->orderBy('cycle_year')->lockForUpdate()->get();
                         $protected = false;
                         foreach ($applications as $application) {
@@ -319,8 +234,8 @@ class StudentRenewalService
         }
         CommuterProfile::where('commuter_type', 'STUDENT')->whereIn('account_status', ['ACTIVE', 'APPROVED'])->whereHas('user')
             ->where(fn ($q) => $q->whereNull('student_discount_expires_at')->orWhere('student_discount_expires_at', '<=', $cutoff))
-            ->whereDoesntHave('discountApplications', fn ($q) => $q->outstanding())
-            ->whereDoesntHave('discountApplications', fn ($q) => $q->where('cycle_year', $year)->where('status', 'APPROVED'))
+            ->whereDoesntHave('discountApplications', fn ($q) => $q->where('request_type', 'RENEWAL')->outstanding())
+            ->whereDoesntHave('discountApplications', fn ($q) => $q->where('request_type', 'RENEWAL')->where('cycle_year', $year)->where('status', 'APPROVED'))
             ->whereNotExists(function ($q) use ($slot) {
                 // A reminder's user_id and reference_id are both the commuter's id; only user_id is indexed.
                 $q->selectRaw('1')->from('announcements')->whereColumn('announcements.user_id', 'commuter_profiles.id')
@@ -331,8 +246,8 @@ class StudentRenewalService
                     $this->processAccount($candidate->id, 'reminder', function () use ($candidate, $slot, $year) {
                         $profile = CommuterProfile::whereKey($candidate->id)->lockForUpdate()->firstOrFail();
                         if ($profile->commuter_type !== 'STUDENT' || $profile->student_discount_expires_at?->gt($this->cutoff($year))
-                            || $profile->discountApplications()->outstanding()->exists()
-                            || $profile->discountApplications()->where('cycle_year', $year)->where('status', 'APPROVED')->exists()) {
+                            || $profile->discountApplications()->where('request_type', 'RENEWAL')->outstanding()->exists()
+                            || $profile->discountApplications()->where('request_type', 'RENEWAL')->where('cycle_year', $year)->where('status', 'APPROVED')->exists()) {
                             return;
                         }
                         if (Announcement::withTrashed()->where('user_id', $profile->id)->where('type', 'STUDENT_RENEWAL')->where('created_at', '>=', $slot)->exists()) {

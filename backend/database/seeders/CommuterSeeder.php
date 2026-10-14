@@ -88,6 +88,7 @@ class CommuterSeeder extends Seeder
             ]);
         }
 
-        $this->command?->info('Seeded ' . count($commuters) . ' commuters (PH celebrities).');
+        $this->call(Commuter022Seeder::class);
+        $this->command?->info('Seeded ' . count($commuters) . ' commuters (PH celebrities) and commuter022.');
     }
 }

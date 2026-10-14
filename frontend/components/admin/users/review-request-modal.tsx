@@ -5,7 +5,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import { CheckCircle, XCircle, AlertTriangle, LoaderCircle, ZoomIn, X, IdCard, User, FileText, GraduationCap, ExternalLink, ChevronDown, Check } from 'lucide-react';
 import type { PendingRequest } from '@/app/(admin)/users/data/users-data';
-import { educationSummary, RENEWAL_LABELS, schoolYearSummary, type DiscountApplication, type RenewalStatus } from '@/lib/shared/services/student-renewal.service';
+import { DISCOUNT_CATEGORIES, discountStatusLabel, educationSummary, schoolYearSummary, type DiscountApplication, type RenewalStatus } from '@/lib/shared/services/student-renewal.service';
 
 function formatDate(value: string): string {
   const date = new Date(value);
@@ -64,13 +64,13 @@ type RenewalDecision = typeof RENEWAL_DECISIONS[number]['value'];
  * handling follows RowActionsMenu (arrows, Home/End, Esc returns focus to
  * the trigger).
  */
-function RenewalDecisionSelect({ value, onChange }: { value: RenewalDecision | ''; onChange: (value: RenewalDecision) => void }) {
+function RenewalDecisionSelect({ value, onChange, options }: { value: RenewalDecision | ''; onChange: (value: RenewalDecision) => void; options: ReadonlyArray<{ value: RenewalDecision; label: string; outcome: string; confirm: string }> }) {
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const listId = useId();
-  const selected = RENEWAL_DECISIONS.find((option) => option.value === value);
+  const selected = options.find((option) => option.value === value);
 
   // The list can open above the visible part of the scrolled modal, so bring
   // it into view and hand focus to the current choice (or the first one).
@@ -123,7 +123,7 @@ function RenewalDecisionSelect({ value, onChange }: { value: RenewalDecision | '
 
       {isOpen && (
         <div ref={listRef} id={listId} role="listbox" aria-label="Decision" onKeyDown={onListKeyDown} className="absolute inset-x-0 bottom-full z-10 mb-1 rounded-md border border-[#1E2D45] bg-[#111A2B] p-1 shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
-          {RENEWAL_DECISIONS.map((option) => (
+          {options.map((option) => (
             <button
               key={option.value}
               type="button"
@@ -174,8 +174,16 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
   // review bleeding into the next one.
   if (!request) return null;
 
-  const isRenewal = renewal !== null;
-  const readOnly = isRenewal && renewal.status !== 'PENDING';
+  const isDiscountRequest = renewal !== null;
+  const isApplication = renewal?.request_type === 'APPLICATION';
+  const isStudentProof = renewal?.requested_type === 'STUDENT';
+  const requestName = isApplication ? 'application' : 'renewal';
+  const decisions = RENEWAL_DECISIONS.map(option => !isApplication ? option : {
+    ...option,
+    outcome: option.value === 'APPROVED' ? `The account becomes ${DISCOUNT_CATEGORIES[renewal.requested_type]}. The verified discount becomes available.` : option.value === 'REJECTED' ? 'The commuter is sent your reason. Their account remains Regular.' : 'The commuter is sent your reason and can submit new proof at any time. Their account remains Regular until approved.',
+    confirm: option.value === 'APPROVED' ? 'Approve Application' : option.value === 'REJECTED' ? 'Reject Application' : option.confirm,
+  });
+  const readOnly = isDiscountRequest && renewal.status !== 'PENDING';
   const documentIsPdf = renewal?.document_mime === 'application/pdf';
 
   if (isProcessing) {
@@ -184,8 +192,8 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
         <div role="status" aria-live="polite" className="flex flex-col items-center px-2 py-6 text-center">
           <LoaderCircle size={36} className="mb-4 animate-spin text-[#62A0EA]" aria-hidden="true" />
           <h2 className="text-xl font-bold text-white">
-            {isRenewal
-              ? decision === 'APPROVED' ? 'Approving renewal...' : decision === 'NEEDS_CORRECTION' ? 'Requesting corrections...' : 'Rejecting renewal...'
+            {isDiscountRequest
+              ? decision === 'APPROVED' ? `Approving ${requestName}...` : decision === 'NEEDS_CORRECTION' ? 'Requesting corrections...' : `Rejecting ${requestName}...`
               : showRejectConfirm ? 'Rejecting registration...' : 'Approving registration...'}
           </h2>
           <p className="mt-2 text-sm text-slate-400">Processing {request.name}&apos;s submission. Please wait.</p>
@@ -230,7 +238,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
     <section className={sectionClasses}>
       <div className="mb-3 flex items-center gap-2">
         <User className="h-4 w-4 text-[#62A0EA]" />
-        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">{isRenewal ? 'Commuter Details' : 'Applicant Details'}</h3>
+        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">{isDiscountRequest ? 'Commuter Details' : 'Applicant Details'}</h3>
       </div>
       <div className="grid grid-cols-2 gap-x-4 gap-y-3">
         <div className="min-w-0">
@@ -259,7 +267,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
         </div>
         {/* A renewal shows its submission date with the enrollment details
             and the email in the identity strip, so neither repeats here. */}
-        {!isRenewal && (
+        {!isDiscountRequest && (
           <div className="col-span-2 min-w-0">
             <p className={fieldLabelClasses}>Date Applied</p>
             <p className={fieldValueClasses}>{formatDate(request.createdAt)}</p>
@@ -269,7 +277,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
           <p className={fieldLabelClasses}>Username</p>
           <p className={fieldValueClasses} title={request.username}>{request.username}</p>
         </div>
-        {!isRenewal && (
+        {!isDiscountRequest && (
           <div className="col-span-2 min-w-0">
             <p className={fieldLabelClasses}>Email</p>
             <p className={fieldValueClasses} title={request.email}>{request.email}</p>
@@ -282,8 +290,8 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
   return (
     <Modal isOpen={isOpen} onClose={() => { if (!isProcessing) onClose(); }} maxWidth="max-w-2xl">
       <div className="pr-8">
-        <h2 className="text-xl font-bold text-white sm:text-2xl">{!isRenewal ? 'Review Registration Request' : readOnly ? 'Renewal Details' : 'Review Renewal'}</h2>
-        <p className="mt-1 text-sm text-slate-500">{!isRenewal ? 'Verify the applicant’s details against their uploaded ID before deciding.' : readOnly ? 'No review action is available for this renewal.' : 'Verify current enrollment and the school year against the commuter’s details.'}</p>
+        <h2 className="text-xl font-bold text-white sm:text-2xl">{!isDiscountRequest ? 'Review Registration Request' : readOnly ? (isApplication ? 'Application Details' : 'Renewal Details') : (isApplication ? 'Review Discount Application' : 'Review Renewal')}</h2>
+        <p className="mt-1 text-sm text-slate-500">{!isDiscountRequest ? 'Verify the applicant’s details against their uploaded ID before deciding.' : readOnly ? `No review action is available for this ${requestName}.` : (isStudentProof ? 'Verify current enrollment and school year against the account details.' : 'Verify the requested category and ID/card against the account details.')}</p>
       </div>
 
       <div className="mt-5 space-y-4">
@@ -302,10 +310,10 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
           </div>
           {/* Every renewal is a student's, so the strip carries the one thing
               that differs between them: where the application stands. */}
-          {isRenewal ? (
+          {isDiscountRequest ? (
             <div className="shrink-0 text-right">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Status</p>
-              <p className={`text-sm font-semibold ${RENEWAL_STATUS_COLOR[renewal.status] ?? 'text-slate-300'}`}>{RENEWAL_LABELS[renewal.status] ?? renewal.status}</p>
+              <p className={`text-sm font-semibold ${RENEWAL_STATUS_COLOR[renewal.status] ?? 'text-slate-300'}`}>{discountStatusLabel(renewal)}</p>
             </div>
           ) : (
             <div className="shrink-0 text-right">
@@ -317,7 +325,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
 
         {/* What the previous reviewer told the commuter, kept above the
             documents so a returning admin reads it before re-checking. */}
-        {isRenewal && (renewal.reason || renewal.correction_due_at) && (
+        {isDiscountRequest && (renewal.reason || renewal.correction_due_at) && (
           <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm">
             {renewal.reason && <>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-300">Review Note</p>
@@ -365,17 +373,17 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
             and the data an admin cross-checks it against sit in one glance
             instead of a long single-column scroll. A renewal gets a wider
             document column: the proof is the thing being judged. */}
-        <div className={`grid grid-cols-1 gap-4 ${isRenewal ? 'sm:grid-cols-[15rem_1fr]' : 'sm:grid-cols-[13rem_1fr]'}`}>
+        <div className={`grid grid-cols-1 gap-4 ${isDiscountRequest ? 'sm:grid-cols-[15rem_1fr]' : 'sm:grid-cols-[13rem_1fr]'}`}>
           <section className={sectionClasses}>
             <div className="mb-3 flex items-center gap-2">
-              {isRenewal ? <FileText className="h-4 w-4 text-[#62A0EA]" /> : <IdCard className="h-4 w-4 text-[#62A0EA]" />}
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">{isRenewal ? 'Enrollment Proof' : 'ID Document'}</h3>
+              {isDiscountRequest ? <FileText className="h-4 w-4 text-[#62A0EA]" /> : <IdCard className="h-4 w-4 text-[#62A0EA]" />}
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">{isDiscountRequest ? (isStudentProof ? 'Enrollment Proof' : 'Supporting Document') : 'ID Document'}</h3>
             </div>
             {/* A REGULAR applicant may register without an ID while the
                 "Force Valid ID Upload" setting is off. */}
             {!request.idImageUrl ? (
               <p className="rounded-lg border border-dashed border-white/10 px-4 py-10 text-center text-sm text-slate-400">
-                {isRenewal ? 'The enrollment proof could not be loaded. Close and reopen this renewal.' : 'No ID uploaded. ID upload was optional for this registration.'}
+                {isDiscountRequest ? 'No supporting document was attached to this application.' : 'No ID uploaded. ID upload was optional for this registration.'}
               </p>
             ) : documentIsPdf ? (
               // A PDF cannot be previewed inline, so it keeps the image's
@@ -395,31 +403,33 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
               type="button"
               onClick={() => setIsImageExpanded(true)}
               className="group relative block w-full cursor-zoom-in overflow-hidden rounded-lg border border-white/10"
-              aria-label={isRenewal ? 'View full-size enrollment proof' : 'View full-size ID image'}
+              aria-label={isDiscountRequest ? 'View full-size supporting document' : 'View full-size ID image'}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={request.idImageUrl} alt={isRenewal ? 'Uploaded enrollment proof' : 'Uploaded ID'} className="aspect-3/4 w-full object-cover" />
+              <img src={request.idImageUrl} alt={isDiscountRequest ? 'Uploaded supporting document' : 'Uploaded ID'} className="aspect-3/4 w-full object-cover" />
               <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/40">
                 <ZoomIn size={20} className="text-white opacity-0 transition-opacity group-hover:opacity-100" />
               </div>
             </button>
-            <p className="mt-2 text-center text-xs text-slate-500">{isRenewal ? 'Uploaded proof · tap to enlarge' : 'Uploaded Valid ID · tap to enlarge'}</p>
+            <p className="mt-2 text-center text-xs text-slate-500">{isDiscountRequest ? 'Uploaded proof · tap to enlarge' : 'Uploaded Valid ID · tap to enlarge'}</p>
             </>
             )}
           </section>
 
-          {isRenewal ? (
+          {isDiscountRequest ? (
             <div className="min-w-0 space-y-4">
               {/* What the commuter claimed, next to the proof it is checked
                   against. The school name wraps instead of truncating because
                   it has to be read in full. */}
               <section className={sectionClasses}>
                 <div className="mb-3 flex items-center gap-2">
-                  <GraduationCap className="h-4 w-4 text-[#62A0EA]" />
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">Enrollment Details</h3>
+                  {isStudentProof ? <GraduationCap className="h-4 w-4 text-[#62A0EA]" /> : <IdCard className="h-4 w-4 text-[#62A0EA]" />}
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">{isStudentProof ? 'Enrollment Details' : 'Application Details'}</h3>
                   {renewal.revision > 1 && <span className="ml-auto text-xs text-slate-400">Resubmission {renewal.revision - 1}</span>}
                 </div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                  <div className="col-span-2"><p className={fieldLabelClasses}>Requested category</p><p className={fieldValueClasses}>{DISCOUNT_CATEGORIES[renewal.requested_type]}</p></div>
+                  {isStudentProof && <>
                   <div className="col-span-2 min-w-0">
                     <p className={fieldLabelClasses}>School</p>
                     <p className="mt-1 wrap-break-word text-sm font-medium text-white">{renewal.school_name}</p>
@@ -432,10 +442,13 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
                     <p className={fieldLabelClasses}>School Year / Term</p>
                     <p className={fieldValueClasses} title={schoolYearSummary(renewal)}>{schoolYearSummary(renewal)}</p>
                   </div>
+                  </>}
+                  {renewal.cycle_year !== null && <>
                   <div className="min-w-0">
                     <p className={fieldLabelClasses}>Renewal Cycle</p>
                     <p className={fieldValueClasses}>{renewal.cycle_year}</p>
                   </div>
+                  </>}
                   <div className="min-w-0">
                     <p className={fieldLabelClasses}>Submitted</p>
                     <p className={fieldValueClasses}>{formatDate(renewal.submitted_at)}</p>
@@ -541,7 +554,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
             it. Equal width keeps the pair reading as one balanced decision.
             Each escalates to a solid confirm button only once the admin has
             actually committed, in the panel below. */}
-        {!showingConfirm && !isRenewal && (
+        {!showingConfirm && !isDiscountRequest && (
           <div className="flex gap-3 pt-2">
             <button
               onClick={() => setShowRejectConfirm(true)}
@@ -567,10 +580,10 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
             appears for the two outcomes that send one, and a single button
             carries the chosen action. Picking an outcome and then pressing
             that button is the confirmation, so there is no second prompt. */}
-        {isRenewal && !readOnly && (
+        {isDiscountRequest && !readOnly && (
           <div className="border-t border-white/10 pt-4">
             <p className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-400">Decision</p>
-            <RenewalDecisionSelect value={decision} onChange={setDecision} />
+            <RenewalDecisionSelect options={decisions} value={decision} onChange={setDecision} />
 
             {decisionNeedsReason && (
               <div className="mt-4">
@@ -582,7 +595,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
                   className="mt-2 block w-full rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2.5 text-sm text-white transition-colors scheme-dark focus:outline-none focus:ring-1 focus:ring-[#62A0EA]"
                 >
                   <option value="" disabled className="bg-gray-800">Select a reason...</option>
-                  {RENEWAL_REASONS.map((reason) => (
+                  {(isStudentProof ? RENEWAL_REASONS : REJECTION_REASONS).map((reason) => (
                     <option key={reason} value={reason} className="bg-gray-800">{reason}</option>
                   ))}
                   <option value={OTHER_REASON} className="bg-gray-800">{OTHER_REASON}</option>
@@ -608,7 +621,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
                 disabled={!decision || (decisionNeedsReason && !effectiveReason)}
                 className={`w-full rounded-md px-5 py-2.5 font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto ${decision === 'REJECTED' ? 'bg-red-600 hover:bg-red-700' : 'bg-[#62A0EA] hover:bg-[#4A8BD4]'}`}
               >
-                {RENEWAL_DECISIONS.find((option) => option.value === decision)?.confirm ?? 'Confirm Decision'}
+                {decisions.find((option) => option.value === decision)?.confirm ?? 'Confirm Decision'}
               </button>
             </div>
           </div>
@@ -633,7 +646,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={request.idImageUrl}
-            alt={isRenewal ? 'Uploaded enrollment proof (full size)' : 'Uploaded ID (full size)'}
+            alt={isDiscountRequest ? 'Uploaded supporting document (full size)' : 'Uploaded ID (full size)'}
             className="max-w-full max-h-full object-contain rounded-md shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           />

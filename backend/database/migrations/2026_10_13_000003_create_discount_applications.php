@@ -21,17 +21,24 @@ return new class extends Migration
         Schema::create('discount_applications', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->foreignUuid('commuter_id')->constrained('commuter_profiles')->cascadeOnDelete();
+            // RENEWAL is the annual student re-check; APPLICATION is a Regular
+            // commuter asking for a discount category.
             $table->string('request_type', 20)->default('RENEWAL');
-            $table->unsignedSmallInteger('cycle_year');
+            $table->string('requested_type', 20)->default('STUDENT');
+            // NULL cycles are applications; the unique key below still enforces
+            // one renewal per commuter/year without limiting reapplications.
+            $table->unsignedSmallInteger('cycle_year')->nullable();
             $table->unsignedInteger('revision')->default(1);
             $table->string('status', 30)->default('PENDING');
-            $table->string('document_path', 500);
-            $table->string('document_mime', 100);
+            // Nullable because local environments run applications without a stored proof.
+            $table->string('document_path', 500)->nullable();
+            $table->string('document_mime', 100)->nullable();
             $table->json('submission_history')->nullable();
-            $table->string('school_name', 150);
-            $table->string('education_level', 20);
+            // School details apply to Student requests only.
+            $table->string('school_name', 150)->nullable();
+            $table->string('education_level', 20)->nullable();
             $table->unsignedTinyInteger('grade_level')->nullable();
-            $table->string('school_year', 20);
+            $table->string('school_year', 20)->nullable();
             $table->string('enrollment_term', 50)->nullable();
             $table->timestamp('submitted_at');
             $table->timestamp('first_submitted_at');
@@ -42,6 +49,7 @@ return new class extends Migration
             $table->timestamps();
             $table->unique(['commuter_id', 'cycle_year']);
             $table->index(['status', 'submitted_at']);
+            $table->index(['commuter_id', 'request_type', 'submitted_at'], 'discount_owner_requests');
         });
     }
 

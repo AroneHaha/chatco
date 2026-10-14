@@ -358,3 +358,11 @@ body {
   /* Hold the ring full — the digit still counts down. */
   .countdown-ring { animation: none; }
 }
+
+/* CARTO's keyed dark_all tiles now tint roads and water blue; the free style
+   they replaced was black and gray. Desaturating only the tile layer restores
+   that look, while routes, markers and popups (drawn in other panes) keep
+   their colors. */
+.map-tiles-mono {
+  filter: grayscale(1);
+}

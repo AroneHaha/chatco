@@ -104,6 +104,9 @@ Route::prefix('mobile/conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR']
 |--------------------------------------------------------------------------
 */
 Route::prefix('mobile/commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(function () {
+    Route::get('/discount-applications', [StudentRenewalController::class, 'applicationState'])->middleware('throttle:commuter-read');
+    Route::post('/discount-applications', [StudentRenewalController::class, 'applicationSubmit'])->middleware('throttle:conductor-write');
+    Route::post('/discount-applications/cancel', [StudentRenewalController::class, 'applicationCancel'])->middleware('throttle:conductor-write');
     Route::get('/student-renewal', [StudentRenewalController::class, 'state'])->middleware('throttle:commuter-read');
     Route::post('/student-renewal', [StudentRenewalController::class, 'submit'])->middleware('throttle:conductor-write');
     Route::post('/student-renewal/regular', [StudentRenewalController::class, 'regular'])->middleware('throttle:conductor-write');

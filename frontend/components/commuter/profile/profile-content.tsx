@@ -1,5 +1,6 @@
 "use client";
 
+import { DiscountApplicationEntry } from './discount-application-entry';
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronRight, KeyRound, Loader2, LogOut, Mail, Pencil, Phone, Save, ShieldCheck, UserRound, X } from "lucide-react";
@@ -222,6 +223,7 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
                 {discountPercentage > 0 && `(${discountPercentage}% Off)`}
               </span>
             </div>
+            {['ACTIVE', 'APPROVED'].includes(profile.accountStatus) && <DiscountApplicationEntry commuterType={profile.commuterType} onClassificationChanged={retryLoad} />}
           </div>
         </div>
 

@@ -32,6 +32,7 @@ const announcementConfig: Record<AnnouncementType, { label: string; color: strin
 };
 
 function announcementCategory(item: Announcement) {
+  if (item.rawType?.toUpperCase().startsWith("DISCOUNT_APPLICATION")) return { label: "Discount application", color: "text-[#99C1F1]" };
   if (item.rawType?.toUpperCase().startsWith("STUDENT_RENEWAL")) {
     return { label: "Student renewal", color: "text-[#99C1F1]" };
   }
@@ -340,6 +341,7 @@ export default function RewardsPage() {
             <h2 className="mt-3 break-words pr-8 text-lg font-bold">{selectedAnnouncement.title}</h2>
             <p className="mt-2 text-xs text-white/50">{formatDate(selectedAnnouncement.createdAt)}</p>
             <p className="mt-5 whitespace-pre-wrap break-words border-t border-white/10 pt-5 text-sm leading-relaxed text-white/70">{selectedAnnouncement.message}</p>
+            {selectedAnnouncement.rawType?.startsWith('DISCOUNT_APPLICATION') && <Link href="/discount-application" onClick={() => setSelectedAnnouncement(null)} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#1A5FB4] px-4 text-sm font-semibold hover:bg-[#164A8F]">View discount application<ArrowRight size={16} aria-hidden="true" /></Link>}
             {selectedAnnouncement.rawType?.startsWith('STUDENT_RENEWAL') && <div className="mt-5 space-y-3"><Link href="/student-renewal" onClick={() => setSelectedAnnouncement(null)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#1A5FB4] px-4 text-sm font-semibold hover:bg-[#164A8F]">{renewal?.can_submit ? 'Renew student status' : 'View renewal status'}<ArrowRight size={16} aria-hidden="true" /></Link>{renewal?.can_switch_to_regular && renewal.status !== 'PENDING' && renewal.status !== 'APPROVED' && <Link href="/student-renewal#regular" onClick={() => setSelectedAnnouncement(null)} className="inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-white/20 px-4 text-sm">No Longer a Student</Link>}</div>}
             {selectedAnnouncement.type === "VOUCHER" && <button type="button" onClick={() => { setSelectedAnnouncement(null); setSection("rewards"); setVoucherFilter("available"); }} className="mt-5 min-h-11 w-full rounded-lg bg-[#1A5FB4] px-4 text-sm font-semibold hover:bg-[#164A8F]">View vouchers</button>}
           </>}
