@@ -38,10 +38,9 @@ function formatRelativeTime(iso: string): string {
 // ─── Helper: get icon + color by backend `type` string ─────────────────
 
 /**
- * The backend `type` column is a free-form string (max 20, e.g. 'holiday',
- * 'route', 'system', 'safety', 'promo', 'maintenance'). Map it heuristically
- * to the bell's status colors and operational categories.
- * Unknown/blank types use a neutral announcement style.
+ * System notification types get a clear activity label. Admin-published
+ * announcements retain the generic Announcement label, while unknown types
+ * remain neutral instead of being guessed as a system event.
  */
 function getNotificationStyle(type: string) {
   const t = (type ?? '').toLowerCase();
@@ -49,13 +48,25 @@ function getNotificationStyle(type: string) {
     : t.includes('overspeed') ? 'Overspeeding'
     : t.includes('remittance') ? 'Remittance'
     : t.startsWith('shift_') ? 'Shift'
+    : t.startsWith('discount_application') ? 'Discount Application'
+    : t.startsWith('student_renewal') ? 'Student Renewal'
     : t.includes('registration') ? 'Registration'
-    : t.includes('claim') ? 'Lost & found'
+    : t.includes('claim') || t.startsWith('saved_item_') ? 'Lost & Found'
+    : t.startsWith('voucher_') ? 'Voucher'
     : 'Announcement';
   if (t === 'sos_triggered') {
     return { Icon: AlertTriangle, color: 'text-red-400', label };
   }
   if (['sos_resolved', 'remittance_completed', 'shift_ended'].includes(t)) {
+    return { Icon: CheckCircle, color: 'text-emerald-400', label };
+  }
+  if (t.startsWith('discount_application') || t.startsWith('student_renewal') || t.startsWith('registration')) {
+    return { Icon: Info, color: 'text-[#8CB9F0]', label };
+  }
+  if (t.startsWith('new_registration') || t === 'registration_waiting' || t === 'new_claim') {
+    return { Icon: Info, color: 'text-[#8CB9F0]', label };
+  }
+  if (t.startsWith('claim_approved') || t.startsWith('claim_released') || t.startsWith('voucher_')) {
     return { Icon: CheckCircle, color: 'text-emerald-400', label };
   }
   if (['safety', 'warning', 'maintenance', 'alert', 'sos', 'overspeed', 'overdue', 'waiting'].some((k) => t.includes(k))) {

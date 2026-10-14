@@ -43,6 +43,11 @@ Targeted announcements are created by `AnnouncementService::notifyUser()` (one r
 | `claim_rejected` | The claimant | `LostItemService::rejectClaim` | An admin rejects their claim (initial or post-approval reversal) |
 | `claim_released` | The claimant | `LostItemService::releaseClaim` | An admin marks the item as handed back to them |
 | `NEW_REGISTRATION` | Every admin | `AuthService` | A commuter signs up and needs approval |
+| `STUDENT_RENEWAL` | Unrenewed Student commuter | `students:process-renewals` | August 25/29/31 and September 1/8/15/22/29; reading does not trigger duplicates |
+| `STUDENT_RENEWAL_NEW` | Every admin | `StudentRenewalService::submit` | New or corrected renewal proof is awaiting review; links to Discount Applications |
+| `STUDENT_RENEWAL_DONE` | The student commuter | `StudentRenewalService` | Renewal decision or overdue conversion to Regular |
+| `DISCOUNT_APPLICATION_NEW` | Every admin | `DiscountApplicationService::submit` | A Regular commuter applies for a Student/PWD/Senior Citizen discount, or sends corrected documents; links to Discount Applications |
+| `DISCOUNT_APPLICATION_DONE` | The applying commuter | `DiscountApplicationService::review` | Application approved, rejected, or sent back for correction (no deadline); links to the Discount Application page |
 | `SOS_TRIGGERED` | Every admin | `SosService` | A commuter or conductor sends an SOS alert |
 | `SHIFT_STARTED` | Every admin | `ShiftService::startShift` | A conductor starts a shift |
 | `OVERSPEED_FLAGGED` | Every admin | `LocationService::recordOverspeedAtomic` | A new overspeed episode starts on a shift ([conductor.md](conductor.md#post-conductorlocation)) |

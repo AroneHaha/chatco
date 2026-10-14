@@ -239,11 +239,11 @@ const ANCHORS: [number, string][] = [[0, "Calumpit"], [4, "Pulilan"], [8, "Plari
 // never below the base fare. Sample rates, seeded from the pilot fare matrix.
 function stopFare(i: number, discounted: boolean) {
   const n = i + 1;
-  const base = discounted ? 12 : 15;
-  return n <= 4 ? base : base + (n - 4) * (discounted ? 1.75 : 2.25);
+  const base = discounted ? 13.6 : 17;
+  return n <= 4 ? base : base + (n - 4) * (discounted ? 1.8 : 2.25);
 }
 function fareBetween(a: number, b: number, discounted: boolean) {
-  return Math.max(Math.abs(stopFare(a, discounted) - stopFare(b, discounted)), discounted ? 12 : 15);
+  return Math.max(Math.abs(stopFare(a, discounted) - stopFare(b, discounted)), discounted ? 13.6 : 17);
 }
 
 export function FareScene({ tone = "light" }: { tone?: Tone }) {

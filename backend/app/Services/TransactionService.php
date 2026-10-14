@@ -294,6 +294,7 @@ class TransactionService
                     $shift->route_id,
                 );
                 $fareLine = $fare['lines'][0];
+                $remainingFare = round($fare['final_amount'] - $voucher->discountForFare($fare['final_amount']), 2);
 
                 // This update and the insert below are in the same transaction.
                 // Any insert failure rolls the USED status back.
@@ -302,16 +303,16 @@ class TransactionService
                 return Transaction::create([
                     'transaction_id' => $this->generateTransactionId(),
                     'shift_id' => $shift->shift_id,
-                    'payment_method' => PaymentMethod::VOUCHER->value,
+                    'payment_method' => $remainingFare > 0 ? PaymentMethod::CASH->value : PaymentMethod::VOUCHER->value,
                     'status' => PaymentStatus::PAID->value,
                     'qr_token' => null,
                     'idempotency_key' => $idempotencyKey,
-                    'final_amount' => 0,
+                    'final_amount' => $remainingFare,
                     'total_passengers' => 1,
                     'gross_amount' => $fare['gross_amount'],
                     'base_fare' => $fareLine['unit_fare'],
                     'distance' => abs($fare['pickup']->point_number - $fare['dropoff']->point_number) + 1,
-                    'discount_amount' => $fare['gross_amount'],
+                    'discount_amount' => round($fare['gross_amount'] - $remainingFare, 2),
                     'pickup_name' => $fare['pickup_name'],
                     'dropoff_name' => $fare['dropoff_name'],
                     'passenger_name' => $passengerName,
@@ -321,6 +322,7 @@ class TransactionService
                     'unit_number' => $shift->unit_number,
                     'driver_name' => $shift->driver_name,
                     'voucher_id' => $voucher->id,
+                    'reward_eligible' => false,
                     'pickup_stop_id' => $fare['pickup']->id,
                     'dropoff_stop_id' => $fare['dropoff']->id,
                     'paid_at' => now(),
@@ -928,7 +930,7 @@ class TransactionService
                 ? [
                     'passenger_id' => $commuterProfile->id,
                     'passenger_name' => $payerName,
-                    'passenger_role' => strtoupper((string) $commuterProfile->commuter_type),
+                    'passenger_role' => strtoupper($commuterProfile->effectiveFareType()),
                     'payer_name' => $payerName,
                 ]
                 : ($isMultiPassenger ? [
@@ -936,7 +938,7 @@ class TransactionService
                 ] : [
                     'passenger_id' => $commuterProfile->id,
                     'passenger_name' => $payerName,
-                    'passenger_role' => strtoupper((string) $commuterProfile->commuter_type),
+                    'passenger_role' => strtoupper($commuterProfile->effectiveFareType()),
                 ]);
             $updates['payer_id'] = $commuterProfile->id;
             $updates['payer_name_snapshot'] = $payerName;
@@ -954,7 +956,7 @@ class TransactionService
                 ]);
             }
 
-            $commuterType = (string) $commuterProfile->commuter_type;
+            $commuterType = $commuterProfile->effectiveFareType();
             $discountedAmount = $isMultiPassenger
                 ? null
                 : $this->discountedFareFor($transaction, $commuterType);
@@ -1080,7 +1082,7 @@ class TransactionService
             return null;
         }
 
-        $minimum = (float) (Setting::where('key', 'base_fare_discounted')->value('value') ?? 12);
+        $minimum = (float) (Setting::where('key', 'base_fare_discounted')->value('value') ?? 13.6);
 
         return round(max(
             abs((float) $from->discounted_fare - (float) $to->discounted_fare),
@@ -1484,7 +1486,7 @@ class TransactionService
             if (! $profile) {
                 abort(422, 'Passenger profile was not found.');
             }
-            $value = (string) $profile->commuter_type;
+            $value = $profile->effectiveFareType();
         }
 
         try {
@@ -1597,15 +1599,12 @@ class TransactionService
         // Only offer voucher redemption while there is still something to
         // redeem it against — a still-PENDING GCash ride, with an AVAILABLE,
         // unexpired voucher on the claiming commuter's account.
-        $voucherAvailable = $transaction->payment_method === PaymentMethod::GCASH
+        $canUseVoucher = $transaction->payment_method === PaymentMethod::GCASH
             && $transaction->status === PaymentStatus::PENDING
             && $transaction->passenger_id !== null
-            && Voucher::where('commuter_id', $transaction->passenger_id)
-                ->where('status', Voucher::STATUS_AVAILABLE)
-                ->where(function ($q) {
-                    $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
-                })
-                ->exists();
+            && $transaction->voucher_id === null;
+        $availableVoucher = $canUseVoucher ? Voucher::where('commuter_id', $transaction->passenger_id)
+            ->redeemable()->orderBy('expires_at')->orderBy('id')->first(['id', 'type', 'amount']) : null;
 
         return [
             'transaction_id' => $transaction->transaction_id,
@@ -1616,7 +1615,8 @@ class TransactionService
             'passenger_role' => $transaction->passenger_role,
             'pickup_name' => $transaction->pickup_name,
             'dropoff_name' => $transaction->dropoff_name,
-            'voucher_available' => $voucherAvailable,
+            'voucher_available' => $availableVoucher !== null,
+            'available_voucher' => $availableVoucher?->only(['id', 'type', 'amount']),
             // Lets the frontend clarify that a voucher only ever covers the
             // caller's own seat, not the whole group's fare.
             'is_group' => $transaction->group_id !== null,
@@ -1646,7 +1646,7 @@ class TransactionService
      *                       eligible voucher), 409 (no longer redeemable —
      *                       already paid or otherwise past PENDING)
      */
-    public function redeemVoucherForGcash(User $commuter, string $transactionId): array
+    public function redeemVoucherForGcash(User $commuter, string $transactionId, ?string $voucherId = null): array
     {
         $commuterProfile = $commuter->commuterProfile;
         if (! $commuterProfile) {
@@ -1655,7 +1655,7 @@ class TransactionService
 
         Voucher::expireAvailableForCommuter($commuterProfile->id);
 
-        return DB::transaction(function () use ($commuterProfile, $transactionId): array {
+        return DB::transaction(function () use ($commuterProfile, $transactionId, $voucherId): array {
             $transaction = Transaction::query()->lockForUpdate()->find($transactionId);
             if (! $transaction) {
                 abort(404, 'Transaction not found.');
@@ -1670,13 +1670,15 @@ class TransactionService
             if ($transaction->status !== PaymentStatus::PENDING) {
                 abort(409, 'This ride can no longer be covered by a voucher.');
             }
+            if ($transaction->voucher_id !== null) {
+                abort(409, 'A voucher has already been applied to this ride.');
+            }
 
             $voucher = Voucher::where('commuter_id', $commuterProfile->id)
-                ->where('status', Voucher::STATUS_AVAILABLE)
-                ->where(function ($q) {
-                    $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
-                })
+                ->redeemable()
+                ->when($voucherId !== null, fn ($query) => $query->whereKey($voucherId))
                 ->orderBy('expires_at')
+                ->orderBy('id')
                 ->lockForUpdate()
                 ->first();
 
@@ -1689,46 +1691,40 @@ class TransactionService
                 : null;
 
             $payerAmount = (float) $transaction->final_amount;
+            $voucherDiscount = $voucher->discountForFare($payerAmount);
+            $remainingPayerFare = round($payerAmount - $voucherDiscount, 2);
 
             $voucher->update(['status' => 'USED']);
 
             $updates = [
-                'payment_method' => PaymentMethod::VOUCHER->value,
+                'payment_method' => $remainingPayerFare > 0 ? PaymentMethod::GCASH->value : PaymentMethod::VOUCHER->value,
                 'voucher_id' => $voucher->id,
-                'final_amount' => 0,
-                'discount_amount' => (float) ($transaction->base_fare ?? $payerAmount),
+                'final_amount' => $remainingPayerFare,
+                'discount_amount' => round((float) ($transaction->base_fare ?? $payerAmount) - $remainingPayerFare, 2),
                 'reward_eligible' => false,
             ];
 
-            if ($group) {
-                $remaining = round((float) $group->total_amount - $payerAmount, 2);
+            $remaining = $group ? round((float) $group->total_amount - $voucherDiscount, 2) : $remainingPayerFare;
 
-                if ($remaining > 0) {
-                    try {
-                        $intent = $this->paymentService->createIntentFor(
-                            $transaction,
-                            (int) round($remaining * 100),
-                        );
-                    } catch (PaymentGatewayException $e) {
-                        report($e);
-                        abort(502, 'Unable to prepare the remaining GCash payment. Please try again.');
-                    }
-
-                    $updates['payment_reference'] = $intent->reference;
-                    $updates['payment_checkout_url'] = $intent->checkoutUrl;
-                } else {
-                    // Companions' total was already zero (shouldn't normally
-                    // happen) — settle the whole group now instead of leaving
-                    // a dangling ₱0 intent.
-                    $updates['status'] = PaymentStatus::PAID->value;
-                    $updates['paid_at'] = now();
+            if ($remaining > 0) {
+                try {
+                    $intent = $this->paymentService->createIntentFor(
+                        $transaction,
+                        (int) round($remaining * 100),
+                    );
+                } catch (PaymentGatewayException $e) {
+                    report($e);
+                    abort(502, 'Unable to prepare the remaining GCash payment. Please try again.');
                 }
 
-                $group->update(['total_amount' => max($remaining, 0)]);
+                $updates['payment_reference'] = $intent->reference;
+                $updates['payment_checkout_url'] = $intent->checkoutUrl;
             } else {
-                // Solo ride — the voucher covers the whole fare, settle now.
                 $updates['status'] = PaymentStatus::PAID->value;
                 $updates['paid_at'] = now();
+            }
+            if ($group) {
+                $group->update(['total_amount' => max($remaining, 0)]);
             }
 
             $transaction->update($updates);

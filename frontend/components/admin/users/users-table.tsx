@@ -5,7 +5,7 @@ import { TablePagination } from '@/components/admin/ui/table-pagination';
 import { RowActionsMenu } from '@/components/admin/ui/row-actions-menu';
 import { Badge } from '@/components/admin/ui/badge';
 import { Modal } from '@/components/admin/ui/modal';
-import { UserIcon, Mail, Phone, CreditCard, Pencil, Trash2, AtSign, Calendar, ShieldCheck, UserRound, Tag, BusFront, CarFront, type LucideIcon } from 'lucide-react';
+import { UserIcon, Mail, Phone, Pencil, Trash2, AtSign, Calendar, ShieldCheck, ShieldAlert, UserRound, Tag, BusFront, CarFront, type LucideIcon } from 'lucide-react';
 import type { ActiveUser, RejectedUser } from '@/app/(admin)/users/data/users-data';
 import styles from './commuter-details.module.css';
 
@@ -29,10 +29,17 @@ const ROLE_ICONS: Record<string, LucideIcon> = {
 // Status column: dot + label, same treatment as Fleet Management's Personnel table.
 const STATUS_DOT: Record<string, string> = {
   Active: 'bg-emerald-400',
+  'For Renewal': 'bg-yellow-400',
   Suspended: 'bg-amber-400',
   Disabled: 'bg-slate-600',
   Rejected: 'bg-red-400',
 };
+
+function displayStatus(user: User): string {
+  return user.status === 'Active' && 'role' in user && user.role === 'COMMUTER' && user._raw?.studentRenewalRequired
+    ? 'For Renewal'
+    : user.status;
+}
 
 function formatJoinedDate(value: string | null): string {
   if (!value) return '—';
@@ -148,10 +155,10 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
       label: 'Status',
       headerClassName: 'px-2 sm:px-4',
       cellClassName: 'whitespace-nowrap px-2 sm:px-4',
-      render: (value: string) => (
+      render: (_value: string, item: User) => (
         <span className="inline-flex items-center gap-1.5">
-          <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[value] ?? 'bg-slate-600'}`} />
-          <span className={`text-xs font-medium ${value === 'Active' ? 'text-slate-300' : 'text-slate-400'}`}>{value}</span>
+          <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[displayStatus(item)] ?? 'bg-slate-600'}`} />
+          <span className={`text-xs font-medium ${item.status === 'Active' ? 'text-slate-300' : 'text-slate-400'}`}>{displayStatus(item)}</span>
         </span>
       )
     },
@@ -170,6 +177,12 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
           actions={[
             { label: 'View Details', icon: UserIcon, onSelect: () => onSelectUser(item) },
             { label: 'Edit', icon: Pencil, onSelect: () => onEdit(item as ActiveUser) },
+            ...('role' in item && item.role !== 'DRIVER' && item.role !== 'CONDUCTOR' ? [{
+              label: item.status === 'Active' ? 'Suspend Account' : 'Reactivate Account',
+              icon: item.status === 'Active' ? ShieldAlert : ShieldCheck,
+              onSelect: () => onDeactivate(item as ActiveUser),
+              tone: item.status === 'Active' ? 'danger' as const : 'default' as const,
+            }] : []),
             { label: 'Delete', icon: Trash2, onSelect: () => onDelete(item as ActiveUser), tone: 'danger' },
           ]}
         />
@@ -214,7 +227,7 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
       </div>
 
       {/* User Details Modal */}
-      <Modal isOpen={!!selectedUser} onClose={() => onSelectUser(null)} maxWidth={selectedUser && 'role' in selectedUser && selectedUser.role === 'COMMUTER' ? 'max-w-md lg:max-w-2xl' : 'max-w-md'}>
+      <Modal isOpen={!!selectedUser} onClose={() => onSelectUser(null)} maxWidth={selectedUser && 'role' in selectedUser && selectedUser.role === 'COMMUTER' ? 'max-w-md sm:max-w-3xl' : 'max-w-md'}>
         {selectedUser && (() => {
           const role = 'role' in selectedUser ? selectedUser.role : null;
           const roleLabel = role ? (ROLE_LABELS[role] ?? role) : 'User';
@@ -222,6 +235,89 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
           const username = 'username' in selectedUser ? selectedUser.username : null;
           const verifiedAt = 'verifiedAt' in selectedUser ? selectedUser.verifiedAt : null;
           const createdAt = 'createdAt' in selectedUser ? selectedUser.createdAt : null;
+          const profile = isCommuter && '_raw' in selectedUser ? selectedUser._raw : undefined;
+          const registrationDetails = [
+            { label: 'First name', value: profile?.firstName },
+            { label: 'Middle name', value: profile?.middleName },
+            { label: 'Last name', value: profile?.lastName },
+            { label: 'Suffix', value: profile?.suffix },
+            { label: 'Birthdate', value: profile?.dateOfBirth ? formatJoinedDate(profile.dateOfBirth) : null },
+            { label: 'Gender', value: profile?.gender },
+          ];
+
+          if (isCommuter) {
+            const suspension = 'suspension' in selectedUser ? selectedUser.suspension : null;
+            return (
+              <div className={styles.details}>
+                <header className={styles.detailHeader}>
+                  <div className="min-w-0">
+                    <h2 className={styles.detailTitle}>Commuter Details</h2>
+                    <p className={styles.detailName}>{selectedUser.name}</p>
+                  </div>
+                  <span className={styles.detailStatus}>
+                    <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[displayStatus(selectedUser)] ?? 'bg-slate-600'}`} />
+                    {displayStatus(selectedUser)}
+                  </span>
+                </header>
+
+                <div className={styles.detailLayout}>
+                  <div className={styles.detailSections}>
+                    <section>
+                      <h3 className={styles.detailSectionTitle}>Personal information</h3>
+                      <dl className={styles.detailFields}>
+                        {registrationDetails.map(detail => (
+                          <div key={detail.label}>
+                            <dt>{detail.label}</dt>
+                            <dd>{detail.value || 'Not provided'}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </section>
+
+                    <section className={styles.detailSectionDivider}>
+                      <h3 className={styles.detailSectionTitle}>Contact and account</h3>
+                      <dl className={styles.detailContact}>
+                        <div><dt>Username</dt><dd>{username || 'Not provided'}</dd></div>
+                        <div><dt>Email</dt><dd>{selectedUser.email}</dd></div>
+                        <div><dt>Phone number</dt><dd>{selectedUser.phoneNumber}</dd></div>
+                      </dl>
+                      <dl className={`${styles.detailFields} ${styles.detailDates}`}>
+                        <div><dt>Joined</dt><dd>{formatJoinedDate(createdAt)}</dd></div>
+                        <div><dt>Verified on</dt><dd>{verifiedAt ? formatJoinedDate(verifiedAt) : 'Not verified'}</dd></div>
+                      </dl>
+                    </section>
+                  </div>
+
+                  <aside className={styles.detailDocument}>
+                    <h3 className={styles.detailSectionTitle}>Uploaded ID</h3>
+                    {selectedUser.idImageUrl ? (
+                      <>
+                        <div className={styles.detailImage}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={selectedUser.idImageUrl} alt={`Uploaded ID for ${selectedUser.name}`} loading="lazy" />
+                        </div>
+                        <a href={selectedUser.idImageUrl} target="_blank" rel="noopener noreferrer" className={styles.detailImageLink}>View full-size ID</a>
+                      </>
+                    ) : <p className={styles.detailImageEmpty}>No ID uploaded.</p>}
+                  </aside>
+                </div>
+
+                {selectedUser.status === 'Suspended' && suspension && (
+                  <div className="rounded-lg border border-amber-400/20 bg-amber-400/5 p-4 text-sm">
+                    <p className="font-semibold text-amber-300">{suspension.isPermanent ? 'Permanently suspended' : suspension.endsAt ? `Suspended until ${new Date(suspension.endsAt).toLocaleString()}` : 'Suspended'}</p>
+                    <p className="mt-1 wrap-break-word text-slate-300">{suspension.reason}</p>
+                  </div>
+                )}
+
+                <footer className={styles.detailActions}>
+                  <button type="button" onClick={() => { onEdit(selectedUser as ActiveUser); onSelectUser(null); }} className={styles.detailEdit}>Edit Commuter</button>
+                  <button type="button" onClick={() => { onDeactivate(selectedUser as ActiveUser); onSelectUser(null); }} className={selectedUser.status === 'Active' ? styles.detailSuspend : styles.detailReactivate}>
+                    {selectedUser.status === 'Active' ? 'Suspend Account' : 'Reactivate Account'}
+                  </button>
+                </footer>
+              </div>
+            );
+          }
 
           return (
           <div className={`space-y-6 ${isCommuter ? styles.commuter : ''}`}>
@@ -240,7 +336,6 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
               <div className={styles.identity}>
                 <p className={`text-lg font-bold text-white ${styles.name}`}>{selectedUser.name}</p>
                 <div className={`flex flex-wrap items-center gap-2 mt-1 ${styles.profileMeta}`}>
-                  <p className={`text-sm text-slate-400 ${styles.accountId}`}>ID: {selectedUser.id}</p>
                   <Badge variant={selectedUser.status === 'Active' ? 'success' : selectedUser.status === 'Suspended' ? 'warning' : 'danger'}>{selectedUser.status}</Badge>
                   {role && <Badge variant="neutral">{roleLabel}</Badge>}
                 </div>
@@ -276,19 +371,6 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
                   <p className="text-sm text-white">{selectedUser.phoneNumber}</p>
                 </div>
               </div>
-
-              {isCommuter && (
-                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
-                  <CreditCard size={16} className="text-slate-500" />
-                  <div className="flex items-center justify-between w-full min-w-0">
-                    <div className="min-w-0">
-                      <p className="text-xs text-slate-500 uppercase">Commuter Type</p>
-                      <p className="text-sm text-white truncate">{selectedUser.commuterType}</p>
-                    </div>
-                    <Badge variant="info">{selectedUser.commuterType}</Badge>
-                  </div>
-                </div>
-              )}
 
               <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
                 <Calendar size={16} className="text-slate-500" />

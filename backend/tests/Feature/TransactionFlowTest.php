@@ -20,8 +20,10 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\Voucher;
+use App\Services\FareCalculationService;
 use App\Services\PaymentService;
 use App\Services\TransactionService;
+use App\Services\VoucherDistributionService;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -176,7 +178,7 @@ class TransactionFlowTest extends TestCase
         $this->assertNotNull($txn->pickup_stop_id);
         $this->assertNotNull($txn->dropoff_stop_id);
         $this->assertNotNull($txn->paid_at);
-        $this->assertSame(15.00, (float) $txn->final_amount);
+        $this->assertSame(17.00, (float) $txn->final_amount);
     }
 
     public function test_cash_endpoint_ignores_tampered_amounts_and_validates_sub_area(): void
@@ -198,9 +200,9 @@ class TransactionFlowTest extends TestCase
         ]);
 
         $response->assertCreated()
-            ->assertJsonPath('data.final_amount', '12.00')
-            ->assertJsonPath('data.base_fare', '15.00')
-            ->assertJsonPath('data.discount_amount', '3.00')
+            ->assertJsonPath('data.final_amount', '13.60')
+            ->assertJsonPath('data.base_fare', '17.00')
+            ->assertJsonPath('data.discount_amount', '3.40')
             ->assertJsonPath('data.pickup_name', 'Calumpit · Calumpit Sub Area')
             ->assertJsonPath('data.dropoff_name', 'Bustos · Bustos Sub Area');
     }
@@ -221,8 +223,65 @@ class TransactionFlowTest extends TestCase
             'passenger_id' => $this->commuter1->commuterProfile->id,
             'passenger_role' => 'REGULAR',
         ])->assertCreated()
-            ->assertJsonPath('data.final_amount', '12.00')
+            ->assertJsonPath('data.final_amount', '13.60')
             ->assertJsonPath('data.passenger_role', 'STUDENT');
+    }
+
+    public function test_expired_account_student_discount_is_not_applied_to_gcash_claim(): void
+    {
+        $this->commuter1->commuterProfile->update([
+            'commuter_type' => 'STUDENT', 'student_discount_expires_at' => now()->subMinute(),
+        ]);
+        $transaction = $this->createPendingGcashTransaction(['final_amount' => 25]);
+        $result = app(TransactionService::class)->claimGcash($this->commuter1, $transaction->qr_token);
+
+        $this->assertSame(25.0, $result['amount']);
+        $this->assertSame('REGULAR', $result['passenger_role']);
+        $this->assertSame('STUDENT', $this->commuter1->fresh()->commuterProfile->commuter_type);
+    }
+
+    public static function applicationDiscountCategories(): array
+    {
+        return [['STUDENT'], ['PWD'], ['SENIOR']];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('applicationDiscountCategories')]
+    public function test_seeded_discount_application_only_changes_new_gcash_claims_after_approval(string $type): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('r2_private');
+        $this->seed(\Database\Seeders\Commuter022Seeder::class);
+        $commuter = User::where('email', 'commuter022@gmail.com')->firstOrFail();
+        $applications = app(\App\Services\DiscountApplicationService::class);
+        $state = $applications->submit($commuter, [
+            'requested_type' => $type,
+            'document' => \Illuminate\Http\UploadedFile::fake()->image('proof.jpg'),
+            'school_name' => 'Test University', 'education_level' => 'COLLEGE',
+            'school_year' => '2026-2027', 'enrollment_term' => '1st Semester',
+        ]);
+        $transaction = $this->createPendingGcashTransaction();
+        $before = app(TransactionService::class)->claimGcash($commuter->fresh(), $transaction->qr_token);
+        $this->assertSame(25.0, $before['amount']);
+        $this->assertSame('REGULAR', $before['passenger_role']);
+        $applications->review($this->admin, $state['application']['id'], ['decision' => 'APPROVED', 'revision' => 1]);
+        $after = app(TransactionService::class)->claimGcash($commuter->fresh(), $this->createPendingGcashTransaction()->qr_token);
+        $this->assertLessThan($before['amount'], $after['amount']);
+        $this->assertSame($type, $after['passenger_role']);
+        // A checkout already claimed before approval retains its original fare.
+        $repeat = app(TransactionService::class)->claimGcash($commuter->fresh(), $transaction->qr_token);
+        $this->assertSame($before['amount'], $repeat['amount']);
+    }
+
+    public function test_manual_student_cash_and_group_selection_remains_unchanged(): void
+    {
+        Sanctum::actingAs($this->conductor);
+        $pickup = FarePoint::where('name', 'Calumpit')->firstOrFail();
+        $dropoff = FarePoint::where('name', 'Bustos')->firstOrFail();
+        $route = ['payment_method' => 'CASH', 'pickup_stop_id' => $pickup->id, 'dropoff_stop_id' => $dropoff->id,
+            'pickup_name' => $pickup->name, 'dropoff_name' => $dropoff->name];
+        $this->postJson('/api/v1/conductor/transactions', $route + ['passenger_role' => 'STUDENT'])
+            ->assertCreated()->assertJsonPath('data.final_amount', '13.60')->assertJsonPath('data.passenger_role', 'STUDENT');
+        $this->postJson('/api/v1/conductor/transactions', $route + ['group_passengers' => [['type' => 'STUDENT', 'quantity' => 2]]])
+            ->assertCreated()->assertJsonPath('data.total_amount', 27.2);
     }
 
     public function test_group_cash_endpoint_recalculates_every_passenger_amount(): void
@@ -242,10 +301,10 @@ class TransactionFlowTest extends TestCase
                 ['type' => 'PWD', 'quantity' => 1, 'final_amount' => 99, 'base_fare' => 99],
             ],
         ])->assertCreated()
-            ->assertJsonPath('data.total_amount', 42)
+            ->assertJsonPath('data.total_amount', 47.6)
             ->assertJsonPath('data.passenger_count', 3)
-            ->assertJsonPath('data.transactions.0.final_amount', '15.00')
-            ->assertJsonPath('data.transactions.2.final_amount', '12.00');
+            ->assertJsonPath('data.transactions.0.final_amount', '17.00')
+            ->assertJsonPath('data.transactions.2.final_amount', '13.60');
     }
 
     public function test_gcash_endpoint_recalculates_single_and_group_amounts(): void
@@ -264,7 +323,7 @@ class TransactionFlowTest extends TestCase
             'pickup_name' => $pickup->name,
             'dropoff_name' => $dropoff->name,
         ])->assertCreated()
-            ->assertJsonPath('data.amount', 15);
+            ->assertJsonPath('data.amount', 17);
 
         // Release the one-pending-payment slot before creating the grouped QR.
         Transaction::query()->update(['status' => PaymentStatus::CANCELLED->value]);
@@ -280,7 +339,7 @@ class TransactionFlowTest extends TestCase
                 ['type' => 'PWD', 'quantity' => 1, 'final_amount' => 99],
             ],
         ])->assertCreated()
-            ->assertJsonPath('data.amount', 42);
+            ->assertJsonPath('data.amount', 47.6);
     }
 
     public function test_server_rejects_wrong_sub_area_and_cross_route_points(): void
@@ -336,8 +395,8 @@ class TransactionFlowTest extends TestCase
             'passenger_id' => $this->commuter1->commuterProfile->id,
         ])->assertCreated()
             ->assertJsonPath('data.final_amount', '0.00')
-            ->assertJsonPath('data.base_fare', '15.00')
-            ->assertJsonPath('data.discount_amount', '15.00');
+            ->assertJsonPath('data.base_fare', '17.00')
+            ->assertJsonPath('data.discount_amount', '17.00');
     }
 
     public function test_offline_retry_can_target_owned_originating_shift_only(): void
@@ -699,13 +758,13 @@ class TransactionFlowTest extends TestCase
         ]);
 
         $this->assertSame(3, $group->passenger_count);
-        $this->assertSame(42.0, (float) $group->total_amount);
+        $this->assertSame(47.6, (float) $group->total_amount);
         $this->assertStringStartsWith('MP-', $group->reference_number);
         $this->assertCount(3, $group->transactions);
         $this->assertSame(3, $group->transactions->pluck('transaction_id')->unique()->count());
         $this->assertTrue($group->transactions->every(fn ($transaction) => $transaction->pickup_name === 'Calumpit' && $transaction->dropoff_name === 'Bustos'));
         $this->assertSame('STUDENT', $group->transactions->first()->passenger_role);
-        $this->assertSame(12.0, (float) $group->transactions->first()->final_amount);
+        $this->assertSame(13.6, (float) $group->transactions->first()->final_amount);
         $this->assertSame(1, $group->transactions->where('reward_eligible', true)->count());
         $this->assertSame(1, $group->transactions->whereNotNull('qr_token')->count());
         $this->assertTrue($group->transactions->every(fn ($transaction) => $transaction->status === PaymentStatus::PAID));
@@ -782,7 +841,7 @@ class TransactionFlowTest extends TestCase
         ]);
 
         $anchor = $result['transaction'];
-        $this->assertSame(42.0, $result['amount']);
+        $this->assertSame(47.6, $result['amount']);
         $this->assertSame(0.0, (float) $anchor->final_amount);
         $this->assertNull($anchor->payment_reference);
         $this->assertCount(4, $result['receipts']);
@@ -790,7 +849,7 @@ class TransactionFlowTest extends TestCase
         $this->assertSame($anchor->transaction_id, $pending['transaction']->transaction_id);
         $this->assertSame($anchor->qr_token, $pending['qr_token']);
         $claim = app(TransactionService::class)->claimGcash($this->commuter1, $anchor->qr_token);
-        $this->assertSame(57.0, $claim['amount']);
+        $this->assertSame(64.6, $claim['amount']);
         app(PaymentService::class)->transitionTo($anchor->fresh(), PaymentStatus::PAID);
 
         $receipts = Transaction::where('group_id', $anchor->group_id)->get();
@@ -821,18 +880,18 @@ class TransactionFlowTest extends TestCase
         $anchor->refresh();
         $group = $anchor->paymentGroup()->firstOrFail();
 
-        $this->assertSame(54.0, $claim['amount']);
-        $this->assertSame(60.0, $claim['regular_amount']);
-        $this->assertSame(6.0, $claim['discount_amount']);
+        $this->assertSame(61.2, $claim['amount']);
+        $this->assertSame(68.0, $claim['regular_amount']);
+        $this->assertSame(6.8, $claim['discount_amount']);
         $this->assertSame('STUDENT', $claim['passenger_role']);
-        $this->assertSame(12.0, (float) $anchor->final_amount);
-        $this->assertSame(3.0, (float) $anchor->discount_amount);
-        $this->assertSame(54.0, (float) $group->total_amount);
+        $this->assertSame(13.6, (float) $anchor->final_amount);
+        $this->assertSame(3.4, (float) $anchor->discount_amount);
+        $this->assertSame(61.2, (float) $group->total_amount);
         $this->assertSame(4, $group->passenger_count);
         $this->assertSame([
-            ['type' => 'REGULAR', 'quantity' => 2, 'final_amount' => 15, 'base_fare' => 15, 'discount_amount' => 0],
-            ['type' => 'PWD', 'quantity' => 1, 'final_amount' => 12, 'base_fare' => 15, 'discount_amount' => 3],
-            ['type' => 'STUDENT', 'quantity' => 1, 'final_amount' => 12, 'base_fare' => 15, 'discount_amount' => 3],
+            ['type' => 'REGULAR', 'quantity' => 2, 'final_amount' => 17, 'base_fare' => 17, 'discount_amount' => 0],
+            ['type' => 'PWD', 'quantity' => 1, 'final_amount' => 13.6, 'base_fare' => 17, 'discount_amount' => 3.4],
+            ['type' => 'STUDENT', 'quantity' => 1, 'final_amount' => 13.6, 'base_fare' => 17, 'discount_amount' => 3.4],
         ], $group->passenger_breakdown);
     }
 
@@ -884,16 +943,16 @@ class TransactionFlowTest extends TestCase
         ]);
         $anchor = $result['transaction'];
         $claim = app(TransactionService::class)->claimGcash($this->commuter1, $anchor->qr_token);
-        $this->assertSame(57.0, $claim['amount']); // 42 companions + 15 payer's own regular fare
+        $this->assertSame(64.6, $claim['amount']); // 47.60 companions + 17 payer's own regular fare
         $this->assertTrue($claim['voucher_available']);
         $group = $anchor->fresh()->paymentGroup()->firstOrFail();
         $originalReference = $anchor->fresh()->payment_reference;
 
         $redeemed = app(TransactionService::class)->redeemVoucherForGcash($this->commuter1, $anchor->transaction_id);
 
-        // Only the payer's own ₱15 seat is covered — the response amount now
+        // Only the payer's own ₱17 seat is covered — the response amount now
         // reflects just the remaining companions' total.
-        $this->assertSame(42.0, $redeemed['amount']);
+        $this->assertSame(47.6, $redeemed['amount']);
 
         $anchor->refresh();
         $this->assertSame(PaymentMethod::VOUCHER, $anchor->payment_method);
@@ -904,7 +963,7 @@ class TransactionFlowTest extends TestCase
         // freshly re-issued (smaller) GCash intent.
         $this->assertSame(PaymentStatus::PENDING, $anchor->status);
         $this->assertNotSame($originalReference, $anchor->payment_reference);
-        $this->assertSame(42.0, (float) $group->fresh()->total_amount);
+        $this->assertSame(47.6, (float) $group->fresh()->total_amount);
 
         $companions = Transaction::where('group_id', $anchor->group_id)
             ->where('transaction_id', '!=', $anchor->transaction_id)
@@ -997,9 +1056,9 @@ class TransactionFlowTest extends TestCase
 
         $this->assertSame(1, Transaction::count());
         $this->assertSame(5, $transaction->total_passengers);
-        $this->assertSame(75.0, (float) $transaction->gross_amount);
-        $this->assertSame(9.0, (float) $transaction->discount_amount);
-        $this->assertSame(66.0, (float) $transaction->final_amount);
+        $this->assertSame(85.0, (float) $transaction->gross_amount);
+        $this->assertSame(10.2, (float) $transaction->discount_amount);
+        $this->assertSame(74.8, (float) $transaction->final_amount);
         $this->assertCount(4, $transaction->passengerBreakdown);
     }
 
@@ -1711,9 +1770,9 @@ SQL);
 
         $earnings = $svc->getShiftEarnings($this->conductor, $this->shift->shift_id);
 
-        $this->assertSame(50.00, $earnings['cash_total']);
+        $this->assertSame(54.00, $earnings['cash_total']);
         $this->assertSame(30.00, $earnings['gcash_total']);
-        $this->assertSame(80.00, $earnings['total']);
+        $this->assertSame(84.00, $earnings['total']);
     }
 
     public function test_gcash_totals_are_not_included_in_remitted_cash_figure(): void
@@ -1726,7 +1785,7 @@ SQL);
 
         $earnings = $svc->getShiftEarnings($this->conductor, $this->shift->shift_id);
 
-        $this->assertSame(35.00, $earnings['cash_total']);
+        $this->assertSame(37.00, $earnings['cash_total']);
         $this->assertSame(100.00, $earnings['gcash_total']);
         $this->assertNotSame($earnings['total'], $earnings['cash_total']);
     }
@@ -1844,6 +1903,161 @@ SQL);
     }
 
     // ─── Helpers ────────────────────────────────────────────────────
+
+    public function test_distributed_discount_voucher_deducts_value_and_keeps_cash_remittable(): void
+    {
+        $batch = app(VoucherDistributionService::class)->generate($this->admin, [
+            'type' => 'DISCOUNT', 'amount' => 5, 'quantity' => 2,
+        ]);
+        $voucher = $batch['vouchers']->firstWhere('commuter_id', $this->commuter1->id);
+        $this->assertNotNull($voucher);
+        $txn = app(TransactionService::class)->recordCashFare($this->conductor, [
+            'payment_method' => 'VOUCHER', 'voucher_code' => $voucher->code,
+            'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+            'passenger_id' => $this->commuter1->id, 'final_amount' => 0,
+        ]);
+        $this->assertSame(12.0, (float) $txn->final_amount);
+        $this->assertSame(5.0, (float) $txn->discount_amount);
+        $this->assertSame(PaymentMethod::CASH, $txn->payment_method);
+        $this->assertSame('USED', $voucher->fresh()->status);
+        $this->assertFalse($txn->reward_eligible);
+        $this->assertSame(12.0, app(TransactionService::class)->getShiftEarnings($this->conductor, $this->shift->shift_id)['cash_total']);
+    }
+
+    public function test_discount_vouchers_stack_on_verified_passenger_fares_and_cap_at_zero(): void
+    {
+        $this->commuter1->commuterProfile->update(['commuter_type' => 'STUDENT']);
+        foreach ([[5, 8.6], [100, 0.0]] as [$amount, $remaining]) {
+            $voucher = $this->createRewardVoucher($this->commuter1, ['type' => 'DISCOUNT', 'amount' => $amount]);
+            $txn = app(TransactionService::class)->recordCashFare($this->conductor, [
+                'payment_method' => 'VOUCHER', 'voucher_code' => $voucher->code,
+                'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+            ]);
+            $this->assertSame($remaining, (float) $txn->final_amount);
+            $this->assertSame(round(17.0 - $remaining, 2), (float) $txn->discount_amount);
+            $this->assertSame('USED', $voucher->fresh()->status);
+        }
+    }
+
+    public function test_discount_gcash_preserves_remainder_prevents_stacking_and_recovers_on_failure(): void
+    {
+        config(['payments.gateways.paymongo.secret' => null]);
+        $this->forgetGateway();
+        $voucher = $this->createRewardVoucher($this->commuter1, ['type' => 'DISCOUNT', 'amount' => 5]);
+        $result = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+        ]);
+        $txn = $result['transaction'];
+        app(TransactionService::class)->claimGcash($this->commuter1, $txn->qr_token);
+        $originalReference = $txn->fresh()->payment_reference;
+        $redeemed = app(TransactionService::class)->redeemVoucherForGcash($this->commuter1, $txn->transaction_id);
+        $this->assertSame(12.0, $redeemed['amount']);
+        $this->assertFalse($redeemed['voucher_available']);
+        $this->assertSame(PaymentMethod::GCASH, $txn->fresh()->payment_method);
+        $this->assertSame(PaymentStatus::PENDING, $txn->fresh()->status);
+        $this->assertNotSame($originalReference, $txn->fresh()->payment_reference);
+        $second = $this->createRewardVoucher($this->commuter1);
+        $this->assertAbort(409, fn () => app(TransactionService::class)->redeemVoucherForGcash($this->commuter1, $txn->transaction_id));
+        $this->assertSame('AVAILABLE', $second->fresh()->status);
+        app(PaymentService::class)->transitionTo($txn->fresh(), PaymentStatus::FAILED);
+        $this->assertSame('AVAILABLE', $voucher->fresh()->status);
+    }
+
+    public function test_group_discount_changes_only_payer_fare_and_preserves_accounting(): void
+    {
+        config(['payments.gateways.paymongo.secret' => null]);
+        $this->forgetGateway();
+        $voucher = $this->createRewardVoucher($this->commuter1, ['type' => 'DISCOUNT', 'amount' => 5]);
+        $result = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+            'group_passengers' => [['type' => 'REGULAR', 'quantity' => 2], ['type' => 'PWD', 'quantity' => 1]],
+        ]);
+        $txn = $result['transaction'];
+        app(TransactionService::class)->claimGcash($this->commuter1, $txn->qr_token);
+        $before = Transaction::where('group_id', $txn->group_id)->where('transaction_id', '!=', $txn->transaction_id)->pluck('final_amount', 'transaction_id')->all();
+        $redeemed = app(TransactionService::class)->redeemVoucherForGcash($this->commuter1, $txn->transaction_id);
+        $this->assertSame(59.6, $redeemed['amount']);
+        $this->assertSame(12.0, (float) $txn->fresh()->final_amount);
+        $this->assertSame(59.6, (float) $txn->paymentGroup()->firstOrFail()->total_amount);
+        $this->assertSame($before, Transaction::where('group_id', $txn->group_id)->where('transaction_id', '!=', $txn->transaction_id)->pluck('final_amount', 'transaction_id')->all());
+        app(PaymentService::class)->transitionTo($txn->fresh(), PaymentStatus::PAID);
+        $this->assertSame('USED', $voucher->fresh()->status);
+        $this->assertSame(59.6, app(TransactionService::class)->getShiftEarnings($this->conductor, $this->shift->shift_id)['gcash_total']);
+    }
+
+    public function test_invalid_discount_values_and_wrong_owners_do_not_consume_vouchers(): void
+    {
+        $voucher = $this->createRewardVoucher($this->commuter1, ['type' => 'DISCOUNT', 'amount' => -5]);
+        $data = ['payment_method' => 'VOUCHER', 'voucher_code' => $voucher->code, 'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos'];
+        $this->assertAbort(422, fn () => app(TransactionService::class)->recordCashFare($this->conductor, $data));
+        $voucher->update(['amount' => 5]);
+        $this->assertAbort(422, fn () => app(TransactionService::class)->recordCashFare($this->conductor, $data + ['passenger_id' => $this->commuter2->id]));
+        $this->assertSame('AVAILABLE', $voucher->fresh()->status);
+        $this->assertDatabaseCount('transactions', 0);
+    }
+
+    public function test_distributed_free_ride_voucher_redeems_the_full_fare(): void
+    {
+        $batch = app(VoucherDistributionService::class)->generate($this->admin, ['type' => 'FREE_RIDE', 'quantity' => 2]);
+        $voucher = $batch['vouchers']->firstWhere('commuter_id', $this->commuter1->id);
+        $txn = app(TransactionService::class)->recordCashFare($this->conductor, [
+            'payment_method' => 'VOUCHER', 'voucher_code' => $voucher->code,
+            'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+        ]);
+        $this->assertSame(0.0, (float) $txn->final_amount);
+        $this->assertSame(17.0, (float) $txn->discount_amount);
+        $this->assertSame(PaymentMethod::VOUCHER, $txn->payment_method);
+        $this->assertSame('USED', $voucher->fresh()->status);
+    }
+
+    public function test_discount_voucher_is_not_consumed_when_remaining_payment_cannot_be_created(): void
+    {
+        config(['payments.gateways.paymongo.secret' => null]);
+        $this->forgetGateway();
+        $voucher = $this->createRewardVoucher($this->commuter1, ['type' => 'DISCOUNT', 'amount' => 5]);
+        $result = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+        ]);
+        $txn = $result['transaction'];
+        app(TransactionService::class)->claimGcash($this->commuter1, $txn->qr_token);
+        $reference = $txn->fresh()->payment_reference;
+        $gatewayFailure = \Mockery::mock(PaymentService::class);
+        $gatewayFailure->shouldReceive('createIntentFor')->once()
+            ->andThrow(new \App\Support\Payments\PaymentGatewayException('Simulated provider failure'));
+        $this->app->instance(PaymentService::class, $gatewayFailure);
+        $this->assertAbort(502, fn () => app(TransactionService::class)->redeemVoucherForGcash($this->commuter1, $txn->transaction_id));
+        $this->assertSame('AVAILABLE', $voucher->fresh()->status);
+        $this->assertNull($txn->fresh()->voucher_id);
+        $this->assertSame(17.0, (float) $txn->fresh()->final_amount);
+        $this->assertSame($reference, $txn->fresh()->payment_reference);
+    }
+
+    public function test_gcash_offer_preserves_selected_voucher_and_validates_owner(): void
+    {
+        config(['payments.gateways.paymongo.secret' => null]);
+        $this->forgetGateway();
+        $voucher = $this->createRewardVoucher($this->commuter1, ['type' => 'DISCOUNT', 'amount' => 5]);
+        $result = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+        ]);
+        $txn = $result['transaction'];
+        $offer = app(TransactionService::class)->claimGcash($this->commuter1, $txn->qr_token);
+        $this->assertSame($voucher->id, $offer['available_voucher']['id']);
+        $this->assertSame('DISCOUNT', $offer['available_voucher']['type']);
+        $this->assertSame('5.00', $offer['available_voucher']['amount']);
+
+        $otherOwner = $this->createRewardVoucher($this->commuter2);
+        $unused = $this->createRewardVoucher($this->commuter1, ['expires_at' => null]);
+        Sanctum::actingAs($this->commuter1);
+        $endpoint = '/api/v1/commuter/payments/'.$txn->transaction_id.'/redeem-voucher';
+        $this->postJson($endpoint, ['voucher_id' => 'invalid'])->assertUnprocessable();
+        $this->postJson($endpoint, ['voucher_id' => $otherOwner->id])->assertUnprocessable();
+        $response = $this->postJson($endpoint, ['voucher_id' => $voucher->id, 'amount' => 0, 'discount_amount' => 999])->assertOk();
+        $this->assertSame(12.0, (float) $response->json('data.amount'));
+        $this->assertSame('USED', $voucher->fresh()->status);
+        $this->assertSame('AVAILABLE', $unused->fresh()->status);
+        $this->assertSame('AVAILABLE', $otherOwner->fresh()->status);
+    }
 
     private function createPendingGcashTransaction(array $overrides = []): Transaction
     {
@@ -1973,7 +2187,7 @@ SQL);
             'sub_stops' => null,
         ]);
 
-        $service = app(\App\Services\FareCalculationService::class);
+        $service = app(FareCalculationService::class);
         $result = $service->calculateFromRequest([
             'pickup_stop_id' => $pickup->id,
             'pickup_name' => 'Point 1 · Substop X',
@@ -1985,4 +2199,3 @@ SQL);
         $this->assertSame('Point 1 · Substop X', $result['pickup_name']);
     }
 }
-

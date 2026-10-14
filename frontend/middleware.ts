@@ -32,6 +32,7 @@ export async function middleware(request: NextRequest) {
     ],
     commuter: [
       "/dashboard",
+      "/fare",
       "/lost-and-found",
       "/rewards",
       "/feedback",

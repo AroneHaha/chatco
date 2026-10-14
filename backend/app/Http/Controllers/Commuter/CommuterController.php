@@ -284,6 +284,8 @@ class CommuterController extends Controller
                 return [
                     'id' => $v->id,
                     'code' => $v->code,
+                    'type' => $v->type,
+                    'amount' => $v->amount !== null ? (float) $v->amount : null,
                     'status' => $v->status,
                     'expiresAt' => $v->expires_at?->toIso8601String(),
                     'rideOrigin' => $v->ride_origin ?? 'Reward',

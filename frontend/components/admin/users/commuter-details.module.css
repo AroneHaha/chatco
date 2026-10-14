@@ -1,3 +1,128 @@
+.details {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+
+.detailHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-right: 32px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #2a3a55;
+}
+
+.detailHeader > span { flex-shrink: 0; }
+.detailTitle {
+  margin-bottom: 8px;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #f1f5f9;
+}
+.detailName {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #f1f5f9;
+  overflow-wrap: anywhere;
+}
+.detailStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #cbd5e1;
+}
+
+.detailLayout {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+.detailSections { display: grid; gap: 20px; min-width: 0; }
+.detailSectionTitle {
+  margin-bottom: 16px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+.detailSectionDivider { padding-top: 20px; border-top: 1px solid #2a3a55; }
+.detailFields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.detailFields > div, .detailContact > div { min-width: 0; }
+.detailFields dt, .detailContact dt { font-size: 11px; line-height: 1.5; color: #94a3b8; }
+.detailFields dd, .detailContact dd {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: #f1f5f9;
+  overflow-wrap: anywhere;
+}
+.detailContact { display: grid; gap: 12px; }
+.detailContact > div { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 12px; }
+.detailContact dd { margin-top: 0; }
+.detailDates { margin-top: 20px; }
+
+.detailDocument { min-width: 0; padding-top: 20px; border-top: 1px solid #2a3a55; }
+.detailImage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 150px;
+  padding: 12px;
+  border: 1px solid #2a3a55;
+  border-radius: 8px;
+  background: #111a2b;
+}
+.detailImage img { width: 100%; max-height: 288px; object-fit: contain; border-radius: 4px; }
+.detailImageLink { display: inline-block; margin-top: 12px; font-size: 12px; color: #99c1f1; }
+.detailImageLink:hover { color: white; text-decoration: underline; }
+.detailImageEmpty {
+  padding: 32px 16px;
+  border: 1px dashed #2a3a55;
+  border-radius: 8px;
+  font-size: 13px;
+  text-align: center;
+  color: #94a3b8;
+}
+
+.detailActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 20px;
+  border-top: 1px solid #2a3a55;
+}
+.detailActions button {
+  flex: 1;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background-color 150ms, border-color 150ms;
+}
+.detailEdit { background: #62a0ea; color: white; }
+.detailEdit:hover { background: #4a8bd4; }
+.detailActions .detailSuspend { border-color: rgb(248 113 113 / .25); background: rgb(248 113 113 / .1); color: #f87171; }
+.detailSuspend:hover { background: rgb(248 113 113 / .2); }
+.detailActions .detailReactivate { border-color: rgb(98 160 234 / .25); background: rgb(98 160 234 / .1); color: #99c1f1; }
+.detailReactivate:hover { background: rgb(98 160 234 / .2); }
+.detailActions button:focus-visible, .detailImageLink:focus-visible { outline: 2px solid #62a0ea; outline-offset: 3px; }
+
+@media (min-width: 640px) {
+  .detailLayout { grid-template-columns: minmax(0, 1fr) 220px; }
+  .detailDocument { padding-top: 0; padding-left: 20px; border-top: 0; border-left: 1px solid #2a3a55; }
+  .detailActions button { flex: 0 1 auto; padding-inline: 20px; }
+}
+
 @media (min-width: 1024px) {
   .commuter .header {
     padding-right: 32px;
@@ -25,12 +150,6 @@
   .commuter .identity { min-width: 0; }
   .commuter .name { overflow-wrap: anywhere; }
   .commuter .profileMeta { margin-top: 8px; }
-  .commuter .accountId {
-    order: 1;
-    flex-basis: 100%;
-    font-size: 12px;
-    overflow-wrap: anywhere;
-  }
 
   .commuter .information { gap: 12px; }
   .commuter .information > div {

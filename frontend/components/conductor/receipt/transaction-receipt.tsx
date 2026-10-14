@@ -67,6 +67,9 @@ export default function TransactionReceipt({
   passengerBreakdown = [],
 }: TransactionReceiptProps) {
   const width = settings.paperWidth === "80" ? 300 : 230;
+  const claimInstruction = settings.showQrCode && settings.showManualCode
+    ? "Scan or enter code in Rewards: +1 ride."
+    : settings.showQrCode ? "Scan in Rewards: +1 ride." : "Enter code in Rewards: +1 ride.";
 
   return (
     <section
@@ -141,18 +144,32 @@ export default function TransactionReceipt({
       </div>
       <Row label="Paid via" value={paymentMethod} />
 
-      {receiptQrToken && (
+      {receiptQrToken && (settings.showQrCode || settings.showManualCode) && (
         <>
           <div className="my-1.5 border-t border-dashed border-black/40" />
-          <div className="mx-auto w-fit bg-white p-1">
-            <QRCodeSVG value={receiptQrToken} size={112} level="M" />
+          {settings.showQrCode && (
+            <div className="mx-auto w-fit bg-white p-1">
+              <QRCodeSVG value={receiptQrToken} size={112} level="M" />
+            </div>
+          )}
+          <div className="mt-1 text-center text-[9px]">
+            {settings.showManualCode && (
+              <>
+                <p className="text-black/60">Receipt code</p>
+                <p className="break-all font-bold">{receiptQrToken}</p>
+              </>
+            )}
+            <p className="mt-1">{claimInstruction}</p>
           </div>
-          <p className="mt-1 text-center text-[9px]">Scan in Rewards to claim this cash ride.</p>
         </>
       )}
 
       <div className="my-1.5 border-t border-dashed border-black/40" />
       {settings.footerNote && <p className="text-center text-[10px]">{settings.footerNote}</p>}
+      <p className="mt-2 text-center text-[10px]">
+        Visit Chatco at{' '}
+        <a href="https://chatco.online" target="_blank" rel="noopener noreferrer" className="font-bold underline">chatco.online</a>
+      </p>
       <p className="mt-1 text-center text-[9px] text-black/50">
         This serves as your official receipt.
       </p>

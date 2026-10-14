@@ -21,11 +21,16 @@ interface AdminBottomNavProps {
 export function AdminBottomNav({ isMoreOpen, setIsMoreOpen, onSignOut }: AdminBottomNavProps) {
   const pathname = usePathname();
   const { openSettingsDrawer } = useSettingsDrawer();
-  const { remittance, monitoring } = useAdminNotifications();
+  const { remittance, monitoring, discountApplications } = useAdminNotifications();
   const moduleBadgeCounts: Record<string, number> = {
     '/remittance': remittance.count,
     '/monitoring': monitoring.count,
+    '/users': discountApplications.count,
   };
+
+  // Badges on items inside the More sheet roll up onto the More button, so a
+  // pending count is visible without opening the sheet.
+  const moreBadgeCount = mobileMoreItems.reduce((sum, item) => sum + (moduleBadgeCounts[item.href] ?? 0), 0);
 
   const indicatorRef = useRef<HTMLDivElement>(null);
   const navItemRefs = useRef<(HTMLElement | null)[]>([]);
@@ -96,8 +101,19 @@ export function AdminBottomNav({ isMoreOpen, setIsMoreOpen, onSignOut }: AdminBo
             isMoreOpen || mobileMoreItems.some(i => i.href === pathname) ? 'text-[#62A0EA]' : 'text-slate-500'
           }`}
         >
-          <Menu size={20} />
+          <span className="relative inline-flex shrink-0">
+            <Menu size={20} />
+            {moreBadgeCount > 0 && (
+              <span
+                aria-hidden="true"
+                className="absolute -top-1.5 -right-2 min-w-4 h-4 px-1 bg-[#FF6D3A] rounded-full text-[9px] font-bold text-white flex items-center justify-center ring-2 ring-[#0D1424] tabular-nums"
+              >
+                {formatAdminBadgeCount(moreBadgeCount)}
+              </span>
+            )}
+          </span>
           <span className="mt-1">More</span>
+          {moreBadgeCount > 0 && <span className="sr-only">, {moreBadgeCount} items need attention</span>}
         </button>
       </div>
 
@@ -134,6 +150,7 @@ export function AdminBottomNav({ isMoreOpen, setIsMoreOpen, onSignOut }: AdminBo
                 const Icon = item.icon;
                 const isSettings = item.href === '/settings';
                 const isActive = isSettings ? pathname.startsWith('/settings') : pathname === item.href;
+                const badgeCount = moduleBadgeCounts[item.href] ?? 0;
 
                 if (isSettings) {
                   return (
@@ -166,7 +183,10 @@ export function AdminBottomNav({ isMoreOpen, setIsMoreOpen, onSignOut }: AdminBo
                         : 'text-slate-300 hover:bg-[#131C2E]'
                     }`}
                   >
-                    <Icon size={22} />
+                    <span className="relative inline-flex">
+                      <Icon size={22} />
+                      {badgeCount > 0 && <span aria-label={`${badgeCount} pending discount applications`} className="absolute -top-2 -right-2 min-w-4 h-4 px-1 bg-[#FF6D3A] rounded-full text-[9px] font-bold text-white flex items-center justify-center ring-2 ring-[#1A2540] tabular-nums">{formatAdminBadgeCount(badgeCount)}</span>}
+                    </span>
                     <span className="mt-2 text-xs text-center leading-tight">{item.label}</span>
                   </Link>
                 );

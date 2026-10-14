@@ -141,7 +141,7 @@ function mapToActiveUser(u: AdminUser): ActiveUser {
     status: u.statusLabel === "Suspended" || u.statusLabel === "Disabled" ? u.statusLabel : "Active",
     commuterType: u.commuterTypeLabel,
     languagePreference: "English",
-    idImageUrl: "",
+    idImageUrl: u.idImageUrl ?? "",
     username: u.username,
     verifiedAt: u.verifiedAt,
     role: u.role,
@@ -191,7 +191,7 @@ function mapDriverToActiveUser(d: RawDriver): ActiveUser {
   };
 }
 
-export function useUsersData(activeTab: "active" | "pending" | "rejected" = "active"): UseUsersDataReturn {
+export function useUsersData(activeTab: "active" | "pending" | "rejected" | "discounts" = "active"): UseUsersDataReturn {
   const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [rejectedUsers, setRejectedUsers] = useState<RejectedRequest[]>([]);

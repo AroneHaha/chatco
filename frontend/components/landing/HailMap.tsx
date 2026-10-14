@@ -126,7 +126,7 @@ export default function HailMap({ step, color, progress }: HailMapProps) {
         style={{ width: "100%", height: "100%", background: "#050F1A" }}
       >
         <FrameDrive />
-        <TileLayer url={`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${process.env.NEXT_PUBLIC_CARTO_API_KEY}`} />
+        <TileLayer className="map-tiles-mono" url={`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${process.env.NEXT_PUBLIC_CARTO_API_KEY}`} />
 
         {/* Same two-stroke route line as the commuter map */}
         <Polyline positions={ROUTE_COORDS} pathOptions={{ color: "#62A0EA", weight: 8, opacity: 0.2, lineCap: "round", lineJoin: "round" }} />

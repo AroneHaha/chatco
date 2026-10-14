@@ -7,7 +7,7 @@ import { X } from "lucide-react";
 import logo from "../../assets/logo-transparent.png";
 import styles from "./login.module.css";
 
-export default function AuthModal({ children, footer, busy, headingId, descriptionId, closeLabel, focusSelector, standalone = false, dismissHref, className = "", headerClassName = "", contentClassName = "" }: {
+export default function AuthModal({ children, footer, busy, headingId, descriptionId, closeLabel, focusSelector, standalone = false, dismissHref, onDismiss, className = "", headerClassName = "", contentClassName = "" }: {
   children: ReactNode;
   footer?: ReactNode;
   busy: boolean;
@@ -17,6 +17,7 @@ export default function AuthModal({ children, footer, busy, headingId, descripti
   focusSelector: string;
   standalone?: boolean;
   dismissHref?: string;
+  onDismiss?: () => void;
   className?: string;
   headerClassName?: string;
   contentClassName?: string;
@@ -50,7 +51,8 @@ export default function AuthModal({ children, footer, busy, headingId, descripti
 
   const dismiss = () => {
     if (busy) return;
-    if (dismissHref || standalone) router.replace(dismissHref ?? "/");
+    if (onDismiss) onDismiss();
+    else if (dismissHref || standalone) router.replace(dismissHref ?? "/");
     else router.back();
   };
 
@@ -61,7 +63,7 @@ export default function AuthModal({ children, footer, busy, headingId, descripti
       aria-labelledby={headingId}
       aria-describedby={descriptionId}
       data-lenis-prevent
-      onCancel={event => { event.preventDefault(); dismiss(); }}
+      onCancel={event => { event.preventDefault(); event.stopPropagation(); dismiss(); }}
       onPointerDown={event => { backdropPointerDown.current = event.target === event.currentTarget; }}
       onClick={event => {
         if (backdropPointerDown.current && event.target === event.currentTarget) dismiss();

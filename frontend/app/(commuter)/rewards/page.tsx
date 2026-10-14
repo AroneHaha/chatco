@@ -1,16 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import {
   ArrowRight, Bell, Check, CheckCheck, ChevronRight, CircleHelp,
-  Copy, Gift, History, Loader2, QrCode, RefreshCw, Ticket,
+  Copy, Gift, GraduationCap, History, Loader2, QrCode, RefreshCw, Ticket,
 } from "lucide-react";
 import { PageTabs } from "@/components/admin/ui/page-tabs";
 import { Modal } from "@/components/shared/modal";
 import { useAnnouncements } from "@/contexts/announcements-context";
 import { useRewards } from "./use-rewards";
 import type { Announcement, AnnouncementType, Voucher } from "./types";
+import Link from "next/link";
+import { useAuth } from "@/contexts/auth-context";
+import { getRenewalState, RENEWAL_LABELS, type RenewalState } from "@/lib/shared/services/student-renewal.service";
 
 const ReceiptScanModal = dynamic(
   () => import("@/components/commuter/modals/receipt-scan-modal"),
@@ -24,10 +27,15 @@ const announcementConfig: Record<AnnouncementType, { label: string; color: strin
   MAINTENANCE: { label: "Advisory", color: "text-red-300" },
   CLAIM_UPDATE: { label: "Claim update", color: "text-[#99C1F1]" },
   SAVED_ITEM: { label: "Saved item", color: "text-[#99C1F1]" },
+  VOUCHER: { label: "Voucher", color: "text-[#99C1F1]" },
   CUSTOM: { label: "Announcement", color: "text-white/60" },
 };
 
 function announcementCategory(item: Announcement) {
+  if (item.rawType?.toUpperCase().startsWith("DISCOUNT_APPLICATION")) return { label: "Discount application", color: "text-[#99C1F1]" };
+  if (item.rawType?.toUpperCase().startsWith("STUDENT_RENEWAL")) {
+    return { label: "Student renewal", color: "text-[#99C1F1]" };
+  }
   const config = announcementConfig[item.type] ?? announcementConfig.CUSTOM;
   return { ...config, label: item.type === "CUSTOM" && item.rawType ? item.rawType : config.label };
 }
@@ -45,12 +53,22 @@ function voucherStatus(voucher: Voucher): Voucher["status"] {
 }
 
 export default function RewardsPage() {
+  const { commuterProfile } = useAuth();
+  const [renewal, setRenewal] = useState<RenewalState | null>(null);
   const {
     data, isLoading, error, refetch, progressPercent, ridesRemaining,
     showVoucherModal, setShowVoucherModal, activeVoucher, redeemVoucher,
   } = useRewards();
   const { announcements, isLoading: announcementsLoading, markAsRead, markAllAsRead, unreadCount } = useAnnouncements();
   const [section, setSection] = useState<"rewards" | "announcements">("rewards");
+  useEffect(() => {
+    if (commuterProfile?.commuterType !== 'STUDENT' && commuterProfile?.appliedType !== 'STUDENT') return;
+    const controller = new AbortController();
+    const refreshRenewal = () => { void getRenewalState(controller.signal).then(value => { if (!controller.signal.aborted) setRenewal(value); }).catch(() => {}); };
+    refreshRenewal();
+    window.addEventListener('focus', refreshRenewal);
+    return () => { controller.abort(); window.removeEventListener('focus', refreshRenewal); };
+  }, [commuterProfile?.commuterType, commuterProfile?.appliedType, section]);
   const [voucherFilter, setVoucherFilter] = useState<"available" | "history">("available");
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [showReceiptScan, setShowReceiptScan] = useState(false);
@@ -216,7 +234,7 @@ export default function RewardsPage() {
                             <Gift size={24} aria-hidden="true" className={`shrink-0 lg:hidden ${status === "AVAILABLE" ? "text-emerald-400" : status === "EXPIRED" ? "text-red-400" : "text-white/40"}`} />
                             <div className="min-w-0 flex-1 basis-44">
                               <div className="flex flex-wrap items-center gap-2">
-                                <h3 className="text-base font-bold lg:text-sm lg:font-semibold"><span className="lg:hidden">Free Ride Voucher</span><span className="hidden lg:inline">Free ride</span></h3>
+                                <h3 className="text-base font-bold lg:text-sm lg:font-semibold">{voucher.type === "DISCOUNT" ? `₱${(voucher.amount ?? 0).toFixed(2)} Discount Voucher` : "Free Ride Voucher"}</h3>
                                 <span className={`text-xs ${status === "AVAILABLE" ? "text-emerald-300" : status === "EXPIRED" ? "text-white/50" : "text-white/60"}`}>
                                   {status === "AVAILABLE" ? "Ready to use" : status === "USED" ? "Used" : "Expired"}
                                 </span>
@@ -250,6 +268,7 @@ export default function RewardsPage() {
             )
           ) : (
             <section aria-labelledby="updates-title">
+              {renewal?.notice_active && <RenewalNotice renewal={renewal} />}
               <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                 <h2 id="updates-title" className="text-base font-semibold">Announcements</h2>
                 <button onClick={markAllAsRead} disabled={unreadCount === 0 || announcementsLoading} className="inline-flex items-center gap-2 text-xs font-medium text-[#99C1F1] hover:text-white disabled:text-white/30"><CheckCheck size={16} /> Mark all read</button>
@@ -297,10 +316,10 @@ export default function RewardsPage() {
           <p className="mt-6 border-t border-white/10 pt-4 text-xs leading-relaxed text-white/60">Check each voucher&apos;s expiry date before riding. Free rides paid with vouchers do not count toward the next reward.</p>
         </Modal>
         <Modal isOpen={showVoucherModal && !!activeVoucher} onClose={() => setShowVoucherModal(false)} maxWidth="max-w-sm">
-          <h2 className="pr-8 text-lg font-bold">Free ride voucher</h2>
+          <h2 className="pr-8 text-lg font-bold">{selectedVoucher?.type === "DISCOUNT" ? "Discount voucher" : "Free ride voucher"}</h2>
           {selectedVoucherAvailable ? (
             <>
-              <p className="mt-2 text-sm leading-relaxed text-white/60">Show this code to the conductor for your free fare.</p>
+              <p className="mt-2 text-sm leading-relaxed text-white/60">{selectedVoucher?.type === "DISCOUNT" ? `Show this code to the conductor for ₱${(selectedVoucher.amount ?? 0).toFixed(2)} off your fare. Pay any remaining fare in cash.` : "Show this code to the conductor for your free fare."}</p>
               <div className="my-6 border-y border-white/10 py-6">
                 <p className="text-xs text-white/50">Voucher code</p>
                 <p className="mt-2 break-all font-mono text-2xl font-bold text-[#99C1F1]">{activeVoucher}</p>
@@ -322,10 +341,123 @@ export default function RewardsPage() {
             <h2 className="mt-3 break-words pr-8 text-lg font-bold">{selectedAnnouncement.title}</h2>
             <p className="mt-2 text-xs text-white/50">{formatDate(selectedAnnouncement.createdAt)}</p>
             <p className="mt-5 whitespace-pre-wrap break-words border-t border-white/10 pt-5 text-sm leading-relaxed text-white/70">{selectedAnnouncement.message}</p>
+            {selectedAnnouncement.rawType?.startsWith('DISCOUNT_APPLICATION') && <Link href="/discount-application" onClick={() => setSelectedAnnouncement(null)} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#1A5FB4] px-4 text-sm font-semibold hover:bg-[#164A8F]">View discount application<ArrowRight size={16} aria-hidden="true" /></Link>}
+            {selectedAnnouncement.rawType?.startsWith('STUDENT_RENEWAL') && <div className="mt-5 space-y-3"><Link href="/student-renewal" onClick={() => setSelectedAnnouncement(null)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#1A5FB4] px-4 text-sm font-semibold hover:bg-[#164A8F]">{renewal?.can_submit ? 'Renew student status' : 'View renewal status'}<ArrowRight size={16} aria-hidden="true" /></Link>{renewal?.can_switch_to_regular && renewal.status !== 'PENDING' && renewal.status !== 'APPROVED' && <Link href="/student-renewal#regular" onClick={() => setSelectedAnnouncement(null)} className="inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-white/20 px-4 text-sm">No Longer a Student</Link>}</div>}
+            {selectedAnnouncement.type === "VOUCHER" && <button type="button" onClick={() => { setSelectedAnnouncement(null); setSection("rewards"); setVoucherFilter("available"); }} className="mt-5 min-h-11 w-full rounded-lg bg-[#1A5FB4] px-4 text-sm font-semibold hover:bg-[#164A8F]">View vouchers</button>}
           </>}
         </Modal>
       </div>
     </div>
+  );
+}
+
+function RenewalNotice({ renewal }: { renewal: RenewalState }) {
+  const pending = renewal.status === "PENDING";
+  const correction = renewal.status === "NEEDS_CORRECTION";
+  const status = renewal.status === "NOT_RENEWED" ? "For renewal" : RENEWAL_LABELS[renewal.status];
+  const statusColor = pending ? "text-[#99C1F1]" : "text-amber-200";
+  const title = pending ? "Your proof is being reviewed" : correction ? "Update your enrollment proof" : "Renew your student status";
+  const description = pending
+    ? "We’ll notify you when the review is complete. No need to submit again."
+    : correction
+      ? "Check the reviewer’s note and send corrected proof before your correction deadline."
+      : "Have your current school ID or enrollment proof ready to continue your student discount.";
+  const action = renewal.can_submit ? (correction ? "Submit corrected proof" : "Renew student status") : "View renewal status";
+  const formatDeadline = (value: string) => new Date(value).toLocaleString("en-PH", {
+    month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila",
+  });
+  const deadline = formatDeadline(renewal.deadline);
+
+  // "What happens next" floats over the card at lg+, where it opens on mouse
+  // hover and stays open once clicked. Below lg the text is too long to float
+  // over a narrow card, so the same button expands it in place instead.
+  const [hovered, setHovered] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const helpRef = useRef<HTMLDivElement>(null);
+  const helpId = useId();
+  const helpOpen = hovered || pinned;
+
+  useEffect(() => {
+    if (!helpOpen) return;
+    const close = () => { setHovered(false); setPinned(false); };
+    const handleKey = (event: KeyboardEvent) => { if (event.key === "Escape") close(); };
+    // Only the floating panel dismisses on an outside press; collapsing the
+    // in-place one would shift the page under the commuter's finger.
+    const handlePointer = (event: PointerEvent) => {
+      if (!window.matchMedia("(min-width: 1024px)").matches) return;
+      if (!helpRef.current?.contains(event.target as Node)) close();
+    };
+    document.addEventListener("keydown", handleKey);
+    document.addEventListener("pointerdown", handlePointer);
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+      document.removeEventListener("pointerdown", handlePointer);
+    };
+  }, [helpOpen]);
+
+  return (
+    <section aria-labelledby="renewal-notice-title" className="mb-7 rounded-2xl border border-[#62A0EA]/30 bg-[#071A2E] p-5 sm:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="inline-flex items-center gap-2 text-xs font-medium text-[#99C1F1]">
+          <GraduationCap size={18} aria-hidden="true" /> Student renewal
+        </p>
+        <span className={`text-xs font-medium ${statusColor}`}>{status}</span>
+      </div>
+      {/* The wrapper holds both the icon and the panel, so the pointer stays
+          inside the hover area on its way from one down to the other. */}
+      <div ref={helpRef} className="relative mt-4" onPointerLeave={() => setHovered(false)}>
+        <div className="flex gap-2">
+          <h3 id="renewal-notice-title" className="text-lg font-semibold leading-snug sm:text-xl">{title}</h3>
+          <button
+            type="button"
+            onClick={() => setPinned(value => !value)}
+            onPointerEnter={event => { if (event.pointerType === "mouse" && window.matchMedia("(min-width: 1024px)").matches) setHovered(true); }}
+            aria-label="What happens next"
+            aria-expanded={helpOpen}
+            aria-controls={helpOpen ? helpId : undefined}
+            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#99C1F1] ${helpOpen ? "bg-white/5 text-white" : "text-white/50"}`}
+          >
+            <CircleHelp size={16} aria-hidden="true" />
+          </button>
+        </div>
+        {helpOpen && (
+          <div id={helpId} className="pt-3 lg:absolute lg:left-0 lg:top-full lg:z-20 lg:w-104 lg:pt-2">
+            <div className="border-l border-white/15 pl-4 lg:rounded-xl lg:border lg:border-[#2A3A55] lg:bg-[#1A2540] lg:p-4 lg:shadow-2xl">
+              <h4 className="text-sm font-medium">What happens next</h4>
+              <ul className="mt-3 list-disc space-y-3 pl-4 text-xs leading-relaxed text-white/65 marker:text-white/35">
+                <li><span className="font-medium text-white/90">Your discount: </span>{renewal.discount_eligible
+                  ? <>You can still use it until {formatDeadline(renewal.discount_expires_at ?? renewal.deadline)} (Philippine time), unless your renewal is approved and extends it.</>
+                  : "Regular fares apply until your renewal is approved."}</li>
+                <li><span className="font-medium text-white/90">If you miss the deadline: </span>Without proof submitted before {deadline} (Philippine time), your commuter type automatically changes to Regular. Your account stays active, and you can still submit proof afterward, for example if your school released it late. Regular fares apply until it is approved.</li>
+                <li><span className="font-medium text-white/90">If you submit on time: </span>You keep the Student type while your proof is reviewed. Once your current discount expires, Regular fares apply until approval.{correction && " Send any corrections before the correction deadline shown above."}</li>
+              </ul>
+            </div>
+          </div>
+        )}
+      </div>
+      <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/65">{description}</p>
+      <dl className="my-5 grid gap-4 border-y border-white/10 py-4 sm:grid-cols-2">
+        <div>
+          <dt className="text-xs text-white/50">Renewal period</dt>
+          <dd className="mt-1 text-sm font-medium">{renewal.renewal_period}</dd>
+          <dd className="mt-1 text-xs text-white/40">Philippine time</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-white/50">Student discount</dt>
+          <dd className={`mt-1 inline-flex items-center gap-2 text-sm font-medium ${renewal.discount_eligible ? "text-emerald-300" : "text-amber-200"}`}>
+            <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${renewal.discount_eligible ? "bg-emerald-300" : "bg-amber-200"}`} />
+            {renewal.discount_eligible ? "Available" : "Unavailable"}
+          </dd>
+        </div>
+        {correction && renewal.application?.correction_due_at && <div className="sm:col-span-2">
+          <dt className="text-xs text-white/50">Correction deadline</dt>
+          <dd className="mt-1 text-sm font-medium text-amber-200">{new Date(renewal.application.correction_due_at).toLocaleString("en-PH", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila" })} (Philippine time)</dd>
+        </div>}
+      </dl>
+      <Link href="/student-renewal" className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#1A5FB4] px-5 py-3 text-sm font-semibold transition-colors hover:bg-[#164A8F] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#99C1F1] sm:w-auto">
+        {action}<ArrowRight size={16} aria-hidden="true" />
+      </Link>
+    </section>
   );
 }
 

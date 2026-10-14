@@ -17,6 +17,7 @@ All paths are relative to `/api/v1`. Conventions are in [README.md](README.md).
 ## Contents
 
 - [Profile](#profile)
+- [Student renewal](#student-renewal)
   - [GET /commuter/profile](#get-commuterprofile)
   - [PUT /commuter/profile](#put-commuterprofile)
   - [POST /commuter/change-password/request-code](#post-commuterchange-passwordrequest-code)
@@ -42,6 +43,35 @@ All paths are relative to `/api/v1`. Conventions are in [README.md](README.md).
   - [GET /commuter/claims](#get-commuterclaims)
 
 ---
+
+## Student renewal
+
+Only previously approved Student accounts (or former students converted to Regular after expiration) may submit. Renewal is separate from account status: it never blocks login, deletes an account, or changes rides/rewards. Other commuter types and manual cash/group selection are unaffected.
+
+| Endpoint | Input | Response / behavior |
+|---|---|---|
+| `GET /commuter/student-renewal` | None | `{cycle_year, deadline, commuter_type, discount_eligible, discount_expires_at, status, can_submit, notice_active, reminder_due, can_switch_to_regular, application}`; `reminder_due` is true for a student whose renewal still needs action and who has not snoozed or dismissed the reminder |
+| `POST /commuter/student-renewal` | Multipart `document` (JPG/PNG/WebP/PDF, max 5 MB), `school_name` (required, max 150), `education_level` (`HIGH_SCHOOL` or `COLLEGE`), `grade_level` (integer 7–12, required for `HIGH_SCHOOL`, ignored for `COLLEGE`), `school_year` (required, max 20), `enrollment_term` (max 50, required for `COLLEGE`, optional for `HIGH_SCHOOL`) | 201 with updated renewal state; authenticated owner only; submission opens September 1; expired students may apply late |
+| `POST /commuter/student-renewal/reminder` | JSON `{action}`: `snooze` hides the pop-up reminder for 24 hours, `dismiss` hides it for the rest of the current renewal cycle | Updated renewal state; the choice is stored on the commuter profile, so it persists across sessions and devices; 403 for accounts that are not eligible for renewal |
+| `POST /commuter/student-renewal/regular` | JSON `{confirmed: true}` | Switches to Regular immediately, cancels pending/correction applications and removes student eligibility |
+
+The read uses `commuter-read`; writes use `conductor-write`. These routes also exist under `/mobile/commuter/`. Statuses are `NOT_RENEWED`, `PENDING`, `NEEDS_CORRECTION`, `APPROVED`, `REJECTED`, `EXPIRED`, `CANCELLED`. Documents are stored on the configured private ID disk; commuter responses never expose document paths or reviewer links. Duplicate active submissions return 409; wrong account eligibility returns 403; invalid uploads return 422.
+
+Previously verified discounts last through September 30, Philippine time. On October 1, no submission means Regular; a timely pending submission retains Student but pauses the discount until approval. Corrections have seven days from the review notice. Resubmission within that window preserves the original deadline protection; a late reapplication does not. Approval grants eligibility until October 1 of the next year. Initial Student approvals during August/September count for the new cycle, avoiding a duplicate upload. The first renewal year defaults to 2027.
+
+#### Discount application (Regular accounts)
+
+An active, unsuspended Regular commuter can apply for a Student, PWD, or Senior Citizen discount. The account and fare stay Regular until an admin approves it.
+
+| Endpoint | Input | Response / behavior |
+|---|---|---|
+| `GET /commuter/discount-applications` | None | `{commuter_type, effective_fare_type, discount_expires_at, document_required, can_submit, status, application}`; `status` is `NOT_APPLIED` when the commuter has never applied, or when their last approved application no longer applies because the account is Regular again (for example a student who did not renew) |
+| `POST /commuter/discount-applications` | Multipart `requested_type` (`STUDENT`, `PWD`, `SENIOR`), `document`, and the Student school fields above when `requested_type` is `STUDENT`; a correction also sends `application_id` and `revision` | 201 with updated state; 409 when another request is active or the correction changed; 422 when a correction changes the category |
+| `POST /commuter/discount-applications/cancel` | JSON `{application_id}` | Withdraws the commuter's own `PENDING` or `NEEDS_CORRECTION` application (status becomes `CANCELLED`) and returns the updated state; 404 for another commuter's request or a renewal; 409 once it has been reviewed. Allowed while suspended |
+
+Same throttles and `/mobile/commuter/` mirrors as renewal. One request is active at a time across applications and renewals. A correction request on an application has no deadline: it stays open until the commuter resubmits, keeps its original submission time, and still counts as the active request; to switch category the commuter cancels it and applies again. Approval sets the commuter type; an approved Student then follows the annual renewal above.
+
+`GET /commuter/profile` additionally returns `profile.student_discount_eligible` and `profile.effective_fare_type`. These describe fare eligibility while `commuter_type` remains Student during pending review.
 
 ## Profile
 

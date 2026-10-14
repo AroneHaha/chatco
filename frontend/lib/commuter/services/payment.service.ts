@@ -94,6 +94,7 @@ export interface ClaimResult {
   /** True when this commuter has an available voucher that could cover their
    * own portion of this ride (their own seat only — never the whole group). */
   voucherAvailable: boolean;
+  availableVoucher?: { id: string; type: "FREE_RIDE" | "DISCOUNT" | "REWARD"; amount: number | null } | null;
   /** True when this ride is part of a multi-passenger group payment — a
    * voucher only ever covers the caller's own seat, never the companions'. */
   isGroup: boolean;
@@ -249,6 +250,7 @@ export async function claimGcash(qrToken: string): Promise<ClaimResult> {
     pickup_name: string | null;
     dropoff_name: string | null;
     voucher_available: boolean;
+    available_voucher?: { id: string; type: "FREE_RIDE" | "DISCOUNT" | "REWARD"; amount: string | number | null } | null;
     is_group: boolean;
   }>>(COMMUTER_API.payments.claim, { qr_token: qrToken });
 
@@ -263,6 +265,10 @@ export async function claimGcash(qrToken: string): Promise<ClaimResult> {
     pickupName: d.pickup_name,
     dropoffName: d.dropoff_name,
     voucherAvailable: Boolean(d.voucher_available),
+    availableVoucher: d.available_voucher ? {
+      ...d.available_voucher,
+      amount: d.available_voucher.amount == null ? null : Number(d.available_voucher.amount),
+    } : null,
     isGroup: Boolean(d.is_group),
   };
 }
@@ -271,18 +277,16 @@ export async function claimGcash(qrToken: string): Promise<ClaimResult> {
  * Cover this commuter's own portion of an already-claimed, still-PENDING
  * GCash transaction with one of their available vouchers.
  *
- * For a solo ride this settles the whole transaction at ₱0 — `checkoutUrl`
- * comes back null and there is nothing left to pay. For a grouped ride, only
- * the caller's own seat is covered; `amount`/`checkoutUrl` are updated to
- * reflect just the remaining companions' total, which is what the frontend
- * should redirect to next (or skip entirely if it becomes null/0).
+ * Free-ride vouchers cover the caller's fare. Discount vouchers deduct their
+ * fixed peso value. Any remaining caller/companion fare is paid through the
+ * returned GCash checkout; a zero total settles immediately.
  *
  * @throws {ApiError} 403 (not this commuter's transaction) / 404 (not found)
  *                    / 409 (no longer redeemable) / 422 (not GCash, or no
  *                    eligible voucher) / 502 (gateway error re-issuing the
  *                    reduced companions-only intent)
  */
-export async function redeemVoucherForGcash(transactionId: string): Promise<ClaimResult> {
+export async function redeemVoucherForGcash(transactionId: string, voucherId?: string): Promise<ClaimResult> {
   const response = await api.post<Envelope<{
     transaction_id: string;
     checkout_url: string | null;
@@ -293,8 +297,9 @@ export async function redeemVoucherForGcash(transactionId: string): Promise<Clai
     pickup_name: string | null;
     dropoff_name: string | null;
     voucher_available: boolean;
+    available_voucher?: { id: string; type: "FREE_RIDE" | "DISCOUNT" | "REWARD"; amount: string | number | null } | null;
     is_group: boolean;
-  }>>(COMMUTER_API.payments.redeemVoucher(transactionId), {});
+  }>>(COMMUTER_API.payments.redeemVoucher(transactionId), voucherId ? { voucher_id: voucherId } : {});
 
   const d = response.data;
   return {
@@ -307,6 +312,10 @@ export async function redeemVoucherForGcash(transactionId: string): Promise<Clai
     pickupName: d.pickup_name,
     dropoffName: d.dropoff_name,
     voucherAvailable: Boolean(d.voucher_available),
+    availableVoucher: d.available_voucher ? {
+      ...d.available_voucher,
+      amount: d.available_voucher.amount == null ? null : Number(d.available_voucher.amount),
+    } : null,
     isGroup: Boolean(d.is_group),
   };
 }

@@ -21,5 +21,5 @@ export async function POST(request: NextRequest) {
     if (result.status === 422) return jsonValidationError(result.message ?? "Validation failed.", result.errors, 422);
     return jsonError(result.message ?? "Failed to create vouchers.", result.status);
   }
-  return jsonData(result.data, 201);
+  return jsonData(result.data, result.status);
 }

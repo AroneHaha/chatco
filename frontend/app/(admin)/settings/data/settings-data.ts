@@ -72,6 +72,8 @@ export interface ReceiptConfig {
   showConductor: boolean;
   showPassenger: boolean;
   showFareBreakdown: boolean;
+  showQrCode: boolean;
+  showManualCode: boolean;
 }
 
 // --- FAQ Data ---
@@ -172,4 +174,6 @@ export const defaultReceiptConfig: ReceiptConfig = {
   showConductor: true,
   showPassenger: true,
   showFareBreakdown: true,
+  showQrCode: true,
+  showManualCode: true,
 };

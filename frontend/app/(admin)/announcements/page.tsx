@@ -381,18 +381,18 @@ export default function AnnouncementsPage() {
         </span>
       ) : <span className="text-xs text-slate-500">—</span>,
     },
-    {
+    ...(activeTab === 'announcements' ? [{
       key: 'status',
-      label: activeTab === 'announcements' ? 'Status' : 'Read status',
+      label: 'Status',
       headerClassName: 'w-[12%]',
       cellClassName: 'whitespace-nowrap',
       render: (_: unknown, item: Announcement) => (
         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-300">
-          <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${activeTab === 'announcements' ? (item.status === 'ARCHIVED' ? 'bg-slate-500' : 'bg-emerald-400') : item.isRead ? 'bg-slate-500' : 'bg-[#62A0EA]'}`} />
-          {activeTab === 'announcements' ? item.displayStatus : item.isRead ? 'Read' : 'Unread'}
+          <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${item.status === 'ARCHIVED' ? 'bg-slate-500' : 'bg-emerald-400'}`} />
+          {item.displayStatus}
         </span>
       ),
-    },
+    }] : []),
     {
       key: 'createdBy',
       label: 'Source',
@@ -656,15 +656,15 @@ export default function AnnouncementsPage() {
                 <div key={item.id} className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4">
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <p className="min-w-0 flex-1 break-words text-sm font-semibold text-white">{item.title}</p>
-                    <span
+                    {activeTab === 'announcements' && <span
                       className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
                         item.status === 'ARCHIVED'
                           ? 'border-slate-500/30 bg-slate-500/10 text-slate-400'
                           : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
                       }`}
                     >
-                      {activeTab === 'announcements' ? item.displayStatus : item.isRead ? 'Read' : 'Unread'}
-                    </span>
+                      {item.displayStatus}
+                    </span>}
                   </div>
                   <p className="text-xs text-slate-500 line-clamp-2 mb-3">
                     {item.message.slice(0, 120)}

@@ -11,11 +11,11 @@ import type { AdminRoute } from '@/lib/admin/services/route.service';
 import type { RouteCoordinate } from '@/lib/admin/services/route.service';
 import { formatPeso } from '@/lib/utils/display';
 import { Modal } from '@/components/admin/ui/modal';
-import { SkeletonFareMatrix } from '@/components/admin/ui/skeleton';
+import { SkeletonFareMatrix, SkeletonFareRouteEditor } from '@/components/admin/ui/skeleton/skeleton-fare-matrix';
 
 const RouteEditor = dynamic(() => import('@/components/admin/routes/route-editor'), {
   ssr: false,
-  loading: () => <div className="h-[560px] animate-pulse rounded-2xl border border-white/5 bg-[#071A2E]" />,
+  loading: () => <SkeletonFareRouteEditor />,
 });
 
 const FarePointMapPicker = dynamic(() => import('@/components/admin/routes/fare-point-map-picker'), {
@@ -185,8 +185,8 @@ export default function FareMatrixPage() {
 
   // New point form state
   const [newName, setNewName] = useState('');
-  const [newRegular, setNewRegular] = useState('18');
-  const [newDiscounted, setNewDiscounted] = useState('14.4');
+  const [newRegular, setNewRegular] = useState('17');
+  const [newDiscounted, setNewDiscounted] = useState('13.6');
   const [newSubStops, setNewSubStops] = useState('');
   const [newSubStopDraft, setNewSubStopDraft] = useState('');
   const [newLocation, setNewLocation] = useState<RouteCoordinate | null>(null);
@@ -327,15 +327,15 @@ export default function FareMatrixPage() {
         point_number: farePoints.length + 1,
         code: `P${String(farePoints.length + 1).padStart(2, '0')}`,
         name: newName.trim(),
-        regular_fare: parseFloat(newRegular) || 18,
-        discounted_fare: parseFloat(newDiscounted) || 14.4,
+        regular_fare: parseFloat(newRegular) || 17,
+        discounted_fare: parseFloat(newDiscounted) || 13.6,
         landmarks: null,
         sub_stops: normalizedSubStops || null,
         latitude: newLocation[0],
         longitude: newLocation[1],
       });
       showSuccess(`Point "${newName}" added successfully.`);
-      setNewName(''); setNewRegular('18'); setNewDiscounted('14.4'); setNewSubStops(''); setNewSubStopDraft('');
+      setNewName(''); setNewRegular('17'); setNewDiscounted('13.6'); setNewSubStops(''); setNewSubStopDraft('');
       setNewLocation(null);
       setShowAddForm(false);
       await Promise.all([fetchFarePoints(), fetchRoutes()]);
@@ -376,8 +376,8 @@ export default function FareMatrixPage() {
       setEditSubStopDraft('');
       await farePointService.update(point.id, {
         name: editName.trim(),
-        regular_fare: parseFloat(editRegular) || 18,
-        discounted_fare: parseFloat(editDiscounted) || 14.4,
+        regular_fare: parseFloat(editRegular) || 17,
+        discounted_fare: parseFloat(editDiscounted) || 13.6,
         // Saving an old row migrates its legacy landmark choices into the
         // canonical sub_stops field, so removals and additions stay in sync.
         landmarks: null,
@@ -472,7 +472,7 @@ export default function FareMatrixPage() {
     }
   };
 
-  const inputClasses = "block w-full px-3 py-2.5 bg-[#050F1A] border border-white/10 rounded-xl text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#62A0EA] focus:ring-1 focus:ring-[#62A0EA]/30 transition-colors";
+  const inputClasses = "block min-w-0 w-full px-3 py-2.5 bg-[#050F1A] border border-white/10 rounded-xl text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#62A0EA] focus:ring-1 focus:ring-[#62A0EA]/30 transition-colors";
 
   // ── Loading State ──
   if (isLoading) {
@@ -481,15 +481,15 @@ export default function FareMatrixPage() {
 
   return (
     <div className="min-h-screen pb-12 px-4 sm:px-6">
-      <div className="mx-auto w-full max-w-5xl space-y-6">
+      <div className="@container/fare-matrix mx-auto min-w-0 w-full max-w-5xl space-y-6">
 
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white">Fare Matrix Management</h1>
-            <p className="text-sm text-white/40 mt-1">{farePoints.length} point areas on {selectedRoute?.name ?? 'the selected route'}</p>
+        <div className="flex flex-col gap-4 @[40rem]/fare-matrix:flex-row @[40rem]/fare-matrix:items-center @[40rem]/fare-matrix:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-2xl @[40rem]/fare-matrix:text-3xl font-bold text-white">Fare Matrix Management</h1>
+            <p className="text-sm text-white/40 mt-1 break-words">{farePoints.length} point areas on {selectedRoute?.name ?? 'the selected route'}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <button onClick={fetchFarePoints} title="Refresh" className="p-2.5 text-white/40 hover:text-white bg-[#071A2E] border border-white/[0.06] rounded-xl transition-colors">
               <RefreshCw size={18} />
             </button>
@@ -497,7 +497,7 @@ export default function FareMatrixPage() {
               type="button"
               onClick={handleToggleAddForm}
               disabled={!selectedRoute}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-[#1A5FB4] text-white font-bold rounded-xl hover:bg-[#165a9f] transition-colors active:scale-95 shadow-lg shadow-[#1A5FB4]/30"
+              className="w-full @[40rem]/fare-matrix:w-auto flex items-center justify-center gap-2 whitespace-nowrap px-5 py-2.5 bg-[#1A5FB4] text-white font-bold rounded-xl hover:bg-[#165a9f] transition-colors active:scale-95 shadow-lg shadow-[#1A5FB4]/30"
             >
               {showAddForm ? <X size={18} /> : <Plus size={18} />}
               <span>{showAddForm ? 'Cancel' : 'Add Point Area'}</span>
@@ -507,8 +507,8 @@ export default function FareMatrixPage() {
 
         {/* Route selection controls Fare Points, map geometry, and hailing coverage together. */}
         <div className="rounded-2xl border border-white/[0.06] bg-[#071A2E] p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div className="flex-1">
+          <div className="grid grid-cols-1 items-end gap-3 @[20rem]/fare-matrix:grid-cols-2 @[48rem]/fare-matrix:grid-cols-[minmax(0,1fr)_auto_auto]">
+            <div className="min-w-0 @[20rem]/fare-matrix:col-span-2 @[48rem]/fare-matrix:col-span-1">
               <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-white/30">Managed Route</label>
               <select
                 value={selectedRouteId}
@@ -517,7 +517,7 @@ export default function FareMatrixPage() {
                   setPreviewFrom(null);
                   setPreviewTo(null);
                 }}
-                className="w-full rounded-xl border border-white/10 bg-[#050F1A] px-3 py-2.5 text-sm text-white outline-none focus:border-[#62A0EA]"
+                className="min-w-0 w-full rounded-xl border border-white/10 bg-[#050F1A] px-3 py-2.5 text-sm text-white outline-none focus:border-[#62A0EA]"
               >
                 {routes.length === 0 && <option value="">No routes created</option>}
                 {routes.map((route) => (
@@ -525,20 +525,20 @@ export default function FareMatrixPage() {
                 ))}
               </select>
             </div>
-            <button type="button" onClick={() => setShowCreateRoute((visible) => !visible)} className="flex items-center justify-center gap-2 rounded-xl border border-[#62A0EA]/30 px-4 py-2.5 text-sm font-semibold text-[#93C5FD] hover:bg-[#1A5FB4]/10">
-              <Plus size={16} /> New Route
+            <button type="button" onClick={() => setShowCreateRoute((visible) => !visible)} className="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-[#62A0EA]/30 px-3 py-2.5 text-sm font-semibold text-[#93C5FD] hover:bg-[#1A5FB4]/10">
+              <Plus size={16} className="shrink-0" /> New Route
             </button>
             <button
               type="button"
               onClick={() => { setDeleteRouteError(null); setIsDeleteRouteOpen(true); }}
               disabled={!selectedRoute}
-              className="flex items-center justify-center gap-2 rounded-xl border border-red-500/25 px-4 py-2.5 text-sm font-semibold text-red-300 hover:bg-red-500/10 disabled:opacity-40"
+              className="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-red-500/25 px-3 py-2.5 text-sm font-semibold text-red-300 hover:bg-red-500/10 disabled:opacity-40"
             >
-              <Trash2 size={16} /> Delete Route
+              <Trash2 size={16} className="shrink-0" /> Delete Route
             </button>
           </div>
           {showCreateRoute && (
-            <div className="mt-3 flex flex-col gap-2 border-t border-white/5 pt-3 sm:flex-row">
+            <div className="mt-3 flex flex-col gap-2 border-t border-white/5 pt-3 @[32rem]/fare-matrix:flex-row">
               <input value={newRouteName} onChange={(event) => setNewRouteName(event.target.value)} placeholder="e.g. Calumpit–Marilao via McArthur Highway" className={inputClasses} />
               <button type="button" onClick={handleCreateRoute} disabled={isSaving || !newRouteName.trim()} className="whitespace-nowrap rounded-xl bg-[#1A5FB4] px-5 py-2.5 text-sm font-bold text-white disabled:opacity-40">Create Route</button>
             </div>
@@ -581,10 +581,10 @@ export default function FareMatrixPage() {
               <p className="text-white/40 text-xs mt-0.5">Base fare covers first 4 barangays traveled, ₱2 per succeeding barangay</p>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 @[28rem]/fare-matrix:grid-cols-3">
             <div className="bg-[#050F1A]/60 rounded-xl px-4 py-3 text-center border border-white/5">
               <p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold">Base Fare</p>
-              <p className="text-xl font-extrabold text-[#62A0EA] mt-1">₱18.00</p>
+              <p className="text-xl font-extrabold text-[#62A0EA] mt-1">₱17.00</p>
               <p className="text-[10px] text-white/25 mt-0.5">First 4 barangays</p>
             </div>
             <div className="bg-[#050F1A]/60 rounded-xl px-4 py-3 text-center border border-white/5">
@@ -606,8 +606,8 @@ export default function FareMatrixPage() {
             <Search size={16} className="text-white/30" />
             <h3 className="text-[10px] font-bold text-white/30 uppercase tracking-wider">Fare Calculator Preview</h3>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-            <div>
+          <div className="grid grid-cols-1 @[32rem]/fare-matrix:grid-cols-2 gap-3 mb-4">
+            <div className="min-w-0">
               <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1.5">From (Point #)</label>
               <select
                 value={previewFrom ?? ''}
@@ -620,7 +620,7 @@ export default function FareMatrixPage() {
                 ))}
               </select>
             </div>
-            <div>
+            <div className="min-w-0">
               <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1.5">To (Point #)</label>
               <select
                 value={previewTo ?? ''}
@@ -636,12 +636,12 @@ export default function FareMatrixPage() {
           </div>
           {farePreview ? (
             <div className="bg-[#050F1A]/60 rounded-xl p-4 border border-white/5 space-y-2">
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex flex-wrap items-center gap-2 mb-3">
                 <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[9px] font-bold">A</span>
-                <span className="text-sm text-white font-medium">{farePreview.fareResult.fromPoint.name}</span>
+                <span className="min-w-0 break-words text-sm text-white font-medium">{farePreview.fareResult.fromPoint.name}</span>
                 <svg className="w-4 h-4 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
                 <span className="w-5 h-5 rounded-full bg-[#FF6D3A] text-white flex items-center justify-center text-[9px] font-bold">B</span>
-                <span className="text-sm text-white font-medium">{farePreview.fareResult.toPoint.name}</span>
+                <span className="min-w-0 break-words text-sm text-white font-medium">{farePreview.fareResult.toPoint.name}</span>
               </div>
               <div className="flex justify-between text-sm"><span className="text-white/60">Barangays Traveled</span><span className="font-semibold text-white">{farePreview.fareResult.barangaysTraveled} pts</span></div>
               <div className="flex justify-between text-sm"><span className="text-white/60">Base Fare</span><span className="font-semibold text-white">{formatPeso(farePreview.fareResult.baseFare)}</span></div>
@@ -665,15 +665,15 @@ export default function FareMatrixPage() {
           {showAddForm && (
             <div id="fare-point-add-form" className="bg-[#1A5FB4]/5 border border-[#1A5FB4]/30 p-5 rounded-2xl space-y-4">
               <h3 className="text-sm font-bold text-white">New Point Area</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 @[32rem]/fare-matrix:grid-cols-2 gap-4">
                 {/* Full width: the next field (Sub Pickup) is also
-                    sm:col-span-2, so a single-column Point Name left an
+                    spans both columns, so a single-column Point Name left an
                     empty cell beside it instead of the two stacking flush. */}
-                <div className="sm:col-span-2">
+                <div className="@[32rem]/fare-matrix:col-span-2">
                   <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Point Name</label>
                   <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Jollibee Crossing" className={inputClasses} />
                 </div>
-                <div className="sm:col-span-2">
+                <div className="@[32rem]/fare-matrix:col-span-2">
                   <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Sub Pickup / Drop-off Points</label>
                   <SubDropoffEditor
                     value={newSubStops}
@@ -709,13 +709,13 @@ export default function FareMatrixPage() {
           {editingPoint !== null && (
             <div id="fare-point-edit-form" className="bg-[#1A5FB4]/5 border border-[#1A5FB4]/30 p-5 rounded-2xl space-y-4">
               <h3 className="text-sm font-bold text-white">Edit Point #{editingPoint}</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 @[32rem]/fare-matrix:grid-cols-2 gap-4">
                 {/* Full width, same reasoning as the Add form above. */}
-                <div className="sm:col-span-2">
+                <div className="@[32rem]/fare-matrix:col-span-2">
                   <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Point Name</label>
                   <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} className={inputClasses} />
                 </div>
-                <div className="sm:col-span-2">
+                <div className="@[32rem]/fare-matrix:col-span-2">
                   <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Sub Pickup / Drop-off Points</label>
                   <SubDropoffEditor
                     value={editSubStops}
@@ -768,11 +768,11 @@ export default function FareMatrixPage() {
           </div>
 
           {/* Results count */}
-          <div className="flex items-center justify-between px-1">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1">
             <p className="text-[10px] text-white/25">
               {searchQuery.trim() ? `${filteredPoints.length} of ${farePoints.length} point areas` : `${farePoints.length} point areas total`}
             </p>
-            <p className="text-[10px] text-white/25">{selectedRoute?.name ?? 'No route selected'}</p>
+            <p className="min-w-0 break-words text-[10px] text-white/25">{selectedRoute?.name ?? 'No route selected'}</p>
           </div>
 
           {/* Point Areas List */}
@@ -783,11 +783,11 @@ export default function FareMatrixPage() {
                   No fare points found. Click &quot;Add Point Area&quot; to create one.
                 </div>
               ) : filteredPoints.map((point) => {
-                const isBaseZone = point.regularFare <= 18;
+                const isBaseZone = point.regularFare <= 17;
 
                 return (
                   <div key={point.pointNumber}>
-                    <div className="flex items-center gap-3 px-4 py-3.5 hover:bg-white/[0.03] transition-colors">
+                    <div className="grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-4 py-3.5 hover:bg-white/[0.03] transition-colors @[32rem]/fare-matrix:grid-cols-[2rem_minmax(0,1fr)_auto]">
                       {/* Point Number Badge */}
                       <span className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-bold ${isBaseZone ? 'bg-emerald-500/15 text-emerald-400' : 'bg-[#62A0EA]/15 text-[#62A0EA]'}`}>
                         {point.pointNumber}
@@ -795,9 +795,9 @@ export default function FareMatrixPage() {
 
                       {/* Name + Landmark indicator */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                           <MapPin size={12} className={isBaseZone ? 'text-emerald-400/60 flex-shrink-0' : 'text-[#62A0EA]/60 flex-shrink-0'} />
-                          <span className="text-sm text-white font-medium truncate">{point.name}</span>
+                          <span className="min-w-0 flex-1 text-sm text-white font-medium truncate" title={point.name}>{point.name}</span>
                           {point.subStops && point.subStops.length > 0 && (
                             <span className="rounded-full border border-[#62A0EA]/20 bg-[#62A0EA]/10 px-2 py-0.5 text-[9px] font-semibold text-[#93C5FD]">
                               {point.subStops.length} sub-area{point.subStops.length === 1 ? '' : 's'}
@@ -810,8 +810,8 @@ export default function FareMatrixPage() {
                       </div>
 
                       {/* Fares */}
-                      <div className="flex items-center gap-4 flex-shrink-0">
-                        <div className="text-right">
+                      <div className="col-start-2 flex min-w-0 items-center justify-between gap-3 @[32rem]/fare-matrix:col-start-auto @[32rem]/fare-matrix:justify-end">
+                        <div className="shrink-0 @[32rem]/fare-matrix:text-right">
                           <p className="text-xs font-bold text-[#62A0EA]">{formatPeso(point.regularFare)}</p>
                           <p className="text-[10px] text-emerald-400/70">{formatPeso(point.discountedFare)}</p>
                         </div>
@@ -840,9 +840,9 @@ export default function FareMatrixPage() {
                         <p className="text-[10px] uppercase tracking-wider text-white/30 font-bold mb-2">Sub pickup / drop-off points in this area</p>
                         <div className="flex flex-wrap gap-2">
                           {point.subStops.map((stop, idx) => (
-                            <div key={idx} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/5">
-                              <span className="w-1.5 h-1.5 rounded-full bg-[#62A0EA]" />
-                              <span className="text-xs text-white/60">{stop}</span>
+                            <div key={idx} className="flex min-w-0 max-w-full items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/5">
+                              <span className="w-1.5 h-1.5 shrink-0 rounded-full bg-[#62A0EA]" />
+                              <span className="min-w-0 break-words text-xs text-white/60">{stop}</span>
                             </div>
                           ))}
                         </div>

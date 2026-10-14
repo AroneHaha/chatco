@@ -362,7 +362,7 @@ export default function AdminCommuterMap({
     className: "custom-commuter-icon",
     html: `<div style="position: relative; width: 20px; height: 20px;">
               <div style="position: absolute; inset: 0; background: #1A5FB4; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 10px rgba(26,95,180,0.6); z-index: 2;"></div>
-              <div style="position: absolute; inset: -5px; background: rgba(26,95,180,0.3); border-radius: 50%; animation: pulse 2s infinite; z-index: 1;"></div>
+              <div style="position: absolute; inset: -5px; background: rgba(26,95,180,0.3); border-radius: 50%; animation: admin-map-marker-pulse 2s infinite; z-index: 1;"></div>
             </div>`,
     iconSize: [20, 20], iconAnchor: [10, 10],
   }), []);
@@ -400,7 +400,7 @@ export default function AdminCommuterMap({
     html: `
       <div style="position: relative; width: 24px; height: 24px;">
         <div style="position: absolute; inset: 0; background: #FF6D3A; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 10px rgba(255,109,58,0.6); z-index: 2;"></div>
-        <div style="position: absolute; inset: -5px; background: rgba(255,109,58,0.3); border-radius: 50%; animation: pulse 2s infinite; z-index: 1;"></div>
+        <div style="position: absolute; inset: -5px; background: rgba(255,109,58,0.3); border-radius: 50%; animation: admin-map-marker-pulse 2s infinite; z-index: 1;"></div>
       </div>
     `,
     iconSize: [24, 24],
@@ -428,7 +428,7 @@ export default function AdminCommuterMap({
         <DynamicRouteViewport routeBounds={routeGeometry.routeBounds} mapBounds={routeGeometry.mapBounds} />
         <LocationFinder userLocationRef={userLocationRef} setUserActualLocation={setUserActualLocation} setShowMapPin={setShowMapPin} setArrowPos={setArrowPos} routeBounds={routeGeometry.routeBounds} mapBounds={routeGeometry.mapBounds} />
         <MapFocuser target={focusPosition} nonce={focusNonce} />
-        <TileLayer url={`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${process.env.NEXT_PUBLIC_CARTO_API_KEY}`} />
+        <TileLayer className="map-tiles-mono" url={`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${process.env.NEXT_PUBLIC_CARTO_API_KEY}`} />
 
         <Polyline positions={routeGeometry.routeCoords} pathOptions={{ color: '#62A0EA', weight: 8, opacity: 0.2, lineCap: 'round', lineJoin: 'round' }} />
         <Polyline positions={routeGeometry.routeCoords} pathOptions={{ color: '#62A0EA', weight: 4, opacity: 0.9, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }} />
@@ -637,7 +637,7 @@ export default function AdminCommuterMap({
         .leaflet-tooltip-left:before { border-left-color: #071A2E !important; }
         .leaflet-tooltip-right:before { border-right-color: #071A2E !important; }
 
-        @keyframes pulse {
+        @keyframes admin-map-marker-pulse {
           0% { transform: scale(1); opacity: 1; }
           100% { transform: scale(2.5); opacity: 0; }
         }

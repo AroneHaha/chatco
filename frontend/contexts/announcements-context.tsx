@@ -32,6 +32,7 @@ import {
 } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { getEcho } from "@/lib/echo";
+import { notifyRewardsChanged } from "@/lib/commuter/rewards-events";
 import type { Announcement, AnnouncementType } from "@/types";
 import {
   list as listAnnouncements,
@@ -68,6 +69,8 @@ const CLAIM_UPDATE_TYPES = ["claim_approved", "claim_rejected", "claim_released"
  */
 function mapType(rawType: string): AnnouncementType {
   const t = (rawType ?? "").toLowerCase().trim();
+  if ((t.startsWith('student_renewal') || t.startsWith('discount_application'))) return 'SYSTEM';
+  if (t === "voucher_received") return "VOUCHER";
   if (!t || t.includes("system")) {
     return "SYSTEM";
   }
@@ -151,13 +154,25 @@ export function AnnouncementsProvider({ children }: { children: React.ReactNode 
   // actually something new to show.
   const lastSeenUnreadRef = useRef(0);
   const lastSeenClaimUnreadRef = useRef(0);
+  const voucherNoticeIds = useRef(new Set<string>());
+  const feedRequestSequence = useRef(0);
 
   const refresh = useCallback(async () => {
+    const requestSequence = ++feedRequestSequence.current;
     setIsLoading(true);
     try {
       const result = await listAnnouncements({ perPage: FEED_PAGE_SIZE });
-      setAnnouncements(result.items.map(toCanonical));
+      if (requestSequence !== feedRequestSequence.current) return;
+      const items = result.items.map(toCanonical);
+      const voucherIds = items.filter(item => item.type === "VOUCHER").map(item => item.id);
+      const hasNewVoucherNotice = voucherIds.some(id => !voucherNoticeIds.current.has(id));
+      // Keep only the current feed's IDs. New voucher notices refresh the
+      // existing rewards provider without another poll or an unbounded cache.
+      voucherNoticeIds.current = new Set(voucherIds);
+      setAnnouncements(items);
+      if (hasNewVoucherNotice) notifyRewardsChanged();
     } catch (err) {
+      if (requestSequence !== feedRequestSequence.current) return;
       // Silent fail — the panel shows its empty state. Distinguishing the
       // cause doesn't change what we render, so both branches clear the feed.
       if (err instanceof AnnouncementOperationError) {
@@ -166,7 +181,7 @@ export function AnnouncementsProvider({ children }: { children: React.ReactNode 
         setAnnouncements([]);
       }
     } finally {
-      setIsLoading(false);
+      if (requestSequence === feedRequestSequence.current) setIsLoading(false);
     }
   }, []);
 
@@ -211,8 +226,10 @@ export function AnnouncementsProvider({ children }: { children: React.ReactNode 
   useEffect(() => {
     if (authLoading) return;
     if (!isAuthenticated) {
+      feedRequestSequence.current++;
       setAnnouncements([]);
       setUnreadCount(0);
+      voucherNoticeIds.current.clear();
       setClaimUpdatesUnreadCount(0);
       setIsLoading(false);
       return;

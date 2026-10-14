@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Save, AlertCircle, Printer, Check } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { defaultReceiptConfig, type ReceiptConfig } from '@/app/(admin)/settings/data/settings-data';
 import { getSettings, updateSetting } from '@/lib/admin/services/setting.service';
 
@@ -22,6 +23,8 @@ const KEYS = {
   showConductor: 'receipt_show_conductor',
   showPassenger: 'receipt_show_passenger',
   showFareBreakdown: 'receipt_show_fare_breakdown',
+  showQrCode: 'receipt_show_qr_code',
+  showManualCode: 'receipt_show_manual_code',
 } as const;
 
 const bool = (v: string | undefined, fallback: boolean) => (v === undefined ? fallback : v === 'true');
@@ -35,6 +38,8 @@ const DETAIL_TOGGLES: { key: keyof ReceiptConfig; label: string; hint: string }[
   { key: 'showConductor', label: 'Conductor name', hint: 'Who collected the fare.' },
   { key: 'showPassenger', label: 'Passenger name & type', hint: 'Regular / Student / Senior / PWD.' },
   { key: 'showFareBreakdown', label: 'Fare breakdown', hint: 'Base fare, distance and discount lines.' },
+  { key: 'showQrCode', label: 'Reward QR', hint: 'Scan in Rewards to claim +1 ride.' },
+  { key: 'showManualCode', label: 'Manual claim code', hint: 'Enter in Rewards to claim +1 ride.' },
 ];
 
 export default function ReceiptSettingsPage() {
@@ -63,6 +68,8 @@ export default function ReceiptSettingsPage() {
         showConductor: bool(d[KEYS.showConductor], defaultReceiptConfig.showConductor),
         showPassenger: bool(d[KEYS.showPassenger], defaultReceiptConfig.showPassenger),
         showFareBreakdown: bool(d[KEYS.showFareBreakdown], defaultReceiptConfig.showFareBreakdown),
+        showQrCode: bool(d[KEYS.showQrCode], defaultReceiptConfig.showQrCode),
+        showManualCode: bool(d[KEYS.showManualCode], defaultReceiptConfig.showManualCode),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load receipt settings');
@@ -96,6 +103,8 @@ export default function ReceiptSettingsPage() {
         updateSetting(KEYS.showConductor, String(config.showConductor), 'receipt'),
         updateSetting(KEYS.showPassenger, String(config.showPassenger), 'receipt'),
         updateSetting(KEYS.showFareBreakdown, String(config.showFareBreakdown), 'receipt'),
+        updateSetting(KEYS.showQrCode, String(config.showQrCode), 'receipt'),
+        updateSetting(KEYS.showManualCode, String(config.showManualCode), 'receipt'),
       ]);
       setIsSaved(true);
       setTimeout(() => setIsSaved(false), 3000);
@@ -205,7 +214,7 @@ export default function ReceiptSettingsPage() {
             {/* Details on the receipt */}
             <section className={sectionClasses} aria-labelledby="receipt-details-title">
               <div>
-                <h2 id="receipt-details-title" className="text-sm font-semibold text-white">Transaction details</h2>
+                <h2 id="receipt-details-title" className="text-sm font-semibold text-white">Receipt details</h2>
                 <p className="text-xs leading-relaxed text-slate-500 mt-1">Choose what appears on each receipt.</p>
               </div>
               <div className="mt-3 divide-y divide-[#1E2D45]">
@@ -276,6 +285,10 @@ function ToggleRow({ label, hint, checked, onChange }: { label: string; hint: st
 // the current config, so the admin sees exactly what the toggles produce.
 function ReceiptPreview({ config }: { config: ReceiptConfig }) {
   const widthPx = config.paperWidth === '80' ? 300 : 230;
+  const sampleReceiptCode = 'SAMPLE-RECEIPT-CODE';
+  const claimInstruction = config.showQrCode && config.showManualCode
+    ? 'Scan or enter code in Rewards: +1 ride.'
+    : config.showQrCode ? 'Scan in Rewards: +1 ride.' : 'Enter code in Rewards: +1 ride.';
 
   return (
     <div
@@ -316,10 +329,36 @@ function ReceiptPreview({ config }: { config: ReceiptConfig }) {
         <span>TOTAL</span>
         <span>₱20.80</span>
       </div>
-      <Row k="Paid via" v="GCash" />
+      <Row k="Paid via" v="Cash" />
+
+      {(config.showQrCode || config.showManualCode) && (
+        <>
+          <Line />
+          {config.showQrCode && (
+            <div className="mx-auto w-fit bg-white p-1">
+              <QRCodeSVG value={sampleReceiptCode} size={112} level="M" title="Sample receipt QR placeholder" />
+            </div>
+          )}
+          <div className="mt-1 text-center text-[9px]">
+            {config.showManualCode && (
+              <>
+                <p className="text-black/60">Receipt code</p>
+                <p className="break-all font-bold">{sampleReceiptCode}</p>
+              </>
+            )}
+            <p className="mt-1">{claimInstruction}</p>
+            <p className="mt-1 font-bold">10/10 rides = 1 free ride.</p>
+            <p className="mt-1 text-black/50">Sample only · Not claimable.</p>
+          </div>
+        </>
+      )}
       <Line />
 
       {config.footerNote && <p className="text-center text-[10px] mt-1">{config.footerNote}</p>}
+      <p className="mt-2 text-center text-[10px]">
+        Visit Chatco at{' '}
+        <a href="https://chatco.online" target="_blank" rel="noopener noreferrer" className="font-bold underline">chatco.online</a>
+      </p>
       <p className="text-center text-[9px] mt-1 text-black/50">This serves as your official receipt.</p>
     </div>
   );

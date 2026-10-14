@@ -14,6 +14,8 @@ export interface ReceiptSettings {
   showConductor: boolean;
   showPassenger: boolean;
   showFareBreakdown: boolean;
+  showQrCode: boolean;
+  showManualCode: boolean;
 }
 
 type ReceiptSettingsMap = Record<string, string | null>;
@@ -31,6 +33,8 @@ export const DEFAULT_RECEIPT_SETTINGS: ReceiptSettings = {
   showConductor: true,
   showPassenger: true,
   showFareBreakdown: true,
+  showQrCode: true,
+  showManualCode: true,
 };
 
 function bool(value: string | null | undefined, fallback: boolean): boolean {
@@ -57,5 +61,7 @@ export async function fetchReceiptSettings(): Promise<ReceiptSettings> {
     showConductor: bool(data.receipt_show_conductor, DEFAULT_RECEIPT_SETTINGS.showConductor),
     showPassenger: bool(data.receipt_show_passenger, DEFAULT_RECEIPT_SETTINGS.showPassenger),
     showFareBreakdown: bool(data.receipt_show_fare_breakdown, DEFAULT_RECEIPT_SETTINGS.showFareBreakdown),
+    showQrCode: bool(data.receipt_show_qr_code, DEFAULT_RECEIPT_SETTINGS.showQrCode),
+    showManualCode: bool(data.receipt_show_manual_code, DEFAULT_RECEIPT_SETTINGS.showManualCode),
   };
 }

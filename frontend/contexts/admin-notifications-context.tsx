@@ -3,6 +3,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { unreadCount as fetchUnreadCount, markAllRead as markAllAnnouncementsRead } from "@/lib/shared/services/announcement.service";
+import { renewalRequest } from "@/lib/shared/services/student-renewal.service";
 
 /** Matches the admin bell's poll cadence (see notification-bell.tsx). */
 const POLL_INTERVAL_MS = 30_000;
@@ -33,6 +34,7 @@ interface ModuleBadge {
 interface AdminNotificationsContextValue {
   remittance: ModuleBadge;
   monitoring: ModuleBadge;
+  discountApplications: { count: number; refresh: () => void };
 }
 
 const AdminNotificationsContext = createContext<AdminNotificationsContextValue | null>(null);
@@ -96,6 +98,32 @@ function useModuleBadge(types: string[]): ModuleBadge {
   return { count, markRead };
 }
 
+function usePendingDiscountApplicationsBadge() {
+  const [count, setCount] = useState(0);
+  const requestIdRef = useRef(0);
+  const refresh = useCallback(async (signal?: AbortSignal) => {
+    const requestId = ++requestIdRef.current;
+    try {
+      const result = await renewalRequest<{ total: number }>(
+        "/api/admin/discount-applications?status=PENDING&per_page=1",
+        { signal },
+      );
+      if (!signal?.aborted && requestId === requestIdRef.current) setCount(result.total);
+    } catch {
+      // Keep the last known count while the admin API is unavailable.
+    }
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const initial = window.setTimeout(() => void refresh(controller.signal), 0);
+    const timer = window.setInterval(() => void refresh(), POLL_INTERVAL_MS);
+    return () => { controller.abort(); window.clearTimeout(initial); window.clearInterval(timer); };
+  }, [refresh]);
+
+  return { count, refresh: () => { void refresh(); } };
+}
+
 /**
  * Admin-side counterpart to the commuter `claimUpdatesUnreadCount` pattern
  * (contexts/announcements-context.tsx) — one badge per module (Remittance,
@@ -105,9 +133,10 @@ function useModuleBadge(types: string[]): ModuleBadge {
 export function AdminNotificationsProvider({ children }: { children: ReactNode }) {
   const remittance = useModuleBadge(REMITTANCE_MODULE_TYPES);
   const monitoring = useModuleBadge(MONITORING_MODULE_TYPES);
+  const discountApplications = usePendingDiscountApplicationsBadge();
 
   return (
-    <AdminNotificationsContext.Provider value={{ remittance, monitoring }}>
+    <AdminNotificationsContext.Provider value={{ remittance, monitoring, discountApplications }}>
       {children}
     </AdminNotificationsContext.Provider>
   );

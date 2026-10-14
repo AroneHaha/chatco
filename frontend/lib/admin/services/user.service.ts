@@ -30,13 +30,18 @@ interface RawUser {
   name: string;
   first_name: string | null;
   middle_name: string | null;
+  suffix: string | null;
   last_name: string | null;
   account_status: string | null;
+  student_renewal_required: boolean;
   commuter_type: string | null;
+  applied_type: string | null;
   username: string | null;
   contact_number: string | null;
   /** Commuter's date of birth (YYYY-MM-DD). Null for non-commuter roles. */
   birthdate: string | null;
+  gender: string | null;
+  id_image_url: string | null;
   verified_at: string | null;
   created_at: string | null;
   suspension: RawSuspension | null;
@@ -100,19 +105,24 @@ export interface AdminUser {
   name: string;
   firstName: string | null;
   middleName: string | null;
+  suffix: string | null;
   lastName: string | null;
   /** Raw backend status — kept for the service layer to branch on. */
   accountStatus: AccountStatus | null;
   /** UI-friendly label for the table badge. */
   statusLabel: string;
+  studentRenewalRequired: boolean;
   commuterType: CommuterType | null;
   /** UI-friendly commuter type label (e.g. "Senior Citizen" for SENIOR). */
   commuterTypeLabel: string;
+  appliedTypeLabel: string | null;
   /** Commuter's self-chosen login username. Null for non-commuter roles. */
   username: string | null;
   contactNumber: string | null;
   /** Commuter's date of birth (YYYY-MM-DD). Null for non-commuter roles. */
   dateOfBirth: string | null;
+  gender: string | null;
+  idImageUrl: string | null;
   verifiedAt: string | null;
   createdAt: string | null;
   suspension: SuspensionDetails | null;
@@ -226,14 +236,19 @@ function mapUser(raw: RawUser): AdminUser {
     name: raw.name,
     firstName: raw.first_name,
     middleName: raw.middle_name,
+    suffix: raw.suffix ?? null,
     lastName: raw.last_name,
     accountStatus: (raw.account_status as AccountStatus | null) ?? null,
     statusLabel: mapStatusLabel(raw.account_status),
+    studentRenewalRequired: raw.student_renewal_required ?? false,
     commuterType: (raw.commuter_type as CommuterType | null) ?? null,
     commuterTypeLabel: mapCommuterTypeLabel(raw.commuter_type),
+    appliedTypeLabel: raw.applied_type ? mapCommuterTypeLabel(raw.applied_type) : null,
     username: raw.username,
     contactNumber: raw.contact_number,
     dateOfBirth: raw.birthdate,
+    gender: raw.gender ?? null,
+    idImageUrl: raw.id_image_url ?? null,
     verifiedAt: raw.verified_at,
     createdAt: raw.created_at,
     suspension: raw.suspension ? {
