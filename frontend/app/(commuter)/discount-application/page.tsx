@@ -128,7 +128,7 @@ export default function DiscountApplicationPage() {
         the form's callout, so the header is just the way back and the title. */}
     <header className="shrink-0 border-b border-white/10 bg-[#071A2E] light:border-gray-200 light:bg-white px-4 pb-5 pt-4 sm:px-6 lg:px-8 lg:pt-5">
       <div className="mx-auto max-w-6xl">
-        <Link href="/profile" className="-ml-1 inline-flex min-h-9 items-center gap-2 rounded-lg px-1 text-sm text-[#99C1F1] transition-colors hover:text-white light:text-[#1A5FB4] light:hover:text-[#164A8F]"><ArrowLeft size={16} aria-hidden="true" />My profile</Link>
+        <Link href="/dashboard" className="-ml-1 inline-flex min-h-9 items-center gap-2 rounded-lg px-1 text-sm text-[#99C1F1] transition-colors hover:text-white light:text-[#1A5FB4] light:hover:text-[#164A8F]"><ArrowLeft size={16} aria-hidden="true" />Home</Link>
         <h1 className="mt-1 text-xl font-bold tracking-tight lg:text-2xl">Discount Application</h1>
         <p className="mt-1 text-sm leading-relaxed text-white/65 light:text-gray-600">Tell us which discount applies to you and send proof for verification.</p>
       </div>
