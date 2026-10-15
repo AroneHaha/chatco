@@ -269,6 +269,55 @@ class LostItemService
     }
 
     /**
+     * Admin swaps the file behind one photo, keeping its id and position —
+     * a delete + add would append the new file at the end and promote the
+     * next photo to thumbnail. The row is locked so two concurrent replaces
+     * can't both read the same old URL and orphan one of the new uploads;
+     * the old object is only deleted once the row points at the new one.
+     *
+     * @throws LostFoundException Item or photo not found.
+     */
+    public function replacePhoto(string $itemId, string $photoId, UploadedFile $file): LostItem
+    {
+        $item = $this->show($itemId);
+
+        if (! $item->photos()->where('id', $photoId)->exists()) {
+            throw LostFoundException::notFound('Photo');
+        }
+
+        $url = $this->mediaStorage->storeLostAndFoundImage($file, $item->id);
+
+        try {
+            $oldUrl = DB::transaction(function () use ($item, $photoId, $url): string {
+                $photo = LostItemPhoto::where('item_id', $item->id)
+                    ->whereKey($photoId)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $photo) {
+                    throw LostFoundException::notFound('Photo');
+                }
+
+                $previous = $photo->url;
+                $photo->update(['url' => $url]);
+
+                if ($photo->position === 0) {
+                    $item->update(['image_url' => $url]);
+                }
+
+                return $previous;
+            });
+        } catch (\Throwable $e) {
+            $this->mediaStorage->deletePublicUrl($url);
+            throw $e;
+        }
+
+        $this->mediaStorage->deletePublicUrl($oldUrl);
+
+        return $item->fresh(['vehicle', 'photos', 'claims.claimant', 'claims.reviewer']);
+    }
+
+    /**
      * Admin removes a photo from a lost item. Remaining photos are
      * re-compacted to stay at contiguous positions 0..n-1, and
      * lost_items.image_url is re-synced to whatever now sits at position 0

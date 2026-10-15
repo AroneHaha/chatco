@@ -39,6 +39,7 @@ use Tests\TestCase;
  *   GET    /api/v1/admin/lost-items/{itemId}           (ADMIN)
  *   PATCH  /api/v1/admin/lost-items/{itemId}           (ADMIN)
  *   POST   /api/v1/admin/lost-items/{itemId}/photos    (ADMIN)
+ *   POST   /api/v1/admin/lost-items/{itemId}/photos/{photoId} (ADMIN)
  *   DELETE /api/v1/admin/lost-items/{itemId}/photos/{photoId} (ADMIN)
  *   PATCH  /api/v1/admin/lost-items/{itemId}/reactivate (ADMIN)
  *   GET    /api/v1/admin/lost-items/{itemId}/claims    (ADMIN)
@@ -1279,6 +1280,108 @@ class LostFoundFlowTest extends TestCase
         $this->assertSame($secondUrl, $item->image_url);
         $this->assertDatabaseCount('lost_item_photos', 1);
         $this->assertSame(0, $item->photos()->first()->position);
+    }
+
+    public function test_admin_can_replace_thumbnail_photo_in_place(): void
+    {
+        $item = $this->createItem();
+
+        $this->admin();
+        foreach (['a.jpg', 'b.jpg'] as $name) {
+            $this->postJson("/api/v1/admin/lost-items/{$item->id}/photos", [
+                'image' => UploadedFile::fake()->image($name, 400, 400),
+            ]);
+        }
+        $photos = $item->photos()->orderBy('position')->get();
+        $thumb = $photos[0];
+        $oldThumbUrl = $thumb->url;
+        $secondUrl = $photos[1]->url;
+
+        $response = $this->postJson("/api/v1/admin/lost-items/{$item->id}/photos/{$thumb->id}", [
+            'image' => UploadedFile::fake()->image('replacement.jpg', 400, 400),
+        ]);
+        $response->assertStatus(200)->assertJsonPath('success', true);
+
+        $item->refresh();
+        $thumb->refresh();
+        // Same row, same position, new file — and the thumbnail mirror follows it.
+        $this->assertSame(0, $thumb->position);
+        $this->assertNotSame($oldThumbUrl, $thumb->url);
+        $this->assertSame($thumb->url, $item->image_url);
+        $this->assertSame($secondUrl, $item->photos()->where('position', 1)->value('url'));
+        $this->assertDatabaseCount('lost_item_photos', 2);
+        Storage::disk('public')->assertExists($this->extractPathFromUrl($thumb->url));
+        Storage::disk('public')->assertMissing($this->extractPathFromUrl($oldThumbUrl));
+    }
+
+    public function test_replacing_a_non_thumbnail_photo_keeps_the_thumbnail(): void
+    {
+        $item = $this->createItem();
+
+        $this->admin();
+        foreach (['a.jpg', 'b.jpg'] as $name) {
+            $this->postJson("/api/v1/admin/lost-items/{$item->id}/photos", [
+                'image' => UploadedFile::fake()->image($name, 400, 400),
+            ]);
+        }
+        $item->refresh();
+        $thumbUrl = $item->image_url;
+        $second = $item->photos()->where('position', 1)->first();
+
+        $this->postJson("/api/v1/admin/lost-items/{$item->id}/photos/{$second->id}", [
+            'image' => UploadedFile::fake()->image('replacement.jpg', 400, 400),
+        ])->assertStatus(200);
+
+        $item->refresh();
+        $second->refresh();
+        $this->assertSame($thumbUrl, $item->image_url);
+        $this->assertSame(1, $second->position);
+    }
+
+    public function test_photo_replace_returns_404_for_photo_on_another_item(): void
+    {
+        $item = $this->createItem();
+        $this->postJson('/api/v1/admin/lost-items', [
+            'item_name' => 'Black Umbrella',
+            'description' => 'Folding umbrella left by the door',
+            'category' => 'OTHER',
+            'vehicle_id' => $this->vehicle->id,
+        ])->assertStatus(201);
+        $other = LostItem::where('item_name', 'Black Umbrella')->first();
+
+        $this->postJson("/api/v1/admin/lost-items/{$other->id}/photos", [
+            'image' => UploadedFile::fake()->image('a.jpg', 400, 400),
+        ]);
+        $otherPhotoId = $other->photos()->value('id');
+
+        $response = $this->postJson("/api/v1/admin/lost-items/{$item->id}/photos/{$otherPhotoId}", [
+            'image' => UploadedFile::fake()->image('b.jpg', 400, 400),
+        ]);
+
+        $response->assertStatus(404);
+        $this->assertSame(0, $item->photos()->count());
+    }
+
+    public function test_photo_replace_validates_file_and_role(): void
+    {
+        $item = $this->createItem();
+
+        $this->admin();
+        $this->postJson("/api/v1/admin/lost-items/{$item->id}/photos", [
+            'image' => UploadedFile::fake()->image('a.jpg', 400, 400),
+        ]);
+        $photo = $item->photos()->first();
+
+        $this->postJson("/api/v1/admin/lost-items/{$item->id}/photos/{$photo->id}", [
+            'image' => UploadedFile::fake()->create('document.pdf', 100, 'application/pdf'),
+        ])->assertStatus(422);
+
+        $this->commuter();
+        $this->postJson("/api/v1/admin/lost-items/{$item->id}/photos/{$photo->id}", [
+            'image' => UploadedFile::fake()->image('b.jpg', 400, 400),
+        ])->assertStatus(403);
+
+        $this->assertSame($photo->url, $photo->fresh()->url);
     }
 
     public function test_photo_upload_returns_404_for_missing_item(): void

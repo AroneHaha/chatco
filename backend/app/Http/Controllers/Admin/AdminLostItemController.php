@@ -24,6 +24,7 @@ use Illuminate\Http\Request;
  *   GET    /api/v1/admin/lost-items/{itemId}                 — detail + claims
  *   PATCH  /api/v1/admin/lost-items/{itemId}                 — edit item (blocked once CLOSED)
  *   POST   /api/v1/admin/lost-items/{itemId}/photos          — add a photo (max 3)
+ *   POST   /api/v1/admin/lost-items/{itemId}/photos/{photoId} — replace a photo in place
  *   DELETE /api/v1/admin/lost-items/{itemId}/photos/{photoId} — remove a photo
  *   PATCH  /api/v1/admin/lost-items/{itemId}/reactivate      — EXPIRED → AVAILABLE
  *   GET    /api/v1/admin/lost-items/{itemId}/claims          — claims for an item
@@ -141,6 +142,27 @@ class AdminLostItemController extends Controller
         }
 
         return $this->successResponse($item, 'Photo added');
+    }
+
+    /**
+     * POST /admin/lost-items/{itemId}/photos/{photoId}
+     * Replaces one photo's file in place (multipart/form-data), keeping its
+     * position. POST rather than PATCH: PHP doesn't parse multipart bodies
+     * on PATCH/PUT.
+     */
+    public function replacePhoto(UploadLostItemImageRequest $request, string $itemId, string $photoId): JsonResponse
+    {
+        try {
+            $item = $this->lostItemService->replacePhoto(
+                $itemId,
+                $photoId,
+                $request->file('image'),
+            );
+        } catch (LostFoundException $e) {
+            return $this->errorResponse($e->getMessage(), 404);
+        }
+
+        return $this->successResponse($item, 'Photo replaced');
     }
 
     /**

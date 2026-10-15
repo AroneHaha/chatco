@@ -768,20 +768,37 @@ export async function report(params: {
  * @throws {LostFoundOperationError} 404/422 (bad type, >5MB, or already at 3 photos)/401/403/5xx
  */
 export async function addPhoto(itemId: string, file: File): Promise<LostFoundItem> {
+  return uploadItemPhoto(`/api/admin/lost-items/${itemId}/photos`, file, "Unable to add this photo.");
+}
+
+/**
+ * Admin swaps one photo's file in place. The photo keeps its id and
+ * position, so replacing the thumbnail keeps it the thumbnail (a delete +
+ * add would append the new file and promote the next photo instead).
+ *
+ * @throws {LostFoundOperationError} 404 (item/photo)/422 (bad type, >5MB)/401/403/5xx
+ */
+export async function replacePhoto(itemId: string, photoId: string, file: File): Promise<LostFoundItem> {
+  return uploadItemPhoto(
+    `/api/admin/lost-items/${itemId}/photos/${photoId}`,
+    file,
+    "Unable to replace this photo."
+  );
+}
+
+/** Shared multipart POST for the add/replace photo endpoints (see addPhoto). */
+async function uploadItemPhoto(url: string, file: File, fallbackMessage: string): Promise<LostFoundItem> {
   const formData = new FormData();
   formData.append("image", file);
   try {
-    const res = await fetch(`/api/admin/lost-items/${itemId}/photos`, {
+    const res = await fetch(url, {
       method: "POST",
       body: formData,
       credentials: "include",
     });
     const body = await res.json().catch(() => null);
     if (!res.ok) {
-      throw classifyError(
-        new ApiError(res.status, res.statusText, body),
-        "Unable to add this photo."
-      );
+      throw classifyError(new ApiError(res.status, res.statusText, body), fallbackMessage);
     }
     const envelope = body as ApiResponseEnvelope<RawLostItem>;
     return mapItem(envelope.data);

@@ -551,6 +551,7 @@ Everything here requires role `A`. Rows marked `PUT/PATCH` accept either method.
 | Lost & Found | GET, POST | `/admin/lost-items` | writes: admin-write | [admin-content.md](admin-content.md#lost--found-management) |
 | | GET, PATCH | `/admin/lost-items/{itemId}` | | [admin-content.md](admin-content.md#lost--found-management) |
 | | POST | `/admin/lost-items/{itemId}/photos` | multipart | [admin-content.md](admin-content.md#photos) |
+| | POST | `/admin/lost-items/{itemId}/photos/{photoId}` | multipart, replace in place | [admin-content.md](admin-content.md#photos) |
 | | DELETE | `/admin/lost-items/{itemId}/photos/{photoId}` | | [admin-content.md](admin-content.md#photos) |
 | | PATCH | `/admin/lost-items/{itemId}/reactivate` | | [admin-content.md](admin-content.md#patch-adminlost-itemsitemidreactivate) |
 | | PATCH | `/admin/lost-items/{itemId}/close` | **unreachable — see quirks** | [admin-content.md](admin-content.md#patch-adminlost-itemsitemidclose) |
