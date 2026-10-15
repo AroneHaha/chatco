@@ -17,12 +17,15 @@
  * `anchorOffsetPx` (from usePopoverModal) shifts it off dead-center to sit
  * under the real trigger button — the dock isn't symmetric around any one
  * button, so viewport-center would visibly point at the wrong one.
+ *
+ * `className` lets a light-themed panel (commuter light mode) restyle the
+ * tail's border to match its own.
  */
-export function PopoverTail({ panelColor, anchorOffsetPx }: { panelColor: string; anchorOffsetPx: number | null }) {
+export function PopoverTail({ panelColor, anchorOffsetPx, className = "" }: { panelColor: string; anchorOffsetPx: number | null; className?: string }) {
   return (
     <div
       aria-hidden="true"
-      className="hidden xl:block fixed bottom-[90px] -translate-x-1/2 z-[101] h-3 w-3 rotate-45 border-b border-r border-white/10"
+      className={`hidden xl:block fixed bottom-[90px] -translate-x-1/2 z-[101] h-3 w-3 rotate-45 border-b border-r border-white/10 ${className}`}
       style={{ backgroundColor: panelColor, left: `calc(50% + ${anchorOffsetPx ?? 0}px)` }}
     />
   );

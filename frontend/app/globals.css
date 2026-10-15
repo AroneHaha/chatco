@@ -45,6 +45,12 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Commuter light mode. The commuter app is dark-first, so light styles are
+   opt-in overrides (`light:bg-white`) rather than retargeting `dark:`, which
+   shadcn/admin pieces already use with the OS preference. The attribute is set
+   on <html> by CommuterThemeProvider, only while the commuter app is mounted. */
+@custom-variant light (&:where([data-theme="light"], [data-theme="light"] *));
+
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
