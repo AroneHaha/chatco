@@ -15,6 +15,22 @@ class DiscountApplicationService
 {
     public const DOCUMENT_DISK = 'r2_private';
 
+    public function documentDisk(string $path): string
+    {
+        // The immutable prefix identifies the bucket, including historical revisions.
+        // Legacy ids/... proofs stay on their original disk; no object migration.
+        return str_starts_with($path, 'discount-proofs/') ? 'r2_renewals' : self::DOCUMENT_DISK;
+    }
+
+    public function deleteDocument(string $path): void
+    {
+        try {
+            Storage::disk($this->documentDisk($path))->delete($path);
+        } catch (\Throwable $error) {
+            report($error); // Cleanup must never hide the original submission failure.
+        }
+    }
+
     public function __construct(private AnnouncementService $announcements, private ActivityLogService $activity) {}
 
     public function assertEligible(CommuterProfile $profile): void
@@ -55,7 +71,9 @@ class DiscountApplicationService
     public function storeDocument(CommuterProfile $profile, UploadedFile $document, string $folder): string
     {
         try {
-            $path = $document->store('ids/commuters/'.$profile->id.'/'.$folder, ['disk' => self::DOCUMENT_DISK, 'visibility' => 'private']);
+            $disk = config('filesystems.uploads.renewal_disk', self::DOCUMENT_DISK);
+            $prefix = $disk === 'r2_renewals' ? 'discount-proofs' : 'ids';
+            $path = $document->store($prefix.'/commuters/'.$profile->id.'/'.$folder, ['disk' => $disk, 'visibility' => 'private']);
         } catch (\Throwable $error) {
             report($error);
             $path = false;
@@ -127,7 +145,7 @@ class DiscountApplicationService
             }, 3);
         } catch (\Throwable $error) {
             if ($path) {
-                Storage::disk(self::DOCUMENT_DISK)->delete($path);
+                $this->deleteDocument($path);
             }
             throw $error;
         }
@@ -250,7 +268,7 @@ class DiscountApplicationService
             $result['commuter'] = $profile->only(['id', 'first_name', 'middle_name', 'surname', 'birthdate', 'gender', 'contact_number', 'username', 'commuter_type']);
             $result['commuter']['email'] = $profile->user->email;
             if ($withDocument && $application->document_path) {
-                $result['document_url'] = Storage::disk(self::DOCUMENT_DISK)->temporaryUrl($application->document_path, now()->addMinutes(10));
+                $result['document_url'] = Storage::disk($this->documentDisk($application->document_path))->temporaryUrl($application->document_path, now()->addMinutes(10));
             }
         }
 

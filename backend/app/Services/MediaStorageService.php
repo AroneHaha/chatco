@@ -23,7 +23,7 @@ class MediaStorageService
             default => throw new \InvalidArgumentException('Unsupported profile image role.'),
         };
 
-        return $this->storePublic($file, "{$prefix}/{$ownerId}");
+        return $this->storePublic($file, "{$prefix}/{$ownerId}", config('filesystems.uploads.profile_disk', config('filesystems.uploads.public_media_disk', 'r2_public')));
     }
 
     public function storeLostAndFoundImage(UploadedFile $file, string $itemId): string
@@ -49,11 +49,11 @@ class MediaStorageService
     }
 
     /** Store a public object and return its URL for the existing API contract. */
-    private function storePublic(UploadedFile $file, string $directory): string
+    private function storePublic(UploadedFile $file, string $directory, ?string $disk = null): string
     {
         $extension = strtolower($file->getClientOriginalExtension() ?: 'jpg');
         $filename = Str::uuid().'.'.$extension;
-        $disk = config('filesystems.uploads.public_media_disk', 'r2_public');
+        $disk ??= config('filesystems.uploads.public_media_disk', 'r2_public');
         $path = $file->storeAs($directory, $filename, $disk);
 
         return Storage::disk($disk)->url($path);
@@ -62,17 +62,11 @@ class MediaStorageService
     /** Best-effort deletion of a public object represented by a stored URL. */
     public function deletePublicUrl(?string $url): void
     {
-        $path = $this->pathFromUrl($url);
-        if ($path === null) {
+        $object = $this->objectFromUrl($url);
+        if ($object === null) {
             return;
         }
-
-        // Legacy local-public URLs were issued before R2 was enabled. Keep
-        // deleting those from the local public disk while new R2 URLs use the
-        // configured public media disk.
-        $disk = str_contains($url, '/storage/')
-            ? 'public'
-            : config('filesystems.uploads.public_media_disk', 'r2_public');
+        [$disk, $path] = $object;
 
         try {
             Storage::disk($disk)->delete($path);
@@ -84,30 +78,34 @@ class MediaStorageService
         }
     }
 
-    private function pathFromUrl(?string $url): ?string
+    private function objectFromUrl(?string $url): ?array
     {
         if (! $url || str_starts_with($url, 'data:')) {
             return null;
         }
 
-        $path = ltrim((string) (parse_url($url, PHP_URL_PATH) ?? ''), '/');
-        if ($path === '') {
-            return null;
+        // Laravel's local public disk also issues relative /storage/... URLs.
+        if (str_starts_with($url, '/storage/')) {
+            $path = explode('?', substr($url, strlen('/storage/')), 2)[0];
+            return $path !== '' && ! str_contains($path, '..') ? ['public', $path] : null;
         }
 
-        $publicUrl = trim((string) config('filesystems.disks.'.config('filesystems.uploads.public_media_disk', 'r2_public').'.url', ''), '/');
-        if ($publicUrl !== '') {
-            $publicPath = ltrim((string) (parse_url($publicUrl, PHP_URL_PATH) ?? ''), '/');
-            if ($publicPath !== '' && str_starts_with($path, $publicPath.'/')) {
-                $path = substr($path, strlen($publicPath) + 1);
+        // Match the complete configured URL boundary, not just /storage/ in an
+        // arbitrary URL. Old media URLs continue targeting their original disk.
+        $disks = array_unique([
+            config('filesystems.uploads.profile_disk', 'r2_profiles'),
+            config('filesystems.uploads.public_media_disk', 'r2_public'),
+            'r2_profiles', 'r2_public', 'public',
+        ]);
+        foreach ($disks as $disk) {
+            $base = rtrim((string) config("filesystems.disks.{$disk}.url", ''), '/');
+            if ($base !== '' && str_starts_with($url, $base.'/')) {
+                $path = explode('?', substr($url, strlen($base) + 1), 2)[0];
+                if ($path !== '' && ! str_contains($path, '..')) {
+                    return [$disk, $path];
+                }
             }
         }
-
-        // Keep compatibility with URLs produced by Laravel's local public disk.
-        if (str_starts_with($path, 'storage/')) {
-            $path = substr($path, strlen('storage/'));
-        }
-
-        return $path !== '' ? $path : null;
+        return null; // Never delete objects for external/unrecognized URLs.
     }
 }

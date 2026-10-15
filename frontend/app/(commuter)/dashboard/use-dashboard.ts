@@ -15,7 +15,7 @@
 // All of that has been removed. canHail and nearbyVehicles are now
 // received from the map component via the page callback.
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback, type SetStateAction } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { getCommuterTypeLabel } from "@/types";
@@ -26,9 +26,26 @@ export function useDashboard() {
   const { commuterProfile, isLoading: authLoading } = useAuth();
 
   // Modal visibility
-  const [showScan, setShowScan] = useState(false);
+  const query = searchParams.toString();
+  const queryModals = { query, scan: searchParams.get("scan") === "true", share: searchParams.get("share-ride") === "true" };
+  const [modals, setModals] = useState(queryModals);
+  // Reset URL-specific dismissals on navigation (including browser Back).
+  // The guarded render adjustment avoids an extra effect-driven render.
+  if (modals.query !== query) setModals(queryModals);
+  const visibleModals = modals.query === query ? modals : queryModals;
+  const showScan = visibleModals.scan;
+  const setShowScan = (next: SetStateAction<boolean>) =>
+    setModals(previous => {
+      const current = previous.query === query ? previous : queryModals;
+      return { ...current, scan: typeof next === "function" ? next(current.scan) : next };
+    });
   const [showHistory, setShowHistory] = useState(false);
-  const [showShareRide, setShowShareRide] = useState(false);
+  const showShareRide = visibleModals.share;
+  const setShowShareRide = (next: SetStateAction<boolean>) =>
+    setModals(previous => {
+      const current = previous.query === query ? previous : queryModals;
+      return { ...current, share: typeof next === "function" ? next(current.share) : next };
+    });
   const [showSOS, setShowSOS] = useState(false);
 
   // Hail state
@@ -45,15 +62,7 @@ export function useDashboard() {
   // Bottom sheet
   const [showSheet, setShowSheet] = useState(true);
 
-  // Auto-open modals when navigating via nav tabs
-  useEffect(() => {
-    if (searchParams.get("scan") === "true") {
-      setShowScan(true);
-    }
-    if (searchParams.get("share-ride") === "true") {
-      setShowShareRide(true);
-    }
-  }, [searchParams]);
+  // URL navigation opens its modal; explicit dismissal applies to that URL only.
 
   // Callback for CommuterMap to push tracking results upward
   const handleNearbyVehiclesChange = useCallback(
