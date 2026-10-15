@@ -59,6 +59,11 @@ Schedule::command('registrations:send-reminders')
     ->timezone('Asia/Manila')
     ->withoutOverlapping(60);
 
+Schedule::command('discount-applications:send-reminders')
+    ->hourly()
+    ->timezone('Asia/Manila')
+    ->withoutOverlapping(60);
+
 Schedule::command('lost-items:expire')
     ->dailyAt('01:00')
     ->timezone('Asia/Manila')

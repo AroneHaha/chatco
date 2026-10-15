@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\UserRole;
 use App\Events\AnnouncementCreated;
+use App\Events\AdminNotificationsUpdated;
 use App\Models\Announcement;
 use App\Models\AnnouncementRead;
 use App\Models\User;
@@ -11,6 +12,7 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
@@ -187,6 +189,7 @@ class AnnouncementService
         // 'status' field allows it) shouldn't ping every commuter's feed.
         if ($announcement->status === self::STATUS_ACTIVE) {
             event(new AnnouncementCreated($announcement));
+            $this->notifyAdminFeedChanged();
         }
 
         return $announcement;
@@ -254,10 +257,27 @@ class AnnouncementService
      */
     public function notifyAdmins(string $type, string $title, string $message, ?string $referenceId = null): void
     {
+        $sent = false;
         User::query()->where('role', UserRole::ADMIN->value)
-            ->select('id')->chunkById(500, function ($admins) use ($type, $title, $message, $referenceId) {
+            ->select('id')->chunkById(500, function ($admins) use ($type, $title, $message, $referenceId, &$sent) {
                 $this->notifyUsers($admins->pluck('id'), $type, $title, $message, $referenceId);
+                $sent = true;
             });
+        if ($sent) {
+            $this->notifyAdminFeedChanged();
+        }
+    }
+
+    private function notifyAdminFeedChanged(): void
+    {
+        DB::afterCommit(function () {
+            try {
+                event(new AdminNotificationsUpdated());
+            } catch (\Throwable $error) {
+                // Persisted notices remain available through polling if broadcasting fails.
+                Log::warning('Admin notification broadcast failed', ['message' => $error->getMessage()]);
+            }
+        });
     }
 
     /**

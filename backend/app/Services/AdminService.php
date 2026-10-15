@@ -139,6 +139,7 @@ class AdminService
     {
         return DB::transaction(function () use ($id, $data) {
             $vehicle = Vehicle::query()->whereKey($id)->lockForUpdate()->firstOrFail();
+            $previousStatus = $vehicle->status;
             $assignmentIsChanging = array_key_exists('driver_id', $data)
                 || array_key_exists('conductor_id', $data);
 
@@ -169,6 +170,18 @@ class AdminService
             }
 
             $vehicle->update($changes);
+
+            if ($vehicle->wasChanged('status')) {
+                $labels = ['ACTIVE' => 'Operating', 'MAINTENANCE' => 'Under Maintenance', 'INACTIVE' => 'Out of Service / Damaged'];
+                $before = $labels[$previousStatus] ?? $previousStatus;
+                $after = $labels[$vehicle->status] ?? $vehicle->status;
+                app(AnnouncementService::class)->notifyAdmins(
+                    'VEHICLE_STATUS_CHANGED',
+                    "Vehicle status changed: unit {$vehicle->unit_number}",
+                    "Unit {$vehicle->unit_number} ({$vehicle->plate_number}) changed from {$before} to {$after}.",
+                    $vehicle->id,
+                );
+            }
 
             return $vehicle->fresh(['route', 'driver', 'conductor']);
         }, 3);

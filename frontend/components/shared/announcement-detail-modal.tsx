@@ -59,12 +59,14 @@ function relatedAction(announcement: Announcement): { label: string; href: strin
   if (!announcement.recipientId || !announcement.referenceId) return null;
   const id = encodeURIComponent(announcement.referenceId);
   switch (announcement.type) {
+    case 'DISCOUNT_APPLICATION_WAITING':
     case 'DISCOUNT_APPLICATION_NEW': return { label: 'Review application', href: `/users?tab=discounts&applicationId=${id}` };
     case 'DISCOUNT_APPLICATION_DONE': return { label: 'View discount application', href: '/discount-application' };
     case 'STUDENT_RENEWAL_NEW': return { label: 'Review renewal', href: `/users?tab=discounts&applicationId=${id}` };
     case 'NEW_REGISTRATION':
     case 'REGISTRATION_WAITING': return { label: 'Review registration', href: `/users?tab=pending&registrationId=${id}` };
     case 'NEW_CLAIM': return { label: 'Review claims', href: `/lost-found?itemId=${id}` };
+    case 'VEHICLE_STATUS_CHANGED':
     case 'SHIFT_STARTED': return { label: 'View vehicle', href: `/vehicles?vehicleId=${id}` };
     case 'SHIFT_ENDED':
     case 'REMITTANCE_COMPLETED':
