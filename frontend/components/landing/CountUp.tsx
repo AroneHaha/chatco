@@ -1,6 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+
+const motionQuery = "(prefers-reduced-motion: reduce)";
+const subscribeMotion = (notify: () => void) => {
+  const media = window.matchMedia(motionQuery);
+  media.addEventListener("change", notify);
+  return () => media.removeEventListener("change", notify);
+};
+const getReducedMotion = () => window.matchMedia(motionQuery).matches;
+const getServerReducedMotion = () => false;
 
 interface CountUpProps {
   end: number;
@@ -24,15 +33,14 @@ export default function CountUp({
   const ref = useRef<HTMLSpanElement>(null);
   const started = useRef(false);
   const [val, setVal] = useState(0);
+  const reducedMotion = useSyncExternalStore(subscribeMotion, getReducedMotion, getServerReducedMotion);
 
   useEffect(() => {
     const node = ref.current;
     if (!node) return;
 
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setVal(end);
-      return;
-    }
+    if (reducedMotion) return;
+    let frame = 0;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -43,9 +51,9 @@ export default function CountUp({
             const p = Math.min((t - t0) / duration, 1);
             const eased = 1 - Math.pow(1 - p, 3);
             setVal(Math.round(end * eased));
-            if (p < 1) requestAnimationFrame(tick);
+            if (p < 1) frame = requestAnimationFrame(tick);
           };
-          requestAnimationFrame(tick);
+          frame = requestAnimationFrame(tick);
           observer.disconnect();
         }
       },
@@ -53,13 +61,19 @@ export default function CountUp({
     );
 
     observer.observe(node);
-    return () => observer.disconnect();
-  }, [end, duration]);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+      started.current = false;
+    };
+  }, [end, duration, reducedMotion]);
+
+  const displayed = reducedMotion ? end : val;
 
   return (
     <span ref={ref} className={className}>
       {prefix}
-      {grouped ? val.toLocaleString() : String(val)}
+      {grouped ? displayed.toLocaleString() : String(displayed)}
       {suffix}
     </span>
   );

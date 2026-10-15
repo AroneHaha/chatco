@@ -59,8 +59,8 @@ class OfflineCashSafetyTest extends TestCase
             'code' => 'OFF-B',
             'name' => 'Offline B',
             'sub_stops' => [],
-            'regular_fare' => 15,
-            'discounted_fare' => 12,
+            'regular_fare' => 17,
+            'discounted_fare' => 13.6,
         ]);
         $this->vehicle = Vehicle::factory()->create([
             'status' => 'ACTIVE',
@@ -340,9 +340,9 @@ class OfflineCashSafetyTest extends TestCase
             ->assertCreated();
 
         $remittance = $shift->fresh()->remittance;
-        $this->assertSame(30.0, (float) $remittance->cash_total);
-        $this->assertSame(30.0, (float) $remittance->total_collected);
-        $this->assertSame(30.0, (float) $remittance->shortage);
+        $this->assertSame(34.0, (float) $remittance->cash_total);
+        $this->assertSame(34.0, (float) $remittance->total_collected);
+        $this->assertSame(34.0, (float) $remittance->shortage);
         $this->assertSame(2, $remittance->total_passengers);
         $this->assertNotNull(Transaction::where('idempotency_key', 'offline-recovery-key')->first()->synced_at);
     }
@@ -365,7 +365,7 @@ class OfflineCashSafetyTest extends TestCase
         $this->actingAs($this->conductor)->postJson('/api/v1/conductor/transactions', $payload)->assertCreated();
 
         $this->assertSame(1, Transaction::where('idempotency_key', 'same-offline-retry-key')->count());
-        $this->assertSame(30.0, (float) $shift->fresh()->remittance->cash_total);
+        $this->assertSame(34.0, (float) $shift->fresh()->remittance->cash_total);
     }
 
     public function test_grouped_offline_cash_recovers_each_passenger_once(): void
@@ -394,7 +394,7 @@ class OfflineCashSafetyTest extends TestCase
             ->assertCreated();
 
         $remittance = $shift->fresh()->remittance;
-        $this->assertSame(42.0, (float) $remittance->cash_total);
+        $this->assertSame(47.6, (float) $remittance->cash_total);
         $this->assertSame(3, $remittance->total_passengers);
         $this->assertSame(1, PaymentGroup::where('idempotency_key', 'offline-group-key')->count());
     }
@@ -444,7 +444,7 @@ class OfflineCashSafetyTest extends TestCase
             ->postJson('/api/v1/conductor/transactions', $payload)
             ->assertStatus(409);
 
-        $this->assertSame(15.0, (float) $shift->fresh()->remittance->cash_total);
+        $this->assertSame(17.0, (float) $shift->fresh()->remittance->cash_total);
         $this->assertDatabaseMissing('transactions', ['idempotency_key' => 'too-late-offline-key']);
     }
 

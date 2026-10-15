@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import type { CSSProperties } from 'react';
 import { Save, PhoneCall, MessageSquare, Mail, AlertCircle } from 'lucide-react';
 import {
   defaultSafetyConfig,
@@ -180,7 +181,7 @@ export default function SafetyNotificationsPage() {
               <div className="p-4 bg-sky-400/5 rounded-md border border-sky-400/20">
                 <h3 className="text-sm sm:text-base font-semibold text-sky-400 break-words">Successful Account Creation</h3>
                 <p className={templateDescClasses}>Sent after ID approval. Only the message body &mdash; header, summary, login button, and footer are added automatically.</p>
-                <textarea value={accountApprovedTemplate} onChange={(e) => { setAccountApprovedTemplate(e.target.value); setIsSaved(false); }} rows={6} className={`${textareaClasses} mt-3`} style={{ '--tw-ring-color': 'rgb(56 189 248)' } as any} />
+                <textarea value={accountApprovedTemplate} onChange={(e) => { setAccountApprovedTemplate(e.target.value); setIsSaved(false); }} rows={6} className={`${textareaClasses} mt-3`} style={{ '--tw-ring-color': 'rgb(56 189 248)' } as CSSProperties} />
                 <div className="mt-3 flex flex-wrap gap-2">
                   {approvedTemplateVariables.map((variable: string) => (
                     <span key={variable} className="px-2 py-0.5 bg-sky-400/20 text-sky-300 text-[10px] sm:text-xs rounded-full border border-sky-400/30 font-mono">{variable}</span>
@@ -191,7 +192,7 @@ export default function SafetyNotificationsPage() {
               <div className="p-4 bg-red-500/5 rounded-md border border-red-500/20">
                 <h3 className="text-sm sm:text-base font-semibold text-red-400 break-words">Rejected Account Creation</h3>
                 <p className={templateDescClasses}>Sent on ID rejection. <span className="font-mono text-slate-300">{'{reason}'}</span> and <span className="font-mono text-slate-300">{'{next_steps}'}</span> show as separate blocks &mdash; add them below only for inline placement instead.</p>
-                <textarea value={accountRejectedTemplate} onChange={(e) => { setAccountRejectedTemplate(e.target.value); setIsSaved(false); }} rows={6} className={`${textareaClasses} mt-3`} style={{ '--tw-ring-color': 'rgb(239 68 68)' } as any} />
+                <textarea value={accountRejectedTemplate} onChange={(e) => { setAccountRejectedTemplate(e.target.value); setIsSaved(false); }} rows={6} className={`${textareaClasses} mt-3`} style={{ '--tw-ring-color': 'rgb(239 68 68)' } as CSSProperties} />
                 <div className="mt-3 flex flex-wrap gap-2">
                   {rejectedTemplateVariables.map((variable: string) => (
                     <span key={variable} className="px-2 py-0.5 bg-red-500/20 text-red-300 text-[10px] sm:text-xs rounded-full border border-red-500/30 font-mono">{variable}</span>
