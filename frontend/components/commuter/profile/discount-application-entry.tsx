@@ -27,7 +27,7 @@ export function DiscountApplicationEntry({ commuterType, onClassificationChanged
   // soon as the server reports the new classification.
   if ((state?.commuter_type ?? commuterType) !== 'REGULAR') return null;
   // An unknown status must not be presented as an account that hasn't applied.
-  if (!state && !failed) return <div role="status" className="mt-3 border-t border-white/10 pt-3 text-sm text-white/60">
+  if (!state && !failed) return <div role="status" className="mt-3 border-t border-white/10 pt-3 light:border-gray-200 text-sm text-white/60 light:text-gray-500">
     Loading discount application status...
   </div>;
   const application = state?.application;
@@ -42,11 +42,11 @@ export function DiscountApplicationEntry({ commuterType, onClassificationChanged
     : status === 'NEEDS_CORRECTION' ? { text: `An admin asked for a correction to your ${category} discount application. Send corrected documents to continue the review.`, link: 'Update your application' }
     : status === 'REJECTED' ? { text: `Your ${category} discount application was not approved.`, link: 'Apply again' }
     : { text: 'Eligible for a Student, PWD, or Senior Citizen discount? Submit your supporting document for verification.', link: 'Apply for a discount' };
-  return <div className="mt-3 border-t border-white/10 pt-3 text-sm">
-    <p className={status === 'REJECTED' ? 'text-red-200' : status === 'NEEDS_CORRECTION' ? 'text-amber-200' : 'text-white/60'}>{content.text}</p>
-    {(status === 'REJECTED' || status === 'NEEDS_CORRECTION') && application?.reason && <p className="mt-1 wrap-break-word text-white/60"><span className="text-white/45">Reason: </span>{application.reason}</p>}
-    {failed && <p className="mt-1 text-xs text-white/50">Open your application to check its latest status.</p>}
-    <Link href={renewal ? '/student-renewal' : '/discount-application'} onClick={() => window.dispatchEvent(new Event('commuter:close-popovers'))} className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-[#99C1F1] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#99C1F1]">
+  return <div className="mt-3 border-t border-white/10 pt-3 light:border-gray-200 text-sm">
+    <p className={status === 'REJECTED' ? 'text-red-200 light:text-red-700' : status === 'NEEDS_CORRECTION' ? 'text-amber-200 light:text-amber-700' : 'text-white/60 light:text-gray-600'}>{content.text}</p>
+    {(status === 'REJECTED' || status === 'NEEDS_CORRECTION') && application?.reason && <p className="mt-1 wrap-break-word text-white/60 light:text-gray-600"><span className="text-white/45 light:text-gray-400">Reason: </span>{application.reason}</p>}
+    {failed && <p className="mt-1 text-xs text-white/50 light:text-gray-500">Open your application to check its latest status.</p>}
+    <Link href={renewal ? '/student-renewal' : '/discount-application'} onClick={() => window.dispatchEvent(new Event('commuter:close-popovers'))} className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-[#99C1F1] hover:text-white light:text-[#1A5FB4] light:hover:text-[#164A8F] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#99C1F1]">
       {content.link}
     </Link>
   </div>;
