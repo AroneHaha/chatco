@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -31,6 +32,8 @@ class Voucher extends Model
         'reward_cycle_number',
         'reward_rule_version',
         'reward_earned_at',
+        'generation_batch_id',
+        'recipient_slot',
     ];
 
     protected function casts(): array
@@ -56,6 +59,26 @@ class Voucher extends Model
     public function commuter()
     {
         return $this->belongsTo(CommuterProfile::class);
+    }
+
+    /** The fixed voucher value is capped at the passenger's actual payable fare. */
+    public function discountForFare(float $fare): float
+    {
+        return match ($this->type) {
+            'FREE_RIDE', 'REWARD' => round($fare, 2),
+            'DISCOUNT' => (float) $this->amount > 0
+                ? round(min($fare, (float) $this->amount), 2)
+                : abort(422, 'This discount voucher has no valid value.'),
+            default => abort(422, 'This voucher category cannot be redeemed.'),
+        };
+    }
+
+    public function scopeRedeemable(Builder $query): void
+    {
+        $query->where('status', self::STATUS_AVAILABLE)
+            ->where(fn ($expiry) => $expiry->whereNull('expires_at')->orWhere('expires_at', '>', now()))
+            ->where(fn ($category) => $category->whereIn('type', ['FREE_RIDE', 'REWARD'])
+                ->orWhere(fn ($discount) => $discount->where('type', 'DISCOUNT')->where('amount', '>', 0)));
     }
 
     /**

@@ -38,10 +38,10 @@ class FareMatrixController extends Controller
     /** Default fare config — used when the settings table has no override. */
     private const DEFAULT_CONFIG = [
         'base_barangay_count' => 4,
-        'base_fare_regular' => 15.0,
-        'base_fare_discounted' => 12.0,
+        'base_fare_regular' => 17.0,
+        'base_fare_discounted' => 13.6,
         'succeeding_fare_regular' => 2.25,
-        'succeeding_fare_discounted' => 1.75,
+        'succeeding_fare_discounted' => 1.8,
     ];
 
     public function index(Request $request): JsonResponse

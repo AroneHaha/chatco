@@ -125,6 +125,7 @@ class AuthController extends Controller
                 'surname' => $user->commuterProfile->surname,
                 'username' => $user->commuterProfile->username,
                 'commuter_type' => $user->commuterProfile->commuter_type,
+                'applied_type' => $user->commuterProfile->applied_type,
                 'account_status' => $user->commuterProfile->account_status,
             ],
         };

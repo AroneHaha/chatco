@@ -80,7 +80,8 @@ class PaymentController extends Controller
      */
     public function redeemVoucher(Request $request, string $id): JsonResponse
     {
-        $result = $this->transactionService->redeemVoucherForGcash($request->user(), $id);
+        $validated = $request->validate(['voucher_id' => ['nullable', 'uuid']]);
+        $result = $this->transactionService->redeemVoucherForGcash($request->user(), $id, $validated['voucher_id'] ?? null);
 
         return $this->successResponse($result, 'Voucher redeemed');
     }

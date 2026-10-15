@@ -73,6 +73,32 @@ return [
             'report' => true,
         ],
 
+        'r2_renewals' => [
+            'driver' => 's3',
+            'key' => env('R2_ACCESS_KEY_ID'),
+            'secret' => env('R2_SECRET_ACCESS_KEY'),
+            'region' => env('R2_REGION', 'auto'),
+            'bucket' => env('R2_RENEWALS_BUCKET'),
+            'endpoint' => env('R2_ENDPOINT'),
+            'use_path_style_endpoint' => false,
+            'visibility' => 'private',
+            'throw' => true,
+            'report' => true,
+        ],
+
+        'r2_profiles' => [
+            'driver' => 's3',
+            'key' => env('R2_ACCESS_KEY_ID'),
+            'secret' => env('R2_SECRET_ACCESS_KEY'),
+            'region' => env('R2_REGION', 'auto'),
+            'bucket' => env('R2_PROFILE_BUCKET'),
+            'url' => rtrim((string) env('R2_PROFILE_URL', ''), '/'),
+            'endpoint' => env('R2_ENDPOINT'),
+            'use_path_style_endpoint' => false,
+            'throw' => true,
+            'report' => true,
+        ],
+
         'r2_private' => [
             'driver' => 's3',
             'key' => env('R2_ACCESS_KEY_ID'),
@@ -88,6 +114,11 @@ return [
     ],
 
     'uploads' => [
+        // Opt in only after provisioning; existing deployments keep their disks.
+        'renewal_disk' => env('R2_RENEWALS_BUCKET') ? 'r2_renewals' : 'r2_private',
+        'profile_disk' => env('R2_PROFILE_BUCKET') ? 'r2_profiles' : env(
+            'PUBLIC_MEDIA_DISK', env('R2_PUBLIC_BUCKET') ? 'r2_public' : 'public'
+        ),
         'public_media_disk' => env(
             'PUBLIC_MEDIA_DISK',
             env('R2_PUBLIC_BUCKET') ? 'r2_public' : 'public'
