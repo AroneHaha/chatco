@@ -38,6 +38,8 @@ export async function middleware(request: NextRequest) {
       "/feedback",
       "/profile",
       "/gcash/return",
+      "/discount-application",
+      "/student-renewal",
     ],
     conductor: [
       "/unit-verification",
