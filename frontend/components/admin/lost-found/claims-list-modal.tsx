@@ -1,22 +1,20 @@
 // components/admin/lost-found/claims-list-modal.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
-import { Badge } from '@/components/admin/ui/badge';
 import { ApproveClaimModal } from '@/components/admin/lost-found/approve-claim-modal';
 import type { PickupSchedule } from '@/lib/shared/services/lost-found.service';
 import {
-  CalendarDays,
+  CalendarX2,
   CheckCircle2,
+  ClipboardList,
   Clock3,
-  Mail,
-  MapPin,
-  Phone,
+  PackageCheck,
   RotateCcw,
   UserPlus,
-  UserRound,
   XCircle,
+  type LucideIcon,
 } from 'lucide-react';
 import type { Claim, ClaimStatus } from '@/app/(admin)/lost-found/data/lost-found-data';
 
@@ -40,18 +38,22 @@ interface ClaimsListModalProps {
   }) => Promise<void>;
 }
 
-function getBadgeVariant(status: ClaimStatus): 'success' | 'warning' | 'danger' | 'info' {
-  switch (status) {
+/** Status as coloured text + icon (no badge). Unknown values fall back to
+ * neutral slate, never to a success colour. */
+function getClaimStatusMeta(claim: Claim): { label: string; className: string; icon: LucideIcon } {
+  if (claim.noShowAt) return { label: 'Did not proceed', className: 'text-slate-300', icon: CalendarX2 };
+  switch (claim.status) {
+    case 'Pending':
+      return { label: 'Pending review', className: 'text-amber-300', icon: Clock3 };
     case 'Approved':
+      return { label: 'Approved', className: 'text-emerald-300', icon: CheckCircle2 };
     case 'Released':
     case 'Returned':
-      return 'success';
-    case 'Pending':
-      return 'warning';
+      return { label: claim.status, className: 'text-[#8CB9F0]', icon: PackageCheck };
     case 'Rejected':
-      return 'danger';
+      return { label: 'Rejected', className: 'text-red-300', icon: XCircle };
     default:
-      return 'info';
+      return { label: claim.status, className: 'text-slate-300', icon: Clock3 };
   }
 }
 
@@ -110,6 +112,27 @@ function getActionIcon(action: ClaimAction) {
   }
 }
 
+// One solid action per claim; Reject stays secondary so it never competes
+// with the move the desk usually makes.
+const actionButtonClasses: Record<ClaimAction, string> = {
+  Approve: 'bg-emerald-500 text-white hover:bg-emerald-600',
+  Release: 'bg-[#62A0EA] text-white hover:bg-[#4A8BD4]',
+  Reject: 'border border-red-400/30 text-red-300 hover:bg-red-500/10 hover:text-red-200',
+};
+
+function SectionLabel({ children }: { children: ReactNode }) {
+  return <h4 className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">{children}</h4>;
+}
+
+function Fact({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs font-semibold text-slate-500">{label}</dt>
+      <dd className={`mt-1 break-words text-sm ${value ? 'font-semibold text-slate-100' : 'text-slate-500'}`}>{value || 'N/A'}</dd>
+    </div>
+  );
+}
+
 export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByName, onClaimAction, onRecordManualClaim }: ClaimsListModalProps) {
   const [pendingAction, setPendingAction] = useState<{ claimId: string; action: ClaimAction } | null>(null);
   const [showManualForm, setShowManualForm] = useState(false);
@@ -126,6 +149,7 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
     if (a.status !== 'Pending' && b.status === 'Pending') return 1;
     return new Date(b.claimDate).getTime() - new Date(a.claimDate).getTime();
   });
+  const pendingCount = claims.filter((claim) => claim.status === 'Pending').length;
 
   const handleAction = async (claimId: string, action: ClaimAction) => {
     // Account claimants only learn the pickup details through the app, so
@@ -179,160 +203,146 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
     }
   };
 
+  const inputClasses = 'block h-10 w-full rounded-lg border border-white/10 bg-[#0E1628] px-3 text-sm text-white outline-none transition-colors placeholder:text-slate-600 focus:border-[#62A0EA] focus:ring-2 focus:ring-[#62A0EA]/15 disabled:cursor-not-allowed disabled:opacity-60';
+  const labelClasses = 'mb-1.5 block text-xs font-semibold text-slate-300';
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-3xl" height="h-[min(760px,88vh)]">
-      <div className="mb-5 flex flex-col gap-3 pr-8 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#62A0EA]/20 bg-[#1A5FB4]/15 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#8CB9F0]">
-            <UserRound className="h-3.5 w-3.5" />
+    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-3xl" rounded="rounded-xl" height="h-[min(760px,88vh)]">
+      <header className="flex flex-col gap-4 pr-10 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#8CB9F0]">
+            <ClipboardList className="h-3.5 w-3.5" aria-hidden="true" />
             Claim desk
-          </div>
-          <h2 className="text-lg font-bold text-white sm:text-xl">Claims for Item</h2>
-          <p className="mt-1 text-xs text-slate-500">{claims.length} claim records</p>
+          </p>
+          <h2 className="text-xl font-bold leading-tight text-white sm:text-2xl">Claims for Item</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {claims.length} claim {claims.length === 1 ? 'record' : 'records'}
+            {pendingCount > 0 && <span className="text-amber-300"> &middot; {pendingCount} awaiting review</span>}
+          </p>
         </div>
         <button
           type="button"
           onClick={() => setShowManualForm((current) => !current)}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#FF6D3A] px-3 py-2.5 text-xs font-bold text-white transition-colors hover:bg-[#e55a2b]"
+          aria-expanded={showManualForm}
+          className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#FF6D3A] px-4 text-sm font-bold text-white transition-colors hover:bg-[#e55a2b] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
         >
-          <UserPlus className="h-4 w-4" />
+          <UserPlus className="h-4 w-4" aria-hidden="true" />
           Walk-in claimant
         </button>
-      </div>
+      </header>
 
       {showManualForm && (
-        <form onSubmit={handleManualSubmit} className="mb-4 space-y-3 rounded-xl border border-[#62A0EA]/25 bg-[#1A5FB4]/10 p-4">
-          <div>
-            <h3 className="text-sm font-semibold text-white">Record claimant without an account</h3>
-            <p className="mt-1 text-xs text-slate-500">Add contact details and proof before approving a handover.</p>
+        <form onSubmit={handleManualSubmit} className="mt-6 rounded-xl border border-[#62A0EA]/25 bg-[#0E1628]/60 p-4 sm:p-5">
+          <h3 className="text-sm font-bold text-white">Record a claimant without an account</h3>
+          <p className="mt-1 text-xs leading-5 text-slate-500">Add contact details and proof before approving a handover.</p>
+
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label htmlFor="walkin-name" className={labelClasses}>Full name<span className="ml-0.5 text-red-400">*</span></label>
+              <input id="walkin-name" required maxLength={100} value={manualForm.name} onChange={(e) => setManualForm({ ...manualForm, name: e.target.value })} disabled={isSavingManual} className={inputClasses} />
+            </div>
+            <div>
+              <label htmlFor="walkin-phone" className={labelClasses}>Phone number</label>
+              <input id="walkin-phone" type="tel" maxLength={20} value={manualForm.contact} onChange={(e) => setManualForm({ ...manualForm, contact: e.target.value })} disabled={isSavingManual} className={inputClasses} />
+            </div>
+            <div>
+              <label htmlFor="walkin-email" className={labelClasses}>Email address</label>
+              <input id="walkin-email" type="email" maxLength={255} value={manualForm.email} onChange={(e) => setManualForm({ ...manualForm, email: e.target.value })} disabled={isSavingManual} className={inputClasses} />
+            </div>
+            <p className="-mt-2 text-xs text-slate-500 sm:col-span-2">A phone number or an email address is required.</p>
+            <div className="sm:col-span-2">
+              <label htmlFor="walkin-proof" className={labelClasses}>Proof of ownership<span className="ml-0.5 text-red-400">*</span></label>
+              <textarea
+                id="walkin-proof"
+                required
+                minLength={10}
+                maxLength={500}
+                rows={3}
+                value={manualForm.proof}
+                onChange={(e) => setManualForm({ ...manualForm, proof: e.target.value })}
+                disabled={isSavingManual}
+                placeholder="What the claimant described or showed to prove it's theirs"
+                className={`${inputClasses} h-auto resize-none py-2.5 leading-6`}
+              />
+            </div>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <input required maxLength={100} value={manualForm.name} onChange={(e) => setManualForm({ ...manualForm, name: e.target.value })} placeholder="Full name *" className="rounded-lg border border-white/10 bg-[#0E1628] px-3 py-2 text-sm text-white outline-none focus:border-[#62A0EA]" />
-            <input maxLength={20} value={manualForm.contact} onChange={(e) => setManualForm({ ...manualForm, contact: e.target.value })} placeholder="Phone number" className="rounded-lg border border-white/10 bg-[#0E1628] px-3 py-2 text-sm text-white outline-none focus:border-[#62A0EA]" />
-            <input type="email" maxLength={255} value={manualForm.email} onChange={(e) => setManualForm({ ...manualForm, email: e.target.value })} placeholder="Email address" className="rounded-lg border border-white/10 bg-[#0E1628] px-3 py-2 text-sm text-white outline-none focus:border-[#62A0EA]" />
-            <input required minLength={10} maxLength={500} value={manualForm.proof} onChange={(e) => setManualForm({ ...manualForm, proof: e.target.value })} placeholder="Proof of ownership *" className="rounded-lg border border-white/10 bg-[#0E1628] px-3 py-2 text-sm text-white outline-none focus:border-[#62A0EA]" />
-          </div>
-          {manualError && <p className="text-xs text-red-400">{manualError}</p>}
-          <div className="flex justify-end gap-2">
-            <button type="button" onClick={() => setShowManualForm(false)} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-white/5">Cancel</button>
-            <button disabled={isSavingManual} className="rounded-lg bg-[#62A0EA] px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{isSavingManual ? 'Saving...' : 'Save claimant'}</button>
+
+          {manualError && <p role="alert" className="mt-3 text-xs font-medium text-red-300">{manualError}</p>}
+
+          <div className="mt-4 flex justify-end gap-2">
+            <button type="button" onClick={() => setShowManualForm(false)} disabled={isSavingManual} className="inline-flex h-9 items-center rounded-lg border border-white/10 px-4 text-xs font-semibold text-slate-300 transition-colors hover:bg-white/5 hover:text-white disabled:opacity-50">Cancel</button>
+            <button type="submit" disabled={isSavingManual} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#62A0EA] px-4 text-xs font-bold text-white transition-colors hover:bg-[#4A8BD4] disabled:opacity-50">
+              {isSavingManual && <span className="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" aria-hidden="true" />}
+              {isSavingManual ? 'Saving...' : 'Save claimant'}
+            </button>
           </div>
         </form>
       )}
 
-      <div className="space-y-3 overflow-y-auto pr-1">
+      <div className="mt-6 space-y-4">
         {orderedClaims.length > 0 ? orderedClaims.map((claim) => {
           const actions = availableActions(claim.status);
           const isAccepted = isAcceptedStatus(claim.status);
           const timeline = getProcessTimeline(claim, releasedByName);
+          const status = getClaimStatusMeta(claim);
+          const StatusIcon = status.icon;
+          const account = claim.linkedAccount;
+
           return (
-            <article key={claim.id} className={`rounded-xl border p-4 ${
-              isAccepted ? 'border-emerald-500/25 bg-emerald-500/10' : 'border-white/10 bg-[#0E1628]'
-            }`}>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <article
+              key={claim.id}
+              className={`rounded-xl border bg-[#0E1628] ${isAccepted ? 'border-emerald-500/35' : 'border-white/10'}`}
+            >
+              <header className="flex flex-col gap-2 p-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:p-5">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5">
-                      <UserRound className="h-5 w-5 text-slate-300" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-white">{claim.claimantName}</p>
-                      <p className="text-xs text-slate-500">
-                        {claim.linkedAccount ? `Account: @${claim.linkedAccount.username}` : 'Walk-in claimant'}
-                      </p>
-                    </div>
-                  </div>
+                  <h3 className="truncate text-base font-bold leading-tight text-white">{claim.claimantName}</h3>
+                  <p className="mt-1 truncate text-xs text-slate-500">
+                    {account
+                      ? `${account.name} · @${account.username} · ${account.accountStatus}`
+                      : 'Walk-in claimant, no app account'}
+                  </p>
                 </div>
-                {claim.noShowAt
-                  ? <Badge variant="neutral">Did not proceed</Badge>
-                  : <Badge variant={getBadgeVariant(claim.status)}>{claim.status}</Badge>}
+                <p className={`flex shrink-0 items-center gap-1.5 text-sm font-semibold ${status.className}`}>
+                  <StatusIcon className="h-4 w-4" aria-hidden="true" />
+                  {status.label}
+                </p>
+              </header>
+
+              <div className="border-t border-white/[0.06] px-4 py-4 sm:px-5">
+                <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-3">
+                  <Fact label="Submitted" value={formatClaimDate(claim.claimDate)} />
+                  <Fact label="Phone" value={claim.claimantContact} />
+                  <Fact label="Email" value={claim.claimantEmail} />
+                </dl>
               </div>
 
-              {isAccepted && (
-                <div className="mt-3 w-fit max-w-full rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2">
-                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-200/70">Accepted claimant</p>
-                  <p className="truncate text-sm font-semibold text-emerald-100">{claim.claimantName}</p>
-                  {claim.linkedAccount ? (
-                    <p className="mt-1 truncate text-xs text-emerald-100/70">
-                      {claim.linkedAccount.name} | @{claim.linkedAccount.username} | {claim.linkedAccount.accountStatus}
-                    </p>
-                  ) : (
-                    <p className="mt-1 text-xs text-emerald-100/70">Walk-in claimant without linked account</p>
-                  )}
-                </div>
-              )}
-
               {claim.pickupLocation && (
-                <div className="mt-3 rounded-lg border border-white/5 bg-white/[0.04] p-3">
-                  <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                    <MapPin className="h-3.5 w-3.5" />
-                    Pickup schedule
-                  </div>
-                  <p className="text-xs font-semibold text-slate-200">
+                <div className="border-t border-white/[0.06] px-4 py-4 sm:px-5">
+                  <SectionLabel>Pickup schedule</SectionLabel>
+                  <p className="text-sm font-semibold text-slate-100">
                     {claim.pickupLocation}
-                    {claim.pickupAt && <span className="font-medium text-slate-400"> &middot; {formatClaimDate(claim.pickupAt)}</span>}
+                    {claim.pickupAt && <span className="font-normal text-slate-400"> &middot; {formatClaimDate(claim.pickupAt)}</span>}
                   </p>
                   {claim.pickupReminder && <p className="mt-1 text-xs leading-5 text-slate-400">{claim.pickupReminder}</p>}
                 </div>
               )}
 
-              <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                <div className="rounded-lg border border-white/5 bg-white/[0.04] p-3">
-                  <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                    <CalendarDays className="h-3.5 w-3.5" />
-                    Submitted
-                  </div>
-                  <p className="text-xs font-medium text-slate-300">{formatClaimDate(claim.claimDate)}</p>
-                </div>
-                <div className="rounded-lg border border-white/5 bg-white/[0.04] p-3">
-                  <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                    <Phone className="h-3.5 w-3.5" />
-                    Phone
-                  </div>
-                  <p className="truncate text-xs font-medium text-slate-300">{claim.claimantContact || 'N/A'}</p>
-                </div>
-                <div className="rounded-lg border border-white/5 bg-white/[0.04] p-3">
-                  <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                    <Mail className="h-3.5 w-3.5" />
-                    Email
-                  </div>
-                  <p className="truncate text-xs font-medium text-slate-300">{claim.claimantEmail || 'N/A'}</p>
-                </div>
-              </div>
-
-              <div className="mt-3 rounded-lg border border-white/5 bg-white/[0.04] p-3">
-                <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                  <Clock3 className="h-3.5 w-3.5" />
-                  Process timeline
-                </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {timeline.map((step) => (
-                    <div key={`${claim.id}-${step.label}`} className="flex items-start justify-between gap-3 rounded-md bg-black/15 px-2.5 py-2">
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{step.label}</span>
-                      <span className="text-right">
-                        <span className={`block text-xs font-semibold ${step.tone}`}>{step.date ? formatClaimDate(step.date) : '-'}</span>
-                        {step.by && <span className="block text-[10px] text-slate-500">by {step.by}</span>}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
               {claim.proof && (
-                <div className="mt-3 rounded-lg border border-white/5 bg-white/[0.04] p-3">
-                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Proof of ownership</p>
-                  <p className="text-xs leading-5 text-slate-300">{claim.proof}</p>
+                <div className="border-t border-white/[0.06] px-4 py-4 sm:px-5">
+                  <SectionLabel>Proof of ownership</SectionLabel>
+                  <p className="max-w-[65ch] whitespace-pre-line break-words text-sm leading-6 text-slate-200">{claim.proof}</p>
                   {claim.proofPhotos && claim.proofPhotos.length > 0 && (
-                    <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
+                    <div className="mt-3 flex flex-wrap gap-2">
                       {claim.proofPhotos.map((photo, index) => (
                         <a
                           key={photo.id}
                           href={photo.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="aspect-square overflow-hidden rounded-md border border-white/10 transition-colors hover:border-[#62A0EA]/45"
+                          className="h-20 w-20 overflow-hidden rounded-lg border border-white/10 transition-colors hover:border-[#62A0EA]/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
                           title="Open full size"
                         >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={photo.url} alt={`Proof photo ${index + 1}`} className="h-full w-full object-cover" />
                         </a>
                       ))}
@@ -341,39 +351,48 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
                 </div>
               )}
 
+              {timeline.length > 0 && (
+                <div className="border-t border-white/[0.06] px-4 py-4 sm:px-5">
+                  <SectionLabel>History</SectionLabel>
+                  <dl className="divide-y divide-white/[0.06]">
+                    {timeline.map((step) => (
+                      <div key={`${claim.id}-${step.label}`} className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-4 gap-y-0.5 py-2 first:pt-0 last:pb-0 sm:grid-cols-[7.5rem_minmax(0,1fr)_auto]">
+                        <dt className={`text-xs font-semibold ${step.tone}`}>{step.label}</dt>
+                        <dd className="text-xs tabular-nums text-slate-300">{step.date ? formatClaimDate(step.date) : '-'}</dd>
+                        <dd className="col-start-2 text-xs text-slate-500 sm:col-start-auto sm:text-right">{step.by ? `by ${step.by}` : ''}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              )}
+
               {actions.length > 0 && (
-                <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-white/10 pt-3">
-                  {actions.map((action) => {
+                <footer className="flex flex-wrap justify-end gap-2 border-t border-white/[0.06] px-4 py-3 sm:px-5">
+                  {[...actions].reverse().map((action) => {
                     const isPending = pendingAction?.claimId === claim.id && pendingAction.action === action;
                     return (
                       <button
                         key={action}
+                        type="button"
                         onClick={() => handleAction(claim.id, action)}
                         disabled={pendingAction !== null}
-                        className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-white transition-colors disabled:opacity-50 ${
-                          action === 'Approve'
-                            ? 'bg-emerald-500 hover:bg-emerald-600'
-                            : action === 'Release'
-                              ? 'bg-[#1A5FB4] hover:bg-[#164c92]'
-                              : 'bg-red-500 hover:bg-red-600'
-                        }`}
+                        className={`inline-flex h-9 items-center gap-2 rounded-lg px-4 text-xs font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] disabled:cursor-not-allowed disabled:opacity-50 ${actionButtonClasses[action]}`}
                       >
                         {isPending ? (
-                          <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                          <span className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin" aria-hidden="true" />
                         ) : getActionIcon(action)}
                         {action}
                       </button>
                     );
                   })}
-                </div>
+                </footer>
               )}
             </article>
           );
         }) : (
-          <div className="flex flex-col items-center justify-center rounded-xl border border-white/10 bg-[#0E1628] px-4 py-10 text-center">
-            <UserRound className="mb-3 h-8 w-8 text-slate-600" />
-            <p className="text-sm font-semibold text-slate-300">No claims found</p>
-            <p className="mt-1 text-xs text-slate-500">Use walk-in claimant if the owner is at the office without an app account.</p>
+          <div className="rounded-xl border border-dashed border-white/10 px-4 py-12 text-center">
+            <p className="text-sm font-semibold text-slate-300">No claims yet</p>
+            <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-slate-500">If the owner is at the office without an app account, record them with Walk-in claimant.</p>
           </div>
         )}
       </div>
