@@ -417,7 +417,7 @@ class AuthService
                 $applicantName = trim($profile->first_name.' '.$profile->surname);
                 DB::afterCommit(fn () => $this->announcementService->notifyAdmins(
                     'NEW_REGISTRATION',
-                    'New registration request',
+                    "New registration: {$applicantName}",
                     "{$applicantName} signed up and is awaiting verification.",
                     $user->id,
                 ));

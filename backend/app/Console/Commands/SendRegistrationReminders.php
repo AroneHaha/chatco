@@ -44,7 +44,7 @@ class SendRegistrationReminders extends Command
                         $hours = max(24, (int) $profile->created_at->diffInHours(now()));
                         $announcements->notifyAdmins(
                             'REGISTRATION_WAITING',
-                            'Registration awaiting review',
+                            "Waiting {$hours} hours for review: ".trim($profile->first_name.' '.$profile->surname),
                             trim($profile->first_name.' '.$profile->surname)." has been awaiting account verification for {$hours} hours.",
                             $profile->id,
                         );

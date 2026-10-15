@@ -202,7 +202,7 @@ class AnnouncementService
         return Announcement::create([
             'user_id' => $userId,
             'type'    => $type,
-            'title'   => $title,
+            'title'   => $this->systemTitle($title),
             'message' => $message,
             'status'  => self::STATUS_ACTIVE,
             'reference_id' => $referenceId,
@@ -220,6 +220,7 @@ class AnnouncementService
     public function notifyUsers(iterable $userIds, string $type, string $title, string $message, ?string $referenceId = null): void
     {
         $now = now();
+        $title = $this->systemTitle($title);
         $rows = [];
         foreach ($userIds as $userId) {
             $rows[] = [
@@ -257,6 +258,17 @@ class AnnouncementService
             ->select('id')->chunkById(500, function ($admins) use ($type, $title, $message, $referenceId) {
                 $this->notifyUsers($admins->pluck('id'), $type, $title, $message, $referenceId);
             });
+    }
+
+    /**
+     * System titles name their subject (an item, person or unit), and those
+     * values can be as long as the 200-character title column on their own.
+     * Shorten here so a long name never fails the insert — and with it the
+     * transaction that sends the notice.
+     */
+    private function systemTitle(string $title): string
+    {
+        return Str::limit($title, 199, '…');
     }
 
     public function update(string $id, array $data): Announcement

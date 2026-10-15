@@ -1735,7 +1735,7 @@ class LostFoundFlowTest extends TestCase
         $this->assertTrue($item->available_since->isToday());
 
         $notice = \App\Models\Announcement::where('user_id', $this->commuter->id)
-            ->where('title', 'Claim Not Completed')->first();
+            ->where('title', "Pickup missed: \"{$item->item_name}\"")->first();
         $this->assertNotNull($notice);
         $this->assertSame('claim_rejected', $notice->type);
         $this->assertDatabaseHas('announcements', ['user_id' => $this->otherCommuter->id, 'type' => 'saved_item_back']);

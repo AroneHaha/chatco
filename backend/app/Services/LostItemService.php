@@ -383,7 +383,7 @@ class LostItemService
 
                 $this->announcementService->notifyAdmins(
                     'NEW_CLAIM',
-                    'New Lost & Found claim',
+                    "New claim: \"{$item->item_name}\"",
                     "{$claim->claimant_name} submitted a claim for \"{$item->item_name}\" and is awaiting review.",
                     $item->id,
                 );
@@ -431,7 +431,7 @@ class LostItemService
 
             $this->announcementService->notifyAdmins(
                 'NEW_CLAIM',
-                'New Lost & Found claim',
+                "Walk-in claim: \"{$item->item_name}\"",
                 "{$claim->claimant_name} submitted a walk-in claim for \"{$item->item_name}\", recorded by {$admin->getDisplayName()}, and is awaiting review.",
                 $item->id,
             );
@@ -722,7 +722,7 @@ class LostItemService
                 $this->announcementService->notifyUser(
                     $claim->claimant_id,
                     'claim_approved',
-                    'Claim Approved',
+                    "Claim approved: \"{$item->item_name}\"",
                     "Your claim on \"{$item->item_name}\" was approved. Pick it up at {$pickupLocation} on {$when}. {$pickupReminder}",
                     $item->id,
                 );
@@ -732,7 +732,7 @@ class LostItemService
             $this->notifyWatchers(
                 $item,
                 'saved_item_taken',
-                'Saved Item Matched',
+                "No longer available: \"{$item->item_name}\"",
                 "\"{$item->item_name}\" was matched with a claimant and is no longer open for claims. We'll let you know if it becomes available again.",
                 $claim->claimant_id,
             );
@@ -794,7 +794,7 @@ class LostItemService
                 $this->announcementService->notifyUser(
                     $claim->claimant_id,
                     'claim_released',
-                    'Item Returned',
+                    "Returned to you: \"{$item->item_name}\"",
                     "\"{$item->item_name}\" has been marked as returned to you. Thanks for using CHATCO Lost & Found!"
                 );
             }
@@ -880,7 +880,7 @@ class LostItemService
                 $this->announcementService->notifyUser(
                     $claim->claimant_id,
                     'claim_rejected',
-                    'Claim Rejected',
+                    "Claim rejected: \"{$item->item_name}\"",
                     "Your claim on \"{$item->item_name}\" was not approved.{$reasonSuffix}{$retryText}"
                 );
             }
@@ -963,7 +963,7 @@ class LostItemService
                 $this->announcementService->notifyUser(
                     $claim->claimant_id,
                     'claim_rejected',
-                    'Claim Not Completed',
+                    "Pickup missed: \"{$item->item_name}\"",
                     "You didn't collect \"{$item->item_name}\" on the scheduled pickup date ({$when}), so this claim was closed.{$nextStep}",
                     $item->id,
                 );
@@ -1065,7 +1065,7 @@ class LostItemService
             $this->announcementService->notifyUsers(
                 $watchers->pluck('commuter_id')->unique(),
                 'saved_item_expiring',
-                'Saved Item Expiring Soon',
+                "Leaving {$until}: \"{$first->item_name}\"",
                 "\"{$first->item_name}\" leaves Lost & Found on {$until}. Claim it before then if it's yours.",
                 (string) $itemId,
             );
@@ -1175,7 +1175,7 @@ class LostItemService
             $this->notifyWatchers(
                 $item,
                 'saved_item_back',
-                'Saved Item Available Again',
+                "Available again: \"{$item->item_name}\"",
                 "\"{$item->item_name}\" is open for claims again. Take another look if it might be yours.",
                 $claim->claimant_id,
             );

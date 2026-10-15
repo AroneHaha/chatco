@@ -68,7 +68,7 @@ class SendRemittanceReminders extends Command
                             $this->announcements->notifyUser(
                                 $remittance->conductor_id,
                                 'REMITTANCE_REMINDER',
-                                'Pending shift remittance',
+                                sprintf('Remittance pending: PHP %.2f', (float) $remittance->cash_total),
                                 sprintf(
                                     'Shift %s still has PHP %.2f in expected cash awaiting remittance.',
                                     $remittance->shift_id,
@@ -80,7 +80,7 @@ class SendRemittanceReminders extends Command
                             $overdueMinutes = max(1, (int) $remittance->remittance_due_at->diffInMinutes(now()));
                             $this->announcements->notifyAdmins(
                                 'REMITTANCE_OVERDUE',
-                                'Overdue remittance',
+                                "Overdue remittance: unit {$remittance->unit_number}",
                                 sprintf(
                                     '%s on unit %s has PHP %.2f awaiting remittance (%d minutes overdue).',
                                     $remittance->conductor_name,

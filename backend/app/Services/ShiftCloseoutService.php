@@ -158,7 +158,7 @@ final class ShiftCloseoutService
             $endedAt = $timeOut->copy()->timezone(config('app.timezone'))->format('M j, Y g:i A');
             $this->announcementService->notifyAdmins(
                 'SHIFT_ENDED',
-                'Shift ended',
+                ($reason === self::REASON_MANUAL ? 'Shift ended' : 'Shift auto-ended').": unit {$shift->unit_number}",
                 "{$endedBy} ended the shift on unit {$shift->unit_number} at {$endedAt} ({$reasonLabel}). Conductor: {$shift->conductor_name}. Driver: {$shift->driver_name}. Remittance: {$status}.",
                 $shiftId,
             );
@@ -364,7 +364,11 @@ SQL;
 
         DB::afterCommit(fn () => $this->announcementService->notifyAdmins(
             'REMITTANCE_COMPLETED',
-            'Remittance completed',
+            match ($remittance->remittance_status) {
+                Remittance::STATUS_SHORTAGE => "Short remittance: unit {$unitNumber}",
+                Remittance::STATUS_OVERAGE => "Over remittance: unit {$unitNumber}",
+                default => "Remitted ₱{$amount}: unit {$unitNumber}",
+            },
             "{$conductorName} remitted ₱{$amount} {$statusLabel} for unit {$unitNumber}.",
             $remittance->shift_id,
         ));

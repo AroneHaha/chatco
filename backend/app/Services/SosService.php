@@ -224,7 +224,7 @@ class SosService
             $resolvedAt = $alert->resolved_at->copy()->timezone(config('app.timezone'))->format('M j, Y g:i A');
             $this->announcementService->notifyAdmins(
                 'SOS_RESOLVED',
-                'Emergency SOS resolved',
+                rtrim('SOS resolved: '.$this->senderName($alert), ': '),
                 "{$admin->getDisplayName()} resolved the SOS from {$this->senderName($alert)} at {$resolvedAt}.",
                 $alert->id,
             );
@@ -264,7 +264,7 @@ class SosService
             ]);
             $this->announcementService->notifyAdmins(
                 'SOS_RESOLVED',
-                'Emergency SOS stopped',
+                rtrim('SOS stopped: '.$this->senderName($alert), ': '),
                 "{$this->senderName($alert)} stopped their emergency SOS alert.",
                 $alert->id,
             );
@@ -349,7 +349,7 @@ class SosService
             $role = $alert->sender_role === 'CONDUCTOR' ? 'Conductor' : 'Commuter';
             $this->announcementService->notifyAdmins(
                 'SOS_TRIGGERED',
-                'Emergency SOS',
+                rtrim('Emergency SOS: '.$this->senderName($alert), ': '),
                 "{$this->senderName($alert)} ({$role}) triggered an emergency SOS alert.",
                 $alert->id,
             );
