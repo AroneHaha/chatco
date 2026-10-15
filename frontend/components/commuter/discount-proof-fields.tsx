@@ -6,7 +6,7 @@ import { EDUCATION_LABELS, ENROLLMENT_TERMS, HIGH_SCHOOL_GRADES, type EducationL
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
-const field = 'mt-2 min-h-11 w-full rounded-lg border border-white/15 bg-white/5 px-3.5 py-2 text-sm text-white transition-colors placeholder:text-white/50 focus:border-[#62A0EA] focus:outline-none focus:ring-2 focus:ring-[#62A0EA]/20 disabled:opacity-50';
+const field = 'mt-2 min-h-11 w-full rounded-lg border border-white/15 bg-white/5 px-3.5 py-2 text-sm text-white transition-colors placeholder:text-white/50 focus:border-[#62A0EA] light:border-gray-200 light:bg-white light:text-gray-900 light:placeholder:text-gray-400 light:focus:border-[#1A5FB4] focus:outline-none focus:ring-2 focus:ring-[#62A0EA]/20 disabled:opacity-50';
 const formatSize = (bytes: number) => bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 
 export function useDiscountProof() {
@@ -64,7 +64,7 @@ export function DiscountProofFields({ proof, busy, proofId, year, student = true
         <legend className="text-sm font-medium">Education level</legend>
         <div className="mt-2 grid grid-cols-2 gap-2">
           {(Object.keys(EDUCATION_LABELS) as EducationLevel[]).map(level => (
-            <label key={level} className={`flex min-h-11 items-center justify-center rounded-lg border px-3 text-sm font-medium transition-colors has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-[#99C1F1] ${busy ? '' : 'cursor-pointer'} ${educationLevel === level ? 'border-[#62A0EA] bg-[#62A0EA]/10 text-white' : 'border-white/15 bg-white/5 text-white/70 hover:text-white'}`}>
+            <label key={level} className={`flex min-h-11 items-center justify-center rounded-lg border px-3 text-sm font-medium transition-colors has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-[#99C1F1] ${busy ? '' : 'cursor-pointer'} ${educationLevel === level ? 'border-[#62A0EA] bg-[#62A0EA]/10 text-white light:border-[#1A5FB4] light:bg-[#1A5FB4]/10 light:text-[#1A5FB4]' : 'border-white/15 bg-white/5 text-white/70 hover:text-white light:border-gray-200 light:bg-white light:text-gray-600 light:hover:text-gray-900'}`}>
               <input type="radio" name="education_level" value={level} required checked={educationLevel === level} onChange={() => { setEducationLevel(level); if (level === 'COLLEGE') setGradeLevel(''); }} className="sr-only" />
               {EDUCATION_LABELS[level]}
             </label>
@@ -73,11 +73,11 @@ export function DiscountProofFields({ proof, busy, proofId, year, student = true
       </fieldset>
       {educationLevel === 'HIGH_SCHOOL' && (
         <label className="block text-sm font-medium">Grade level
-          <select required value={gradeLevel} onChange={e => setGradeLevel(e.target.value)} disabled={busy} className={`${field} scheme-dark`}>
+          <select required value={gradeLevel} onChange={e => setGradeLevel(e.target.value)} disabled={busy} className={`${field} scheme-dark light:scheme-light`}>
             {/* The select's translucent fill cannot paint the native
                 option list, so the options carry an opaque tone. */}
-            <option value="" disabled className="bg-[#0E1628]">Select grade</option>
-            {HIGH_SCHOOL_GRADES.map(grade => <option key={grade} value={grade} className="bg-[#0E1628]">Grade {grade}</option>)}
+            <option value="" disabled className="bg-[#0E1628] light:bg-white">Select grade</option>
+            {HIGH_SCHOOL_GRADES.map(grade => <option key={grade} value={grade} className="bg-[#0E1628] light:bg-white">Grade {grade}</option>)}
           </select>
         </label>
       )}
@@ -86,12 +86,12 @@ export function DiscountProofFields({ proof, busy, proofId, year, student = true
       <label className="block text-sm font-medium">School year
         <input required maxLength={20} value={schoolYear} onChange={e => setSchoolYear(e.target.value)} placeholder={`For example, ${year}–${year + 1}`} disabled={busy} className={field} />
       </label>
-      <label className="block text-sm font-medium">Enrollment term{educationLevel === 'HIGH_SCHOOL' && <span className="font-normal text-white/50"> (optional)</span>}
+      <label className="block text-sm font-medium">Enrollment term{educationLevel === 'HIGH_SCHOOL' && <span className="font-normal text-white/50 light:text-gray-500"> (optional)</span>}
         {/* The term is optional for high school, so the empty
             choice stays selectable there to clear a pick. */}
-        <select required={educationLevel === 'COLLEGE'} value={term} onChange={e => setTerm(e.target.value)} disabled={busy} className={`${field} scheme-dark`}>
-          <option value="" disabled={educationLevel !== 'HIGH_SCHOOL'} className="bg-[#0E1628]">{educationLevel === 'HIGH_SCHOOL' ? 'No term' : 'Select term'}</option>
-          {ENROLLMENT_TERMS.map(item => <option key={item} value={item} className="bg-[#0E1628]">{item}</option>)}
+        <select required={educationLevel === 'COLLEGE'} value={term} onChange={e => setTerm(e.target.value)} disabled={busy} className={`${field} scheme-dark light:scheme-light`}>
+          <option value="" disabled={educationLevel !== 'HIGH_SCHOOL'} className="bg-[#0E1628] light:bg-white">{educationLevel === 'HIGH_SCHOOL' ? 'No term' : 'Select term'}</option>
+          {ENROLLMENT_TERMS.map(item => <option key={item} value={item} className="bg-[#0E1628] light:bg-white">{item}</option>)}
         </select>
       </label>
     </div>
@@ -100,17 +100,17 @@ export function DiscountProofFields({ proof, busy, proofId, year, student = true
       <p id={`${proofId}-label`} className="text-sm font-medium">{documentLabel}</p>
       {/* The frame and the row under it keep the same size with or
           without a file, so choosing one never moves the form. */}
-      <div className={`mt-2 overflow-hidden rounded-lg border bg-white/5 ${fileError ? 'border-red-400/60' : 'border-white/15'}`}>
+      <div className={`mt-2 overflow-hidden rounded-lg border bg-white/5 light:bg-white ${fileError ? 'border-red-400/60' : 'border-white/15 light:border-gray-200'}`}>
         {document ? (
           // Show the selected document type and filename before submission.
-          <div className="flex h-48 flex-col items-center justify-center gap-2 border-b border-white/10 bg-[#0E1628] text-xs text-white/50 sm:h-56">
+          <div className="flex h-48 flex-col items-center justify-center gap-2 border-b border-white/10 bg-[#0E1628] light:border-gray-200 light:bg-gray-50 text-xs text-white/50 light:text-gray-500 sm:h-56">
             {document.type === 'application/pdf'
-              ? <><FileText size={28} aria-hidden="true" className="text-[#99C1F1]" />PDF document</>
-              : <><ImageIcon size={28} aria-hidden="true" className="text-[#99C1F1]" />Image preview</>}
+              ? <><FileText size={28} aria-hidden="true" className="text-[#99C1F1] light:text-[#1A5FB4]" />PDF document</>
+              : <><ImageIcon size={28} aria-hidden="true" className="text-[#99C1F1] light:text-[#1A5FB4]" />Image preview</>}
           </div>
         ) : (
-          <label className={`flex h-48 flex-col items-center justify-center gap-2 border-b border-white/10 bg-[#0E1628] text-sm font-medium transition-colors focus-within:ring-2 focus-within:ring-inset focus-within:ring-[#62A0EA]/60 sm:h-56 ${busy ? 'opacity-50' : 'cursor-pointer hover:bg-[#131C2E]'}`}>
-            <Upload size={28} aria-hidden="true" className="text-[#99C1F1]" />
+          <label className={`flex h-48 flex-col items-center justify-center gap-2 border-b border-white/10 bg-[#0E1628] light:border-gray-200 light:bg-gray-50 text-sm font-medium transition-colors focus-within:ring-2 focus-within:ring-inset focus-within:ring-[#62A0EA]/60 sm:h-56 ${busy ? 'opacity-50' : 'cursor-pointer hover:bg-[#131C2E] light:hover:bg-gray-100'}`}>
+            <Upload size={28} aria-hidden="true" className="text-[#99C1F1] light:text-[#1A5FB4]" />
             Choose a file
             <input type="file" accept={ACCEPTED_TYPES.join(',')} onChange={chooseDocument} disabled={busy} aria-describedby={`${proofId}-hint`} className="sr-only" />
           </label>
@@ -119,16 +119,16 @@ export function DiscountProofFields({ proof, busy, proofId, year, student = true
           {document ? <>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{document.name}</p>
-              <p className="text-xs text-white/60">{formatSize(document.size)}</p>
+              <p className="text-xs text-white/60 light:text-gray-500">{formatSize(document.size)}</p>
             </div>
-            <button type="button" onClick={() => setDocument(null)} disabled={busy} aria-label={`Remove ${document.name}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white/60 transition-colors hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-[#99C1F1] disabled:opacity-50">
+            <button type="button" onClick={() => setDocument(null)} disabled={busy} aria-label={`Remove ${document.name}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white/60 transition-colors hover:bg-white/5 hover:text-white light:text-gray-400 light:hover:bg-gray-100 light:hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-[#99C1F1] disabled:opacity-50">
               <X size={16} aria-hidden="true" />
             </button>
-          </> : <p className="text-sm text-white/50">No file selected</p>}
+          </> : <p className="text-sm text-white/50 light:text-gray-500">No file selected</p>}
         </div>
       </div>
-      {fileError && <p role="alert" className="mt-2 text-xs text-red-300">{fileError}</p>}
-      <p id={`${proofId}-hint`} className="mt-2 text-xs leading-relaxed text-white/60">JPG, PNG, WebP, or PDF; up to 5 MB. Your document is available only to authorized reviewers.</p>
-    </div> : <p role="note" className="mt-6 rounded-xl border border-amber-300/20 bg-amber-300/5 p-4 text-sm leading-relaxed text-amber-100/80">Local workflow testing: document upload is disabled. No file will be sent or stored.</p>}
+      {fileError && <p role="alert" className="mt-2 text-xs text-red-300 light:text-red-600">{fileError}</p>}
+      <p id={`${proofId}-hint`} className="mt-2 text-xs leading-relaxed text-white/60 light:text-gray-500">JPG, PNG, WebP, or PDF; up to 5 MB. Your document is available only to authorized reviewers.</p>
+    </div> : <p role="note" className="mt-6 rounded-xl border border-amber-300/20 bg-amber-300/5 p-4 text-sm leading-relaxed text-amber-100/80 light:border-amber-200 light:bg-amber-50 light:text-amber-800">Local workflow testing: document upload is disabled. No file will be sent or stored.</p>}
   </>;
 }
