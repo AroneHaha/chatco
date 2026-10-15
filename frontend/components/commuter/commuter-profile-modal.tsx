@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { UserRound } from "lucide-react";
 import { usePathname } from "next/navigation";
 import ProfileContent from "@/components/commuter/profile/profile-content";
-import ProfileThemeToggle from "@/components/commuter/profile/profile-theme-toggle";
+import AccountMenu, { type SignOutControl } from "@/components/commuter/profile/account-menu";
 import { usePopoverModal, useBackdropDismiss } from "@/components/conductor/modals/use-popover-modal";
 import { PopoverTail } from "@/components/conductor/modals/popover-tail";
 
@@ -27,6 +27,7 @@ export const PROFILE_ANCHOR_ID = "commuter-profile-anchor";
  */
 export default function CommuterProfileModal() {
   const [isOpen, setIsOpen] = useState(false);
+  const [signOutControl, setSignOutControl] = useState<SignOutControl | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
 
@@ -106,12 +107,12 @@ export default function CommuterProfileModal() {
                 <p className="mt-0.5 text-xs text-white/50">Your details and account settings</p>
               </div>
             </div>
-            <ProfileThemeToggle />
+            <AccountMenu signOut={signOutControl} />
           </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto modal-scroll">
-          <ProfileContent variant="modal" />
+          <ProfileContent variant="modal" onSignOutControl={setSignOutControl} />
         </div>
       </div>
     </div>

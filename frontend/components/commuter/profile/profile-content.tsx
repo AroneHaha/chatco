@@ -3,12 +3,14 @@
 import { DiscountApplicationEntry } from './discount-application-entry';
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronRight, KeyRound, Loader2, LogOut, Mail, Pencil, Phone, Save, ShieldCheck, UserRound, X } from "lucide-react";
+import Image from "next/image";
+import { Camera, Check, ChevronRight, KeyRound, Loader2, LogOut, Mail, Pencil, Phone, Save, ShieldCheck, UserRound, X } from "lucide-react";
 import { useProfile } from "@/app/(commuter)/profile/use-profile";
 import { AccountStatus } from "@/app/(commuter)/profile/types";
 import { getCommuterTypeLabel } from "@/types";
 import ChangeEmailDialog from "./change-email-dialog";
 import ProfileThemeToggle from "./profile-theme-toggle";
+import AccountMenu, { type SignOutControl } from "./account-menu";
 
 /**
  * The commuter Profile body, shared by both shells — same split as the
@@ -24,12 +26,16 @@ import ProfileThemeToggle from "./profile-theme-toggle";
  * full-height loading/error states; `variant="modal"` drops them because the
  * popover panel is the scroll container.
  *
+ * At lg:+ Log out lives in AccountMenu instead of a lone button at the
+ * bottom: the page renders it beside the avatar, and the popover renders it
+ * in its own header, receiving the confirm trigger via `onSignOutControl`.
+ *
  * The logout confirmation and Change Password dialogs are portaled to
  * <body>: inside the popover, the panel's transform-based entrance animation
  * would otherwise make their `fixed inset-0` overlays position relative to
  * the panel instead of the viewport.
  */
-export default function ProfileContent({ variant = "page" }: { variant?: "page" | "modal" }) {
+export default function ProfileContent({ variant = "page", onSignOutControl }: { variant?: "page" | "modal"; onSignOutControl?: (control: SignOutControl | null) => void }) {
   const isPage = variant === "page";
   const detailsHeadingId = useId();
   const contactHeadingId = useId();
@@ -37,6 +43,27 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
   const contactInputId = useId();
   const contactFormId = useId();
   const contactErrorId = useId();
+  const photoHelpId = useId();
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [failedPhotoUrl, setFailedPhotoUrl] = useState<string | null>(null);
+  useEffect(() => {
+    return () => { if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl); };
+  }, [photoPreviewUrl]);
+  const selectPhoto = (file: File) => {
+    setPhotoError(null);
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setPhotoError('Choose a JPG, PNG, or WebP image.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setPhotoError('Your photo must be 5 MB or smaller.');
+      return;
+    }
+    // Local preview only. Persistence will be connected by the backend developer.
+    setPhotoPreviewUrl(URL.createObjectURL(file));
+  };
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const closeEmailDialog = useCallback(() => setShowEmailDialog(false), []);
   // Logging out is one tap from a scrollable page and is not undoable without
@@ -78,6 +105,15 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
     handleReuploadId,
     handleLogout,
   } = useProfile();
+
+  // Hand the confirm trigger to the popover's header menu once the profile
+  // has loaded (the confirmation dialog only renders in the loaded state).
+  const isLoaded = !!profile;
+  useEffect(() => {
+    if (!onSignOutControl || !isLoaded) return;
+    onSignOutControl({ request: () => setShowLogoutConfirm(true), locked: false });
+    return () => onSignOutControl(null);
+  }, [onSignOutControl, isLoaded]);
 
   useEffect(() => {
     if ((isPage && !showPasswordModal) || (!showLogoutConfirm && !showPasswordModal)) return;
@@ -202,9 +238,21 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
         {/* Header & Avatar */}
         <div className={isPage ? "flex items-center gap-4 rounded-2xl border border-[#62A0EA]/20 bg-gradient-to-br from-[#102E50] to-[#071A2E] p-5 lg:gap-5 lg:rounded-none lg:border-0 lg:bg-none lg:p-0" : "relative isolate flex items-center gap-5 overflow-hidden rounded-2xl border border-[#62A0EA]/25 bg-gradient-to-br from-[#153C66] via-[#0C2743] to-[#071A2E] p-6 shadow-lg shadow-black/10"}>
           {!isPage && <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-16 -z-10 h-56 w-56 rounded-full border border-[#99C1F1]/10 bg-[#62A0EA]/5"><div className="absolute inset-6 rounded-full border border-[#99C1F1]/10" /><div className="absolute inset-12 rounded-full border border-[#99C1F1]/10" /></div>}
-          <div className={isPage ? "flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-[#62A0EA]/30 bg-[#1A5FB4] text-2xl font-bold text-white lg:h-24 lg:w-24 lg:rounded-full lg:border-4 lg:border-white/10 lg:text-3xl lg:shadow-xl" : "flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-[#99C1F1]/30 bg-gradient-to-br from-[#337DD2] to-[#1A5FB4] text-2xl font-bold text-white shadow-lg shadow-[#050F1A]/30 ring-4 ring-white/5"}>
-            {profile.firstName[0]}
-            {profile.surname[0]}
+          <div className="shrink-0 self-start text-center">
+            <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" aria-label="Choose profile photo" onChange={event => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (file) selectPhoto(file);
+            }} />
+            <button type="button" onClick={() => photoInputRef.current?.click()} aria-label={photoPreviewUrl ? 'Change selected photo' : 'Choose profile photo'} aria-describedby={photoHelpId} className="group relative flex h-20 w-20 items-center justify-center rounded-2xl border border-[#99C1F1]/30 bg-[#1A5FB4] text-2xl font-bold text-white shadow-lg ring-4 ring-white/5 transition-colors hover:border-[#99C1F1] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#99C1F1] sm:h-24 sm:w-24 sm:text-3xl">
+              {photoPreviewUrl && failedPhotoUrl !== photoPreviewUrl
+                ? <Image src={photoPreviewUrl} alt={`${profile.firstName}'s selected photo preview`} width={96} height={96} unoptimized onError={() => { setFailedPhotoUrl(photoPreviewUrl); setPhotoError('This image could not be displayed. Choose another photo.'); }} className="h-full w-full rounded-2xl object-cover" />
+                : <span aria-hidden="true">{profile.firstName[0]}{profile.surname[0]}</span>}
+              <span className="absolute -bottom-1.5 -right-1.5 flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#071A2E] bg-[#99C1F1] text-[#071A2E]">
+                <Camera size={15} aria-hidden="true" />
+              </span>
+            </button>
+            <span className="mt-3 block text-[11px] font-medium text-[#B6D3F6]">{photoPreviewUrl ? 'Change photo' : 'Choose photo'}</span>
           </div>
           <div className="min-w-0 flex-1">
             {!isPage && <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#99C1F1]/80">Commuter account</p>}
@@ -223,8 +271,15 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
                 {discountPercentage > 0 && `(${discountPercentage}% Off)`}
               </span>
             </div>
-            {['ACTIVE', 'APPROVED'].includes(profile.accountStatus) && <DiscountApplicationEntry commuterType={profile.commuterType} onClassificationChanged={retryLoad} />}
           </div>
+          {isPage && <div className="hidden self-start lg:block"><AccountMenu signOut={{ request: () => setShowLogoutConfirm(true), locked: false }} /></div>}
+        </div>
+
+        <div className="space-y-2">
+          <p id={photoHelpId} className="text-xs text-white/45">Profile photo: JPG, PNG, or WebP. Maximum 5 MB.</p>
+          {photoPreviewUrl && !photoError && <p role="status" className="text-xs text-[#99C1F1]">Preview only. Your photo has not been saved.</p>}
+          {photoError && <p role="alert" className="text-sm text-red-300">{photoError}</p>}
+          {['ACTIVE', 'APPROVED'].includes(profile.accountStatus) && <DiscountApplicationEntry commuterType={profile.commuterType} onClassificationChanged={retryLoad} />}
         </div>
 
         {/* Transient success banner */}
@@ -459,13 +514,6 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
             </button>
           )}
         </div>
-
-        <button
-          onClick={() => setShowLogoutConfirm(true)}
-          className="w-full py-3 rounded-xl text-sm font-semibold border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors mt-8"
-        >
-          Log Out
-        </button>
         </div>}
         <div className={isPage ? "space-y-5 lg:hidden" : "grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]"}>
           <section aria-labelledby={detailsHeadingId} className={isPage ? "rounded-2xl border border-white/10 bg-[#071A2E] p-5" : "min-w-0 rounded-2xl border border-white/10 bg-[#0B223A] p-5 xl:row-span-2 xl:self-stretch"}>
@@ -520,7 +568,7 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
               <KeyRound size={18} aria-hidden="true" className={isPage ? "shrink-0 text-white/50" : "shrink-0 text-[#99C1F1]"} /><span className="min-w-0 flex-1"><span className="block">Change password</span>{!isPage && <span className="mt-1 block text-[11px] font-normal text-white/40">Update your sign-in password</span>}</span><ChevronRight size={16} aria-hidden="true" className="shrink-0 text-white/40" />
             </button>
           </section>
-          <div className={isPage ? "pt-1" : "col-span-full flex justify-center border-t border-white/10 pt-4"}>
+          <div className={isPage ? "pt-1" : "col-span-full flex justify-center border-t border-white/10 pt-4 lg:hidden"}>
             <button type="button" onClick={() => setShowLogoutConfirm(true)} className={`${isPage ? "flex min-h-12 w-full justify-center rounded-xl border border-red-500/20 bg-red-500/5 px-2" : "inline-flex min-h-11 w-full max-w-xs justify-center rounded-xl border border-red-500/20 bg-red-500/5 px-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"} items-center gap-2 text-sm font-medium text-red-400 transition-colors hover:bg-red-500/10`}><LogOut size={17} aria-hidden="true" /> Log out</button>
           </div>
         </div>
