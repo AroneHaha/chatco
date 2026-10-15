@@ -26,13 +26,18 @@ export function DiscountApplicationEntry({ commuterType, onClassificationChanged
   // apply. A discounted account never sees this, and an approval hides it as
   // soon as the server reports the new classification.
   if ((state?.commuter_type ?? commuterType) !== 'REGULAR') return null;
+  // An unknown status must not be presented as an account that hasn't applied.
+  if (!state && !failed) return <div role="status" className="mt-3 border-t border-white/10 pt-3 text-sm text-white/60">
+    Loading discount application status...
+  </div>;
   const application = state?.application;
   const renewal = application?.request_type === 'RENEWAL';
   const category = application ? DISCOUNT_CATEGORIES[application.requested_type] : '';
   // Cancelled or legacy expired requests leave nothing open, so the commuter
   // is offered a fresh application.
   const status = state && application && !['CANCELLED', 'EXPIRED'].includes(state.status) ? state.status : 'NOT_APPLIED';
-  const content = renewal ? { text: `Student renewal: ${APPLICATION_LABELS[status]}`, link: 'View Student renewal' }
+  const content = !state ? { text: 'Unable to load your discount application status.', link: 'View application status' }
+    : renewal ? { text: `Student renewal: ${APPLICATION_LABELS[status]}`, link: 'View Student renewal' }
     : status === 'PENDING' ? { text: 'Your discount application is currently under review. Check here for updates on your application status.', link: 'View application status' }
     : status === 'NEEDS_CORRECTION' ? { text: `An admin asked for a correction to your ${category} discount application. Send corrected documents to continue the review.`, link: 'Update your application' }
     : status === 'REJECTED' ? { text: `Your ${category} discount application was not approved.`, link: 'Apply again' }
