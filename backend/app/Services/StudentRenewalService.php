@@ -10,7 +10,6 @@ use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 
 class StudentRenewalService
 {
@@ -142,7 +141,7 @@ class StudentRenewalService
                 $this->announcements->notifyAdmins('STUDENT_RENEWAL_NEW', 'Student renewal submitted: '.$locked->first_name.' '.$locked->surname, $locked->first_name.' '.$locked->surname.' submitted enrollment proof.', $application->id);
             }, 3);
         } catch (\Throwable $error) {
-            Storage::disk(DiscountApplicationService::DOCUMENT_DISK)->delete($path);
+            $this->applications->deleteDocument($path);
             throw $error;
         }
 

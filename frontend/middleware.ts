@@ -37,6 +37,8 @@ export async function middleware(request: NextRequest) {
       "/rewards",
       "/feedback",
       "/profile",
+      "/discount-application",
+      "/student-renewal",
       "/gcash/return",
       "/discount-application",
       "/student-renewal",

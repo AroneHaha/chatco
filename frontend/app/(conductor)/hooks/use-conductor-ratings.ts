@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchActiveShift, getActiveShift } from "@/lib/conductor/services/shift.service";
 import {
   calculateMetrics,
@@ -24,20 +24,20 @@ export function useConductorRatings(): UseConductorRatingsResult {
   const [ratings, setRatings] = useState<ConductorRating[]>([]);
   const [status, setStatus] = useState<UseConductorRatingsResult["status"]>("loading");
   const [error, setError] = useState<string | null>(null);
+  const requestVersion = useRef(0);
 
-  const refresh = useCallback(async () => {
-    setStatus("loading");
-    setError(null);
-
-    try {
+  const load = useCallback(() => {
+    const version = ++requestVersion.current;
       // fetchRatingsForShift only needs a shiftId, which the shift cache
       // already has for a returning conductor — start it alongside the
       // shift verification instead of waiting for that round trip first.
       const cachedShiftId = getActiveShift()?.shiftId ?? null;
-      const [activeShift, cachedRatingsResult] = await Promise.all([
+      return Promise.all([
         fetchActiveShift(),
         cachedShiftId ? fetchRatingsForShift(cachedShiftId) : Promise.resolve(null),
-      ]);
+      ]).then(async ([activeShift, cachedRatingsResult]) => {
+      if (version !== requestVersion.current) return;
+      setError(null);
 
       if (!activeShift) {
         setShift(null);
@@ -56,6 +56,7 @@ export function useConductorRatings(): UseConductorRatingsResult {
           ? cachedRatingsResult
           : await fetchRatingsForShift(activeShift.shiftId);
 
+      if (version !== requestVersion.current) return;
       setRatings(fetchedRatings);
       if (ratingsError) {
         setError(ratingsError);
@@ -64,17 +65,26 @@ export function useConductorRatings(): UseConductorRatingsResult {
       }
 
       setStatus(fetchedRatings.length > 0 ? "success" : "empty");
-    } catch (err) {
+      }).catch((err: unknown) => {
+      if (version !== requestVersion.current) return;
       setShift(null);
       setRatings([]);
       setStatus("error");
       setError(err instanceof Error ? err.message : "Unable to load ratings.");
-    }
+      });
   }, []);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    const versionState = requestVersion;
+    void load();
+    return () => { versionState.current++; };
+  }, [load]);
+
+  const refresh = useCallback(async () => {
+    setStatus("loading");
+    setError(null);
+    await load();
+  }, [load]);
 
   return {
     shift,

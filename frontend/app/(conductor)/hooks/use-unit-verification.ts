@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import {
   fetchConductorProfile,
@@ -27,17 +27,17 @@ export function useUnitVerification(): UseUnitVerificationResult {
   const [drivers, setDrivers] = useState<ConductorDriver[]>([]);
   const [status, setStatus] = useState<UseUnitVerificationResult["status"]>("loading");
   const [error, setError] = useState<string | null>(null);
+  const requestVersion = useRef(0);
 
-  const refresh = useCallback(async () => {
-    setStatus("loading");
-    setError(null);
-
-    try {
-      const [profileResult, unitsResult, driversResult] = await Promise.all([
+  const load = useCallback(() => {
+    const version = ++requestVersion.current;
+      return Promise.all([
         fetchConductorProfile(),
         fetchUnits(),
         fetchDrivers(),
-      ]);
+      ]).then(([profileResult, unitsResult, driversResult]) => {
+      if (version !== requestVersion.current) return;
+      setError(null);
 
       const resolvedProfile =
         profileResult.profile ??
@@ -69,17 +69,26 @@ export function useUnitVerification(): UseUnitVerificationResult {
           ? "success"
           : "empty"
       );
-    } catch (err) {
+      }).catch((err: unknown) => {
+      if (version !== requestVersion.current) return;
       setStatus("error");
       setError(
         err instanceof Error ? err.message : "Unable to load verification data."
       );
-    }
+      });
   }, [user]);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    const versionState = requestVersion;
+    void load();
+    return () => { versionState.current++; };
+  }, [load]);
+
+  const refresh = useCallback(async () => {
+    setStatus("loading");
+    setError(null);
+    await load();
+  }, [load]);
 
   return { profile, units, drivers, status, error, refresh };
 }
