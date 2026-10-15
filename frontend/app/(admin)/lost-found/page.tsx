@@ -40,6 +40,7 @@ import {
   update as apiUpdateItem,
   addPhoto as apiAddPhoto,
   deletePhoto as apiDeletePhoto,
+  replacePhoto as apiReplacePhoto,
   reactivate as apiReactivateItem,
   approveClaim as apiApproveClaim,
   releaseClaim as apiReleaseClaim,
@@ -367,6 +368,19 @@ export default function LostFoundPage() {
     }
   };
 
+  /** Photo changes staged in the edit modal, applied one at a time on Save.
+   * Unlike the detail view's handlers above these re-throw, so the modal can
+   * stop at the failing change, show it inline, and keep the rest staged. */
+  const handleEditAddPhoto = async (itemId: string, file: File) => {
+    upsertItemInState(await apiAddPhoto(itemId, file));
+  };
+  const handleEditReplacePhoto = async (itemId: string, photoId: string, file: File) => {
+    upsertItemInState(await apiReplacePhoto(itemId, photoId, file));
+  };
+  const handleEditDeletePhoto = async (itemId: string, photoId: string) => {
+    upsertItemInState(await apiDeletePhoto(itemId, photoId));
+  };
+
   /** Bring an auto-expired item back to AVAILABLE (a claimant turned up late). */
   const handleReactivateItem = async (itemId: string) => {
     setActionError(null);
@@ -651,7 +665,18 @@ export default function LostFoundPage() {
         isActing={isActing}
       />
       <AddLostFoundModal isOpen={isAddModalOpen} onClose={handleCloseAddModal} onSave={handleSaveItem} />
-      <EditLostFoundModal isOpen={isEditModalOpen} onClose={handleCloseEditModal} item={editingItem} onSave={handleSaveEdit} />
+      <EditLostFoundModal
+        isOpen={isEditModalOpen}
+        onClose={handleCloseEditModal}
+        item={editingItem}
+        // `editingItem` is the snapshot the form was seeded from; photos come
+        // from the live list so each applied change shows up immediately.
+        photos={(editingItem && items.find((i) => i.id === editingItem.id)?.photos) ?? editingItem?.photos ?? []}
+        onSave={handleSaveEdit}
+        onAddPhoto={handleEditAddPhoto}
+        onReplacePhoto={handleEditReplacePhoto}
+        onDeletePhoto={handleEditDeletePhoto}
+      />
       <ClaimsListModal
         isOpen={isClaimsModalOpen}
         onClose={handleCloseClaimsModal}
