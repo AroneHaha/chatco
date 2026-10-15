@@ -1,10 +1,11 @@
 "use client";
 
-import { type ReactNode, useEffect, useId, useState } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { useAnnouncements } from "@/contexts/announcements-context";
 import { useLostAndFound } from "./use-lost-and-found";
 import { categories } from "./data";
 import LostItemCard from "@/components/commuter/lost-and-found/lost-item-card";
+import TripLedger, { TripLedgerSkeleton } from "@/components/commuter/lost-and-found/trip-ledger";
 import ProofPhotoPicker from "@/components/commuter/lost-and-found/proof-photo-picker";
 import RubberSegment from "@/components/ui/rubber-segment";
 import { getClaimDeadline } from "./claim-deadline";
@@ -34,6 +35,7 @@ import {
   UserRound,
   X,
   XCircle,
+  ZoomIn,
 } from "lucide-react";
 
 export default function LostAndFoundPage() {
@@ -72,6 +74,12 @@ export default function LostAndFoundPage() {
   const activeClaimFilterLabel = claimFilterOptions.find((opt) => opt.value === claimFilter)?.label ?? "All Statuses";
   const isClaimsTab = activeTab === "MY_CLAIMS";
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // A new tab starts at the top. Without this, a short tab inherits the
+  // previous tab's scroll offset and the pinned filter column starts cut off.
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    scrollAreaRef.current?.scrollTo({ top: 0 });
+  }, [activeTab]);
   const filtersId = useId();
   const activeFilterCount = Number(activeCategory !== "ALL") + Number(timeRange !== "ALL") + Number(Boolean(selectedDate)) + Number(isClaimsTab && claimFilter !== "ALL");
   // Category and time range are included in the collapsed filter count.
@@ -91,8 +99,12 @@ export default function LostAndFoundPage() {
   // thumbnail; this surfaces the complete description and a larger photo.
   const [detailItem, setDetailItem] = useState<LostItem | null>(null);
   const [detailPhotoIndex, setDetailPhotoIndex] = useState(0);
+  // Full-size photo viewer over the detail view; shares detailPhotoIndex so it
+  // opens on the photo being shown and the carousel follows what was viewed.
+  const [isPhotoViewerOpen, setIsPhotoViewerOpen] = useState(false);
   const openDetails = (item: LostItem) => {
     setDetailPhotoIndex(0);
+    setIsPhotoViewerOpen(false);
     setDetailItem(item);
   };
   // All photos (up to 3); older rows without a photos list fall back to the cover image.
@@ -112,7 +124,17 @@ export default function LostAndFoundPage() {
   useEffect(() => {
     if (!detailItem && !showClaimModal && !claimToCancel) return;
     const onKeyDown = (event: KeyboardEvent) => {
+      // Arrow keys page through the photos in the viewer.
+      if (isPhotoViewerOpen && detailPhotos.length > 1 && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+        stepDetailPhoto(event.key === "ArrowLeft" ? -1 : 1);
+        return;
+      }
       if (event.key !== "Escape") return;
+      // Innermost layer first: the photo viewer closes before the detail view.
+      if (isPhotoViewerOpen) {
+        setIsPhotoViewerOpen(false);
+        return;
+      }
       // The cancel confirmation can sit on top of the detail view, so it goes first.
       if (claimToCancel) {
         if (!isCancellingClaim) closeCancelClaimModal();
@@ -124,7 +146,9 @@ export default function LostAndFoundPage() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [detailItem, showClaimModal, claimToCancel, isCancellingClaim, isSubmittingClaim, closeCancelClaimModal, setShowClaimModal]);
+    // stepDetailPhoto only reads detailPhotos.length, which is listed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detailItem, showClaimModal, claimToCancel, isCancellingClaim, isSubmittingClaim, closeCancelClaimModal, setShowClaimModal, isPhotoViewerOpen, detailPhotos.length]);
   const formatDateTime = (dateStr: string | null) => {
     if (!dateStr) return "Not yet";
     try {
@@ -150,57 +174,63 @@ export default function LostAndFoundPage() {
     <div className="relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#050F1A]">
       
       {/* --- HEADER --- */}
-      {/* Storefront-style: search is the focal control, categories are a
-          scrollable strip instead of a dropdown, and everything sits in the
-          same max-w-7xl column as the grid so wide screens don't stretch it. */}
-      <div className="z-10 flex-shrink-0 border-b border-white/10 bg-[#071A2E]">
-        <div className="mx-auto w-full max-w-7xl px-4 pt-4 pb-3 lg:px-8 lg:pt-6 lg:pb-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div className="min-w-0">
-              <h1 className="text-xl font-bold leading-tight text-white lg:text-2xl">Lost & Found</h1>
-              <p className="mt-1 text-xs text-white/55">{headerSummary}</p>
-            </div>
-
-            <div className="grid grid-cols-3 rounded-lg border border-white/10 bg-[#0E1628] p-1 md:w-[25rem]">
-              {tabs.map(({ key, label, icon: Icon }) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => handleTabChange(key)}
-                  aria-pressed={activeTab === key}
-                  className={`relative inline-flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-md border px-2 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${
-                    activeTab === key
-                      ? "border-[#62A0EA]/45 bg-[#1A5FB4]/20 text-white"
-                      : "border-transparent text-white/60 hover:bg-white/5 hover:text-white"
-                  }`}
-                >
-                  <Icon className="h-4 w-4 flex-shrink-0" />
-                  <span className="truncate">{label}</span>
-                  {key === "MY_CLAIMS" && claimUpdatesUnreadCount > 0 && (
-                    <span
-                      aria-hidden="true"
-                      className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-[#FF6D3A] rounded-full text-[9px] font-bold text-white flex items-center justify-center ring-2 ring-[#0E1628] tabular-nums"
-                    >
-                      {claimUpdatesUnreadCount > 99 ? "99+" : claimUpdatesUnreadCount}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
+      {/* Title and the three sections only; finding and narrowing live in
+          the left column beside the results. */}
+      <div className="z-10 flex-shrink-0 overflow-hidden border-b border-white/10 bg-[#071A2E] [scrollbar-gutter:stable]">
+        <div className="mx-auto w-full max-w-[100rem] px-4 pt-5 lg:px-8 lg:pt-7">
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold leading-tight text-white lg:text-2xl">Lost & Found</h1>
+            <p className="mt-1 text-xs text-white/55">{headerSummary}</p>
           </div>
 
-          {/* Search is capped at lg: so it doesn't stretch; the date picker (and
-              claim status) stays pinned to the right edge. */}
-          <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-3 lg:gap-x-2.5">
-            <div className="relative min-w-0 lg:max-w-md">
+          <nav aria-label="Lost and found sections" className="mt-4 grid grid-cols-3 lg:mt-5 lg:flex lg:gap-8">
+            {tabs.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => handleTabChange(key)}
+                aria-pressed={activeTab === key}
+                className={`relative inline-flex h-11 min-w-0 items-center justify-center gap-2 text-sm font-semibold transition-colors after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:rounded-t-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA] lg:justify-start ${
+                  activeTab === key
+                    ? "text-white after:bg-[#62A0EA]"
+                    : "text-white/55 after:bg-transparent hover:text-white"
+                }`}
+              >
+                <Icon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+                <span className="truncate">{label}</span>
+                {key === "MY_CLAIMS" && claimUpdatesUnreadCount > 0 && (
+                  <span
+                    aria-label={`${claimUpdatesUnreadCount} claim update${claimUpdatesUnreadCount === 1 ? "" : "s"}`}
+                    className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#FF6D3A] px-1 text-[9px] font-bold tabular-nums text-white"
+                  >
+                    {claimUpdatesUnreadCount > 99 ? "99+" : claimUpdatesUnreadCount}
+                  </span>
+                )}
+              </button>
+            ))}
+          </nav>
+        </div>
+      </div>
+
+      {/* --- FILTERS + RESULTS --- */}
+      {/* Gutter is always reserved, so the centered page (wider screens) doesn't
+          shift sideways when a tall list adds a scrollbar and a short/empty
+          one removes it. The header reserves the same gutter to stay aligned. */}
+      <div ref={scrollAreaRef} className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+       <div className="mx-auto flex min-h-full w-full max-w-[100rem] flex-col p-4 pb-28 lg:p-8 lg:pb-8 xl:grid xl:grid-cols-[16.5rem_minmax(0,1fr)] xl:gap-10">
+        {/* Wide screens (xl): a pinned left column. Phones: search on top with the
+            rest folded behind the Filters button. */}
+        <aside aria-label="Search and filters" className="mb-5 flex flex-col gap-3 xl:sticky xl:top-8 xl:mb-0 xl:max-h-[calc(100dvh-14rem)] xl:gap-6 xl:self-start xl:overflow-y-auto xl:pb-2 xl:[scrollbar-width:thin]">
+          <div className="flex items-center gap-2">
+            <div className="relative min-w-0 flex-1">
               <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
               <input
                 type="search"
-                placeholder={isClaimsTab ? "Search claims by item, plate, driver, conductor..." : "Search item, plate, driver, or conductor..."}
+                placeholder="Item, plate, driver, conductor"
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
                 aria-label={isClaimsTab ? "Search claims" : "Search lost and found items"}
-                className="h-11 w-full rounded-lg border border-white/10 bg-[#0E1628] pl-10 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/45 focus:border-[#62A0EA] lg:h-10 [&::-webkit-search-cancel-button]:hidden"
+                className="h-11 w-full rounded-lg border border-white/10 bg-[#0E1628] pl-10 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/45 focus:border-[#62A0EA] xl:h-10 [&::-webkit-search-cancel-button]:hidden"
               />
             </div>
             <button
@@ -209,83 +239,77 @@ export default function LostAndFoundPage() {
               aria-expanded={filtersOpen}
               aria-controls={filtersId}
               aria-label={`Filters${activeFilterCount ? `, ${activeFilterCount} active` : ""}`}
-              className={`inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] lg:hidden ${filtersOpen || activeFilterCount > 0 ? "border-[#62A0EA]/45 bg-[#1A5FB4]/20 text-white" : "border-white/10 bg-[#0E1628] text-white/70 hover:bg-white/5"}`}
+              className={`inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] xl:hidden ${filtersOpen || activeFilterCount > 0 ? "border-[#62A0EA]/45 bg-[#1A5FB4]/20 text-white" : "border-white/10 bg-[#0E1628] text-white/70 hover:bg-white/5"}`}
             >
               <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Filters</span>
               {activeFilterCount > 0 && <span aria-hidden="true" className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#1A5FB4] px-1 text-[10px] tabular-nums text-white">{activeFilterCount}</span>}
               <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform motion-reduce:transition-none ${filtersOpen ? "rotate-180" : ""}`} />
             </button>
-            <div id={filtersId} className={`col-span-2 grid-cols-1 gap-y-3 ${filtersOpen ? "grid" : "hidden"} lg:contents`}>
-              <div className="grid grid-cols-1 gap-2 sm:ml-auto sm:flex sm:gap-2.5 lg:col-start-2 lg:row-start-1">
+          </div>
+
+          <div id={filtersId} className={`flex-col gap-4 ${filtersOpen ? "flex" : "hidden"} xl:flex xl:gap-6`}>
+            <FilterGroup label={isClaimsTab ? "Date and status" : "Posted date"}>
+              <div className={`grid gap-2 ${isClaimsTab ? "sm:grid-cols-2 xl:grid-cols-1" : ""}`}>
                 <AdminDatePicker
                   popover
                   accent="blue"
-                  align="right"
+                  align="left"
                   ariaLabel="Filter lost and found items by posted date"
                   value={selectedDate}
                   onChange={handleDateChange}
-                  triggerClassName="h-11 w-full sm:w-48 lg:h-10"
-                  className="w-full sm:w-48"
+                  triggerClassName="h-11 w-full xl:h-10"
+                  className="w-full"
                 />
-                {isClaimsTab && (
-                  <div className="relative sm:w-40">
-                    <select
-                      value={claimFilter}
-                      onChange={(e) => handleClaimFilterChange(e.target.value as ClaimFilter)}
-                      className="h-11 w-full appearance-none rounded-lg border border-white/10 bg-[#0E1628] px-3 pr-9 text-sm font-semibold text-white/80 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA] lg:h-10"
-                      aria-label="Filter claims by status"
-                    >
-                      {claimFilterOptions.map(opt => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
-                  </div>
-                )}
+                {isClaimsTab && <ClaimStatusSelect value={claimFilter} onChange={handleClaimFilterChange} options={claimFilterOptions} />}
               </div>
+            </FilterGroup>
 
-              {/* Posted-within window on the left, categories to its right.
-                  Stack on phones so each control has its own row. */}
-              <div className="flex min-w-0 flex-col gap-2.5 md:flex-row md:items-center md:gap-3 lg:col-span-2">
-                <RubberSegment<TimeRange>
-                  items={TIME_RANGE_OPTIONS}
-                  value={timeRange}
-                  onChange={handleTimeRangeChange}
-                  aria-label="Filter by date posted"
-                  size="md"
-                  radius={8}
-                  inset={3}
-                  trackColor="#0E1628"
-                  thumbColor="#143A6B"
-                  textColor="#FFFFFF"
-                  activeTextColor="#FFFFFF"
-                  className="w-full flex-shrink-0 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] md:w-auto"
-                />
-                <span aria-hidden="true" className="hidden h-6 w-px flex-shrink-0 bg-white/10 md:block" />
-                <div role="group" aria-label="Filter by category" className="-mx-4 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:px-0 [&::-webkit-scrollbar]:hidden">
-                  {categories.map(cat => (
-                    <button
-                      key={cat.value}
-                      type="button"
-                      onClick={() => handleCategoryChange(cat.value)}
-                      aria-pressed={activeCategory === cat.value}
-                      className={`h-9 flex-shrink-0 rounded-md border px-3 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${
-                        activeCategory === cat.value
-                          ? "border-[#62A0EA]/45 bg-[#1A5FB4]/20 text-white"
-                          : "border-white/10 bg-[#0E1628] text-white/60 hover:border-white/20 hover:text-white"
-                      }`}
-                    >
-                      {cat.label}
-                    </button>
-                  ))}
-                </div>
+            <FilterGroup label="Posted within">
+              <RubberSegment<TimeRange>
+                items={TIME_RANGE_OPTIONS}
+                value={timeRange}
+                onChange={handleTimeRangeChange}
+                aria-label="Filter by date posted"
+                size="md"
+                radius={8}
+                inset={3}
+                trackColor="#0E1628"
+                thumbColor="#143A6B"
+                textColor="#FFFFFF"
+                activeTextColor="#FFFFFF"
+                className="w-full shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]"
+              />
+            </FilterGroup>
+
+            <FilterGroup label="Category">
+              {/* Phones: one swipeable row. Desktop: a vertical list. */}
+              <div role="group" aria-label="Filter by category" className="-mx-4 flex min-w-0 gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] xl:mx-0 xl:flex-col xl:gap-1 xl:overflow-visible xl:px-0 [&::-webkit-scrollbar]:hidden">
+                {categories.map(cat => (
+                  <button
+                    key={cat.value}
+                    type="button"
+                    onClick={() => handleCategoryChange(cat.value)}
+                    aria-pressed={activeCategory === cat.value}
+                    // Desktop list: the selected row opens up (taller, deeper
+                    // indent) so the active category reads at a glance.
+                    className={`h-9 flex-shrink-0 rounded-md border px-3 text-xs font-semibold transition-[height,padding,background-color,border-color,color] duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] motion-reduce:transition-none xl:w-full xl:text-left ${
+                      activeCategory === cat.value
+                        ? "border-[#62A0EA]/45 bg-[#1A5FB4]/20 text-white xl:h-11 xl:px-4"
+                        : "border-white/10 bg-[#0E1628] text-white/60 hover:border-white/20 hover:text-white xl:h-8 xl:border-transparent xl:bg-transparent xl:hover:bg-white/[0.04]"
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
               </div>
-            </div>
+            </FilterGroup>
           </div>
+        </aside>
 
+        <div className="flex min-w-0 flex-1 flex-col">
           {activeChipCount > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mb-4 flex flex-wrap gap-2">
               {searchQuery.trim() && (
                 <button type="button" onClick={() => handleSearch("")} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/[0.07] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
                   Search
@@ -306,12 +330,6 @@ export default function LostAndFoundPage() {
               )}
             </div>
           )}
-        </div>
-      </div>
-
-      {/* --- GRID --- */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
-       <div className="mx-auto flex min-h-full w-full max-w-7xl flex-col p-4 pb-28 lg:p-8 lg:pb-8">
         {isLoading ? (
           activeTab === "MY_CLAIMS" ? (
             <div className="space-y-3">
@@ -322,18 +340,7 @@ export default function LostAndFoundPage() {
               ))}
             </div>
           ) : (
-            <div className={ITEM_GRID_CLASS}>
-              {Array.from({ length: 10 }).map((_, index) => (
-                <div key={index} className="overflow-hidden rounded-lg border border-white/8 bg-[#0B1E33]">
-                  <div className="aspect-square w-full animate-pulse motion-reduce:animate-none bg-white/5" />
-                  <div className="space-y-2 p-2.5 sm:p-3">
-                    <div className="h-3 w-4/5 rounded bg-white/6" />
-                    <div className="h-3 w-1/2 rounded bg-white/6" />
-                    <div className="h-8 w-full rounded-md bg-white/4" />
-                  </div>
-                </div>
-              ))}
-            </div>
+            <TripLedgerSkeleton />
           )
         ) : listError ? (
           <div className="flex flex-1 flex-col items-center justify-center text-center px-4">
@@ -373,22 +380,21 @@ export default function LostAndFoundPage() {
                 ))}
               </div>
             ) : (
-            <div className={ITEM_GRID_CLASS}>
-              {displayItems.map(item => (
-                <LostItemCard
-                  key={item.id}
-                  item={item}
-                  isWatched={watchlist.has(item.id)}
-                  claimStatus={claims.get(item.id)?.status || "NONE"}
-                  onToggleWatchlist={toggleWatchlist}
-                  onOpenClaimModal={openClaimModal}
-                  onCancelClaim={requestCancelClaim}
-                  onOpenDetails={openDetails}
-                  formatDate={formatDate}
-                  getStatusBadge={getStatusBadge}
-                />
-              ))}
-            </div>
+              <TripLedger
+                items={displayItems}
+                renderItem={item => (
+                  <LostItemCard
+                    item={item}
+                    isWatched={watchlist.has(item.id)}
+                    claimStatus={claims.get(item.id)?.status || "NONE"}
+                    onToggleWatchlist={toggleWatchlist}
+                    onOpenClaimModal={openClaimModal}
+                    onCancelClaim={requestCancelClaim}
+                    onOpenDetails={openDetails}
+                    getStatusBadge={getStatusBadge}
+                  />
+                )}
+              />
             )}
 
             {paginationData.totalPages > 1 && (
@@ -442,35 +448,43 @@ export default function LostAndFoundPage() {
             )}
           </>
         )}
+        </div>
        </div>
       </div>
 
       {/* --- ITEM DETAIL MODAL --- */}
       {detailItem && (
-        <div role="dialog" aria-modal="true" aria-labelledby="lf-detail-title" className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setDetailItem(null)}>
+        <div role="dialog" aria-modal="true" aria-labelledby="lf-detail-title" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setDetailItem(null)}>
           <div className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-white/10 bg-[#071A2E] shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
               <div className="relative aspect-[4/3] flex-shrink-0 bg-[#0A1E33] lg:aspect-auto lg:min-h-[520px]">
                 {activeDetailPhoto ? (
-                  <img
-                    src={activeDetailPhoto.url}
-                    alt={detailPhotos.length > 1 ? `${detailItem.itemName}, photo ${detailPhotoIndex + 1} of ${detailPhotos.length}` : detailItem.itemName}
-                    className="h-full w-full object-cover"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setIsPhotoViewerOpen(true)}
+                    className="group/photo relative block h-full w-full cursor-zoom-in focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA]"
+                    aria-label="View full photo"
+                  >
+                    <img
+                      src={activeDetailPhoto.url}
+                      alt={detailPhotos.length > 1 ? `${detailItem.itemName}, photo ${detailPhotoIndex + 1} of ${detailPhotos.length}` : detailItem.itemName}
+                      className="h-full w-full object-cover"
+                    />
+                    <span className="pointer-events-none absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-black/50 text-white opacity-0 transition-opacity group-hover/photo:opacity-100 group-focus-visible/photo:opacity-100">
+                      <ZoomIn className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                  </button>
                 ) : (
                   <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-white/20">
                     <PackageSearch className="h-12 w-12" />
                     <span className="text-[11px] font-semibold uppercase tracking-wider">No photo yet</span>
                   </div>
                 )}
-                <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-4">
+                <div className="pointer-events-none absolute left-0 top-0 p-4">
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-black/50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white backdrop-blur-sm">
                     <Tag className="h-3 w-3" />
                     {detailItem.category}
                   </span>
-                  <button autoFocus onClick={() => setDetailItem(null)} className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-black/50 text-white transition-colors hover:bg-black/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]" aria-label="Close item details">
-                    <X className="h-4 w-4" />
-                  </button>
                 </div>
                 {detailPhotos.length > 1 && (
                   <>
@@ -482,10 +496,12 @@ export default function LostAndFoundPage() {
                     </button>
                   </>
                 )}
-                <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 bg-gradient-to-t from-black/85 via-black/35 to-transparent p-4 pt-16">
+                {/* Pass-through so a click on the fade still opens the viewer;
+                    the thumbnails opt back in. */}
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 bg-gradient-to-t from-black/85 via-black/35 to-transparent p-4 pt-16">
                   <p className="text-xs font-semibold text-white/75">Posted {formatDate(detailItem.datePosted)}</p>
                   {detailPhotos.length > 1 && (
-                    <div className="flex flex-shrink-0 gap-1.5">
+                    <div className="pointer-events-auto flex flex-shrink-0 gap-1.5">
                       {detailPhotos.map((photo, index) => (
                         <button
                           key={photo.id}
@@ -509,10 +525,15 @@ export default function LostAndFoundPage() {
                   below stays reachable without hunting through a long
                   description first — same header/body/footer split the
                   claim modal already uses. */}
-              <div className="flex min-h-0 flex-col">
+              <div className="relative flex min-h-0 flex-col">
+                {/* Close sits on the details side, outside the scrolling body,
+                    so it stays put however long the description is. */}
+                <button autoFocus onClick={() => setDetailItem(null)} className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/60 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] lg:right-5 lg:top-5" aria-label="Close item details">
+                  <X className="h-4 w-4" />
+                </button>
                 <div className="min-h-0 flex-1 overflow-y-auto p-5 lg:p-6">
                   <div className="mb-5">
-                    <h2 id="lf-detail-title" className="text-xl font-bold leading-tight text-white">{detailItem.itemName}</h2>
+                    <h2 id="lf-detail-title" className="pr-11 text-xl font-bold leading-tight text-white">{detailItem.itemName}</h2>
                     {detailDeadline && (
                       <p className={`mt-1.5 flex items-center gap-1.5 text-xs font-semibold ${detailDeadline.isUrgent ? "text-amber-300" : "text-white/60"}`}>
                         <CalendarDays className="h-3.5 w-3.5" />
@@ -573,16 +594,61 @@ export default function LostAndFoundPage() {
         </div>
       )}
 
+      {/* --- FULL PHOTO VIEWER --- */}
+      {/* Above the detail view (z-[110] vs z-[100]); shows the whole photo
+          uncropped. Same pattern as the admin ID lightbox, plus paging for
+          items with several photos. */}
+      {detailItem && isPhotoViewerOpen && activeDetailPhoto && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${detailItem.itemName} photo viewer`}
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-black/95 p-4 sm:p-12"
+          onClick={() => setIsPhotoViewerOpen(false)}
+        >
+          <button
+            type="button"
+            autoFocus
+            onClick={() => setIsPhotoViewerOpen(false)}
+            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/5 text-white/70 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
+            aria-label="Close photo viewer"
+          >
+            <X className="h-5 w-5" />
+          </button>
+
+          <img
+            src={activeDetailPhoto.url}
+            alt={detailPhotos.length > 1 ? `${detailItem.itemName}, photo ${detailPhotoIndex + 1} of ${detailPhotos.length}` : detailItem.itemName}
+            className="max-h-full max-w-full rounded-md object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+
+          {detailPhotos.length > 1 && (
+            <>
+              <button type="button" onClick={(e) => { e.stopPropagation(); stepDetailPhoto(-1); }} className="absolute left-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/60 text-white transition-colors hover:bg-black/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] sm:left-5" aria-label="Previous photo">
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <button type="button" onClick={(e) => { e.stopPropagation(); stepDetailPhoto(1); }} className="absolute right-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/60 text-white transition-colors hover:bg-black/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] sm:right-5" aria-label="Next photo">
+                <ChevronRight className="h-5 w-5" />
+              </button>
+              <p aria-live="polite" className="pointer-events-none absolute inset-x-0 bottom-5 text-center text-xs font-semibold tabular-nums text-white/70">
+                {detailPhotoIndex + 1} / {detailPhotos.length}
+              </p>
+            </>
+          )}
+        </div>
+      )}
+
       {/* --- CLAIM MODAL --- */}
       {showClaimModal && itemToClaim && (
-        <div role="dialog" aria-modal="true" aria-labelledby="lf-claim-title" className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div role="dialog" aria-modal="true" aria-labelledby="lf-claim-title" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="flex h-[min(720px,88vh)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-white/10 bg-[#071A2E] shadow-2xl">
             <div className="flex flex-shrink-0 items-start justify-between gap-4 border-b border-white/10 p-5">
               <div className="min-w-0">
-                <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#FF6D3A]/25 bg-[#FF6D3A]/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[#FFB199]">
-                  <FileCheck2 className="h-3.5 w-3.5" />
+                <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#FFB199]">
+                  <FileCheck2 className="h-3.5 w-3.5" aria-hidden="true" />
                   Claim request
-                </div>
+                </p>
                 <h2 id="lf-claim-title" className="text-lg font-bold text-white">Proof of ownership</h2>
                 <p className="mt-1 line-clamp-1 text-xs text-white/60">
                   {itemToClaim.itemName} on {itemToClaim.plateNumber || "assigned vehicle"}
@@ -645,7 +711,7 @@ export default function LostAndFoundPage() {
 
       {/* --- CANCEL CLAIM CONFIRMATION MODAL --- */}
       {claimToCancel && (
-        <div role="alertdialog" aria-modal="true" aria-labelledby="lf-cancel-title" className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div role="alertdialog" aria-modal="true" aria-labelledby="lf-cancel-title" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md overflow-hidden rounded-xl border border-white/10 bg-[#071A2E] shadow-2xl">
             <div className="flex items-start gap-4 p-5">
               <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-red-500/30 bg-red-500/10 text-red-400">
@@ -716,10 +782,6 @@ const TIME_RANGE_PHRASES: Record<TimeRange, string> = {
   year: " in the last year",
 };
 
-// Storefront density: 2 tiles on phones up to 5 on desktop. lg stays at 4
-// because the 1024–1279px sidebar narrows the content column there.
-const ITEM_GRID_CLASS = "grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 xl:grid-cols-5";
-
 function buildVisiblePages(currentPage: number, totalPages: number): (number | "ellipsis")[] {
   if (totalPages <= 7) {
     return Array.from({ length: totalPages }, (_, index) => index + 1);
@@ -738,6 +800,37 @@ function buildVisiblePages(currentPage: number, totalPages: number): (number | "
     result.push(page);
     return result;
   }, []);
+}
+
+function FilterGroup({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-white/45">{label}</p>
+      {children}
+    </div>
+  );
+}
+
+function ClaimStatusSelect({ value, onChange, options }: {
+  value: ClaimFilter;
+  onChange: (value: ClaimFilter) => void;
+  options: { value: ClaimFilter; label: string }[];
+}) {
+  return (
+    <div className="relative w-full">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value as ClaimFilter)}
+        className="h-11 w-full appearance-none rounded-lg border border-white/10 bg-[#0E1628] px-3 pr-9 text-sm font-semibold text-white/80 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA] xl:h-10"
+        aria-label="Filter claims by status"
+      >
+        {options.map(opt => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
+    </div>
+  );
 }
 
 function DetailInfo({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
