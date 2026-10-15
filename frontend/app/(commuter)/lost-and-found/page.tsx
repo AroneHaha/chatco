@@ -201,7 +201,7 @@ export default function LostAndFoundPage() {
       {/* Title and the three sections only; finding and narrowing live in
           the left column beside the results. */}
       <div className="z-10 flex-shrink-0 overflow-hidden border-b border-white/10 bg-[#071A2E] light:border-gray-200 light:bg-white [scrollbar-gutter:stable]">
-        <div className="mx-auto w-full max-w-[100rem] px-4 pt-5 lg:px-8 lg:pt-7">
+        <div className="mx-auto w-full max-w-[84rem] px-4 pt-5 lg:px-8 lg:pt-7">
           <div className="min-w-0">
             <h1 className="text-xl font-bold leading-tight text-white light:text-gray-900 lg:text-2xl">Lost & Found</h1>
             <p className="mt-1 text-xs text-white/55 light:text-gray-500">{headerSummary}</p>
@@ -241,7 +241,7 @@ export default function LostAndFoundPage() {
           shift sideways when a tall list adds a scrollbar and a short/empty
           one removes it. The header reserves the same gutter to stay aligned. */}
       <div ref={scrollAreaRef} className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
-       <div className="mx-auto flex min-h-full w-full max-w-[100rem] flex-col p-4 pb-28 lg:p-8 lg:pb-8 xl:grid xl:grid-cols-[16.5rem_minmax(0,1fr)] xl:gap-10">
+       <div className="mx-auto flex min-h-full w-full max-w-[84rem] flex-col p-4 pb-28 lg:p-8 lg:pb-8 xl:grid xl:grid-cols-[16.5rem_minmax(0,1fr)] xl:gap-10">
         {/* Wide screens (xl): a pinned left column. Phones: search on top with the
             rest folded behind the Filters button. */}
         <aside aria-label="Search and filters" className="mb-5 flex flex-col gap-3 xl:sticky xl:top-8 xl:mb-0 xl:max-h-[calc(100dvh-14rem)] xl:gap-6 xl:self-start xl:overflow-y-auto xl:pb-2 xl:[scrollbar-width:thin]">

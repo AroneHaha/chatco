@@ -87,7 +87,7 @@ export default function TripLedger({ items, renderItem }: { items: LostItem[]; r
                 {/* A lone trip's count would just repeat the day total. */}
                 <TripMeta trip={trip} showCount={day.trips.length > 1} />
                 {/* Phones: one swipeable row per jeep. Wider screens: a wrapping grid. */}
-                <ul className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-2.5 overflow-x-auto px-4 pb-1 md:scroll-px-0 [scrollbar-width:none] md:mx-0 md:grid md:snap-none md:grid-cols-3 xl:grid-cols-4 md:gap-3 md:overflow-visible md:px-0 md:pb-0 [&::-webkit-scrollbar]:hidden">
+                <ul className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-2.5 overflow-x-auto px-4 pb-1 md:scroll-px-0 [scrollbar-width:none] md:mx-0 md:grid md:snap-none md:grid-cols-3 md:gap-3 md:overflow-visible md:px-0 md:pb-0 [&::-webkit-scrollbar]:hidden">
                   {trip.items.map(item => (
                     <li key={item.id} className="w-[44%] flex-shrink-0 snap-start sm:w-[31%] md:w-auto">
                       {renderItem(item)}
@@ -154,7 +154,7 @@ export function TripLedgerSkeleton() {
                 <div className="h-5 w-28 rounded bg-white/[0.08] light:bg-gray-200" />
                 <div className="hidden h-3 w-36 rounded bg-white/[0.05] light:bg-gray-100 md:block" />
               </div>
-              <div className="flex gap-2.5 overflow-hidden md:grid md:grid-cols-3 xl:grid-cols-4 md:gap-3">
+              <div className="flex gap-2.5 overflow-hidden md:grid md:grid-cols-3 md:gap-3">
                 {Array.from({ length: tiles }).map((_, i) => (
                   <div key={i} className="w-[44%] flex-shrink-0 overflow-hidden rounded-lg border border-white/8 bg-[#0B1E33] light:border-gray-200 light:bg-white sm:w-[31%] md:w-auto">
                     <div className="aspect-[4/3] animate-pulse bg-white/5 light:bg-gray-100 motion-reduce:animate-none" />
