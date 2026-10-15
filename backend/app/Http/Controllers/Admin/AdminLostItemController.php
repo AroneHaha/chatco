@@ -27,6 +27,7 @@ use Illuminate\Http\Request;
  *   POST   /api/v1/admin/lost-items/{itemId}/photos/{photoId} — replace a photo in place
  *   DELETE /api/v1/admin/lost-items/{itemId}/photos/{photoId} — remove a photo
  *   PATCH  /api/v1/admin/lost-items/{itemId}/reactivate      — EXPIRED → AVAILABLE
+ *   PATCH  /api/v1/admin/lost-items/reactivate               — bulk EXPIRED → AVAILABLE
  *   GET    /api/v1/admin/lost-items/{itemId}/claims          — claims for an item
  *   PATCH  /api/v1/admin/lost-items/{itemId}/claims/{claimId}/approve
  *   PATCH  /api/v1/admin/lost-items/{itemId}/claims/{claimId}/release
@@ -200,6 +201,40 @@ class AdminLostItemController extends Controller
         );
 
         return $this->successResponse($item, 'Item reactivated');
+    }
+
+    /**
+     * PATCH /admin/lost-items/reactivate  { item_ids: string[] }
+     * Bulk version of reactivate() for the Expired tab's multi-select. One
+     * request and one transaction instead of N calls (which would also run
+     * into the admin-write rate limit). Ids that are no longer EXPIRED or no
+     * longer exist are skipped, not failed, so a stale selection still
+     * reactivates everything it can.
+     */
+    public function reactivateMany(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'item_ids' => ['required', 'array', 'min:1', 'max:'.LostItemService::MAX_BULK_REACTIVATE],
+            'item_ids.*' => ['required', 'string', 'max:64'],
+        ]);
+
+        $result = $this->lostItemService->reactivateMany($validated['item_ids']);
+
+        $count = count($result['reactivated']);
+        if ($count > 0) {
+            $this->activityLogService->record(
+                ActivityLogCategory::LOST_FOUND,
+                $count === 1
+                    ? "Reactivated lost item \"{$result['names'][0]}\""
+                    : "Reactivated {$count} lost items: ".implode(', ', array_map(fn (string $name) => "\"{$name}\"", $result['names'])),
+                $request->user(),
+            );
+        }
+
+        return $this->successResponse([
+            'reactivated' => $result['reactivated'],
+            'skipped' => $result['skipped'],
+        ], $count === 1 ? '1 item reactivated' : "{$count} items reactivated");
     }
 
     /**

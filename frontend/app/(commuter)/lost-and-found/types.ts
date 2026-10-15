@@ -1,4 +1,8 @@
 export type ItemCategory = "ALL" | "ACCESSORY" | "BAG" | "WALLET" | "GADGET" | "CLOTHING" | "DOCUMENT" | "OTHER";
+/** Checked category filters; an empty list means "All" (no category filter). */
+export type CategorySelection = Exclude<ItemCategory, "ALL">[];
+/** Inclusive posted-date window ('YYYY-MM-DD', '' = open end). */
+export type DateWindow = { from: string; to: string };
 export type ClaimStatus = "NONE" | "PENDING" | "VALIDATED" | "REJECTED" | "RELEASED";
 export type ClaimFilter = "ALL" | Exclude<ClaimStatus, "NONE">;
 export type ViewTab = "ALL" | "WATCHLIST" | "MY_CLAIMS";

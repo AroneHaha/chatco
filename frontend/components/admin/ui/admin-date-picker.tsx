@@ -23,6 +23,11 @@ interface AdminDatePickerProps {
   popover?: boolean;
   /** Jump directly to a birth year instead of paging through every month. */
   yearNavigation?: boolean;
+  /** Earliest/latest selectable day ('YYYY-MM-DD'); days outside are disabled. */
+  min?: string;
+  max?: string;
+  /** Trigger text while no date is picked. */
+  placeholder?: string;
 }
 
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
@@ -56,7 +61,7 @@ const ACCENTS: Record<'blue' | 'red', Accent> = {
 // decide open direction before the panel itself has rendered/measured.
 const PANEL_HEIGHT_ESTIMATE = 336;
 
-export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'left', ariaLabel, className, triggerClassName, id, invalid, errorId, clearLabel = 'Clear date filter', popover = false, yearNavigation = false }: AdminDatePickerProps) {
+export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'left', ariaLabel, className, triggerClassName, id, invalid, errorId, clearLabel = 'Clear date filter', popover = false, yearNavigation = false, min, max, placeholder = 'mm/dd/yyyy' }: AdminDatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [openDirection, setOpenDirection] = useState<'down' | 'up'>('down');
   const [viewMonth, setViewMonth] = useState(() => (value ? parseISODate(value) : new Date()));
@@ -160,6 +165,11 @@ export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'lef
 
   const today = new Date();
   const selected = value ? parseISODate(value) : null;
+  // ISO dates compare correctly as strings.
+  const isOutOfBounds = (day: Date) => {
+    const iso = toISODate(day);
+    return (min !== undefined && min !== '' && iso < min) || (max !== undefined && max !== '' && iso > max);
+  };
 
   // Build a 6-row grid: leading days from the previous month (disabled, for
   // alignment only), the active month's days, trailing days from the next
@@ -185,7 +195,7 @@ export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'lef
 
   const displayLabel = selected
     ? selected.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    : 'mm/dd/yyyy';
+    : placeholder;
 
   return (
     <div className={`relative ${className ?? ''}`} ref={containerRef}>
@@ -276,17 +286,20 @@ export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'lef
             {cells.map(({ date, inMonth }, i) => {
               const isSelected = selected !== null && isSameDay(date, selected);
               const isToday = isSameDay(date, today);
+              const outOfBounds = inMonth && isOutOfBounds(date);
               return (
                 <button
                   key={i}
                   type="button"
-                  disabled={!inMonth}
+                  disabled={!inMonth || outOfBounds}
                   onClick={() => selectDay(date)}
                   aria-current={isToday ? 'date' : undefined}
                   aria-label={date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                   className={`mx-auto flex h-7 w-7 items-center justify-center rounded-md text-xs transition-colors ${
                     !inMonth
                       ? 'text-slate-700 cursor-default'
+                      : outOfBounds
+                        ? 'text-slate-600 cursor-not-allowed'
                       : isSelected
                         ? `${colors.solid} text-white font-semibold`
                         : isToday
@@ -304,7 +317,8 @@ export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'lef
             <button
               type="button"
               onClick={() => selectDay(today)}
-              className={`text-xs font-medium ${colors.text} hover:underline`}
+              disabled={isOutOfBounds(today)}
+              className={`text-xs font-medium ${colors.text} hover:underline disabled:cursor-not-allowed disabled:text-slate-600 disabled:no-underline`}
             >
               Today
             </button>

@@ -60,6 +60,9 @@ class LostItemService
 
     private const ITEM_EXPIRED = 'EXPIRED';
 
+    /** Cap on ids per bulk reactivate request (the admin grid shows 15 per page). */
+    public const MAX_BULK_REACTIVATE = 100;
+
     private const CLAIM_PENDING = 'PENDING';
 
     private const CLAIM_APPROVED = 'APPROVED';
@@ -84,7 +87,7 @@ class LostItemService
     public const NO_SHOW_REASON = 'Did not proceed with claiming the item by the scheduled pickup date';
 
     /** Shown to the claimant when the admin leaves the pickup reminder blank. */
-    public const DEFAULT_PICKUP_REMINDER = 'Bring a valid ID and the proof of ownership you submitted.';
+    public const DEFAULT_PICKUP_REMINDER = 'Bring a valid ID and the proof of ownership you submitted. Please note that approval does not guarantee release: staff will check your ID, proof and answers at pickup, and may still decline the claim if they do not match the item. If you do not come by the end of the pickup date, this approval is automatically cancelled and you will need to claim the item again.';
 
     /** Posted-within windows accepted by the commuter list endpoints' `range` filter. */
     public const TIME_RANGES = ['today', 'week', 'month', 'year'];
@@ -120,6 +123,7 @@ class LostItemService
             $query->whereDate('created_at', $filters['date']);
         }
         $this->applyRangeFilter($query, $filters['range'] ?? null);
+        $this->applyPostedFilters($query, $filters);
         if (! empty($filters['search'])) {
             $this->applySearchFilter($query, $filters['search']);
         }
@@ -454,16 +458,20 @@ class LostItemService
      */
     public function createManualClaim(User $admin, string $itemId, array $data): Claim
     {
-        // Lean fetch — see the comment in claim() above.
-        $item = $this->findItemOrFail($itemId);
+        return DB::transaction(function () use ($admin, $itemId, $data): Claim {
+            // Checked under the item lock: otherwise another admin approving a
+            // claim at the same moment could leave this walk-in PENDING on an
+            // already-APPROVED item, which could then be approved a second time.
+            $item = LostItem::whereKey($itemId)->lockForUpdate()->first();
+            if (! $item) {
+                throw LostFoundException::notFound('Item');
+            }
+            if (! in_array($item->status, [self::ITEM_AVAILABLE, self::ITEM_CLAIMED], true)) {
+                throw LostFoundException::itemNotClaimable(
+                    "This item is {$item->status} and cannot be claimed"
+                );
+            }
 
-        if (! in_array($item->status, [self::ITEM_AVAILABLE, self::ITEM_CLAIMED], true)) {
-            throw LostFoundException::itemNotClaimable(
-                "This item is {$item->status} and cannot be claimed"
-            );
-        }
-
-        return DB::transaction(function () use ($admin, $item, $data): Claim {
             $claim = Claim::create([
                 'item_id' => $item->id,
                 'claimant_id' => null,
@@ -499,7 +507,7 @@ class LostItemService
      *
      * @throws LostFoundException Commuter profile missing.
      */
-    public function myClaims(User $commuter, int $perPage = 10, ?string $status = null, ?string $date = null, ?string $search = null, ?string $range = null, ?string $category = null): LengthAwarePaginator
+    public function myClaims(User $commuter, int $perPage = 10, ?string $status = null, ?string $date = null, ?string $search = null, ?string $range = null, ?string $category = null, array $posted = []): LengthAwarePaginator
     {
         /** @var CommuterProfile $profile */
         $profile = $commuter->commuterProfile;
@@ -522,6 +530,9 @@ class LostItemService
         }
         if ($category) {
             $query->whereHas('item', fn ($itemQuery) => $itemQuery->where('category', $category));
+        }
+        if ($this->hasPostedFilters($posted)) {
+            $query->whereHas('item', fn ($itemQuery) => $this->applyPostedFilters($itemQuery, $posted));
         }
         if ($search) {
             $query->whereHas('item', fn ($itemQuery) => $this->applySearchFilter($itemQuery, $search));
@@ -632,7 +643,7 @@ class LostItemService
     /**
      * List the commuter's watchlist with item details, newest first.
      */
-    public function myWatchlist(User $commuter, int $perPage = 15, ?string $date = null, ?string $search = null, ?string $range = null, ?string $category = null): LengthAwarePaginator
+    public function myWatchlist(User $commuter, int $perPage = 15, ?string $date = null, ?string $search = null, ?string $range = null, ?string $category = null, array $posted = []): LengthAwarePaginator
     {
         $visibleStatuses = [self::ITEM_AVAILABLE, self::ITEM_CLAIMED];
 
@@ -644,7 +655,7 @@ class LostItemService
 
         return LostItemWatchlist::with(['item.vehicle'])
             ->where('commuter_id', $profile->id)
-            ->whereHas('item', function ($query) use ($visibleStatuses, $date, $search, $range, $category) {
+            ->whereHas('item', function ($query) use ($visibleStatuses, $date, $search, $range, $category, $posted) {
                 $query->whereIn('status', $visibleStatuses);
                 if ($category) {
                     $query->where('category', $category);
@@ -653,6 +664,7 @@ class LostItemService
                     $query->whereDate('created_at', $date);
                 }
                 $this->applyRangeFilter($query, $range);
+                $this->applyPostedFilters($query, $posted);
                 if ($search) {
                     $this->applySearchFilter($query, $search);
                 }
@@ -768,11 +780,14 @@ class LostItemService
             // Walk-in claimants (claimant_id null) have no CHATCO account to notify.
             if ($claim->claimant_id) {
                 $when = $pickupAt->copy()->timezone(config('app.timezone'))->format('M j, Y \\a\\t g:i A');
+                // The staff reminder goes on its own labelled line so it reads
+                // as a separate instruction, not a run-on sentence. The
+                // commuter's notification view keeps line breaks (pre-wrap).
                 $this->announcementService->notifyUser(
                     $claim->claimant_id,
                     'claim_approved',
                     "Claim approved: \"{$item->item_name}\"",
-                    "Your claim on \"{$item->item_name}\" was approved. Pick it up at {$pickupLocation} on {$when}. {$pickupReminder}",
+                    "Your claim on \"{$item->item_name}\" was approved. Pick it up at {$pickupLocation} on {$when}.\n\nReminder: {$pickupReminder}",
                     $item->id,
                 );
             }
@@ -976,14 +991,22 @@ class LostItemService
      */
     private function rejectNoShow(string $claimId): bool
     {
-        return DB::transaction(function () use ($claimId): bool {
-            $claim = Claim::whereKey($claimId)->lockForUpdate()->first();
-            if (! $claim || $claim->status !== self::CLAIM_APPROVED) {
+        // A claim never changes item, so its item_id can be read unlocked;
+        // the rows are then locked item -> claim, the same order the admin
+        // decisions use (see loadClaimForItem), so the two can't deadlock.
+        $itemId = Claim::whereKey($claimId)->value('item_id');
+        if (! $itemId) {
+            return false;
+        }
+
+        return DB::transaction(function () use ($claimId, $itemId): bool {
+            $item = LostItem::whereKey($itemId)->lockForUpdate()->first();
+            if (! $item || $item->status !== self::ITEM_APPROVED) {
                 return false;
             }
 
-            $item = LostItem::whereKey($claim->item_id)->lockForUpdate()->first();
-            if (! $item || $item->status !== self::ITEM_APPROVED) {
+            $claim = Claim::whereKey($claimId)->lockForUpdate()->first();
+            if (! $claim || $claim->status !== self::CLAIM_APPROVED) {
                 return false;
             }
 
@@ -1150,6 +1173,42 @@ class LostItemService
         return $item->fresh(['vehicle', 'photos']);
     }
 
+    /**
+     * Bulk reactivate(): brings every listed item that is still EXPIRED back
+     * to AVAILABLE with a fresh availability window. The eligible rows are
+     * locked first, so two admins submitting overlapping selections can't
+     * both count the same item, then flipped in a single UPDATE.
+     *
+     * @param  list<string>  $itemIds
+     * @return array{reactivated: list<string>, skipped: list<string>, names: list<string>}
+     */
+    public function reactivateMany(array $itemIds): array
+    {
+        $itemIds = array_values(array_unique($itemIds));
+
+        return DB::transaction(function () use ($itemIds) {
+            $eligible = LostItem::whereIn('id', $itemIds)
+                ->where('status', self::ITEM_EXPIRED)
+                ->lockForUpdate()
+                ->get(['id', 'item_name']);
+
+            $reactivatedIds = $eligible->pluck('id')->all();
+            if ($reactivatedIds !== []) {
+                LostItem::whereIn('id', $reactivatedIds)->update([
+                    'status' => self::ITEM_AVAILABLE,
+                    'expired_at' => null,
+                    'available_since' => now(),
+                ]);
+            }
+
+            return [
+                'reactivated' => $reactivatedIds,
+                'skipped' => array_values(array_diff($itemIds, $reactivatedIds)),
+                'names' => $eligible->pluck('item_name')->all(),
+            ];
+        });
+    }
+
     // ── Private helpers ────────────────────────────────────────
 
     /**
@@ -1271,16 +1330,59 @@ class LostItemService
         }
     }
 
+    /**
+     * Limit a lost_items query to a posted-date window and/or a set of
+     * categories (commuter Lost & Found filters). date_from/date_to are
+     * inclusive whole days in the app timezone; like applyRangeFilter, they
+     * compare created_at directly (not whereDate) so it stays index-friendly.
+     * Missing keys are no-ops; the controller validates the values.
+     *
+     * @param  array{date_from?: ?string, date_to?: ?string, categories?: list<string>}  $filters
+     */
+    private function applyPostedFilters(Builder $query, array $filters): void
+    {
+        if (! empty($filters['date_from'])) {
+            $query->where('created_at', '>=', Carbon::parse($filters['date_from'])->startOfDay());
+        }
+        if (! empty($filters['date_to'])) {
+            $query->where('created_at', '<', Carbon::parse($filters['date_to'])->addDay()->startOfDay());
+        }
+        if (! empty($filters['categories'])) {
+            $query->whereIn('category', $filters['categories']);
+        }
+    }
+
+    private function hasPostedFilters(array $filters): bool
+    {
+        return ! empty($filters['date_from']) || ! empty($filters['date_to']) || ! empty($filters['categories']);
+    }
+
+    /**
+     * Loads a claim and its item for an admin decision (approve / release /
+     * reject), locking both rows for the rest of the caller's transaction.
+     *
+     * Without the locks, two decisions on the same item could both read the
+     * old state and both write: e.g. two admins approving different claims
+     * at once would both succeed, with one approval's auto-reject silently
+     * overwriting the other approval. Locking the ITEM first serialises every
+     * decision on that item, and the claim is then read fresh, after any
+     * earlier decision committed. Lock order is always item -> claim (the
+     * no-show sweep follows it too) so these paths can't deadlock each other.
+     *
+     * Must be called inside a DB transaction.
+     */
     private function loadClaimForItem(string $itemId, string $claimId): Claim
     {
-        try {
-            return Claim::where('id', $claimId)
-                ->where('item_id', $itemId)
-                ->with('item')
-                ->firstOrFail();
-        } catch (ModelNotFoundException) {
+        $item = LostItem::whereKey($itemId)->lockForUpdate()->first();
+        $claim = $item
+            ? Claim::where('id', $claimId)->where('item_id', $itemId)->lockForUpdate()->first()
+            : null;
+
+        if (! $claim) {
             throw LostFoundException::notFound('Claim');
         }
+
+        return $claim->setRelation('item', $item);
     }
 
     /** $admin is null for system rejections (no-show sweep). */

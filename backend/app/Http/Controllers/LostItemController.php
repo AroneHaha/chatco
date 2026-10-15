@@ -8,6 +8,7 @@ use App\Support\LostFound\LostFoundException;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 
 /**
  * Sprint 6 (T3) — Lost & Found shared endpoints (browse + claim + watchlist).
@@ -33,13 +34,17 @@ class LostItemController extends Controller
     ) {}
 
     /**
-     * GET /lost-found?status=&category=&search=&date=&range=&per_page=
+     * GET /lost-found?status=&category=&categories[]=&search=&date=&date_from=&date_to=&range=&per_page=
      */
     public function index(Request $request): JsonResponse
     {
         $range = $request->string('range')->toString() ?: null;
         if (! $this->isValidRange($range)) {
             return $this->errorResponse('Invalid time range filter', 422);
+        }
+        $posted = $this->postedFilters($request);
+        if ($posted instanceof JsonResponse) {
+            return $posted;
         }
 
         $filters = [
@@ -48,6 +53,7 @@ class LostItemController extends Controller
             'search'   => $request->string('search')->toString() ?: null,
             'date'     => $request->string('date')->toString() ?: null,
             'range'    => $range,
+            ...$posted,
         ];
         $perPage = min(max((int) $request->integer('per_page', 15), 1), 50);
 
@@ -107,11 +113,15 @@ class LostItemController extends Controller
         if (! $this->isValidRange($range)) {
             return $this->errorResponse('Invalid time range filter', 422);
         }
+        $posted = $this->postedFilters($request);
+        if ($posted instanceof JsonResponse) {
+            return $posted;
+        }
 
         $perPage = min(max((int) $request->integer('per_page', 10), 1), 50);
 
         try {
-            $claims = $this->lostItemService->myClaims($request->user(), $perPage, $status, $date, $search, $range, $category);
+            $claims = $this->lostItemService->myClaims($request->user(), $perPage, $status, $date, $search, $range, $category, $posted);
         } catch (LostFoundException $e) {
             return $this->errorResponse($e->getMessage(), 422);
         }
@@ -184,6 +194,10 @@ class LostItemController extends Controller
         if (! $this->isValidRange($range)) {
             return $this->errorResponse('Invalid time range filter', 422);
         }
+        $posted = $this->postedFilters($request);
+        if ($posted instanceof JsonResponse) {
+            return $posted;
+        }
 
         try {
             $watchlist = $this->lostItemService->myWatchlist(
@@ -193,12 +207,47 @@ class LostItemController extends Controller
                 $search,
                 $range,
                 $category,
+                $posted,
             );
         } catch (LostFoundException $e) {
             return $this->errorResponse($e->getMessage(), 422);
         }
 
         return $this->successResponse($watchlist, 'Watchlist retrieved');
+    }
+
+    /**
+     * Posted-date window (date_from..date_to, inclusive, Y-m-d) and
+     * multi-category (categories[]) filters shared by the commuter list
+     * endpoints. Either end of the window may be omitted. Returns the
+     * filters for LostItemService::applyPostedFilters, or a 422 response.
+     *
+     * @return array{date_from: ?string, date_to: ?string, categories: list<string>}|JsonResponse
+     */
+    private function postedFilters(Request $request): array|JsonResponse
+    {
+        $rules = [
+            'date_from' => ['nullable', 'date_format:Y-m-d'],
+            'date_to' => ['nullable', 'date_format:Y-m-d'],
+            'categories' => ['nullable', 'array', 'max:20'],
+            'categories.*' => ['string', 'max:20'],
+        ];
+        // Only compare the ends when both are given: after_or_equal against
+        // a missing field would parse the field name itself as a date.
+        if ($request->filled('date_from')) {
+            $rules['date_to'][] = 'after_or_equal:date_from';
+        }
+
+        $validator = Validator::make($request->only(['date_from', 'date_to', 'categories']), $rules);
+        if ($validator->fails()) {
+            return $this->errorResponse($validator->errors()->first(), 422);
+        }
+
+        return [
+            'date_from' => $request->string('date_from')->toString() ?: null,
+            'date_to' => $request->string('date_to')->toString() ?: null,
+            'categories' => array_values(array_unique((array) $request->input('categories', []))),
+        ];
     }
 
     /** Null (no range) is valid; anything else must be one of TIME_RANGES. */

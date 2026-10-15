@@ -18,6 +18,7 @@ import {
   BusFront,
   CalendarDays,
   CalendarX2,
+  Check,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
@@ -39,8 +40,8 @@ import {
 
 export default function LostAndFoundPage() {
   const {
-    activeTab, handleTabChange, activeCategory, handleCategoryChange, claimFilter, handleClaimFilterChange, searchQuery, handleSearch,
-    selectedDate, handleDateChange, timeRange, handleTimeRangeChange,
+    activeTab, handleTabChange, activeCategories, handleCategoryToggle, claimFilter, handleClaimFilterChange, searchQuery, handleSearch,
+    dateWindow, handleDateWindowChange, clearDateWindow, timeRange, handleTimeRangeChange,
     setCurrentPage, apiData, isLoading, listError,
     watchlist, toggleWatchlist, claims, claimPageData, openClaimModal,
     claimToCancel, requestCancelClaim, closeCancelClaimModal, confirmCancelClaim, isCancellingClaim, cancelToast,
@@ -79,10 +80,22 @@ export default function LostAndFoundPage() {
   useEffect(() => {
     scrollAreaRef.current?.scrollTo({ top: 0 });
   }, [activeTab]);
+  // Paging swaps the list, but the results scroll inside this panel (not the
+  // window), so its offset would otherwise stay at the pager at the bottom.
+  const changePage = (update: (page: number) => number) => {
+    setCurrentPage(update);
+    scrollAreaRef.current?.scrollTo({ top: 0 });
+  };
   const filtersId = useId();
-  const activeFilterCount = Number(activeCategory !== "ALL") + Number(timeRange !== "ALL") + Number(Boolean(selectedDate)) + Number(isClaimsTab && claimFilter !== "ALL");
+  const hasDateWindow = Boolean(dateWindow.from || dateWindow.to);
+  // Posted dates can't be in the future, so both pickers stop at today.
+  const todayIso = toIsoDate(new Date());
+  const activeFilterCount = Number(activeCategories.length > 0) + Number(timeRange !== "ALL") + Number(hasDateWindow) + Number(isClaimsTab && claimFilter !== "ALL");
   // Category and time range are included in the collapsed filter count.
-  const activeChipCount = Number(Boolean(searchQuery.trim())) + Number(Boolean(selectedDate)) + Number(isClaimsTab && claimFilter !== "ALL");
+  const activeChipCount = Number(Boolean(searchQuery.trim())) + Number(hasDateWindow) + Number(isClaimsTab && claimFilter !== "ALL");
+  const dateWindowLabel = dateWindow.from && dateWindow.to
+    ? dateWindow.from === dateWindow.to ? formatDate(dateWindow.from) : `${formatDate(dateWindow.from)} to ${formatDate(dateWindow.to)}`
+    : dateWindow.from ? `From ${formatDate(dateWindow.from)}` : `Until ${formatDate(dateWindow.to)}`;
   // Only the All Items count is exact: Watchlist and Claims apply the category
   // filter client-side on top of the server total, so they get a fixed line.
   const headerSummary =
@@ -120,8 +133,10 @@ export default function LostAndFoundPage() {
     : null;
   const stepDetailPhoto = (step: number) =>
     setDetailPhotoIndex((index) => (index + step + detailPhotos.length) % detailPhotos.length);
+  // Name of the item whose claim was just sent; drives the success modal.
+  const [submittedClaimItem, setSubmittedClaimItem] = useState<string | null>(null);
   useEffect(() => {
-    if (!detailItem && !showClaimModal && !claimToCancel) return;
+    if (!detailItem && !showClaimModal && !claimToCancel && !submittedClaimItem) return;
     const onKeyDown = (event: KeyboardEvent) => {
       // Arrow keys page through the photos in the viewer.
       if (isPhotoViewerOpen && detailPhotos.length > 1 && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
@@ -132,6 +147,10 @@ export default function LostAndFoundPage() {
       // Innermost layer first: the photo viewer closes before the detail view.
       if (isPhotoViewerOpen) {
         setIsPhotoViewerOpen(false);
+        return;
+      }
+      if (submittedClaimItem) {
+        setSubmittedClaimItem(null);
         return;
       }
       // The cancel confirmation can sit on top of the detail view, so it goes first.
@@ -147,7 +166,7 @@ export default function LostAndFoundPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
     // stepDetailPhoto only reads detailPhotos.length, which is listed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detailItem, showClaimModal, claimToCancel, isCancellingClaim, isSubmittingClaim, closeCancelClaimModal, setShowClaimModal, isPhotoViewerOpen, detailPhotos.length]);
+  }, [detailItem, showClaimModal, claimToCancel, isCancellingClaim, isSubmittingClaim, closeCancelClaimModal, setShowClaimModal, isPhotoViewerOpen, detailPhotos.length, submittedClaimItem]);
   const formatDateTime = (dateStr: string | null) => {
     if (!dateStr) return "Not yet";
     try {
@@ -166,7 +185,9 @@ export default function LostAndFoundPage() {
     setShowClaimModal(false);
   };
   const handleSubmitClaim = async () => {
-    await submitClaim();
+    // Read before submitting: a successful submit closes the claim modal.
+    const itemName = itemToClaim?.itemName ?? null;
+    if (await submitClaim()) setSubmittedClaimItem(itemName ?? "this item");
   };
 
   return (
@@ -249,17 +270,44 @@ export default function LostAndFoundPage() {
 
           <div id={filtersId} className={`flex-col gap-4 ${filtersOpen ? "flex" : "hidden"} xl:flex xl:gap-6`}>
             <FilterGroup label={isClaimsTab ? "Date and status" : "Posted date"}>
-              <div className={`grid gap-2 ${isClaimsTab ? "sm:grid-cols-2 xl:grid-cols-1" : ""}`}>
-                <AdminDatePicker
-                  popover
-                  accent="blue"
-                  align="left"
-                  ariaLabel="Filter lost and found items by posted date"
-                  value={selectedDate}
-                  onChange={handleDateChange}
-                  triggerClassName="h-11 w-full xl:h-10"
-                  className="w-full"
-                />
+              <div className="grid gap-2">
+                {/* Inclusive window: each picker's min/max stops the start
+                    from passing the end, so the range is always valid. */}
+                <div className="grid grid-cols-2 gap-2 xl:grid-cols-1">
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <span className="text-[10px] font-semibold text-white/45">From</span>
+                    <AdminDatePicker
+                      popover
+                      accent="blue"
+                      align="left"
+                      ariaLabel="Show items posted from this date"
+                      clearLabel="Clear start date"
+                      placeholder="Start date"
+                      value={dateWindow.from}
+                      max={dateWindow.to || todayIso}
+                      onChange={(date) => handleDateWindowChange("from", date)}
+                      triggerClassName="h-11 w-full xl:h-10"
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <span className="text-[10px] font-semibold text-white/45">To</span>
+                    <AdminDatePicker
+                      popover
+                      accent="blue"
+                      align="right"
+                      ariaLabel="Show items posted up to this date"
+                      clearLabel="Clear end date"
+                      placeholder="End date"
+                      value={dateWindow.to}
+                      min={dateWindow.from || undefined}
+                      max={todayIso}
+                      onChange={(date) => handleDateWindowChange("to", date)}
+                      triggerClassName="h-11 w-full xl:h-10"
+                      className="w-full"
+                    />
+                  </div>
+                </div>
                 {isClaimsTab && <ClaimStatusSelect value={claimFilter} onChange={handleClaimFilterChange} options={claimFilterOptions} />}
               </div>
             </FilterGroup>
@@ -282,25 +330,33 @@ export default function LostAndFoundPage() {
             </FilterGroup>
 
             <FilterGroup label="Category">
-              {/* Phones: one swipeable row. Desktop: a vertical list. */}
-              <div role="group" aria-label="Filter by category" className="-mx-4 flex min-w-0 gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] xl:mx-0 xl:flex-col xl:gap-1 xl:overflow-visible xl:px-0 [&::-webkit-scrollbar]:hidden">
-                {categories.map(cat => (
-                  <button
-                    key={cat.value}
-                    type="button"
-                    onClick={() => handleCategoryChange(cat.value)}
-                    aria-pressed={activeCategory === cat.value}
-                    // Desktop list: the selected row opens up (taller, deeper
-                    // indent) so the active category reads at a glance.
-                    className={`h-9 flex-shrink-0 rounded-md border px-3 text-xs font-semibold transition-[height,padding,background-color,border-color,color] duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] motion-reduce:transition-none xl:w-full xl:text-left ${
-                      activeCategory === cat.value
-                        ? "border-[#62A0EA]/45 bg-[#1A5FB4]/20 text-white xl:h-11 xl:px-4"
-                        : "border-white/10 bg-[#0E1628] text-white/60 hover:border-white/20 hover:text-white xl:h-8 xl:border-transparent xl:bg-transparent xl:hover:bg-white/[0.04]"
-                    }`}
-                  >
-                    {cat.label}
-                  </button>
-                ))}
+              {/* Checkboxes: any mix of categories. "All" is checked exactly
+                  when nothing specific is, and checking it clears the rest.
+                  Phones: two columns. Desktop: a vertical list. */}
+              <div role="group" aria-label="Filter by category" className="grid grid-cols-2 gap-1 xl:grid-cols-1">
+                {categories.map(cat => {
+                  const checked = cat.value === "ALL" ? activeCategories.length === 0 : activeCategories.includes(cat.value);
+                  return (
+                    <label
+                      key={cat.value}
+                      className={`flex h-9 cursor-pointer items-center gap-2.5 rounded-md px-2 text-xs font-semibold transition-colors duration-200 motion-reduce:transition-none ${checked ? "bg-[#1A5FB4]/15 text-white" : "text-white/60 hover:bg-white/[0.04] hover:text-white"}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => handleCategoryToggle(cat.value)}
+                        className="peer sr-only"
+                      />
+                      <span
+                        aria-hidden="true"
+                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors duration-200 peer-focus-visible:ring-2 peer-focus-visible:ring-[#62A0EA] peer-focus-visible:ring-offset-1 peer-focus-visible:ring-offset-[#050F1A] motion-reduce:transition-none ${checked ? "border-[#1A5FB4] bg-[#1A5FB4] text-white" : "border-white/25 bg-[#0E1628]"}`}
+                      >
+                        <Check className={`h-3 w-3 transition-[opacity,transform] duration-200 motion-reduce:transition-none ${checked ? "scale-100 opacity-100" : "scale-50 opacity-0"}`} strokeWidth={3} />
+                      </span>
+                      <span className="truncate">{cat.label}</span>
+                    </label>
+                  );
+                })}
               </div>
             </FilterGroup>
           </div>
@@ -315,9 +371,9 @@ export default function LostAndFoundPage() {
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
-              {selectedDate && (
-                <button type="button" onClick={() => handleDateChange("")} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/[0.07] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
-                  {formatDate(selectedDate)}
+              {hasDateWindow && (
+                <button type="button" onClick={clearDateWindow} aria-label={`Clear posted date filter, ${dateWindowLabel}`} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/[0.07] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
+                  {dateWindowLabel}
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
@@ -399,7 +455,7 @@ export default function LostAndFoundPage() {
               <div className="mt-8 mb-4 flex flex-wrap items-center justify-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  onClick={() => changePage(prev => Math.max(prev - 1, 1))}
                   disabled={paginationData.currentPage === 1}
                   className={`inline-flex h-10 items-center gap-2 rounded-md border px-3 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${
                     paginationData.currentPage === 1
@@ -417,7 +473,7 @@ export default function LostAndFoundPage() {
                     <button
                       key={page}
                       type="button"
-                      onClick={() => setCurrentPage(page)}
+                      onClick={() => { if (page !== paginationData.currentPage) changePage(() => page); }}
                       aria-current={paginationData.currentPage === page ? "page" : undefined}
                       className={`h-10 w-10 rounded-md text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${
                         paginationData.currentPage === page
@@ -431,7 +487,7 @@ export default function LostAndFoundPage() {
                 ))}
                 <button
                   type="button"
-                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, paginationData.totalPages))}
+                  onClick={() => changePage(prev => Math.min(prev + 1, paginationData.totalPages))}
                   disabled={paginationData.currentPage === paginationData.totalPages}
                   className={`inline-flex h-10 items-center gap-2 rounded-md border px-3 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${
                     paginationData.currentPage === paginationData.totalPages
@@ -555,15 +611,20 @@ export default function LostAndFoundPage() {
                     <DetailInfo icon={<UserRound className="h-4 w-4" />} label="Conductor" value={detailItem.conductorName || "Conductor unavailable"} />
                   </div>
 
-                  <div className="rounded-xl border border-amber-400/20 bg-amber-400/10 p-3">
-                    <div className="flex items-start gap-3">
-                      <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
-                      <div>
-                        <p className="text-xs font-bold text-amber-100">Claim reminder</p>
-                        <p className="mt-1 text-xs leading-5 text-amber-100/80">Submit specific proof only if this item is yours. Staff may ask for a valid ID during handover.</p>
+                  {/* `claims` holds only this commuter's own claims, so RELEASED
+                      means the item was already handed over to them, and a
+                      proof/handover reminder no longer applies. */}
+                  {claims.get(detailItem.id)?.status !== "RELEASED" && (
+                    <div className="rounded-xl border border-amber-400/20 bg-amber-400/10 p-3">
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
+                        <div>
+                          <p className="text-xs font-bold text-amber-100">Claim reminder</p>
+                          <p className="mt-1 text-xs leading-5 text-amber-100/80">Submit specific proof only if this item is yours. Staff may ask for a valid ID during handover.</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 <div className="flex flex-shrink-0 items-center gap-3 border-t border-white/10 p-5 lg:p-6">
@@ -714,6 +775,44 @@ export default function LostAndFoundPage() {
         </div>
       )}
 
+      {/* --- CLAIM SUBMITTED --- */}
+      {submittedClaimItem && (
+        <div role="alertdialog" aria-modal="true" aria-labelledby="lf-claim-sent-title" aria-describedby="lf-claim-sent-body" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden rounded-xl border border-white/10 bg-[#071A2E] shadow-2xl animate-fade-in">
+            <div className="flex items-start gap-4 p-5">
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+                <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+              </div>
+              <div className="min-w-0">
+                <h2 id="lf-claim-sent-title" className="text-base font-bold text-white">Claim request sent</h2>
+                <div id="lf-claim-sent-body" className="mt-1.5 space-y-2 text-sm leading-5 text-white/70">
+                  <p>
+                    Your claim on &ldquo;<span className="font-semibold text-white/80">{submittedClaimItem}</span>&rdquo; is now with the Lost &amp; Found desk for review.
+                  </p>
+                  <p>We&apos;ll notify you once it&apos;s approved, with where and when to pick it up. Bring a valid ID during handover.</p>
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 border-t border-white/10 p-5">
+              <button
+                onClick={() => setSubmittedClaimItem(null)}
+                className="h-11 rounded-xl border border-white/10 bg-white/5 text-sm font-semibold text-white/70 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
+              >
+                Done
+              </button>
+              <button
+                autoFocus
+                onClick={() => { setSubmittedClaimItem(null); handleTabChange("MY_CLAIMS"); }}
+                className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#1A5FB4] text-sm font-bold text-white transition-colors hover:bg-[#164A8F] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] focus-visible:ring-offset-2 focus-visible:ring-offset-[#071A2E]"
+              >
+                <ClipboardList className="h-4 w-4" aria-hidden="true" />
+                View my claims
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* --- CANCEL CLAIM CONFIRMATION MODAL --- */}
       {claimToCancel && (
         <div role="alertdialog" aria-modal="true" aria-labelledby="lf-cancel-title" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
@@ -805,6 +904,11 @@ function buildVisiblePages(currentPage: number, totalPages: number): (number | "
     result.push(page);
     return result;
   }, []);
+}
+
+/** Local-calendar 'YYYY-MM-DD' (matches AdminDatePicker's values). */
+function toIsoDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function FilterGroup({ label, children }: { label: string; children: ReactNode }) {

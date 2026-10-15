@@ -5,14 +5,18 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { RequestCancelledError } from '@/lib/api/client';
-import { LostFoundGrid } from '@/components/admin/lost-found/lost-found-grid';
+import { LostFoundGrid, SelectCheckbox } from '@/components/admin/lost-found/lost-found-grid';
 import { AddLostFoundModal } from '@/components/admin/lost-found/add-lost-found-modal';
 import { EditLostFoundModal, type EditLostFoundFormData } from '@/components/admin/lost-found/edit-lost-found-modal';
 import { ViewItemModal } from '@/components/admin/lost-found/view-item-modal';
 import { ClaimsListModal } from '@/components/admin/lost-found/claims-list-modal';
 import { TablePagination } from '@/components/admin/ui/table-pagination';
 import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
+import { PageTabs, type PageTabAccent } from '@/components/admin/ui/page-tabs';
+import { SearchBar } from '@/components/admin/ui/search-bar';
+import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 import {
+  AlertCircle,
   Archive,
   CheckCircle2,
   ChevronDown,
@@ -21,7 +25,10 @@ import {
   History,
   PackageSearch,
   Plus,
-  Search,
+  RefreshCw,
+  RotateCcw,
+  SlidersHorizontal,
+  XCircle,
 } from 'lucide-react';
 import {
   itemCategoriesWithAll,
@@ -42,6 +49,7 @@ import {
   deletePhoto as apiDeletePhoto,
   replacePhoto as apiReplacePhoto,
   reactivate as apiReactivateItem,
+  reactivateMany as apiReactivateItems,
   approveClaim as apiApproveClaim,
   releaseClaim as apiReleaseClaim,
   rejectClaim as apiRejectClaim,
@@ -119,10 +127,9 @@ export default function LostFoundPage() {
   const [isActing, setIsActing] = useState(false);
   const [pageMeta, setPageMeta] = useState<PageMeta>({ page: 1, lastPage: 1, total: 0 });
   const [viewedClaimMarkers, setViewedClaimMarkers] = useState<ViewedClaimMarkers>(readViewedClaimMarkers);
-  // Mobile-only: collapses the tab grid + filter row down to just the title
-  // and Add Item button, same collapse pattern as the conductor dashboard's
-  // MobileDashboardCard. Has no effect at md: and up (always expanded there).
-  const [isMobileFiltersExpanded, setIsMobileFiltersExpanded] = useState(true);
+  // Phones only: the date/category filters fold behind a Filters button while
+  // search stays visible, same as User Management. Always shown from md: up.
+  const [isMobileFiltersExpanded, setIsMobileFiltersExpanded] = useState(false);
 
   const [activeTab, setActiveTab] = useState<AdminTab>('ALL');
   const [activeCategory, setActiveCategory] = useState<ItemCategory | 'ALL'>('ALL');
@@ -134,6 +141,19 @@ export default function LostFoundPage() {
   const [selectedDate, setSelectedDate] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 15;
+
+  // Expired tab multi-select for bulk reactivation. Kept across pages so the
+  // desk can gather items from several pages, but cleared whenever the tab
+  // or a filter changes, so nothing hidden by the new filter stays selected.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkReactivating, setIsBulkReactivating] = useState(false);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const selectionKey = `${activeTab}|${activeCategory}|${debouncedSearchQuery}|${selectedDate}`;
+  const [selectionFor, setSelectionFor] = useState(selectionKey);
+  if (selectionKey !== selectionFor) {
+    setSelectionFor(selectionKey);
+    setSelectedIds(new Set());
+  }
 
   /** Fetch the admin list (items + claims eager-loaded) and refresh the grid.
    * History (Released+Closed) and Expired are filtered server-side so their
@@ -257,12 +277,12 @@ export default function LostFoundPage() {
       ];
     }),
   );
-  const tabs: { key: AdminTab; label: string; description: string; icon: typeof PackageSearch }[] = [
+  const tabs: { key: AdminTab; label: string; description: string; icon: typeof PackageSearch; accent?: PageTabAccent }[] = [
     { key: 'ALL', label: 'All Items', description: 'Open inventory', icon: PackageSearch },
-    { key: 'PENDING_CLAIMS', label: 'Claim Review', description: 'New and pending only', icon: ClipboardList },
+    { key: 'PENDING_CLAIMS', label: 'Claim Review', description: 'New and pending only', icon: ClipboardList, accent: 'amber' },
     { key: 'TO_RELEASE', label: 'To Be Released', description: 'Approved for handover', icon: CheckCircle2 },
     { key: 'HISTORY', label: 'History', description: 'Closed records only', icon: History },
-    { key: 'EXPIRED', label: 'Expired', description: 'Archived records', icon: Archive },
+    { key: 'EXPIRED', label: 'Expired', description: 'Archived records', icon: Archive, accent: 'red' },
   ];
 
   const handleOpenAddModal = () => setIsAddModalOpen(true);
@@ -388,10 +408,49 @@ export default function LostFoundPage() {
     try {
       await apiReactivateItem(itemId);
       handleCloseDetailModal();
+      setSelectedIds((prev) => {
+        if (!prev.has(itemId)) return prev;
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
       void refresh();
     } catch (err) {
       setActionError(err instanceof LostFoundOperationError ? err.message : 'Unable to reactivate this item.');
     } finally {
+      setIsActing(false);
+    }
+  };
+
+  const toggleSelected = (itemId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+  };
+
+  /** Reactivate every selected Expired item in one bulk request. */
+  const handleBulkReactivate = async () => {
+    if (selectedIds.size === 0 || isBulkReactivating) return;
+    setActionError(null);
+    setActionNotice(null);
+    setIsBulkReactivating(true);
+    setIsActing(true);
+    try {
+      const { reactivated, skipped } = await apiReactivateItems([...selectedIds]);
+      const done = `${reactivated.length} item${reactivated.length === 1 ? '' : 's'} reactivated and back in All Items.`;
+      setActionNotice(skipped.length > 0
+        ? `${done} ${skipped.length} skipped because ${skipped.length === 1 ? 'it was' : 'they were'} no longer expired.`
+        : done);
+      setSelectedIds(new Set());
+      void refresh();
+    } catch (err) {
+      // Keep the selection so the desk can retry.
+      setActionError(err instanceof LostFoundOperationError ? err.message : 'Unable to reactivate the selected items.');
+    } finally {
+      setIsBulkReactivating(false);
       setIsActing(false);
     }
   };
@@ -464,166 +523,199 @@ export default function LostFoundPage() {
     }
   };
 
+  const activeTabMeta = tabs.find((tab) => tab.key === activeTab) ?? tabs[0];
+  const filterControlClasses = 'h-11 w-full min-w-0 appearance-none rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 pr-9 text-base text-white focus:outline-none focus:border-[#62A0EA]/50 focus:ring-1 focus:ring-[#62A0EA]/30 scheme-dark md:w-48 md:text-sm';
+
   return (
-    <div className="h-[calc(100%+2rem)] w-[calc(100%+2rem)] flex flex-col overflow-hidden relative -mx-4 -mt-4 md:h-full md:w-full md:mx-0 md:mt-0">
-      {/* Header. On phones it breaks out of <main>'s padding to sit flush at the
-          top edge-to-edge (like the shared sticky header). On desktop it drops
-          the boxed-card look and becomes a borderless, transparent full-width
-          header — flush to the content edges like every other admin module —
-          with just a full-width bottom divider. */}
-      <div className="z-10 mb-4 flex-shrink-0 border-b border-white/10 bg-[#071A2E] p-4 md:mb-6 md:rounded-none md:bg-transparent md:px-0 md:pt-0 md:pb-5">
-        <div className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0">
-            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#62A0EA]/20 bg-[#1A5FB4]/15 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#8CB9F0]">
-              <PackageSearch className="h-3.5 w-3.5" />
-              Admin workspace
-            </div>
-            <h1 className="text-xl font-bold leading-tight text-white lg:text-2xl">Lost & Found Management</h1>
-            <p className="mt-1 text-xs text-slate-500">{pageMeta.total} records | Page {pageMeta.page} of {totalPages}</p>
-          </div>
-          {/* Below lg: the filter row stays a stacked column (no "right side" to
-              align to yet), so Add Item stays up here — outside the mobile
-              collapse below, so it's still reachable even while filters are
-              collapsed on phones. From lg: up, the row below goes horizontal
-              and this same action moves there instead (see the lg:-only
-              instance further down), right-aligned with the filters. */}
-          <button
-            onClick={handleOpenAddModal}
-            className="inline-flex h-9.5 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-[#FF6D3A] px-4 text-sm font-bold text-white shadow-lg shadow-[#FF6D3A]/25 transition-colors hover:bg-[#e55a2b] sm:w-auto lg:hidden"
-          >
-            <Plus size={16} />
-            Add Item
-          </button>
+    <div className="flex h-full min-h-[32rem] min-w-0 flex-col md:min-h-0">
+      {/* Same page chrome as User Management / Fleet: plain sticky title,
+          shared underline tabs with the primary action on their line, then
+          one filter row. */}
+      <StickyPageHeader className="mb-4 shrink-0">
+        <h1 className="text-xl font-bold text-white md:text-2xl">Lost & Found Management</h1>
+      </StickyPageHeader>
+
+      <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[#1E2D45]">
+        <div className="min-w-0 basis-full md:flex-1 md:basis-auto">
+          <PageTabs
+            className="border-b-0! [&>button]:min-h-11 [&>button]:flex-none"
+            activeId={activeTab}
+            onChange={(id) => { setActiveTab(id); setCurrentPage(1); }}
+            tabs={tabs.map(({ key, label, icon, accent }) => ({ id: key, label, icon, accent }))}
+          />
         </div>
-
-        {/* Mobile-only collapse: tab grid + filter row hide behind a toggle so
-            just the title and Add Item button stay visible on small screens —
-            same pattern as the conductor dashboard's MobileDashboardCard. The
-            md:!max-h-none override means this never collapses at md: and up.
-            overflow-hidden is only needed to actually crop content to zero
-            height while collapsed below md: — left on unconditionally it
-            also clips anything absolutely-positioned that opens from inside
-            here (the date picker's popover) even once expanded. So it only
-            stays hidden while genuinely collapsed; md:overflow-visible covers
-            md: and up unconditionally, since content is always expanded
-            there regardless of this mobile-only toggle's state. */}
-        <div
-          className={`transition-all duration-300 ease-in-out md:overflow-visible md:max-h-none! ${isMobileFiltersExpanded ? 'overflow-visible' : 'overflow-hidden'}`}
-          style={{ maxHeight: isMobileFiltersExpanded ? '700px' : '0px' }}
-        >
-          <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-5">
-            {tabs.map(({ key, label, description, icon: Icon }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => { setActiveTab(key); setCurrentPage(1); }}
-                className={`rounded-xl border p-3 text-left transition-colors ${
-                  activeTab === key
-                    ? 'border-[#62A0EA]/45 bg-[#1A5FB4]/20 text-white shadow-lg shadow-[#1A5FB4]/15'
-                    : 'border-white/10 bg-[#0E1628] text-slate-400 hover:bg-[#131C2E] hover:text-white'
-                }`}
-              >
-                <div className="mb-2 flex items-center gap-2">
-                  <Icon className="h-4 w-4 text-[#62A0EA]" />
-                  <span className="text-xs font-bold">{label}</span>
-                </div>
-                <p className="text-[10px] text-slate-500">{description}</p>
-              </button>
-            ))}
-          </div>
-
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="relative min-w-0 lg:w-100">
-              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-              <input
-                type="text"
-                placeholder="Search item, plate, driver, or conductor..."
-                value={searchQuery}
-                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-                className="h-8.25 w-full rounded-xl border border-white/10 bg-[#0E1628] pl-11 pr-4 text-sm text-white outline-none transition-colors placeholder:text-slate-500 focus:border-[#62A0EA]"
-              />
-            </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:justify-end">
-              <AdminDatePicker
-                accent="blue"
-                ariaLabel="Filter lost items by posted date"
-                value={selectedDate}
-                onChange={(next) => { setSelectedDate(next); setCurrentPage(1); }}
-                triggerClassName="h-8.25 w-full sm:w-44"
-                className="w-full sm:w-44"
-              />
-              <div className="relative sm:w-48">
-                <select
-                  value={activeCategory}
-                  onChange={(e) => { setActiveCategory(e.target.value as ItemCategory | 'ALL'); setCurrentPage(1); }}
-                  className="h-8.25 w-full appearance-none rounded-xl border border-white/10 bg-[#0E1628] px-4 pr-10 text-sm font-semibold text-slate-300 outline-none transition-colors focus:border-[#62A0EA]"
-                  aria-label="Filter lost items by category"
-                >
-                  {itemCategoriesWithAll.map(cat => (
-                    <option key={cat.value} value={cat.value}>
-                      {cat.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-              </div>
-              {/* lg:-only counterpart to the header's Add Item button above —
-                  once the row goes horizontal there's a real "right side" to
-                  align it to, flush with the filters at the same height. Width
-                  matches the Add Vehicle/Driver/Conductor buttons elsewhere in
-                  admin for a consistent "add" action size across modules. */}
-              <button
-                onClick={handleOpenAddModal}
-                className="hidden h-8.25 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#FF6D3A] px-4 text-sm font-bold text-white shadow-lg shadow-[#FF6D3A]/25 transition-colors hover:bg-[#e55a2b] lg:inline-flex lg:w-44"
-              >
-                <Plus size={16} />
-                Add Item
-              </button>
-            </div>
-          </div>
-        </div>
-
         <button
           type="button"
-          onClick={() => setIsMobileFiltersExpanded((prev) => !prev)}
-          aria-expanded={isMobileFiltersExpanded}
-          aria-label={isMobileFiltersExpanded ? 'Collapse filters' : 'Expand filters'}
-          className="-mx-4 -mb-4 mt-2 flex w-[calc(100%+2rem)] flex-shrink-0 items-center justify-center border-t border-white/5 py-1.5 text-slate-500 transition-colors hover:bg-white/5 hover:text-slate-300 active:bg-white/10 md:hidden"
+          onClick={handleOpenAddModal}
+          className="ml-auto inline-flex h-11 w-full -translate-y-1 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-4 sm:w-44 text-sm font-bold text-white shadow-lg shadow-[#62A0EA]/25 transition-colors hover:bg-[#4A8BD4] active:scale-[0.98]"
         >
-          <ChevronUp className={`h-4 w-4 transition-transform duration-300 ${isMobileFiltersExpanded ? 'rotate-180' : ''}`} />
+          <Plus size={16} aria-hidden="true" />
+          Add Item
         </button>
       </div>
 
-      {actionError && (
-        <div className="mx-4 md:mx-0 mb-4 bg-red-500/10 border border-red-500/30 rounded-md p-3 flex items-center gap-2">
-          <svg className="w-4 h-4 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
-          <p className="text-red-400 text-xs font-medium">{actionError}</p>
-          <button onClick={() => setActionError(null)} className="ml-auto text-red-400/60 hover:text-red-400 text-xs">Dismiss</button>
+      <div className="mb-4 flex shrink-0 flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="flex min-w-0 items-center gap-2 lg:w-80 lg:shrink-0">
+          <SearchBar
+            placeholder="Search item, plate, driver, or conductor..."
+            value={searchQuery}
+            onChange={(value) => { setSearchQuery(value); setCurrentPage(1); }}
+            className="min-w-0 flex-1 [&_input]:h-11 [&_input]:text-base md:[&_input]:text-sm"
+          />
+          <button
+            type="button"
+            onClick={() => setIsMobileFiltersExpanded((prev) => !prev)}
+            aria-expanded={isMobileFiltersExpanded}
+            aria-controls="lost-found-filters"
+            className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors md:hidden ${isMobileFiltersExpanded ? 'border-[#62A0EA]/40 bg-[#62A0EA]/10 text-[#62A0EA]' : 'border-[#1E2D45] bg-[#0E1628] text-slate-300'}`}
+          >
+            <SlidersHorizontal size={16} aria-hidden="true" />
+            Filters
+            <ChevronUp size={14} className={isMobileFiltersExpanded ? '' : 'rotate-180'} aria-hidden="true" />
+          </button>
+        </div>
+
+        <div id="lost-found-filters" className={`${isMobileFiltersExpanded ? 'grid' : 'hidden'} grid-cols-2 gap-2 md:flex md:items-center md:gap-3 lg:ml-auto`}>
+          <AdminDatePicker
+            accent="blue"
+            align="right"
+            ariaLabel="Filter lost items by posted date"
+            value={selectedDate}
+            onChange={(next) => { setSelectedDate(next); setCurrentPage(1); }}
+            triggerClassName="h-11 w-full md:w-44"
+            className="w-full md:w-44"
+          />
+          <div className="relative min-w-0">
+            <select
+              value={activeCategory}
+              onChange={(e) => { setActiveCategory(e.target.value as ItemCategory | 'ALL'); setCurrentPage(1); }}
+              className={filterControlClasses}
+              aria-label="Filter lost items by category"
+            >
+              {itemCategoriesWithAll.map(cat => (
+                <option key={cat.value} value={cat.value} className="bg-[#0E1628]">
+                  {cat.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden="true" />
+          </div>
+        </div>
+      </div>
+
+      {/* What the tab holds and where the list stands, kept from the old tab
+          tiles and header line. */}
+      <p className="mb-3 shrink-0 text-xs text-slate-500">
+        <span className="text-slate-300">{activeTabMeta.description}</span>
+        <span aria-hidden="true"> · </span>
+        {pageMeta.total} records
+        <span aria-hidden="true"> · </span>
+        Page {pageMeta.page} of {totalPages}
+      </p>
+
+      {actionNotice && (
+        <div role="status" className="mb-4 flex shrink-0 items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3">
+          <CheckCircle2 size={16} className="shrink-0 text-emerald-400" aria-hidden="true" />
+          <p className="text-sm text-emerald-400">{actionNotice}</p>
+          <button type="button" onClick={() => setActionNotice(null)} className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-emerald-400/70 hover:text-emerald-300">
+            <XCircle size={14} aria-hidden="true" />
+            Dismiss
+          </button>
         </div>
       )}
 
-      <div className="flex-1 min-h-0 flex flex-col px-4 md:px-0">
-        <div className="flex-1 min-h-0 overflow-y-auto pb-4">
+      {/* Expired tab: bulk selection bar. Appears once a card is ticked (the
+          cards' own checkboxes start a selection), and sits outside the
+          scrolling grid so it stays in reach however far down the desk is. */}
+      {activeTab === 'EXPIRED' && selectedIds.size > 0 && !isLoading && !listError && displayItems.length > 0 && (() => {
+        const selectedOnPage = displayItems.filter((item) => selectedIds.has(item.id)).length;
+        const allOnPage = selectedOnPage === displayItems.length;
+        const offPage = selectedIds.size - selectedOnPage;
+        return (
+          <div className="mb-3 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-[#1E2D45] bg-[#131C2E] px-3 py-2.5">
+            <SelectCheckbox
+              checked={allOnPage}
+              indeterminate={selectedOnPage > 0}
+              disabled={isBulkReactivating}
+              showLabel
+              label="Select all on this page"
+              onChange={() => setSelectedIds((prev) => {
+                const next = new Set(prev);
+                for (const item of displayItems) {
+                  if (allOnPage) next.delete(item.id);
+                  else next.add(item.id);
+                }
+                return next;
+              })}
+            />
+            <p className="text-xs text-slate-500" aria-live="polite">
+              <span className="font-semibold tabular-nums text-slate-200">{selectedIds.size}</span> selected{offPage > 0 && <> ({offPage} on other pages)</>}
+            </p>
+            <button type="button" onClick={() => setSelectedIds(new Set())} disabled={isBulkReactivating} className="text-xs font-medium text-slate-400 underline-offset-2 hover:text-white hover:underline disabled:opacity-50">
+              Clear selection
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleBulkReactivate()}
+              disabled={isBulkReactivating}
+              className="ml-auto inline-flex h-9 items-center justify-center gap-2 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/15 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100"
+            >
+              {isBulkReactivating
+                ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
+                : <RotateCcw size={14} aria-hidden="true" />}
+              {isBulkReactivating ? 'Reactivating...' : `Reactivate selected (${selectedIds.size})`}
+            </button>
+          </div>
+        );
+      })()}
+
+      {actionError && (
+        <div role="alert" className="mb-4 flex shrink-0 items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 p-3">
+          <AlertCircle size={16} className="shrink-0 text-red-400" aria-hidden="true" />
+          <p className="text-sm text-red-400">{actionError}</p>
+          <button type="button" onClick={() => setActionError(null)} className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-red-400/70 hover:text-red-300">
+            <XCircle size={14} aria-hidden="true" />
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="min-h-0 flex-1 overflow-y-auto pb-4 scrollbar-themed">
           {isLoading ? (
-            <div className="grid grid-cols-2 gap-5 xl:grid-cols-3 2xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 xl:grid-cols-3 2xl:grid-cols-4" aria-busy="true" aria-label="Loading lost items">
               {Array.from({ length: 8 }).map((_, index) => (
-                <div key={index} className="h-[430px] rounded-xl border border-white/10 bg-white/[0.04]">
-                  <div className="h-full w-full animate-pulse rounded-[inherit] bg-gradient-to-r from-white/[0.03] via-white/[0.07] to-white/[0.03]" />
+                <div key={index} className="overflow-hidden rounded-lg border border-[#1E2D45] bg-[#131C2E]">
+                  <div className="aspect-4/3 w-full animate-pulse bg-[#0E1628] motion-reduce:animate-none" />
+                  <div className="space-y-2.5 p-3 sm:p-4">
+                    <div className="h-2.5 w-1/3 animate-pulse rounded bg-[#1A2540] motion-reduce:animate-none" />
+                    <div className="h-4 w-3/4 animate-pulse rounded bg-[#1A2540] motion-reduce:animate-none" />
+                    <div className="h-3 w-full animate-pulse rounded bg-[#1A2540]/70 motion-reduce:animate-none" />
+                    <div className="grid grid-cols-2 gap-3 border-t border-[#1E2D45] pt-3">
+                      <div className="h-6 animate-pulse rounded bg-[#1A2540]/70 motion-reduce:animate-none" />
+                      <div className="h-6 animate-pulse rounded bg-[#1A2540]/70 motion-reduce:animate-none" />
+                    </div>
+                  </div>
+                  <div className="h-10 border-t border-[#1E2D45]" />
                 </div>
               ))}
             </div>
           ) : listError ? (
-            <div className="h-full flex flex-col items-center justify-center text-center px-4">
-              <p className="text-red-400 font-medium text-sm mb-3">{listError}</p>
-              <button onClick={() => void refresh()} className="px-4 py-2 rounded-md text-xs font-semibold bg-[#62A0EA] text-white">Try again</button>
+            <div className="flex h-full min-h-72 flex-col items-center justify-center gap-3 rounded-xl border border-red-400/20 bg-red-400/5 p-8">
+              <AlertCircle size={36} className="text-red-400" aria-hidden="true" />
+              <p className="text-center text-sm font-medium text-red-400">{listError}</p>
+              <button type="button" onClick={() => void refresh()} className="flex items-center gap-2 rounded-md bg-[#62A0EA] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4]">
+                <RefreshCw size={16} aria-hidden="true" /> Try again
+              </button>
             </div>
           ) : displayItems.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center px-4">
-              <h3 className="text-slate-300 font-semibold mb-1">No items found</h3>
-              <p className="text-slate-500 text-sm">Try adjusting your search or filters.</p>
+            <div className="flex h-full min-h-72 flex-col items-center justify-center rounded-xl border border-dashed border-[#1E2D45] px-4 text-center">
+              <PackageSearch size={36} className="mb-3 text-slate-600" aria-hidden="true" />
+              <h3 className="mb-1 font-semibold text-slate-300">No items found</h3>
+              <p className="text-sm text-slate-500">Try adjusting your search or filters.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
+            <div className="grid grid-cols-2 gap-4 xl:grid-cols-3 2xl:grid-cols-4">
               <LostFoundGrid
                 items={displayItems}
                 claimSummaries={claimSummaries}
@@ -633,6 +725,9 @@ export default function LostFoundPage() {
                 onClose={handleCloseItem}
                 onReactivate={handleReactivateItem}
                 isActing={isActing}
+                selectable={activeTab === 'EXPIRED'}
+                selectedIds={selectedIds}
+                onToggleSelect={toggleSelected}
               />
             </div>
           )}
@@ -640,7 +735,7 @@ export default function LostFoundPage() {
 
         {/* Pagination — outside the scrollable area above, so it never scrolls out of view. */}
         {!isLoading && !listError && displayItems.length > 0 && (
-          <div className="flex-shrink-0 bg-[#0E1628] border border-white/10 rounded-lg px-3 pb-3">
+          <div className="shrink-0">
             <TablePagination
               currentPage={pageMeta.page}
               totalPages={totalPages}

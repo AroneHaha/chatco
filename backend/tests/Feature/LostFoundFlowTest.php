@@ -262,6 +262,91 @@ class LostFoundFlowTest extends TestCase
         $this->assertSame(array_keys($ages), $all);
     }
 
+    public function test_commuter_browse_filters_by_posted_date_window_and_categories(): void
+    {
+        $this->travelTo(now()->setTime(12, 0));
+
+        $this->admin();
+        $items = [
+            'Window Wallet' => ['WALLET', 2],
+            'Window Bag' => ['BAG', 5],
+            'Window Gadget' => ['GADGET', 4],
+            'Window Old Bag' => ['BAG', 12],
+        ];
+        foreach ($items as $name => [$category]) {
+            $this->postJson('/api/v1/admin/lost-items', [
+                'item_name' => $name,
+                'description' => 'Item for posted window filter test',
+                'category' => $category,
+                'vehicle_id' => $this->vehicle->id,
+            ])->assertStatus(201);
+        }
+        foreach ($items as $name => [, $days]) {
+            LostItem::where('item_name', $name)->update(['created_at' => now()->subDays($days)]);
+        }
+
+        $this->commuter();
+        $names = fn (string $query) => collect($this->getJson("/api/v1/lost-found?{$query}")->assertStatus(200)->json('data.data'))->pluck('item_name')->all();
+        $from = now()->subDays(5)->toDateString();
+        $to = now()->subDays(2)->toDateString();
+
+        // Both ends are inclusive whole days.
+        $this->assertSame(['Window Wallet', 'Window Gadget', 'Window Bag'], $names("date_from={$from}&date_to={$to}"));
+        // Either end may be open.
+        $this->assertSame(['Window Wallet', 'Window Gadget', 'Window Bag'], $names("date_from={$from}"));
+        $this->assertSame(['Window Bag', 'Window Old Bag'], $names('date_to='.now()->subDays(5)->toDateString()));
+        // Several categories at once, combined with the window.
+        $this->assertSame(['Window Wallet', 'Window Bag', 'Window Old Bag'], $names('categories[]=WALLET&categories[]=BAG'));
+        $this->assertSame(['Window Wallet', 'Window Bag'], $names("categories[]=WALLET&categories[]=BAG&date_from={$from}&date_to={$to}"));
+    }
+
+    public function test_watchlist_and_claims_filter_by_posted_date_window_and_categories(): void
+    {
+        $this->travelTo(now()->setTime(12, 0));
+
+        $bag = $this->createItem();
+        $this->admin();
+        $this->postJson('/api/v1/admin/lost-items', [
+            'item_name' => 'Window Watch Wallet',
+            'description' => 'Wallet for watchlist window test',
+            'category' => 'WALLET',
+            'vehicle_id' => $this->vehicle->id,
+        ])->assertStatus(201);
+        $wallet = LostItem::where('item_name', 'Window Watch Wallet')->first();
+        $bag->forceFill(['created_at' => now()->subDays(10)])->save();
+
+        $this->commuter();
+        $this->postJson("/api/v1/lost-found/{$bag->id}/watchlist");
+        $this->postJson("/api/v1/lost-found/{$wallet->id}/watchlist");
+        $this->postJson("/api/v1/lost-found/{$bag->id}/claim", ['proof' => 'It has my keychain']);
+        $this->postJson("/api/v1/lost-found/{$wallet->id}/claim", ['proof' => 'My ID is inside it']);
+
+        $from = now()->subDays(3)->toDateString();
+        $this->getJson("/api/v1/commuter/watchlist?date_from={$from}")
+            ->assertStatus(200)
+            ->assertJsonPath('data.total', 1)
+            ->assertJsonPath('data.data.0.item_id', $wallet->id);
+        $this->getJson('/api/v1/commuter/claims?date_to='.now()->subDays(5)->toDateString())
+            ->assertStatus(200)
+            ->assertJsonPath('data.total', 1)
+            ->assertJsonPath('data.data.0.item_id', $bag->id);
+        $this->getJson('/api/v1/commuter/claims?categories[]=BAG&categories[]=WALLET')
+            ->assertStatus(200)
+            ->assertJsonPath('data.total', 2);
+    }
+
+    public function test_commuter_lists_reject_invalid_posted_date_window(): void
+    {
+        $this->commuter();
+        foreach (['/api/v1/lost-found', '/api/v1/commuter/watchlist', '/api/v1/commuter/claims'] as $endpoint) {
+            $this->getJson("{$endpoint}?date_from=2026-05-10&date_to=2026-05-01")->assertStatus(422);
+            $this->getJson("{$endpoint}?date_from=05/10/2026")->assertStatus(422);
+            $this->getJson("{$endpoint}?categories=BAG")->assertStatus(422);
+        }
+        // A single-day window is valid.
+        $this->getJson('/api/v1/lost-found?date_from=2026-05-10&date_to=2026-05-10')->assertStatus(200);
+    }
+
     public function test_commuter_browse_rejects_unknown_time_range(): void
     {
         $this->commuter();
@@ -1537,6 +1622,62 @@ class LostFoundFlowTest extends TestCase
         $this->assertNotNull($item->available_since);
     }
 
+    public function test_admin_can_bulk_reactivate_expired_items_and_skip_the_rest(): void
+    {
+        $this->admin();
+        // createItem() looks items up by a fixed name, so make distinct ones here.
+        [$first, $second, $stillAvailable] = array_map(function (string $name) {
+            $this->postJson('/api/v1/admin/lost-items', [
+                'item_name' => $name,
+                'description' => 'Item for the bulk reactivate test',
+                'category' => 'BAG',
+                'vehicle_id' => $this->vehicle->id,
+            ])->assertStatus(201);
+
+            return LostItem::where('item_name', $name)->firstOrFail();
+        }, ['Bulk Umbrella', 'Bulk Tote', 'Bulk Charger']);
+        $first->update(['status' => 'EXPIRED', 'expired_at' => now()]);
+        $second->update(['status' => 'EXPIRED', 'expired_at' => now()]);
+
+        $this->admin();
+        $response = $this->patchJson('/api/v1/admin/lost-items/reactivate', [
+            'item_ids' => [$first->id, $second->id, $stillAvailable->id, 'missing-item'],
+        ]);
+
+        $response->assertOk()->assertJsonPath('success', true);
+        $this->assertEqualsCanonicalizing([$first->id, $second->id], $response->json('data.reactivated'));
+        $this->assertEqualsCanonicalizing([$stillAvailable->id, 'missing-item'], $response->json('data.skipped'));
+        foreach ([$first, $second] as $item) {
+            $item->refresh();
+            $this->assertSame('AVAILABLE', $item->status);
+            $this->assertNull($item->expired_at);
+            $this->assertNotNull($item->available_since);
+        }
+        $this->assertSame('AVAILABLE', $stillAvailable->refresh()->status);
+        // One log entry for the batch; name order follows the DB, so don't pin it.
+        $log = \App\Models\ActivityLog::where('description', 'like', 'Reactivated 2 lost items:%')->sole();
+        $this->assertStringContainsString('"Bulk Umbrella"', $log->description);
+        $this->assertStringContainsString('"Bulk Tote"', $log->description);
+
+        // Running it again finds nothing left to reactivate.
+        $this->patchJson('/api/v1/admin/lost-items/reactivate', ['item_ids' => [$first->id]])
+            ->assertOk()
+            ->assertJsonPath('data.reactivated', [])
+            ->assertJsonPath('data.skipped', [$first->id]);
+    }
+
+    public function test_bulk_reactivate_validates_input_and_is_admin_only(): void
+    {
+        $this->admin();
+        $this->patchJson('/api/v1/admin/lost-items/reactivate', [])->assertStatus(422);
+        $this->patchJson('/api/v1/admin/lost-items/reactivate', ['item_ids' => []])->assertStatus(422);
+        $this->patchJson('/api/v1/admin/lost-items/reactivate', ['item_ids' => 'abc'])->assertStatus(422);
+        $this->patchJson('/api/v1/admin/lost-items/reactivate', ['item_ids' => array_map(fn ($i) => "id-{$i}", range(1, 101))])->assertStatus(422);
+
+        $this->commuter();
+        $this->patchJson('/api/v1/admin/lost-items/reactivate', ['item_ids' => ['abc']])->assertStatus(403);
+    }
+
     public function test_cannot_reactivate_non_expired_item(): void
     {
         $item = $this->createItem();
@@ -1562,6 +1703,10 @@ class LostFoundFlowTest extends TestCase
             'user_id' => $this->commuter->id,
             'type' => 'claim_approved',
         ]);
+        // The staff reminder sits on its own labelled line after the pickup details.
+        $message = \App\Models\Announcement::where('user_id', $this->commuter->id)->where('type', 'claim_approved')->value('message');
+        $this->assertStringContainsString('Pick it up at Calumpit Terminal Office on ', $message);
+        $this->assertStringEndsWith(".\n\nReminder: Bring a valid ID.", $message);
     }
 
     public function test_rejecting_claim_notifies_claimant(): void
