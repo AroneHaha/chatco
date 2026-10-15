@@ -454,7 +454,14 @@ export default function LostAndFoundPage() {
       {detailItem && (
         <div role="dialog" aria-modal="true" aria-labelledby="lf-detail-title" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setDetailItem(null)}>
           <div className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-white/10 bg-[#071A2E] shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+            {/* Stacked as a flex column below lg, not a one-column grid: grid
+                row sizing doesn't reliably reserve the photo's aspect-ratio
+                height (its image is percentage-sized, which counts as zero in
+                the row's minimum), so the details row started at the top and
+                sat over the photo, swallowing taps on the carousel arrows and
+                thumbnails. In a flex column the photo keeps its height
+                (flex-shrink-0) and the details take the rest. */}
+            <div className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
               <div className="relative aspect-[4/3] flex-shrink-0 bg-[#0A1E33] lg:aspect-auto lg:min-h-[520px]">
                 {activeDetailPhoto ? (
                   <button
@@ -523,7 +530,7 @@ export default function LostAndFoundPage() {
                   below stays reachable without hunting through a long
                   description first — same header/body/footer split the
                   claim modal already uses. */}
-              <div className="relative flex min-h-0 flex-col">
+              <div className="relative flex min-h-0 flex-1 flex-col">
                 {/* Close sits on the details side, outside the scrolling body,
                     so it stays put however long the description is. */}
                 <button autoFocus onClick={() => setDetailItem(null)} className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/60 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] lg:right-5 lg:top-5" aria-label="Close item details">
