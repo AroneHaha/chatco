@@ -4,6 +4,10 @@ use App\Models\ShiftLog;
 use App\Models\User;
 use Illuminate\Support\Facades\Broadcast;
 
+Broadcast::channel('admin.notifications', function (User $user): bool {
+    return $user->isAdmin();
+});
+
 // Public channel — any authenticated user can listen
 Broadcast::channel('vehicles', function () {
     return true;

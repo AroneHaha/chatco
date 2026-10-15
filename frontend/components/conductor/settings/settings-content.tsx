@@ -8,6 +8,9 @@ import { clearShift } from "@/lib/conductor/services/shift.service";
 import { useConductorShift } from "@/app/(conductor)/hooks/use-conductor-shift";
 import { useRemittanceData } from "@/app/(conductor)/hooks/use-remittance-data";
 import { SettingsSkeleton } from "@/components/conductor/ui/skeleton";
+import type { SignOutControl } from "@/components/commuter/profile/account-menu";
+
+export const LOGOUT_LOCKED_HINT = "Remit all pending collections before logging out.";
 
 /**
  * The actual Settings body — everything except page chrome (the outer
@@ -28,8 +31,12 @@ import { SettingsSkeleton } from "@/components/conductor/ui/skeleton";
  * "Settings" title (ConductorSettingsModal's sticky header) — the page has
  * no such chrome of its own, so it keeps this true (the default) and gets
  * the title from here instead.
+ *
+ * @param onSignOutControl Given by shells that show AccountMenu in their
+ * header (lg:+): receives the confirm trigger and remittance lock, and the
+ * bottom Log Out button is hidden at lg:+ so it isn't shown twice.
  */
-export default function SettingsContent({ showHeader = true }: { showHeader?: boolean }) {
+export default function SettingsContent({ showHeader = true, onSignOutControl }: { showHeader?: boolean; onSignOutControl?: (control: SignOutControl | null) => void }) {
   const { user, logout } = useAuth();
   const profileHeadingId = useId();
   const detailsHeadingId = useId();
@@ -92,6 +99,15 @@ export default function SettingsContent({ showHeader = true }: { showHeader?: bo
 
     return false;
   }, [debugLogoutUnlocked, shift, history, transactions]);
+
+  // Only offered once shift/remittance data has loaded: until then the lock
+  // can't be evaluated, and the confirmation dialog isn't rendered.
+  const isReady = shiftStatus !== "loading" && shiftStatus !== "error" && remitStatus !== "loading" && remitStatus !== "error";
+  useEffect(() => {
+    if (!onSignOutControl || !isReady) return;
+    onSignOutControl({ request: () => setShowLogoutConfirm(true), locked: logoutLocked });
+    return () => onSignOutControl(null);
+  }, [onSignOutControl, isReady, logoutLocked]);
 
   const handleLogout = () => {
     setShowLogoutConfirm(true);
@@ -277,7 +293,7 @@ export default function SettingsContent({ showHeader = true }: { showHeader?: bo
       </section>
 
       {/* ===== Logout (Bottom of scroll for both Mobile & Desktop) ===== */}
-      <div className="pt-6 border-t border-white/[0.06]">
+      <div className={`pt-6 border-t border-white/[0.06] ${onSignOutControl ? "lg:hidden" : ""}`}>
         {logoutLocked && (
           <div className="flex items-center justify-center gap-1.5 mb-3">
             <svg
@@ -294,7 +310,7 @@ export default function SettingsContent({ showHeader = true }: { showHeader?: bo
               />
             </svg>
             <p className="text-xs text-amber-400/70 font-medium">
-              Remit all pending collections before logging out.
+              {LOGOUT_LOCKED_HINT}
             </p>
           </div>
         )}

@@ -110,7 +110,7 @@ This is the actual read/write wiring across the codebase — which admin setting
 
 | Key | Read by |
 |---|---|
-| `maintenance_mode` | `BlockDuringMaintenance` middleware (blocks `POST /conductor/shifts/start` with `503`) **and** `SystemStatusController` ([public.md](public.md)) |
+| `maintenance_mode` | `BlockDuringMaintenance` middleware (returns `503` `code: "MAINTENANCE"` on every commuter/conductor route and commuter sign-up for the selected `maintenance_roles`; see [README.md](README.md#error-responses)) **and** `SystemStatusController` ([public.md](public.md)) |
 | `maintenance_message` | `SystemStatusController` |
 | `require_id_upload` | `Setting::requiresIdUpload()` — whether a `REGULAR` applicant must upload an ID at sign-up; `STUDENT`/`SENIOR`/`PWD` always need one regardless of this toggle |
 | `require_phone_verification` | *(none — see Known quirks)* |
@@ -329,7 +329,9 @@ Up to **3 photos per item**, position 0 mirrored onto `lost_items.image_url` for
 
 **POST /admin/lost-items/{itemId}/photos** — multipart, `image` (required, jpg/jpeg/png/webp, max 5 MB). **422** `"This item already has the maximum of 3 photos"` at the cap. Appended at the next open position.
 
-**DELETE /admin/lost-items/{itemId}/photos/{photoId}** — deletes the file and the row, then **re-compacts** the remaining photos to contiguous positions `0..n-1` and re-syncs `image_url` to whatever now sits at position 0 (`null` if the item has no photos left). Both: **Limiter:** admin-write (30/min). Logged as `LOST_FOUND` only on the add, not the delete.
+**POST /admin/lost-items/{itemId}/photos/{photoId}** — multipart, `image` (same rules as the add). Replaces that photo's file **in place**: same id, same position, and `image_url` follows it when it's position 0. The old file is deleted only after the row points at the new one; the row is locked so concurrent replaces can't orphan an upload. **404** `"Photo not found"` when the photo doesn't belong to the item. POST, not PATCH, because PHP doesn't parse multipart bodies on PATCH/PUT. Use this instead of delete + add, which would append the new file and promote the next photo to thumbnail.
+
+**DELETE /admin/lost-items/{itemId}/photos/{photoId}** — deletes the file and the row, then **re-compacts** the remaining photos to contiguous positions `0..n-1` and re-syncs `image_url` to whatever now sits at position 0 (`null` if the item has no photos left). All three: **Limiter:** admin-write (30/min). Logged as `LOST_FOUND` only on the add, not the replace or delete.
 
 ### PATCH /admin/lost-items/{itemId}/reactivate
 

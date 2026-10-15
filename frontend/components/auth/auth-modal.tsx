@@ -52,7 +52,7 @@ export default function AuthModal({ children, footer, busy, headingId, descripti
   const dismiss = () => {
     if (busy) return;
     if (onDismiss) onDismiss();
-    else if (dismissHref || standalone) router.replace(dismissHref ?? "/");
+    else if (dismissHref || standalone) router.replace(dismissHref ?? "/", { scroll: false });
     else router.back();
   };
 

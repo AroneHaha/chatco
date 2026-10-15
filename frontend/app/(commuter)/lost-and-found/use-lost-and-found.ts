@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ItemCategory, ClaimFilter, ClaimStatus, LostItem, ClaimData, PaginatedAPIResponse, TimeRange, ViewTab } from "./types";
-import { CLAIMS_PER_PAGE, ITEMS_PER_PAGE } from "./data";
+import { ItemCategory, CategorySelection, ClaimFilter, ClaimStatus, DateWindow, LostItem, ClaimData, PaginatedAPIResponse, TimeRange, ViewTab } from "./types";
+import { CLAIMS_PER_PAGE, ITEMS_PER_PAGE, categories as CATEGORY_OPTIONS } from "./data";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { RequestCancelledError } from "@/lib/api/client";
 import {
@@ -28,7 +28,7 @@ const MAX_WATCHLIST_PAGES = 500;
 /**
  * Sprint 6 (S6-T8) — Commuter Lost & Found hook, fully DB-backed.
  *
- *   list()        → GET    /api/v1/lost-found (paginated, category/search/date/range)
+ *   list()        → GET    /api/v1/lost-found (paginated, categories[]/search/date_from/date_to/range)
  *   claim()       → POST   /api/v1/lost-found/{id}/claim (proof of ownership)
  *   myClaims()    → GET    /api/v1/commuter/claims (item eager-loaded)
  *   cancelClaim() → DELETE /api/v1/lost-found/claims/{claimId}
@@ -47,8 +47,8 @@ const MAX_WATCHLIST_PAGES = 500;
  *   ALL       → server-paginated browse list
  *   WATCHLIST → server-paginated GET /commuter/watchlist
  *   MY_CLAIMS → server-paginated GET /commuter/claims
- * Every tab sends category/date/range/search to the server, so pagination
- * always matches what's shown.
+ * Every tab sends categories/date window/range/search to the server, so
+ * pagination always matches what's shown.
  *
  * Claim status mapping (backend → UI): PENDING→PENDING, APPROVED→VALIDATED,
  * REJECTED→REJECTED. When a commuter has several claims on one item (e.g.
@@ -56,16 +56,19 @@ const MAX_WATCHLIST_PAGES = 500;
  */
 export function useLostAndFound() {
   const [activeTab, setActiveTab] = useState<ViewTab>("ALL");
-  const [activeCategory, setActiveCategory] = useState<ItemCategory>("ALL");
+  // Checked categories; empty = "All". Kept in display order so an equal
+  // selection is an equal list.
+  const [activeCategories, setActiveCategories] = useState<CategorySelection>([]);
   const [claimFilter, setClaimFilter] = useState<ClaimFilter>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   // The input stays bound to `searchQuery` for instant keystroke feedback;
   // fetches key off the debounced value so typing doesn't fire a request
   // (and DB query) per keystroke.
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 400);
-  const [selectedDate, setSelectedDate] = useState("");
+  // Posted-date window (start/end pickers). Either end may be open.
+  const [dateWindow, setDateWindow] = useState<DateWindow>({ from: "", to: "" });
   // Posted-within window ("ALL" = no limit, the default newest-first list).
-  // Mutually exclusive with `selectedDate` — see the handlers below.
+  // Mutually exclusive with `dateWindow`; see the handlers below.
   const [timeRange, setTimeRange] = useState<TimeRange>("ALL");
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -112,7 +115,7 @@ export function useLostAndFound() {
   };
 
   /** Reload one page of the commuter's own claims from the DB. */
-  const loadClaims = useCallback(async (page = currentPage, filter = claimFilter, date = selectedDate, search = debouncedSearchQuery, range = timeRange, category = activeCategory, signal?: AbortSignal) => {
+  const loadClaims = useCallback(async (page = currentPage, filter = claimFilter, posted = dateWindow, search = debouncedSearchQuery, range = timeRange, cats = activeCategories, signal?: AbortSignal) => {
     setIsLoading(true);
     setListError(null);
     try {
@@ -120,10 +123,11 @@ export function useLostAndFound() {
         page,
         perPage: CLAIMS_PER_PAGE,
         status: toBackendClaimStatus(filter),
-        date: date || undefined,
+        dateFrom: posted.from || undefined,
+        dateTo: posted.to || undefined,
         search: search.trim() || undefined,
         range: toBackendRange(range),
-        category: category === "ALL" ? undefined : category,
+        categories: cats,
         signal,
       });
       const next = new Map<string, ClaimData>();
@@ -163,7 +167,7 @@ export function useLostAndFound() {
       setClaimPageData({ totalPages: 1, totalItems: 0, currentPage: page });
       setIsLoading(false);
     }
-  }, [claimFilter, currentPage, selectedDate, debouncedSearchQuery, timeRange, activeCategory]);
+  }, [claimFilter, currentPage, dateWindow, debouncedSearchQuery, timeRange, activeCategories]);
 
   // Flips true once fetchWatchlistItems() has returned a result whose single
   // page already covers the whole watchlist (lastPage === 1) — at that point
@@ -197,16 +201,17 @@ export function useLostAndFound() {
 
   useEffect(() => { void loadWatchlistIds(); }, [loadWatchlistIds]);
 
-  const fetchLostItems = useCallback(async (page: number, limit: number, category: ItemCategory, search: string, date: string, range: TimeRange, signal?: AbortSignal) => {
+  const fetchLostItems = useCallback(async (page: number, limit: number, cats: CategorySelection, search: string, posted: DateWindow, range: TimeRange, signal?: AbortSignal) => {
     setIsLoading(true);
     setListError(null);
     try {
       const result = await listItems({
         page,
         perPage: limit,
-        category: category === "ALL" ? undefined : category,
+        categories: cats,
         search: search.trim() || undefined,
-        date: date || undefined,
+        dateFrom: posted.from || undefined,
+        dateTo: posted.to || undefined,
         range: toBackendRange(range),
         signal,
       });
@@ -225,17 +230,18 @@ export function useLostAndFound() {
     }
   }, []);
 
-  const fetchWatchlistItems = useCallback(async (page: number, limit: number, date: string, search: string, range: TimeRange, category: ItemCategory, signal?: AbortSignal) => {
+  const fetchWatchlistItems = useCallback(async (page: number, limit: number, posted: DateWindow, search: string, range: TimeRange, cats: CategorySelection, signal?: AbortSignal) => {
     setIsLoading(true);
     setListError(null);
     try {
       const result = await fetchMyWatchlist({
         page,
         perPage: limit,
-        date: date || undefined,
+        dateFrom: posted.from || undefined,
+        dateTo: posted.to || undefined,
         search: search.trim() || undefined,
         range: toBackendRange(range),
-        category: category === "ALL" ? undefined : category,
+        categories: cats,
         signal,
       });
       setApiData({
@@ -248,7 +254,7 @@ export function useLostAndFound() {
       // on it is watched by definition — keep the heart id-set in sync.
       // Only an unfiltered single page is the whole watchlist; a filtered
       // one is a subset, so it may only add ids, never replace the set.
-      const isUnfiltered = category === "ALL" && range === "ALL" && !date && !search.trim();
+      const isUnfiltered = cats.length === 0 && range === "ALL" && !posted.from && !posted.to && !search.trim();
       if (result.lastPage === 1 && isUnfiltered) {
         // This one page IS the entire watchlist — it's now the authoritative
         // full set, making the separate multi-page walk in loadWatchlistIds()
@@ -278,23 +284,43 @@ export function useLostAndFound() {
   useEffect(() => {
     const controller = new AbortController();
     if (activeTab === "MY_CLAIMS") {
-      void loadClaims(currentPage, claimFilter, selectedDate, debouncedSearchQuery, timeRange, activeCategory, controller.signal);
+      void loadClaims(currentPage, claimFilter, dateWindow, debouncedSearchQuery, timeRange, activeCategories, controller.signal);
     } else if (activeTab === "WATCHLIST") {
-      void fetchWatchlistItems(currentPage, ITEMS_PER_PAGE, selectedDate, debouncedSearchQuery, timeRange, activeCategory, controller.signal);
+      void fetchWatchlistItems(currentPage, ITEMS_PER_PAGE, dateWindow, debouncedSearchQuery, timeRange, activeCategories, controller.signal);
     } else {
-      void fetchLostItems(currentPage, ITEMS_PER_PAGE, activeCategory, debouncedSearchQuery, selectedDate, timeRange, controller.signal);
+      void fetchLostItems(currentPage, ITEMS_PER_PAGE, activeCategories, debouncedSearchQuery, dateWindow, timeRange, controller.signal);
     }
     return () => controller.abort();
-  }, [activeTab, fetchLostItems, fetchWatchlistItems, loadClaims, currentPage, activeCategory, claimFilter, debouncedSearchQuery, selectedDate, timeRange]);
+  }, [activeTab, fetchLostItems, fetchWatchlistItems, loadClaims, currentPage, activeCategories, claimFilter, debouncedSearchQuery, dateWindow, timeRange]);
 
-  const handleTabChange = (tab: ViewTab) => { setActiveTab(tab); setActiveCategory("ALL"); setSearchQuery(""); setSelectedDate(""); setTimeRange("ALL"); setCurrentPage(1); };
-  const handleCategoryChange = (cat: ItemCategory) => { setActiveCategory(cat); setCurrentPage(1); };
+  const handleTabChange = (tab: ViewTab) => { setActiveTab(tab); setActiveCategories([]); setSearchQuery(""); setDateWindow({ from: "", to: "" }); setTimeRange("ALL"); setCurrentPage(1); };
+  /**
+   * Checkbox toggle. "All" clears every specific box; checking a specific
+   * box drops "All". Unchecking the last box, or checking every specific
+   * one, falls back to "All" (same result, and it also keeps items with no
+   * category, which a full category list would leave out).
+   */
+  const handleCategoryToggle = (cat: ItemCategory) => {
+    setActiveCategories(prev => {
+      if (cat === "ALL") return [];
+      const next = prev.includes(cat) ? prev.filter(value => value !== cat) : [...prev, cat];
+      if (next.length === ALL_SPECIFIC_CATEGORIES.length) return [];
+      return ALL_SPECIFIC_CATEGORIES.filter(value => next.includes(value));
+    });
+    setCurrentPage(1);
+  };
   const handleClaimFilterChange = (filter: ClaimFilter) => { setClaimFilter(filter); setCurrentPage(1); };
   const handleSearch = (val: string) => { setSearchQuery(val); setCurrentPage(1); };
-  // A specific posted date and a posted-within window would AND together into
+  // A posted-date window and a posted-within range would AND together into
   // either a redundant or an empty result, so picking one clears the other.
-  const handleDateChange = (date: string) => { setSelectedDate(date); if (date) setTimeRange("ALL"); setCurrentPage(1); };
-  const handleTimeRangeChange = (range: TimeRange) => { setTimeRange(range); if (range !== "ALL") setSelectedDate(""); setCurrentPage(1); };
+  // The pickers' min/max keep start <= end; the backend rejects it otherwise.
+  const handleDateWindowChange = (end: keyof DateWindow, date: string) => {
+    setDateWindow(prev => ({ ...prev, [end]: date }));
+    if (date) setTimeRange("ALL");
+    setCurrentPage(1);
+  };
+  const clearDateWindow = () => { setDateWindow({ from: "", to: "" }); setCurrentPage(1); };
+  const handleTimeRangeChange = (range: TimeRange) => { setTimeRange(range); if (range !== "ALL") setDateWindow({ from: "", to: "" }); setCurrentPage(1); };
 
   /**
    * Instant search feedback while the debounced server search catches up.
@@ -342,7 +368,7 @@ export function useLostAndFound() {
       try {
         if (wasWatched) await apiUnwatch(id);
         else await apiWatch(id);
-        if (activeTab === "WATCHLIST") void fetchWatchlistItems(currentPage, ITEMS_PER_PAGE, selectedDate, debouncedSearchQuery, timeRange, activeCategory);
+        if (activeTab === "WATCHLIST") void fetchWatchlistItems(currentPage, ITEMS_PER_PAGE, dateWindow, debouncedSearchQuery, timeRange, activeCategories);
       } catch {
         // Revert the optimistic flip.
         setWatchlist(prev => { const next = new Set(prev); if (wasWatched) next.add(id); else next.delete(id); return next; });
@@ -437,17 +463,17 @@ export function useLostAndFound() {
   };
   const getStatusBadge = (status: ClaimStatus) => {
     switch (status) {
-      case "PENDING": return "bg-amber-500/20 text-amber-400 border-amber-500/30";
-      case "VALIDATED": return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
-      case "REJECTED": return "bg-red-500/20 text-red-400 border-red-500/30";
-      case "RELEASED": return "bg-[#62A0EA]/20 text-[#8CB9F0] border-[#62A0EA]/30";
+      case "PENDING": return "bg-amber-500/20 text-amber-400 border-amber-500/30 light:text-amber-700";
+      case "VALIDATED": return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30 light:text-emerald-700";
+      case "REJECTED": return "bg-red-500/20 text-red-400 border-red-500/30 light:text-red-700";
+      case "RELEASED": return "bg-[#62A0EA]/20 text-[#8CB9F0] border-[#62A0EA]/30 light:text-[#1A5FB4]";
       default: return "";
     }
   };
 
   return {
-    activeTab, handleTabChange, activeCategory, handleCategoryChange, claimFilter, handleClaimFilterChange, searchQuery, handleSearch,
-    selectedDate, handleDateChange, timeRange, handleTimeRangeChange,
+    activeTab, handleTabChange, activeCategories, handleCategoryToggle, claimFilter, handleClaimFilterChange, searchQuery, handleSearch,
+    dateWindow, handleDateWindowChange, clearDateWindow, timeRange, handleTimeRangeChange,
     currentPage, setCurrentPage, apiData, isLoading, listError,
     watchlist, toggleWatchlist, claims, claimPageData,
     openClaimModal,
@@ -458,6 +484,11 @@ export function useLostAndFound() {
     displayItems, displayClaims, formatDate, getStatusBadge,
   };
 }
+
+/** Every specific category, in display order ("All" excluded). */
+const ALL_SPECIFIC_CATEGORIES = CATEGORY_OPTIONS
+  .map(option => option.value)
+  .filter((value): value is Exclude<ItemCategory, "ALL"> => value !== "ALL");
 
 /** UI time range → backend `range` param ("ALL" sends nothing). */
 function toBackendRange(range: TimeRange): LostFoundTimeRange | undefined {

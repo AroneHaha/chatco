@@ -138,7 +138,7 @@ class StudentRenewalService
                 $application->request_type = 'RENEWAL';
                 $application->requested_type = 'STUDENT';
                 $this->applications->saveSubmission($application, $data, $path, $user);
-                $this->announcements->notifyAdmins('STUDENT_RENEWAL_NEW', 'Student renewal awaiting review', $locked->first_name.' '.$locked->surname.' submitted enrollment proof.', $application->id);
+                $this->announcements->notifyAdmins('STUDENT_RENEWAL_NEW', 'Student renewal submitted: '.$locked->first_name.' '.$locked->surname, $locked->first_name.' '.$locked->surname.' submitted enrollment proof.', $application->id);
             }, 3);
         } catch (\Throwable $error) {
             $this->applications->deleteDocument($path);
@@ -254,7 +254,7 @@ class StudentRenewalService
                         }
                         $period = $this->periodLabel($year);
                         $deadline = $this->cutoff($year)->format('F j');
-                        $this->announcements->notifyUser($profile->id, 'STUDENT_RENEWAL', 'Annual student renewal', "Renew your student status {$period}. Submit a school ID showing the current school year or valid enrollment proof. Your discount continues throughout the renewal period. Without a submission by {$deadline}, your commuter type becomes Regular. Open Student Renewal to submit proof or choose No Longer a Student.", $profile->id);
+                        $this->announcements->notifyUser($profile->id, 'STUDENT_RENEWAL', "Renew student status by {$deadline}", "Renew your student status {$period}. Submit a school ID showing the current school year or valid enrollment proof. Your discount continues throughout the renewal period. Without a submission by {$deadline}, your commuter type becomes Regular. Open Student Renewal to submit proof or choose No Longer a Student.", $profile->id);
                     }, $failures);
                 }
             });

@@ -208,7 +208,7 @@ Shape B errors usually come from deep business rules (shift, payment and hail st
 | `422` | Validation failed, or a business rule refused the input |
 | `429` | Rate limited, a code requested too soon, or too many wrong code attempts |
 | `502` | Upstream failure: email delivery or the payment gateway |
-| `503` | Maintenance mode is on (`POST .../shifts/start` only) |
+| `503` | Maintenance mode is on for the caller's role (`code: "MAINTENANCE"`): login, commuter sign-up and every commuter/conductor route except `GET /user` and logout |
 
 ## Pagination
 
@@ -451,7 +451,7 @@ Every route below also exists under `/mobile/conductor/*`. One difference: the m
 | GET | `/conductor/drivers` | conductor-read |
 | GET | `/conductor/receipt-settings` | conductor-read |
 | GET | `/conductor/ratings` | conductor-read |
-| POST | `/conductor/shifts/start` | conductor-mutation (+ maintenance check) |
+| POST | `/conductor/shifts/start` | conductor-mutation |
 | POST | `/conductor/shifts/device/claim` | conductor-mutation |
 | POST | `/conductor/shifts/device/release` | conductor-mutation |
 | POST | `/conductor/remittances` | conductor-mutation |
@@ -551,6 +551,7 @@ Everything here requires role `A`. Rows marked `PUT/PATCH` accept either method.
 | Lost & Found | GET, POST | `/admin/lost-items` | writes: admin-write | [admin-content.md](admin-content.md#lost--found-management) |
 | | GET, PATCH | `/admin/lost-items/{itemId}` | | [admin-content.md](admin-content.md#lost--found-management) |
 | | POST | `/admin/lost-items/{itemId}/photos` | multipart | [admin-content.md](admin-content.md#photos) |
+| | POST | `/admin/lost-items/{itemId}/photos/{photoId}` | multipart, replace in place | [admin-content.md](admin-content.md#photos) |
 | | DELETE | `/admin/lost-items/{itemId}/photos/{photoId}` | | [admin-content.md](admin-content.md#photos) |
 | | PATCH | `/admin/lost-items/{itemId}/reactivate` | | [admin-content.md](admin-content.md#patch-adminlost-itemsitemidreactivate) |
 | | PATCH | `/admin/lost-items/{itemId}/close` | **unreachable — see quirks** | [admin-content.md](admin-content.md#patch-adminlost-itemsitemidclose) |

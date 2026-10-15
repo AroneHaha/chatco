@@ -100,19 +100,19 @@ function FeedbackContent() {
     return (
       // pb-24 clears the mobile bottom nav, which the commuter layout renders as
       // an absolute overlay — without it a centred card sits under the tab bar.
-      <div className="h-full w-full bg-[#050F1A] flex flex-col items-center justify-center p-6 pb-24 lg:pb-6">
+      <div className="h-full w-full bg-[#050F1A] light:bg-[#F8FAFC] flex flex-col items-center justify-center p-6 pb-24 lg:pb-6">
         <div
           role="status"
           aria-live="polite"
-          className="max-w-sm w-full bg-[#071A2E] border border-white/10 rounded-2xl p-8 flex flex-col items-center text-center animate-fade-in"
+          className="max-w-sm w-full bg-[#071A2E] light:bg-white border border-white/10 rounded-2xl p-8 light:border-gray-200 flex flex-col items-center text-center animate-fade-in"
         >
-          <div className="w-14 h-14 rounded-full border-4 border-[#62A0EA] border-t-transparent animate-spin" />
-          <h3 className="text-white font-bold text-base mt-5">
+          <div className="w-14 h-14 rounded-full border-4 border-[#62A0EA] border-t-transparent light:border-[#1A5FB4] light:border-t-transparent animate-spin" />
+          <h3 className="text-white font-bold text-base mt-5 light:text-gray-900">
             {scanStatus === "verifying"
               ? "Verifying QR signature…"
               : "Resolving today's crew…"}
           </h3>
-          <p className="text-white/50 text-sm mt-1.5 max-w-xs">
+          <p className="text-white/50 text-sm light:text-gray-500 mt-1.5 max-w-xs">
             {scanStatus === "verifying"
               ? "Checking the QR is genuine and not expired."
               : "Looking up the driver and conductor on duty."}
@@ -125,18 +125,18 @@ function FeedbackContent() {
   // ─── 3. ERROR STATE — typed message + retry ─────────────────
   if (scanStatus === "error" && scanError) {
     return (
-      <div className="h-full w-full bg-[#050F1A] flex flex-col items-center justify-center p-6 pb-24 lg:pb-6">
+      <div className="h-full w-full bg-[#050F1A] light:bg-[#F8FAFC] flex flex-col items-center justify-center p-6 pb-24 lg:pb-6">
         <div
           role="alert"
-          className="max-w-sm w-full bg-[#071A2E] border border-red-500/20 rounded-2xl p-8 flex flex-col items-center text-center space-y-4 animate-fade-in"
+          className="max-w-sm w-full bg-[#071A2E] light:bg-white border border-red-500/20 rounded-2xl p-8 flex flex-col items-center text-center space-y-4 animate-fade-in"
         >
           <div className="w-14 h-14 rounded-full bg-red-500/10 flex items-center justify-center">
-            <AlertTriangle className="w-7 h-7 text-red-400" />
+            <AlertTriangle className="w-7 h-7 text-red-400 light:text-red-600" />
           </div>
-          <h3 className="text-white font-bold text-lg">
+          <h3 className="text-white font-bold text-lg light:text-gray-900">
             {errorTitleForCode(scanError.code)}
           </h3>
-          <p className="text-white/50 text-sm max-w-xs">
+          <p className="text-white/50 text-sm light:text-gray-500 max-w-xs">
             {errorMessageForCode(scanError.code, scanError.message)}
           </p>
           <button
@@ -154,22 +154,22 @@ function FeedbackContent() {
   // ─── 4. SUCCESS STATE (post-submit) — kept from original ────
   if (isSubmitted) {
     return (
-      <div className="h-full w-full bg-[#050F1A] flex items-center justify-center p-6 pb-24 lg:pb-6">
+      <div className="h-full w-full bg-[#050F1A] light:bg-[#F8FAFC] flex items-center justify-center p-6 pb-24 lg:pb-6">
         <div
           role="status"
           aria-live="polite"
-          className="max-w-sm w-full bg-[#071A2E] border border-emerald-500/30 rounded-2xl p-8 flex flex-col items-center text-center space-y-5 animate-fade-in"
+          className="max-w-sm w-full bg-[#071A2E] light:bg-white border border-emerald-500/30 rounded-2xl p-8 flex flex-col items-center text-center space-y-5 animate-fade-in"
         >
           <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center">
-            <svg className="w-8 h-8 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <svg className="w-8 h-8 text-emerald-400 light:text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           </div>
-          <h3 className="text-white font-bold text-xl">Thank You!</h3>
-          <p className="text-white/50 text-sm max-w-xs">Your feedback has been recorded and will help us improve our service.</p>
+          <h3 className="text-white font-bold text-xl light:text-gray-900">Thank You!</h3>
+          <p className="text-white/50 text-sm light:text-gray-500 max-w-xs">Your feedback has been recorded and will help us improve our service.</p>
 
           {/* Circular countdown — decorative, the digit carries the meaning. */}
           <div className="relative w-24 h-24 flex items-center justify-center mt-2">
             <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 100 100" aria-hidden="true">
-              <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="6" />
+              <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="6" className="light:stroke-gray-200" />
               <circle
                 cx="50" cy="50" r="40"
                 fill="none"
@@ -177,18 +177,18 @@ function FeedbackContent() {
                 strokeWidth="6"
                 strokeLinecap="round"
                 strokeDasharray="251.3"
-                className="countdown-ring"
+                className="countdown-ring light:stroke-[#1A5FB4]"
               />
             </svg>
-            <span className="text-3xl font-extrabold text-white tabular-nums">{countdown}</span>
+            <span className="text-3xl font-extrabold text-white tabular-nums light:text-gray-900">{countdown}</span>
           </div>
 
-          <p className="text-white/30 text-xs font-medium">Returning to Home…</p>
+          <p className="text-white/30 text-xs font-medium light:text-gray-400">Returning to Home…</p>
 
           <button
             type="button"
             onClick={handleScanAnother}
-            className="mt-2 px-4 py-2 rounded-xl text-sm font-semibold text-[#62A0EA] hover:text-white hover:bg-white/5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
+            className="mt-2 px-4 py-2 rounded-xl text-sm font-semibold text-[#62A0EA] hover:text-white hover:bg-white/5 light:text-[#1A5FB4] light:hover:text-[#164A8F] light:hover:bg-gray-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
           >
             Scan another unit
           </button>
@@ -202,23 +202,23 @@ function FeedbackContent() {
     // Pinned header + independently scrolling body, matching the shell used by
     // lost-and-found and rewards. The form grows tall as each step unlocks, so
     // the title and the step progress stay visible while the user scrolls.
-    <div className="h-full w-full flex flex-col overflow-hidden bg-[#050F1A]">
+    <div className="h-full w-full flex flex-col overflow-hidden bg-[#050F1A] light:bg-[#F8FAFC]">
 
       {/* --- HEADER (fixed) --- */}
-      <div className="flex-shrink-0 border-b border-white/10 bg-[#071A2E] z-10">
+      <div className="flex-shrink-0 border-b border-white/10 bg-[#071A2E] light:border-gray-200 light:bg-white z-10">
         <div className="max-w-2xl mx-auto p-4 lg:px-8 lg:py-6">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               {/* Was "Driver Feedback", but this form rates the conductor too. */}
-              <h1 className="text-white font-bold text-xl lg:text-2xl">Rate your ride</h1>
-              <p className="text-white/40 text-xs mt-1">
+              <h1 className="text-white font-bold text-xl light:text-gray-900 lg:text-2xl">Rate your ride</h1>
+              <p className="text-white/40 text-xs mt-1 light:text-gray-500">
                 Your reviews are anonymous to the crew.
               </p>
             </div>
             <button
               type="button"
               onClick={handleScanAnother}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#050F1A] hover:bg-[#0B1E33] border border-white/10 text-white/60 hover:text-white text-xs font-semibold flex-shrink-0 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#050F1A] hover:bg-[#0B1E33] border border-white/10 text-white/60 hover:text-white light:bg-white light:hover:bg-gray-100 light:border-gray-200 light:text-gray-600 light:hover:text-gray-900 text-xs font-semibold flex-shrink-0 transition-colors"
             >
               <RotateCcw size={13} />
               Rescan
@@ -229,7 +229,7 @@ function FeedbackContent() {
               only discoverable by scrolling until the conductor block appeared. */}
           <div className="flex items-center gap-2 mt-4">
             <StepChip label="Driver" isDone={driverComplete} isActive={!driverComplete} />
-            <div className={`h-px flex-1 transition-colors ${driverComplete ? "bg-emerald-500/40" : "bg-white/10"}`} />
+            <div className={`h-px flex-1 transition-colors ${driverComplete ? "bg-emerald-500/40" : "bg-white/10 light:bg-gray-200"}`} />
             <StepChip
               label="Conductor"
               isDone={conductorComplete}
@@ -248,12 +248,12 @@ function FeedbackContent() {
             separately, so burying the conductor in a caption under the
             driver's name misrepresented what is being asked. */}
         {crew && (
-          <div className="bg-[#071A2E] border border-white/10 rounded-2xl p-4 shadow-lg animate-fade-in">
-            <div className="flex items-center gap-2 pb-3 mb-3 border-b border-white/5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">
+          <div className="bg-[#071A2E] border border-white/10 rounded-2xl p-4 shadow-lg light:bg-white light:border-gray-200 light:shadow-black/5 animate-fade-in">
+            <div className="flex items-center gap-2 pb-3 mb-3 border-b border-white/5 light:border-gray-100">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-white/40 light:text-gray-500">
                 {crew.unitNumber ? `Unit ${crew.unitNumber}` : "Unit"}
               </span>
-              <span className="text-[10px] font-mono text-[#62A0EA] bg-[#1A5FB4]/10 border border-[#1A5FB4]/20 rounded px-1.5 py-0.5">
+              <span className="text-[10px] font-mono text-[#62A0EA] light:text-[#1A5FB4] bg-[#1A5FB4]/10 border border-[#1A5FB4]/20 rounded px-1.5 py-0.5">
                 {crew.plateNumber}
               </span>
             </div>
@@ -285,10 +285,10 @@ function FeedbackContent() {
           {/* ─── CONDUCTOR RATING — mirrors the driver section above, shown
                 once the driver has been fully rated ─────────────────────── */}
           {driverComplete && (
-            <div className="space-y-6 pt-6 border-t border-white/5 animate-fade-in">
+            <div className="space-y-6 pt-6 border-t border-white/5 light:border-gray-200 animate-fade-in">
               <div>
-                <h2 className="text-white font-bold text-lg">Now the conductor</h2>
-                <p className="text-white/40 text-xs mt-1">
+                <h2 className="text-white font-bold text-lg light:text-gray-900">Now the conductor</h2>
+                <p className="text-white/40 text-xs mt-1 light:text-gray-500">
                   One more, then you&apos;re done.
                 </p>
               </div>
@@ -312,9 +312,9 @@ function FeedbackContent() {
 
           {/* Submit Button — enabled only when BOTH crew members are rated */}
           {driverComplete && submitError && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 flex items-start gap-2 animate-fade-in">
-              <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-              <p className="text-red-400 text-xs font-medium leading-relaxed">
+            <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 light:bg-red-50 light:border-red-200 flex items-start gap-2 animate-fade-in">
+              <AlertTriangle className="w-4 h-4 text-red-400 light:text-red-600 flex-shrink-0 mt-0.5" />
+              <p className="text-red-400 text-xs font-medium light:text-red-700 leading-relaxed">
                 {submitError.code === "already_submitted"
                   ? "You already left feedback for this ride today. Scan another unit to rate a different ride."
                   : submitError.code === "unauthenticated"
@@ -344,7 +344,7 @@ function FeedbackContent() {
                   previously gave no reason — the conductor block is further up
                   the scroll, so the blocker was off-screen. */}
               {!conductorComplete && !isSubmitting && (
-                <p className="text-white/40 text-xs text-center">
+                <p className="text-white/40 text-xs text-center light:text-gray-500">
                   {conductorRating === 0
                     ? "Rate the conductor to submit."
                     : "Pick at least one conductor tag to submit."}
@@ -369,9 +369,9 @@ export default function FeedbackPage() {
   return (
     <Suspense
       fallback={
-        <div className="h-full w-full bg-[#050F1A] flex flex-col items-center justify-center p-6 pb-24 lg:pb-6">
-          <div className="w-14 h-14 rounded-full border-4 border-[#62A0EA] border-t-transparent animate-spin" />
-          <p className="text-white/50 text-sm mt-4">Loading…</p>
+        <div className="h-full w-full bg-[#050F1A] light:bg-[#F8FAFC] flex flex-col items-center justify-center p-6 pb-24 lg:pb-6">
+          <div className="w-14 h-14 rounded-full border-4 border-[#62A0EA] border-t-transparent light:border-[#1A5FB4] light:border-t-transparent animate-spin" />
+          <p className="text-white/50 text-sm light:text-gray-500 mt-4">Loading…</p>
         </div>
       }
     >
@@ -396,10 +396,10 @@ function StepChip({
     <span
       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border transition-colors ${
         isDone
-          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 light:text-emerald-700"
           : isActive
-            ? "bg-[#1A5FB4]/15 border-[#1A5FB4]/40 text-[#62A0EA]"
-            : "bg-white/5 border-white/10 text-white/30"
+            ? "bg-[#1A5FB4]/15 border-[#1A5FB4]/40 text-[#62A0EA] light:bg-[#1A5FB4]/10 light:text-[#1A5FB4]"
+            : "bg-white/5 border-white/10 text-white/30 light:bg-gray-100 light:border-gray-200 light:text-gray-400"
       }`}
     >
       {isDone && <Check size={11} strokeWidth={3} />}
@@ -423,18 +423,18 @@ function CrewMemberRow({
       <div
         className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 border transition-colors ${
           isRated
-            ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
+            ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400 light:text-emerald-600"
             : "bg-[#1A5FB4] border-white/10 text-white"
         }`}
       >
         {isRated ? <Check size={15} strokeWidth={3} /> : (name[0] ?? "?")}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-white text-sm font-semibold truncate">{name}</p>
-        <p className="text-white/30 text-[11px]">{role}</p>
+        <p className="text-white text-sm font-semibold truncate light:text-gray-900">{name}</p>
+        <p className="text-white/30 text-[11px] light:text-gray-500">{role}</p>
       </div>
       {isRated && (
-        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 light:text-emerald-600">
           Rated
         </span>
       )}

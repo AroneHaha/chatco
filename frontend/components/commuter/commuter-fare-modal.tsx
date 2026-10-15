@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import FareContent from "@/components/commuter/fare/fare-content";
 import { usePopoverModal, useBackdropDismiss } from "@/components/conductor/modals/use-popover-modal";
 import { PopoverTail } from "@/components/conductor/modals/popover-tail";
+import { useCommuterTheme } from "@/contexts/commuter-theme-context";
 
 export const FARE_ANCHOR_ID = "commuter-fare-anchor";
 
@@ -12,6 +13,7 @@ export default function CommuterFareModal() {
   const [isOpen, setIsOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
+  const theme = useCommuterTheme();
 
   useEffect(() => {
     const open = () => setIsOpen(true);
@@ -66,13 +68,15 @@ export default function CommuterFareModal() {
 
   return (
     <div className={`fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 xl:items-end xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
-      <PopoverTail panelColor="#050F1A" anchorOffsetPx={anchorOffset} />
+      {/* The tail sits against the fare summary footer, so it takes that
+          footer's fill: #050F1A dark, white light. */}
+      <PopoverTail panelColor={theme === "light" ? "#FFFFFF" : "#050F1A"} anchorOffsetPx={anchorOffset} className="light:border-gray-200" />
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="commuter-fare-title"
-        className={`flex h-[min(85dvh,calc(100dvh-8rem))] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#050F1A] shadow-2xl shadow-black/40 ${panelAnim}`}
+        className={`flex h-[min(85dvh,calc(100dvh-8rem))] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#050F1A] light:border-gray-200 light:bg-[#F8FAFC] shadow-2xl shadow-black/40 ${panelAnim}`}
         style={panelAnchorStyle}
       >
         <FareContent variant="modal" />

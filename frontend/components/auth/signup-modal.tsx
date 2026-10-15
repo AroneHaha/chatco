@@ -6,7 +6,10 @@ import SignupContent from "./signup-content";
 import authStyles from "./login.module.css";
 import styles from "./signup.module.css";
 
-export default function SignupModal({ standalone = false }: { standalone?: boolean }) {
+export default function SignupModal({ standalone = false, initialMaintenanceMessage }: {
+  standalone?: boolean;
+  initialMaintenanceMessage: string | null;
+}) {
   const [busy, setBusy] = useState(false);
 
   return (
@@ -22,7 +25,7 @@ export default function SignupModal({ standalone = false }: { standalone?: boole
       standalone={standalone}
       dismissHref="/"
     >
-      <SignupContent onBusyChange={setBusy} />
+      <SignupContent onBusyChange={setBusy} initialMaintenanceMessage={initialMaintenanceMessage} />
     </AuthModal>
   );
 }

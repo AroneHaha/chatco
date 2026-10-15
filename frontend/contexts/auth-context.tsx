@@ -25,6 +25,13 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+export class LoginError extends Error {
+  constructor(message: string, public readonly code?: string) {
+    super(message);
+    this.name = "LoginError";
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [commuterProfile, setCommuterProfile] =
@@ -91,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Login failed.");
+        throw new LoginError(data.message || "Login failed.", data.code);
       }
 
       const authUser: AuthUser = {

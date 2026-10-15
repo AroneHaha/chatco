@@ -137,8 +137,10 @@ class DiscountApplicationService
                 ]);
                 $this->saveSubmission($application, $data, $path, $user);
                 $category = $this->categoryLabel($application->requested_type);
-                $this->announcements->notifyAdmins('DISCOUNT_APPLICATION_NEW', 'Discount application awaiting review',
-                    $locked->first_name.' '.$locked->surname.($resubmission
+                $applicantName = $locked->first_name.' '.$locked->surname;
+                $this->announcements->notifyAdmins('DISCOUNT_APPLICATION_NEW',
+                    $resubmission ? "Corrected {$category} documents: {$applicantName}" : "{$category} discount application: {$applicantName}",
+                    $applicantName.($resubmission
                         ? " sent corrected documents for their {$category} discount application."
                         : " applied for a {$category} discount."), $application->id);
                 $this->activity->record(ActivityLogCategory::MEMBER, "Discount application {$application->id} submitted: {$application->requested_type}", $user);
@@ -249,8 +251,20 @@ class DiscountApplicationService
                 'NEEDS_CORRECTION' => 'Your discount application needs a correction. Submit corrected supporting documents from your Discount Application page. Your account remains Regular until it is approved. '.$application->reason,
                 default => 'Your discount application was not approved. Your account remains Regular. '.$application->reason,
             };
+            // The title carries the outcome so the Updates list reads at a glance;
+            // the feed already labels the category (Discount application / Student renewal).
+            $category = $this->categoryLabel($application->requested_type);
+            $title = $isRenewal ? match ($decision) {
+                'APPROVED' => 'Student status renewed',
+                'NEEDS_CORRECTION' => 'Renewal needs correction',
+                default => 'Student renewal rejected',
+            } : match ($decision) {
+                'APPROVED' => "{$category} discount approved",
+                'NEEDS_CORRECTION' => "{$category} discount needs correction",
+                default => "{$category} discount rejected",
+            };
             $this->announcements->notifyUser($profile->id, $isRenewal ? 'STUDENT_RENEWAL_DONE' : 'DISCOUNT_APPLICATION_DONE',
-                $isRenewal ? 'Student renewal update' : 'Discount application update', $message, $application->id);
+                $title, $message, $application->id);
             $this->activity->record(ActivityLogCategory::MEMBER, "Discount request {$id}: {$decision}. ".($application->reason ?? ''), $admin);
 
             return $this->present($application, true);

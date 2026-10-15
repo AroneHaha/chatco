@@ -142,6 +142,7 @@ class StudentRenewalTest extends TestCase
         $application = $this->submit($student);
         $this->at('2027-10-02 12:00:00');
         $this->review($application, 'NEEDS_CORRECTION', 'School year is missing.')->assertOk();
+        $this->assertDatabaseHas('announcements', ['user_id' => $student->id, 'type' => 'STUDENT_RENEWAL_DONE', 'title' => 'Renewal needs correction']);
         $this->artisan('students:process-renewals')->assertSuccessful();
         $this->assertSame('STUDENT', $student->fresh()->commuterProfile->commuter_type);
         $this->at('2027-10-09 12:00:00');
@@ -184,6 +185,7 @@ class StudentRenewalTest extends TestCase
         $student = $this->commuter();
         $application = $this->submit($student);
         $this->review($application, 'REJECTED', 'No current enrollment.')->assertOk();
+        $this->assertDatabaseHas('announcements', ['user_id' => $student->id, 'type' => 'STUDENT_RENEWAL_DONE', 'title' => 'Student renewal rejected']);
         $this->assertSame('REGULAR', $student->fresh()->commuterProfile->commuter_type);
         $this->assertNotNull($student->fresh());
         $this->at('2027-10-05 12:00:00');

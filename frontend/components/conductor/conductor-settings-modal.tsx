@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import SettingsContent from "@/components/conductor/settings/settings-content";
-import ThemeToggle from "@/components/commuter/profile/profile-theme-toggle";
+import SettingsContent, { LOGOUT_LOCKED_HINT } from "@/components/conductor/settings/settings-content";
+import AccountMenu, { type SignOutControl } from "@/components/commuter/profile/account-menu";
 import { usePopoverModal, useBackdropDismiss } from "@/components/conductor/modals/use-popover-modal";
 import { PopoverTail } from "@/components/conductor/modals/popover-tail";
 
@@ -30,6 +30,7 @@ import { PopoverTail } from "@/components/conductor/modals/popover-tail";
  */
 export default function ConductorSettingsModal() {
   const [isOpen, setIsOpen] = useState(false);
+  const [signOutControl, setSignOutControl] = useState<SignOutControl | null>(null);
 
   useEffect(() => {
     const handler = () => setIsOpen(true);
@@ -74,7 +75,7 @@ export default function ConductorSettingsModal() {
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-white">Settings</h2>
             <div className="flex items-center gap-3">
-              <ThemeToggle />
+              <AccountMenu signOut={signOutControl} lockedHint={LOGOUT_LOCKED_HINT} />
               <button
                 onClick={close}
                 aria-label="Close"
@@ -90,7 +91,7 @@ export default function ConductorSettingsModal() {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto modal-scroll">
-          <SettingsContent showHeader={false} />
+          <SettingsContent showHeader={false} onSignOutControl={setSignOutControl} />
         </div>
       </div>
     </div>

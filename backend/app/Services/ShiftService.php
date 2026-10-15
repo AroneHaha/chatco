@@ -111,7 +111,7 @@ class ShiftService
             $unitNumber = $vehicle->unit_number;
             DB::afterCommit(fn () => $this->announcementService->notifyAdmins(
                 'SHIFT_STARTED',
-                'Shift started',
+                "Shift started: unit {$unitNumber}",
                 "{$conductorName} started an active shift on unit {$unitNumber}.",
                 $vehicleId,
             ));

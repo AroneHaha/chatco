@@ -8,6 +8,7 @@ import { Calculator } from "lucide-react";
 import { RequireRole, useAuth } from "@/contexts/auth-context";
 import { AnnouncementsProvider, useAnnouncements } from "@/contexts/announcements-context";
 import { RewardsProvider, useRewardsData } from "@/contexts/rewards-context";
+import { CommuterThemeProvider } from "@/contexts/commuter-theme-context";
 import MaintenanceGate from "@/components/shared/maintenance-gate";
 import { getCommuterTypeLabel } from "@/types";
 import { QrScanner } from "@/components/commuter/feedback/qr-scanner";
@@ -78,17 +79,19 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
     : "";
 
   return (
-    <div className="fixed inset-0 bg-[#050F1A] flex font-sans overflow-hidden">
+    <div className="fixed inset-0 bg-[#050F1A] light:bg-[#F8FAFC] flex font-sans overflow-hidden">
+      {/* The shell's own fill shows in the xl:pb-28 strip <main> keeps clear
+          of the dock, so it follows the theme like the pages above it. */}
 
       {/* --- DESKTOP SIDEBAR --- */}
       {/* 1024–1279px only. At xl:+ (1280px) CommuterDock takes over as a
           floating bottom dock instead of a space-reserving rail (hidden
           entirely there, not just visually) — same split as the conductor
           app's ConductorSidebar/ConductorDock. */}
-      <aside className="hidden lg:flex xl:hidden flex-col w-64 xl:w-72 bg-[#071A2E] border-r border-white/10 z-50 flex-shrink-0">
-        <div className="h-20 flex items-center px-6 border-b border-white/10">
+      <aside className="hidden lg:flex xl:hidden flex-col w-64 xl:w-72 bg-[#071A2E] border-r border-white/10 light:bg-white light:border-gray-200 z-50 flex-shrink-0">
+        <div className="h-20 flex items-center px-6 border-b border-white/10 light:border-gray-200">
           <img src="/logo-transparent.png" alt="CHATCO" className="w-10 h-10 rounded-xl object-contain" />
-          <span className="ml-3 text-white font-extrabold text-lg tracking-tight">CHATCO</span>
+          <span className="ml-3 text-white light:text-gray-900 font-extrabold text-lg tracking-tight">CHATCO</span>
         </div>
 
         <nav className="flex-1 py-6 px-4 space-y-1">
@@ -96,7 +99,7 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
             const isActive = pathname === item.href;
             const isFeedback = item.href === "/feedback";
             const className = `relative flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 min-w-0 ${
-              isActive ? "bg-[#1A5FB4] text-white shadow-lg shadow-[#1A5FB4]/30" : "text-white/50 hover:text-white hover:bg-white/5"
+              isActive ? "bg-[#1A5FB4] text-white shadow-lg shadow-[#1A5FB4]/30" : "text-white/50 hover:text-white hover:bg-white/5 light:text-gray-500 light:hover:text-gray-900 light:hover:bg-gray-100"
             }`;
             const label = item.badge > 0 ? `${item.label} — ${item.badgeLabel}` : undefined;
             const content = (
@@ -106,7 +109,7 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
                   {item.badge > 0 && (
                      <span
                        aria-hidden="true"
-                       className="absolute -top-2 -right-2 min-w-4 h-4 px-1 bg-[#FF6D3A] rounded-full text-[9px] font-bold text-white flex items-center justify-center ring-2 ring-[#071A2E] tabular-nums"
+                       className="absolute -top-2 -right-2 min-w-4 h-4 px-1 bg-[#FF6D3A] rounded-full text-[9px] font-bold text-white flex items-center justify-center ring-2 ring-[#071A2E] light:ring-white tabular-nums"
                      >
                        {item.badge > 99 ? "99+" : item.badge}
                      </span>
@@ -138,12 +141,12 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <div className="p-4 border-t border-white/10">
+        <div className="p-4 border-t border-white/10 light:border-gray-200">
           <div className="flex items-center gap-3 px-2">
-            <div className="w-9 h-9 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold text-sm border-2 border-white/20">{userInitial}</div>
+            <div className="w-9 h-9 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold text-sm border-2 border-white/20 light:border-[#DAEEFF]">{userInitial}</div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-white truncate">{userName}</p>
-              <p className="text-[10px] text-white/40">{userTypeLabel}</p>
+              <p className="text-sm font-semibold text-white light:text-gray-900 truncate">{userName}</p>
+              <p className="text-[10px] text-white/40 light:text-gray-500">{userTypeLabel}</p>
             </div>
           </div>
         </div>
@@ -161,7 +164,7 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
             roles read as the same app: same surface, blur, lift shadow and
             circular highlight and slide animation. */}
         <nav className="absolute bottom-0 inset-x-0 z-50 lg:hidden pb-safe">
-          <div className="bg-[#0B1E33]/90 backdrop-blur-2xl shadow-[0_-4px_30px_rgba(0,0,0,0.3)] border-t border-white/[0.06]">
+          <div className="bg-[#0B1E33]/90 backdrop-blur-2xl shadow-[0_-4px_30px_rgba(0,0,0,0.3)] border-t border-white/[0.06] light:bg-white/90 light:shadow-[0_-4px_24px_rgba(15,23,42,0.08)] light:border-gray-200">
             <div ref={navRowRef} className="relative grid grid-cols-6 max-w-lg mx-auto pt-1 pb-1 md:pt-1.5 md:pb-1.5">
               <MobileNavHighlight highlightRef={highlightRef} />
 
@@ -177,15 +180,15 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
                         else iconRefs.current.delete(item.href);
                       }}
                       className={`relative flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-full transition-colors duration-300 ${
-                        isActive ? "" : "hover:bg-white/[0.06]"
+                        isActive ? "" : "hover:bg-white/[0.06] light:hover:bg-gray-900/[0.05]"
                       }`}
                     >
-                      <item.icon className={`w-[17px] h-[17px] md:w-[18px] md:h-[18px] transition-colors duration-300 ${isActive ? "text-white" : "text-white/40 group-hover:text-white/70"}`} />
+                      <item.icon className={`w-[17px] h-[17px] md:w-[18px] md:h-[18px] transition-colors duration-300 ${isActive ? "text-white" : "text-white/40 group-hover:text-white/70 light:text-gray-400 light:group-hover:text-gray-600"}`} />
 
                       {item.badge > 0 && (
                         <span
                           aria-hidden="true"
-                          className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-[#FF6D3A] rounded-full text-[9px] font-bold text-white flex items-center justify-center ring-2 ring-[#0B1E33] tabular-nums"
+                          className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-[#FF6D3A] rounded-full text-[9px] font-bold text-white flex items-center justify-center ring-2 ring-[#0B1E33] light:ring-white tabular-nums"
                         >
                           {item.badge > 99 ? "99+" : item.badge}
                         </span>
@@ -193,7 +196,7 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
                     </div>
 
                     <span className={`text-[10px] font-medium mt-0.5 md:mt-1 transition-colors duration-300 leading-none truncate max-w-full px-0.5 text-center ${
-                      isActive ? "text-white" : "text-white/30 group-hover:text-white/50"
+                      isActive ? "text-white light:text-[#1A5FB4]" : "text-white/30 group-hover:text-white/50 light:text-gray-400 light:group-hover:text-gray-600"
                     }`}>
                       {item.shortLabel || item.label}
                     </span>
@@ -246,7 +249,7 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
           convention as the GCash scan modal. */}
       {showFeedbackScan && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-sm max-h-[88vh] rounded-2xl border border-white/10 shadow-2xl overflow-hidden">
+          <div className="w-full max-w-sm max-h-[88vh] rounded-2xl border border-white/10 light:border-gray-200 shadow-2xl overflow-hidden">
             <QrScanner variant="modal" onToken={handleFeedbackToken} onCancel={() => setShowFeedbackScan(false)} />
           </div>
         </div>
@@ -264,6 +267,7 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
 export default function CommuterLayout({ children }: { children: React.ReactNode }) {
   return (
     <RequireRole role="COMMUTER">
+    <CommuterThemeProvider>
     <AnnouncementsProvider>
       <RewardsProvider>
         <MaintenanceGate>
@@ -271,6 +275,7 @@ export default function CommuterLayout({ children }: { children: React.ReactNode
         </MaintenanceGate>
       </RewardsProvider>
     </AnnouncementsProvider>
+    </CommuterThemeProvider>
     </RequireRole>
   );
 }

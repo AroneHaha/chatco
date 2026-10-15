@@ -12,10 +12,11 @@ import {
   type Announcement,
 } from '@/lib/shared/services/announcement.service';
 import { AnnouncementDetailModal } from '@/components/shared/announcement-detail-modal';
+import { ADMIN_NOTIFICATIONS_CHANGED } from '@/lib/admin/notification-events';
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
-/** Polling interval for the bell badge (per the S6-T9 spec). */
+/** Polling fallback for the bell badge and open feed when live delivery is unavailable. */
 const POLL_INTERVAL_MS = 30_000;
 /** Items fetched per page — the dropdown loads 10 initially, then 10 more each time the user scrolls to the bottom. */
 const PAGE_SIZE = 10;
@@ -48,6 +49,7 @@ function getNotificationStyle(type: string) {
     : t.includes('overspeed') ? 'Overspeeding'
     : t.includes('remittance') ? 'Remittance'
     : t.startsWith('shift_') ? 'Shift'
+    : t === 'vehicle_status_changed' ? 'Vehicle Status'
     : t.startsWith('discount_application') ? 'Discount Application'
     : t.startsWith('student_renewal') ? 'Student Renewal'
     : t.includes('registration') ? 'Registration'
@@ -56,6 +58,12 @@ function getNotificationStyle(type: string) {
     : 'Announcement';
   if (t === 'sos_triggered') {
     return { Icon: AlertTriangle, color: 'text-red-400', label };
+  }
+  if (t === 'discount_application_waiting') {
+    return { Icon: AlertTriangle, color: 'text-amber-400', label };
+  }
+  if (t === 'vehicle_status_changed') {
+    return { Icon: Info, color: 'text-[#8CB9F0]', label };
   }
   if (['sos_resolved', 'remittance_completed', 'shift_ended'].includes(t)) {
     return { Icon: CheckCircle, color: 'text-emerald-400', label };
@@ -89,7 +97,8 @@ function getNotificationStyle(type: string) {
  *   markRead(id) → POST /api/v1/announcements/{id}/read
  *
  * Flow:
- *   - Badge shows the polled unread count (capped at '99+' for display).
+ *   - Private admin live signals refresh the count and open feed; 30s polling is the fallback.
+ *   - Badge shows the unread count (capped at '99+' for display).
  *   - Unread and All views load notifications (including read history) 10
  *     at a time (title + two-line message preview + time-ago). Scrolling to
  *     the bottom of the currently loaded list fetches the next page of 10 and
@@ -128,6 +137,7 @@ export function NotificationBell() {
   const paginationRef = useRef({ nextPage: 2, hasMore: false });
   const isFetchingRef = useRef(false);
   const feedGenerationRef = useRef(0);
+  const countRequestRef = useRef(0);
   const invalidateFeed = useCallback(() => { feedGenerationRef.current++; }, []);
 
   useEffect(() => {
@@ -136,13 +146,14 @@ export function NotificationBell() {
 
   // ─── Poll unread count on mount + every 30s ──────────────────────────
   const refreshCount = useCallback(async () => {
+    const request = ++countRequestRef.current;
     try {
       const count = await fetchUnreadCount();
-      setUnreadCount(count);
+      if (request === countRequestRef.current) setUnreadCount(count);
     } catch (err) {
       // Silent fail on poll — the bell just shows the last known count.
       // 401 (session expired) is handled globally by the auth redirect.
-      if (err instanceof AnnouncementOperationError && err.code === 'unauthenticated') {
+      if (request === countRequestRef.current && err instanceof AnnouncementOperationError && err.code === 'unauthenticated') {
         setUnreadCount(0);
       }
     }
@@ -155,26 +166,32 @@ export function NotificationBell() {
   }, [refreshCount]);
 
   // ─── Fetch page 1 when the bell opens ─────────────────────────────────
-  const refreshList = useCallback(async () => {
+  const refreshList = useCallback(async (background = false) => {
+    const loadedPages = background ? Math.max(1, paginationRef.current.nextPage - 1) : 1;
     const generation = ++feedGenerationRef.current;
     isFetchingRef.current = true;
-    setIsLoadingList(true);
+    if (!background) setIsLoadingList(true);
     setIsLoadingMore(false);
     setListError(null);
     try {
       const result = await listAnnouncements({ unreadOnly, page: 1, perPage: PAGE_SIZE });
       if (generation !== feedGenerationRef.current) return;
-      setItems(result.items);
-      paginationRef.current = { nextPage: 2, hasMore: result.page < result.lastPage };
+      const pageCount = Math.max(1, Math.min(loadedPages, result.lastPage));
+      const remaining = await Promise.all(Array.from({ length: pageCount - 1 }, (_, index) =>
+        listAnnouncements({ unreadOnly, page: index + 2, perPage: PAGE_SIZE })));
+      if (generation !== feedGenerationRef.current) return;
+      const unique = new Map([result, ...remaining].flatMap(page => page.items).map(item => [item.id, item]));
+      setItems([...unique.values()]);
+      paginationRef.current = { nextPage: pageCount + 1, hasMore: pageCount < result.lastPage };
     } catch (err) {
       if (generation !== feedGenerationRef.current) return;
-      setListError(
-        err instanceof AnnouncementOperationError
-          ? err.message
-          : 'Unable to load announcements.'
-      );
-      setItems([]);
-      paginationRef.current = { nextPage: 2, hasMore: false };
+      if (!background) {
+        setListError(
+          err instanceof AnnouncementOperationError ? err.message : 'Unable to load announcements.'
+        );
+        setItems([]);
+        paginationRef.current = { nextPage: 2, hasMore: false };
+      }
     } finally {
       if (generation === feedGenerationRef.current) {
         setIsLoadingList(false);
@@ -191,6 +208,22 @@ export function NotificationBell() {
     }
     return invalidateFeed;
   }, [isOpen, refreshList, invalidateFeed]);
+
+  useEffect(() => {
+    const refreshOpenList = () => {
+      if (isOpen && !isMarkingAll && markingIds.size === 0) void refreshList(true);
+    };
+    const onUpdate = () => { void refreshCount(); refreshOpenList(); };
+    window.addEventListener(ADMIN_NOTIFICATIONS_CHANGED, onUpdate);
+    window.addEventListener('focus', onUpdate);
+    // Refresh the open list as well as the count if the live connection drops.
+    const timer = window.setInterval(refreshOpenList, POLL_INTERVAL_MS);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener(ADMIN_NOTIFICATIONS_CHANGED, onUpdate);
+      window.removeEventListener('focus', onUpdate);
+    };
+  }, [isOpen, isMarkingAll, markingIds, refreshCount, refreshList]);
 
   // ─── Fetch the next page and append it once the user nears the bottom ──
   const loadMore = useCallback(async () => {

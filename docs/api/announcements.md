@@ -45,9 +45,9 @@ Targeted announcements are created by `AnnouncementService::notifyUser()` (one r
 | `NEW_REGISTRATION` | Every admin | `AuthService` | A commuter signs up and needs approval |
 | `STUDENT_RENEWAL` | Unrenewed Student commuter | `students:process-renewals` | August 25/29/31 and September 1/8/15/22/29; reading does not trigger duplicates |
 | `STUDENT_RENEWAL_NEW` | Every admin | `StudentRenewalService::submit` | New or corrected renewal proof is awaiting review; links to Discount Applications |
-| `STUDENT_RENEWAL_DONE` | The student commuter | `StudentRenewalService` | Renewal decision or overdue conversion to Regular |
+| `STUDENT_RENEWAL_DONE` | The student commuter | `StudentRenewalService`, `DiscountApplicationService::review` | Renewal decision or overdue conversion to Regular. Decision titles name the outcome: `Student status renewed`, `Renewal needs correction`, `Student renewal rejected` |
 | `DISCOUNT_APPLICATION_NEW` | Every admin | `DiscountApplicationService::submit` | A Regular commuter applies for a Student/PWD/Senior Citizen discount, or sends corrected documents; links to Discount Applications |
-| `DISCOUNT_APPLICATION_DONE` | The applying commuter | `DiscountApplicationService::review` | Application approved, rejected, or sent back for correction (no deadline); links to the Discount Application page |
+| `DISCOUNT_APPLICATION_DONE` | The applying commuter | `DiscountApplicationService::review` | Application approved, rejected, or sent back for correction (no deadline); links to the Discount Application page. The title names the category and outcome, e.g. `PWD discount approved`, `Senior Citizen discount needs correction`, `Student discount rejected` |
 | `SOS_TRIGGERED` | Every admin | `SosService` | A commuter or conductor sends an SOS alert |
 | `SHIFT_STARTED` | Every admin | `ShiftService::startShift` | A conductor starts a shift |
 | `OVERSPEED_FLAGGED` | Every admin | `LocationService::recordOverspeedAtomic` | A new overspeed episode starts on a shift ([conductor.md](conductor.md#post-conductorlocation)) |
@@ -80,7 +80,7 @@ The feed: `ACTIVE` announcements visible to the caller, newest first.
 {
   "id": "…",
   "type": "claim_approved",
-  "title": "Claim Approved",
+  "title": "Claim approved: \"Black umbrella\"",
   "message": "Your claim on \"Black umbrella\" was approved. Bring a valid ID and the proof you submitted to the terminal office to complete the handover.",
   "status": "ACTIVE",
   "user_id": "9c1e…",

@@ -1,4 +1,5 @@
 // app/(admin)/settings/data/settings-data.ts
+import type { MaintenanceRole } from '@/lib/maintenance';
 
 // --- Types ---
 
@@ -45,9 +46,9 @@ export interface OperationsRulesConfig {
 
 export interface AppConfiguration {
   maintenanceMode: boolean;
+  maintenanceRoles: MaintenanceRole[];
   maintenanceMessage: string;
   requireIdUpload: boolean;
-  requirePhoneVerification: boolean;
 }
 
 export interface SafetyConfig {
@@ -149,10 +150,10 @@ export const defaultOperationsRules: OperationsRulesConfig = {
 
 export const defaultAppConfiguration: AppConfiguration = {
   maintenanceMode: false,
+  maintenanceRoles: ['COMMUTER', 'CONDUCTOR'],
   maintenanceMessage:
     "CHATCO is currently undergoing scheduled maintenance. We'll be back online shortly — thank you for your patience!",
   requireIdUpload: true,
-  requirePhoneVerification: false,
 };
 
 export const defaultSafetyConfig: SafetyConfig = {

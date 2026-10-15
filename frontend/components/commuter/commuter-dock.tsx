@@ -100,16 +100,16 @@ export default function CommuterDock({
 
   const itemClass = (isActive: boolean) =>
     `relative z-10 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-colors whitespace-nowrap cursor-pointer ${
-      isActive ? "text-white" : "text-white/50 hover:text-white hover:bg-white/5"
+      isActive ? "text-white" : "text-white/50 hover:text-white hover:bg-white/5 light:text-gray-500 light:hover:text-gray-900 light:hover:bg-gray-100"
     }`;
 
   return (
     <nav className="hidden xl:flex fixed inset-x-0 bottom-4 z-40 justify-center pointer-events-none">
-      <div className="flex items-stretch divide-x divide-white/10 bg-[#071A2E]/95 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl shadow-black/10 overflow-hidden pointer-events-auto">
+      <div className="flex items-stretch divide-x divide-white/10 bg-[#071A2E]/95 backdrop-blur-xl rounded-2xl border border-white/10 light:divide-gray-200 light:bg-white/95 light:border-gray-200 shadow-2xl shadow-black/10 overflow-hidden pointer-events-auto">
         {/* Logo */}
         <div className="flex items-center gap-2 px-4">
           <img src="/logo-transparent.png" alt="" className="w-7 h-7 rounded-lg object-contain" />
-          <span className="text-white font-extrabold text-sm tracking-tight whitespace-nowrap">CHATCO</span>
+          <span className="text-white light:text-gray-900 font-extrabold text-sm tracking-tight whitespace-nowrap">CHATCO</span>
         </div>
 
         {/* Nav */}
@@ -130,7 +130,7 @@ export default function CommuterDock({
                   {item.badge > 0 && (
                     <span
                       aria-hidden="true"
-                      className="absolute -top-2 -right-2 min-w-4 h-4 px-1 bg-[#FF6D3A] rounded-full text-[9px] font-bold text-white flex items-center justify-center ring-2 ring-[#071A2E] tabular-nums"
+                      className="absolute -top-2 -right-2 min-w-4 h-4 px-1 bg-[#FF6D3A] rounded-full text-[9px] font-bold text-white flex items-center justify-center ring-2 ring-[#071A2E] light:ring-white tabular-nums"
                     >
                       {item.badge > 99 ? "99+" : item.badge}
                     </span>
@@ -199,12 +199,12 @@ export default function CommuterDock({
 
         {/* User identity */}
         <div className="flex items-center gap-2.5 px-4">
-          <div className="w-8 h-8 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white text-sm font-bold flex-shrink-0 border-2 border-white/20">
+          <div className="w-8 h-8 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white text-sm font-bold flex-shrink-0 border-2 border-white/20 light:border-[#DAEEFF]">
             {userInitial}
           </div>
           <div className="min-w-0 max-w-[130px]">
-            <p className="text-white text-xs font-semibold truncate leading-tight">{userName}</p>
-            {userTypeLabel && <p className="text-white/40 text-[10px] leading-tight truncate">{userTypeLabel}</p>}
+            <p className="text-white light:text-gray-900 text-xs font-semibold truncate leading-tight">{userName}</p>
+            {userTypeLabel && <p className="text-white/40 light:text-gray-500 text-[10px] leading-tight truncate">{userTypeLabel}</p>}
           </div>
         </div>
       </div>

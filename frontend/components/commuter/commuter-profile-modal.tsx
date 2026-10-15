@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { UserRound } from "lucide-react";
 import { usePathname } from "next/navigation";
 import ProfileContent from "@/components/commuter/profile/profile-content";
-import ProfileThemeToggle from "@/components/commuter/profile/profile-theme-toggle";
+import AccountMenu, { type SignOutControl } from "@/components/commuter/profile/account-menu";
 import { usePopoverModal, useBackdropDismiss } from "@/components/conductor/modals/use-popover-modal";
 import { PopoverTail } from "@/components/conductor/modals/popover-tail";
+import { useCommuterTheme } from "@/contexts/commuter-theme-context";
 
 /** Id on CommuterDock's Profile button — the popover and its tail anchor to it. */
 export const PROFILE_ANCHOR_ID = "commuter-profile-anchor";
@@ -27,8 +28,10 @@ export const PROFILE_ANCHOR_ID = "commuter-profile-anchor";
  */
 export default function CommuterProfileModal() {
   const [isOpen, setIsOpen] = useState(false);
+  const [signOutControl, setSignOutControl] = useState<SignOutControl | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
+  const theme = useCommuterTheme();
 
   useEffect(() => {
     const open = () => setIsOpen(true);
@@ -88,30 +91,30 @@ export default function CommuterProfileModal() {
 
   return (
     <div className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
-      <PopoverTail panelColor="#071A2E" anchorOffsetPx={anchorOffset} />
+      <PopoverTail panelColor={theme === "light" ? "#F8FAFC" : "#071A2E"} anchorOffsetPx={anchorOffset} className="light:border-gray-200" />
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="commuter-profile-title"
-        className={`flex w-full flex-col sm:max-w-xl xl:max-w-2xl max-h-[85dvh] sm:max-h-[80dvh] xl:h-[min(720px,calc(100dvh-8rem))] xl:max-h-none overflow-hidden bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-[#62A0EA]/20 shadow-2xl shadow-black/40 ${panelAnim}`}
+        className={`flex w-full flex-col sm:max-w-xl xl:max-w-2xl max-h-[85dvh] sm:max-h-[80dvh] xl:h-[min(720px,calc(100dvh-8rem))] xl:max-h-none overflow-hidden bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-[#62A0EA]/20 shadow-2xl shadow-black/40 light:bg-[#F8FAFC] light:border-gray-200 light:shadow-black/10 ${panelAnim}`}
         style={panelAnchorStyle}
       >
-        <div className="shrink-0 border-b border-white/10 bg-gradient-to-r from-[#102844] to-[#071A2E] px-6 py-4">
+        <div className="shrink-0 border-b border-white/10 bg-gradient-to-r from-[#102844] to-[#071A2E] light:border-gray-200 light:bg-none light:bg-white px-6 py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#62A0EA]/20 bg-[#62A0EA]/10 text-[#99C1F1]"><UserRound size={20} aria-hidden="true" /></span>
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#62A0EA]/20 bg-[#62A0EA]/10 text-[#99C1F1] light:border-[#1A5FB4]/20 light:bg-[#1A5FB4]/10 light:text-[#1A5FB4]"><UserRound size={20} aria-hidden="true" /></span>
               <div className="min-w-0">
-                <h2 id="commuter-profile-title" className="text-lg font-bold tracking-tight text-white">Profile</h2>
-                <p className="mt-0.5 text-xs text-white/50">Your details and account settings</p>
+                <h2 id="commuter-profile-title" className="text-lg font-bold tracking-tight text-white light:text-gray-900">Profile</h2>
+                <p className="mt-0.5 text-xs text-white/50 light:text-gray-500">Your details and account settings</p>
               </div>
             </div>
-            <ProfileThemeToggle />
+            <AccountMenu signOut={signOutControl} />
           </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto modal-scroll">
-          <ProfileContent variant="modal" />
+          <ProfileContent variant="modal" onSignOutControl={setSignOutControl} />
         </div>
       </div>
     </div>

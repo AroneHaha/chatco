@@ -4,6 +4,8 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { unreadCount as fetchUnreadCount, markAllRead as markAllAnnouncementsRead } from "@/lib/shared/services/announcement.service";
 import { renewalRequest } from "@/lib/shared/services/student-renewal.service";
+import { getEcho } from "@/lib/echo";
+import { ADMIN_NOTIFICATIONS_CHANGED } from "@/lib/admin/notification-events";
 
 /** Matches the admin bell's poll cadence (see notification-bell.tsx). */
 const POLL_INTERVAL_MS = 30_000;
@@ -81,7 +83,9 @@ function useModuleBadge(types: string[]): ModuleBadge {
   useEffect(() => {
     void refresh();
     const id = setInterval(() => void refresh(), POLL_INTERVAL_MS);
-    return () => clearInterval(id);
+    const onUpdate = () => { void refresh(); };
+    window.addEventListener(ADMIN_NOTIFICATIONS_CHANGED, onUpdate);
+    return () => { clearInterval(id); window.removeEventListener(ADMIN_NOTIFICATIONS_CHANGED, onUpdate); };
   }, [refresh]);
 
   const markRead = useCallback(() => {
@@ -118,7 +122,9 @@ function usePendingDiscountApplicationsBadge() {
     const controller = new AbortController();
     const initial = window.setTimeout(() => void refresh(controller.signal), 0);
     const timer = window.setInterval(() => void refresh(), POLL_INTERVAL_MS);
-    return () => { controller.abort(); window.clearTimeout(initial); window.clearInterval(timer); };
+    const onUpdate = () => { void refresh(); };
+    window.addEventListener(ADMIN_NOTIFICATIONS_CHANGED, onUpdate);
+    return () => { controller.abort(); window.clearTimeout(initial); window.clearInterval(timer); window.removeEventListener(ADMIN_NOTIFICATIONS_CHANGED, onUpdate); };
   }, [refresh]);
 
   return { count, refresh: () => { void refresh(); } };
@@ -134,6 +140,24 @@ export function AdminNotificationsProvider({ children }: { children: ReactNode }
   const remittance = useModuleBadge(REMITTANCE_MODULE_TYPES);
   const monitoring = useModuleBadge(MONITORING_MODULE_TYPES);
   const discountApplications = usePendingDiscountApplicationsBadge();
+
+  useEffect(() => {
+    let echo: ReturnType<typeof getEcho> | null = null;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const notify = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => window.dispatchEvent(new Event(ADMIN_NOTIFICATIONS_CHANGED)), 150);
+    };
+    try {
+      echo = getEcho();
+      echo.private('admin.notifications')
+        .listen('.AdminNotificationsUpdated', notify)
+        .subscribed(notify);
+    } catch {
+      // The existing polling remains available without a websocket connection.
+    }
+    return () => { clearTimeout(timer); echo?.leave('admin.notifications'); };
+  }, []);
 
   return (
     <AdminNotificationsContext.Provider value={{ remittance, monitoring, discountApplications }}>

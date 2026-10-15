@@ -116,4 +116,14 @@ class BroadcastAuthorizationTest extends TestCase
     {
         return ['Authorization' => 'Bearer '.$user->createToken('broadcast-test')->plainTextToken];
     }
+
+    public function test_admin_notification_channel_rejects_non_admins(): void
+    {
+        foreach ([User::factory()->admin()->create(), User::factory()->commuter()->create(), User::factory()->conductor()->create()] as $user) {
+            $this->app['auth']->forgetGuards();
+            $this->post('/api/v1/broadcasting/auth', [
+                'socket_id' => '1234.5678', 'channel_name' => 'private-admin.notifications',
+            ], $this->tokenHeaders($user))->assertStatus($user->isAdmin() ? 200 : 403);
+        }
+    }
 }
