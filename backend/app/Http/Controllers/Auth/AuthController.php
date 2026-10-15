@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Enums\UserRole;
 use App\Exceptions\AccountSuspendedException;
+use App\Exceptions\MaintenanceException;
 use App\Exceptions\RegistrationPendingException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\RegisterRequest;
@@ -66,6 +67,15 @@ class AuthController extends Controller
                 $request->input('device_id'),
                 $request->input('device_type'),
             );
+        } catch (MaintenanceException $e) {
+            return response()->json([
+                'success' => false,
+                'data' => null,
+                'code' => 'MAINTENANCE',
+                'message' => $e->getMessage(),
+                'errors' => null,
+                'meta' => null,
+            ], 503);
         } catch (ValidationException $e) {
             // Credentials incorrect → 401, not 422
             return $this->errorResponse('Invalid credentials', 401);

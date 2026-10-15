@@ -10,13 +10,15 @@ import {
   Wrench,
   UserRoundPlus,
   IdCard,
-  Smartphone,
   Check,
   LoaderCircle,
   RefreshCw,
 } from 'lucide-react';
 import { defaultAppConfiguration, type AppConfiguration } from '@/app/(admin)/settings/data/settings-data';
 import { getSettings, updateSetting } from '@/lib/admin/services/setting.service';
+import { MAINTENANCE_ROLES, parseMaintenanceRoles, type MaintenanceRole } from '@/lib/maintenance';
+
+const ROLE_LABELS: Record<MaintenanceRole, string> = { COMMUTER: 'Commuters', CONDUCTOR: 'Conductors' };
 
 const MAINTENANCE_REASONS = [
   {
@@ -80,16 +82,20 @@ function ConfigSwitch({
   );
 }
 
-function MaintenanceConfirmation({
+function SaveConfirmation({
   enabled,
+  roles,
   message,
+  requireIdUpload,
   isSaving,
   error,
   onCancel,
   onConfirm,
 }: {
   enabled: boolean;
+  roles: MaintenanceRole[];
   message: string;
+  requireIdUpload: boolean;
   isSaving: boolean;
   error: string | null;
   onCancel: () => void;
@@ -111,8 +117,8 @@ function MaintenanceConfirmation({
     <dialog
       ref={dialogRef}
       role="alertdialog"
-      aria-labelledby="maintenance-confirm-title"
-      aria-describedby="maintenance-confirm-description"
+      aria-labelledby="config-confirm-title"
+      aria-describedby="config-confirm-description"
       aria-busy={isSaving}
       onCancel={(event) => {
         event.preventDefault();
@@ -121,15 +127,19 @@ function MaintenanceConfirmation({
       className="fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-xl border border-[#23344F] bg-[#111A2B] p-5 text-white shadow-2xl backdrop:bg-black/70 backdrop:backdrop-blur-sm"
     >
       <span className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400">
-        <Wrench size={21} aria-hidden="true" />
+        <Save size={21} aria-hidden="true" />
       </span>
-      <h2 id="maintenance-confirm-title" className="text-lg font-semibold">
-        {enabled ? 'Enable maintenance mode?' : 'Disable maintenance mode?'}
+      <h2 id="config-confirm-title" className="text-lg font-semibold">
+        Save all configuration changes?
       </h2>
-      <p id="maintenance-confirm-description" className="mt-2 text-sm leading-relaxed text-slate-400">
+      <p id="config-confirm-description" className="mt-2 text-sm leading-relaxed text-slate-400">
         {enabled
-          ? 'The commuter and conductor apps will be paused. Admin access stays available. This takes effect when you confirm.'
-          : 'The commuter and conductor apps will become available again. This takes effect when you confirm.'}
+          ? `Maintenance will apply to ${roles.map(role => ROLE_LABELS[role].toLowerCase()).join(' and ')}. They will see your notice when signing in. Admin access stays available.`
+          : 'Maintenance will be off. Commuters and conductors can sign in.'}
+      </p>
+      <p className="mt-2 text-sm leading-relaxed text-slate-400">
+        Valid ID will be {requireIdUpload ? 'required' : 'optional'} for regular commuter signup.
+        All changes apply after you confirm.
       </p>
       {enabled && (
         <div className="mt-4 rounded-lg border border-[#23344F] bg-[#0E1628] p-3">
@@ -164,7 +174,7 @@ function MaintenanceConfirmation({
           className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-4 text-sm font-semibold text-white hover:bg-[#4A8BD4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8CB9F0] disabled:opacity-50"
         >
           {isSaving && <LoaderCircle size={17} className="animate-spin" aria-hidden="true" />}
-          {isSaving ? 'Applying...' : enabled ? 'Enable maintenance' : 'Disable maintenance'}
+          {isSaving ? 'Saving...' : 'Confirm and save'}
         </button>
       </div>
     </dialog>,
@@ -180,8 +190,8 @@ export default function AppConfigurationPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pendingMaintenanceMode, setPendingMaintenanceMode] = useState<boolean | null>(null);
-  const [maintenanceError, setMaintenanceError] = useState<string | null>(null);
+  const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const fetchSettings = useCallback(async () => {
     setIsLoading(true);
@@ -190,6 +200,7 @@ export default function AppConfigurationPage() {
       const data = await getSettings('app');
       const loadedConfig = {
         maintenanceMode: data.maintenance_mode === 'true',
+        maintenanceRoles: parseMaintenanceRoles(data.maintenance_roles),
         maintenanceMessage: data.maintenance_message?.trim()
           ? data.maintenance_message
           : defaultAppConfiguration.maintenanceMessage,
@@ -197,7 +208,6 @@ export default function AppConfigurationPage() {
           data.require_id_upload !== undefined
             ? data.require_id_upload === 'true'
             : defaultAppConfiguration.requireIdUpload,
-        requirePhoneVerification: data.require_phone_verification === 'true',
       };
       setConfig(loadedConfig);
       setMaintenanceReason(getMaintenanceReason(loadedConfig.maintenanceMessage));
@@ -226,49 +236,40 @@ export default function AppConfigurationPage() {
 
   const hasChanges =
     savedConfig !== null &&
-    (config.maintenanceMessage !== savedConfig.maintenanceMessage ||
-      config.requireIdUpload !== savedConfig.requireIdUpload ||
-      config.requirePhoneVerification !== savedConfig.requirePhoneVerification);
+    (config.maintenanceMode !== savedConfig.maintenanceMode ||
+      config.maintenanceMessage !== savedConfig.maintenanceMessage ||
+      config.maintenanceRoles.join(',') !== savedConfig.maintenanceRoles.join(',') ||
+      config.requireIdUpload !== savedConfig.requireIdUpload);
 
-  const confirmMaintenanceMode = async () => {
-    if (isSaving || pendingMaintenanceMode === null || savedConfig === null) return;
-    setIsSaving(true);
-    setMaintenanceError(null);
-    try {
-      // Store the message first so enabling maintenance never exposes the old message.
-      if (pendingMaintenanceMode) {
-        await updateSetting('maintenance_message', config.maintenanceMessage.trim(), 'app');
-        setSavedConfig(
-          (previous) => previous && { ...previous, maintenanceMessage: config.maintenanceMessage }
-        );
-      }
-      await updateSetting('maintenance_mode', String(pendingMaintenanceMode), 'app');
-      setConfig((previous) => ({ ...previous, maintenanceMode: pendingMaintenanceMode }));
-      setSavedConfig((previous) => previous && { ...previous, maintenanceMode: pendingMaintenanceMode });
-      setPendingMaintenanceMode(null);
-      setIsSaved(true);
-    } catch (err) {
-      setMaintenanceError(err instanceof Error ? err.message : 'Failed to change maintenance mode');
-    } finally {
-      setIsSaving(false);
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSaving || showSaveConfirmation || !hasChanges) return;
+    if (config.maintenanceRoles.length === 0) {
+      setError('Select at least one role for maintenance.');
+      return;
     }
+    setError(null);
+    setSaveError(null);
+    setShowSaveConfirmation(true);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isSaving || pendingMaintenanceMode !== null || !hasChanges) return;
+  const confirmSave = async () => {
+    if (isSaving || !showSaveConfirmation || !hasChanges) return;
     setIsSaving(true);
-    setError(null);
+    setSaveError(null);
     try {
       await Promise.all([
         updateSetting('maintenance_message', config.maintenanceMessage.trim(), 'app'),
         updateSetting('require_id_upload', String(config.requireIdUpload), 'app'),
-        updateSetting('require_phone_verification', String(config.requirePhoneVerification), 'app'),
+        updateSetting('maintenance_roles', JSON.stringify(config.maintenanceRoles), 'app'),
       ]);
+      // Save the selected roles and message before enabling maintenance.
+      await updateSetting('maintenance_mode', String(config.maintenanceMode), 'app');
       setSavedConfig({ ...config });
       setIsSaved(true);
+      setShowSaveConfirmation(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save configuration');
+      setSaveError(err instanceof Error ? err.message : 'Failed to save configuration');
     } finally {
       setIsSaving(false);
     }
@@ -366,19 +367,41 @@ export default function AppConfigurationPage() {
                         Maintenance mode
                       </label>
                       <p id="maintenance-mode-hint" className="mt-1 text-xs leading-relaxed text-slate-400">
-                        Pause the commuter and conductor apps. Changes apply immediately after confirmation.
+                        Pause access for the selected roles. Click Save all changes and confirm to apply; open apps update on their next status check.
                       </p>
                     </div>
                     <ConfigSwitch
                       id="maintenance-mode"
                       checked={config.maintenanceMode}
-                      onChange={(value) => {
-                        setMaintenanceError(null);
-                        setPendingMaintenanceMode(value);
-                      }}
+                      onChange={(value) => set('maintenanceMode', value)}
                       tone="amber"
                     />
                   </div>
+                  <fieldset className="border-t border-[#1E2D45] pt-5">
+                    <legend className="px-1 text-sm font-medium text-slate-200">Who is affected?</legend>
+                    <p id="maintenance-roles-hint" className="mb-3 text-xs leading-relaxed text-slate-400">
+                      Choose one or both. Admins can always sign in. Save changes to update an active maintenance period.
+                    </p>
+                    <div className="flex flex-wrap gap-3">
+                      {MAINTENANCE_ROLES.map(role => (
+                        <label key={role} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-[#23344F] bg-[#0E1628] px-4 text-sm text-slate-200">
+                          <input
+                            type="checkbox"
+                            checked={config.maintenanceRoles.includes(role)}
+                            aria-describedby="maintenance-roles-hint"
+                            onChange={event => set('maintenanceRoles', MAINTENANCE_ROLES.filter(candidate =>
+                              candidate === role ? event.target.checked : config.maintenanceRoles.includes(candidate)
+                            ))}
+                            className="h-4 w-4 accent-[#62A0EA] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8CB9F0]"
+                          />
+                          {ROLE_LABELS[role]}
+                        </label>
+                      ))}
+                    </div>
+                    {config.maintenanceRoles.length === 0 && (
+                      <p role="alert" className="mt-2 text-xs text-amber-300">Select at least one role for maintenance.</p>
+                    )}
+                  </fieldset>
                   <div className="border-t border-[#1E2D45] pt-5">
                     <label
                       htmlFor="maintenance-reason"
@@ -486,30 +509,6 @@ export default function AppConfigurationPage() {
                       onChange={(value) => set('requireIdUpload', value)}
                     />
                   </div>
-                  <div className="flex items-start gap-3 py-5">
-                    <Smartphone
-                      size={18}
-                      className="mt-1 hidden shrink-0 text-slate-400 @[24rem]/app-config:block"
-                      aria-hidden="true"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <label
-                        id="verify-phone-label"
-                        htmlFor="verify-phone"
-                        className="text-sm font-medium text-slate-200"
-                      >
-                        Verify phone number
-                      </label>
-                      <p id="verify-phone-hint" className="mt-1 text-xs leading-relaxed text-slate-400">
-                        Require a one-time code sent to the commuter&apos;s mobile number.
-                      </p>
-                    </div>
-                    <ConfigSwitch
-                      id="verify-phone"
-                      checked={config.requirePhoneVerification}
-                      onChange={(value) => set('requirePhoneVerification', value)}
-                    />
-                  </div>
                 </div>
               </section>
             </fieldset>
@@ -530,7 +529,7 @@ export default function AppConfigurationPage() {
               </p>
               <button
                 type="submit"
-                disabled={isSaving || pendingMaintenanceMode !== null || !hasChanges}
+                disabled={isSaving || showSaveConfirmation || !hasChanges}
                 className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#4A8BD4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8CB9F0] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isSaving ? (
@@ -538,19 +537,21 @@ export default function AppConfigurationPage() {
                 ) : (
                   <Save size={17} aria-hidden="true" />
                 )}
-                {isSaving ? 'Saving...' : 'Save changes'}
+                {isSaving ? 'Saving...' : 'Save all changes'}
               </button>
             </div>
           </form>
         )}
-        {pendingMaintenanceMode !== null && (
-          <MaintenanceConfirmation
-            enabled={pendingMaintenanceMode}
+        {showSaveConfirmation && (
+          <SaveConfirmation
+            enabled={config.maintenanceMode}
+            roles={config.maintenanceRoles}
             message={config.maintenanceMessage.trim() || defaultAppConfiguration.maintenanceMessage}
+            requireIdUpload={config.requireIdUpload}
             isSaving={isSaving}
-            error={maintenanceError}
-            onCancel={() => setPendingMaintenanceMode(null)}
-            onConfirm={() => void confirmMaintenanceMode()}
+            error={saveError}
+            onCancel={() => setShowSaveConfirmation(false)}
+            onConfirm={() => void confirmSave()}
           />
         )}
       </div>

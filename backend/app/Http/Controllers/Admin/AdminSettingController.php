@@ -6,6 +6,7 @@ use App\Enums\ActivityLogCategory;
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
 use App\Services\ActivityLogService;
+use App\Services\MaintenanceStatus;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -54,6 +55,17 @@ class AdminSettingController extends Controller
     public function update(Request $request, string $key): JsonResponse
     {
         $valueRules = match ($key) {
+            'maintenance_mode' => ['required', 'string', 'in:true,false'],
+            'maintenance_message' => ['nullable', 'string', 'max:500'],
+            'maintenance_roles' => ['required', 'string', function ($attribute, $value, $fail) {
+                $roles = json_decode($value, true);
+                if (! is_array($roles) || ! array_is_list($roles) || count($roles) === 0
+                    || count($roles) > count(MaintenanceStatus::ROLES)
+                    || count(array_filter($roles, fn ($role) => in_array($role, MaintenanceStatus::ROLES, true))) !== count($roles)
+                    || count(array_unique($roles)) !== count($roles)) {
+                    $fail('Select commuters, conductors, or both for maintenance.');
+                }
+            }],
             Setting::RIDES_FOR_FREE_REWARD_KEY => ['required', 'integer', 'min:1', 'max:'.Setting::MAX_RIDES_FOR_FREE_REWARD],
             'speed_limit_kmh' => ['required', 'integer', 'min:10', 'max:120'],
             'max_shift_hours' => ['required', 'integer', 'min:1', 'max:48'],

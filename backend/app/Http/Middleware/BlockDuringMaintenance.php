@@ -3,40 +3,40 @@
 namespace App\Http\Middleware;
 
 use App\Enums\UserRole;
-use App\Models\Setting;
+use App\Services\MaintenanceStatus;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Rejects a request while Maintenance Mode is on.
+ * Rejects a request while Maintenance Mode is on for the caller's role.
  *
  * The commuter/conductor apps already show a maintenance screen (client-side
- * MaintenanceGate), but that's UI-only — an in-flight session, a race before
- * the gate resolves, or a direct API call could still hit a mutation. This is
- * the server-side safety net so no state (e.g. a conductor self-assigning to a
- * vehicle / starting a shift) is created during maintenance, which would cause
- * conflicts once the system comes back.
+ * MaintenanceGate), but that's UI-only — an open session or a direct API call
+ * could still read or change account data. This is the server-side
+ * enforcement: it is applied to every commuter/conductor route group, so a
+ * signed-in user of an affected role can't operate their account at all.
+ * Logout, GET /user and /system-status stay outside it so the app can still
+ * resolve the session, sign out, and render the maintenance screen.
+ *
+ * Guest routes have no user to read a role from, so they name the role they
+ * act for (e.g. 'maintenance:COMMUTER' on commuter self-registration).
  *
  * Admins are never blocked — they need access to turn maintenance back off.
  */
 class BlockDuringMaintenance
 {
-    public function handle(Request $request, Closure $next): Response
+    public function handle(Request $request, Closure $next, ?string $guestRole = null): Response
     {
-        $user = $request->user();
+        $role = $request->user()?->role ?? ($guestRole !== null ? UserRole::tryFrom($guestRole) : null);
+        $message = app(MaintenanceStatus::class)->messageFor($role);
 
-        if ($user && $user->role === UserRole::ADMIN) {
-            return $next($request);
-        }
-
-        $isOn = Setting::query()->where('key', 'maintenance_mode')->value('value') === 'true';
-
-        if ($isOn) {
+        if ($message !== null) {
             return response()->json([
                 'success' => false,
                 'data'    => null,
-                'message' => "CHATCO is under maintenance right now. You can't start a shift until maintenance is complete.",
+                'code' => 'MAINTENANCE',
+                'message' => $message,
                 'errors'  => null,
                 'meta'    => null,
             ], 503);

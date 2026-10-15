@@ -190,7 +190,7 @@ Global flags that the public and signed-in apps check on load.
 
 | Field | Meaning |
 |---|---|
-| `maintenance_mode` | `true` makes the commuter and conductor apps show the maintenance screen. The server also enforces it on `POST /conductor/shifts/start` (returns `503`). Admins are never blocked. |
+| `maintenance_mode` | `true` makes the commuter and conductor apps show the maintenance screen. The server also enforces it: for the selected roles, login, commuter sign-up, and every commuter/conductor API route return `503` with `code: "MAINTENANCE"`. Only `GET /user`, logout and this endpoint stay open. Admins are never blocked. |
 | `maintenance_message` | The admin's custom text, or the default shown above when blank |
 | `require_id_upload` | Whether a `REGULAR` commuter must upload an ID at sign-up. Discounted types always must. Defaults to `true`. |
 

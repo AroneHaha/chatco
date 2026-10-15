@@ -5,7 +5,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Eye, EyeOff, LoaderCircle } from "lucide-react";
-import { useAuth } from "@/contexts/auth-context";
+import { LoginError, useAuth } from "@/contexts/auth-context";
 import styles from "./login.module.css";
 
 export default function LoginForm({ onBusyChange }: { onBusyChange?: (busy: boolean) => void }) {
@@ -16,6 +16,7 @@ export default function LoginForm({ onBusyChange }: { onBusyChange?: (busy: bool
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [isMaintenance, setIsMaintenance] = useState(false);
   const isSuspendedError = error.toLowerCase().includes("account is suspended");
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -24,6 +25,7 @@ export default function LoginForm({ onBusyChange }: { onBusyChange?: (busy: bool
     setIsLoading(true);
     onBusyChange?.(true);
     setError("");
+    setIsMaintenance(false);
 
     try {
       // Use auth context login — this calls /api/auth/login, sets httpOnly cookie,
@@ -31,6 +33,7 @@ export default function LoginForm({ onBusyChange }: { onBusyChange?: (busy: bool
       const redirectPath = await login(email, password);
       router.replace(redirectPath);
     } catch (err: unknown) {
+      setIsMaintenance(err instanceof LoginError && err.code === "MAINTENANCE");
       setError(err instanceof Error ? err.message : "An unexpected error occurred.");
     } finally {
       setIsLoading(false);
@@ -49,7 +52,8 @@ export default function LoginForm({ onBusyChange }: { onBusyChange?: (busy: bool
 
       {/* Error Message Display */}
       {error && (
-        <div id="login-error" role="alert" className={`${styles.error} ${isSuspendedError ? styles.suspended : ""}`}>
+        <div id="login-error" role="alert" className={`${styles.error} ${isSuspendedError || isMaintenance ? styles.suspended : ""}`}>
+          {isMaintenance && <p className={styles.errorTitle}>Maintenance in progress</p>}
           {isSuspendedError && <p className={styles.errorTitle}>Account suspended</p>}
           <p>{error}</p>
           {isSuspendedError && (
@@ -75,7 +79,7 @@ export default function LoginForm({ onBusyChange }: { onBusyChange?: (busy: bool
             autoCapitalize="none"
             spellCheck={false}
             disabled={isLoading}
-            aria-invalid={!!error && !isSuspendedError}
+            aria-invalid={!!error && !isSuspendedError && !isMaintenance}
             aria-describedby={error ? "login-error" : undefined}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -101,7 +105,7 @@ export default function LoginForm({ onBusyChange }: { onBusyChange?: (busy: bool
               required
               autoComplete="current-password"
               disabled={isLoading}
-              aria-invalid={!!error && !isSuspendedError}
+              aria-invalid={!!error && !isSuspendedError && !isMaintenance}
               aria-describedby={error ? "login-error" : undefined}
               value={password}
               onChange={(e) => setPassword(e.target.value)}

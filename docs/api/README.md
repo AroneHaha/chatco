@@ -208,7 +208,7 @@ Shape B errors usually come from deep business rules (shift, payment and hail st
 | `422` | Validation failed, or a business rule refused the input |
 | `429` | Rate limited, a code requested too soon, or too many wrong code attempts |
 | `502` | Upstream failure: email delivery or the payment gateway |
-| `503` | Maintenance mode is on (`POST .../shifts/start` only) |
+| `503` | Maintenance mode is on for the caller's role (`code: "MAINTENANCE"`): login, commuter sign-up and every commuter/conductor route except `GET /user` and logout |
 
 ## Pagination
 
@@ -451,7 +451,7 @@ Every route below also exists under `/mobile/conductor/*`. One difference: the m
 | GET | `/conductor/drivers` | conductor-read |
 | GET | `/conductor/receipt-settings` | conductor-read |
 | GET | `/conductor/ratings` | conductor-read |
-| POST | `/conductor/shifts/start` | conductor-mutation (+ maintenance check) |
+| POST | `/conductor/shifts/start` | conductor-mutation |
 | POST | `/conductor/shifts/device/claim` | conductor-mutation |
 | POST | `/conductor/shifts/device/release` | conductor-mutation |
 | POST | `/conductor/remittances` | conductor-mutation |

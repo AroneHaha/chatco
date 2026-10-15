@@ -46,11 +46,12 @@ use App\Http\Controllers\StudentRenewalController;
 */
 Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:auth');
-    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:auth'); // PUBLIC — commuter self-sign-up (S5-T15)
+    // Sign-up is commuter-only, so it's closed while commuter maintenance is on.
+    Route::post('/register', [AuthController::class, 'register'])->middleware(['throttle:auth', 'maintenance:COMMUTER']); // PUBLIC — commuter self-sign-up (S5-T15)
     // Sign-up email verification — the applicant must enter a 6-digit code
     // mailed to their address before /register will create the account.
-    Route::post('/register/send-code', [AuthController::class, 'sendRegistrationCode'])->middleware('throttle:auth');
-    Route::post('/register/verify-code', [AuthController::class, 'verifyRegistrationCode'])->middleware('throttle:auth');
+    Route::post('/register/send-code', [AuthController::class, 'sendRegistrationCode'])->middleware(['throttle:auth', 'maintenance:COMMUTER']);
+    Route::post('/register/verify-code', [AuthController::class, 'verifyRegistrationCode'])->middleware(['throttle:auth', 'maintenance:COMMUTER']);
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
     // Password reset — public (no auth required, throttled to prevent abuse).
     // 3-step 6-digit-code flow: request code → verify code → set new password.
@@ -103,8 +104,10 @@ Route::middleware('auth:sanctum')->get('/user', [AuthController::class, 'user'])
 |--------------------------------------------------------------------------
 | Commuter Routes (COMMUTER role required)
 |--------------------------------------------------------------------------
+| 'maintenance' on every authenticated commuter/conductor group (and the
+| shared groups below) — see BlockDuringMaintenance.
 */
-Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(function () {
+Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER', 'maintenance'])->group(function () {
     Route::get('/vehicles/{vehicle}/details', VehicleDetailsController::class)->middleware('throttle:conductor-read');
     Route::get('/profile', [CommuterController::class, 'profile'])->middleware('throttle:conductor-read');
     Route::get('/discount-applications', [StudentRenewalController::class, 'applicationState'])->middleware('throttle:commuter-read');
@@ -200,7 +203,7 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(
 |   - Transactions:    30 req/min  (still a 501 stub — minimal limit)
 |--------------------------------------------------------------------------
 */
-Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->group(function () {
+Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR', 'maintenance'])->group(function () {
     // Read endpoints — 60 req/min (generous for UI polling)
     Route::get('/shift', [ConductorController::class, 'shiftStatus'])->middleware('throttle:conductor-read');
     Route::get('/shift-logs', [ConductorController::class, 'shiftLogs'])->middleware('throttle:conductor-read');
@@ -215,9 +218,7 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->grou
     Route::get('/ratings', [ConductorController::class, 'ratings'])->middleware('throttle:conductor-read');
 
     // Mutations — strict limit (one shift per conductor at a time anyway).
-    // 'maintenance' blocks starting a shift (conductor self-assignment) while
-    // Maintenance Mode is on, so no assignment state is created mid-maintenance.
-    Route::post('/shifts/start', [ConductorController::class, 'startShift'])->middleware(['maintenance', 'throttle:conductor-mutation']);
+    Route::post('/shifts/start', [ConductorController::class, 'startShift'])->middleware('throttle:conductor-mutation');
     Route::post('/shifts/device/claim', [ConductorController::class, 'claimShiftDevice'])->middleware('throttle:conductor-mutation');
     Route::post('/shifts/device/release', [ConductorController::class, 'releaseShiftDevice'])->middleware('throttle:conductor-mutation');
     Route::post('/remittances', [ConductorController::class, 'remittances'])->middleware('throttle:conductor-mutation');
@@ -266,7 +267,7 @@ require __DIR__.'/mobile.php';
 | Vehicle Locations (Authenticated — any role)
 |--------------------------------------------------------------------------
 */
-Route::prefix('vehicles')->middleware(['auth:sanctum'])->group(function () {
+Route::prefix('vehicles')->middleware(['auth:sanctum', 'maintenance'])->group(function () {
     Route::get('/locations', [VehicleLocationController::class, 'index'])->middleware('throttle:vehicle-locations');
 });
 
@@ -417,7 +418,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
 */
 Route::prefix('payments')->group(function () {
     // Status polling — auth required, any role (conductor or commuter)
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware(['auth:sanctum', 'maintenance'])->group(function () {
         Route::get('/{id}/status', [PaymentController::class, 'status'])->middleware('throttle:conductor-read');
 
         // Cancel a PENDING GCash payment — conductor can abort if the commuter
@@ -449,7 +450,7 @@ Route::prefix('payments')->group(function () {
 | group above via AdminLostItemController.
 |--------------------------------------------------------------------------
 */
-Route::prefix('lost-found')->middleware(['auth:sanctum'])->group(function () {
+Route::prefix('lost-found')->middleware(['auth:sanctum', 'maintenance'])->group(function () {
     Route::get('/', [LostItemController::class, 'index'])->middleware('throttle:commuter-read');
     // Registered before /{itemId} so 'claims' is never captured as an item id.
     Route::delete('/claims/{claimId}', [LostItemController::class, 'cancelClaim'])->middleware(['role:COMMUTER', 'throttle:commuter-write']);
@@ -472,7 +473,7 @@ Route::prefix('lost-found')->middleware(['auth:sanctum'])->group(function () {
 | AdminAnnouncementController.
 |--------------------------------------------------------------------------
 */
-Route::prefix('announcements')->middleware(['auth:sanctum'])->group(function () {
+Route::prefix('announcements')->middleware(['auth:sanctum', 'maintenance'])->group(function () {
     Route::get('/unread-count', [AnnouncementController::class, 'unreadCount'])->middleware('throttle:commuter-read');
     Route::post('/mark-all-read', [AnnouncementController::class, 'markAllRead'])->middleware('throttle:commuter-write');
     Route::get('/', [AnnouncementController::class, 'index'])->middleware('throttle:commuter-read');
@@ -494,7 +495,7 @@ Route::prefix('announcements')->middleware(['auth:sanctum'])->group(function () 
 | because the issuer (admin) and the consumers (commuters) are different.
 |--------------------------------------------------------------------------
 */
-Route::prefix('qr')->middleware(['auth:sanctum'])->group(function () {
+Route::prefix('qr')->middleware(['auth:sanctum', 'maintenance'])->group(function () {
     Route::post('/generate', [QrController::class, 'generate'])->middleware(['role:ADMIN', 'throttle:admin-write']);
     Route::post('/validate', [QrController::class, 'verify'])->middleware(['role:COMMUTER', 'throttle:commuter-write']);
     Route::post('/scan', [QrController::class, 'scan'])->middleware(['role:COMMUTER', 'throttle:commuter-write']);

@@ -110,7 +110,7 @@ This is the actual read/write wiring across the codebase — which admin setting
 
 | Key | Read by |
 |---|---|
-| `maintenance_mode` | `BlockDuringMaintenance` middleware (blocks `POST /conductor/shifts/start` with `503`) **and** `SystemStatusController` ([public.md](public.md)) |
+| `maintenance_mode` | `BlockDuringMaintenance` middleware (returns `503` `code: "MAINTENANCE"` on every commuter/conductor route and commuter sign-up for the selected `maintenance_roles`; see [README.md](README.md#error-responses)) **and** `SystemStatusController` ([public.md](public.md)) |
 | `maintenance_message` | `SystemStatusController` |
 | `require_id_upload` | `Setting::requiresIdUpload()` — whether a `REGULAR` applicant must upload an ID at sign-up; `STUDENT`/`SENIOR`/`PWD` always need one regardless of this toggle |
 | `require_phone_verification` | *(none — see Known quirks)* |

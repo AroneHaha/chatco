@@ -26,9 +26,9 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('mobile')->group(function () {
     Route::prefix('auth')->group(function () {
         Route::post('/login', [MobileAuthController::class, 'login'])->middleware('throttle:auth');
-        Route::post('/register', [MobileAuthController::class, 'register'])->middleware('throttle:auth');
-        Route::post('/register/send-code', [MobileAuthController::class, 'sendRegistrationCode'])->middleware('throttle:auth');
-        Route::post('/register/verify-code', [MobileAuthController::class, 'verifyRegistrationCode'])->middleware('throttle:auth');
+        Route::post('/register', [MobileAuthController::class, 'register'])->middleware(['throttle:auth', 'maintenance:COMMUTER']);
+        Route::post('/register/send-code', [MobileAuthController::class, 'sendRegistrationCode'])->middleware(['throttle:auth', 'maintenance:COMMUTER']);
+        Route::post('/register/verify-code', [MobileAuthController::class, 'verifyRegistrationCode'])->middleware(['throttle:auth', 'maintenance:COMMUTER']);
         Route::post('/forgot-password', [MobileAuthController::class, 'forgotPassword'])->middleware('throttle:auth');
         Route::post('/verify-reset-code', [MobileAuthController::class, 'verifyResetCode'])->middleware('throttle:auth');
         Route::post('/reset-password', [MobileAuthController::class, 'resetPassword'])->middleware('throttle:auth');
@@ -41,7 +41,7 @@ Route::prefix('mobile')->group(function () {
     Route::get('/system-status', [SystemStatusController::class, 'index'])->middleware('throttle:commuter-hail');
 
     // Ownership checks and simulation restrictions remain in PaymentController.
-    Route::prefix('payments')->middleware(['auth:sanctum', 'role:CONDUCTOR,COMMUTER'])->group(function () {
+    Route::prefix('payments')->middleware(['auth:sanctum', 'role:CONDUCTOR,COMMUTER', 'maintenance'])->group(function () {
         Route::get('/{id}/status', [PaymentController::class, 'status'])->middleware('throttle:conductor-read');
         Route::post('/{id}/cancel', [PaymentController::class, 'cancel'])->middleware('throttle:conductor-write');
         Route::post('/{id}/simulate', [PaymentController::class, 'simulate'])->middleware('throttle:conductor-write');
@@ -57,7 +57,7 @@ Route::prefix('mobile')->group(function () {
 | behaviors can evolve independently without breaking web endpoints.
 |--------------------------------------------------------------------------
 */
-Route::prefix('mobile/conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR'])->group(function () {
+Route::prefix('mobile/conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR', 'maintenance'])->group(function () {
     Route::get('/shift', [ConductorController::class, 'shiftStatus'])->middleware('throttle:conductor-read');
     Route::get('/shift-logs', [ConductorController::class, 'shiftLogs'])->middleware('throttle:conductor-read');
     Route::get('/profile', [ConductorController::class, 'profile'])->middleware('throttle:conductor-read');
@@ -66,7 +66,7 @@ Route::prefix('mobile/conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR']
     Route::get('/receipt-settings', [ConductorController::class, 'receiptSettings'])->middleware('throttle:conductor-read');
     Route::get('/ratings', [ConductorController::class, 'ratings'])->middleware('throttle:conductor-read');
 
-    Route::post('/shifts/start', [ConductorController::class, 'startShift'])->middleware(['maintenance', 'throttle:conductor-mutation']);
+    Route::post('/shifts/start', [ConductorController::class, 'startShift'])->middleware('throttle:conductor-mutation');
     Route::post('/shifts/device/claim', [ConductorController::class, 'claimShiftDevice'])->middleware('throttle:conductor-mutation');
     Route::post('/shifts/device/release', [ConductorController::class, 'releaseShiftDevice'])->middleware('throttle:conductor-mutation');
     Route::post('/remittances', [ConductorController::class, 'remittances'])->middleware('throttle:conductor-mutation');
@@ -103,7 +103,7 @@ Route::prefix('mobile/conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR']
 | behaviors can evolve independently without breaking web endpoints.
 |--------------------------------------------------------------------------
 */
-Route::prefix('mobile/commuter')->middleware(['auth:sanctum', 'role:COMMUTER'])->group(function () {
+Route::prefix('mobile/commuter')->middleware(['auth:sanctum', 'role:COMMUTER', 'maintenance'])->group(function () {
     Route::get('/discount-applications', [StudentRenewalController::class, 'applicationState'])->middleware('throttle:commuter-read');
     Route::post('/discount-applications', [StudentRenewalController::class, 'applicationSubmit'])->middleware('throttle:conductor-write');
     Route::post('/discount-applications/cancel', [StudentRenewalController::class, 'applicationCancel'])->middleware('throttle:conductor-write');

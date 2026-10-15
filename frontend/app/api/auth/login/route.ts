@@ -63,6 +63,13 @@ export async function POST(request: Request) {
       return issueSession({ id, email: userEmail, role, name, token }, activeShift);
     }
 
+    if (res.status === 503 && data?.code === "MAINTENANCE") {
+      return NextResponse.json(
+        { code: "MAINTENANCE", message: data.message },
+        { status: 503 }
+      );
+    }
+
     // Laravel responded but rejected the credentials (401/422) — surface that.
     if (res.status !== 0 && res.status < 500) {
       return NextResponse.json(

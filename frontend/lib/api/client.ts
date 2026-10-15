@@ -14,6 +14,8 @@
  *   const result = await api.post<Transaction>("/api/transactions", payload);
  */
 
+import { MAINTENANCE_SUSPECTED_EVENT } from "@/lib/maintenance";
+
 // ─── Configuration ───────────────────────────────────────────────────
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
@@ -155,6 +157,13 @@ class ApiClient {
         // handling runs, while the redirect proceeds in the background.
         if (response.status === 401) {
           void this.handleSessionEnded();
+        }
+        // The backend 503s every commuter/conductor call while Maintenance
+        // Mode covers the role (BlockDuringMaintenance). The conductor proxy
+        // drops the body's `code`, so key off the status; the gate confirms
+        // against /api/system-status before showing anything.
+        if (response.status === 503 && typeof window !== "undefined") {
+          window.dispatchEvent(new Event(MAINTENANCE_SUSPECTED_EVENT));
         }
         throw new ApiError(response.status, response.statusText, data);
       }

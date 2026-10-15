@@ -79,7 +79,10 @@ const FIELD_STEP: Record<string, number> = {
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export default function SignupForm({ onBusyChange }: { onBusyChange?: (busy: boolean) => void }) {
+export default function SignupForm({ onBusyChange, initialMaintenanceMessage = null }: {
+  onBusyChange?: (busy: boolean) => void;
+  initialMaintenanceMessage?: string | null;
+}) {
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -111,6 +114,7 @@ export default function SignupForm({ onBusyChange }: { onBusyChange?: (busy: boo
   // Admin setting "Force Valid ID Upload" (public via /api/system-status).
   // Defaults to required, so a failed or slow lookup never relaxes the rule.
   const [idUploadRequired, setIdUploadRequired] = useState(true);
+  const [maintenanceMessage] = useState<string | null>(initialMaintenanceMessage);
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   // Blurred "Take a Picture" / "Upload an Image" choice shown over the ID box.
@@ -234,7 +238,8 @@ export default function SignupForm({ onBusyChange }: { onBusyChange?: (busy: boo
     fetch("/api/system-status", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((json) => {
-        if (!cancelled && json?.data?.require_id_upload === false) setIdUploadRequired(false);
+        if (cancelled) return;
+        if (json?.data?.require_id_upload === false) setIdUploadRequired(false);
       })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -519,6 +524,18 @@ export default function SignupForm({ onBusyChange }: { onBusyChange?: (busy: boo
       setIsLoading(false);
     }
   };
+
+  if (maintenanceMessage !== null) {
+    return (
+      <div className={styles.success} role="status" aria-live="polite">
+        <h2 id="signup-heading" className={styles.title}>Under maintenance</h2>
+        <p id="signup-description" className={`${styles.subtitle} whitespace-pre-line break-words max-w-full`}>
+          {maintenanceMessage}
+        </p>
+        <p className={styles.subtitle}>Sign-up is temporarily unavailable. Please try again later.</p>
+      </div>
+    );
+  }
 
   // ── Success: Pending Review Screen ──
   if (isSuccess) {
