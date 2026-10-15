@@ -594,7 +594,7 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
             className="flex max-h-[90dvh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-[#62A0EA]/20 bg-[#071A2E] shadow-2xl shadow-black/40"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="shrink-0 border-b border-white/10 bg-gradient-to-r from-[#153C66] to-[#071A2E] p-5 sm:p-6">
+            <div className="shrink-0 border-b border-white/10 p-5 sm:p-6">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#99C1F1]/25 bg-[#62A0EA]/15 text-[#B6D3F6]"><KeyRound size={21} aria-hidden="true" /></span>
@@ -665,7 +665,7 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
                   </div>
                 ) : (
                   <div className="space-y-5">
-                    <div className="rounded-xl border border-[#62A0EA]/20 bg-gradient-to-br from-[#102E50] to-[#0B223A] p-4">
+                    <div className="rounded-xl border border-[#62A0EA]/20 bg-[#0B223A] p-4">
                       <div className="flex items-start gap-3">
                         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#62A0EA]/10 text-[#99C1F1]"><Mail size={20} aria-hidden="true" /></span>
                         <div>
