@@ -20,11 +20,11 @@ interface ProofPhotoPickerProps {
 
 const SKINS = {
   commuter: {
-    label: "mb-2 block text-sm font-semibold text-white/75",
-    optional: "font-medium text-white/45",
-    tile: "border-white/10 bg-[#0E1628]",
-    empty: "border-white/15 bg-white/[0.03] text-white/45 hover:border-[#62A0EA] hover:text-[#62A0EA]",
-    helper: "mt-2 text-[11px] font-medium text-white/55",
+    label: "mb-2 block text-sm font-semibold text-white/75 light:text-gray-700",
+    optional: "font-medium text-white/45 light:text-gray-400",
+    tile: "border-white/10 bg-[#0E1628] light:border-gray-200 light:bg-gray-100",
+    empty: "border-white/15 bg-white/[0.03] text-white/45 hover:border-[#62A0EA] hover:text-[#62A0EA] light:border-gray-300 light:bg-white light:text-gray-500 light:hover:border-[#1A5FB4] light:hover:text-[#1A5FB4]",
+    helper: "mt-2 text-[11px] font-medium text-white/55 light:text-gray-500",
   },
   admin: {
     label: "mb-1.5 block text-xs font-semibold text-slate-300",
@@ -115,7 +115,7 @@ export default function ProofPhotoPicker({ files, onChange, disabled = false, va
         onChange={handleFilesSelected}
       />
       {error ? (
-        <p className="mt-2 text-[11px] font-medium text-red-300">{error}</p>
+        <p className="mt-2 text-[11px] font-medium text-red-300 light:text-red-600">{error}</p>
       ) : (
         <p className={skin.helper}>
           {helperText ?? `Up to ${MAX_PHOTOS} photos, such as a receipt or a picture of you with the item. JPG, PNG, or WEBP, 5 MB each.`}

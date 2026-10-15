@@ -54,20 +54,20 @@ export default function LostItemCard({
 
   const claimAction =
     claimStatus === "PENDING"
-      ? { label: "Cancel Claim", onClick: () => onCancelClaim(item.id), className: "border-white/10 bg-white/[0.04] text-white/65 hover:bg-white/10 hover:text-white" }
+      ? { label: "Cancel Claim", onClick: () => onCancelClaim(item.id), className: "border-white/10 bg-white/[0.04] text-white/65 hover:bg-white/10 hover:text-white light:border-gray-200 light:bg-white light:text-gray-600 light:hover:bg-gray-100 light:hover:text-gray-900" }
       : claimStatus === "REJECTED" || claimStatus === "NONE"
-        ? { label: claimStatus === "REJECTED" ? "Claim Again" : "Claim Item", onClick: () => onOpenClaimModal(item), className: "border-[#FF6D3A]/30 bg-[#FF6D3A]/10 text-[#FF9A73] hover:border-[#FF6D3A] hover:bg-[#FF6D3A] hover:text-white" }
+        ? { label: claimStatus === "REJECTED" ? "Claim Again" : "Claim Item", onClick: () => onOpenClaimModal(item), className: "border-[#FF6D3A]/30 bg-[#FF6D3A]/10 text-[#FF9A73] hover:border-[#FF6D3A] hover:bg-[#FF6D3A] hover:text-white light:text-[#E55A2B] light:hover:text-white" }
         : null;
 
   return (
     // `isolate` keeps the z-10 buttons layered within the tile only, so they
     // scroll under the sticky day header instead of painting over it.
-    <article className="group relative isolate flex h-full flex-col overflow-hidden rounded-lg border border-white/8 bg-[#0B1E33] transition-colors hover:border-[#62A0EA]/40 focus-within:border-[#62A0EA]/40">
-      <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#0A1E33]">
+    <article className="group relative isolate flex h-full flex-col overflow-hidden rounded-lg border border-white/8 bg-[#0B1E33] transition-colors hover:border-[#62A0EA]/40 focus-within:border-[#62A0EA]/40 light:border-gray-200 light:bg-white light:hover:border-[#1A5FB4]/40 light:focus-within:border-[#1A5FB4]/40">
+      <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#0A1E33] light:bg-gray-100">
         {item.imageUrl ? (
           <img src={item.imageUrl} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100" />
         ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-white/20">
+          <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-white/20 light:text-gray-400">
             <PackageSearch className="h-7 w-7" />
             <span className="text-[10px] font-semibold uppercase tracking-wider">No photo yet</span>
           </div>
@@ -77,10 +77,10 @@ export default function LostItemCard({
       {/* Tag body */}
       <div className="flex flex-1 flex-col px-3 pb-3 pt-2.5">
         <div className="flex min-h-5 items-center justify-between gap-2">
-          <span className="truncate text-[10px] font-semibold uppercase tracking-wider text-white/50">{item.category}</span>
+          <span className="truncate text-[10px] font-semibold uppercase tracking-wider text-white/50 light:text-gray-500">{item.category}</span>
           {deadline ? (
             <span
-              className={`flex-shrink-0 text-[11px] font-semibold tabular-nums ${deadline.isUrgent ? "text-amber-300" : "text-white/60"}`}
+              className={`flex-shrink-0 text-[11px] font-semibold tabular-nums ${deadline.isUrgent ? "text-amber-300 light:text-amber-700" : "text-white/60 light:text-gray-500"}`}
               title={`Claim by ${deadline.dateLabel}`}
             >
               {deadline.label}
@@ -100,13 +100,13 @@ export default function LostItemCard({
           <button
             type="button"
             onClick={() => onOpenDetails(item)}
-            className="line-clamp-2 text-left text-sm font-semibold leading-5 text-white/90 transition-colors after:absolute after:inset-0 after:content-[''] group-hover:text-white focus:outline-none"
+            className="line-clamp-2 text-left text-sm font-semibold leading-5 text-white/90 light:text-gray-900 transition-colors after:absolute after:inset-0 after:content-[''] group-hover:text-white focus:outline-none"
           >
             {item.itemName}
           </button>
         </h3>
 
-        <p className="mt-1.5 flex min-w-0 items-center gap-1.5 text-xs text-white/60">
+        <p className="mt-1.5 flex min-w-0 items-center gap-1.5 text-xs text-white/60 light:text-gray-500">
           <Clock3 className="h-3 w-3 flex-shrink-0" />
           <span className="truncate">{item.estimatedTimeLost || "Time unavailable"}</span>
         </p>
@@ -114,9 +114,9 @@ export default function LostItemCard({
 
       {/* Tear line with tag notches, then the claim stub. */}
       <div aria-hidden="true" className="relative">
-        <div className="mx-3 border-t border-dashed border-white/15" />
-        <span className="pointer-events-none absolute -left-2 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full border border-white/10 bg-[#050F1A]" />
-        <span className="pointer-events-none absolute -right-2 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full border border-white/10 bg-[#050F1A]" />
+        <div className="mx-3 border-t border-dashed border-white/15 light:border-gray-300" />
+        <span className="pointer-events-none absolute -left-2 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full border border-white/10 bg-[#050F1A] light:border-gray-200 light:bg-[#F8FAFC]" />
+        <span className="pointer-events-none absolute -right-2 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full border border-white/10 bg-[#050F1A] light:border-gray-200 light:bg-[#F8FAFC]" />
       </div>
 
       <div className="flex items-center gap-2 p-3">
@@ -129,7 +129,7 @@ export default function LostItemCard({
             {claimAction.label}
           </button>
         ) : (
-          <div className={`flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md border text-xs font-semibold ${claimStatus === "RELEASED" ? "border-[#62A0EA]/20 bg-[#62A0EA]/10 text-[#8CB9F0]" : "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"}`}>
+          <div className={`flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md border text-xs font-semibold ${claimStatus === "RELEASED" ? "border-[#62A0EA]/20 bg-[#62A0EA]/10 text-[#8CB9F0] light:text-[#1A5FB4]" : "border-emerald-500/20 bg-emerald-500/10 text-emerald-300 light:text-emerald-700"}`}>
             <ShieldCheck className="h-3.5 w-3.5 flex-shrink-0" />
             <span className="truncate">{claimStatus === "RELEASED" ? "Claim completed" : "Ready for release"}</span>
           </div>
@@ -141,8 +141,8 @@ export default function LostItemCard({
           aria-pressed={isWatched}
           className={`relative z-10 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${
             isWatched
-              ? "border-[#62A0EA]/45 bg-[#1A5FB4]/20 text-[#8CB9F0]"
-              : "border-white/10 bg-white/[0.04] text-white/55 hover:bg-white/10 hover:text-white"
+              ? "border-[#62A0EA]/45 bg-[#1A5FB4]/20 text-[#8CB9F0] light:bg-[#1A5FB4]/10 light:text-[#1A5FB4]"
+              : "border-white/10 bg-white/[0.04] text-white/55 hover:bg-white/10 hover:text-white light:border-gray-200 light:bg-white light:text-gray-600 light:hover:bg-gray-100 light:hover:text-gray-900"
           }`}
         >
           <Bookmark className={`h-4 w-4 ${isWatched ? "fill-current" : ""}`} />

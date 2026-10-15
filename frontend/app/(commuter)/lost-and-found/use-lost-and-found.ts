@@ -463,10 +463,10 @@ export function useLostAndFound() {
   };
   const getStatusBadge = (status: ClaimStatus) => {
     switch (status) {
-      case "PENDING": return "bg-amber-500/20 text-amber-400 border-amber-500/30";
-      case "VALIDATED": return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
-      case "REJECTED": return "bg-red-500/20 text-red-400 border-red-500/30";
-      case "RELEASED": return "bg-[#62A0EA]/20 text-[#8CB9F0] border-[#62A0EA]/30";
+      case "PENDING": return "bg-amber-500/20 text-amber-400 border-amber-500/30 light:text-amber-700";
+      case "VALIDATED": return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30 light:text-emerald-700";
+      case "REJECTED": return "bg-red-500/20 text-red-400 border-red-500/30 light:text-red-700";
+      case "RELEASED": return "bg-[#62A0EA]/20 text-[#8CB9F0] border-[#62A0EA]/30 light:text-[#1A5FB4]";
       default: return "";
     }
   };

@@ -71,17 +71,17 @@ export default function TripLedger({ items, renderItem }: { items: LostItem[]; r
     <div className="space-y-8 lg:space-y-10">
       {days.map(day => (
         <section key={day.key} aria-labelledby={`lf-day-${day.key}`}>
-          <header className="sticky top-0 z-[1] -mx-4 flex items-baseline justify-between gap-3 border-b border-white/10 bg-[#050F1A]/95 px-4 py-3 backdrop-blur-sm lg:-mx-8 lg:px-8 xl:mx-0 xl:px-0">
+          <header className="sticky top-0 z-[1] -mx-4 flex items-baseline justify-between gap-3 border-b border-white/10 bg-[#050F1A]/95 light:border-gray-200 light:bg-[#F8FAFC]/95 px-4 py-3 backdrop-blur-sm lg:-mx-8 lg:px-8 xl:mx-0 xl:px-0">
             <h2 id={`lf-day-${day.key}`} className="flex min-w-0 items-baseline gap-2.5">
-              <span className="text-sm font-bold text-white">{day.label}</span>
-              {day.dateLabel && <span className="text-xs font-medium text-white/50">{day.dateLabel}</span>}
+              <span className="text-sm font-bold text-white light:text-gray-900">{day.label}</span>
+              {day.dateLabel && <span className="text-xs font-medium text-white/50 light:text-gray-500">{day.dateLabel}</span>}
             </h2>
-            <span className="flex-shrink-0 text-xs font-medium tabular-nums text-white/50">
+            <span className="flex-shrink-0 text-xs font-medium tabular-nums text-white/50 light:text-gray-500">
               {day.count} item{day.count === 1 ? "" : "s"}
             </span>
           </header>
 
-          <div className="divide-y divide-white/[0.06]">
+          <div className="divide-y divide-white/[0.06] light:divide-gray-200">
             {day.trips.map(trip => (
               <div key={trip.key} className="grid gap-3 py-5 md:grid-cols-[11rem_minmax(0,1fr)] md:gap-6 xl:grid-cols-[12.5rem_minmax(0,1fr)]">
                 {/* A lone trip's count would just repeat the day total. */}
@@ -109,19 +109,19 @@ function TripMeta({ trip, showCount }: { trip: TripGroup; showCount: boolean }) 
     // Desktop: pinned under the day header so the plate stays beside its items.
     <div className="flex min-w-0 items-start justify-between gap-3 md:sticky md:top-16 md:block md:self-start">
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-white/45">Found on</p>
-        <p className="mt-0.5 truncate text-lg font-bold leading-tight text-[#8CB9F0]">{trip.plateNumber || "Plate unavailable"}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-white/45 light:text-gray-500">Found on</p>
+        <p className="mt-0.5 truncate text-lg font-bold leading-tight text-[#8CB9F0] light:text-[#1A5FB4]">{trip.plateNumber || "Plate unavailable"}</p>
         <dl className="mt-2 hidden space-y-1 text-xs md:block">
           <CrewLine label="Driver" value={trip.driverName || "Driver unavailable"} />
           <CrewLine label="Conductor" value={trip.conductorName || "Conductor unavailable"} />
         </dl>
         {/* Phones keep the crew on one line beside the plate block. */}
-        <p className="mt-1 truncate text-xs text-white/55 md:hidden">
+        <p className="mt-1 truncate text-xs text-white/55 light:text-gray-500 md:hidden">
           {trip.driverName || "Driver unavailable"} &middot; {trip.conductorName || "Conductor unavailable"}
         </p>
       </div>
       {showCount && (
-        <p className="flex-shrink-0 text-xs font-medium tabular-nums text-white/45 md:mt-3">
+        <p className="flex-shrink-0 text-xs font-medium tabular-nums text-white/45 light:text-gray-500 md:mt-3">
           {count} item{count === 1 ? "" : "s"}
         </p>
       )}
@@ -132,8 +132,8 @@ function TripMeta({ trip, showCount }: { trip: TripGroup; showCount: boolean }) 
 function CrewLine({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex min-w-0 gap-2">
-      <dt className="w-[4.5rem] flex-shrink-0 text-white/45">{label}</dt>
-      <dd className="min-w-0 truncate font-medium text-white/80">{value}</dd>
+      <dt className="w-[4.5rem] flex-shrink-0 text-white/45 light:text-gray-500">{label}</dt>
+      <dd className="min-w-0 truncate font-medium text-white/80 light:text-gray-700">{value}</dd>
     </div>
   );
 }
@@ -143,30 +143,30 @@ export function TripLedgerSkeleton() {
     <div className="space-y-8" aria-hidden="true">
       {[3, 2].map((tiles, day) => (
         <div key={day}>
-          <div className="flex justify-between border-b border-white/10 py-3">
-            <div className="h-4 w-36 rounded bg-white/[0.06]" />
-            <div className="h-4 w-14 rounded bg-white/[0.06]" />
+          <div className="flex justify-between border-b border-white/10 py-3 light:border-gray-200">
+            <div className="h-4 w-36 rounded bg-white/[0.06] light:bg-gray-200" />
+            <div className="h-4 w-14 rounded bg-white/[0.06] light:bg-gray-200" />
           </div>
           {[0, 1].map(trip => (
             <div key={trip} className="grid gap-3 py-5 md:grid-cols-[11rem_minmax(0,1fr)] md:gap-6 xl:grid-cols-[12.5rem_minmax(0,1fr)]">
               <div className="space-y-2">
-                <div className="h-3 w-16 rounded bg-white/[0.06]" />
-                <div className="h-5 w-28 rounded bg-white/[0.08]" />
-                <div className="hidden h-3 w-36 rounded bg-white/[0.05] md:block" />
+                <div className="h-3 w-16 rounded bg-white/[0.06] light:bg-gray-200" />
+                <div className="h-5 w-28 rounded bg-white/[0.08] light:bg-gray-200" />
+                <div className="hidden h-3 w-36 rounded bg-white/[0.05] light:bg-gray-100 md:block" />
               </div>
               <div className="flex gap-2.5 overflow-hidden md:grid md:grid-cols-3 xl:grid-cols-4 md:gap-3">
                 {Array.from({ length: tiles }).map((_, i) => (
-                  <div key={i} className="w-[44%] flex-shrink-0 overflow-hidden rounded-lg border border-white/8 bg-[#0B1E33] sm:w-[31%] md:w-auto">
-                    <div className="aspect-[4/3] animate-pulse bg-white/5 motion-reduce:animate-none" />
+                  <div key={i} className="w-[44%] flex-shrink-0 overflow-hidden rounded-lg border border-white/8 bg-[#0B1E33] light:border-gray-200 light:bg-white sm:w-[31%] md:w-auto">
+                    <div className="aspect-[4/3] animate-pulse bg-white/5 light:bg-gray-100 motion-reduce:animate-none" />
                     <div className="space-y-2 px-3 pb-3 pt-2.5">
-                      <div className="flex justify-between"><div className="h-2.5 w-12 rounded bg-white/[0.05]" /><div className="h-2.5 w-14 rounded bg-white/[0.05]" /></div>
-                      <div className="h-3.5 w-4/5 rounded bg-white/[0.07]" />
-                      <div className="h-3 w-1/2 rounded bg-white/[0.05]" />
+                      <div className="flex justify-between"><div className="h-2.5 w-12 rounded bg-white/[0.05] light:bg-gray-100" /><div className="h-2.5 w-14 rounded bg-white/[0.05] light:bg-gray-100" /></div>
+                      <div className="h-3.5 w-4/5 rounded bg-white/[0.07] light:bg-gray-200" />
+                      <div className="h-3 w-1/2 rounded bg-white/[0.05] light:bg-gray-100" />
                     </div>
-                    <div className="mx-3 border-t border-dashed border-white/10" />
+                    <div className="mx-3 border-t border-dashed border-white/10 light:border-gray-200" />
                     <div className="flex gap-2 p-3">
-                      <div className="h-9 flex-1 rounded-md bg-white/[0.04]" />
-                      <div className="h-9 w-9 rounded-md bg-white/[0.04]" />
+                      <div className="h-9 flex-1 rounded-md bg-white/[0.04] light:bg-gray-100" />
+                      <div className="h-9 w-9 rounded-md bg-white/[0.04] light:bg-gray-100" />
                     </div>
                   </div>
                 ))}

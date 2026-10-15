@@ -10,6 +10,7 @@ import ProofPhotoPicker from "@/components/commuter/lost-and-found/proof-photo-p
 import RubberSegment from "@/components/ui/rubber-segment";
 import { getClaimDeadline } from "./claim-deadline";
 import { AdminDatePicker } from "@/components/admin/ui/admin-date-picker";
+import { useCommuterTheme } from "@/contexts/commuter-theme-context";
 import { ClaimData, ClaimFilter, LostItem, TimeRange, ViewTab } from "./types";
 import {
   AlertTriangle,
@@ -51,6 +52,9 @@ export default function LostAndFoundPage() {
     displayItems, displayClaims, formatDate, getStatusBadge
   } = useLostAndFound();
   const { claimUpdatesUnreadCount, markClaimUpdatesRead } = useAnnouncements();
+  // RubberSegment takes its colours as props (inline CSS variables), which
+  // the `light:` variant can't reach, so they follow the theme here.
+  const isLight = useCommuterTheme() === "light";
   // Opening the Claims tab clears the claim-update badge (nav button + tab
   // dot) — new updates stay unread until the commuter actually looks here,
   // regardless of how many times the claim's status has changed since.
@@ -191,16 +195,16 @@ export default function LostAndFoundPage() {
   };
 
   return (
-    <div className="relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#050F1A]">
+    <div className="relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#050F1A] light:bg-[#F8FAFC]">
       
       {/* --- HEADER --- */}
       {/* Title and the three sections only; finding and narrowing live in
           the left column beside the results. */}
-      <div className="z-10 flex-shrink-0 overflow-hidden border-b border-white/10 bg-[#071A2E] [scrollbar-gutter:stable]">
+      <div className="z-10 flex-shrink-0 overflow-hidden border-b border-white/10 bg-[#071A2E] light:border-gray-200 light:bg-white [scrollbar-gutter:stable]">
         <div className="mx-auto w-full max-w-[100rem] px-4 pt-5 lg:px-8 lg:pt-7">
           <div className="min-w-0">
-            <h1 className="text-xl font-bold leading-tight text-white lg:text-2xl">Lost & Found</h1>
-            <p className="mt-1 text-xs text-white/55">{headerSummary}</p>
+            <h1 className="text-xl font-bold leading-tight text-white light:text-gray-900 lg:text-2xl">Lost & Found</h1>
+            <p className="mt-1 text-xs text-white/55 light:text-gray-500">{headerSummary}</p>
           </div>
 
           <nav aria-label="Lost and found sections" className="mt-4 grid grid-cols-3 lg:mt-5 lg:flex lg:gap-8">
@@ -212,8 +216,8 @@ export default function LostAndFoundPage() {
                 aria-pressed={activeTab === key}
                 className={`relative inline-flex h-11 min-w-0 items-center justify-center gap-2 text-sm font-semibold transition-colors after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:rounded-t-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA] lg:justify-start ${
                   activeTab === key
-                    ? "text-white after:bg-[#62A0EA]"
-                    : "text-white/55 after:bg-transparent hover:text-white"
+                    ? "text-white after:bg-[#62A0EA] light:text-gray-900 light:after:bg-[#1A5FB4]"
+                    : "text-white/55 after:bg-transparent hover:text-white light:text-gray-500 light:hover:text-gray-900"
                 }`}
               >
                 <Icon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
@@ -243,14 +247,14 @@ export default function LostAndFoundPage() {
         <aside aria-label="Search and filters" className="mb-5 flex flex-col gap-3 xl:sticky xl:top-8 xl:mb-0 xl:max-h-[calc(100dvh-14rem)] xl:gap-6 xl:self-start xl:overflow-y-auto xl:pb-2 xl:[scrollbar-width:thin]">
           <div className="flex items-center gap-2">
             <div className="relative min-w-0 flex-1">
-              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
+              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45 light:text-gray-400" />
               <input
                 type="search"
                 placeholder="Item, plate, driver, conductor"
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
                 aria-label={isClaimsTab ? "Search claims" : "Search lost and found items"}
-                className="h-11 w-full rounded-lg border border-white/10 bg-[#0E1628] pl-10 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/45 focus:border-[#62A0EA] xl:h-10 [&::-webkit-search-cancel-button]:hidden"
+                className="h-11 w-full rounded-lg border border-white/10 bg-[#0E1628] pl-10 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/45 focus:border-[#62A0EA] light:border-gray-200 light:bg-white light:text-gray-900 light:placeholder:text-gray-400 light:focus:border-[#1A5FB4] xl:h-10 [&::-webkit-search-cancel-button]:hidden"
               />
             </div>
             <button
@@ -259,7 +263,7 @@ export default function LostAndFoundPage() {
               aria-expanded={filtersOpen}
               aria-controls={filtersId}
               aria-label={`Filters${activeFilterCount ? `, ${activeFilterCount} active` : ""}`}
-              className={`inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] xl:hidden ${filtersOpen || activeFilterCount > 0 ? "border-[#62A0EA]/45 bg-[#1A5FB4]/20 text-white" : "border-white/10 bg-[#0E1628] text-white/70 hover:bg-white/5"}`}
+              className={`inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] xl:hidden ${filtersOpen || activeFilterCount > 0 ? "border-[#62A0EA]/45 bg-[#1A5FB4]/20 text-white light:border-[#1A5FB4]/40 light:bg-[#1A5FB4]/10 light:text-[#1A5FB4]" : "border-white/10 bg-[#0E1628] text-white/70 hover:bg-white/5 light:border-gray-200 light:bg-white light:text-gray-600 light:hover:bg-gray-50"}`}
             >
               <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Filters</span>
@@ -275,7 +279,7 @@ export default function LostAndFoundPage() {
                     from passing the end, so the range is always valid. */}
                 <div className="grid grid-cols-2 gap-2 xl:grid-cols-1">
                   <div className="flex min-w-0 flex-col gap-1">
-                    <span className="text-[10px] font-semibold text-white/45">From</span>
+                    <span className="text-[10px] font-semibold text-white/45 light:text-gray-500">From</span>
                     <AdminDatePicker
                       popover
                       accent="blue"
@@ -291,7 +295,7 @@ export default function LostAndFoundPage() {
                     />
                   </div>
                   <div className="flex min-w-0 flex-col gap-1">
-                    <span className="text-[10px] font-semibold text-white/45">To</span>
+                    <span className="text-[10px] font-semibold text-white/45 light:text-gray-500">To</span>
                     <AdminDatePicker
                       popover
                       accent="blue"
@@ -321,11 +325,11 @@ export default function LostAndFoundPage() {
                 size="md"
                 radius={8}
                 inset={3}
-                trackColor="#0E1628"
-                thumbColor="#143A6B"
-                textColor="#FFFFFF"
+                trackColor={isLight ? "#FFFFFF" : "#0E1628"}
+                thumbColor={isLight ? "#1A5FB4" : "#143A6B"}
+                textColor={isLight ? "#4B5563" : "#FFFFFF"}
                 activeTextColor="#FFFFFF"
-                className="w-full shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]"
+                className="w-full shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] light:shadow-[inset_0_0_0_1px_#E5E7EB]"
               />
             </FilterGroup>
 
@@ -339,7 +343,7 @@ export default function LostAndFoundPage() {
                   return (
                     <label
                       key={cat.value}
-                      className={`flex h-9 cursor-pointer items-center gap-2.5 rounded-md px-2 text-xs font-semibold transition-colors duration-200 motion-reduce:transition-none ${checked ? "bg-[#1A5FB4]/15 text-white" : "text-white/60 hover:bg-white/[0.04] hover:text-white"}`}
+                      className={`flex h-9 cursor-pointer items-center gap-2.5 rounded-md px-2 text-xs font-semibold transition-colors duration-200 motion-reduce:transition-none ${checked ? "bg-[#1A5FB4]/15 text-white light:bg-[#1A5FB4]/10 light:text-[#1A5FB4]" : "text-white/60 hover:bg-white/[0.04] hover:text-white light:text-gray-600 light:hover:bg-gray-100 light:hover:text-gray-900"}`}
                     >
                       <input
                         type="checkbox"
@@ -349,7 +353,7 @@ export default function LostAndFoundPage() {
                       />
                       <span
                         aria-hidden="true"
-                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors duration-200 peer-focus-visible:ring-2 peer-focus-visible:ring-[#62A0EA] peer-focus-visible:ring-offset-1 peer-focus-visible:ring-offset-[#050F1A] motion-reduce:transition-none ${checked ? "border-[#1A5FB4] bg-[#1A5FB4] text-white" : "border-white/25 bg-[#0E1628]"}`}
+                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors duration-200 peer-focus-visible:ring-2 peer-focus-visible:ring-[#62A0EA] peer-focus-visible:ring-offset-1 peer-focus-visible:ring-offset-[#050F1A] light:peer-focus-visible:ring-offset-[#F8FAFC] motion-reduce:transition-none ${checked ? "border-[#1A5FB4] bg-[#1A5FB4] text-white" : "border-white/25 bg-[#0E1628] light:border-gray-300 light:bg-white"}`}
                       >
                         <Check className={`h-3 w-3 transition-[opacity,transform] duration-200 motion-reduce:transition-none ${checked ? "scale-100 opacity-100" : "scale-50 opacity-0"}`} strokeWidth={3} />
                       </span>
@@ -366,19 +370,19 @@ export default function LostAndFoundPage() {
           {activeChipCount > 0 && (
             <div className="mb-4 flex flex-wrap gap-2">
               {searchQuery.trim() && (
-                <button type="button" onClick={() => handleSearch("")} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/[0.07] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
+                <button type="button" onClick={() => handleSearch("")} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/[0.07] hover:text-white light:border-gray-200 light:bg-white light:text-gray-600 light:hover:bg-gray-100 light:hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
                   Search
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
               {hasDateWindow && (
-                <button type="button" onClick={clearDateWindow} aria-label={`Clear posted date filter, ${dateWindowLabel}`} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/[0.07] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
+                <button type="button" onClick={clearDateWindow} aria-label={`Clear posted date filter, ${dateWindowLabel}`} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/[0.07] hover:text-white light:border-gray-200 light:bg-white light:text-gray-600 light:hover:bg-gray-100 light:hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
                   {dateWindowLabel}
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
               {isClaimsTab && claimFilter !== "ALL" && (
-                <button type="button" onClick={() => handleClaimFilterChange("ALL")} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/[0.07] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
+                <button type="button" onClick={() => handleClaimFilterChange("ALL")} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/[0.07] hover:text-white light:border-gray-200 light:bg-white light:text-gray-600 light:hover:bg-gray-100 light:hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
                   {activeClaimFilterLabel}
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -389,8 +393,8 @@ export default function LostAndFoundPage() {
           activeTab === "MY_CLAIMS" ? (
             <div className="space-y-3">
               {Array.from({ length: 4 }).map((_, index) => (
-                <div key={index} className="h-44 rounded-xl border border-white/10 bg-white/[0.04]">
-                  <div className="h-full w-full animate-pulse motion-reduce:animate-none rounded-[inherit] bg-gradient-to-r from-white/[0.03] via-white/[0.07] to-white/[0.03]" />
+                <div key={index} className="h-44 rounded-xl border border-white/10 bg-white/[0.04] light:border-gray-200 light:bg-white">
+                  <div className="h-full w-full animate-pulse motion-reduce:animate-none rounded-[inherit] bg-gradient-to-r from-white/[0.03] via-white/[0.07] to-white/[0.03] light:from-gray-100 light:via-gray-200 light:to-gray-100" />
                 </div>
               ))}
             </div>
@@ -399,24 +403,24 @@ export default function LostAndFoundPage() {
           )
         ) : listError ? (
           <div className="flex flex-1 flex-col items-center justify-center text-center px-4">
-            <p className="text-red-400 font-medium text-sm mb-3">{listError}</p>
+            <p className="text-red-400 font-medium text-sm mb-3 light:text-red-600">{listError}</p>
             <button onClick={() => handleTabChange(activeTab)} className="px-4 py-2.5 rounded-md text-xs font-semibold bg-[#1A5FB4] text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">Try again</button>
           </div>
         ) : activeTab === "MY_CLAIMS" && displayClaims.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center text-center px-4">
-             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-xl border border-white/10 bg-white/5">
-               <PackageSearch className="h-7 w-7 text-white/20" />
+             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-xl border border-white/10 bg-white/5 light:border-gray-200 light:bg-white">
+               <PackageSearch className="h-7 w-7 text-white/20 light:text-gray-300" />
              </div>
-             <h3 className="text-white/70 font-semibold mb-1">No claims found</h3>
-             <p className="max-w-xs text-white/60 text-sm">Try another status filter or search term.</p>
+             <h3 className="text-white/70 font-semibold mb-1 light:text-gray-700">No claims found</h3>
+             <p className="max-w-xs text-white/60 text-sm light:text-gray-500">Try another status filter or search term.</p>
           </div>
         ) : activeTab !== "MY_CLAIMS" && displayItems.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center text-center px-4">
-             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-xl border border-white/10 bg-white/5">
-               <PackageSearch className="h-7 w-7 text-white/20" />
+             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-xl border border-white/10 bg-white/5 light:border-gray-200 light:bg-white">
+               <PackageSearch className="h-7 w-7 text-white/20 light:text-gray-300" />
              </div>
-             <h3 className="text-white/70 font-semibold mb-1">No matching items</h3>
-             <p className="max-w-xs text-white/60 text-sm">Try another keyword or category. New found items appear here as soon as staff reports them.</p>
+             <h3 className="text-white/70 font-semibold mb-1 light:text-gray-700">No matching items</h3>
+             <p className="max-w-xs text-white/60 text-sm light:text-gray-500">Try another keyword or category. New found items appear here as soon as staff reports them.</p>
           </div>
         ) : (
           <>
@@ -459,8 +463,8 @@ export default function LostAndFoundPage() {
                   disabled={paginationData.currentPage === 1}
                   className={`inline-flex h-10 items-center gap-2 rounded-md border px-3 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${
                     paginationData.currentPage === 1
-                      ? "cursor-not-allowed border-white/5 bg-white/5 text-white/20"
-                      : "border-white/10 bg-[#0E1628] text-white/65 hover:bg-white/10 hover:text-white"
+                      ? "cursor-not-allowed border-white/5 bg-white/5 text-white/20 light:border-gray-200 light:bg-gray-100 light:text-gray-300"
+                      : "border-white/10 bg-[#0E1628] text-white/65 hover:bg-white/10 hover:text-white light:border-gray-200 light:bg-white light:text-gray-600 light:hover:bg-gray-100 light:hover:text-gray-900"
                   }`}
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -468,7 +472,7 @@ export default function LostAndFoundPage() {
                 </button>
                 {pageNumbers.map((page, index) => (
                   page === "ellipsis" ? (
-                    <span key={`ellipsis-${index}`} className="flex h-10 w-9 items-center justify-center text-sm font-semibold text-white/40">...</span>
+                    <span key={`ellipsis-${index}`} className="flex h-10 w-9 items-center justify-center text-sm font-semibold text-white/40 light:text-gray-400">...</span>
                   ) : (
                     <button
                       key={page}
@@ -477,8 +481,8 @@ export default function LostAndFoundPage() {
                       aria-current={paginationData.currentPage === page ? "page" : undefined}
                       className={`h-10 w-10 rounded-md text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${
                         paginationData.currentPage === page
-                          ? "bg-[#62A0EA]/15 text-[#62A0EA]"
-                          : "bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
+                          ? "bg-[#62A0EA]/15 text-[#62A0EA] light:bg-[#1A5FB4]/10 light:text-[#1A5FB4]"
+                          : "bg-white/5 text-white/70 hover:bg-white/10 hover:text-white light:bg-gray-100 light:text-gray-600 light:hover:bg-gray-200 light:hover:text-gray-900"
                       }`}
                     >
                       {page}
@@ -491,8 +495,8 @@ export default function LostAndFoundPage() {
                   disabled={paginationData.currentPage === paginationData.totalPages}
                   className={`inline-flex h-10 items-center gap-2 rounded-md border px-3 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${
                     paginationData.currentPage === paginationData.totalPages
-                      ? "cursor-not-allowed border-white/5 bg-white/5 text-white/20"
-                      : "border-white/10 bg-[#0E1628] text-white/65 hover:bg-white/10 hover:text-white"
+                      ? "cursor-not-allowed border-white/5 bg-white/5 text-white/20 light:border-gray-200 light:bg-gray-100 light:text-gray-300"
+                      : "border-white/10 bg-[#0E1628] text-white/65 hover:bg-white/10 hover:text-white light:border-gray-200 light:bg-white light:text-gray-600 light:hover:bg-gray-100 light:hover:text-gray-900"
                   }`}
                 >
                   Next
@@ -509,7 +513,7 @@ export default function LostAndFoundPage() {
       {/* --- ITEM DETAIL MODAL --- */}
       {detailItem && (
         <div role="dialog" aria-modal="true" aria-labelledby="lf-detail-title" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setDetailItem(null)}>
-          <div className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-white/10 bg-[#071A2E] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-white/10 bg-[#071A2E] light:border-gray-200 light:bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
             {/* Stacked as a flex column below lg, not a one-column grid: grid
                 row sizing doesn't reliably reserve the photo's aspect-ratio
                 height (its image is percentage-sized, which counts as zero in
@@ -518,7 +522,7 @@ export default function LostAndFoundPage() {
                 thumbnails. In a flex column the photo keeps its height
                 (flex-shrink-0) and the details take the rest. */}
             <div className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-              <div className="relative aspect-[4/3] flex-shrink-0 bg-[#0A1E33] lg:aspect-auto lg:min-h-[520px]">
+              <div className="relative aspect-[4/3] flex-shrink-0 bg-[#0A1E33] light:bg-gray-100 lg:aspect-auto lg:min-h-[520px]">
                 {activeDetailPhoto ? (
                   <button
                     type="button"
@@ -536,7 +540,7 @@ export default function LostAndFoundPage() {
                     </span>
                   </button>
                 ) : (
-                  <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-white/20">
+                  <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-white/20 light:text-gray-400">
                     <PackageSearch className="h-12 w-12" />
                     <span className="text-[11px] font-semibold uppercase tracking-wider">No photo yet</span>
                   </div>
@@ -589,19 +593,19 @@ export default function LostAndFoundPage() {
               <div className="relative flex min-h-0 flex-1 flex-col">
                 {/* Close sits on the details side, outside the scrolling body,
                     so it stays put however long the description is. */}
-                <button autoFocus onClick={() => setDetailItem(null)} className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/60 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] lg:right-5 lg:top-5" aria-label="Close item details">
+                <button autoFocus onClick={() => setDetailItem(null)} className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/60 transition-colors hover:bg-white/10 hover:text-white light:border-gray-200 light:bg-white light:text-gray-600 light:hover:bg-gray-100 light:hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] lg:right-5 lg:top-5" aria-label="Close item details">
                   <X className="h-4 w-4" />
                 </button>
                 <div className="min-h-0 flex-1 overflow-y-auto p-5 lg:p-6">
                   <div className="mb-5">
-                    <h2 id="lf-detail-title" className="pr-11 text-xl font-bold leading-tight text-white">{detailItem.itemName}</h2>
+                    <h2 id="lf-detail-title" className="pr-11 text-xl font-bold leading-tight text-white light:text-gray-900">{detailItem.itemName}</h2>
                     {detailDeadline && (
-                      <p className={`mt-1.5 flex items-center gap-1.5 text-xs font-semibold ${detailDeadline.isUrgent ? "text-amber-300" : "text-white/60"}`}>
+                      <p className={`mt-1.5 flex items-center gap-1.5 text-xs font-semibold ${detailDeadline.isUrgent ? "text-amber-300 light:text-amber-700" : "text-white/60 light:text-gray-500"}`}>
                         <CalendarDays className="h-3.5 w-3.5" />
                         Claim by {detailDeadline.dateLabel} &middot; {detailDeadline.label}
                       </p>
                     )}
-                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-white/75">{detailItem.description}</p>
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-white/75 light:text-gray-700">{detailItem.description}</p>
                   </div>
 
                   <div className="mb-5 grid grid-cols-2 gap-3">
@@ -615,27 +619,27 @@ export default function LostAndFoundPage() {
                       means the item was already handed over to them, and a
                       proof/handover reminder no longer applies. */}
                   {claims.get(detailItem.id)?.status !== "RELEASED" && (
-                    <div className="rounded-xl border border-amber-400/20 bg-amber-400/10 p-3">
+                    <div className="rounded-xl border border-amber-400/20 bg-amber-400/10 p-3 light:border-amber-300 light:bg-amber-50">
                       <div className="flex items-start gap-3">
-                        <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
+                        <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300 light:text-amber-600" />
                         <div>
-                          <p className="text-xs font-bold text-amber-100">Claim reminder</p>
-                          <p className="mt-1 text-xs leading-5 text-amber-100/80">Submit specific proof only if this item is yours. Staff may ask for a valid ID during handover.</p>
+                          <p className="text-xs font-bold text-amber-100 light:text-amber-900">Claim reminder</p>
+                          <p className="mt-1 text-xs leading-5 text-amber-100/80 light:text-amber-800">Submit specific proof only if this item is yours. Staff may ask for a valid ID during handover.</p>
                         </div>
                       </div>
                     </div>
                   )}
                 </div>
 
-                <div className="flex flex-shrink-0 items-center gap-3 border-t border-white/10 p-5 lg:p-6">
+                <div className="flex flex-shrink-0 items-center gap-3 border-t border-white/10 light:border-gray-200 p-5 lg:p-6">
                   {(() => {
                     const status = claims.get(detailItem.id)?.status || "NONE";
                     if (status === "PENDING") {
-                      return <button onClick={() => requestCancelClaim(detailItem.id)} className="h-11 flex-1 rounded-xl border border-white/10 bg-white/5 text-sm font-semibold text-white/65 transition-colors hover:bg-white/10 hover:text-white">Cancel Claim</button>;
+                      return <button onClick={() => requestCancelClaim(detailItem.id)} className="h-11 flex-1 rounded-xl border border-white/10 bg-white/5 text-sm font-semibold text-white/65 transition-colors hover:bg-white/10 hover:text-white light:border-gray-200 light:bg-white light:text-gray-600 light:hover:bg-gray-100 light:hover:text-gray-900">Cancel Claim</button>;
                     }
                     if (status === "VALIDATED" || status === "RELEASED") {
                       return (
-                        <div className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-sm font-semibold text-emerald-300">
+                        <div className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-sm font-semibold text-emerald-300 light:text-emerald-700">
                           <ShieldCheck className="h-4 w-4" />
                           {status === "RELEASED" ? "Released" : "Validated"}
                         </div>
@@ -650,7 +654,7 @@ export default function LostAndFoundPage() {
                       </button>
                     );
                   })()}
-                  <button onClick={() => toggleWatchlist(detailItem.id)} className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border transition-colors ${watchlist.has(detailItem.id) ? "border-[#62A0EA]/35 bg-[#1A5FB4]/20 text-[#62A0EA]" : "border-white/10 bg-white/5 text-white/50 hover:bg-white/10 hover:text-white"}`} aria-label={watchlist.has(detailItem.id) ? "Remove bookmark" : "Bookmark item"}>
+                  <button onClick={() => toggleWatchlist(detailItem.id)} className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border transition-colors ${watchlist.has(detailItem.id) ? "border-[#62A0EA]/35 bg-[#1A5FB4]/20 text-[#62A0EA] light:bg-[#1A5FB4]/10 light:text-[#1A5FB4]" : "border-white/10 bg-white/5 text-white/50 hover:bg-white/10 hover:text-white light:border-gray-200 light:bg-white light:text-gray-600 light:hover:bg-gray-100 light:hover:text-gray-900"}`} aria-label={watchlist.has(detailItem.id) ? "Remove bookmark" : "Bookmark item"}>
                     <Bookmark className={`h-5 w-5 ${watchlist.has(detailItem.id) ? "fill-current" : ""}`} />
                   </button>
                 </div>
@@ -708,25 +712,25 @@ export default function LostAndFoundPage() {
       {/* --- CLAIM MODAL --- */}
       {showClaimModal && itemToClaim && (
         <div role="dialog" aria-modal="true" aria-labelledby="lf-claim-title" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="flex h-[min(720px,88vh)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-white/10 bg-[#071A2E] shadow-2xl">
-            <div className="flex flex-shrink-0 items-start justify-between gap-4 border-b border-white/10 p-5">
+          <div className="flex h-[min(720px,88vh)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-white/10 bg-[#071A2E] light:border-gray-200 light:bg-white shadow-2xl">
+            <div className="flex flex-shrink-0 items-start justify-between gap-4 border-b border-white/10 light:border-gray-200 p-5">
               <div className="min-w-0">
-                <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#FFB199]">
+                <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#FFB199] light:text-[#E55A2B]">
                   <FileCheck2 className="h-3.5 w-3.5" aria-hidden="true" />
                   Claim request
                 </p>
-                <h2 id="lf-claim-title" className="text-lg font-bold text-white">Proof of ownership</h2>
-                <p className="mt-1 line-clamp-1 text-xs text-white/60">
+                <h2 id="lf-claim-title" className="text-lg font-bold text-white light:text-gray-900">Proof of ownership</h2>
+                <p className="mt-1 line-clamp-1 text-xs text-white/60 light:text-gray-500">
                   {itemToClaim.itemName} on {itemToClaim.plateNumber || "assigned vehicle"}
                 </p>
               </div>
-              <button onClick={handleCloseClaimModal} className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/60 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]" aria-label="Close claim modal">
+              <button onClick={handleCloseClaimModal} className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/60 transition-colors hover:bg-white/10 hover:text-white light:border-gray-200 light:bg-white light:text-gray-600 light:hover:bg-gray-100 light:hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]" aria-label="Close claim modal">
                 <X className="h-4 w-4" />
               </button>
             </div>
 
             <div className="flex-1 space-y-4 overflow-y-auto p-5">
-              <div className="rounded-xl border border-white/8 bg-white/[0.04] p-3">
+              <div className="rounded-xl border border-white/8 bg-white/[0.04] p-3 light:border-gray-200 light:bg-gray-50">
                 <div className="grid gap-2 sm:grid-cols-2">
                   <DetailInfo icon={<Tag className="h-4 w-4" />} label="Category" value={itemToClaim.category} />
                   <DetailInfo icon={<Clock3 className="h-4 w-4" />} label="Estimated Time" value={itemToClaim.estimatedTimeLost || "Time unavailable"} />
@@ -734,38 +738,38 @@ export default function LostAndFoundPage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-semibold text-white/75">Proof of Ownership <span className="text-red-400">*</span></label>
+                <label className="mb-2 block text-sm font-semibold text-white/75 light:text-gray-700">Proof of Ownership <span className="text-red-400 light:text-red-600">*</span></label>
                 <textarea
                   rows={6}
                   value={proofText}
                   onChange={(e) => setProofText(e.target.value)}
                   placeholder="Describe a specific detail, where you sat, unique marks, contents, or anything staff can verify."
-                  className="w-full resize-none rounded-xl border border-white/10 bg-[#0E1628] px-4 py-3 text-sm leading-6 text-white outline-none transition-colors placeholder:text-white/45 focus:border-[#62A0EA]"
+                  className="w-full resize-none rounded-xl border border-white/10 bg-[#0E1628] px-4 py-3 text-sm leading-6 text-white outline-none transition-colors placeholder:text-white/45 focus:border-[#62A0EA] light:border-gray-200 light:bg-white light:text-gray-900 light:placeholder:text-gray-400 light:focus:border-[#1A5FB4]"
                 />
-                <p className="mt-2 text-[11px] font-medium text-white/55">This proof is visible to the admin reviewer.</p>
+                <p className="mt-2 text-[11px] font-medium text-white/55 light:text-gray-500">This proof is visible to the admin reviewer.</p>
               </div>
 
               <ProofPhotoPicker files={proofImages} onChange={setProofImages} disabled={isSubmittingClaim} />
 
               {claimError && (
-                <div className="flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-400" />
-                  <p className="text-xs font-medium leading-5 text-red-300">{claimError}</p>
+                <div className="flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3 light:border-red-200 light:bg-red-50">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-400 light:text-red-600" />
+                  <p className="text-xs font-medium leading-5 text-red-300 light:text-red-700">{claimError}</p>
                 </div>
               )}
 
-              <div className="flex items-start gap-3 rounded-xl border border-amber-400/20 bg-amber-400/10 p-3">
-                <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
+              <div className="flex items-start gap-3 rounded-xl border border-amber-400/20 bg-amber-400/10 p-3 light:border-amber-300 light:bg-amber-50">
+                <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300 light:text-amber-600" />
                 <div>
-                  <p className="text-xs font-bold text-amber-100">Reminder</p>
-                  <p className="mt-1 text-xs leading-5 text-amber-100/80">Bring a valid ID during handover. Staff may reject claims that do not match the item details.</p>
+                  <p className="text-xs font-bold text-amber-100 light:text-amber-900">Reminder</p>
+                  <p className="mt-1 text-xs leading-5 text-amber-100/80 light:text-amber-800">Bring a valid ID during handover. Staff may reject claims that do not match the item details.</p>
                 </div>
               </div>
             </div>
 
-            <div className="grid flex-shrink-0 grid-cols-2 gap-3 border-t border-white/10 p-5">
-              <button onClick={handleCloseClaimModal} className="h-11 rounded-xl border border-white/10 bg-white/5 text-sm font-semibold text-white/70 transition-colors hover:bg-white/10 hover:text-white">Cancel</button>
-              <button onClick={handleSubmitClaim} disabled={!proofText.trim() || isSubmittingClaim} className={`flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-bold shadow-lg transition-colors ${!proofText.trim() || isSubmittingClaim ? "cursor-not-allowed bg-white/10 text-white/30 shadow-none" : "bg-[#FF6D3A] text-white shadow-[#FF6D3A]/30 hover:bg-[#e55a2b]"}`}>
+            <div className="grid flex-shrink-0 grid-cols-2 gap-3 border-t border-white/10 light:border-gray-200 p-5">
+              <button onClick={handleCloseClaimModal} className="h-11 rounded-xl border border-white/10 bg-white/5 text-sm font-semibold text-white/70 transition-colors hover:bg-white/10 hover:text-white light:border-gray-200 light:bg-white light:text-gray-600 light:hover:bg-gray-100 light:hover:text-gray-900">Cancel</button>
+              <button onClick={handleSubmitClaim} disabled={!proofText.trim() || isSubmittingClaim} className={`flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-bold shadow-lg transition-colors ${!proofText.trim() || isSubmittingClaim ? "cursor-not-allowed bg-white/10 text-white/30 shadow-none light:bg-gray-100 light:text-gray-400" : "bg-[#FF6D3A] text-white shadow-[#FF6D3A]/30 hover:bg-[#e55a2b]"}`}>
                 {isSubmittingClaim ? (
                   <span className="inline-flex items-center gap-2"><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Submitting...</span>
                 ) : "Submit Claim"}
@@ -778,32 +782,32 @@ export default function LostAndFoundPage() {
       {/* --- CLAIM SUBMITTED --- */}
       {submittedClaimItem && (
         <div role="alertdialog" aria-modal="true" aria-labelledby="lf-claim-sent-title" aria-describedby="lf-claim-sent-body" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md overflow-hidden rounded-xl border border-white/10 bg-[#071A2E] shadow-2xl animate-fade-in">
+          <div className="w-full max-w-md overflow-hidden rounded-xl border border-white/10 bg-[#071A2E] light:border-gray-200 light:bg-white shadow-2xl animate-fade-in">
             <div className="flex items-start gap-4 p-5">
-              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 light:text-emerald-600">
                 <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
               </div>
               <div className="min-w-0">
-                <h2 id="lf-claim-sent-title" className="text-base font-bold text-white">Claim request sent</h2>
-                <div id="lf-claim-sent-body" className="mt-1.5 space-y-2 text-sm leading-5 text-white/70">
+                <h2 id="lf-claim-sent-title" className="text-base font-bold text-white light:text-gray-900">Claim request sent</h2>
+                <div id="lf-claim-sent-body" className="mt-1.5 space-y-2 text-sm leading-5 text-white/70 light:text-gray-600">
                   <p>
-                    Your claim on &ldquo;<span className="font-semibold text-white/80">{submittedClaimItem}</span>&rdquo; is now with the Lost &amp; Found desk for review.
+                    Your claim on &ldquo;<span className="font-semibold text-white/80 light:text-gray-900">{submittedClaimItem}</span>&rdquo; is now with the Lost &amp; Found desk for review.
                   </p>
                   <p>We&apos;ll notify you once it&apos;s approved, with where and when to pick it up. Bring a valid ID during handover.</p>
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3 border-t border-white/10 p-5">
+            <div className="grid grid-cols-2 gap-3 border-t border-white/10 light:border-gray-200 p-5">
               <button
                 onClick={() => setSubmittedClaimItem(null)}
-                className="h-11 rounded-xl border border-white/10 bg-white/5 text-sm font-semibold text-white/70 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
+                className="h-11 rounded-xl border border-white/10 bg-white/5 text-sm font-semibold text-white/70 transition-colors hover:bg-white/10 hover:text-white light:border-gray-200 light:bg-white light:text-gray-600 light:hover:bg-gray-100 light:hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
               >
                 Done
               </button>
               <button
                 autoFocus
                 onClick={() => { setSubmittedClaimItem(null); handleTabChange("MY_CLAIMS"); }}
-                className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#1A5FB4] text-sm font-bold text-white transition-colors hover:bg-[#164A8F] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] focus-visible:ring-offset-2 focus-visible:ring-offset-[#071A2E]"
+                className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#1A5FB4] text-sm font-bold text-white transition-colors hover:bg-[#164A8F] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] focus-visible:ring-offset-2 focus-visible:ring-offset-[#071A2E] light:focus-visible:ring-offset-white"
               >
                 <ClipboardList className="h-4 w-4" aria-hidden="true" />
                 View my claims
@@ -816,16 +820,16 @@ export default function LostAndFoundPage() {
       {/* --- CANCEL CLAIM CONFIRMATION MODAL --- */}
       {claimToCancel && (
         <div role="alertdialog" aria-modal="true" aria-labelledby="lf-cancel-title" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md overflow-hidden rounded-xl border border-white/10 bg-[#071A2E] shadow-2xl">
+          <div className="w-full max-w-md overflow-hidden rounded-xl border border-white/10 bg-[#071A2E] light:border-gray-200 light:bg-white shadow-2xl">
             <div className="flex items-start gap-4 p-5">
-              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-red-500/30 bg-red-500/10 text-red-400">
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-red-500/30 bg-red-500/10 text-red-400 light:text-red-600">
                 <AlertTriangle className="h-5 w-5" />
               </div>
               <div className="min-w-0">
-                <h2 id="lf-cancel-title" className="text-base font-bold text-white">Cancel this claim?</h2>
-                <p className="mt-1.5 text-sm leading-5 text-white/70">
+                <h2 id="lf-cancel-title" className="text-base font-bold text-white light:text-gray-900">Cancel this claim?</h2>
+                <p className="mt-1.5 text-sm leading-5 text-white/70 light:text-gray-600">
                   {claims.get(claimToCancel)?.item?.itemName ? (
-                    <>This will cancel your claim on &ldquo;<span className="font-semibold text-white/80">{claims.get(claimToCancel)?.item?.itemName}</span>&rdquo;. </>
+                    <>This will cancel your claim on &ldquo;<span className="font-semibold text-white/80 light:text-gray-900">{claims.get(claimToCancel)?.item?.itemName}</span>&rdquo;. </>
                   ) : (
                     "This will cancel your claim. "
                   )}
@@ -833,19 +837,19 @@ export default function LostAndFoundPage() {
                 </p>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3 border-t border-white/10 p-5">
+            <div className="grid grid-cols-2 gap-3 border-t border-white/10 light:border-gray-200 p-5">
               <button
                 autoFocus
                 onClick={closeCancelClaimModal}
                 disabled={isCancellingClaim}
-                className="h-11 rounded-xl border border-white/10 bg-white/5 text-sm font-semibold text-white/70 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
+                className="h-11 rounded-xl border border-white/10 bg-white/5 text-sm font-semibold text-white/70 transition-colors hover:bg-white/10 hover:text-white light:border-gray-200 light:bg-white light:text-gray-600 light:hover:bg-gray-100 light:hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
               >
                 Keep Claim
               </button>
               <button
                 onClick={() => void confirmCancelClaim()}
                 disabled={isCancellingClaim}
-                className={`flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-bold shadow-lg transition-colors ${isCancellingClaim ? "cursor-not-allowed bg-white/10 text-white/30 shadow-none" : "bg-red-500 text-white shadow-red-500/25 hover:bg-red-600"}`}
+                className={`flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-bold shadow-lg transition-colors ${isCancellingClaim ? "cursor-not-allowed bg-white/10 text-white/30 shadow-none light:bg-gray-100 light:text-gray-400" : "bg-red-500 text-white shadow-red-500/25 hover:bg-red-600"}`}
               >
                 {isCancellingClaim ? (
                   <span className="inline-flex items-center gap-2"><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Cancelling...</span>
@@ -914,7 +918,7 @@ function toIsoDate(date: Date): string {
 function FilterGroup({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-white/45">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-white/45 light:text-gray-500">{label}</p>
       {children}
     </div>
   );
@@ -930,27 +934,27 @@ function ClaimStatusSelect({ value, onChange, options }: {
       <select
         value={value}
         onChange={(e) => onChange(e.target.value as ClaimFilter)}
-        className="h-11 w-full appearance-none rounded-lg border border-white/10 bg-[#0E1628] px-3 pr-9 text-sm font-semibold text-white/80 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA] xl:h-10"
+        className="h-11 w-full appearance-none rounded-lg border border-white/10 bg-[#0E1628] px-3 pr-9 text-sm font-semibold text-white/80 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA] light:border-gray-200 light:bg-white light:text-gray-700 light:[color-scheme:light] light:focus:border-[#1A5FB4] xl:h-10"
         aria-label="Filter claims by status"
       >
         {options.map(opt => (
           <option key={opt.value} value={opt.value}>{opt.label}</option>
         ))}
       </select>
-      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
+      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45 light:text-gray-400" />
     </div>
   );
 }
 
 function DetailInfo({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
-    <div className="flex min-w-0 items-start gap-3 rounded-lg border border-white/8 bg-white/[0.04] p-3">
-      <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-black/20 text-[#62A0EA]">
+    <div className="flex min-w-0 items-start gap-3 rounded-lg border border-white/8 bg-white/[0.04] p-3 light:border-gray-200 light:bg-gray-50">
+      <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-black/20 text-[#62A0EA] light:bg-[#1A5FB4]/10 light:text-[#1A5FB4]">
         {icon}
       </div>
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-white/55">{label}</p>
-        <p className="mt-0.5 break-words text-sm font-semibold text-white/85">{value}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-white/55 light:text-gray-500">{label}</p>
+        <p className="mt-0.5 break-words text-sm font-semibold text-white/85 light:text-gray-900">{value}</p>
       </div>
     </div>
   );
@@ -978,7 +982,7 @@ function ClaimRecordCard({
       title: "Claim Submitted",
       summary: "Waiting for staff review",
       dateValue: formatDateTime(claim.claimDate),
-      accentClass: "text-amber-300",
+      accentClass: "text-amber-300 light:text-amber-700",
     },
     VALIDATED: {
       icon: <CheckCircle2 className="h-4 w-4" />,
@@ -987,7 +991,7 @@ function ClaimRecordCard({
         ? "Your claim was approved. Collect the item at the place and time below."
         : "Your claim was approved. Bring a valid ID for handover.",
       dateValue: formatDateTime(claim.approvedAt ?? claim.reviewedAt),
-      accentClass: "text-emerald-300",
+      accentClass: "text-emerald-300 light:text-emerald-700",
     },
     // A no-show isn't a judgement on the claim, so it reads neutral, not red.
     REJECTED: claim.noShowAt
@@ -996,89 +1000,89 @@ function ClaimRecordCard({
           title: "Not Collected",
           summary: "You didn't collect the item on the pickup date, so this claim was closed. Submit a new claim or visit the office to claim it in person.",
           dateValue: formatDateTime(claim.noShowAt),
-          accentClass: "text-slate-300",
+          accentClass: "text-slate-300 light:text-slate-600",
         }
       : {
           icon: <XCircle className="h-4 w-4" />,
           title: "Rejected",
           summary: claim.rejectionReason ?? "Staff rejected this claim.",
           dateValue: formatDateTime(claim.rejectedAt ?? claim.reviewedAt),
-          accentClass: "text-red-300",
+          accentClass: "text-red-300 light:text-red-700",
         },
     RELEASED: {
       icon: <ShieldCheck className="h-4 w-4" />,
       title: "Released",
       summary: "The item has been released by staff.",
       dateValue: formatDateTime(claim.releasedAt),
-      accentClass: "text-[#8CB9F0]",
+      accentClass: "text-[#8CB9F0] light:text-[#1A5FB4]",
     },
   }[claim.status];
   const timelineSteps = buildClaimTimeline(claim, item);
 
   return (
-    <article className="rounded-xl border border-white/10 bg-[#071A2E] p-4 sm:p-5">
+    <article className="rounded-xl border border-white/10 bg-[#071A2E] light:border-gray-200 light:bg-white p-4 sm:p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:gap-5">
         <button
           type="button"
           disabled={!item}
           onClick={() => item && onOpenDetails(item)}
           aria-label={item ? `View details for ${item.itemName}` : undefined}
-          className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border border-white/[0.06] bg-[#0A1E33] text-left disabled:cursor-default focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
+          className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border border-white/[0.06] bg-[#0A1E33] light:border-gray-200 light:bg-gray-100 text-left disabled:cursor-default focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
         >
           {item?.imageUrl ? (
             <img src={item.imageUrl} alt={item.itemName} loading="lazy" decoding="async" className="h-full w-full object-cover" />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-white/20">
+            <div className="flex h-full w-full items-center justify-center text-white/20 light:text-gray-400">
               <PackageSearch className="h-7 w-7" />
             </div>
           )}
         </button>
 
         <div className="min-w-0 flex-1">
-          <h3 className="truncate text-base font-bold leading-tight text-white">{item?.itemName ?? "Deleted item"}</h3>
-          <p className="mt-1 text-xs text-white/50">{item ? `${item.category} · ${item.plateNumber}` : "This item record is no longer available"}</p>
+          <h3 className="truncate text-base font-bold leading-tight text-white light:text-gray-900">{item?.itemName ?? "Deleted item"}</h3>
+          <p className="mt-1 text-xs text-white/50 light:text-gray-500">{item ? `${item.category} · ${item.plateNumber}` : "This item record is no longer available"}</p>
 
           {/* The current state, once: coloured text instead of a badge plus a
               tinted panel that repeated the same word. */}
-          <div className="mt-4 border-t border-white/[0.06] pt-4">
+          <div className="mt-4 border-t border-white/[0.06] light:border-gray-200 pt-4">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
               <p className={`flex items-center gap-2 text-sm font-bold ${statusMeta.accentClass}`}>
                 {statusMeta.icon}
                 {statusMeta.title}
               </p>
-              <p className="text-xs tabular-nums text-white/45">{statusMeta.dateValue}</p>
+              <p className="text-xs tabular-nums text-white/45 light:text-gray-500">{statusMeta.dateValue}</p>
             </div>
-            <p className="mt-1.5 max-w-[65ch] text-sm leading-6 text-white/70">{statusMeta.summary}</p>
+            <p className="mt-1.5 max-w-[65ch] text-sm leading-6 text-white/70 light:text-gray-600">{statusMeta.summary}</p>
           </div>
 
           {/* Where/when to collect, set by staff at approval. Shown only while
               the item is waiting for pickup; after release it's history. */}
           {claim.status === "VALIDATED" && claim.pickupLocation && (
-            <section aria-label="Pickup schedule" className="mt-4 border-t border-white/[0.06] pt-4">
+            <section aria-label="Pickup schedule" className="mt-4 border-t border-white/[0.06] light:border-gray-200 pt-4">
               <dl className="grid gap-3 sm:grid-cols-2">
                 <div className="min-w-0">
-                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-white/45">Pick up at</dt>
-                  <dd className="mt-1 break-words text-sm font-semibold text-white">{claim.pickupLocation}</dd>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-white/45 light:text-gray-500">Pick up at</dt>
+                  <dd className="mt-1 break-words text-sm font-semibold text-white light:text-gray-900">{claim.pickupLocation}</dd>
                 </div>
                 <div className="min-w-0">
-                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-white/45">When</dt>
-                  <dd className="mt-1 text-sm font-semibold tabular-nums text-white">{formatDateTime(claim.pickupAt)}</dd>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-white/45 light:text-gray-500">When</dt>
+                  <dd className="mt-1 text-sm font-semibold tabular-nums text-white light:text-gray-900">{formatDateTime(claim.pickupAt)}</dd>
                 </div>
               </dl>
               {claim.pickupReminder && (
-                <p className="mt-3 flex items-start gap-2 text-xs leading-5 text-amber-200/90">
-                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-amber-300" aria-hidden="true" />
+                <p className="mt-3 flex items-start gap-2 text-xs leading-5 text-amber-200/90 light:text-amber-800">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-amber-300 light:text-amber-600" aria-hidden="true" />
                   {claim.pickupReminder}
                 </p>
               )}
             </section>
           )}
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-3">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] light:border-gray-200 pt-3">
             <button
               type="button"
               onClick={() => setIsTimelineOpen((current) => !current)}
-              className="-ml-1 inline-flex items-center gap-1.5 rounded-md px-1 py-1.5 text-xs font-semibold text-white/65 transition-colors hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
+              className="-ml-1 inline-flex items-center gap-1.5 rounded-md px-1 py-1.5 text-xs font-semibold text-white/65 transition-colors hover:text-white light:text-gray-600 light:hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
               aria-expanded={isTimelineOpen}
             >
               Claim history
@@ -1087,12 +1091,12 @@ function ClaimRecordCard({
 
             <div className="flex flex-wrap gap-2">
               {item && (
-                <button onClick={() => onOpenDetails(item)} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white/75 transition-colors hover:bg-white/5 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
+                <button onClick={() => onOpenDetails(item)} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white/75 transition-colors hover:bg-white/5 hover:text-white light:border-gray-200 light:text-gray-700 light:hover:bg-gray-100 light:hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
                   View Details
                 </button>
               )}
               {claim.status === "PENDING" && item && (
-                <button onClick={() => onCancelClaim(item.id)} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white/75 transition-colors hover:bg-white/5 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
+                <button onClick={() => onCancelClaim(item.id)} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white/75 transition-colors hover:bg-white/5 hover:text-white light:border-gray-200 light:text-gray-700 light:hover:bg-gray-100 light:hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
                   Cancel Claim
                 </button>
               )}
@@ -1113,22 +1117,22 @@ function ClaimRecordCard({
                     <li key={step.key} className="grid grid-cols-[0.75rem_minmax(0,1fr)] gap-3">
                       <div className="flex flex-col items-center" aria-hidden="true">
                         <span className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${step.dotClass}`} />
-                        {!isLast && <span className="mt-1.5 w-px flex-1 bg-white/10" />}
+                        {!isLast && <span className="mt-1.5 w-px flex-1 bg-white/10 light:bg-gray-200" />}
                       </div>
                       <div className={isLast ? "" : "pb-4"}>
                         <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
-                          <p className="text-sm font-semibold text-white">{step.label}</p>
-                          <p className="text-xs tabular-nums text-white/45">{formatDateTime(step.date)}</p>
+                          <p className="text-sm font-semibold text-white light:text-gray-900">{step.label}</p>
+                          <p className="text-xs tabular-nums text-white/45 light:text-gray-500">{formatDateTime(step.date)}</p>
                         </div>
-                        <p className="mt-0.5 text-xs leading-5 text-white/60">{step.detail}</p>
+                        <p className="mt-0.5 text-xs leading-5 text-white/60 light:text-gray-500">{step.detail}</p>
                       </div>
                     </li>
                   );
                 })}
               </ol>
-              <div className="mt-4 border-t border-white/[0.06] pt-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-white/45">Proof of ownership</p>
-                <p className="mt-1 whitespace-pre-line break-words text-sm leading-6 text-white/80">{claim.proof || "No proof text"}</p>
+              <div className="mt-4 border-t border-white/[0.06] light:border-gray-200 pt-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-white/45 light:text-gray-500">Proof of ownership</p>
+                <p className="mt-1 whitespace-pre-line break-words text-sm leading-6 text-white/80 light:text-gray-700">{claim.proof || "No proof text"}</p>
               </div>
             </div>
           )}
