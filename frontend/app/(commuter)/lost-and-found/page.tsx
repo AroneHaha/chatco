@@ -10,7 +10,7 @@ import ProofPhotoPicker from "@/components/commuter/lost-and-found/proof-photo-p
 import RubberSegment from "@/components/ui/rubber-segment";
 import { getClaimDeadline } from "./claim-deadline";
 import { AdminDatePicker } from "@/components/admin/ui/admin-date-picker";
-import { ClaimData, ClaimFilter, ClaimStatus, LostItem, TimeRange, ViewTab } from "./types";
+import { ClaimData, ClaimFilter, LostItem, TimeRange, ViewTab } from "./types";
 import {
   AlertTriangle,
   Bookmark,
@@ -26,7 +26,6 @@ import {
   Clock3,
   FileCheck2,
   IdCard,
-  MapPin,
   PackageSearch,
   Search,
   ShieldCheck,
@@ -372,7 +371,6 @@ export default function LostAndFoundPage() {
                     key={claim.claimId}
                     claim={claim}
                     formatDateTime={formatDateTime}
-                    getStatusBadge={getStatusBadge}
                     onCancelClaim={requestCancelClaim}
                     onClaimAgain={openClaimModal}
                     onOpenDetails={openDetails}
@@ -850,14 +848,12 @@ function DetailInfo({ icon, label, value }: { icon: ReactNode; label: string; va
 function ClaimRecordCard({
   claim,
   formatDateTime,
-  getStatusBadge,
   onCancelClaim,
   onClaimAgain,
   onOpenDetails,
 }: {
   claim: ClaimData;
   formatDateTime: (dateStr: string | null) => string;
-  getStatusBadge: (status: ClaimStatus) => string;
   /** Opens the cancel-claim confirmation modal for this claim's item. */
   onCancelClaim: (id: string) => void;
   onClaimAgain: (item: LostItem) => void;
@@ -871,7 +867,7 @@ function ClaimRecordCard({
       title: "Claim Submitted",
       summary: "Waiting for staff review",
       dateValue: formatDateTime(claim.claimDate),
-      panelClass: "border-amber-500/20 bg-amber-500/10 text-amber-100",
+      accentClass: "text-amber-300",
     },
     VALIDATED: {
       icon: <CheckCircle2 className="h-4 w-4" />,
@@ -880,7 +876,7 @@ function ClaimRecordCard({
         ? "Your claim was approved. Collect the item at the place and time below."
         : "Your claim was approved. Bring a valid ID for handover.",
       dateValue: formatDateTime(claim.approvedAt ?? claim.reviewedAt),
-      panelClass: "border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
+      accentClass: "text-emerald-300",
     },
     // A no-show isn't a judgement on the claim, so it reads neutral, not red.
     REJECTED: claim.noShowAt
@@ -889,33 +885,34 @@ function ClaimRecordCard({
           title: "Not Collected",
           summary: "You didn't collect the item on the pickup date, so this claim was closed. Submit a new claim or visit the office to claim it in person.",
           dateValue: formatDateTime(claim.noShowAt),
-          panelClass: "border-slate-400/20 bg-slate-400/10 text-slate-200",
+          accentClass: "text-slate-300",
         }
       : {
           icon: <XCircle className="h-4 w-4" />,
           title: "Rejected",
           summary: claim.rejectionReason ?? "Staff rejected this claim.",
           dateValue: formatDateTime(claim.rejectedAt ?? claim.reviewedAt),
-          panelClass: "border-red-500/20 bg-red-500/10 text-red-100",
+          accentClass: "text-red-300",
         },
     RELEASED: {
       icon: <ShieldCheck className="h-4 w-4" />,
       title: "Released",
       summary: "The item has been released by staff.",
       dateValue: formatDateTime(claim.releasedAt),
-      panelClass: "border-[#62A0EA]/20 bg-[#62A0EA]/10 text-[#D7E8FF]",
+      accentClass: "text-[#8CB9F0]",
     },
   }[claim.status];
   const timelineSteps = buildClaimTimeline(claim, item);
 
   return (
-    <div className="rounded-xl border border-white/10 bg-[#071A2E] p-4 shadow-lg shadow-black/20">
-      <div className="flex flex-col gap-4 sm:flex-row">
+    <article className="rounded-xl border border-white/10 bg-[#071A2E] p-4 sm:p-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:gap-5">
         <button
           type="button"
           disabled={!item}
           onClick={() => item && onOpenDetails(item)}
-          className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-[#0A1E33] text-left disabled:cursor-default focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] focus-visible:ring-inset"
+          aria-label={item ? `View details for ${item.itemName}` : undefined}
+          className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border border-white/[0.06] bg-[#0A1E33] text-left disabled:cursor-default focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
         >
           {item?.imageUrl ? (
             <img src={item.imageUrl} alt={item.itemName} loading="lazy" decoding="async" className="h-full w-full object-cover" />
@@ -927,111 +924,106 @@ function ClaimRecordCard({
         </button>
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-white">{item?.itemName ?? "Deleted item"}</p>
-              <p className="mt-0.5 text-xs text-white/60">{item ? `${item.category} | ${item.plateNumber}` : "This item record is no longer available"}</p>
-            </div>
-            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider ${claim.noShowAt ? "border-slate-400/30 bg-slate-400/15 text-slate-300" : getStatusBadge(claim.status)}`}>
-              {statusMeta.icon}
-              {statusMeta.title}
-            </span>
-          </div>
+          <h3 className="truncate text-base font-bold leading-tight text-white">{item?.itemName ?? "Deleted item"}</h3>
+          <p className="mt-1 text-xs text-white/50">{item ? `${item.category} · ${item.plateNumber}` : "This item record is no longer available"}</p>
 
-          <div className={`mt-3 rounded-xl border p-3 ${statusMeta.panelClass}`}>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex min-w-0 items-start gap-3">
-                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-current/20 bg-black/15">
-                  {statusMeta.icon}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-bold">{statusMeta.title}</p>
-                  <p className="mt-1 text-xs leading-5 opacity-85">{statusMeta.summary}</p>
-                </div>
-              </div>
-              <div className="flex flex-shrink-0 items-center gap-2 text-xs font-semibold opacity-80">
-                <CalendarDays className="h-3.5 w-3.5" />
-                {statusMeta.dateValue}
-              </div>
+          {/* The current state, once: coloured text instead of a badge plus a
+              tinted panel that repeated the same word. */}
+          <div className="mt-4 border-t border-white/[0.06] pt-4">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+              <p className={`flex items-center gap-2 text-sm font-bold ${statusMeta.accentClass}`}>
+                {statusMeta.icon}
+                {statusMeta.title}
+              </p>
+              <p className="text-xs tabular-nums text-white/45">{statusMeta.dateValue}</p>
             </div>
+            <p className="mt-1.5 max-w-[65ch] text-sm leading-6 text-white/70">{statusMeta.summary}</p>
           </div>
 
           {/* Where/when to collect, set by staff at approval. Shown only while
               the item is waiting for pickup; after release it's history. */}
           {claim.status === "VALIDATED" && claim.pickupLocation && (
-            <section aria-label="Pickup schedule" className="mt-3 rounded-xl border border-emerald-500/20 bg-[#0E1628] p-3">
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-emerald-200/70">Pickup schedule</p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <DetailInfo icon={<MapPin className="h-4 w-4" />} label="Where" value={claim.pickupLocation} />
-                <DetailInfo icon={<CalendarDays className="h-4 w-4" />} label="When" value={formatDateTime(claim.pickupAt)} />
-              </div>
-              {claim.pickupReminder && (
-                <div className="mt-2 flex items-start gap-2 rounded-lg border border-amber-400/20 bg-amber-400/10 px-3 py-2">
-                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-amber-300" />
-                  <p className="text-xs leading-5 text-amber-100/90">{claim.pickupReminder}</p>
+            <section aria-label="Pickup schedule" className="mt-4 border-t border-white/[0.06] pt-4">
+              <dl className="grid gap-3 sm:grid-cols-2">
+                <div className="min-w-0">
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-white/45">Pick up at</dt>
+                  <dd className="mt-1 break-words text-sm font-semibold text-white">{claim.pickupLocation}</dd>
                 </div>
+                <div className="min-w-0">
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-white/45">When</dt>
+                  <dd className="mt-1 text-sm font-semibold tabular-nums text-white">{formatDateTime(claim.pickupAt)}</dd>
+                </div>
+              </dl>
+              {claim.pickupReminder && (
+                <p className="mt-3 flex items-start gap-2 text-xs leading-5 text-amber-200/90">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-amber-300" aria-hidden="true" />
+                  {claim.pickupReminder}
+                </p>
               )}
             </section>
           )}
 
-          <button
-            type="button"
-            onClick={() => setIsTimelineOpen((current) => !current)}
-            className="mt-3 flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-left text-xs font-semibold text-white/75 transition-colors hover:bg-white/[0.07] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
-            aria-expanded={isTimelineOpen}
-          >
-            <span>Claim history</span>
-            <ChevronDown className={`h-4 w-4 transition-transform ${isTimelineOpen ? "rotate-180" : ""}`} />
-          </button>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-3">
+            <button
+              type="button"
+              onClick={() => setIsTimelineOpen((current) => !current)}
+              className="-ml-1 inline-flex items-center gap-1.5 rounded-md px-1 py-1.5 text-xs font-semibold text-white/65 transition-colors hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
+              aria-expanded={isTimelineOpen}
+            >
+              Claim history
+              <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform motion-reduce:transition-none ${isTimelineOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            <div className="flex flex-wrap gap-2">
+              {item && (
+                <button onClick={() => onOpenDetails(item)} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white/75 transition-colors hover:bg-white/5 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
+                  View Details
+                </button>
+              )}
+              {claim.status === "PENDING" && item && (
+                <button onClick={() => onCancelClaim(item.id)} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white/75 transition-colors hover:bg-white/5 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
+                  Cancel Claim
+                </button>
+              )}
+              {claim.status === "REJECTED" && item && (
+                <button onClick={() => onClaimAgain(item)} className="rounded-lg bg-[#FF6D3A] px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-[#e55a2b] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
+                  Claim Again
+                </button>
+              )}
+            </div>
+          </div>
 
           {isTimelineOpen && (
-            <div className="mt-3 rounded-xl border border-white/8 bg-white/[0.03] p-3">
-              <div className="space-y-0">
-                {timelineSteps.map((step, index) => (
-                  <div key={step.key} className="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-3">
-                    <div className="flex flex-col items-center">
-                      <div className={`flex h-7 w-7 items-center justify-center rounded-full border ${step.tone}`}>
-                        {step.icon}
+            <div className="mt-3">
+              <ol>
+                {timelineSteps.map((step, index) => {
+                  const isLast = index === timelineSteps.length - 1;
+                  return (
+                    <li key={step.key} className="grid grid-cols-[0.75rem_minmax(0,1fr)] gap-3">
+                      <div className="flex flex-col items-center" aria-hidden="true">
+                        <span className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${step.dotClass}`} />
+                        {!isLast && <span className="mt-1.5 w-px flex-1 bg-white/10" />}
                       </div>
-                      {index < timelineSteps.length - 1 && <div className="h-full min-h-6 w-px bg-white/10" />}
-                    </div>
-                    <div className={index < timelineSteps.length - 1 ? "pb-4" : ""}>
-                      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-                        <p className="text-sm font-bold text-white">{step.label}</p>
-                        <p className="text-xs font-semibold text-white/60">{formatDateTime(step.date)}</p>
+                      <div className={isLast ? "" : "pb-4"}>
+                        <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+                          <p className="text-sm font-semibold text-white">{step.label}</p>
+                          <p className="text-xs tabular-nums text-white/45">{formatDateTime(step.date)}</p>
+                        </div>
+                        <p className="mt-0.5 text-xs leading-5 text-white/60">{step.detail}</p>
                       </div>
-                      <p className="mt-1 text-xs leading-5 text-white/65">{step.detail}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-3 rounded-lg border border-white/5 bg-black/15 p-3">
-                <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-white/55">Proof of ownership</p>
-                <p className="text-xs leading-5 text-white/75">{claim.proof || "No proof text"}</p>
+                    </li>
+                  );
+                })}
+              </ol>
+              <div className="mt-4 border-t border-white/[0.06] pt-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-white/45">Proof of ownership</p>
+                <p className="mt-1 whitespace-pre-line break-words text-sm leading-6 text-white/80">{claim.proof || "No proof text"}</p>
               </div>
             </div>
           )}
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            {item && (
-              <button onClick={() => onOpenDetails(item)} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white/75 hover:bg-white/5 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
-                View Details
-              </button>
-            )}
-            {claim.status === "PENDING" && item && (
-              <button onClick={() => onCancelClaim(item.id)} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white/75 hover:bg-white/5 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
-                Cancel Claim
-              </button>
-            )}
-            {claim.status === "REJECTED" && item && (
-              <button onClick={() => onClaimAgain(item)} className="rounded-lg bg-[#FF6D3A] px-3 py-2 text-xs font-bold text-white hover:bg-[#e55a2b] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">
-                Claim Again
-              </button>
-            )}
-          </div>
         </div>
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -1040,8 +1032,8 @@ interface ClaimTimelineStep {
   label: string;
   date: string | null;
   detail: string;
-  icon: ReactNode;
-  tone: string;
+  /** Marker colour on the history line, matching the step's status colour. */
+  dotClass: string;
 }
 
 function buildClaimTimeline(claim: ClaimData, item: LostItem | null): ClaimTimelineStep[] {
@@ -1052,8 +1044,7 @@ function buildClaimTimeline(claim: ClaimData, item: LostItem | null): ClaimTimel
       label: "Claim Submitted",
       date: claim.claimDate,
       detail: `Your proof for ${itemName} was submitted for staff review.`,
-      icon: <Clock3 className="h-3.5 w-3.5" />,
-      tone: "border-amber-500/35 bg-amber-500/15 text-amber-300",
+      dotClass: "bg-amber-300",
     },
   ];
 
@@ -1064,8 +1055,7 @@ function buildClaimTimeline(claim: ClaimData, item: LostItem | null): ClaimTimel
       label: "Approved",
       date: claim.approvedAt ?? claim.reviewedAt,
       detail: "Staff approved the claim. The item is ready for release once identity is verified.",
-      icon: <CheckCircle2 className="h-3.5 w-3.5" />,
-      tone: "border-emerald-500/35 bg-emerald-500/15 text-emerald-300",
+      dotClass: "bg-emerald-300",
     });
   }
 
@@ -1075,8 +1065,7 @@ function buildClaimTimeline(claim: ClaimData, item: LostItem | null): ClaimTimel
       label: "Released",
       date: claim.releasedAt,
       detail: "Staff recorded the item handover and completed this claim.",
-      icon: <ShieldCheck className="h-3.5 w-3.5" />,
-      tone: "border-[#62A0EA]/35 bg-[#62A0EA]/15 text-[#8CB9F0]",
+      dotClass: "bg-[#8CB9F0]",
     });
   }
 
@@ -1086,8 +1075,7 @@ function buildClaimTimeline(claim: ClaimData, item: LostItem | null): ClaimTimel
       label: "Not Collected",
       date: claim.noShowAt,
       detail: "The item wasn't collected by the end of the pickup date, so the claim was closed. It can be claimed again online or at the office.",
-      icon: <CalendarX2 className="h-3.5 w-3.5" />,
-      tone: "border-slate-400/35 bg-slate-400/15 text-slate-300",
+      dotClass: "bg-slate-300",
     });
   } else if (claim.status === "REJECTED") {
     steps.push({
@@ -1095,8 +1083,7 @@ function buildClaimTimeline(claim: ClaimData, item: LostItem | null): ClaimTimel
       label: "Rejected",
       date: claim.rejectedAt ?? claim.reviewedAt,
       detail: claim.rejectionReason ?? "Staff rejected the claim after review.",
-      icon: <XCircle className="h-3.5 w-3.5" />,
-      tone: "border-red-500/35 bg-red-500/15 text-red-300",
+      dotClass: "bg-red-300",
     });
   }
 
