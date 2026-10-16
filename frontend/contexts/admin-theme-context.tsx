@@ -12,7 +12,7 @@ const store = createThemeStore("chatco:admin-theme");
  * shell is light, because its content still uses white text that would vanish
  * on a light background. Add a route here once its page and modals are themed.
  */
-const LIGHT_READY_ROUTES = new Set(["/admin-dashboard", "/remittance", "/receipts", "/monitoring", "/vehicles", "/lost-found"]);
+const LIGHT_READY_ROUTES = new Set(["/admin-dashboard", "/remittance", "/receipts", "/monitoring", "/vehicles", "/lost-found", "/announcements"]);
 
 export function isAdminLightReady(pathname: string): boolean {
   return LIGHT_READY_ROUTES.has(pathname);
