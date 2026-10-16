@@ -77,7 +77,7 @@ function getNotificationStyle(type: string) {
   if (t.startsWith('claim_approved') || t.startsWith('claim_released') || t.startsWith('voucher_')) {
     return { Icon: CheckCircle, color: 'text-emerald-400 admin-light:text-emerald-700', label };
   }
-  if (['safety', 'warning', 'maintenance', 'alert', 'sos', 'overspeed', 'overdue', 'waiting'].some((k) => t.includes(k))) {
+  if (['safety', 'warning', 'maintenance', 'alert', 'sos', 'overspeed', 'overdue', 'waiting', 'service', 'weather'].some((k) => t.includes(k))) {
     return { Icon: AlertTriangle, color: 'text-amber-400 admin-light:text-amber-700', label };
   }
   if (['promo', 'success', 'holiday', 'reward'].some((k) => t.includes(k))) {

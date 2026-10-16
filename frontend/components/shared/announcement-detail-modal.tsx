@@ -27,13 +27,13 @@ function formatRelativeTime(iso: string): string {
 
 function getStyle(type: string) {
   const t = (type ?? '').toLowerCase();
-  if (['safety', 'warning', 'maintenance', 'alert', 'sos'].some((k) => t.includes(k))) {
+  if (['safety', 'warning', 'maintenance', 'alert', 'sos', 'service', 'weather'].some((k) => t.includes(k))) {
     return { Icon: AlertTriangle, color: 'text-amber-400 admin-light:text-amber-700', bg: 'bg-amber-500/10', label: 'Advisory' };
   }
   if (['promo', 'success', 'holiday', 'reward'].some((k) => t.includes(k))) {
     return { Icon: CheckCircle, color: 'text-emerald-400 admin-light:text-emerald-700', bg: 'bg-emerald-500/10', label: 'Promo' };
   }
-  if (['system', 'route', 'schedule'].some((k) => t.includes(k))) {
+  if (['system', 'route', 'schedule', 'fare'].some((k) => t.includes(k))) {
     return { Icon: Info, color: 'text-blue-400 admin-light:text-blue-700', bg: 'bg-blue-500/10', label: 'System' };
   }
   return { Icon: Megaphone, color: 'text-slate-300 admin-light:text-slate-700', bg: 'bg-white/5 admin-light:bg-[#F8FAFC]', label: 'Announcement' };
