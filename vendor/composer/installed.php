@@ -3,7 +3,7 @@
         'name' => 'transeguro/api',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => 'ce28ace98fbce5d35f3d84fded42cb99b8da38c3',
+        'reference' => '896ee3e045569853ab6e8b74ae0bdfc1564cc786',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -1037,7 +1037,7 @@
         'transeguro/api' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => 'ce28ace98fbce5d35f3d84fded42cb99b8da38c3',
+            'reference' => '896ee3e045569853ab6e8b74ae0bdfc1564cc786',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

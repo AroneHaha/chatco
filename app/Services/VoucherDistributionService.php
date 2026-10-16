@@ -102,7 +102,7 @@ class VoucherDistributionService
                     $this->announcementService->notifyUsers(
                         array_unique(array_column($rows, 'commuter_id')),
                         'voucher_received',
-                        'Voucher received',
+                        ucfirst($category).' voucher received',
                         "You received a {$category} voucher. {$expiry} Each voucher can be used once. Open Rewards → Available to view your vouchers.",
                         $batchId,
                     );

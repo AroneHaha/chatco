@@ -241,7 +241,7 @@ class LocationService
             $eventId = (string) $event->id;
             DB::afterCommit(fn () => $this->announcementService->notifyAdmins(
                 'OVERSPEED_FLAGGED',
-                'Overspeeding flagged',
+                "Overspeeding: unit {$unitNumber} at {$roundedSpeed} km/h",
                 "{$conductorName} is over the speed limit on unit {$unitNumber} ({$roundedSpeed} km/h, limit {$threshold} km/h).",
                 $eventId,
             ));
