@@ -196,9 +196,9 @@ export default function ReceiptsPage() {
       cellClassName: 'px-2 sm:px-3 min-w-0',
       render: (value: string, row: Receipt) => (
         <div className="min-w-0 leading-tight">
-          <span className="block truncate font-mono text-[11px] text-slate-400" title={value}>{value}</span>
+          <span className="block truncate font-mono text-[11px] text-slate-400 admin-light:text-slate-500" title={value}>{value}</span>
           {row.multiplePaymentReference && (
-            <span className="block truncate font-mono text-[9px] text-blue-400" title={row.multiplePaymentReference}>{row.multiplePaymentReference}</span>
+            <span className="block truncate font-mono text-[9px] text-blue-400 admin-light:text-blue-700" title={row.multiplePaymentReference}>{row.multiplePaymentReference}</span>
           )}
         </div>
       ),
@@ -210,13 +210,13 @@ export default function ReceiptsPage() {
       cellClassName: 'px-2 sm:px-3 min-w-0',
       render: (value: string, row: Receipt) => (
         <div className="min-w-0 leading-tight">
-          <p className="truncate text-xs text-slate-200" title={value}>{value}</p>
+          <p className="truncate text-xs text-slate-200 admin-light:text-slate-700" title={value}>{value}</p>
           <p
             className="truncate text-[9px] text-slate-500"
             title={row.paidBy ? `${row.commuterRole} | Paid by: ${row.paidBy}` : row.commuterRole}
           >
             {row.commuterRole}
-            {row.paidBy && <span className="text-blue-400"> | Paid by: {row.paidBy}</span>}
+            {row.paidBy && <span className="text-blue-400 admin-light:text-blue-700"> | Paid by: {row.paidBy}</span>}
           </p>
         </div>
       ),
@@ -228,7 +228,7 @@ export default function ReceiptsPage() {
       cellClassName: 'px-2 sm:px-3 min-w-0',
       render: (value: string, row: Receipt) => (
         <div className="min-w-0 leading-tight">
-          <p className="truncate text-xs font-medium text-slate-200" title={value}>{value}</p>
+          <p className="truncate text-xs font-medium text-slate-200 admin-light:text-slate-700" title={value}>{value}</p>
           <p className="truncate text-[9px] text-slate-500" title={row.route}>{row.route}</p>
         </div>
       ),
@@ -240,8 +240,8 @@ export default function ReceiptsPage() {
       cellClassName: 'px-2 sm:px-3',
       render: (value: number, row: Receipt) => (
         <div className="space-y-0.5 leading-tight">
-          <p className="text-xs font-semibold text-slate-200">{formatPeso(value)}</p>
-          {row.discountAmount > 0 && <p className="text-[9px] text-emerald-400">-{formatPeso(row.discountAmount)} discount</p>}
+          <p className="text-xs font-semibold text-slate-200 admin-light:text-slate-700">{formatPeso(value)}</p>
+          {row.discountAmount > 0 && <p className="text-[9px] text-emerald-400 admin-light:text-emerald-700">-{formatPeso(row.discountAmount)} discount</p>}
           <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0 text-[9px] font-medium ${methodStyle(row.paymentMethod)}`}>
             {row.paymentMethod === 'Gcash' && <Wallet size={9} />}
             {row.paymentMethod === 'Voucher' && <Ticket size={9} />}
@@ -262,7 +262,7 @@ export default function ReceiptsPage() {
           <div className="space-y-0.5 leading-tight">
             <Badge variant={variant}>{label}</Badge>
             {row.reconciliationStatus === 'REFUND_REQUIRED' && (
-              <p className="text-[9px] font-semibold text-amber-300" title={row.reconciliationReason ?? undefined}>
+              <p className="text-[9px] font-semibold text-amber-300 admin-light:text-amber-700" title={row.reconciliationReason ?? undefined}>
                 Refund required
               </p>
             )}
@@ -277,7 +277,7 @@ export default function ReceiptsPage() {
       cellClassName: 'px-2 sm:px-3',
       render: (value: string, row: Receipt) => (
         <div className="leading-tight">
-          <p className="text-[11px] text-slate-300">{value}</p>
+          <p className="text-[11px] text-slate-300 admin-light:text-slate-700">{value}</p>
           <p className="text-[9px] text-slate-500">{row.time}</p>
         </div>
       ),
@@ -290,13 +290,13 @@ export default function ReceiptsPage() {
     return (
       <article
         key={`${receipt.id}-${receipt.date}-${receipt.time}`}
-        className="rounded-lg border border-[#1E2D45] bg-[#0E1628] p-2.5 text-xs text-slate-300"
+        className="rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F1F5F9] p-2.5 text-xs text-slate-300 admin-light:text-slate-700"
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="break-all font-mono text-[11px] leading-tight text-slate-300">{receipt.id}</p>
+            <p className="break-all font-mono text-[11px] leading-tight text-slate-300 admin-light:text-slate-700">{receipt.id}</p>
             {receipt.multiplePaymentReference && (
-              <p className="mt-0.5 break-all font-mono text-[9px] leading-tight text-blue-400">
+              <p className="mt-0.5 break-all font-mono text-[9px] leading-tight text-blue-400 admin-light:text-blue-700">
                 {receipt.multiplePaymentReference}
               </p>
             )}
@@ -307,24 +307,24 @@ export default function ReceiptsPage() {
         <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
           <div className="min-w-0">
             <p className="text-[9px] uppercase text-slate-500">Commuter</p>
-            <p className="break-words text-[11px] font-medium leading-tight text-slate-100">{receipt.commuterName}</p>
+            <p className="break-words text-[11px] font-medium leading-tight text-slate-100 admin-light:text-slate-900">{receipt.commuterName}</p>
             <p className="break-words text-[9px] leading-tight text-slate-500">
               {receipt.commuterRole}
-              {receipt.paidBy && <span className="text-blue-400"> | Paid by: {receipt.paidBy}</span>}
+              {receipt.paidBy && <span className="text-blue-400 admin-light:text-blue-700"> | Paid by: {receipt.paidBy}</span>}
             </p>
           </div>
 
           <div className="min-w-0 text-right">
             <p className="text-[9px] uppercase text-slate-500">Fare</p>
-            <p className="text-[11px] font-semibold leading-tight text-slate-100">{formatPeso(receipt.fare)}</p>
+            <p className="text-[11px] font-semibold leading-tight text-slate-100 admin-light:text-slate-900">{formatPeso(receipt.fare)}</p>
             {receipt.discountAmount > 0 && (
-              <p className="text-[9px] leading-tight text-emerald-400">-{formatPeso(receipt.discountAmount)} discount</p>
+              <p className="text-[9px] leading-tight text-emerald-400 admin-light:text-emerald-700">-{formatPeso(receipt.discountAmount)} discount</p>
             )}
           </div>
 
           <div className="min-w-0">
             <p className="text-[9px] uppercase text-slate-500">Vehicle / Route</p>
-            <p className="break-words text-[11px] font-medium leading-tight text-slate-100">{receipt.plateNumber}</p>
+            <p className="break-words text-[11px] font-medium leading-tight text-slate-100 admin-light:text-slate-900">{receipt.plateNumber}</p>
             <p className="break-words text-[9px] leading-tight text-slate-500">{receipt.route}</p>
           </div>
 
@@ -343,7 +343,7 @@ export default function ReceiptsPage() {
         </div>
 
         {receipt.reconciliationStatus === 'REFUND_REQUIRED' && (
-          <p className="mt-2 rounded-md bg-amber-500/10 px-2 py-1 text-[9px] font-semibold text-amber-300">
+          <p className="mt-2 rounded-md bg-amber-500/10 px-2 py-1 text-[9px] font-semibold text-amber-300 admin-light:text-amber-700">
             Refund required
           </p>
         )}
@@ -358,24 +358,24 @@ export default function ReceiptsPage() {
         {/* Skeleton Summary Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="bg-[#0E1628] border border-[#1E2D45] rounded-lg p-4 h-24" />
+            <div key={i} className="bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-lg p-4 h-24" />
           ))}
         </div>
         {/* Skeleton Header */}
         <div className="flex items-center justify-between">
-          <div className="h-8 w-32 rounded bg-[#131C2E]" />
-          <div className="h-10 w-28 rounded bg-[#131C2E]" />
+          <div className="h-8 w-32 rounded bg-[#131C2E] admin-light:bg-white" />
+          <div className="h-10 w-28 rounded bg-[#131C2E] admin-light:bg-white" />
         </div>
         {/* Skeleton Filters */}
         <div className="flex gap-3">
-          <div className="h-10 w-64 rounded bg-[#131C2E]" />
-          <div className="h-10 w-48 rounded bg-[#131C2E]" />
-          <div className="h-10 w-48 rounded bg-[#131C2E]" />
+          <div className="h-10 w-64 rounded bg-[#131C2E] admin-light:bg-white" />
+          <div className="h-10 w-48 rounded bg-[#131C2E] admin-light:bg-white" />
+          <div className="h-10 w-48 rounded bg-[#131C2E] admin-light:bg-white" />
         </div>
         {/* Skeleton Table */}
-        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5 space-y-4">
+        <div className="bg-[#131C2E] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-lg p-5 space-y-4">
           {[...Array(8)].map((_, i) => (
-            <div key={i} className="h-10 w-full rounded bg-[#0E1628]" />
+            <div key={i} className="h-10 w-full rounded bg-[#0E1628] admin-light:bg-[#F1F5F9]" />
           ))}
         </div>
       </div>
@@ -386,12 +386,12 @@ export default function ReceiptsPage() {
   if (error && records.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <AlertCircle className="h-12 w-12 text-red-400 mb-4" />
-        <h2 className="text-lg font-semibold text-white mb-2">Failed to load receipts</h2>
-        <p className="text-sm text-slate-400 mb-4">{error}</p>
+        <AlertCircle className="h-12 w-12 text-red-400 admin-light:text-red-600 mb-4" />
+        <h2 className="text-lg font-semibold text-white admin-light:text-slate-900 mb-2">Failed to load receipts</h2>
+        <p className="text-sm text-slate-400 admin-light:text-slate-500 mb-4">{error}</p>
         <button
           onClick={() => refresh(false)}
-          className="px-4 py-2 bg-[#62A0EA] hover:bg-[#4A8BD4] text-white rounded-md text-sm font-medium transition-colors"
+          className="px-4 py-2 bg-[#62A0EA] admin-light:bg-[#1A5FB4] hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] text-white rounded-md text-sm font-medium transition-colors"
         >
           Try Again
         </button>
@@ -407,14 +407,14 @@ export default function ReceiptsPage() {
              just a quiet indicator while a refresh is in flight. ── */}
       <StickyPageHeader className="flex flex-wrap items-center justify-between gap-3 mb-4 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-lg bg-[#62A0EA]/15 flex items-center justify-center shrink-0">
-            <ReceiptText size={22} className="text-[#62A0EA]" />
+          <div className="w-11 h-11 rounded-lg bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10 flex items-center justify-center shrink-0">
+            <ReceiptText size={22} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
           </div>
-          <h1 className="text-2xl font-bold text-white leading-tight">Fare Receipts</h1>
+          <h1 className="text-2xl font-bold text-white admin-light:text-slate-900 leading-tight">Fare Receipts</h1>
         </div>
         <div className="flex items-center gap-2">
           {isRefreshing && (
-            <span className="flex items-center gap-1.5 text-xs text-[#62A0EA]">
+            <span className="flex items-center gap-1.5 text-xs text-[#62A0EA] admin-light:text-[#1A5FB4]">
               <RefreshCw size={12} className="animate-spin" />
               Refreshing…
             </span>
@@ -426,7 +426,7 @@ export default function ReceiptsPage() {
             <button
               onClick={() => setIsExportOpen((open) => !open)}
               disabled={filteredData.length === 0}
-              className="flex items-center gap-2 px-3 py-2 bg-[#62A0EA] text-white text-xs font-medium rounded-md hover:bg-[#4A8BD4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-3 py-2 bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white text-xs font-medium rounded-md hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               title={`Export ${filteredData.length} receipts`}
               aria-haspopup="menu"
               aria-expanded={isExportOpen}
@@ -439,7 +439,7 @@ export default function ReceiptsPage() {
             {isExportOpen && (
               <div
                 role="menu"
-                className="absolute right-0 top-full mt-2 w-36 bg-[#131C2E] border border-[#1E2D45] rounded-md shadow-2xl shadow-black/50 overflow-hidden z-20"
+                className="absolute right-0 top-full mt-2 w-36 bg-[#131C2E] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md shadow-2xl shadow-black/50 overflow-hidden z-20"
               >
                 {(['pdf', 'excel', 'word'] as const).map((format) => (
                   <button
@@ -449,7 +449,7 @@ export default function ReceiptsPage() {
                       handleReportExport(format);
                       setIsExportOpen(false);
                     }}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-300 hover:bg-[#1A2540] hover:text-white transition-colors"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-300 admin-light:text-slate-700 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] hover:text-white admin-light:hover:text-slate-900 transition-colors"
                     title={`Export ${filteredData.length} receipts to ${format.toUpperCase()}`}
                   >
                     <Download size={13} className="text-slate-500" />
@@ -464,13 +464,13 @@ export default function ReceiptsPage() {
 
       {/* ── Summary Cards ── */}
       {reconciliationRequired.length > 0 && (
-        <div className="mb-4 flex shrink-0 items-start gap-3 rounded-xl border border-amber-400/40 bg-amber-500/10 p-3 text-amber-100">
-          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
+        <div className="mb-4 flex shrink-0 items-start gap-3 rounded-xl border border-amber-400/40 bg-amber-500/10 p-3 text-amber-100 admin-light:text-amber-900">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-300 admin-light:text-amber-700" />
           <div>
             <p className="text-sm font-semibold">
               {reconciliationRequired.length} late GCash {reconciliationRequired.length === 1 ? 'payment requires' : 'payments require'} refund review
             </p>
-            <p className="mt-1 text-xs text-amber-100/75">
+            <p className="mt-1 text-xs text-amber-100/75 admin-light:text-amber-800">
               PayMongo confirmed payment after local cancellation. These rides are blocked from rewards until reconciliation is resolved.
             </p>
           </div>
@@ -478,40 +478,40 @@ export default function ReceiptsPage() {
       )}
 
       <div className="grid shrink-0 grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        <div className="bg-[#0E1628] border border-[#1E2D45] rounded-xl p-3 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg border border-[#62A0EA]/15 bg-[#62A0EA]/10 flex items-center justify-center shrink-0">
-            <ReceiptText size={18} className="text-[#62A0EA]" />
+        <div className="bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg border border-[#62A0EA]/15 admin-light:border-[#1A5FB4]/15 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 flex items-center justify-center shrink-0">
+            <ReceiptText size={18} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
           </div>
           <div className="min-w-0">
             <p className="text-[10px] text-slate-500 uppercase tracking-wider">Receipts Shown</p>
-            <p className="text-xl font-bold text-slate-100 truncate">{filteredData.length}</p>
+            <p className="text-xl font-bold text-slate-100 admin-light:text-slate-900 truncate">{filteredData.length}</p>
           </div>
         </div>
-        <div className="bg-[#0E1628] border border-[#1E2D45] rounded-xl p-3 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg border border-[#62A0EA]/15 bg-[#62A0EA]/10 flex items-center justify-center shrink-0">
-            <Wallet size={18} className="text-[#62A0EA]" />
+        <div className="bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg border border-[#62A0EA]/15 admin-light:border-[#1A5FB4]/15 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 flex items-center justify-center shrink-0">
+            <Wallet size={18} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
           </div>
           <div className="min-w-0">
             <p className="text-[10px] text-slate-500 uppercase tracking-wider">Settled Fares</p>
-            <p className="text-xl font-bold text-slate-100 truncate">{formatPeso(totalFare)}</p>
+            <p className="text-xl font-bold text-slate-100 admin-light:text-slate-900 truncate">{formatPeso(totalFare)}</p>
           </div>
         </div>
-        <div className="bg-[#0E1628] border border-[#1E2D45] rounded-xl p-3 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg border border-[#62A0EA]/15 bg-[#62A0EA]/10 flex items-center justify-center shrink-0">
-            <Coins size={18} className="text-[#62A0EA]" />
+        <div className="bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg border border-[#62A0EA]/15 admin-light:border-[#1A5FB4]/15 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 flex items-center justify-center shrink-0">
+            <Coins size={18} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
           </div>
           <div className="min-w-0">
             <p className="text-[10px] text-slate-500 uppercase tracking-wider">Cash Settled</p>
-            <p className="text-xl font-bold text-slate-100 truncate">{cashCount}</p>
+            <p className="text-xl font-bold text-slate-100 admin-light:text-slate-900 truncate">{cashCount}</p>
           </div>
         </div>
-        <div className="bg-[#0E1628] border border-[#1E2D45] rounded-xl p-3 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg border border-[#62A0EA]/15 bg-[#62A0EA]/10 flex items-center justify-center shrink-0">
-            <Smartphone size={18} className="text-[#62A0EA]" />
+        <div className="bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg border border-[#62A0EA]/15 admin-light:border-[#1A5FB4]/15 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 flex items-center justify-center shrink-0">
+            <Smartphone size={18} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
           </div>
           <div className="min-w-0">
             <p className="text-[10px] text-slate-500 uppercase tracking-wider">GCash Settled</p>
-            <p className="text-xl font-bold text-slate-100 truncate">{gcashCount}</p>
+            <p className="text-xl font-bold text-slate-100 admin-light:text-slate-900 truncate">{gcashCount}</p>
           </div>
         </div>
       </div>
@@ -525,15 +525,15 @@ export default function ReceiptsPage() {
         <button
           type="button"
           onClick={() => setShowMobileFilters((value) => !value)}
-          className="flex w-full items-center justify-between gap-3 rounded-lg border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-left transition-colors active:scale-[0.99] xl:hidden"
+          className="flex w-full items-center justify-between gap-3 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 py-2 text-left transition-colors active:scale-[0.99] xl:hidden"
           aria-expanded={showMobileFilters}
         >
           <span className="flex min-w-0 items-center gap-2">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#62A0EA]/15">
-              <SlidersHorizontal size={15} className="text-[#62A0EA]" />
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10">
+              <SlidersHorizontal size={15} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
             </span>
             <span className="min-w-0">
-              <span className="block text-xs font-semibold text-slate-200">Search & Filters</span>
+              <span className="block text-xs font-semibold text-slate-200 admin-light:text-slate-700">Search & Filters</span>
               <span className="block truncate text-[10px] text-slate-500">{mobileFilterSummary}</span>
             </span>
           </span>
@@ -567,10 +567,10 @@ export default function ReceiptsPage() {
             value={paymentFilter}
             onChange={(e) => setPaymentFilter(e.target.value as PaymentMethod | 'All')}
             aria-label="Filter by payment method"
-            className="h-9.5 w-full xl:w-40 px-3 bg-[#0E1628] border border-[#1E2D45] rounded-lg text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] focus:border-[#62A0EA] [color-scheme:dark]"
+            className="h-9.5 w-full xl:w-40 px-3 bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-lg text-white admin-light:text-slate-900 text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] admin-light:focus:ring-[#1A5FB4] focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4] [color-scheme:dark]"
           >
             {paymentOptions.map((filter) => (
-              <option key={filter} value={filter} className="bg-gray-800">
+              <option key={filter} value={filter} className="bg-gray-800 admin-light:bg-white">
                 {filter === 'All' ? 'All Payments' : filter}
               </option>
             ))}
@@ -585,11 +585,11 @@ export default function ReceiptsPage() {
                 handlePickRange(value);
               }}
               aria-label="Filter by date range"
-              className="h-9.5 w-full px-3 bg-[#0E1628] border border-[#1E2D45] rounded-lg text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] focus:border-[#62A0EA] [color-scheme:dark] xl:hidden"
+              className="h-9.5 w-full px-3 bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-lg text-white admin-light:text-slate-900 text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] admin-light:focus:ring-[#1A5FB4] focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4] [color-scheme:dark] xl:hidden"
             >
-              {specificDate && <option value="date" className="bg-gray-800">Selected Date</option>}
+              {specificDate && <option value="date" className="bg-gray-800 admin-light:bg-white">Selected Date</option>}
               {RANGE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value} className="bg-gray-800">
+                <option key={option.value} value={option.value} className="bg-gray-800 admin-light:bg-white">
                   {option.label}
                 </option>
               ))}
@@ -597,14 +597,14 @@ export default function ReceiptsPage() {
 
             <div className="relative w-full xl:w-48">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <CalendarDays className="h-4 w-4 text-slate-400" />
+                <CalendarDays className="h-4 w-4 text-slate-400 admin-light:text-slate-500" />
               </div>
               <input
                 type="date"
                 value={specificDate}
                 onChange={(e) => handlePickDate(e.target.value)}
                 aria-label="Show transactions on a specific date"
-                className="block w-full h-9.5 pl-10 pr-3 bg-[#0E1628] border border-[#1E2D45] rounded-lg text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] focus:border-[#62A0EA] scheme-dark"
+                className="block w-full h-9.5 pl-10 pr-3 bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-lg text-white admin-light:text-slate-900 text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] admin-light:focus:ring-[#1A5FB4] focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4] scheme-dark admin-light:scheme-light"
               />
             </div>
 
@@ -615,8 +615,8 @@ export default function ReceiptsPage() {
                   onClick={() => handlePickRange(opt.value)}
                   className={`h-9.5 px-4 rounded-lg text-sm font-medium transition-colors ${
                     !specificDate && rangePreset === opt.value
-                      ? 'bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/25'
-                      : 'bg-[#0E1628] border border-[#1E2D45] text-slate-300 hover:bg-[#1A2540]'
+                      ? 'bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white'
+                      : 'bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] text-slate-300 admin-light:text-slate-700 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7]'
                   }`}
                 >
                   {opt.label}
@@ -630,7 +630,7 @@ export default function ReceiptsPage() {
       {/* Table card — fills whatever vertical space is left below the
           header/summary/filters, on every screen size, instead of a fixed
           height that either clips or leaves a gap. */}
-      <div className="flex flex-1 min-h-0 flex-col bg-[#0B1220] border border-[#1E2D45] rounded-xl p-3 sm:p-4">
+      <div className="flex flex-1 min-h-0 flex-col bg-[#0B1220] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 sm:p-4">
         <div className="flex-1 min-h-0">
           <div className="hidden h-full sm:block">
             <DataTable
@@ -646,7 +646,7 @@ export default function ReceiptsPage() {
             />
           </div>
 
-          <div className="flex h-full flex-col overflow-y-auto rounded-lg border border-[#23344F] bg-[#0E1628] p-2 sm:hidden scrollbar-themed">
+          <div className="flex h-full flex-col overflow-y-auto rounded-lg border border-[#23344F] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white p-2 sm:hidden scrollbar-themed">
             {paginatedData.length === 0 ? (
               <div className="flex min-h-0 flex-1 items-center justify-center px-4 text-center">
                 <p className="text-sm text-slate-500">No receipts match your filters.</p>
@@ -660,11 +660,11 @@ export default function ReceiptsPage() {
         </div>
 
       {/* Pagination Controls */}
-      <div className="shrink-0 flex flex-col sm:flex-row justify-between items-center mt-3 pt-3 border-t border-[#1E2D45] gap-4 text-xs text-slate-400">
+      <div className="shrink-0 flex flex-col sm:flex-row justify-between items-center mt-3 pt-3 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] gap-4 text-xs text-slate-400 admin-light:text-slate-500">
         <div>
           Showing {paginatedData.length > 0 ? (safeCurrentPage - 1) * ROWS_PER_PAGE + 1 : 0} to{' '}
           {(safeCurrentPage - 1) * ROWS_PER_PAGE + paginatedData.length} of{' '}
-          <span className="text-slate-300 font-medium">{filteredData.length}</span> receipts
+          <span className="text-slate-300 admin-light:text-slate-700 font-medium">{filteredData.length}</span> receipts
         </div>
 
         <div className="flex items-center gap-2">
@@ -672,12 +672,12 @@ export default function ReceiptsPage() {
             onClick={() => goToPage(safeCurrentPage - 1)}
             disabled={safeCurrentPage === 1}
             aria-label="Previous page"
-            className="p-2 rounded-md bg-[#0E1628] border border-[#1E2D45] hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="p-2 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronLeft size={16} />
           </button>
 
-          <span className="px-4 py-2 bg-[#62A0EA]/20 text-[#62A0EA] rounded-md font-medium text-xs">
+          <span className="px-4 py-2 bg-[#62A0EA]/20 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4] rounded-md font-medium text-xs">
             Page {safeCurrentPage} of {totalPages}
           </span>
 
@@ -685,7 +685,7 @@ export default function ReceiptsPage() {
             onClick={() => goToPage(safeCurrentPage + 1)}
             disabled={safeCurrentPage === totalPages}
             aria-label="Next page"
-            className="p-2 rounded-md bg-[#0E1628] border border-[#1E2D45] hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="p-2 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronRight size={16} />
           </button>
