@@ -18,6 +18,7 @@ use App\Http\Controllers\Admin\AdminVehicleController;
 use App\Http\Controllers\Admin\AdminVoucherController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\Auth\PasswordChangeController;
 use App\Http\Controllers\Commuter\CommuterController;
 use App\Http\Controllers\Commuter\EmailChangeController;
 use App\Http\Controllers\Commuter\FeedbackController;
@@ -127,8 +128,8 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER', 'mainten
         Route::post('/confirm', [EmailChangeController::class, 'confirm']);
         Route::post('/cancel', [EmailChangeController::class, 'cancel']);
     });
-    Route::post('/change-password/request-code', [CommuterController::class, 'requestPasswordChangeCode'])->middleware('throttle:conductor-write');
-    Route::post('/change-password/confirm', [CommuterController::class, 'confirmPasswordChange'])->middleware('throttle:conductor-write');
+    Route::post('/change-password/request-code', [PasswordChangeController::class, 'requestCode'])->middleware('throttle:account-security');
+    Route::post('/change-password/confirm', [PasswordChangeController::class, 'confirm'])->middleware('throttle:account-security');
     Route::get('/trips', [CommuterController::class, 'trips'])->middleware('throttle:conductor-read');
     Route::get('/rewards', [CommuterController::class, 'rewards'])->middleware('throttle:conductor-read');
     Route::post('/location', [CommuterController::class, 'updateLocation'])->middleware('throttle:commuter-hail');
@@ -279,6 +280,10 @@ Route::prefix('vehicles')->middleware(['auth:sanctum', 'maintenance'])->group(fu
 */
 Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(function () {
     Route::get('/dashboard', [AdminController::class, 'dashboard']);
+    // The signed-in admin's own password: same two-step emailed-code flow
+    // as commuters (Settings > Profile & Security).
+    Route::post('/account/change-password/request-code', [PasswordChangeController::class, 'requestCode'])->middleware('throttle:account-security');
+    Route::post('/account/change-password/confirm', [PasswordChangeController::class, 'confirm'])->middleware('throttle:account-security');
     Route::get('/analytics', [AdminController::class, 'analytics'])->middleware('throttle:conductor-read');
     Route::get('/monitoring', [AdminController::class, 'monitoring'])->middleware('throttle:admin-monitoring');
     Route::get('/monitoring/overspeed', [AdminController::class, 'overspeed'])->middleware('throttle:admin-monitoring');

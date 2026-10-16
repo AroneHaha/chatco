@@ -147,6 +147,16 @@ class AppServiceProvider extends ServiceProvider
         // Password change — 6 req/min. Deliberately strict: this endpoint
         // checks the current password, so a loose limit would allow it to be
         // used as a current-password oracle / brute-force vector.
+        // Own-password change (commuter web + mobile, admin) — 6 req/min per
+        // account. A wrong current password fails before any code is sent,
+        // so the code's resend cooldown doesn't apply to it; this keeps a
+        // signed-in session from being used to guess the password quickly.
+        RateLimiter::for('account-security', function (Request $request) use ($rateLimitResponse) {
+            return Limit::perMinute(6)
+                ->by($request->user()?->id ?: $request->ip())
+                ->response($rateLimitResponse);
+        });
+
         RateLimiter::for('commuter-security', function (Request $request) use ($rateLimitResponse) {
             return Limit::perMinute(6)
                 ->by($request->user()?->id ?: $request->ip())

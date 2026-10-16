@@ -1,20 +1,23 @@
 <?php
 
-namespace App\Http\Requests\Commuter;
+namespace App\Http\Requests\Auth;
 
 use Illuminate\Foundation\Http\FormRequest;
 use App\Rules\StrongPassword;
 
 /**
- * Validates POST /api/v1/commuter/change-password/confirm.
+ * Validates POST /api/v1/{commuter,mobile/commuter,admin/account}/change-password/request-code.
  *
- * Same field contract as ChangePasswordRequest (current_password, password,
- * password_confirmation) plus the 6-digit `code` emailed to the commuter's
- * registered address by /change-password/request-code. current_password and
- * password are re-validated here (not just trusted from the request-code
- * step) since this is the request that actually rotates the password.
+ * Field contract (frontend maps its own field names onto these):
+ *   - current_password         the user's existing password
+ *   - password                 the new password
+ *   - password_confirmation    must match `password` ('confirmed' rule)
+ *
+ * The actual current-password check (Hash::check) is done in PasswordChangeService
+ * so a wrong password returns a field-level 422 rather than leaking timing via
+ * a DB lookup here. Authorization is enforced by route middleware.
  */
-class ConfirmPasswordChangeRequest extends FormRequest
+class ChangePasswordRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -26,7 +29,6 @@ class ConfirmPasswordChangeRequest extends FormRequest
         return [
             'current_password' => ['required', 'string'],
             'password' => ['required', 'confirmed', new StrongPassword],
-            'code' => ['required', 'string'],
         ];
     }
 
@@ -36,7 +38,6 @@ class ConfirmPasswordChangeRequest extends FormRequest
             'current_password.required' => 'Your current password is required',
             'password.required'         => 'A new password is required',
             'password.confirmed'        => 'The new password confirmation does not match',
-            'code.required'              => 'Enter the code we emailed you',
         ];
     }
 }

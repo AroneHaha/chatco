@@ -11,6 +11,7 @@ import styles from "./signup.module.css";
 import CodeInput from "@/components/auth/code-input";
 import { AdminDatePicker } from "@/components/admin/ui/admin-date-picker";
 import { CONTACT_NUMBER_PATTERN, CONTACT_NUMBER_ERROR, formatContactNumberInput } from "@/lib/utils/format";
+import { PASSWORD_RULES } from "@/lib/utils/password-policy";
 
 // Camera-dependent, so it stays out of the initial bundle and off the server.
 const IdCaptureModal = dynamic(() => import("@/components/auth/id-capture-modal"), {
@@ -52,18 +53,6 @@ const STEP_COPY: Record<number, { title: string; subtitle: string }> = {
   3: { title: "Confirm Your Email", subtitle: "Enter the 6-digit code we just emailed you" },
   4: { title: "Account Credentials", subtitle: "Secure your account" },
 };
-
-/**
- * Password policy — mirrors App\Rules\StrongPassword on the backend. Shown as
- * a live checklist so the requirements are visible while typing rather than
- * arriving as an error after submitting.
- */
-const PASSWORD_RULES: { id: string; label: string; test: (v: string) => boolean }[] = [
-  { id: "length", label: "At least 8 characters", test: (v) => v.length >= 8 },
-  { id: "upper", label: "One uppercase letter", test: (v) => /[A-Z]/.test(v) },
-  { id: "number", label: "One number", test: (v) => /[0-9]/.test(v) },
-  { id: "symbol", label: "One symbol (! ? @ #)", test: (v) => /[^A-Za-z0-9\s]/.test(v) },
-];
 
 /**
  * Which step owns each backend field. When the server rejects the final
