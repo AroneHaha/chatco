@@ -59,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             id: data.user.id,
             email: data.user.email,
             role: data.user.role,
+            name: data.user.name,
           };
           setUser(authUser);
 
@@ -105,6 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: data.user.id,
         email: data.user.email,
         role: data.user.role,
+        name: data.user.name,
       };
 
       if (authUser.role === "CONDUCTOR") {
