@@ -129,33 +129,33 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
     }
   };
 
-  const inputClasses = 'mt-1.5 block h-11 w-full rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-[#62A0EA]/50 focus:ring-1 focus:ring-[#62A0EA]/30 transition-colors disabled:opacity-60';
-  const labelClasses = 'block text-xs font-medium text-slate-300';
+  const inputClasses = 'mt-1.5 block h-11 w-full rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] px-3 text-sm text-white admin-light:text-slate-900 placeholder:text-slate-500 focus:outline-none focus:border-[#62A0EA]/50 admin-light:focus:border-[#1A5FB4]/50 focus:ring-1 focus:ring-[#62A0EA]/30 admin-light:focus:ring-[#1A5FB4]/30 transition-colors disabled:opacity-60';
+  const labelClasses = 'block text-xs font-medium text-slate-300 admin-light:text-slate-700';
 
   return (
-    <Modal isOpen={isOpen} onClose={isSubmitting ? () => {} : onClose} maxWidth="max-w-2xl">
+    <Modal adminThemed isOpen={isOpen} onClose={isSubmitting ? () => {} : onClose} maxWidth="max-w-2xl">
       <div>
-        <div className="mb-6 border-b border-[#2A3A55] pb-5 pr-8">
+        <div className="mb-6 border-b border-[#2A3A55] admin-light:border-[#E2E8F0] pb-5 pr-8">
           <div className="mb-2 flex items-center gap-2.5">
-            <UserPlus size={21} className="shrink-0 text-[#62A0EA]" aria-hidden="true" />
-            <h2 className="text-lg sm:text-xl font-bold text-white">Onsite Commuter Registration</h2>
+            <UserPlus size={21} className="shrink-0 text-[#62A0EA] admin-light:text-[#1A5FB4]" aria-hidden="true" />
+            <h2 className="text-lg sm:text-xl font-bold text-white admin-light:text-slate-900">Onsite Commuter Registration</h2>
           </div>
-          <p className="text-sm leading-relaxed text-slate-400">Register a commuter for verification. Their account will remain pending until approved.</p>
+          <p className="text-sm leading-relaxed text-slate-400 admin-light:text-slate-500">Register a commuter for verification. Their account will remain pending until approved.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Inline error banner — shown when the POST /api/admin/registrations fails */}
           {submitError && (
             <div role="alert" className="p-3 bg-red-500/10 border border-red-500/30 rounded-md flex items-start gap-2">
-              <AlertCircle size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-red-400">{submitError}</p>
+              <AlertCircle size={16} className="text-red-400 admin-light:text-red-600 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-red-400 admin-light:text-red-600">{submitError}</p>
             </div>
           )}
 
           <section aria-labelledby="onsite-personal-heading" className="space-y-4">
             <div>
-              <h3 id="onsite-personal-heading" className="text-sm font-semibold text-white">Commuter details</h3>
-              <p className="mt-1 text-xs text-slate-400">Use the name shown on the valid ID. All fields are required unless marked optional.</p>
+              <h3 id="onsite-personal-heading" className="text-sm font-semibold text-white admin-light:text-slate-900">Commuter details</h3>
+              <p className="mt-1 text-xs text-slate-400 admin-light:text-slate-500">Use the name shown on the valid ID. All fields are required unless marked optional.</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
               <div>
@@ -176,22 +176,22 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label htmlFor="onsite-birthday" className={labelClasses}>Date of birth</label>
-                <input id="onsite-birthday" type="date" name="birthday" autoComplete="bday" value={formData.birthday} onChange={handleChange} required disabled={isSubmitting} className={`${inputClasses} scheme-dark`} />
+                <input id="onsite-birthday" type="date" name="birthday" autoComplete="bday" value={formData.birthday} onChange={handleChange} required disabled={isSubmitting} className={`${inputClasses} scheme-dark admin-light:scheme-light`} />
               </div>
               <div>
                 <label htmlFor="onsite-commuter-type" className={labelClasses}>Commuter type</label>
-                <select id="onsite-commuter-type" name="commuterType" value={formData.commuterType} onChange={handleChange} disabled={isSubmitting} className={`${inputClasses} scheme-dark`}>
-                  <option value="Regular" className="bg-gray-800">Regular</option>
-                  <option value="Student" className="bg-gray-800">Student</option>
-                  <option value="Senior Citizen" className="bg-gray-800">Senior Citizen</option>
-                  <option value="PWD" className="bg-gray-800">PWD</option>
+                <select id="onsite-commuter-type" name="commuterType" value={formData.commuterType} onChange={handleChange} disabled={isSubmitting} className={`${inputClasses} scheme-dark admin-light:scheme-light`}>
+                  <option value="Regular" className="bg-gray-800 admin-light:bg-white">Regular</option>
+                  <option value="Student" className="bg-gray-800 admin-light:bg-white">Student</option>
+                  <option value="Senior Citizen" className="bg-gray-800 admin-light:bg-white">Senior Citizen</option>
+                  <option value="PWD" className="bg-gray-800 admin-light:bg-white">PWD</option>
                 </select>
               </div>
             </div>
           </section>
 
-          <section aria-labelledby="onsite-account-heading" className="space-y-4 border-t border-[#2A3A55] pt-5">
-            <h3 id="onsite-account-heading" className="text-sm font-semibold text-white">Account &amp; contact</h3>
+          <section aria-labelledby="onsite-account-heading" className="space-y-4 border-t border-[#2A3A55] admin-light:border-[#E2E8F0] pt-5">
+            <h3 id="onsite-account-heading" className="text-sm font-semibold text-white admin-light:text-slate-900">Account &amp; contact</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label htmlFor="onsite-username" className={labelClasses}>Username</label>
@@ -218,48 +218,48 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
               <div className="sm:col-span-2">
                 <label htmlFor="onsite-email" className={labelClasses}>Email address</label>
                 <input id="onsite-email" type="email" name="email" autoComplete="email" autoCapitalize="none" maxLength={255} value={formData.email} onChange={handleChange} required disabled={isSubmitting} placeholder="commuter@example.com" aria-describedby="onsite-password-help" className={inputClasses} />
-                <p id="onsite-password-help" className="mt-2 text-xs leading-relaxed text-slate-400">After approval, the commuter can use <span className="text-slate-200">Forgot password</span> with this email to set their password.</p>
+                <p id="onsite-password-help" className="mt-2 text-xs leading-relaxed text-slate-400 admin-light:text-slate-500">After approval, the commuter can use <span className="text-slate-200 admin-light:text-slate-800">Forgot password</span> with this email to set their password.</p>
               </div>
             </div>
           </section>
 
-          <section aria-labelledby="onsite-id-heading" className="space-y-3 border-t border-[#2A3A55] pt-5">
+          <section aria-labelledby="onsite-id-heading" className="space-y-3 border-t border-[#2A3A55] admin-light:border-[#E2E8F0] pt-5">
             <div>
-              <h3 id="onsite-id-heading" className="text-sm font-semibold text-white">Valid ID</h3>
-              <p id="onsite-id-help" className="mt-1 text-xs leading-relaxed text-slate-400">Upload a clear photo with the commuter&apos;s name and details visible. JPG, PNG, or WebP, up to 5 MB.</p>
+              <h3 id="onsite-id-heading" className="text-sm font-semibold text-white admin-light:text-slate-900">Valid ID</h3>
+              <p id="onsite-id-help" className="mt-1 text-xs leading-relaxed text-slate-400 admin-light:text-slate-500">Upload a clear photo with the commuter&apos;s name and details visible. JPG, PNG, or WebP, up to 5 MB.</p>
             </div>
             <input ref={fileInputRef} id="reg-id-upload" type="file" className="sr-only" accept="image/jpeg,image/png,image/webp" onChange={handleImageChange} disabled={isSubmitting} aria-label="Upload valid ID" aria-describedby={uploadError ? 'onsite-id-help onsite-id-error' : 'onsite-id-help'} aria-invalid={Boolean(uploadError)} />
-            <div className={`flex justify-center rounded-lg border border-dashed bg-[#0E1628] p-4 transition-colors ${uploadError ? 'border-red-400/50' : 'border-[#2A3A55] hover:border-[#62A0EA]/50'}`}>
+            <div className={`flex justify-center rounded-lg border border-dashed bg-[#0E1628] admin-light:bg-[#F8FAFC] p-4 transition-colors ${uploadError ? 'border-red-400/50' : 'border-[#2A3A55] admin-light:border-[#E2E8F0] hover:border-[#62A0EA]/50 admin-light:hover:border-[#1A5FB4]/50'}`}>
               {formData.idImagePreview ? (
                 <div className="w-full">
                   <div className="relative">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={formData.idImagePreview} alt="Uploaded valid ID preview" className="h-36 w-full object-contain rounded-md" />
-                    <button type="button" aria-label="Remove ID image" onClick={handleRemoveImage} disabled={isSubmitting} className="absolute top-0 right-0 p-1.5 border border-[#2A3A55] bg-[#131C2E] text-slate-300 rounded-md hover:text-white disabled:opacity-50">
+                    <button type="button" aria-label="Remove ID image" onClick={handleRemoveImage} disabled={isSubmitting} className="absolute top-0 right-0 p-1.5 border border-[#2A3A55] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white text-slate-300 admin-light:text-slate-700 rounded-md hover:text-white admin-light:hover:text-slate-900 disabled:opacity-50">
                       <X size={14} />
                     </button>
                   </div>
                   <div className="mt-3 flex items-center justify-between gap-3">
-                    <span className="truncate text-xs text-slate-400" title={formData.idImageFile?.name}>{formData.idImageFile?.name}</span>
-                    <label htmlFor="reg-id-upload" className={`shrink-0 text-xs font-medium text-[#62A0EA] ${isSubmitting ? 'pointer-events-none opacity-60' : 'cursor-pointer hover:text-[#8CB9F0]'}`}>Replace image</label>
+                    <span className="truncate text-xs text-slate-400 admin-light:text-slate-500" title={formData.idImageFile?.name}>{formData.idImageFile?.name}</span>
+                    <label htmlFor="reg-id-upload" className={`shrink-0 text-xs font-medium text-[#62A0EA] admin-light:text-[#1A5FB4] ${isSubmitting ? 'pointer-events-none opacity-60' : 'cursor-pointer hover:text-[#8CB9F0] admin-light:hover:text-[#1A5FB4]'}`}>Replace image</label>
                   </div>
                 </div>
               ) : (
-                <label htmlFor="reg-id-upload" className={`flex w-full items-center justify-center gap-3 py-3 text-sm font-medium text-[#62A0EA] ${isSubmitting ? 'pointer-events-none opacity-60' : 'cursor-pointer'}`}>
+                <label htmlFor="reg-id-upload" className={`flex w-full items-center justify-center gap-3 py-3 text-sm font-medium text-[#62A0EA] admin-light:text-[#1A5FB4] ${isSubmitting ? 'pointer-events-none opacity-60' : 'cursor-pointer'}`}>
                   <Upload size={20} aria-hidden="true" />
                   <span>Choose ID image</span>
                 </label>
               )}
             </div>
-            {uploadError && <p id="onsite-id-error" role="alert" className="text-xs text-red-400">{uploadError}</p>}
+            {uploadError && <p id="onsite-id-error" role="alert" className="text-xs text-red-400 admin-light:text-red-600">{uploadError}</p>}
           </section>
 
           {/* Buttons */}
-          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 border-t border-[#2A3A55] pt-4">
-            <button type="button" onClick={onClose} disabled={isSubmitting} className="h-11 w-full sm:w-auto px-4 border border-[#2A3A55] rounded-md text-slate-300 hover:bg-[#1A2540] text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 border-t border-[#2A3A55] admin-light:border-[#E2E8F0] pt-4">
+            <button type="button" onClick={onClose} disabled={isSubmitting} className="h-11 w-full sm:w-auto px-4 border border-[#2A3A55] admin-light:border-[#E2E8F0] rounded-md text-slate-300 admin-light:text-slate-700 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
               Cancel
             </button>
-            <button type="submit" disabled={isSubmitting} className="h-11 w-full sm:w-auto flex items-center justify-center gap-2 px-4 bg-[#62A0EA] text-white rounded-md hover:bg-[#4A8BD4] text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+            <button type="submit" disabled={isSubmitting} className="h-11 w-full sm:w-auto flex items-center justify-center gap-2 px-4 bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white rounded-md hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
               {isSubmitting ? (
                 <>
                   <Loader2 size={16} className="animate-spin" />

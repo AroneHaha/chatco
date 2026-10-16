@@ -407,7 +407,7 @@ export default function UsersPage() {
     activeTab === 'pending' ? pendingPagination !== null :
     rejectedPagination !== null;
 
-  const selectFilterClasses = 'h-11 min-w-0 w-full rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 text-base text-white focus:outline-none focus:ring-1 focus:ring-[#62A0EA]/30 scheme-dark md:w-auto md:text-sm';
+  const selectFilterClasses = 'h-11 min-w-0 w-full rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 text-base text-white admin-light:text-slate-900 focus:outline-none focus:ring-1 focus:ring-[#62A0EA]/30 admin-light:focus:ring-[#1A5FB4]/30 scheme-dark admin-light:scheme-light md:w-auto md:text-sm';
 
   // Search stays visible while tab-specific filters collapse on phones.
   const filterBar = (
@@ -420,7 +420,7 @@ export default function UsersPage() {
             onClick={() => setIsMobileFiltersExpanded((prev) => !prev)}
             aria-expanded={isMobileFiltersExpanded}
             aria-controls="user-management-filters"
-            className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors md:hidden ${isMobileFiltersExpanded ? 'border-[#62A0EA]/40 bg-[#62A0EA]/10 text-[#62A0EA]' : 'border-[#1E2D45] bg-[#0E1628] text-slate-300'}`}
+            className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors md:hidden ${isMobileFiltersExpanded ? 'border-[#62A0EA]/40 admin-light:border-[#1A5FB4]/40 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]' : 'border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white text-slate-300 admin-light:text-slate-700'}`}
           >
             <SlidersHorizontal size={16} aria-hidden="true" />
             Filters
@@ -440,11 +440,11 @@ export default function UsersPage() {
               aria-label="Filter users by role"
               className={selectFilterClasses}
             >
-              <option value="" className="bg-gray-800">All Roles</option>
-              <option value="COMMUTER" className="bg-gray-800">Commuters</option>
-              <option value="CONDUCTOR" className="bg-gray-800">Conductors</option>
-              <option value="DRIVER" className="bg-gray-800">Drivers</option>
-              <option value="ADMIN" className="bg-gray-800">Admins</option>
+              <option value="" className="bg-gray-800 admin-light:bg-white">All Roles</option>
+              <option value="COMMUTER" className="bg-gray-800 admin-light:bg-white">Commuters</option>
+              <option value="CONDUCTOR" className="bg-gray-800 admin-light:bg-white">Conductors</option>
+              <option value="DRIVER" className="bg-gray-800 admin-light:bg-white">Drivers</option>
+              <option value="ADMIN" className="bg-gray-800 admin-light:bg-white">Admins</option>
             </select>
           )}
           {activeTab === 'active' && (
@@ -455,9 +455,9 @@ export default function UsersPage() {
                 aria-label="Filter by account status"
                 className={selectFilterClasses}
               >
-                <option value="" className="bg-gray-800">All Statuses</option>
-                <option value="ACTIVE" className="bg-gray-800">Active</option>
-                <option value="SUSPENDED" className="bg-gray-800">
+                <option value="" className="bg-gray-800 admin-light:bg-white">All Statuses</option>
+                <option value="ACTIVE" className="bg-gray-800 admin-light:bg-white">Active</option>
+                <option value="SUSPENDED" className="bg-gray-800 admin-light:bg-white">
                   {filters.role === 'CONDUCTOR' ? 'Disabled' : filters.role === '' ? 'Suspended / Disabled' : 'Suspended'}
                 </option>
               </select>
@@ -467,9 +467,9 @@ export default function UsersPage() {
                 aria-label="Sort users"
                 className={`${selectFilterClasses} col-span-2`}
               >
-                <option value="recent" className="bg-gray-800">Recent</option>
-                <option value="alphabetical" className="bg-gray-800">Alphabetical</option>
-                <option value="oldest" className="bg-gray-800">Oldest</option>
+                <option value="recent" className="bg-gray-800 admin-light:bg-white">Recent</option>
+                <option value="alphabetical" className="bg-gray-800 admin-light:bg-white">Alphabetical</option>
+                <option value="oldest" className="bg-gray-800 admin-light:bg-white">Oldest</option>
               </select>
             </>
           )}
@@ -495,11 +495,11 @@ export default function UsersPage() {
   return (
     <div className="flex h-full min-h-[32rem] min-w-0 flex-col md:min-h-0">
       <StickyPageHeader className="mb-4 shrink-0">
-        <h1 className="text-xl font-bold text-white md:text-2xl">User Management</h1>
+        <h1 className="text-xl font-bold text-white admin-light:text-slate-900 md:text-2xl">User Management</h1>
       </StickyPageHeader>
 
       {/* 3 Tabs — shared with Fleet Management */}
-      <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[#1E2D45]">
+      <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[#1E2D45] admin-light:border-[#E2E8F0]">
         <div className="min-w-0 basis-full md:flex-1 md:basis-auto">
           <PageTabs
             className="border-b-0! [&>button]:min-h-11 [&>button]:flex-none"
@@ -528,7 +528,7 @@ export default function UsersPage() {
                   <ChevronDown size={16} aria-hidden="true" />
                 </>
               ),
-              className: (isOpen) => `inline-flex h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold text-white shadow-lg shadow-[#62A0EA]/25 transition-colors hover:bg-[#4A8BD4] [&>svg:last-child]:transition-transform ${isOpen ? 'bg-[#4A8BD4] [&>svg:last-child]:rotate-180' : 'bg-[#62A0EA]'}`,
+              className: (isOpen) => `inline-flex h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold text-white shadow-lg shadow-[#62A0EA]/25 admin-light:shadow-[#1A5FB4]/25 transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] [&>svg:last-child]:transition-transform ${isOpen ? 'bg-[#4A8BD4] admin-light:bg-[#164A8F] [&>svg:last-child]:rotate-180' : 'bg-[#62A0EA] admin-light:bg-[#1A5FB4]'}`,
             }}
             actions={[
               { label: 'Register onsite', hint: 'Commuter at the counter, with valid ID', icon: UserPlus, onSelect: handleOpenRegisterModal },
@@ -541,8 +541,8 @@ export default function UsersPage() {
       {/* Action error banner */}
       {actionError && (
         <div className="mb-4 shrink-0 bg-red-500/10 border border-red-500/30 rounded-md p-3 flex items-center justify-between">
-          <p className="text-sm text-red-400">{actionError}</p>
-          <button onClick={() => setActionError(null)} className="text-red-400 hover:text-red-300">
+          <p className="text-sm text-red-400 admin-light:text-red-600">{actionError}</p>
+          <button onClick={() => setActionError(null)} className="text-red-400 admin-light:text-red-600 hover:text-red-300 admin-light:hover:text-red-700">
             <XCircle size={16} />
           </button>
         </div>
@@ -552,10 +552,10 @@ export default function UsersPage() {
       {successMessage && (
         <div className="mb-4 shrink-0 bg-emerald-500/10 border border-emerald-500/30 rounded-md p-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <CheckCircle size={16} className="text-emerald-400 flex-shrink-0" />
-            <p className="text-sm text-emerald-400">{successMessage}</p>
+            <CheckCircle size={16} className="text-emerald-400 admin-light:text-emerald-700 flex-shrink-0" />
+            <p className="text-sm text-emerald-400 admin-light:text-emerald-700">{successMessage}</p>
           </div>
-          <button onClick={() => setSuccessMessage(null)} className="text-emerald-400 hover:text-emerald-300">
+          <button onClick={() => setSuccessMessage(null)} className="text-emerald-400 admin-light:text-emerald-700 hover:text-emerald-300 admin-light:hover:text-emerald-800">
             <XCircle size={16} />
           </button>
         </div>
@@ -573,10 +573,10 @@ export default function UsersPage() {
           </div>
         ) : error ? (
           <div className="flex h-full min-h-72 flex-col items-center justify-center gap-3 rounded-xl border border-red-400/20 bg-red-400/5 p-8">
-            <AlertCircle size={36} className="text-red-400" />
-            <p className="text-center font-medium text-slate-200">Unable to load this table.</p>
+            <AlertCircle size={36} className="text-red-400 admin-light:text-red-600" />
+            <p className="text-center font-medium text-slate-200 admin-light:text-slate-800">Unable to load this table.</p>
             <p className="max-w-xl text-center text-sm text-slate-500">{error}</p>
-            <button onClick={refetch} className="flex items-center gap-2 rounded-md bg-[#62A0EA] px-4 py-2 text-sm font-medium text-white">
+            <button onClick={refetch} className="flex items-center gap-2 rounded-md bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-4 py-2 text-sm font-medium text-white">
               <RefreshCw size={16} /> Retry
             </button>
           </div>

@@ -25,8 +25,8 @@ interface PageTabsProps<T extends string> {
 
 const ACCENTS: Record<PageTabAccent, { bar: string; icon: string; count: string }> = {
   blue: { bar: 'bg-[#62A0EA] admin-light:bg-[#1A5FB4] light:bg-[#1A5FB4]', icon: 'text-[#62A0EA] admin-light:text-[#1A5FB4] light:text-[#1A5FB4]', count: 'bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10 text-[#8CB9F0] admin-light:text-[#1A5FB4] light:bg-[#1A5FB4]/10 light:text-[#1A5FB4]' },
-  amber: { bar: 'bg-amber-400', icon: 'text-amber-300 admin-light:text-amber-700 light:text-amber-600', count: 'bg-amber-400/15 text-amber-200 light:text-amber-700' },
-  red: { bar: 'bg-red-400', icon: 'text-red-300 admin-light:text-red-700 light:text-red-600', count: 'bg-red-400/15 text-red-200 light:text-red-700' },
+  amber: { bar: 'bg-amber-400', icon: 'text-amber-300 admin-light:text-amber-700 light:text-amber-600', count: 'bg-amber-400/15 admin-light:bg-amber-500/15 text-amber-200 admin-light:text-amber-800 light:text-amber-700' },
+  red: { bar: 'bg-red-400', icon: 'text-red-300 admin-light:text-red-700 light:text-red-600', count: 'bg-red-400/15 admin-light:bg-red-500/10 text-red-200 admin-light:text-red-700 light:text-red-700' },
 };
 
 /**
