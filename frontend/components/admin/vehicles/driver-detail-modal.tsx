@@ -5,13 +5,14 @@ import { useState, useEffect, useRef } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import { PageTabs, type PageTab } from '@/components/admin/ui/page-tabs';
 import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
-import { History, User } from 'lucide-react';
+import { History, User, X, ZoomIn } from 'lucide-react';
 import type { Personnel } from '@/app/(admin)/vehicles/data/vehicles-data';
 import {
   PersonnelHeader,
   DetailSection,
   DetailRow,
   DetailColumns,
+  DetailTabPanels,
   DetailSkeleton,
   ShiftLedger,
   calculateAge,
@@ -76,6 +77,7 @@ export function DriverDetailModal({ driver, onClose }: DriverDetailModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<DetailTab>('info');
+  const [expandedLicenseSide, setExpandedLicenseSide] = useState<'front' | 'back' | null>(null);
 
   const [shiftLogs, setShiftLogs] = useState<ShiftLogEntry[]>([]);
   const [shiftLogsPage, setShiftLogsPage] = useState(0);
@@ -145,6 +147,7 @@ export function DriverDetailModal({ driver, onClose }: DriverDetailModalProps) {
     if (driver) {
       fetchDetails();
       setActiveTab('info');
+      setExpandedLicenseSide(null);
       setShiftLogs([]);
       setShiftLogsPage(0);
       setShiftLogsTotal(null);
@@ -211,7 +214,7 @@ export function DriverDetailModal({ driver, onClose }: DriverDetailModalProps) {
   ];
 
   return (
-    <Modal adminThemed isOpen={!!driver} onClose={onClose} maxWidth="max-w-4xl" height="h-[min(680px,85vh)]">
+    <Modal adminThemed isOpen={!!driver} onClose={onClose} maxWidth="max-w-4xl">
       <PersonnelHeader
         role="Driver"
         id={driver.id}
@@ -233,88 +236,129 @@ export function DriverDetailModal({ driver, onClose }: DriverDetailModalProps) {
 
       {isLoading && !record ? (
         <DetailSkeleton />
-      ) : record && activeTab === 'info' ? (
-        <div role="tabpanel">
-          <DetailColumns
-            left={
-              <DetailSection title="Personal">
-                <DetailRow label="License no." mono>{record.license_number || '—'}</DetailRow>
-                <DetailRow label="Birth date" hint={record.birthday ? calculateAge(record.birthday) : undefined}>
-                  {formatDate(record.birthday)}
-                </DetailRow>
-                <DetailRow label="Contact">{record.contact || '—'}</DetailRow>
-                <DetailRow label="Address">{record.address || '—'}</DetailRow>
-                <DetailRow label="Date hired">{formatDate(record.hire_date)}</DetailRow>
-                <DetailRow label="Fixed route">{record.assigned_route}</DetailRow>
-              </DetailSection>
-            }
-            right={
-              <>
-                <DetailSection title="Emergency contact">
-                  <DetailRow label="Name">{record.emergency_contact_name || '—'}</DetailRow>
-                  <DetailRow label="Relationship">{record.emergency_contact_relationship || '—'}</DetailRow>
-                  <DetailRow label="Number">{record.emergency_contact_number || '—'}</DetailRow>
+      ) : record ? (
+        <DetailTabPanels
+          showHistory={activeTab === 'history'}
+          info={
+            <DetailColumns
+              left={
+                <DetailSection title="Personal">
+                  <DetailRow label="License no." mono>{record.license_number || '—'}</DetailRow>
+                  <DetailRow label="Birth date" hint={record.birthday ? calculateAge(record.birthday) : undefined}>
+                    {formatDate(record.birthday)}
+                  </DetailRow>
+                  <DetailRow label="Contact">{record.contact || '—'}</DetailRow>
+                  <DetailRow label="Address">{record.address || '—'}</DetailRow>
+                  <DetailRow label="Date hired">{formatDate(record.hire_date)}</DetailRow>
+                  <DetailRow label="Fixed route">{record.assigned_route}</DetailRow>
                 </DetailSection>
+              }
+              right={
+                <>
+                  <DetailSection title="Emergency contact">
+                    <DetailRow label="Name">{record.emergency_contact_name || '—'}</DetailRow>
+                    <DetailRow label="Relationship">{record.emergency_contact_relationship || '—'}</DetailRow>
+                    <DetailRow label="Number">{record.emergency_contact_number || '—'}</DetailRow>
+                  </DetailSection>
 
-                <section>
-                  <h3 className="mb-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">License</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    {([
-                      ['front', 'Front', record.license_front_image_url],
-                      ['back', 'Back', record.license_back_image_url],
-                    ] as const).map(([side, label, storedPath]) => (
-                      <figure key={side} className="min-w-0">
-                        <div className="flex aspect-[1.6] items-center justify-center overflow-hidden rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC]">
+                  <section>
+                    <h3 className="mb-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">License</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      {([
+                        ['front', 'Front', record.license_front_image_url],
+                        ['back', 'Back', record.license_back_image_url],
+                      ] as const).map(([side, label, storedPath]) => (
+                        <figure key={side} className="min-w-0">
                           {storedPath ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={`/api/admin/drivers/${record.id}/license-images/${side}`} alt={`${label} of driver's license`} className="h-full w-full object-contain" />
+                            // Click to view full size; the thumbnail is too
+                            // small to read the license details from.
+                            <button
+                              type="button"
+                              onClick={() => setExpandedLicenseSide(side)}
+                              className="group relative flex aspect-[1.6] w-full cursor-zoom-in items-center justify-center overflow-hidden rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC]"
+                              aria-label={`View full-size ${label.toLowerCase()} of driver's license`}
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={`/api/admin/drivers/${record.id}/license-images/${side}`} alt={`${label} of driver's license`} className="h-full w-full object-contain" />
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/40">
+                                <ZoomIn size={20} aria-hidden="true" className="text-white opacity-0 transition-opacity group-hover:opacity-100" />
+                              </div>
+                            </button>
                           ) : (
-                            <span className="text-xs text-slate-500">Not uploaded</span>
+                            <div className="flex aspect-[1.6] items-center justify-center overflow-hidden rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC]">
+                              <span className="text-xs text-slate-500">Not uploaded</span>
+                            </div>
                           )}
-                        </div>
-                        <figcaption className="mt-1.5 text-xs text-slate-500">{label}</figcaption>
-                      </figure>
-                    ))}
-                  </div>
-                </section>
-              </>
-            }
-          />
-        </div>
-      ) : record && activeTab === 'history' ? (
-        <div role="tabpanel">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <p className="text-xs text-slate-500">
-              {historyDate ? `Showing assignments for ${formatDate(historyDate)}` : 'Showing all assignments'}
-            </p>
-            <AdminDatePicker
-              value={historyDate}
-              onChange={setHistoryDate}
-              accent="blue"
-              align="right"
-              ariaLabel="Filter assignment history by date"
+                          <figcaption className="mt-1.5 text-xs text-slate-500">{label}</figcaption>
+                        </figure>
+                      ))}
+                    </div>
+                  </section>
+                </>
+              }
             />
-          </div>
+          }
+          history={
+            <>
+              <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
+                <p className="text-xs text-slate-500">
+                  {historyDate ? `Showing assignments for ${formatDate(historyDate)}` : 'Showing all assignments'}
+                </p>
+                <AdminDatePicker
+                  value={historyDate}
+                  onChange={setHistoryDate}
+                  accent="blue"
+                  align="right"
+                  ariaLabel="Filter assignment history by date"
+                />
+              </div>
 
-          {shiftLogsError && (
-            <div className="mb-3 rounded-md border border-red-500/20 bg-red-500/10 p-3">
-              <p className="text-sm text-red-400 admin-light:text-red-600">{shiftLogsError}</p>
-            </div>
-          )}
+              {shiftLogsError && (
+                <div className="mb-3 shrink-0 rounded-md border border-red-500/20 bg-red-500/10 p-3">
+                  <p className="text-sm text-red-400 admin-light:text-red-600">{shiftLogsError}</p>
+                </div>
+              )}
 
-          <ShiftLedger
-            entries={shiftLogs}
-            middleLabel="Route"
-            middleValue={(log) => log.route}
-            isFirstPageLoading={shiftLogsPage === 0 && isShiftLogsLoading}
-            isLoadingMore={isShiftLogsLoading}
-            hasMore={shiftLogsHasMore}
-            emptyMessage={historyDate ? `No assignments on ${formatDate(historyDate)}.` : 'No shift history yet.'}
-            listRef={shiftLogsListRef}
-            sentinelRef={shiftLogsSentinelRef}
+              <ShiftLedger
+                entries={shiftLogs}
+                middleLabel="Route"
+                middleValue={(log) => log.route}
+                isFirstPageLoading={shiftLogsPage === 0 && isShiftLogsLoading}
+                isLoadingMore={isShiftLogsLoading}
+                hasMore={shiftLogsHasMore}
+                emptyMessage={historyDate ? `No assignments on ${formatDate(historyDate)}.` : 'No shift history yet.'}
+                listRef={shiftLogsListRef}
+                sentinelRef={shiftLogsSentinelRef}
+              />
+            </>
+          }
+        />
+      ) : null}
+
+      {/* Full-size license image lightbox — sits above the modal (z-60 vs
+          the modal's z-50) so it isn't clipped by the panel's own scroll area. */}
+      {record && expandedLicenseSide && (
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80"
+          onClick={() => setExpandedLicenseSide(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setExpandedLicenseSide(null)}
+            className="absolute top-4 right-4 p-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+            aria-label="Close full-size image"
+          >
+            <X size={24} />
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`/api/admin/drivers/${record.id}/license-images/${expandedLicenseSide}`}
+            alt={`${expandedLicenseSide === 'front' ? 'Front' : 'Back'} of driver's license (full size)`}
+            className="max-w-full max-h-full object-contain rounded-md shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
           />
         </div>
-      ) : null}
+      )}
     </Modal>
   );
 }

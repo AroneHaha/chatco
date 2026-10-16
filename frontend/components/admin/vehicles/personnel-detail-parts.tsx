@@ -192,6 +192,25 @@ export function DetailColumns({ left, right }: { left: ReactNode; right: ReactNo
   );
 }
 
+/**
+ * Both tab bodies in one box. Personal Info stays in the flow (hidden, not
+ * unmounted, while History is open), so it alone sets the modal's height;
+ * History is laid over that same box and its ledger fills what's left. The
+ * modal is as tall as the info it shows (no empty space below it), and
+ * switching tabs neither resizes it nor moves the tab bar. The floor keeps
+ * the ledger usable when the info is short.
+ */
+export function DetailTabPanels({ showHistory, info, history }: { showHistory: boolean; info: ReactNode; history: ReactNode }) {
+  return (
+    <div className="relative min-h-72">
+      <div role="tabpanel" className={showHistory ? 'invisible' : undefined}>{info}</div>
+      {showHistory && (
+        <div role="tabpanel" className="absolute inset-0 flex flex-col">{history}</div>
+      )}
+    </div>
+  );
+}
+
 export interface ShiftLedgerEntry {
   shift_id: string;
   unit_number: string | null;
@@ -219,14 +238,15 @@ interface ShiftLedgerProps<T extends ShiftLedgerEntry> {
 
 /**
  * Assignment history as a ledger: one hairline-separated row per shift,
- * with a sticky column header on md+. The panel has a fixed height so the
- * modal doesn't resize between loading, empty and filled states.
+ * with a sticky column header on md+. It fills the History panel (sized by
+ * the Personal Info tab, see DetailTabPanels) rather than its own content,
+ * so the modal doesn't resize between loading, empty and filled states.
  */
 export function ShiftLedger<T extends ShiftLedgerEntry>({
   entries, middleLabel, middleValue, isFirstPageLoading, isLoadingMore, hasMore, emptyMessage, listRef, sentinelRef,
 }: ShiftLedgerProps<T>) {
   return (
-    <div ref={listRef} className={`h-[min(420px,50vh)] overflow-y-auto rounded-lg border scrollbar-themed ${HAIRLINE}`}>
+    <div ref={listRef} className={`min-h-0 flex-1 overflow-y-auto rounded-lg border scrollbar-themed ${HAIRLINE}`}>
       {isFirstPageLoading ? (
         <div className="flex h-full items-center justify-center">
           <Loader2 size={20} className="animate-spin text-slate-500" aria-label="Loading assignment history" />

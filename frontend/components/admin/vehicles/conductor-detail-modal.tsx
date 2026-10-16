@@ -13,6 +13,7 @@ import {
   DetailSection,
   DetailRow,
   DetailColumns,
+  DetailTabPanels,
   DetailSkeleton,
   ShiftLedger,
   calculateAge,
@@ -275,7 +276,7 @@ export function ConductorDetailModal({ conductor, onClose, onChanged }: Conducto
 
   return (
     <>
-      <Modal adminThemed isOpen={!!conductor} onClose={onClose} maxWidth="max-w-4xl" height="h-[min(680px,85vh)]">
+      <Modal adminThemed isOpen={!!conductor} onClose={onClose} maxWidth="max-w-4xl">
         <PersonnelHeader
           role="Conductor"
           id={conductor.id}
@@ -305,91 +306,95 @@ export function ConductorDetailModal({ conductor, onClose, onChanged }: Conducto
 
         {isLoading && !record ? (
           <DetailSkeleton />
-        ) : record && activeTab === 'info' ? (
-          <div role="tabpanel">
-            <DetailColumns
-              left={
-                <DetailSection title="Personal">
-                  <DetailRow label="Birth date" hint={record.birthday ? calculateAge(record.birthday) : undefined}>
-                    {formatDate(record.birthday)}
-                  </DetailRow>
-                  <DetailRow label="Contact">{record.contact || '—'}</DetailRow>
-                  <DetailRow label="Address">{record.address || '—'}</DetailRow>
-                  <DetailRow label="Fixed route">{record.assigned_route}</DetailRow>
-                </DetailSection>
-              }
-              right={
-                <>
-                  <DetailSection title="Emergency contact">
-                    <DetailRow label="Name">{record.emergency_contact_name || '—'}</DetailRow>
-                    <DetailRow label="Relationship">{record.emergency_contact_relationship || '—'}</DetailRow>
-                    <DetailRow label="Number">{record.emergency_contact_number || '—'}</DetailRow>
+        ) : record ? (
+          <DetailTabPanels
+            showHistory={activeTab === 'history'}
+            info={
+              <DetailColumns
+                left={
+                  <DetailSection title="Personal">
+                    <DetailRow label="Birth date" hint={record.birthday ? calculateAge(record.birthday) : undefined}>
+                      {formatDate(record.birthday)}
+                    </DetailRow>
+                    <DetailRow label="Contact">{record.contact || '—'}</DetailRow>
+                    <DetailRow label="Address">{record.address || '—'}</DetailRow>
+                    <DetailRow label="Fixed route">{record.assigned_route}</DetailRow>
                   </DetailSection>
-
-                  {/* Account: the login and the two admin actions on it. Each
-                      action opens a password confirmation first (see
-                      ConfirmPasswordModal below), so a stray click can't
-                      change the account. */}
-                  <section>
-                    <DetailSection title="Account">
-                      <DetailRow label="Login username" mono>{record.generated_username || '—'}</DetailRow>
+                }
+                right={
+                  <>
+                    <DetailSection title="Emergency contact">
+                      <DetailRow label="Name">{record.emergency_contact_name || '—'}</DetailRow>
+                      <DetailRow label="Relationship">{record.emergency_contact_relationship || '—'}</DetailRow>
+                      <DetailRow label="Number">{record.emergency_contact_number || '—'}</DetailRow>
                     </DetailSection>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setConfirmAction('reset')}
-                        className="flex items-center gap-1.5 rounded-md border border-[#2A3A55] admin-light:border-[#E2E8F0] px-3 py-2 text-xs font-semibold text-slate-200 admin-light:text-slate-700 transition-colors hover:bg-white/5 admin-light:hover:bg-[#F1F5F9]"
-                      >
-                        <KeyRound size={14} aria-hidden="true" className="text-slate-400 admin-light:text-slate-500" />
-                        Reset credentials
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmAction('disable')}
-                        className="flex items-center gap-1.5 rounded-md border border-red-500/25 px-3 py-2 text-xs font-semibold text-red-400 admin-light:text-red-600 transition-colors hover:bg-red-500/10 admin-light:hover:bg-red-50"
-                      >
-                        <Ban size={14} aria-hidden="true" />
-                        Disable account
-                      </button>
-                    </div>
-                  </section>
-                </>
-              }
-            />
-          </div>
-        ) : record && activeTab === 'history' ? (
-          <div role="tabpanel">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <p className="text-xs text-slate-500">
-                {historyDate ? `Showing assignments for ${formatDate(historyDate)}` : 'Showing all assignments'}
-              </p>
-              <AdminDatePicker
-                value={historyDate}
-                onChange={setHistoryDate}
-                accent="blue"
-                align="right"
-                ariaLabel="Filter assignment history by date"
+
+                    {/* Account: the login and the two admin actions on it. Each
+                        action opens a password confirmation first (see
+                        ConfirmPasswordModal below), so a stray click can't
+                        change the account. */}
+                    <section>
+                      <DetailSection title="Account">
+                        <DetailRow label="Login username" mono>{record.generated_username || '—'}</DetailRow>
+                      </DetailSection>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setConfirmAction('reset')}
+                          className="flex items-center gap-1.5 rounded-md border border-[#2A3A55] admin-light:border-[#E2E8F0] px-3 py-2 text-xs font-semibold text-slate-200 admin-light:text-slate-700 transition-colors hover:bg-white/5 admin-light:hover:bg-[#F1F5F9]"
+                        >
+                          <KeyRound size={14} aria-hidden="true" className="text-slate-400 admin-light:text-slate-500" />
+                          Reset credentials
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmAction('disable')}
+                          className="flex items-center gap-1.5 rounded-md border border-red-500/25 px-3 py-2 text-xs font-semibold text-red-400 admin-light:text-red-600 transition-colors hover:bg-red-500/10 admin-light:hover:bg-red-50"
+                        >
+                          <Ban size={14} aria-hidden="true" />
+                          Disable account
+                        </button>
+                      </div>
+                    </section>
+                  </>
+                }
               />
-            </div>
+            }
+            history={
+              <>
+                <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
+                  <p className="text-xs text-slate-500">
+                    {historyDate ? `Showing assignments for ${formatDate(historyDate)}` : 'Showing all assignments'}
+                  </p>
+                  <AdminDatePicker
+                    value={historyDate}
+                    onChange={setHistoryDate}
+                    accent="blue"
+                    align="right"
+                    ariaLabel="Filter assignment history by date"
+                  />
+                </div>
 
-            {shiftLogsError && (
-              <div className="mb-3 rounded-md border border-red-500/20 bg-red-500/10 p-3">
-                <p className="text-sm text-red-400 admin-light:text-red-600">{shiftLogsError}</p>
-              </div>
-            )}
+                {shiftLogsError && (
+                  <div className="mb-3 shrink-0 rounded-md border border-red-500/20 bg-red-500/10 p-3">
+                    <p className="text-sm text-red-400 admin-light:text-red-600">{shiftLogsError}</p>
+                  </div>
+                )}
 
-            <ShiftLedger
-              entries={shiftLogs}
-              middleLabel="Driver"
-              middleValue={(log) => log.driver_name}
-              isFirstPageLoading={shiftLogsPage === 0 && isShiftLogsLoading}
-              isLoadingMore={isShiftLogsLoading}
-              hasMore={shiftLogsHasMore}
-              emptyMessage={historyDate ? `No assignments on ${formatDate(historyDate)}.` : 'No shift history yet.'}
-              listRef={shiftLogsListRef}
-              sentinelRef={shiftLogsSentinelRef}
-            />
-          </div>
+                <ShiftLedger
+                  entries={shiftLogs}
+                  middleLabel="Driver"
+                  middleValue={(log) => log.driver_name}
+                  isFirstPageLoading={shiftLogsPage === 0 && isShiftLogsLoading}
+                  isLoadingMore={isShiftLogsLoading}
+                  hasMore={shiftLogsHasMore}
+                  emptyMessage={historyDate ? `No assignments on ${formatDate(historyDate)}.` : 'No shift history yet.'}
+                  listRef={shiftLogsListRef}
+                  sentinelRef={shiftLogsSentinelRef}
+                />
+              </>
+            }
+          />
         ) : null}
       </Modal>
 
