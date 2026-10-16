@@ -5,7 +5,7 @@ import { useState } from "react";
 import { DataTable } from "@/components/admin/ui/data-table";
 import { TablePagination } from "@/components/admin/ui/table-pagination";
 import { SearchBar } from "@/components/admin/ui/search-bar";
-import { Edit, Eye, Trash, Plus, UserPlus } from "lucide-react";
+import { ChevronDown, Edit, Eye, IdCard, Trash, Plus, UserPlus } from "lucide-react";
 import { formatLogDate } from "@/lib/utils/format";
 import type { PageMeta, Personnel, PersonnelRoleFilter, PersonnelStatusFilter } from "@/app/(admin)/vehicles/data/vehicles-data";
 import { DriverDetailModal } from "@/components/admin/vehicles/driver-detail-modal";
@@ -189,21 +189,28 @@ export function PersonnelTable({
               <option value="RESIGNED">Resigned</option>
             </select>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <button
-              onClick={onCreateConductor}
-              className="flex w-full items-center justify-center gap-2 rounded-md bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] sm:w-44"
-            >
-              <UserPlus size={18} />
-              <span>Conductor</span>
-            </button>
-            <button
-              onClick={onAddDriver}
-              className="flex w-full items-center justify-center gap-2 rounded-md bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] sm:w-44"
-            >
-              <Plus size={18} />
-              <span>Add Driver</span>
-            </button>
+          {/* One "Add Personnel" menu instead of a button per role, same
+              pattern as User Management's "Register". Each item opens the
+              modal its old button did. */}
+          <div className="flex sm:items-center [&>button]:w-full sm:[&>button]:w-44">
+            <RowActionsMenu
+              label="Add personnel"
+              menuWidth={232}
+              trigger={{
+                content: (
+                  <>
+                    <Plus size={18} aria-hidden="true" />
+                    <span>Add Personnel</span>
+                    <ChevronDown size={16} aria-hidden="true" />
+                  </>
+                ),
+                className: (isOpen) => `flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] [&>svg:last-child]:transition-transform ${isOpen ? 'bg-[#4A8BD4] admin-light:bg-[#164A8F] [&>svg:last-child]:rotate-180' : 'bg-[#62A0EA] admin-light:bg-[#1A5FB4]'}`,
+              }}
+              actions={[
+                { label: 'Add driver', hint: 'Driver record and license', icon: IdCard, onSelect: onAddDriver },
+                { label: 'Add conductor', hint: 'Conductor with an app login', icon: UserPlus, onSelect: onCreateConductor },
+              ]}
+            />
           </div>
         </div>
 

@@ -13,7 +13,8 @@ import { EditUserModal } from '@/components/admin/users/edit-user-modal';
 import { DeleteUserModal } from '@/components/admin/users/delete-user-modal';
 import { FeedbackModal, type FeedbackModalStaff } from '@/components/admin/users/feedback-modal';
 import { SearchBar } from '@/components/admin/ui/search-bar';
-import { Plus, UserCheck, Users, XCircle, AlertCircle, RefreshCw, CheckCircle, ChevronUp, SlidersHorizontal } from 'lucide-react';
+import { Plus, UserCheck, Users, XCircle, AlertCircle, RefreshCw, CheckCircle, ChevronUp, ChevronDown, SlidersHorizontal, UserPlus, ShieldUser } from 'lucide-react';
+import { RowActionsMenu } from '@/components/admin/ui/row-actions-menu';
 import { useUsersData } from './data/users-data';
 import type { ActiveUser, PendingRequest, RejectedUser, RejectedRequest } from './data/users-data';
 import type { UpdateUserInput } from '@/lib/admin/services/user.service';
@@ -512,13 +513,29 @@ export default function UsersPage() {
             ]}
           />
         </div>
-        <button
-          onClick={handleOpenRegisterModal}
-          className="ml-auto inline-flex h-11 -translate-y-1 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-4 text-sm font-bold text-white shadow-lg shadow-[#62A0EA]/25 transition-colors hover:bg-[#4A8BD4]"
-        >
-          <Plus size={16} />
-          <span>Register Onsite</span>
-        </button>
+        {/* One "Register" menu for the ways an account gets created here.
+            Onsite opens the existing commuter registration modal unchanged;
+            admin accounts are listed but not built yet. */}
+        <div className="ml-auto shrink-0 -translate-y-1">
+          <RowActionsMenu
+            label="Register an account"
+            menuWidth={248}
+            trigger={{
+              content: (
+                <>
+                  <Plus size={16} aria-hidden="true" />
+                  <span>Register</span>
+                  <ChevronDown size={16} aria-hidden="true" />
+                </>
+              ),
+              className: (isOpen) => `inline-flex h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold text-white shadow-lg shadow-[#62A0EA]/25 transition-colors hover:bg-[#4A8BD4] [&>svg:last-child]:transition-transform ${isOpen ? 'bg-[#4A8BD4] [&>svg:last-child]:rotate-180' : 'bg-[#62A0EA]'}`,
+            }}
+            actions={[
+              { label: 'Register onsite', hint: 'Commuter at the counter, with valid ID', icon: UserPlus, onSelect: handleOpenRegisterModal },
+              { label: 'Register admin account', hint: 'Not available yet', icon: ShieldUser, onSelect: () => {}, disabled: true },
+            ]}
+          />
+        </div>
       </div>
 
       {/* Action error banner */}
