@@ -23,7 +23,7 @@ interface AdminSidebarProps {
 export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
   const pathname = usePathname();
   const [theme] = useAdminTheme();
-  const { isSettingsOpen, openSettingsDrawer } = useSettingsDrawer();
+  const { isSettingsOpen, toggleSettingsDrawer, closeSettingsDrawer } = useSettingsDrawer();
   const { remittance, monitoring, discountApplications } = useAdminNotifications();
   const moduleBadgeCounts: Record<string, number> = {
     '/remittance': remittance.count,
@@ -61,6 +61,7 @@ export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={closeSettingsDrawer}
                 className={`flex items-center space-x-3 px-3 py-2.5 my-0.5 rounded-md transition-colors duration-200 ${
                   isActive
                     ? 'bg-[#62A0EA]/10 admin-light:bg-white/15 text-[#62A0EA] admin-light:text-white'
@@ -97,6 +98,7 @@ export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={closeSettingsDrawer}
                 className={`flex items-center space-x-3 px-3 py-2.5 my-0.5 rounded-md transition-colors duration-200 ${
                   isActive
                     ? 'bg-[#62A0EA]/10 admin-light:bg-white/15 text-[#62A0EA] admin-light:text-white'
@@ -131,7 +133,8 @@ export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
               return (
                 <button
                   key={item.href}
-                  onClick={openSettingsDrawer}
+                  onClick={toggleSettingsDrawer}
+                  aria-expanded={isSettingsOpen}
                   className={`flex items-center space-x-3 px-3 py-2.5 my-0.5 rounded-md transition-colors duration-200 w-full ${
                     isSettingsOpen || isActive
                       ? 'bg-[#62A0EA]/10 admin-light:bg-white/15 text-[#62A0EA] admin-light:text-white'
@@ -150,6 +153,7 @@ export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={closeSettingsDrawer}
                 className={`flex items-center space-x-3 px-3 py-2.5 my-0.5 rounded-md transition-colors duration-200 ${
                   isActive
                     ? 'bg-[#62A0EA]/10 admin-light:bg-white/15 text-[#62A0EA] admin-light:text-white'

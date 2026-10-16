@@ -97,7 +97,7 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
             isPending={isSigningOut}
           />
         </div>
-        <SettingsDrawer />
+        <SettingsDrawer docked />
       </div>
     );
   }

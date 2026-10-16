@@ -7,7 +7,7 @@ import { SkeletonFareMatrix } from './skeleton/skeleton-fare-matrix';
 import { useAdminTheme } from '@/contexts/admin-theme-context';
 import {
   X, Calculator, PiggyBank, Ticket, Gauge,
-  Shield, MessageCircleQuestion, Settings2, Sliders, ArrowLeft, Printer
+  Shield, MessageCircleQuestion, Settings2, ArrowLeft, Printer, ChevronRight, UserRoundCog
 } from 'lucide-react';
 
 // ─── Lazy-loaded settings page components ───
@@ -23,17 +23,30 @@ const SafetyNotificationsPage = lazy(() => import('@/app/(admin)/settings/safety
 const ReceiptPage = lazy(() => import('@/app/(admin)/settings/receipt/page'));
 const FaqManagementPage = lazy(() => import('@/app/(admin)/settings/faq-management/page'));
 const AppConfigurationPage = lazy(() => import('@/app/(admin)/settings/app-configuration/page'));
+const ProfileSecurityPage = lazy(() => import('@/app/(admin)/settings/profile-security/page'));
 
+// `lightReady`: the page has admin-light: styles, so the panel keeps
+// following the admin theme while it's open (the others stay dark).
 const settingsOptions = [
-  { title: 'Fare Matrix', description: 'Set base fares and per-kilometer rates.', icon: Calculator, href: '/settings/fare-matrix', color: 'text-blue-400 admin-light:text-blue-700', bgColor: 'bg-blue-500/15', component: FareMatrixPage },
-  { title: 'Financial Rules', description: 'Wallet limits, discounts, loyalty.', icon: PiggyBank, href: '/settings/financial-rules', color: 'text-yellow-400 admin-light:text-yellow-700', bgColor: 'bg-yellow-500/15', component: FinancialRulesPage },
-  { title: 'Voucher Generator', description: 'Generate bulk promo codes.', icon: Ticket, href: '/settings/voucher-generator', color: 'text-pink-400 admin-light:text-pink-700', bgColor: 'bg-pink-500/15', component: VoucherGeneratorPage },
-  { title: 'Operations Rules', description: 'Speed limits, shifts, expenses.', icon: Gauge, href: '/settings/operations-rules', color: 'text-orange-400 admin-light:text-orange-700', bgColor: 'bg-orange-500/15', component: OperationsRulesPage },
-  { title: 'Safety & Notifications', description: 'Emergency contacts, push templates.', icon: Shield, href: '/settings/safety-notifications', color: 'text-red-400 admin-light:text-red-600', bgColor: 'bg-red-500/15', component: SafetyNotificationsPage },
-  { title: 'Receipt', description: 'Thermal fare-receipt content and printing.', icon: Printer, href: '/settings/receipt', color: 'text-[#62A0EA] admin-light:text-[#1A5FB4]', bgColor: 'bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10', component: ReceiptPage },
-  { title: 'FAQ Management', description: 'Manage commuter FAQ questions and answers.', icon: MessageCircleQuestion, href: '/settings/faq-management', color: 'text-[#62A0EA] admin-light:text-[#1A5FB4]', bgColor: 'bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10', component: FaqManagementPage },
-  { title: 'App Configuration', description: 'Maintenance mode, registration.', icon: Settings2, href: '/settings/app-configuration', color: 'text-slate-300 admin-light:text-slate-700', bgColor: 'bg-slate-500/15', component: AppConfigurationPage },
-];
+  { title: 'Profile & Security', description: 'Your account and password.', icon: UserRoundCog, href: '/settings/profile-security', group: 'account', component: ProfileSecurityPage, lightReady: true },
+  { title: 'Fare Matrix', description: 'Set base fares and per-kilometer rates.', icon: Calculator, href: '/settings/fare-matrix', group: 'fares', component: FareMatrixPage },
+  { title: 'Financial Rules', description: 'Wallet limits, discounts, loyalty.', icon: PiggyBank, href: '/settings/financial-rules', group: 'fares', component: FinancialRulesPage },
+  { title: 'Voucher Generator', description: 'Generate bulk promo codes.', icon: Ticket, href: '/settings/voucher-generator', group: 'fares', component: VoucherGeneratorPage },
+  { title: 'Receipt', description: 'Thermal fare-receipt content and printing.', icon: Printer, href: '/settings/receipt', group: 'fares', component: ReceiptPage },
+  { title: 'Operations Rules', description: 'Speed limits, shifts, expenses.', icon: Gauge, href: '/settings/operations-rules', group: 'operations', component: OperationsRulesPage },
+  { title: 'Safety & Notifications', description: 'Emergency contacts, push templates.', icon: Shield, href: '/settings/safety-notifications', group: 'operations', component: SafetyNotificationsPage },
+  { title: 'FAQ Management', description: 'Manage commuter FAQ questions and answers.', icon: MessageCircleQuestion, href: '/settings/faq-management', group: 'app', component: FaqManagementPage },
+  { title: 'App Configuration', description: 'Maintenance mode, registration.', icon: Settings2, href: '/settings/app-configuration', group: 'app', component: AppConfigurationPage },
+] as const;
+
+// The menu's sections, in order. Icons stay one neutral tone; the grouping
+// and labels carry the structure instead of a colour per setting.
+const settingsGroups = [
+  { id: 'account', label: 'Account' },
+  { id: 'fares', label: 'Fares & payments' },
+  { id: 'operations', label: 'Operations & safety' },
+  { id: 'app', label: 'App' },
+] as const;
 
 // ─── Context ───
 interface SettingsDrawerContextType {
@@ -103,7 +116,13 @@ function DrawerLoader() {
 //   2. Sub-page view – renders the selected settings component directly (no iframe)
 // Clicking "Go Back" in sub-page view returns to the menu view.
 // The main page behind the drawer stays completely untouched.
-export function SettingsDrawer() {
+//
+// `docked` (desktop): the panel opens beside the 256px sidebar instead of
+// from the right edge. It sits below the sidebar's z-40, so it slides out
+// from behind it, and the backdrop leaves the sidebar undimmed and
+// clickable. The menu is a narrow list; opening a setting widens the same
+// panel over the page.
+export function SettingsDrawer({ docked = false }: { docked?: boolean }) {
   const { isSettingsOpen, closeSettingsDrawer } = useSettingsDrawer();
   const [theme] = useAdminTheme();
   const pathname = usePathname();
@@ -138,87 +157,131 @@ export function SettingsDrawer() {
 
   const ActiveComponent = activeOption?.component ?? null;
   const isReceiptView = activeHref === '/settings/receipt';
+  const followsTheme = !activeOption || ('lightReady' in activeOption && activeOption.lightReady);
+
+  // left-64 / 16rem = the desktop sidebar's w-64.
+  const panelPlacement = docked
+    ? `top-0 left-64 z-30 h-dvh border-r ${
+        !activeHref ? 'w-80' : isReceiptView ? 'w-[min(calc(100vw-16rem),64rem)]' : 'w-[min(calc(100vw-16rem),60rem)]'
+      } ${isSettingsOpen ? 'translate-x-0' : '-translate-x-full'}`
+    : `top-0 right-0 z-50 border-l ${isReceiptView ? 'h-dvh w-full sm:w-[90vw] lg:w-[min(90vw,64rem)]' : 'h-full w-[90vw] sm:w-[80vw] lg:w-1/2'} ${
+        isSettingsOpen ? 'translate-x-0' : 'translate-x-full'
+      }`;
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop — beside the sidebar when docked, so the nav stays usable */}
       <div
-        className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ${
-          isSettingsOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        }`}
+        className={`fixed inset-y-0 right-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ${
+          docked ? 'left-64 z-30' : 'left-0 z-40'
+        } ${isSettingsOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={handleClose}
       />
 
-      {/* Drawer Panel — 90% on mobile, 50% on desktop, slides from RIGHT */}
-      {/* Only the menu view follows the admin theme: the settings pages shown
-          in the sub-page view aren't light-styled yet, so they keep the dark
-          drawer around them. */}
+      {/* Drawer Panel — beside the sidebar on desktop (docked), from the
+          right edge on mobile (90%). */}
+      {/* The menu follows the admin theme, and so does a sub-page marked
+          `lightReady`; the other settings pages aren't light-styled yet, so
+          they keep the dark drawer around them. */}
       <aside
-        data-admin-theme={activeHref ? undefined : theme}
+        data-admin-theme={followsTheme ? theme : undefined}
+        inert={!isSettingsOpen}
         className={`
-          fixed top-0 right-0 z-50 ${isReceiptView ? 'h-dvh w-full sm:w-[90vw] lg:w-[min(90vw,64rem)]' : 'h-full w-[90vw] sm:w-[80vw] lg:w-1/2'}
-          bg-[#0D1424] admin-light:bg-white border-l border-[#1E2D45] admin-light:border-[#E2E8F0] shadow-2xl shadow-black/40
+          fixed ${panelPlacement}
+          bg-[#0D1424] admin-light:bg-white border-[#1E2D45] admin-light:border-[#E2E8F0] shadow-2xl shadow-black/40
           flex flex-col
           transform transition-transform duration-300 ease-out
-          ${isSettingsOpen ? 'translate-x-0' : 'translate-x-full'}
         `}
       >
-        {/* ── Header ── */}
-        <div className="flex items-center justify-between px-5 h-16 border-b border-[#1E2D45] admin-light:border-[#E2E8F0] flex-shrink-0">
-          <div className="flex items-center gap-2.5">
+        {/* ── Header ── title over a one-line context: what the panel holds
+            on the menu, what the open setting controls in a sub-page. */}
+        <div className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-[#1E2D45] admin-light:border-[#E2E8F0] px-5">
+          <div className="flex min-w-0 items-center gap-2">
             {/* Back arrow — only visible in sub-page view */}
             {activeHref && (
               <button
                 onClick={handleBack}
                 aria-label="Back to Settings"
-                className="p-1.5 rounded-lg hover:bg-[#131C2E] admin-light:hover:bg-[#F1F5F9] text-slate-400 admin-light:text-slate-500 hover:text-white admin-light:hover:text-slate-900 transition-colors active:scale-95"
+                className="-ml-1.5 shrink-0 rounded-md p-1.5 text-slate-400 admin-light:text-slate-500 transition-colors hover:bg-[#131C2E] admin-light:hover:bg-[#F1F5F9] hover:text-white admin-light:hover:text-slate-900 active:scale-95"
                 title="Back to Settings menu"
               >
                 <ArrowLeft size={16} />
               </button>
             )}
-            {isReceiptView ? <Printer size={18} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" /> : <Sliders size={18} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />}
-            <h2 className="text-xs font-bold text-white admin-light:text-slate-900 uppercase tracking-widest">
-              {activeOption ? activeOption.title : 'Settings'}
-            </h2>
+            <div className="min-w-0">
+              <h2 className="truncate text-base font-semibold leading-tight text-white admin-light:text-slate-900">
+                {activeOption ? activeOption.title : 'Settings'}
+              </h2>
+              <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                {activeOption ? activeOption.description : 'System rules and configuration'}
+              </p>
+            </div>
           </div>
           <button
             onClick={handleClose}
             aria-label="Close Settings"
-            className="p-2 rounded-lg hover:bg-[#131C2E] admin-light:hover:bg-[#F1F5F9] text-slate-400 admin-light:text-slate-500 hover:text-white admin-light:hover:text-slate-900 transition-colors active:scale-95"
+            className="shrink-0 rounded-md p-2 text-slate-400 admin-light:text-slate-500 transition-colors hover:bg-[#131C2E] admin-light:hover:bg-[#F1F5F9] hover:text-white admin-light:hover:text-slate-900 active:scale-95"
           >
             <X size={18} />
           </button>
         </div>
 
-        {/* ── View 1: Settings Menu ── */}
+        {/* ── View 1: Settings Menu ── grouped hairline rows. Every icon is
+            the same neutral grey; only the active setting picks up blue. */}
         {!activeHref && (
-          <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-            {settingsOptions.map((item) => {
-              const Icon = item.icon;
-              const active = pathname === item.href;
-              return (
-                <button
-                  key={item.href}
-                  onClick={() => handleOptionClick(item.href)}
-                  className={`
-                    w-full text-left flex items-center gap-3 px-3 py-3 rounded-lg
-                    transition-all duration-150 group
-                    ${active
-                      ? 'bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10'
-                      : 'hover:bg-[#131C2E] admin-light:hover:bg-[#F1F5F9]'}
-                  `}
-                >
-                  <div className={`p-2 rounded-lg flex-shrink-0 ${item.bgColor}`}>
-                    <Icon size={16} className={item.color} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-sm font-medium ${active ? 'text-[#62A0EA] admin-light:text-[#1A5FB4]' : 'text-slate-200 admin-light:text-slate-700 group-hover:text-white admin-light:group-hover:text-slate-900'}`}>{item.title}</p>
-                    <p className="text-[11px] text-slate-500 truncate mt-0.5">{item.description}</p>
-                  </div>
-                </button>
-              );
-            })}
+          <nav aria-label="Settings" className="flex-1 overflow-y-auto py-4">
+            {settingsGroups.map((group) => (
+              <section key={group.id} aria-labelledby={`settings-group-${group.id}`} className="mb-5 last:mb-0">
+                <h3 id={`settings-group-${group.id}`} className="mb-1 px-5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                  {group.label}
+                </h3>
+                <ul className="divide-y divide-[#1E2D45] admin-light:divide-[#E2E8F0]">
+                  {settingsOptions.filter((item) => item.group === group.id).map((item) => {
+                    const Icon = item.icon;
+                    const active = pathname === item.href;
+                    return (
+                      <li key={item.href}>
+                        <button
+                          type="button"
+                          onClick={() => handleOptionClick(item.href)}
+                          aria-current={active ? 'page' : undefined}
+                          className={`group flex w-full items-center gap-3 px-5 py-3 text-left transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4] ${
+                            active
+                              ? 'bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10'
+                              : 'hover:bg-[#131C2E] admin-light:hover:bg-[#F8FAFC]'
+                          }`}
+                        >
+                          <Icon
+                            size={16}
+                            aria-hidden="true"
+                            className={`shrink-0 transition-colors ${
+                              active
+                                ? 'text-[#62A0EA] admin-light:text-[#1A5FB4]'
+                                : 'text-slate-500 admin-light:text-slate-600 group-hover:text-slate-300 admin-light:group-hover:text-slate-900'
+                            }`}
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className={`block truncate text-sm font-medium ${
+                              active
+                                ? 'text-[#62A0EA] admin-light:text-[#1A5FB4]'
+                                : 'text-slate-200 admin-light:text-slate-800 group-hover:text-white admin-light:group-hover:text-slate-900'
+                            }`}>
+                              {item.title}
+                            </span>
+                            <span className="mt-0.5 block truncate text-[11px] text-slate-500">{item.description}</span>
+                          </span>
+                          <ChevronRight
+                            size={16}
+                            aria-hidden="true"
+                            className="shrink-0 text-slate-600 admin-light:text-slate-500 transition-[color,translate] duration-150 group-hover:translate-x-0.5 group-hover:text-slate-400 admin-light:group-hover:text-slate-700 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0"
+                          />
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))}
           </nav>
         )}
 
