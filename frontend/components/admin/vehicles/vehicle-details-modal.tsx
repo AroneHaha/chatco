@@ -75,16 +75,16 @@ function CrewRow({
   person: VehiclePerson | null;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-lg bg-[#0E1628] border border-[#1E2D45] p-3">
-      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#62A0EA]/15 text-[#62A0EA]">
+    <div className="flex items-start gap-3 rounded-lg bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] p-3">
+      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]">
         <User size={18} />
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500">{label}</p>
         {person ? (
           <>
-            <p className="truncate text-sm font-semibold text-white">{person.name}</p>
-            <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-400">
+            <p className="truncate text-sm font-semibold text-white admin-light:text-slate-900">{person.name}</p>
+            <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-400 admin-light:text-slate-500">
               <Phone size={11} className="flex-shrink-0" />
               <span className="truncate">{person.contact || '—'}</span>
             </p>
@@ -108,11 +108,11 @@ function DetailRow({
 }) {
   return (
     <div className="flex items-center justify-between gap-3 py-2">
-      <span className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-slate-400">
+      <span className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-slate-400 admin-light:text-slate-500">
         <Icon size={14} className="text-slate-500" />
         {label}
       </span>
-      <span className="text-right text-sm text-white">{value}</span>
+      <span className="text-right text-sm text-white admin-light:text-slate-900">{value}</span>
     </div>
   );
 }
@@ -206,35 +206,35 @@ export function VehicleDetailsModal({ isOpen, vehicleId, onClose }: VehicleDetai
   }, [vehicle]);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-lg">
+    <Modal adminThemed isOpen={isOpen} onClose={onClose} maxWidth="max-w-lg">
       {/* Header */}
       <div className="mb-5 flex items-center gap-3 pr-8">
-        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-[#62A0EA]/15 text-[#62A0EA]">
+        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]">
           <Car size={22} />
         </div>
         <div className="min-w-0">
-          <h2 className="text-lg sm:text-xl font-bold text-white">Vehicle Details</h2>
-          <p className="text-xs text-slate-400">Fleet Management · permanent unit record</p>
+          <h2 className="text-lg sm:text-xl font-bold text-white admin-light:text-slate-900">Vehicle Details</h2>
+          <p className="text-xs text-slate-400 admin-light:text-slate-500">Fleet Management · permanent unit record</p>
         </div>
       </div>
 
       {/* Loading */}
       {isLoading && (
         <div className="flex flex-col items-center justify-center gap-3 py-12">
-          <RefreshCw size={28} className="animate-spin text-[#62A0EA]" />
-          <p className="text-sm text-slate-400">Loading vehicle details…</p>
+          <RefreshCw size={28} className="animate-spin text-[#62A0EA] admin-light:text-[#1A5FB4]" />
+          <p className="text-sm text-slate-400 admin-light:text-slate-500">Loading vehicle details…</p>
         </div>
       )}
 
       {/* Error */}
       {!isLoading && error && (
         <div className="flex flex-col items-center justify-center gap-3 py-10">
-          <AlertCircle size={32} className="text-red-400" />
-          <p className="text-sm text-red-400">{error}</p>
+          <AlertCircle size={32} className="text-red-400 admin-light:text-red-600" />
+          <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
           {vehicleId && (
             <button
               onClick={() => load(vehicleId)}
-              className="mt-1 flex items-center gap-2 px-4 py-2 bg-[#62A0EA] text-white rounded-md text-sm font-medium hover:bg-[#4A8BD4] transition-colors"
+              className="mt-1 flex items-center gap-2 px-4 py-2 bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white rounded-md text-sm font-medium hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] transition-colors"
             >
               <RefreshCw size={14} />
               Retry
@@ -247,10 +247,10 @@ export function VehicleDetailsModal({ isOpen, vehicleId, onClose }: VehicleDetai
       {!isLoading && !error && vehicle && (
         <div className="space-y-5">
           {/* ── Vehicle info ── */}
-          <section className="rounded-lg border border-[#1E2D45] bg-[#0E1628] p-4">
+          <section className="rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F1F5F9] p-4">
             <div className="mb-2 flex items-center justify-between">
-              <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-300">
-                <IdCard size={14} className="text-[#62A0EA]" />
+              <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-300 admin-light:text-slate-700">
+                <IdCard size={14} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
                 Vehicle Information
               </h3>
               <Badge
@@ -265,7 +265,7 @@ export function VehicleDetailsModal({ isOpen, vehicleId, onClose }: VehicleDetai
                 {vehicle.statusLabel}
               </Badge>
             </div>
-            <div className="divide-y divide-[#1A2540]">
+            <div className="divide-y divide-[#1A2540] admin-light:divide-[#E2E8F0]">
               <DetailRow icon={Hash} label="Unit Number" value={vehicle.unitNumber || '—'} />
               <DetailRow icon={Car} label="Plate Number" value={vehicle.plateNumber || '—'} />
               <DetailRow icon={Tag} label="Brand" value={vehicle.brand || '—'} />
@@ -276,8 +276,8 @@ export function VehicleDetailsModal({ isOpen, vehicleId, onClose }: VehicleDetai
 
           {/* ── Today's crew ── */}
           <section>
-            <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-300">
-              <Users size={14} className="text-[#62A0EA]" />
+            <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-300 admin-light:text-slate-700">
+              <Users size={14} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
               Today&apos;s Assigned Crew
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -287,10 +287,10 @@ export function VehicleDetailsModal({ isOpen, vehicleId, onClose }: VehicleDetai
           </section>
 
           {/* ── Permanent Unit QR ── */}
-          <section className="rounded-lg border border-[#1E2D45] bg-[#0E1628] p-4">
+          <section className="rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F1F5F9] p-4">
             <div className="mb-3">
-              <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-300">
-                <Hash size={14} className="text-[#62A0EA]" />
+              <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-300 admin-light:text-slate-700">
+                <Hash size={14} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
                 Unit Feedback QR
               </h3>
               <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
@@ -316,14 +316,14 @@ export function VehicleDetailsModal({ isOpen, vehicleId, onClose }: VehicleDetai
               <div className="grid w-full max-w-xs grid-cols-1 gap-2 sm:grid-cols-2">
                 <button
                   onClick={handleDownload}
-                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#62A0EA] text-white text-sm font-medium rounded-md hover:bg-[#4A8BD4] transition-colors"
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white text-sm font-medium rounded-md hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] transition-colors"
                 >
                   <Download size={16} />
                   Download PNG
                 </button>
                 <button
                   onClick={handlePrint}
-                  className="flex items-center justify-center gap-2 px-4 py-2.5 border border-[#1E2D45] text-slate-200 text-sm font-medium rounded-md hover:bg-[#131C2E] transition-colors"
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 border border-[#1E2D45] admin-light:border-[#E2E8F0] text-slate-200 admin-light:text-slate-700 text-sm font-medium rounded-md hover:bg-[#131C2E] admin-light:hover:bg-white transition-colors"
                 >
                   <Printer size={16} />
                   Print

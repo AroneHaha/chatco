@@ -311,37 +311,37 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
 
   if (!editingData) return null;
 
-  const inputClasses = "block w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors";
+  const inputClasses = "block w-full px-4 py-2.5 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-white admin-light:text-slate-900 text-sm placeholder-slate-500 admin-light:placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] admin-light:focus:ring-[#1A5FB4] transition-colors";
 
   // Determine which image to show in the preview.
   const previewSrc = !useDefaultPicture && profilePicture ? profilePicture : existingPictureUrl;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-lg">
+    <Modal adminThemed isOpen={isOpen} onClose={onClose} maxWidth="max-w-lg">
       <div className="flex items-center gap-3 mb-5">
-        <div className="p-2 bg-[#62A0EA]/20 rounded-lg">
-          <Save className="text-[#62A0EA]" size={24} />
+        <div className="p-2 bg-[#62A0EA]/20 admin-light:bg-[#1A5FB4]/10 rounded-lg">
+          <Save className="text-[#62A0EA] admin-light:text-[#1A5FB4]" size={24} />
         </div>
         <div>
-          <h2 className="text-lg sm:text-xl font-bold text-white">Edit {roleLabel}</h2>
-          <p className="text-xs sm:text-sm text-slate-400">Update {roleLabel.toLowerCase()} details. ID: <span className="font-mono">{editingData.id.slice(0, 8)}…</span></p>
+          <h2 className="text-lg sm:text-xl font-bold text-white admin-light:text-slate-900">Edit {roleLabel}</h2>
+          <p className="text-xs sm:text-sm text-slate-400 admin-light:text-slate-500">Update {roleLabel.toLowerCase()} details. ID: <span className="font-mono">{editingData.id.slice(0, 8)}…</span></p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
         {error && (
           <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md">
-            <p className="text-sm text-red-400">{error}</p>
+            <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
           </div>
         )}
 
         {/* Profile Picture Section */}
         <div className="flex items-center gap-5">
-          <div className="relative w-20 h-20 rounded-full bg-[#0E1628] border-2 border-dashed border-[#1E2D45] flex items-center justify-center overflow-hidden flex-shrink-0">
+          <div className="relative w-20 h-20 rounded-full bg-[#0E1628] admin-light:bg-[#F1F5F9] border-2 border-dashed border-[#1E2D45] admin-light:border-[#E2E8F0] flex items-center justify-center overflow-hidden flex-shrink-0">
             {previewSrc ? (
               <img src={previewSrc} alt="Preview" className="w-full h-full object-cover" />
             ) : (
-              <User className="text-slate-600" size={32} />
+              <User className="text-slate-600 admin-light:text-slate-400" size={32} />
             )}
           </div>
 
@@ -352,7 +352,7 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isSubmitting || isLoadingMeta}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-sm text-slate-300 hover:bg-[#1A2540] hover:text-white transition-colors active:scale-[0.98] disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-sm text-slate-300 admin-light:text-slate-700 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] hover:text-white admin-light:hover:text-slate-900 transition-colors active:scale-[0.98] disabled:opacity-50"
             >
               <Upload size={16} />
               Change Photo
@@ -362,17 +362,17 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
               <label className="flex items-center gap-2 cursor-pointer group">
                 <div
                   onClick={() => { setUseDefaultPicture(!useDefaultPicture); if(profilePicture) setProfilePicture(null); if(existingPictureUrl) setExistingPictureUrl(null); }}
-                  className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${useDefaultPicture ? 'bg-[#62A0EA] border-[#62A0EA]' : 'border-[#1E2D45] group-hover:border-[#2A3A55]'}`}
+                  className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${useDefaultPicture ? 'bg-[#62A0EA] admin-light:bg-[#1A5FB4] border-[#62A0EA] admin-light:border-[#1A5FB4]' : 'border-[#1E2D45] admin-light:border-[#E2E8F0] group-hover:border-[#2A3A55] admin-light:group-hover:border-[#CBD5E1]'}`}
                 >
                   {useDefaultPicture && <Check size={12} className="text-white" />}
                 </div>
-                <span className="text-xs text-slate-500 group-hover:text-slate-300 transition-colors">
+                <span className="text-xs text-slate-500 group-hover:text-slate-300 admin-light:group-hover:text-slate-700 transition-colors">
                   Use default picture
                 </span>
               </label>
 
               {!useDefaultPicture && (profilePicture || existingPictureUrl) && (
-                <button type="button" onClick={handleRemoveImage} className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 transition-colors">
+                <button type="button" onClick={handleRemoveImage} className="flex items-center gap-1 text-xs text-red-400 admin-light:text-red-600 hover:text-red-300 admin-light:hover:text-red-700 transition-colors">
                   <X size={12} />
                   Remove
                 </button>
@@ -384,8 +384,8 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
         {/* Name Fields */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="edit-first_name" className="block text-xs font-medium text-slate-300 mb-1.5">
-              First Name <span className="text-red-400">*</span>
+            <label htmlFor="edit-first_name" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">
+              First Name <span className="text-red-400 admin-light:text-red-600">*</span>
             </label>
             <input
               type="text"
@@ -397,11 +397,11 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
               disabled={isSubmitting || isLoadingMeta}
               className={`${inputClasses} ${fieldErrors.first_name ? 'border-red-500/50' : ''}`}
             />
-            {fieldErrors.first_name && <p className="text-xs text-red-400 mt-1">{fieldErrors.first_name[0]}</p>}
+            {fieldErrors.first_name && <p className="text-xs text-red-400 admin-light:text-red-600 mt-1">{fieldErrors.first_name[0]}</p>}
           </div>
           <div>
-            <label htmlFor="edit-last_name" className="block text-xs font-medium text-slate-300 mb-1.5">
-              Last Name <span className="text-red-400">*</span>
+            <label htmlFor="edit-last_name" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">
+              Last Name <span className="text-red-400 admin-light:text-red-600">*</span>
             </label>
             <input
               type="text"
@@ -413,12 +413,12 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
               disabled={isSubmitting || isLoadingMeta}
               className={`${inputClasses} ${fieldErrors.last_name ? 'border-red-500/50' : ''}`}
             />
-            {fieldErrors.last_name && <p className="text-xs text-red-400 mt-1">{fieldErrors.last_name[0]}</p>}
+            {fieldErrors.last_name && <p className="text-xs text-red-400 admin-light:text-red-600 mt-1">{fieldErrors.last_name[0]}</p>}
           </div>
         </div>
 
         <div>
-          <label htmlFor="edit-middle_name" className="block text-xs font-medium text-slate-300 mb-1.5">Middle Name</label>
+          <label htmlFor="edit-middle_name" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">Middle Name</label>
           <input
             type="text"
             id="edit-middle_name"
@@ -429,14 +429,14 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
             placeholder="Optional"
             className={`${inputClasses} ${fieldErrors.middle_name ? 'border-red-500/50' : ''}`}
           />
-          {fieldErrors.middle_name && <p className="text-xs text-red-400 mt-1">{fieldErrors.middle_name[0]}</p>}
+          {fieldErrors.middle_name && <p className="text-xs text-red-400 admin-light:text-red-600 mt-1">{fieldErrors.middle_name[0]}</p>}
         </div>
 
         {/* License Number — drivers only (conductors don't drive) */}
         {!isConductor && (
           <div>
-            <label htmlFor="edit-license_number" className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-2">
-              <IdCard size={14} /> Driver&apos;s License Number <span className="text-red-400">*</span>
+            <label htmlFor="edit-license_number" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5 flex items-center gap-2">
+              <IdCard size={14} /> Driver&apos;s License Number <span className="text-red-400 admin-light:text-red-600">*</span>
             </label>
             <input
               type="text"
@@ -452,15 +452,15 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
               title="Use the LTO format N01-23-045678"
               className={`${inputClasses} ${fieldErrors.license_number ? 'border-red-500/50' : ''}`}
             />
-            {fieldErrors.license_number && <p className="text-xs text-red-400 mt-1">{fieldErrors.license_number[0]}</p>}
+            {fieldErrors.license_number && <p className="text-xs text-red-400 admin-light:text-red-600 mt-1">{fieldErrors.license_number[0]}</p>}
           </div>
         )}
 
         {!isConductor && (
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <IdCard size={14} className="text-slate-300" />
-              <p className="text-xs font-medium text-slate-300">Driver&apos;s License Images</p>
+              <IdCard size={14} className="text-slate-300 admin-light:text-slate-700" />
+              <p className="text-xs font-medium text-slate-300 admin-light:text-slate-700">Driver&apos;s License Images</p>
             </div>
             <p className="text-[11px] text-slate-500">Upload clear photos of both sides for verification.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -468,9 +468,9 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
                 ['front', 'Front', licenseFrontInputRef, licenseFrontPreview],
                 ['back', 'Back', licenseBackInputRef, licenseBackPreview],
               ] as const).map(([side, label, inputRef, preview]) => (
-                <div key={side} className="rounded-lg border border-[#1E2D45] bg-[#0E1628] p-3">
-                  <div className="h-24 rounded-md border border-dashed border-[#2A3A55] flex items-center justify-center overflow-hidden mb-2">
-                    {preview ? <img src={preview} alt={`${label} license preview`} className="w-full h-full object-contain" /> : <IdCard size={28} className="text-slate-600" />}
+                <div key={side} className="rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F1F5F9] p-3">
+                  <div className="h-24 rounded-md border border-dashed border-[#2A3A55] admin-light:border-[#CBD5E1] flex items-center justify-center overflow-hidden mb-2">
+                    {preview ? <img src={preview} alt={`${label} license preview`} className="w-full h-full object-contain" /> : <IdCard size={28} className="text-slate-600 admin-light:text-slate-400" />}
                   </div>
                   <input
                     ref={inputRef}
@@ -481,10 +481,10 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
                     disabled={isSubmitting || isLoadingMeta}
                   />
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => inputRef.current?.click()} disabled={isSubmitting || isLoadingMeta} className="flex-1 flex items-center justify-center gap-2 px-2 py-2 bg-[#131C2E] border border-[#1E2D45] rounded-md text-xs text-slate-300 hover:bg-[#1A2540] hover:text-white transition-colors disabled:opacity-50">
+                    <button type="button" onClick={() => inputRef.current?.click()} disabled={isSubmitting || isLoadingMeta} className="flex-1 flex items-center justify-center gap-2 px-2 py-2 bg-[#131C2E] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-xs text-slate-300 admin-light:text-slate-700 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] hover:text-white admin-light:hover:text-slate-900 transition-colors disabled:opacity-50">
                       <Upload size={14} /> {preview ? `Change ${label}` : `Upload ${label}`}
                     </button>
-                    {preview && <button type="button" onClick={() => removeLicenseImage(side)} disabled={isSubmitting} className="px-2 py-2 text-xs text-red-400 border border-red-500/20 rounded-md hover:bg-red-500/10 disabled:opacity-50">Remove</button>}
+                    {preview && <button type="button" onClick={() => removeLicenseImage(side)} disabled={isSubmitting} className="px-2 py-2 text-xs text-red-400 admin-light:text-red-600 border border-red-500/20 rounded-md hover:bg-red-500/10 disabled:opacity-50">Remove</button>}
                   </div>
                 </div>
               ))}
@@ -494,8 +494,8 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
 
         {/* Birthday */}
         <div>
-          <label htmlFor="edit-birthday" className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-2">
-            <Calendar size={14} /> Birth Date <span className="text-red-400">*</span>
+          <label htmlFor="edit-birthday" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5 flex items-center gap-2">
+            <Calendar size={14} /> Birth Date <span className="text-red-400 admin-light:text-red-600">*</span>
           </label>
           <input
             type="date"
@@ -507,13 +507,13 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
             disabled={isSubmitting || isLoadingMeta}
             className={`${inputClasses} [color-scheme:dark] ${fieldErrors.birthday ? 'border-red-500/50' : ''}`}
           />
-          {fieldErrors.birthday && <p className="text-xs text-red-400 mt-1">{fieldErrors.birthday[0]}</p>}
+          {fieldErrors.birthday && <p className="text-xs text-red-400 admin-light:text-red-600 mt-1">{fieldErrors.birthday[0]}</p>}
         </div>
 
         {/* Contact Number — both drivers and conductors */}
         <div>
-          <label htmlFor="edit-contact" className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-2">
-            <Phone size={14} /> Contact Number <span className="text-red-400">*</span>
+          <label htmlFor="edit-contact" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5 flex items-center gap-2">
+            <Phone size={14} /> Contact Number <span className="text-red-400 admin-light:text-red-600">*</span>
           </label>
           <input
             type="tel"
@@ -529,35 +529,35 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
             title="Enter an 11-digit mobile number starting with 09"
             className={`${inputClasses} ${fieldErrors.contact ? 'border-red-500/50' : ''}`}
           />
-          {fieldErrors.contact && <p className="text-xs text-red-400 mt-1">{fieldErrors.contact[0]}</p>}
+          {fieldErrors.contact && <p className="text-xs text-red-400 admin-light:text-red-600 mt-1">{fieldErrors.contact[0]}</p>}
         </div>
 
         {/* Role is display-only. Route assignment belongs to vehicles. */}
         <div>
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-2">
+            <label className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5 flex items-center gap-2">
               <User size={14} /> Role
             </label>
-            <select disabled className="block w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-slate-500 cursor-not-allowed text-sm [color-scheme:dark]">
-              <option className="bg-gray-800">{roleLabel}</option>
+            <select disabled className="block w-full px-4 py-2.5 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-slate-500 cursor-not-allowed text-sm [color-scheme:dark]">
+              <option className="bg-gray-800 admin-light:bg-white">{roleLabel}</option>
             </select>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex justify-end gap-2 pt-4 border-t border-[#1E2D45]">
+        <div className="flex justify-end gap-2 pt-4 border-t border-[#1E2D45] admin-light:border-[#E2E8F0]">
           <button
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="px-5 py-2.5 border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#131C2E] transition-colors disabled:opacity-50"
+            className="px-5 py-2.5 border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-slate-300 admin-light:text-slate-700 hover:bg-[#131C2E] admin-light:hover:bg-white transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={isSubmitting || isLoadingMeta}
-            className="flex items-center gap-2 px-5 py-2.5 bg-[#62A0EA] text-white font-medium rounded-md hover:bg-[#4A8BD4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white font-medium rounded-md hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Save size={16} />
             {isSubmitting ? 'Saving...' : isLoadingMeta ? 'Loading...' : 'Save Changes'}

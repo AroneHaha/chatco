@@ -112,7 +112,7 @@ export function RowActionsMenu({ actions, label }: RowActionsMenuProps) {
         aria-expanded={isOpen}
         aria-controls={isOpen ? menuId : undefined}
         className={`rounded-md p-1.5 transition-colors ${
-          isOpen ? 'bg-[#1A2540] text-white' : 'text-slate-400 hover:bg-[#1A2540] hover:text-white'
+          isOpen ? 'bg-[#1A2540] admin-light:bg-[#EEF2F7] text-white admin-light:text-slate-900' : 'text-slate-400 admin-light:text-slate-500 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] hover:text-white admin-light:hover:text-slate-900'
         }`}
       >
         <MoreHorizontal size={16} />
@@ -135,24 +135,24 @@ export function RowActionsMenu({ actions, label }: RowActionsMenuProps) {
             // Hidden for the one frame before it has been measured and placed.
             visibility: position ? 'visible' : 'hidden',
           }}
-          className="fixed z-50 rounded-lg border border-[#1E2D45] bg-[#111A2B] p-1 shadow-[0_12px_32px_rgba(0,0,0,0.45)]"
+          className="fixed z-50 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#111A2B] admin-light:bg-[#F8FAFC] p-1 shadow-[0_12px_32px_rgba(0,0,0,0.45)]"
         >
           {actions.map((action) => {
             const isDanger = action.tone === 'danger';
             return (
               <div key={action.label}>
-                {isDanger && <div role="separator" className="my-1 h-px bg-[#1E2D45]" />}
+                {isDanger && <div role="separator" className="my-1 h-px bg-[#1E2D45] admin-light:bg-[#E2E8F0]" />}
                 <button
                   type="button"
                   role="menuitem"
                   onClick={() => { close(false); action.onSelect(); }}
                   className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors focus:outline-none ${
                     isDanger
-                      ? 'text-red-400 hover:bg-red-400/10 focus:bg-red-400/10'
-                      : 'text-slate-200 hover:bg-[#172238] focus:bg-[#172238]'
+                      ? 'text-red-400 admin-light:text-red-600 hover:bg-red-400/10 admin-light:hover:bg-red-50 focus:bg-red-400/10 admin-light:focus:bg-red-50'
+                      : 'text-slate-200 admin-light:text-slate-700 hover:bg-[#172238] admin-light:hover:bg-[#F1F5F9] focus:bg-[#172238] admin-light:focus:bg-[#F1F5F9]'
                   }`}
                 >
-                  <action.icon size={15} aria-hidden="true" className={isDanger ? 'text-red-400' : 'text-slate-400'} />
+                  <action.icon size={15} aria-hidden="true" className={isDanger ? 'text-red-400 admin-light:text-red-600' : 'text-slate-400 admin-light:text-slate-500'} />
                   {action.label}
                 </button>
               </div>

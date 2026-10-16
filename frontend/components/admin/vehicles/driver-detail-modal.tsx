@@ -247,19 +247,19 @@ export function DriverDetailModal({ driver, onClose }: DriverDetailModalProps) {
     ?? `https://placehold.co/150x150/0A1E33/62A0EA?text=${driver.name.charAt(0)}`;
 
   return (
-    <Modal isOpen={!!driver} onClose={onClose} maxWidth="max-w-4xl" height="h-[min(680px,85vh)]">
+    <Modal adminThemed isOpen={!!driver} onClose={onClose} maxWidth="max-w-4xl" height="h-[min(680px,85vh)]">
       {/* ─── Header (full width) ─── */}
       <div className="flex items-start gap-4 mb-5">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={profilePic}
           alt={fullName}
-          className="w-20 h-20 rounded-xl border-2 border-[#62A0EA]/25 flex-shrink-0 object-cover"
+          className="w-20 h-20 rounded-xl border-2 border-[#62A0EA]/25 admin-light:border-[#1A5FB4]/25 flex-shrink-0 object-cover"
         />
         <div className="min-w-0 flex-1">
-          <h2 className="text-xl font-bold text-white truncate">{fullName}</h2>
+          <h2 className="text-xl font-bold text-white admin-light:text-slate-900 truncate">{fullName}</h2>
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-            <span className="inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-md bg-[#62A0EA]/15 text-[#62A0EA]">
+            <span className="inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-md bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]">
               Driver
             </span>
             {details?.status && (
@@ -268,7 +268,7 @@ export function DriverDetailModal({ driver, onClose }: DriverDetailModalProps) {
               </Badge>
             )}
           </div>
-          <p className="text-[10px] text-slate-600 font-mono mt-1.5">
+          <p className="text-[10px] text-slate-600 admin-light:text-slate-400 font-mono mt-1.5">
             ID: {driver.id.slice(0, 8)}…
           </p>
         </div>
@@ -276,19 +276,19 @@ export function DriverDetailModal({ driver, onClose }: DriverDetailModalProps) {
 
       {error && (
         <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md mb-4">
-          <p className="text-sm text-red-400">{error}</p>
+          <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
         </div>
       )}
 
       {/* ─── Tabs ─── */}
-      <div className="flex items-center gap-1 border-b border-[#1E2D45] mb-5">
+      <div className="flex items-center gap-1 border-b border-[#1E2D45] admin-light:border-[#E2E8F0] mb-5">
         <button
           type="button"
           onClick={() => setActiveTab('info')}
           className={`px-3.5 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
             activeTab === 'info'
-              ? 'border-[#62A0EA] text-[#62A0EA]'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
+              ? 'border-[#62A0EA] admin-light:border-[#1A5FB4] text-[#62A0EA] admin-light:text-[#1A5FB4]'
+              : 'border-transparent text-slate-400 admin-light:text-slate-500 hover:text-slate-200 admin-light:hover:text-slate-700'
           }`}
         >
           Personal Info
@@ -298,13 +298,13 @@ export function DriverDetailModal({ driver, onClose }: DriverDetailModalProps) {
           onClick={() => setActiveTab('history')}
           className={`px-3.5 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
             activeTab === 'history'
-              ? 'border-[#62A0EA] text-[#62A0EA]'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
+              ? 'border-[#62A0EA] admin-light:border-[#1A5FB4] text-[#62A0EA] admin-light:text-[#1A5FB4]'
+              : 'border-transparent text-slate-400 admin-light:text-slate-500 hover:text-slate-200 admin-light:hover:text-slate-700'
           }`}
         >
           Assignment History
           {shiftLogsTotal !== null && (
-            <span className="ml-1.5 text-[10px] text-slate-600 font-normal">
+            <span className="ml-1.5 text-[10px] text-slate-600 admin-light:text-slate-400 font-normal">
               ({shiftLogsTotal})
             </span>
           )}
@@ -315,12 +315,12 @@ export function DriverDetailModal({ driver, onClose }: DriverDetailModalProps) {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <div className="space-y-3">
             {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-14 bg-[#0E1628] border border-[#1E2D45] rounded-md animate-pulse" />
+              <div key={i} className="h-14 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md animate-pulse" />
             ))}
           </div>
           <div className="space-y-3">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-14 bg-[#0E1628] border border-[#1E2D45] rounded-md animate-pulse" />
+              <div key={i} className="h-14 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md animate-pulse" />
             ))}
           </div>
         </div>
@@ -336,19 +336,19 @@ export function DriverDetailModal({ driver, onClose }: DriverDetailModalProps) {
               </h3>
               <div className="space-y-2">
                 {/* License Number */}
-                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <IdCard size={16} className="text-slate-500 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] text-slate-600 uppercase">License Number</p>
-                    <p className="text-sm text-slate-300 truncate">{details.license_number || '—'}</p>
+                    <p className="text-[10px] text-slate-600 admin-light:text-slate-400 uppercase">License Number</p>
+                    <p className="text-sm text-slate-300 admin-light:text-slate-700 truncate">{details.license_number || '—'}</p>
                   </div>
                 </div>
 
                 {/* License Images */}
-                <div className="p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                <div className="p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <div className="flex items-center gap-2 mb-2">
                     <IdCard size={16} className="text-slate-500" />
-                    <p className="text-[10px] text-slate-600 uppercase">License Images</p>
+                    <p className="text-[10px] text-slate-600 admin-light:text-slate-400 uppercase">License Images</p>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     {([
@@ -356,11 +356,11 @@ export function DriverDetailModal({ driver, onClose }: DriverDetailModalProps) {
                       ['back', 'Back', details.license_back_image_url],
                     ] as const).map(([side, label, storedPath]) => (
                       <div key={side} className="min-w-0">
-                        <div className="h-24 rounded border border-dashed border-[#2A3A55] flex items-center justify-center overflow-hidden bg-[#131C2E]">
+                        <div className="h-24 rounded border border-dashed border-[#2A3A55] admin-light:border-[#CBD5E1] flex items-center justify-center overflow-hidden bg-[#131C2E] admin-light:bg-white">
                           {storedPath ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={`/api/admin/drivers/${details.id}/license-images/${side}`} alt={`${label} driver's license`} className="w-full h-full object-contain" />
-                          ) : <span className="text-[11px] text-slate-600">Not uploaded</span>}
+                          ) : <span className="text-[11px] text-slate-600 admin-light:text-slate-400">Not uploaded</span>}
                         </div>
                         <p className="text-[10px] text-slate-500 text-center mt-1">{label}</p>
                       </div>
@@ -369,51 +369,51 @@ export function DriverDetailModal({ driver, onClose }: DriverDetailModalProps) {
                 </div>
 
                 {/* Birth Date + Age */}
-                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <Calendar size={16} className="text-slate-500 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] text-slate-600 uppercase">Birth Date</p>
-                    <p className="text-sm text-slate-300">{formatDate(details.birthday)}</p>
+                    <p className="text-[10px] text-slate-600 admin-light:text-slate-400 uppercase">Birth Date</p>
+                    <p className="text-sm text-slate-300 admin-light:text-slate-700">{formatDate(details.birthday)}</p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-[10px] text-slate-600 uppercase">Age</p>
-                    <p className="text-sm text-slate-400">{calculateAge(details.birthday)}</p>
+                    <p className="text-[10px] text-slate-600 admin-light:text-slate-400 uppercase">Age</p>
+                    <p className="text-sm text-slate-400 admin-light:text-slate-500">{calculateAge(details.birthday)}</p>
                   </div>
                 </div>
 
                 {/* Contact Number */}
-                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <Phone size={16} className="text-slate-500 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] text-slate-600 uppercase">Contact Number</p>
-                    <p className="text-sm text-slate-300">{details.contact || '—'}</p>
+                    <p className="text-[10px] text-slate-600 admin-light:text-slate-400 uppercase">Contact Number</p>
+                    <p className="text-sm text-slate-300 admin-light:text-slate-700">{details.contact || '—'}</p>
                   </div>
                 </div>
 
                 {/* Address */}
-                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <Home size={16} className="text-slate-500 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] text-slate-600 uppercase">Address</p>
-                    <p className="text-sm text-slate-300">{details.address || '—'}</p>
+                    <p className="text-[10px] text-slate-600 admin-light:text-slate-400 uppercase">Address</p>
+                    <p className="text-sm text-slate-300 admin-light:text-slate-700">{details.address || '—'}</p>
                   </div>
                 </div>
 
                 {/* Hire Date */}
-                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <Calendar size={16} className="text-slate-500 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] text-slate-600 uppercase">Date Hired</p>
-                    <p className="text-sm text-slate-300">{formatDate(details.hire_date)}</p>
+                    <p className="text-[10px] text-slate-600 admin-light:text-slate-400 uppercase">Date Hired</p>
+                    <p className="text-sm text-slate-300 admin-light:text-slate-700">{formatDate(details.hire_date)}</p>
                   </div>
                 </div>
 
                 {/* Fixed Route */}
-                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <MapPin size={16} className="text-slate-500 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] text-slate-600 uppercase">Fixed Assigned Route</p>
-                    <p className="text-sm text-slate-300">{details.assigned_route}</p>
+                    <p className="text-[10px] text-slate-600 admin-light:text-slate-400 uppercase">Fixed Assigned Route</p>
+                    <p className="text-sm text-slate-300 admin-light:text-slate-700">{details.assigned_route}</p>
                   </div>
                 </div>
               </div>
@@ -429,22 +429,22 @@ export function DriverDetailModal({ driver, onClose }: DriverDetailModalProps) {
                 Emergency Contact
               </h3>
               <div className="space-y-2">
-                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <User size={16} className="text-slate-500 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] text-slate-600 uppercase">Contact Name</p>
-                    <p className="text-sm text-slate-300 truncate">{details.emergency_contact_name || '—'}</p>
+                    <p className="text-[10px] text-slate-600 admin-light:text-slate-400 uppercase">Contact Name</p>
+                    <p className="text-sm text-slate-300 admin-light:text-slate-700 truncate">{details.emergency_contact_name || '—'}</p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-[10px] text-slate-600 uppercase">Relationship</p>
-                    <p className="text-sm text-slate-400">{details.emergency_contact_relationship || '—'}</p>
+                    <p className="text-[10px] text-slate-600 admin-light:text-slate-400 uppercase">Relationship</p>
+                    <p className="text-sm text-slate-400 admin-light:text-slate-500">{details.emergency_contact_relationship || '—'}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <Phone size={16} className="text-slate-500 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] text-slate-600 uppercase">Contact Number</p>
-                    <p className="text-sm text-slate-300">{details.emergency_contact_number || '—'}</p>
+                    <p className="text-[10px] text-slate-600 admin-light:text-slate-400 uppercase">Contact Number</p>
+                    <p className="text-sm text-slate-300 admin-light:text-slate-700">{details.emergency_contact_number || '—'}</p>
                   </div>
                 </div>
               </div>
@@ -458,12 +458,12 @@ export function DriverDetailModal({ driver, onClose }: DriverDetailModalProps) {
               </h3>
               <div className="space-y-2">
                 {/* Current Vehicle */}
-                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <Car size={16} className="text-slate-500 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] text-slate-600 uppercase">Current Vehicle</p>
+                    <p className="text-[10px] text-slate-600 admin-light:text-slate-400 uppercase">Current Vehicle</p>
                     {details.vehicle ? (
-                      <p className="text-sm text-slate-300">
+                      <p className="text-sm text-slate-300 admin-light:text-slate-700">
                         {details.vehicle.unit_number} <span className="text-slate-500">({details.vehicle.plate_number})</span>
                       </p>
                     ) : (
@@ -473,12 +473,12 @@ export function DriverDetailModal({ driver, onClose }: DriverDetailModalProps) {
                 </div>
 
                 {/* Current Conductor Partner */}
-                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <Users size={16} className="text-slate-500 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] text-slate-600 uppercase">Current Conductor Partner</p>
+                    <p className="text-[10px] text-slate-600 admin-light:text-slate-400 uppercase">Current Conductor Partner</p>
                     {details.conductor_partner ? (
-                      <p className="text-sm text-slate-300">{details.conductor_partner.name}</p>
+                      <p className="text-sm text-slate-300 admin-light:text-slate-700">{details.conductor_partner.name}</p>
                     ) : (
                       <p className="text-sm text-slate-500 italic">None</p>
                     )}
@@ -505,29 +505,29 @@ export function DriverDetailModal({ driver, onClose }: DriverDetailModalProps) {
 
           {shiftLogsError && (
             <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md mb-3">
-              <p className="text-sm text-red-400">{shiftLogsError}</p>
+              <p className="text-sm text-red-400 admin-light:text-red-600">{shiftLogsError}</p>
             </div>
           )}
 
           {shiftLogsPage === 0 && isShiftLogsLoading ? (
             <div className="space-y-2">
               {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-14 bg-[#0E1628] border border-[#1E2D45] rounded-md animate-pulse" />
+                <div key={i} className="h-14 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md animate-pulse" />
               ))}
             </div>
           ) : shiftLogs.length === 0 && !isShiftLogsLoading ? (
             <div className="text-center py-10">
-              <FileText size={32} className="text-slate-700 mx-auto mb-2" />
-              <p className="text-xs text-slate-600 italic">
+              <FileText size={32} className="text-slate-700 admin-light:text-slate-300 mx-auto mb-2" />
+              <p className="text-xs text-slate-600 admin-light:text-slate-400 italic">
                 {historyDate ? `No assignments on ${formatDate(historyDate)}.` : 'No shift history yet.'}
               </p>
             </div>
           ) : (
             <div ref={shiftLogsListRef} className="space-y-2 max-h-[65vh] overflow-y-auto pr-2 scrollbar-themed rounded-lg">
               {shiftLogs.map((log) => (
-                <div key={log.shift_id} className="p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                <div key={log.shift_id} className="p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium text-[#62A0EA]">
+                    <span className="text-xs font-medium text-[#62A0EA] admin-light:text-[#1A5FB4]">
                       {log.unit_number || '—'}
                     </span>
                     <Badge variant={log.status === 'ACTIVE' ? 'success' : 'info'}>
@@ -536,20 +536,20 @@ export function DriverDetailModal({ driver, onClose }: DriverDetailModalProps) {
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500">
                     <div>
-                      <span className="text-slate-600">Plate:</span>{' '}
-                      <span className="text-slate-400">{log.plate_number || '—'}</span>
+                      <span className="text-slate-600 admin-light:text-slate-400">Plate:</span>{' '}
+                      <span className="text-slate-400 admin-light:text-slate-500">{log.plate_number || '—'}</span>
                     </div>
                     <div>
-                      <span className="text-slate-600">Route:</span>{' '}
-                      <span className="text-slate-400">{log.route || '—'}</span>
+                      <span className="text-slate-600 admin-light:text-slate-400">Route:</span>{' '}
+                      <span className="text-slate-400 admin-light:text-slate-500">{log.route || '—'}</span>
                     </div>
                     <div>
-                      <span className="text-slate-600">In:</span>{' '}
-                      <span className="text-slate-400">{formatDateTime(log.time_in)}</span>
+                      <span className="text-slate-600 admin-light:text-slate-400">In:</span>{' '}
+                      <span className="text-slate-400 admin-light:text-slate-500">{formatDateTime(log.time_in)}</span>
                     </div>
                     <div>
-                      <span className="text-slate-600">Out:</span>{' '}
-                      <span className="text-slate-400">{formatDateTime(log.time_out)}</span>
+                      <span className="text-slate-600 admin-light:text-slate-400">Out:</span>{' '}
+                      <span className="text-slate-400 admin-light:text-slate-500">{formatDateTime(log.time_out)}</span>
                     </div>
                   </div>
                 </div>

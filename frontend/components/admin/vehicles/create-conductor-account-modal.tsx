@@ -182,36 +182,36 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
     }
   };
 
-  const inputClasses = "block w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors";
+  const inputClasses = "block w-full px-4 py-2.5 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-white admin-light:text-slate-900 text-sm placeholder-slate-500 admin-light:placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] admin-light:focus:ring-[#1A5FB4] transition-colors";
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-lg">
+    <Modal adminThemed isOpen={isOpen} onClose={onClose} maxWidth="max-w-lg">
       <div className="flex items-center gap-3 mb-5">
-        <div className="p-2 bg-[#62A0EA]/20 rounded-lg">
-          <UserPlus className="text-[#62A0EA]" size={24} />
+        <div className="p-2 bg-[#62A0EA]/20 admin-light:bg-[#1A5FB4]/10 rounded-lg">
+          <UserPlus className="text-[#62A0EA] admin-light:text-[#1A5FB4]" size={24} />
         </div>
         <div>
-          <h2 className="text-lg sm:text-xl font-bold text-white">Create Conductor Account</h2>
-          <p className="text-xs sm:text-sm text-slate-400">Setup an account for the commuter scanning app.</p>
+          <h2 className="text-lg sm:text-xl font-bold text-white admin-light:text-slate-900">Create Conductor Account</h2>
+          <p className="text-xs sm:text-sm text-slate-400 admin-light:text-slate-500">Setup an account for the commuter scanning app.</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
         {error && (
           <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md">
-            <p className="text-sm text-red-400">{error}</p>
+            <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
           </div>
         )}
 
         {/* Profile Picture Section */}
         <div className="flex items-center gap-5">
-          <div className="relative w-20 h-20 rounded-full bg-[#0E1628] border-2 border-dashed border-[#1E2D45] flex items-center justify-center overflow-hidden flex-shrink-0">
+          <div className="relative w-20 h-20 rounded-full bg-[#0E1628] admin-light:bg-[#F1F5F9] border-2 border-dashed border-[#1E2D45] admin-light:border-[#E2E8F0] flex items-center justify-center overflow-hidden flex-shrink-0">
             {useDefaultPicture ? (
-              <User className="text-slate-600" size={32} />
+              <User className="text-slate-600 admin-light:text-slate-400" size={32} />
             ) : profilePicture ? (
               <img src={profilePicture} alt="Preview" className="w-full h-full object-cover" />
             ) : (
-              <User className="text-slate-600" size={32} />
+              <User className="text-slate-600 admin-light:text-slate-400" size={32} />
             )}
           </div>
 
@@ -229,7 +229,7 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isSubmitting}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-sm text-slate-300 hover:bg-[#1A2540] hover:text-white transition-colors disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-sm text-slate-300 admin-light:text-slate-700 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] hover:text-white admin-light:hover:text-slate-900 transition-colors disabled:opacity-50"
             >
               <Upload size={16} />
               Upload Photo
@@ -240,12 +240,12 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
                 <div
                   onClick={() => { setUseDefaultPicture(!useDefaultPicture); if(profilePicture) setProfilePicture(null); }}
                   className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                    useDefaultPicture ? 'bg-[#62A0EA] border-[#62A0EA]' : 'border-[#1E2D45] group-hover:border-[#2A3A55]'
+                    useDefaultPicture ? 'bg-[#62A0EA] admin-light:bg-[#1A5FB4] border-[#62A0EA] admin-light:border-[#1A5FB4]' : 'border-[#1E2D45] admin-light:border-[#E2E8F0] group-hover:border-[#2A3A55] admin-light:group-hover:border-[#CBD5E1]'
                   }`}
                 >
                   {useDefaultPicture && <Check size={12} className="text-white" />}
                 </div>
-                <span className="text-xs text-slate-500 group-hover:text-slate-300 transition-colors">
+                <span className="text-xs text-slate-500 group-hover:text-slate-300 admin-light:group-hover:text-slate-700 transition-colors">
                   Use default picture
                 </span>
               </label>
@@ -254,7 +254,7 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
                 <button
                   type="button"
                   onClick={handleRemoveImage}
-                  className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 transition-colors"
+                  className="flex items-center gap-1 text-xs text-red-400 admin-light:text-red-600 hover:text-red-300 admin-light:hover:text-red-700 transition-colors"
                 >
                   <X size={12} />
                   Remove
@@ -267,8 +267,8 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
         {/* Name Fields */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="cond-first_name" className="block text-xs font-medium text-slate-300 mb-1.5">
-              First Name <span className="text-red-400">*</span>
+            <label htmlFor="cond-first_name" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">
+              First Name <span className="text-red-400 admin-light:text-red-600">*</span>
             </label>
             <input
               type="text"
@@ -282,12 +282,12 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
               className={`${inputClasses} ${fieldErrors.first_name ? 'border-red-500/50' : ''}`}
             />
             {fieldErrors.first_name && (
-              <p className="text-xs text-red-400 mt-1">{fieldErrors.first_name[0]}</p>
+              <p className="text-xs text-red-400 admin-light:text-red-600 mt-1">{fieldErrors.first_name[0]}</p>
             )}
           </div>
           <div>
-            <label htmlFor="cond-last_name" className="block text-xs font-medium text-slate-300 mb-1.5">
-              Last Name <span className="text-red-400">*</span>
+            <label htmlFor="cond-last_name" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">
+              Last Name <span className="text-red-400 admin-light:text-red-600">*</span>
             </label>
             <input
               type="text"
@@ -301,13 +301,13 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
               className={`${inputClasses} ${fieldErrors.last_name ? 'border-red-500/50' : ''}`}
             />
             {fieldErrors.last_name && (
-              <p className="text-xs text-red-400 mt-1">{fieldErrors.last_name[0]}</p>
+              <p className="text-xs text-red-400 admin-light:text-red-600 mt-1">{fieldErrors.last_name[0]}</p>
             )}
           </div>
         </div>
 
         <div>
-          <label htmlFor="cond-middle_name" className="block text-xs font-medium text-slate-300 mb-1.5">Middle Name</label>
+          <label htmlFor="cond-middle_name" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">Middle Name</label>
           <input
             type="text"
             id="cond-middle_name"
@@ -319,14 +319,14 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
             className={`${inputClasses} ${fieldErrors.middle_name ? 'border-red-500/50' : ''}`}
           />
           {fieldErrors.middle_name && (
-            <p className="text-xs text-red-400 mt-1">{fieldErrors.middle_name[0]}</p>
+            <p className="text-xs text-red-400 admin-light:text-red-600 mt-1">{fieldErrors.middle_name[0]}</p>
           )}
         </div>
 
         {/* Birthday */}
         <div>
-          <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-2">
-            <Calendar size={14} /> Birthday <span className="text-red-400">*</span>
+          <label className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5 flex items-center gap-2">
+            <Calendar size={14} /> Birthday <span className="text-red-400 admin-light:text-red-600">*</span>
           </label>
           <AdminDatePicker
             value={formData.birthday}
@@ -336,14 +336,14 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
             triggerClassName="w-full py-2.5"
           />
           {fieldErrors.birthday && (
-            <p className="text-xs text-red-400 mt-1">{fieldErrors.birthday[0]}</p>
+            <p className="text-xs text-red-400 admin-light:text-red-600 mt-1">{fieldErrors.birthday[0]}</p>
           )}
         </div>
 
         {/* Contact Number */}
         <div>
-          <label htmlFor="cond-contact" className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-2">
-            <Phone size={14} /> Contact Number <span className="text-red-400">*</span>
+          <label htmlFor="cond-contact" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5 flex items-center gap-2">
+            <Phone size={14} /> Contact Number <span className="text-red-400 admin-light:text-red-600">*</span>
           </label>
           <input
             type="tel"
@@ -360,14 +360,14 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
             className={`${inputClasses} ${fieldErrors.contact ? 'border-red-500/50' : ''}`}
           />
           {fieldErrors.contact && (
-            <p className="text-xs text-red-400 mt-1">{fieldErrors.contact[0]}</p>
+            <p className="text-xs text-red-400 admin-light:text-red-600 mt-1">{fieldErrors.contact[0]}</p>
           )}
         </div>
 
         {/* Address */}
         <div>
-          <label htmlFor="cond-address" className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-2">
-            <Home size={14} /> Address <span className="text-red-400">*</span>
+          <label htmlFor="cond-address" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5 flex items-center gap-2">
+            <Home size={14} /> Address <span className="text-red-400 admin-light:text-red-600">*</span>
           </label>
           <input
             type="text"
@@ -381,19 +381,19 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
             className={`${inputClasses} ${fieldErrors.address ? 'border-red-500/50' : ''}`}
           />
           {fieldErrors.address && (
-            <p className="text-xs text-red-400 mt-1">{fieldErrors.address[0]}</p>
+            <p className="text-xs text-red-400 admin-light:text-red-600 mt-1">{fieldErrors.address[0]}</p>
           )}
         </div>
 
         {/* Emergency Contact */}
         <div>
-          <p className="flex items-center gap-2 text-xs font-medium text-slate-300 mb-2">
+          <p className="flex items-center gap-2 text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-2">
             <Users size={14} /> Emergency Contact
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="cond-emergency-name" className="block text-xs font-medium text-slate-300 mb-1.5">
-                Contact Name <span className="text-red-400">*</span>
+              <label htmlFor="cond-emergency-name" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">
+                Contact Name <span className="text-red-400 admin-light:text-red-600">*</span>
               </label>
               <input
                 type="text"
@@ -407,12 +407,12 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
                 className={`${inputClasses} ${fieldErrors.emergency_contact_name ? 'border-red-500/50' : ''}`}
               />
               {fieldErrors.emergency_contact_name && (
-                <p className="text-xs text-red-400 mt-1">{fieldErrors.emergency_contact_name[0]}</p>
+                <p className="text-xs text-red-400 admin-light:text-red-600 mt-1">{fieldErrors.emergency_contact_name[0]}</p>
               )}
             </div>
             <div>
-              <label htmlFor="cond-emergency-number" className="block text-xs font-medium text-slate-300 mb-1.5">
-                Contact Number <span className="text-red-400">*</span>
+              <label htmlFor="cond-emergency-number" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">
+                Contact Number <span className="text-red-400 admin-light:text-red-600">*</span>
               </label>
               <input
                 type="tel"
@@ -429,13 +429,13 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
                 className={`${inputClasses} ${fieldErrors.emergency_contact_number ? 'border-red-500/50' : ''}`}
               />
               {fieldErrors.emergency_contact_number && (
-                <p className="text-xs text-red-400 mt-1">{fieldErrors.emergency_contact_number[0]}</p>
+                <p className="text-xs text-red-400 admin-light:text-red-600 mt-1">{fieldErrors.emergency_contact_number[0]}</p>
               )}
             </div>
           </div>
           <div className="mt-4">
-            <label htmlFor="cond-emergency-relationship" className="block text-xs font-medium text-slate-300 mb-1.5">
-              Relationship <span className="text-red-400">*</span>
+            <label htmlFor="cond-emergency-relationship" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">
+              Relationship <span className="text-red-400 admin-light:text-red-600">*</span>
             </label>
             <select
               id="cond-emergency-relationship"
@@ -446,31 +446,31 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
               disabled={isSubmitting}
               className={`${inputClasses} [color-scheme:dark] ${fieldErrors.emergency_contact_relationship ? 'border-red-500/50' : ''}`}
             >
-              <option value="" disabled className="bg-gray-800">Select Relationship</option>
+              <option value="" disabled className="bg-gray-800 admin-light:bg-white">Select Relationship</option>
               {RELATIONSHIP_OPTIONS.map(opt => (
-                <option key={opt} value={opt} className="bg-gray-800">{opt}</option>
+                <option key={opt} value={opt} className="bg-gray-800 admin-light:bg-white">{opt}</option>
               ))}
             </select>
             {fieldErrors.emergency_contact_relationship && (
-              <p className="text-xs text-red-400 mt-1">{fieldErrors.emergency_contact_relationship[0]}</p>
+              <p className="text-xs text-red-400 admin-light:text-red-600 mt-1">{fieldErrors.emergency_contact_relationship[0]}</p>
             )}
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex justify-end gap-2 pt-4 border-t border-[#1E2D45]">
+        <div className="flex justify-end gap-2 pt-4 border-t border-[#1E2D45] admin-light:border-[#E2E8F0]">
           <button
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="px-5 py-2.5 border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#131C2E] transition-colors disabled:opacity-50"
+            className="px-5 py-2.5 border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-slate-300 admin-light:text-slate-700 hover:bg-[#131C2E] admin-light:hover:bg-white transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={isSubmitting}
-            className="flex items-center gap-2 px-5 py-2.5 bg-[#62A0EA] text-white font-medium rounded-md hover:bg-[#4A8BD4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white font-medium rounded-md hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <UserPlus size={16} />
             {isSubmitting ? 'Creating...' : 'Create Account'}

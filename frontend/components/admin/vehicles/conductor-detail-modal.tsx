@@ -312,7 +312,7 @@ export function ConductorDetailModal({ conductor, onClose, onChanged }: Conducto
 
   return (
     <>
-      <Modal isOpen={!!conductor} onClose={onClose} maxWidth="max-w-4xl" height="h-[min(740px,85vh)]">
+      <Modal adminThemed isOpen={!!conductor} onClose={onClose} maxWidth="max-w-4xl" height="h-[min(740px,85vh)]">
       {/* ─── Header (full width) ─── */}
       <div className="flex items-start gap-4 mb-5">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -322,9 +322,9 @@ export function ConductorDetailModal({ conductor, onClose, onChanged }: Conducto
           className="w-20 h-20 rounded-xl border-2 border-amber-400/25 flex-shrink-0 object-cover"
         />
         <div className="min-w-0 flex-1">
-          <h2 className="text-xl font-bold text-white truncate">{fullName}</h2>
+          <h2 className="text-xl font-bold text-white admin-light:text-slate-900 truncate">{fullName}</h2>
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-            <span className="inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-md bg-amber-400/15 text-amber-400">
+            <span className="inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-md bg-amber-400/15 text-amber-400 admin-light:text-amber-700">
               Conductor
             </span>
             {details?.status === 'DISABLED' ? (
@@ -333,7 +333,7 @@ export function ConductorDetailModal({ conductor, onClose, onChanged }: Conducto
               <Badge variant="success">ACTIVE</Badge>
             )}
           </div>
-          <p className="text-[10px] text-slate-600 font-mono mt-1.5">
+          <p className="text-[10px] text-slate-600 admin-light:text-slate-400 font-mono mt-1.5">
             ID: {conductor.id.slice(0, 8)}…
           </p>
         </div>
@@ -342,7 +342,7 @@ export function ConductorDetailModal({ conductor, onClose, onChanged }: Conducto
       {/* Action Result Banner */}
       {actionResult && (
         <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-md">
-          <p className="text-xs text-emerald-400 break-all font-mono">{actionResult}</p>
+          <p className="text-xs text-emerald-400 admin-light:text-emerald-700 break-all font-mono">{actionResult}</p>
         </div>
       )}
 
@@ -354,14 +354,14 @@ export function ConductorDetailModal({ conductor, onClose, onChanged }: Conducto
         <div className="mb-5 flex gap-2">
           <button
             onClick={() => setConfirmAction('reset')}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-400 admin-light:text-amber-700 text-xs font-semibold hover:bg-amber-500/20 transition-colors"
           >
             <KeyRound size={14} />
             Reset Credentials
           </button>
           <button
             onClick={() => setConfirmAction('disable')}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold hover:bg-red-500/20 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-red-500/10 border border-red-500/20 text-red-400 admin-light:text-red-600 text-xs font-semibold hover:bg-red-500/20 transition-colors"
           >
             <Ban size={14} />
             Disable Account
@@ -371,19 +371,19 @@ export function ConductorDetailModal({ conductor, onClose, onChanged }: Conducto
 
       {error && (
         <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md mb-4">
-          <p className="text-sm text-red-400">{error}</p>
+          <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
         </div>
       )}
 
       {/* ─── Tabs ─── */}
-      <div className="flex items-center gap-1 border-b border-[#1E2D45] mb-5">
+      <div className="flex items-center gap-1 border-b border-[#1E2D45] admin-light:border-[#E2E8F0] mb-5">
         <button
           type="button"
           onClick={() => setActiveTab('info')}
           className={`px-3.5 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
             activeTab === 'info'
-              ? 'border-amber-400 text-amber-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
+              ? 'border-amber-400 text-amber-400 admin-light:text-amber-700'
+              : 'border-transparent text-slate-400 admin-light:text-slate-500 hover:text-slate-200 admin-light:hover:text-slate-700'
           }`}
         >
           Personal Info
@@ -393,13 +393,13 @@ export function ConductorDetailModal({ conductor, onClose, onChanged }: Conducto
           onClick={() => setActiveTab('history')}
           className={`px-3.5 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
             activeTab === 'history'
-              ? 'border-amber-400 text-amber-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
+              ? 'border-amber-400 text-amber-400 admin-light:text-amber-700'
+              : 'border-transparent text-slate-400 admin-light:text-slate-500 hover:text-slate-200 admin-light:hover:text-slate-700'
           }`}
         >
           Assignment History
           {shiftLogsTotal !== null && (
-            <span className="ml-1.5 text-[10px] text-slate-600 font-normal">
+            <span className="ml-1.5 text-[10px] text-slate-600 admin-light:text-slate-400 font-normal">
               ({shiftLogsTotal})
             </span>
           )}
@@ -410,12 +410,12 @@ export function ConductorDetailModal({ conductor, onClose, onChanged }: Conducto
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <div className="space-y-3">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-14 bg-[#0E1628] border border-[#1E2D45] rounded-md animate-pulse" />
+              <div key={i} className="h-14 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md animate-pulse" />
             ))}
           </div>
           <div className="space-y-3">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-14 bg-[#0E1628] border border-[#1E2D45] rounded-md animate-pulse" />
+              <div key={i} className="h-14 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md animate-pulse" />
             ))}
           </div>
         </div>
@@ -431,62 +431,62 @@ export function ConductorDetailModal({ conductor, onClose, onChanged }: Conducto
               </h3>
               <div className="space-y-2">
                 {/* Birth Date + Age */}
-                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <Calendar size={16} className="text-slate-500 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] text-slate-600 uppercase">Birth Date</p>
-                    <p className="text-sm text-slate-300">{formatDate(details.birthday)}</p>
+                    <p className="text-[10px] text-slate-600 admin-light:text-slate-400 uppercase">Birth Date</p>
+                    <p className="text-sm text-slate-300 admin-light:text-slate-700">{formatDate(details.birthday)}</p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-[10px] text-slate-600 uppercase">Age</p>
-                    <p className="text-sm text-slate-400">{calculateAge(details.birthday)}</p>
+                    <p className="text-[10px] text-slate-600 admin-light:text-slate-400 uppercase">Age</p>
+                    <p className="text-sm text-slate-400 admin-light:text-slate-500">{calculateAge(details.birthday)}</p>
                   </div>
                 </div>
 
                 {/* Username (account credentials) */}
                 {details.generated_username && (
-                  <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                  <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                     <AtSign size={16} className="text-slate-500 flex-shrink-0" />
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] text-slate-600 uppercase">Login Username</p>
-                      <p className="text-sm text-slate-300 font-mono">{details.generated_username}</p>
+                      <p className="text-[10px] text-slate-600 admin-light:text-slate-400 uppercase">Login Username</p>
+                      <p className="text-sm text-slate-300 admin-light:text-slate-700 font-mono">{details.generated_username}</p>
                     </div>
                   </div>
                 )}
 
                 {/* Contact Number */}
-                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <Phone size={16} className="text-slate-500 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] text-slate-600 uppercase">Contact Number</p>
-                    <p className="text-sm text-slate-300">{details.contact || '—'}</p>
+                    <p className="text-[10px] text-slate-600 admin-light:text-slate-400 uppercase">Contact Number</p>
+                    <p className="text-sm text-slate-300 admin-light:text-slate-700">{details.contact || '—'}</p>
                   </div>
                 </div>
 
                 {/* Address */}
-                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <Home size={16} className="text-slate-500 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] text-slate-600 uppercase">Address</p>
-                    <p className="text-sm text-slate-300">{details.address || '—'}</p>
+                    <p className="text-[10px] text-slate-600 admin-light:text-slate-400 uppercase">Address</p>
+                    <p className="text-sm text-slate-300 admin-light:text-slate-700">{details.address || '—'}</p>
                   </div>
                 </div>
 
                 {/* Fixed Route */}
-                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <MapPin size={16} className="text-slate-500 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] text-slate-600 uppercase">Fixed Assigned Route</p>
-                    <p className="text-sm text-slate-300">{details.assigned_route}</p>
+                    <p className="text-[10px] text-slate-600 admin-light:text-slate-400 uppercase">Fixed Assigned Route</p>
+                    <p className="text-sm text-slate-300 admin-light:text-slate-700">{details.assigned_route}</p>
                   </div>
                 </div>
 
                 {/* Employment Status */}
-                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <User size={16} className="text-slate-500 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] text-slate-600 uppercase">Employment Status</p>
-                    <p className="text-sm text-emerald-400">Active</p>
+                    <p className="text-[10px] text-slate-600 admin-light:text-slate-400 uppercase">Employment Status</p>
+                    <p className="text-sm text-emerald-400 admin-light:text-emerald-700">Active</p>
                   </div>
                 </div>
               </div>
@@ -502,22 +502,22 @@ export function ConductorDetailModal({ conductor, onClose, onChanged }: Conducto
                 Emergency Contact
               </h3>
               <div className="space-y-2">
-                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <User size={16} className="text-slate-500 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] text-slate-600 uppercase">Contact Name</p>
-                    <p className="text-sm text-slate-300 truncate">{details.emergency_contact_name || '—'}</p>
+                    <p className="text-[10px] text-slate-600 admin-light:text-slate-400 uppercase">Contact Name</p>
+                    <p className="text-sm text-slate-300 admin-light:text-slate-700 truncate">{details.emergency_contact_name || '—'}</p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-[10px] text-slate-600 uppercase">Relationship</p>
-                    <p className="text-sm text-slate-400">{details.emergency_contact_relationship || '—'}</p>
+                    <p className="text-[10px] text-slate-600 admin-light:text-slate-400 uppercase">Relationship</p>
+                    <p className="text-sm text-slate-400 admin-light:text-slate-500">{details.emergency_contact_relationship || '—'}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <Phone size={16} className="text-slate-500 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] text-slate-600 uppercase">Contact Number</p>
-                    <p className="text-sm text-slate-300">{details.emergency_contact_number || '—'}</p>
+                    <p className="text-[10px] text-slate-600 admin-light:text-slate-400 uppercase">Contact Number</p>
+                    <p className="text-sm text-slate-300 admin-light:text-slate-700">{details.emergency_contact_number || '—'}</p>
                   </div>
                 </div>
               </div>
@@ -531,12 +531,12 @@ export function ConductorDetailModal({ conductor, onClose, onChanged }: Conducto
               </h3>
               <div className="space-y-2">
                 {/* Current Vehicle */}
-                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <Car size={16} className="text-slate-500 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] text-slate-600 uppercase">Current Vehicle</p>
+                    <p className="text-[10px] text-slate-600 admin-light:text-slate-400 uppercase">Current Vehicle</p>
                     {details.vehicle ? (
-                      <p className="text-sm text-slate-300">
+                      <p className="text-sm text-slate-300 admin-light:text-slate-700">
                         {details.vehicle.unit_number} <span className="text-slate-500">({details.vehicle.plate_number})</span>
                       </p>
                     ) : (
@@ -546,12 +546,12 @@ export function ConductorDetailModal({ conductor, onClose, onChanged }: Conducto
                 </div>
 
                 {/* Current Driver Partner */}
-                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <Users size={16} className="text-slate-500 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] text-slate-600 uppercase">Current Driver Partner</p>
+                    <p className="text-[10px] text-slate-600 admin-light:text-slate-400 uppercase">Current Driver Partner</p>
                     {details.driver_partner ? (
-                      <p className="text-sm text-slate-300">{details.driver_partner.name}</p>
+                      <p className="text-sm text-slate-300 admin-light:text-slate-700">{details.driver_partner.name}</p>
                     ) : (
                       <p className="text-sm text-slate-500 italic">None</p>
                     )}
@@ -578,29 +578,29 @@ export function ConductorDetailModal({ conductor, onClose, onChanged }: Conducto
 
           {shiftLogsError && (
             <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md mb-3">
-              <p className="text-sm text-red-400">{shiftLogsError}</p>
+              <p className="text-sm text-red-400 admin-light:text-red-600">{shiftLogsError}</p>
             </div>
           )}
 
           {shiftLogsPage === 0 && isShiftLogsLoading ? (
             <div className="space-y-2">
               {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-14 bg-[#0E1628] border border-[#1E2D45] rounded-md animate-pulse" />
+                <div key={i} className="h-14 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md animate-pulse" />
               ))}
             </div>
           ) : shiftLogs.length === 0 && !isShiftLogsLoading ? (
             <div className="text-center py-10">
-              <FileText size={32} className="text-slate-700 mx-auto mb-2" />
-              <p className="text-xs text-slate-600 italic">
+              <FileText size={32} className="text-slate-700 admin-light:text-slate-300 mx-auto mb-2" />
+              <p className="text-xs text-slate-600 admin-light:text-slate-400 italic">
                 {historyDate ? `No assignments on ${formatDate(historyDate)}.` : 'No shift history yet.'}
               </p>
             </div>
           ) : (
             <div ref={shiftLogsListRef} className="space-y-2 max-h-[65vh] overflow-y-auto pr-2 scrollbar-themed rounded-lg">
               {shiftLogs.map((log) => (
-                <div key={log.shift_id} className="p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                <div key={log.shift_id} className="p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium text-amber-400">
+                    <span className="text-xs font-medium text-amber-400 admin-light:text-amber-700">
                       {log.unit_number || '—'}
                     </span>
                     <Badge variant={log.status === 'ACTIVE' ? 'success' : 'info'}>
@@ -609,20 +609,20 @@ export function ConductorDetailModal({ conductor, onClose, onChanged }: Conducto
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500">
                     <div>
-                      <span className="text-slate-600">Plate:</span>{' '}
-                      <span className="text-slate-400">{log.plate_number || '—'}</span>
+                      <span className="text-slate-600 admin-light:text-slate-400">Plate:</span>{' '}
+                      <span className="text-slate-400 admin-light:text-slate-500">{log.plate_number || '—'}</span>
                     </div>
                     <div>
-                      <span className="text-slate-600">Driver:</span>{' '}
-                      <span className="text-slate-400">{log.driver_name || '—'}</span>
+                      <span className="text-slate-600 admin-light:text-slate-400">Driver:</span>{' '}
+                      <span className="text-slate-400 admin-light:text-slate-500">{log.driver_name || '—'}</span>
                     </div>
                     <div>
-                      <span className="text-slate-600">In:</span>{' '}
-                      <span className="text-slate-400">{formatDateTime(log.time_in)}</span>
+                      <span className="text-slate-600 admin-light:text-slate-400">In:</span>{' '}
+                      <span className="text-slate-400 admin-light:text-slate-500">{formatDateTime(log.time_in)}</span>
                     </div>
                     <div>
-                      <span className="text-slate-600">Out:</span>{' '}
-                      <span className="text-slate-400">{formatDateTime(log.time_out)}</span>
+                      <span className="text-slate-600 admin-light:text-slate-400">Out:</span>{' '}
+                      <span className="text-slate-400 admin-light:text-slate-500">{formatDateTime(log.time_out)}</span>
                     </div>
                   </div>
                 </div>

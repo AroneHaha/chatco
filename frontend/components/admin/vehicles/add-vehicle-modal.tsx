@@ -89,87 +89,87 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
     }
   };
 
-  const inputClasses = "block w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors";
+  const inputClasses = "block w-full px-4 py-2.5 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-white admin-light:text-slate-900 text-sm placeholder-slate-500 admin-light:placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] admin-light:focus:ring-[#1A5FB4] transition-colors";
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
-      <h2 className="text-lg sm:text-xl font-bold text-white mb-5">Add New Vehicle</h2>
+    <Modal adminThemed isOpen={isOpen} onClose={onClose}>
+      <h2 className="text-lg sm:text-xl font-bold text-white admin-light:text-slate-900 mb-5">Add New Vehicle</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
           <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md">
-            <p className="text-sm text-red-400">{error}</p>
+            <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
           </div>
         )}
 
         <div>
-          <label htmlFor="unit_number" className="block text-xs font-medium text-slate-300 mb-1.5">
-            Unit Number / Unit ID <span className="text-red-400">*</span>
+          <label htmlFor="unit_number" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">
+            Unit Number / Unit ID <span className="text-red-400 admin-light:text-red-600">*</span>
           </label>
           <input type="text" id="unit_number" name="unit_number" value={formData.unit_number} onChange={handleChange} required placeholder="e.g., UNIT-011"
             className={`${inputClasses} ${fieldErrors.unit_number ? 'border-red-500/50' : ''}`} />
           {fieldErrors.unit_number && (
-            <p className="text-xs text-red-400 mt-1">{fieldErrors.unit_number[0]}</p>
+            <p className="text-xs text-red-400 admin-light:text-red-600 mt-1">{fieldErrors.unit_number[0]}</p>
           )}
         </div>
 
         <div>
-          <label htmlFor="plate_number" className="block text-xs font-medium text-slate-300 mb-1.5">
-            Plate Number <span className="text-red-400">*</span>
+          <label htmlFor="plate_number" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">
+            Plate Number <span className="text-red-400 admin-light:text-red-600">*</span>
           </label>
           <input type="text" id="plate_number" name="plate_number" value={formData.plate_number} onChange={handleChange} required placeholder="e.g., NAA 0011"
             className={`${inputClasses} ${fieldErrors.plate_number ? 'border-red-500/50' : ''}`} />
           {fieldErrors.plate_number && (
-            <p className="text-xs text-red-400 mt-1">{fieldErrors.plate_number[0]}</p>
+            <p className="text-xs text-red-400 admin-light:text-red-600 mt-1">{fieldErrors.plate_number[0]}</p>
           )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label htmlFor="brand" className="block text-xs font-medium text-slate-300 mb-1.5">
-              Brand <span className="text-red-400">*</span>
+            <label htmlFor="brand" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">
+              Brand <span className="text-red-400 admin-light:text-red-600">*</span>
             </label>
             <input type="text" id="brand" name="brand" value={formData.brand} onChange={handleChange} required placeholder="e.g., Isuzu"
               className={`${inputClasses} ${fieldErrors.brand ? 'border-red-500/50' : ''}`} />
             {fieldErrors.brand && (
-              <p className="text-xs text-red-400 mt-1">{fieldErrors.brand[0]}</p>
+              <p className="text-xs text-red-400 admin-light:text-red-600 mt-1">{fieldErrors.brand[0]}</p>
             )}
           </div>
 
           <div>
-            <label htmlFor="model" className="block text-xs font-medium text-slate-300 mb-1.5">
-              Model <span className="text-red-400">*</span>
+            <label htmlFor="model" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">
+              Model <span className="text-red-400 admin-light:text-red-600">*</span>
             </label>
             <input type="text" id="model" name="model" value={formData.model} onChange={handleChange} required placeholder="e.g., Elf NHR"
               className={`${inputClasses} ${fieldErrors.model ? 'border-red-500/50' : ''}`} />
             {fieldErrors.model && (
-              <p className="text-xs text-red-400 mt-1">{fieldErrors.model[0]}</p>
+              <p className="text-xs text-red-400 admin-light:text-red-600 mt-1">{fieldErrors.model[0]}</p>
             )}
           </div>
         </div>
 
         <div>
-          <label htmlFor="status" className="block text-xs font-medium text-slate-300 mb-1.5">Status</label>
+          <label htmlFor="status" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">Status</label>
           <select id="status" name="status" value={formData.status} onChange={handleChange}
             className={`${inputClasses} [color-scheme:dark]`}>
-            <option value="ACTIVE" className="bg-gray-800">Active</option>
-            <option value="MAINTENANCE" className="bg-gray-800">Under Maintenance</option>
-            <option value="INACTIVE" className="bg-gray-800">Out of Service</option>
+            <option value="ACTIVE" className="bg-gray-800 admin-light:bg-white">Active</option>
+            <option value="MAINTENANCE" className="bg-gray-800 admin-light:bg-white">Under Maintenance</option>
+            <option value="INACTIVE" className="bg-gray-800 admin-light:bg-white">Out of Service</option>
           </select>
         </div>
 
         {/* Information note explaining the new assignment workflow */}
-        <div className="flex items-start gap-2.5 bg-[#62A0EA]/8 border border-[#62A0EA]/20 rounded-md px-3.5 py-3">
-          <Info size={16} className="text-[#62A0EA] flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-slate-300 leading-relaxed">
-            Driver and conductor are <span className="font-semibold text-white">not assigned here</span>.
+        <div className="flex items-start gap-2.5 bg-[#62A0EA]/8 admin-light:bg-[#1A5FB4]/8 border border-[#62A0EA]/20 admin-light:border-[#1A5FB4]/20 rounded-md px-3.5 py-3">
+          <Info size={16} className="text-[#62A0EA] admin-light:text-[#1A5FB4] flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-slate-300 admin-light:text-slate-700 leading-relaxed">
+            Driver and conductor are <span className="font-semibold text-white admin-light:text-slate-900">not assigned here</span>.
             A new vehicle starts unassigned. Personnel are linked to this unit automatically when a
             conductor logs in and starts a shift.
           </p>
         </div>
 
-        <div className="flex justify-end gap-2 pt-4 border-t border-[#1E2D45]">
-          <button type="button" onClick={onClose} className="px-5 py-2.5 border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#131C2E] transition-colors">Cancel</button>
-          <button type="submit" disabled={isSubmitting} className="px-5 py-2.5 bg-[#62A0EA] text-white font-medium rounded-md hover:bg-[#4A8BD4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+        <div className="flex justify-end gap-2 pt-4 border-t border-[#1E2D45] admin-light:border-[#E2E8F0]">
+          <button type="button" onClick={onClose} className="px-5 py-2.5 border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-slate-300 admin-light:text-slate-700 hover:bg-[#131C2E] admin-light:hover:bg-white transition-colors">Cancel</button>
+          <button type="submit" disabled={isSubmitting} className="px-5 py-2.5 bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white font-medium rounded-md hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             {isSubmitting ? 'Saving...' : 'Save Vehicle'}
           </button>
         </div>

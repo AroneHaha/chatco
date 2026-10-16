@@ -46,10 +46,10 @@ export function VehicleTable({
       cellClassName: 'whitespace-nowrap',
       render: (value: string) => (
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-[#62A0EA]/20 bg-[#62A0EA]/10 text-[#62A0EA]">
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-[#62A0EA]/20 admin-light:border-[#1A5FB4]/20 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]">
             <Car size={17} />
           </div>
-          <p className="font-semibold text-white">{value}</p>
+          <p className="font-semibold text-white admin-light:text-slate-900">{value}</p>
         </div>
       ),
     },
@@ -61,10 +61,10 @@ export function VehicleTable({
       label: 'Status',
       cellClassName: 'whitespace-nowrap',
       render: (value: string) => {
-        const color = value === 'Operating' ? 'text-emerald-400'
-          : value === 'Under Maintenance' ? 'text-amber-400'
-          : value === 'Out of Service / Damaged' ? 'text-red-400'
-          : 'text-blue-400';
+        const color = value === 'Operating' ? 'text-emerald-400 admin-light:text-emerald-700'
+          : value === 'Under Maintenance' ? 'text-amber-400 admin-light:text-amber-700'
+          : value === 'Out of Service / Damaged' ? 'text-red-400 admin-light:text-red-600'
+          : 'text-blue-400 admin-light:text-blue-700';
         return (
           <span className={`inline-flex items-center gap-2 ${color}`}>
             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden="true" />
@@ -97,7 +97,7 @@ export function VehicleTable({
   ];
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 rounded-lg border border-[#1E2D45] bg-[#111A2B] p-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#111A2B] admin-light:bg-white p-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
       <div className="flex shrink-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <SearchBar
           placeholder="Search vehicles..."
@@ -108,7 +108,7 @@ export function VehicleTable({
         <div className="flex items-center gap-2">
           <button
             onClick={onAddVehicle}
-            className="flex w-full items-center justify-center gap-2 rounded-md bg-[#62A0EA] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4] sm:w-44"
+            className="flex w-full items-center justify-center gap-2 rounded-md bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] sm:w-44"
           >
             <Plus size={18} />
             <span>Add Vehicle</span>

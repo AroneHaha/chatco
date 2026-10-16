@@ -138,12 +138,12 @@ export default function VehiclesPage() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
-        <AlertCircle size={40} className="text-red-400" />
-        <p className="text-slate-300 text-center">Failed to load fleet data.</p>
+        <AlertCircle size={40} className="text-red-400 admin-light:text-red-600" />
+        <p className="text-slate-300 admin-light:text-slate-700 text-center">Failed to load fleet data.</p>
         <p className="text-slate-500 text-sm text-center">{error}</p>
         <button
           onClick={refetch}
-          className="flex items-center gap-2 px-4 py-2 bg-[#62A0EA] text-white rounded-md hover:bg-[#4A8BD4] transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white rounded-md hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] transition-colors"
         >
           <RefreshCw size={16} />
           Retry
@@ -310,7 +310,7 @@ export default function VehiclesPage() {
     <div className="flex h-full min-h-0 flex-col">
       <StickyPageHeader className="mb-3 shrink-0">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold text-white">Fleet Management</h1>
+          <h1 className="text-2xl font-bold text-white admin-light:text-slate-900">Fleet Management</h1>
         </div>
       </StickyPageHeader>
 

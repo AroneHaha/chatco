@@ -73,12 +73,12 @@ export function PersonnelTable({
         <div className="flex items-center gap-3 min-w-0">
           <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold border flex-shrink-0 ${
             row.role === "Driver"
-              ? "bg-[#62A0EA]/10 border-[#62A0EA]/25 text-[#62A0EA]"
-              : "bg-amber-400/10 border-amber-400/25 text-amber-400"
+              ? "bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 border-[#62A0EA]/25 admin-light:border-[#1A5FB4]/25 text-[#62A0EA] admin-light:text-[#1A5FB4]"
+              : "bg-amber-400/10 border-amber-400/25 text-amber-400 admin-light:text-amber-700"
           }`}>
             {value.split(" ").map(part => part[0]).join("").slice(0, 2)}
           </div>
-          <p className="min-w-0 truncate font-medium text-white">{value}</p>
+          <p className="min-w-0 truncate font-medium text-white admin-light:text-slate-900">{value}</p>
         </div>
       ),
     },
@@ -91,10 +91,10 @@ export function PersonnelTable({
       render: (value: string) => {
         const isDriver = value === "Driver";
         return (
-          <span className="inline-flex items-center gap-2 text-sm text-slate-300">
+          <span className="inline-flex items-center gap-2 text-sm text-slate-300 admin-light:text-slate-700">
             <span
               aria-hidden="true"
-              className={`h-1.5 w-1.5 shrink-0 rounded-full ${isDriver ? "bg-[#62A0EA]" : "bg-amber-400"}`}
+              className={`h-1.5 w-1.5 shrink-0 rounded-full ${isDriver ? "bg-[#62A0EA] admin-light:bg-[#1A5FB4]" : "bg-amber-400"}`}
             />
             {value}
           </span>
@@ -123,7 +123,7 @@ export function PersonnelTable({
                 isActive ? "bg-emerald-400" : "bg-slate-600"
               }`}
             />
-            <span className={`text-xs font-medium ${isActive ? "text-slate-300" : "text-slate-500"}`}>
+            <span className={`text-xs font-medium ${isActive ? "text-slate-300 admin-light:text-slate-700" : "text-slate-500"}`}>
               {isActive ? "Active" : "Deactivated"}
             </span>
           </span>
@@ -151,7 +151,7 @@ export function PersonnelTable({
 
   return (
     <>
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 rounded-lg border border-[#1E2D45] bg-[#111A2B] p-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#111A2B] admin-light:bg-white p-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
         <div className="flex shrink-0 flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
             <SearchBar
@@ -164,7 +164,7 @@ export function PersonnelTable({
               value={roleFilter}
               onChange={(event) => onRoleFilterChange(event.target.value as PersonnelRoleFilter)}
               aria-label="Filter personnel by role"
-              className="h-10 rounded-lg border border-[#1E2D45] bg-[#0E1628] px-3 text-sm text-slate-200 outline-none transition-colors focus:border-[#62A0EA]/50 focus:ring-1 focus:ring-[#62A0EA]/30"
+              className="h-10 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 text-sm text-slate-200 admin-light:text-slate-700 outline-none transition-colors focus:border-[#62A0EA]/50 admin-light:focus:border-[#1A5FB4]/50 focus:ring-1 focus:ring-[#62A0EA]/30 admin-light:focus:ring-[#1A5FB4]/30"
             >
               <option value="all">All personnel</option>
               <option value="driver">Drivers</option>
@@ -174,14 +174,14 @@ export function PersonnelTable({
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <button
               onClick={onCreateConductor}
-              className="flex w-full items-center justify-center gap-2 rounded-md bg-[#62A0EA] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4] sm:w-44"
+              className="flex w-full items-center justify-center gap-2 rounded-md bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] sm:w-44"
             >
               <UserPlus size={18} />
               <span>Conductor</span>
             </button>
             <button
               onClick={onAddDriver}
-              className="flex w-full items-center justify-center gap-2 rounded-md bg-[#62A0EA] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4] sm:w-44"
+              className="flex w-full items-center justify-center gap-2 rounded-md bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] sm:w-44"
             >
               <Plus size={18} />
               <span>Add Driver</span>
