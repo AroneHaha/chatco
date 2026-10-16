@@ -56,13 +56,13 @@ export function SelectCheckbox({ checked, indeterminate = false, onChange, disab
       <input ref={inputRef} type="checkbox" checked={checked} onChange={onChange} disabled={disabled} aria-label={showLabel ? undefined : label} className="peer sr-only" />
       <span
         aria-hidden="true"
-        className={`flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-[4px] border transition-colors duration-150 peer-focus-visible:ring-2 peer-focus-visible:ring-[#62A0EA] peer-focus-visible:ring-offset-1 peer-focus-visible:ring-offset-[#0B1120] ${
-          marked ? 'border-[#62A0EA] bg-[#62A0EA] text-[#0B1120]' : 'border-slate-500 bg-[#0B1120]/80'
+        className={`flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-[4px] border transition-colors duration-150 peer-focus-visible:ring-2 peer-focus-visible:ring-[#62A0EA] admin-light:peer-focus-visible:ring-[#1A5FB4] peer-focus-visible:ring-offset-1 peer-focus-visible:ring-offset-[#0B1120] admin-light:peer-focus-visible:ring-offset-white ${
+          marked ? 'border-[#62A0EA] admin-light:border-[#1A5FB4] bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-[#0B1120] admin-light:text-white' : 'border-slate-500 admin-light:border-slate-400 bg-[#0B1120]/80 admin-light:bg-white/90'
         }`}
       >
         {checked ? <Check className="h-3 w-3" strokeWidth={3.5} /> : indeterminate ? <Minus className="h-3 w-3" strokeWidth={3.5} /> : null}
       </span>
-      {showLabel && <span className="text-xs font-semibold text-slate-300">{label}</span>}
+      {showLabel && <span className="text-xs font-semibold text-slate-300 admin-light:text-slate-700">{label}</span>}
     </label>
   );
 }
@@ -77,21 +77,21 @@ function formatPostedDate(dateStr: string): string {
 
 /** Status as coloured text + icon (no pill), same colour meaning as before. */
 const STATUS_STYLES: Record<LostFoundItem['status'], { icon: LucideIcon; text: string }> = {
-  Unmatched: { icon: Clock3, text: 'text-amber-300' },
-  Claimed: { icon: UserRound, text: 'text-[#8CB9F0]' },
-  Released: { icon: CheckCircle2, text: 'text-emerald-300' },
-  Returned: { icon: CheckCircle2, text: 'text-emerald-300' },
-  Closed: { icon: CheckCircle2, text: 'text-emerald-300' },
-  Rejected: { icon: XCircle, text: 'text-red-300' },
-  Expired: { icon: Archive, text: 'text-red-300' },
+  Unmatched: { icon: Clock3, text: 'text-amber-300 admin-light:text-amber-700' },
+  Claimed: { icon: UserRound, text: 'text-[#8CB9F0] admin-light:text-[#1A5FB4]' },
+  Released: { icon: CheckCircle2, text: 'text-emerald-300 admin-light:text-emerald-700' },
+  Returned: { icon: CheckCircle2, text: 'text-emerald-300 admin-light:text-emerald-700' },
+  Closed: { icon: CheckCircle2, text: 'text-emerald-300 admin-light:text-emerald-700' },
+  Rejected: { icon: XCircle, text: 'text-red-300 admin-light:text-red-700' },
+  Expired: { icon: Archive, text: 'text-red-300 admin-light:text-red-700' },
 };
-const FALLBACK_STATUS = { icon: Clock3, text: 'text-slate-400' };
+const FALLBACK_STATUS = { icon: Clock3, text: 'text-slate-400 admin-light:text-slate-500' };
 
 function DetailField({ label, value, className = '' }: { label: string; value: string; className?: string }) {
   return (
     <div className={`min-w-0 ${className}`}>
       <dt className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</dt>
-      <dd className="mt-0.5 truncate text-xs text-slate-200" title={value}>{value}</dd>
+      <dd className="mt-0.5 truncate text-xs text-slate-200 admin-light:text-slate-800" title={value}>{value}</dd>
     </div>
   );
 }
@@ -102,7 +102,7 @@ function ActionButton({ onClick, label, className = '', children }: { onClick: (
       type="button"
       onClick={onClick}
       aria-label={label}
-      className={`relative inline-flex h-10 min-w-0 items-center justify-center gap-1.5 px-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA]/60 active:bg-[#1A2540] ${className}`}
+      className={`relative inline-flex h-10 min-w-0 items-center justify-center gap-1.5 px-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA]/60 admin-light:focus-visible:ring-[#1A5FB4]/60 active:bg-[#1A2540] admin-light:active:bg-[#EEF2F7] ${className}`}
     >
       {children}
     </button>
@@ -123,14 +123,14 @@ export function LostFoundGrid({ items, claimSummaries = {}, onViewClaims, onView
         return (
           <article
             key={item.id}
-            className={`group relative flex min-h-full flex-col overflow-hidden rounded-lg border bg-[#131C2E] transition-colors duration-200 ${
-              isSelected ? 'border-[#62A0EA]/70 ring-1 ring-[#62A0EA]/40' : 'border-[#1E2D45] hover:border-[#62A0EA]/40'
+            className={`group relative flex min-h-full flex-col overflow-hidden rounded-lg border bg-[#131C2E] admin-light:bg-white transition-colors duration-200 ${
+              isSelected ? 'border-[#62A0EA]/70 admin-light:border-[#1A5FB4]/70 ring-1 ring-[#62A0EA]/40 admin-light:ring-[#1A5FB4]/40' : 'border-[#1E2D45] admin-light:border-[#E2E8F0] hover:border-[#62A0EA]/40 admin-light:hover:border-[#1A5FB4]/40'
             }`}
           >
             {selectable && onToggleSelect && (
               // Sibling of the photo button (not inside it), so ticking the
               // box never opens the details view.
-              <div className="absolute left-2 top-2 z-10 rounded-md bg-[#0B1120]/80 p-1.5 backdrop-blur-sm">
+              <div className="absolute left-2 top-2 z-10 rounded-md bg-[#0B1120]/80 admin-light:bg-white/90 p-1.5 backdrop-blur-sm">
                 <SelectCheckbox
                   checked={isSelected}
                   onChange={() => onToggleSelect(item.id)}
@@ -143,7 +143,7 @@ export function LostFoundGrid({ items, claimSummaries = {}, onViewClaims, onView
               type="button"
               onClick={() => onViewDetails(item.id)}
               aria-label={`View details for ${item.itemName}`}
-              className="relative aspect-4/3 w-full overflow-hidden border-b border-[#1E2D45] bg-[#0E1628] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA]/60"
+              className="relative aspect-4/3 w-full overflow-hidden border-b border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F1F5F9] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA]/60 admin-light:focus-visible:ring-[#1A5FB4]/60"
             >
               {item.imageUrl ? (
                 <img
@@ -152,7 +152,7 @@ export function LostFoundGrid({ items, claimSummaries = {}, onViewClaims, onView
                   className="h-full w-full object-cover opacity-90 transition-[transform,opacity] duration-500 ease-out group-hover:scale-[1.03] group-hover:opacity-100 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
                 />
               ) : (
-                <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-slate-600">
+                <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-slate-600 admin-light:text-slate-400">
                   <PackageSearch className="h-10 w-10" aria-hidden="true" />
                   <span className="text-[10px] font-semibold uppercase tracking-wider">No photo yet</span>
                 </div>
@@ -170,11 +170,11 @@ export function LostFoundGrid({ items, claimSummaries = {}, onViewClaims, onView
               </div>
 
               <button type="button" onClick={() => onViewDetails(item.id)} className="mt-1.5 block w-full text-left focus:outline-none focus-visible:underline">
-                <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-white transition-colors group-hover:text-[#8CB9F0] sm:line-clamp-1 sm:text-base">{item.itemName}</h3>
+                <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-white admin-light:text-slate-900 transition-colors group-hover:text-[#8CB9F0] admin-light:group-hover:text-[#1A5FB4] sm:line-clamp-1 sm:text-base">{item.itemName}</h3>
               </button>
-              <p className="mt-1 hidden min-h-8 text-xs leading-4 text-slate-400 sm:line-clamp-2">{item.description}</p>
+              <p className="mt-1 hidden min-h-8 text-xs leading-4 text-slate-400 admin-light:text-slate-500 sm:line-clamp-2">{item.description}</p>
 
-              <dl className="mt-3 grid grid-cols-1 gap-x-3 gap-y-2 border-t border-[#1E2D45] pt-3 sm:grid-cols-2">
+              <dl className="mt-3 grid grid-cols-1 gap-x-3 gap-y-2 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] pt-3 sm:grid-cols-2">
                 <DetailField label="Plate" value={item.plateNumber || 'Plate unavailable'} />
                 <DetailField label="Est. time" value={item.estimatedTimeLost || 'Time unavailable'} className="hidden sm:block" />
                 <DetailField label="Driver" value={item.driverName || 'Driver unavailable'} />
@@ -188,7 +188,7 @@ export function LostFoundGrid({ items, claimSummaries = {}, onViewClaims, onView
                   type="button"
                   onClick={() => onClose(item.id)}
                   disabled={isActing}
-                  className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-300 admin-light:text-emerald-700 transition-colors hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                   Close after handover
@@ -200,7 +200,7 @@ export function LostFoundGrid({ items, claimSummaries = {}, onViewClaims, onView
                   type="button"
                   onClick={() => onReactivate(item.id)}
                   disabled={isActing}
-                  className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-300 admin-light:text-emerald-700 transition-colors hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <RotateCcw className="h-4 w-4" aria-hidden="true" />
                   Reactivate item
@@ -210,8 +210,8 @@ export function LostFoundGrid({ items, claimSummaries = {}, onViewClaims, onView
 
             {/* Flat action strip, divided like a table's row actions rather
                 than three separate boxed buttons. */}
-            <div className="mt-auto grid grid-cols-3 divide-x divide-[#1E2D45] border-t border-[#1E2D45]">
-              <ActionButton onClick={() => onViewDetails(item.id)} label="View details" className="text-slate-300 hover:bg-[#1A2540] hover:text-white">
+            <div className="mt-auto grid grid-cols-3 divide-x divide-[#1E2D45] admin-light:divide-[#E2E8F0] border-t border-[#1E2D45] admin-light:border-[#E2E8F0]">
+              <ActionButton onClick={() => onViewDetails(item.id)} label="View details" className="text-slate-300 admin-light:text-slate-700 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] hover:text-white admin-light:hover:text-slate-900">
                 <Eye className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">Details</span>
               </ActionButton>
@@ -219,17 +219,17 @@ export function LostFoundGrid({ items, claimSummaries = {}, onViewClaims, onView
                 onClick={() => onViewClaims(item.id)}
                 label={`${isClaimed ? 'View claimed item' : 'View claims'}, ${claimSummary.total} claim${claimSummary.total === 1 ? '' : 's'}${hasNewClaims ? ', new claims' : ''}`}
                 className={hasNewClaims
-                  ? 'text-white hover:bg-[#1A2540]'
+                  ? 'text-white admin-light:text-slate-900 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7]'
                   : isClaimed
-                    ? 'text-emerald-300 hover:bg-emerald-500/10'
-                    : 'text-slate-300 hover:bg-[#1A2540] hover:text-white'}
+                    ? 'text-emerald-300 admin-light:text-emerald-700 hover:bg-emerald-500/10'
+                    : 'text-slate-300 admin-light:text-slate-700 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] hover:text-white admin-light:hover:text-slate-900'}
               >
                 {isClaimed ? <UserRound className="h-4 w-4" aria-hidden="true" /> : <ListChecks className="h-4 w-4" aria-hidden="true" />}
                 <span className="hidden sm:inline">{isClaimed ? 'Claimed' : 'Claims'}</span>
-                <span className={`tabular-nums ${hasNewClaims ? 'text-[#FF6D3A]' : isClaimed ? 'text-emerald-300/70' : 'text-slate-500'}`}>{claimSummary.total}</span>
+                <span className={`tabular-nums ${hasNewClaims ? 'text-[#FF6D3A]' : isClaimed ? 'text-emerald-300/70 admin-light:text-emerald-700' : 'text-slate-500'}`}>{claimSummary.total}</span>
                 {hasNewClaims && <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[#FF6D3A]" />}
               </ActionButton>
-              <ActionButton onClick={() => onEdit(item)} label="Edit item" className="text-slate-300 hover:bg-[#1A2540] hover:text-white">
+              <ActionButton onClick={() => onEdit(item)} label="Edit item" className="text-slate-300 admin-light:text-slate-700 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] hover:text-white admin-light:hover:text-slate-900">
                 <Pencil className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">Edit</span>
               </ActionButton>

@@ -74,18 +74,18 @@ export function ApproveClaimModal({ isOpen, claimantName, onClose, onConfirm }: 
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} maxWidth="max-w-md">
+    <Modal adminThemed isOpen={isOpen} onClose={handleClose} maxWidth="max-w-md">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="pr-8">
-          <h2 className="text-lg font-bold text-white">Approve claim</h2>
-          <p className="mt-1 text-xs text-slate-400">
-            Tell <span className="font-semibold text-slate-200">{claimantName}</span> where and when to collect the item. They&apos;ll see this in their Claims tab and notification.
+          <h2 className="text-lg font-bold text-white admin-light:text-slate-900">Approve claim</h2>
+          <p className="mt-1 text-xs text-slate-400 admin-light:text-slate-500">
+            Tell <span className="font-semibold text-slate-200 admin-light:text-slate-800">{claimantName}</span> where and when to collect the item. They&apos;ll see this in their Claims tab and notification.
           </p>
         </div>
 
         <div>
-          <label htmlFor="pickup-location" className="mb-1.5 block text-xs font-semibold text-slate-300">
-            Pickup location <span className="text-red-400">*</span>
+          <label htmlFor="pickup-location" className="mb-1.5 block text-xs font-semibold text-slate-300 admin-light:text-slate-700">
+            Pickup location <span className="text-red-400 admin-light:text-red-600">*</span>
           </label>
           <div className="relative">
             <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
@@ -96,15 +96,15 @@ export function ApproveClaimModal({ isOpen, claimantName, onClose, onConfirm }: 
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               placeholder="e.g. Calumpit Terminal Office, ground floor"
-              className="h-10 w-full rounded-lg border border-white/10 bg-[#0E1628] pl-9 pr-3 text-sm text-white outline-none transition-colors placeholder:text-slate-500 focus:border-[#62A0EA]"
+              className="h-10 w-full rounded-lg border border-white/10 admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] pl-9 pr-3 text-sm text-white admin-light:text-slate-900 outline-none transition-colors placeholder:text-slate-500 admin-light:placeholder:text-slate-400 focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4]"
             />
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <span className="mb-1.5 block text-xs font-semibold text-slate-300">
-              Date <span className="text-red-400">*</span>
+            <span className="mb-1.5 block text-xs font-semibold text-slate-300 admin-light:text-slate-700">
+              Date <span className="text-red-400 admin-light:text-red-600">*</span>
             </span>
             <AdminDatePicker
               accent="blue"
@@ -116,8 +116,8 @@ export function ApproveClaimModal({ isOpen, claimantName, onClose, onConfirm }: 
             />
           </div>
           <div>
-            <label htmlFor="pickup-time" className="mb-1.5 block text-xs font-semibold text-slate-300">
-              Time <span className="text-red-400">*</span>
+            <label htmlFor="pickup-time" className="mb-1.5 block text-xs font-semibold text-slate-300 admin-light:text-slate-700">
+              Time <span className="text-red-400 admin-light:text-red-600">*</span>
             </label>
             <input
               id="pickup-time"
@@ -125,33 +125,33 @@ export function ApproveClaimModal({ isOpen, claimantName, onClose, onConfirm }: 
               required
               value={time}
               onChange={(e) => setTime(e.target.value)}
-              className="h-10 w-full rounded-lg border border-white/10 bg-[#0E1628] px-3 text-sm text-white outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]"
+              className="h-10 w-full rounded-lg border border-white/10 admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] px-3 text-sm text-white admin-light:text-slate-900 outline-none transition-colors [color-scheme:dark] admin-light:[color-scheme:light] focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4]"
             />
           </div>
         </div>
 
         <div>
-          <label htmlFor="pickup-reminder" className="mb-1.5 block text-xs font-semibold text-slate-300">Reminder for the claimant</label>
+          <label htmlFor="pickup-reminder" className="mb-1.5 block text-xs font-semibold text-slate-300 admin-light:text-slate-700">Reminder for the claimant</label>
           <textarea
             id="pickup-reminder"
             rows={7}
             maxLength={500}
             value={reminder}
             onChange={(e) => setReminder(e.target.value)}
-            className="w-full resize-none rounded-lg border border-white/10 bg-[#0E1628] px-3 py-2 text-sm leading-6 text-white outline-none transition-colors placeholder:text-slate-500 focus:border-[#62A0EA]"
+            className="w-full resize-none rounded-lg border border-white/10 admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] px-3 py-2 text-sm leading-6 text-white admin-light:text-slate-900 outline-none transition-colors placeholder:text-slate-500 admin-light:placeholder:text-slate-400 focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4]"
           />
           <p className="mt-1 text-[10px] text-slate-500">Leave blank to use the standard reminder.</p>
         </div>
 
         {error && (
           <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2">
-            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-400" />
-            <p className="text-xs leading-5 text-red-300">{error}</p>
+            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-400 admin-light:text-red-600" />
+            <p className="text-xs leading-5 text-red-300 admin-light:text-red-700">{error}</p>
           </div>
         )}
 
-        <div className="flex justify-end gap-2 border-t border-white/10 pt-4">
-          <button type="button" onClick={handleClose} disabled={isSubmitting} className="rounded-lg border border-white/10 px-4 py-2 text-xs font-semibold text-slate-300 transition-colors hover:bg-white/5 disabled:opacity-50">
+        <div className="flex justify-end gap-2 border-t border-white/10 admin-light:border-[#E2E8F0] pt-4">
+          <button type="button" onClick={handleClose} disabled={isSubmitting} className="rounded-lg border border-white/10 admin-light:border-[#E2E8F0] px-4 py-2 text-xs font-semibold text-slate-300 admin-light:text-slate-700 transition-colors hover:bg-white/5 admin-light:hover:bg-[#F1F5F9] disabled:opacity-50">
             Cancel
           </button>
           <button type="submit" disabled={isSubmitting} className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-emerald-600 disabled:opacity-50">

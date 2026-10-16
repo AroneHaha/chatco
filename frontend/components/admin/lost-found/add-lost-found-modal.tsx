@@ -70,11 +70,11 @@ function FieldLabel({
   children: ReactNode;
   required?: boolean;
 }) {
-  const className = 'mb-1.5 block text-xs font-semibold text-slate-300';
+  const className = 'mb-1.5 block text-xs font-semibold text-slate-300 admin-light:text-slate-700';
   const content = (
     <>
       {children}
-      {required && <span className="ml-0.5 text-red-400">*</span>}
+      {required && <span className="ml-0.5 text-red-400 admin-light:text-red-600">*</span>}
     </>
   );
   return htmlFor
@@ -199,7 +199,7 @@ export function AddLostFoundModal({ isOpen, onClose, onSave }: AddLostFoundModal
     }
   };
 
-  const inputClasses = 'block h-11 w-full rounded-lg border border-white/10 bg-[#0E1628] px-3 text-sm text-white shadow-sm outline-none transition-colors placeholder:text-slate-600 focus:border-[#62A0EA] focus:ring-2 focus:ring-[#62A0EA]/15 disabled:cursor-not-allowed disabled:opacity-60';
+  const inputClasses = 'block h-11 w-full rounded-lg border border-white/10 admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] px-3 text-sm text-white admin-light:text-slate-900 shadow-sm outline-none transition-colors placeholder:text-slate-600 admin-light:placeholder:text-slate-400 focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4] focus:ring-2 focus:ring-[#62A0EA]/15 admin-light:focus:ring-[#1A5FB4]/15 disabled:cursor-not-allowed disabled:opacity-60';
   const photoCount = formData.imagePreviews.length;
 
   // One upload control, rendered in the first empty photo slot only, so
@@ -207,7 +207,7 @@ export function AddLostFoundModal({ isOpen, onClose, onSave }: AddLostFoundModal
   const addPhotoSlot = (large: boolean) => (
     <label
       htmlFor="image-upload"
-      className={`flex h-full w-full cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-white/15 bg-white/[0.03] px-2 text-center text-slate-400 transition-colors hover:border-[#62A0EA] hover:text-[#8CB9F0] focus-within:border-[#62A0EA] ${large ? 'lg:px-6' : ''}`}
+      className={`flex h-full w-full cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-white/15 admin-light:border-[#CBD5E1] bg-white/[0.03] admin-light:bg-[#F8FAFC] px-2 text-center text-slate-400 admin-light:text-slate-500 transition-colors hover:border-[#62A0EA] admin-light:hover:border-[#1A5FB4] hover:text-[#8CB9F0] admin-light:hover:text-[#1A5FB4] focus-within:border-[#62A0EA] admin-light:focus-within:border-[#1A5FB4] ${large ? 'lg:px-6' : ''}`}
     >
       <ImagePlus className={large ? 'h-5 w-5 lg:h-6 lg:w-6' : 'h-5 w-5'} aria-hidden="true" />
       {/* The main slot is only large on desktop; on smaller screens all three
@@ -229,7 +229,7 @@ export function AddLostFoundModal({ isOpen, onClose, onSave }: AddLostFoundModal
     const preview = formData.imagePreviews[index];
     if (preview) {
       return (
-        <div className="relative h-full w-full overflow-hidden rounded-lg border border-white/10">
+        <div className="relative h-full w-full overflow-hidden rounded-lg border border-white/10 admin-light:border-[#E2E8F0]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={preview} alt={`Photo ${index + 1}`} className="h-full w-full object-cover" />
           {index === 0 && (
@@ -238,7 +238,7 @@ export function AddLostFoundModal({ isOpen, onClose, onSave }: AddLostFoundModal
           <button
             type="button"
             onClick={() => handleRemoveImage(index)}
-            className="absolute right-1.5 top-1.5 inline-flex h-7 w-7 items-center justify-center rounded-md bg-black/60 text-white/85 transition-colors hover:bg-red-500 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
+            className="absolute right-1.5 top-1.5 inline-flex h-7 w-7 items-center justify-center rounded-md bg-black/60 text-white/85 transition-colors hover:bg-red-500 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4]"
             aria-label={`Remove photo ${index + 1}`}
             title="Remove photo"
           >
@@ -248,18 +248,18 @@ export function AddLostFoundModal({ isOpen, onClose, onSave }: AddLostFoundModal
       );
     }
     if (index === photoCount && photoCount < MAX_PHOTOS) return addPhotoSlot(large);
-    return <div aria-hidden="true" className="h-full w-full rounded-lg border border-dashed border-white/[0.06]" />;
+    return <div aria-hidden="true" className="h-full w-full rounded-lg border border-dashed border-white/[0.06] admin-light:border-[#E2E8F0]" />;
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-5xl" rounded="rounded-xl">
+    <Modal adminThemed isOpen={isOpen} onClose={onClose} maxWidth="max-w-5xl" rounded="rounded-xl">
       <form onSubmit={handleSubmit}>
         <header className="pr-10">
-          <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#8CB9F0]">
+          <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#8CB9F0] admin-light:text-[#1A5FB4]">
             <PackageSearch className="h-3.5 w-3.5" aria-hidden="true" />
             New item
           </p>
-          <h2 className="text-xl font-bold leading-tight text-white sm:text-2xl">Report Lost & Found Item</h2>
+          <h2 className="text-xl font-bold leading-tight text-white admin-light:text-slate-900 sm:text-2xl">Report Lost & Found Item</h2>
           <p className="mt-1 text-sm text-slate-500">Create the item record first. Claim review and release actions happen after claims are submitted.</p>
         </header>
 
@@ -292,8 +292,8 @@ export function AddLostFoundModal({ isOpen, onClose, onSave }: AddLostFoundModal
                 </div>
                 <div>
                   <FieldLabel htmlFor="category">Category</FieldLabel>
-                  <select id="category" name="category" value={formData.category} onChange={handleChange} className={`${inputClasses} [color-scheme:dark]`}>
-                    {itemCategories.map(cat => (<option key={cat.value} value={cat.value} className="bg-gray-800">{cat.label}</option>))}
+                  <select id="category" name="category" value={formData.category} onChange={handleChange} className={`${inputClasses} [color-scheme:dark] admin-light:[color-scheme:light]`}>
+                    {itemCategories.map(cat => (<option key={cat.value} value={cat.value} className="bg-gray-800 admin-light:bg-white">{cat.label}</option>))}
                   </select>
                 </div>
                 <div className="sm:col-span-2">
@@ -311,27 +311,27 @@ export function AddLostFoundModal({ isOpen, onClose, onSave }: AddLostFoundModal
               </div>
             </section>
 
-            <section className="mt-7 border-t border-white/10 pt-6">
+            <section className="mt-7 border-t border-white/10 admin-light:border-[#E2E8F0] pt-6">
               <GroupLabel>Found on</GroupLabel>
               {/* Two equal columns, every field full width in its cell:
                   vehicle + time on the first row, the crew on the second. */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <FieldLabel htmlFor="plateNumber">Plate Number</FieldLabel>
-                  <select id="plateNumber" name="plateNumber" value={formData.plateNumber} onChange={handleChange} disabled={isLoadingPlates} className={`${inputClasses} [color-scheme:dark]`}>
-                    <option value="" className="bg-gray-800">{isLoadingPlates ? 'Loading plate numbers...' : 'Select a plate number'}</option>
-                    {plateNumbers.map(plate => (<option key={plate} value={plate} className="bg-gray-800">{plate}</option>))}
+                  <select id="plateNumber" name="plateNumber" value={formData.plateNumber} onChange={handleChange} disabled={isLoadingPlates} className={`${inputClasses} [color-scheme:dark] admin-light:[color-scheme:light]`}>
+                    <option value="" className="bg-gray-800 admin-light:bg-white">{isLoadingPlates ? 'Loading plate numbers...' : 'Select a plate number'}</option>
+                    {plateNumbers.map(plate => (<option key={plate} value={plate} className="bg-gray-800 admin-light:bg-white">{plate}</option>))}
                   </select>
                 </div>
                 <fieldset className="min-w-0">
-                  <legend className="mb-1.5 text-xs font-semibold text-slate-300">Estimated Time Lost</legend>
+                  <legend className="mb-1.5 text-xs font-semibold text-slate-300 admin-light:text-slate-700">Estimated Time Lost</legend>
                   <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
                     <input
                       type="time"
                       id="estimatedTimeLostStart"
                       value={timeRange.start}
                       onChange={(e) => handleTimeChange('start', e)}
-                      className={`${inputClasses} [color-scheme:dark]`}
+                      className={`${inputClasses} [color-scheme:dark] admin-light:[color-scheme:light]`}
                       aria-label="Estimated time lost start"
                     />
                     <span className="text-xs font-semibold text-slate-500">to</span>
@@ -340,23 +340,23 @@ export function AddLostFoundModal({ isOpen, onClose, onSave }: AddLostFoundModal
                       id="estimatedTimeLostEnd"
                       value={timeRange.end}
                       onChange={(e) => handleTimeChange('end', e)}
-                      className={`${inputClasses} [color-scheme:dark]`}
+                      className={`${inputClasses} [color-scheme:dark] admin-light:[color-scheme:light]`}
                       aria-label="Estimated time lost end"
                     />
                   </div>
                 </fieldset>
                 <div>
                   <FieldLabel htmlFor="driverName">Driver</FieldLabel>
-                  <select id="driverName" name="driverName" value={formData.driverName} onChange={handleChange} disabled={isLoadingPersonnel} className={`${inputClasses} [color-scheme:dark]`}>
-                    <option value="" className="bg-gray-800">{isLoadingPersonnel ? 'Loading drivers...' : 'Select a driver'}</option>
-                    {drivers.map(d => (<option key={d.id} value={d.name} className="bg-gray-800">{d.name}</option>))}
+                  <select id="driverName" name="driverName" value={formData.driverName} onChange={handleChange} disabled={isLoadingPersonnel} className={`${inputClasses} [color-scheme:dark] admin-light:[color-scheme:light]`}>
+                    <option value="" className="bg-gray-800 admin-light:bg-white">{isLoadingPersonnel ? 'Loading drivers...' : 'Select a driver'}</option>
+                    {drivers.map(d => (<option key={d.id} value={d.name} className="bg-gray-800 admin-light:bg-white">{d.name}</option>))}
                   </select>
                 </div>
                 <div>
                   <FieldLabel htmlFor="conductorName">Conductor</FieldLabel>
-                  <select id="conductorName" name="conductorName" value={formData.conductorName} onChange={handleChange} disabled={isLoadingPersonnel} className={`${inputClasses} [color-scheme:dark]`}>
-                    <option value="" className="bg-gray-800">{isLoadingPersonnel ? 'Loading conductors...' : 'Select a conductor'}</option>
-                    {conductors.map(c => (<option key={c.id} value={c.name} className="bg-gray-800">{c.name}</option>))}
+                  <select id="conductorName" name="conductorName" value={formData.conductorName} onChange={handleChange} disabled={isLoadingPersonnel} className={`${inputClasses} [color-scheme:dark] admin-light:[color-scheme:light]`}>
+                    <option value="" className="bg-gray-800 admin-light:bg-white">{isLoadingPersonnel ? 'Loading conductors...' : 'Select a conductor'}</option>
+                    {conductors.map(c => (<option key={c.id} value={c.name} className="bg-gray-800 admin-light:bg-white">{c.name}</option>))}
                   </select>
                 </div>
               </div>
@@ -366,9 +366,9 @@ export function AddLostFoundModal({ isOpen, onClose, onSave }: AddLostFoundModal
 
         {/* Pinned to the bottom of the modal's scroll area so the actions stay
             reachable on short screens. */}
-        <div className="sticky -bottom-4 z-10 -mx-4 -mb-4 mt-8 flex flex-col-reverse gap-2 border-t border-white/10 bg-[#1A2540] px-4 py-4 sm:-bottom-6 sm:-mx-6 sm:-mb-6 sm:flex-row sm:justify-end sm:px-6">
-          <button type="button" onClick={onClose} disabled={isSubmitting} className="inline-flex h-11 items-center justify-center rounded-lg border border-white/10 px-5 text-sm font-semibold text-slate-300 transition-colors hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">Cancel</button>
-          <button type="submit" disabled={isSubmitting} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-5 text-sm font-bold text-white transition-colors hover:bg-[#4A8BD4] disabled:cursor-not-allowed disabled:opacity-50">
+        <div className="sticky -bottom-4 z-10 -mx-4 -mb-4 mt-8 flex flex-col-reverse gap-2 border-t border-white/10 admin-light:border-[#E2E8F0] bg-[#1A2540] admin-light:bg-white px-4 py-4 sm:-bottom-6 sm:-mx-6 sm:-mb-6 sm:flex-row sm:justify-end sm:px-6">
+          <button type="button" onClick={onClose} disabled={isSubmitting} className="inline-flex h-11 items-center justify-center rounded-lg border border-white/10 admin-light:border-[#E2E8F0] px-5 text-sm font-semibold text-slate-300 admin-light:text-slate-700 transition-colors hover:bg-white/5 admin-light:hover:bg-[#F1F5F9] hover:text-white admin-light:hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50">Cancel</button>
+          <button type="submit" disabled={isSubmitting} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-5 text-sm font-bold text-white transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] disabled:cursor-not-allowed disabled:opacity-50">
             {isSubmitting ? (
               <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" aria-hidden="true" />
             ) : (
