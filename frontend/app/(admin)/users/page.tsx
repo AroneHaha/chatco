@@ -29,6 +29,9 @@ import { PageTabs } from '@/components/admin/ui/page-tabs';
 import { DiscountApplicationsPanel } from '@/components/admin/users/discount-applications-panel';
 import { useAdminNotifications } from '@/contexts/admin-notifications-context';
 
+/** How long a success banner stays before clearing itself. */
+const SUCCESS_MESSAGE_MS = 3000;
+
 export default function UsersPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -64,6 +67,15 @@ export default function UsersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  // Every success banner (suspend, reactivate, disable, onsite registration)
+  // clears itself after a few seconds. Keyed on the message, so a newer one
+  // restarts the timer instead of being cut short by an older timer.
+  // Errors stay until dismissed.
+  useEffect(() => {
+    if (!successMessage) return;
+    const timer = setTimeout(() => setSuccessMessage(null), SUCCESS_MESSAGE_MS);
+    return () => clearTimeout(timer);
+  }, [successMessage]);
   const [isReviewProcessing, setIsReviewProcessing] = useState(false);
   const [suspensionUser, setSuspensionUser] = useState<ActiveUser | null>(null);
   const [isSuspensionProcessing, setIsSuspensionProcessing] = useState(false);
@@ -336,7 +348,6 @@ export default function UsersPage() {
     handleCloseRegisterModal();
     refetch();
     setSuccessMessage(body?.message ?? 'Onsite registration created — awaiting verification.');
-    setTimeout(() => setSuccessMessage(null), 5000);
   };
 
   const handleApproveRequest = async () => {
