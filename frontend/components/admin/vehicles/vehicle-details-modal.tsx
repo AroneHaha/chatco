@@ -1,23 +1,21 @@
 // components/admin/vehicles/vehicle-details-modal.tsx
 'use client';
 
-import { useState, useEffect, useRef, useCallback, type ElementType, type ReactNode } from 'react';
+import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
-import { Badge } from '@/components/admin/ui/badge';
+import { getInitials } from '@/components/admin/layout/admin-identity';
 import { QRCodeCanvas } from 'qrcode.react';
 import {
   Car,
   User,
   Phone,
-  Hash,
   Download,
   Printer,
   RefreshCw,
   AlertCircle,
-  IdCard,
   Users,
-  Tag,
-  Calendar,
+  QrCode,
+  Route,
 } from 'lucide-react';
 import {
   get as getVehicle,
@@ -71,26 +69,26 @@ function CrewRow({
   label,
   person,
 }: {
-  label: string;
+  label: 'Driver' | 'Conductor';
   person: VehiclePerson | null;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-lg bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] p-3">
-      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]">
-        <User size={18} />
+    <div className="flex items-center gap-3 py-3">
+      <div aria-hidden="true" className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-semibold ${!person ? 'bg-slate-500/10 text-slate-400 admin-light:text-slate-500' : label === 'Driver' ? 'bg-[#62A0EA]/15 text-[#99C1F1] admin-light:bg-[#1A5FB4]/10 admin-light:text-[#1A5FB4]' : 'bg-amber-400/10 text-amber-300 admin-light:text-amber-700'}`}>
+        {person ? getInitials(person.name) : <User size={18} />}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500">{label}</p>
+        <p className="text-xs text-slate-400 admin-light:text-slate-500">{label}</p>
         {person ? (
           <>
-            <p className="truncate text-sm font-semibold text-white admin-light:text-slate-900">{person.name}</p>
+            <p className="mt-0.5 break-words text-sm font-semibold text-white admin-light:text-slate-900">{person.name}</p>
             <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-400 admin-light:text-slate-500">
-              <Phone size={11} className="flex-shrink-0" />
-              <span className="truncate">{person.contact || '—'}</span>
+              <Phone size={12} aria-hidden="true" className="shrink-0" />
+              <span className="break-all">{person.contact || 'No contact number'}</span>
             </p>
           </>
         ) : (
-          <p className="text-sm italic text-slate-500">Unassigned today</p>
+          <p className="mt-0.5 text-sm text-slate-400 admin-light:text-slate-500">Unassigned today</p>
         )}
       </div>
     </div>
@@ -98,21 +96,16 @@ function CrewRow({
 }
 
 function DetailRow({
-  icon: Icon,
   label,
   value,
 }: {
-  icon: ElementType;
   label: string;
   value: ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-2">
-      <span className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-slate-400 admin-light:text-slate-500">
-        <Icon size={14} className="text-slate-500" />
-        {label}
-      </span>
-      <span className="text-right text-sm text-white admin-light:text-slate-900">{value}</span>
+    <div className="min-w-0">
+      <dt className="text-xs text-slate-400 admin-light:text-slate-500">{label}</dt>
+      <dd className="mt-1.5 break-words text-sm font-medium text-white admin-light:text-slate-900">{value}</dd>
     </div>
   );
 }
@@ -206,21 +199,16 @@ export function VehicleDetailsModal({ isOpen, vehicleId, onClose }: VehicleDetai
   }, [vehicle]);
 
   return (
-    <Modal adminThemed isOpen={isOpen} onClose={onClose} maxWidth="max-w-lg">
+    <Modal adminThemed isOpen={isOpen} onClose={onClose} maxWidth="max-w-3xl" rounded="rounded-2xl">
       {/* Header */}
-      <div className="mb-5 flex items-center gap-3 pr-8">
-        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]">
-          <Car size={22} />
-        </div>
-        <div className="min-w-0">
-          <h2 className="text-lg sm:text-xl font-bold text-white admin-light:text-slate-900">Vehicle Details</h2>
-          <p className="text-xs text-slate-400 admin-light:text-slate-500">Fleet Management · permanent unit record</p>
-        </div>
+      <div className="mb-4 border-b border-[#2A3A55] pb-3 pr-8 admin-light:border-[#E2E8F0]">
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#99C1F1] admin-light:text-[#1A5FB4]">Fleet Management</p>
+        <h2 className="text-xl font-semibold tracking-tight text-white admin-light:text-slate-900">Vehicle Details</h2>
       </div>
 
       {/* Loading */}
       {isLoading && (
-        <div className="flex flex-col items-center justify-center gap-3 py-12">
+        <div role="status" className="flex min-h-80 flex-col items-center justify-center gap-3 py-12">
           <RefreshCw size={28} className="animate-spin text-[#62A0EA] admin-light:text-[#1A5FB4]" />
           <p className="text-sm text-slate-400 admin-light:text-slate-500">Loading vehicle details…</p>
         </div>
@@ -228,13 +216,14 @@ export function VehicleDetailsModal({ isOpen, vehicleId, onClose }: VehicleDetai
 
       {/* Error */}
       {!isLoading && error && (
-        <div className="flex flex-col items-center justify-center gap-3 py-10">
+        <div role="alert" className="flex min-h-80 flex-col items-center justify-center gap-3 py-10 text-center">
           <AlertCircle size={32} className="text-red-400 admin-light:text-red-600" />
           <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
           {vehicleId && (
             <button
+              type="button"
               onClick={() => load(vehicleId)}
-              className="mt-1 flex items-center gap-2 px-4 py-2 bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white rounded-md text-sm font-medium hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] transition-colors"
+              className="mt-1 flex items-center gap-2 rounded-lg bg-[#62A0EA] px-4 py-2.5 text-sm font-medium text-[#0B1120] transition-colors hover:bg-[#85B6F0] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#62A0EA] admin-light:bg-[#1A5FB4] admin-light:text-white admin-light:hover:bg-[#164A8F]"
             >
               <RefreshCw size={14} />
               Retry
@@ -245,95 +234,113 @@ export function VehicleDetailsModal({ isOpen, vehicleId, onClose }: VehicleDetai
 
       {/* Loaded */}
       {!isLoading && !error && vehicle && (
-        <div className="space-y-5">
-          {/* ── Vehicle info ── */}
-          <section className="rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F1F5F9] p-4">
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-300 admin-light:text-slate-700">
-                <IdCard size={14} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
-                Vehicle Information
-              </h3>
-              <Badge
-                variant={
-                  vehicle.status === 'ACTIVE'
-                    ? 'success'
-                    : vehicle.status === 'MAINTENANCE'
-                      ? 'warning'
-                      : 'danger'
-                }
-              >
-                {vehicle.statusLabel}
-              </Badge>
-            </div>
-            <div className="divide-y divide-[#1A2540] admin-light:divide-[#E2E8F0]">
-              <DetailRow icon={Hash} label="Unit Number" value={vehicle.unitNumber || '—'} />
-              <DetailRow icon={Car} label="Plate Number" value={vehicle.plateNumber || '—'} />
-              <DetailRow icon={Tag} label="Brand" value={vehicle.brand || '—'} />
-              <DetailRow icon={Tag} label="Model" value={vehicle.model || '—'} />
-              <DetailRow icon={Calendar} label="Date Added" value={formatDate(vehicle.createdAt)} />
+        <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_224px] sm:gap-6">
+          <div className="min-w-0">
+          <section aria-label="Vehicle overview" className="mb-4 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex min-w-0 flex-1 items-center gap-4">
+              <div aria-hidden="true" className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-[#62A0EA]/20 bg-[#62A0EA]/10 text-[#99C1F1] admin-light:border-[#1A5FB4]/15 admin-light:bg-[#1A5FB4]/5 admin-light:text-[#1A5FB4]">
+                <Car size={28} strokeWidth={1.5} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-slate-400 admin-light:text-slate-500">Unit number</p>
+                <h3 className="mt-0.5 break-words text-3xl font-semibold tracking-tight text-white admin-light:text-slate-900">{vehicle.unitNumber || '—'}</h3>
+                <p className="mt-1 text-xs text-slate-400 admin-light:text-slate-500">Plate <span className="ml-1 break-all font-mono font-medium tracking-wide text-slate-200 admin-light:text-slate-700">{vehicle.plateNumber || '—'}</span></p>
+              </div>
             </div>
           </section>
 
-          {/* ── Today's crew ── */}
-          <section>
-            <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-300 admin-light:text-slate-700">
-              <Users size={14} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
-              Today&apos;s Assigned Crew
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <CrewRow label="Driver" person={vehicle.driver} />
-              <CrewRow label="Conductor" person={vehicle.conductor} />
-            </div>
-          </section>
-
-          {/* ── Permanent Unit QR ── */}
-          <section className="rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F1F5F9] p-4">
-            <div className="mb-3">
-              <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-300 admin-light:text-slate-700">
-                <Hash size={14} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
-                Unit Feedback QR
-              </h3>
-              <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
-                Permanent — this QR never changes. Print it and keep it inside the
-                unit; commuters scan it to rate today&apos;s driver &amp; conductor.
-              </p>
-            </div>
-
-            <div className="flex flex-col items-center gap-4">
-              {/* QR (white quiet-zone wrapper so it scans reliably) */}
-              <div className="rounded-lg bg-white p-3 shadow-sm">
-                <div ref={qrWrapperRef}>
-                  <QRCodeCanvas
-                    value={qrPayload}
-                    size={208}
-                    level="M"
-                    aria-label={`Permanent feedback QR for unit ${vehicle.unitNumber || vehicle.plateNumber}`}
+              <section aria-labelledby="vehicle-information-heading">
+                <h3 id="vehicle-information-heading" className="text-sm font-semibold text-white admin-light:text-slate-900">Vehicle information</h3>
+                <dl className="mt-3 grid grid-cols-2 gap-x-5 gap-y-3">
+                  <DetailRow label="Brand" value={vehicle.brand || '—'} />
+                  <DetailRow label="Model" value={vehicle.model || '—'} />
+                  <DetailRow
+                    label="Status"
+                    value={
+                      <span className={
+                        vehicle.status === 'ACTIVE'
+                          ? 'text-green-400 admin-light:text-green-700'
+                          : vehicle.status === 'MAINTENANCE'
+                            ? 'text-yellow-400 admin-light:text-yellow-700'
+                            : 'text-red-400 admin-light:text-red-600'
+                      }>
+                        {vehicle.statusLabel}
+                      </span>
+                    }
                   />
+                  <DetailRow label="Date added" value={formatDate(vehicle.createdAt)} />
+                </dl>
+                <div className="mt-3 flex items-start gap-3 rounded-xl bg-[#0E1628]/60 p-3 admin-light:bg-slate-50">
+                  <Route size={18} aria-hidden="true" className="mt-0.5 shrink-0 text-[#99C1F1] admin-light:text-[#1A5FB4]" />
+                  <div className="min-w-0">
+                    <p className="text-xs text-slate-400 admin-light:text-slate-500">Assigned route</p>
+                    <p className="mt-1 break-words text-sm font-medium text-slate-200 admin-light:text-slate-800">{vehicle.route?.name || 'No route assigned'}</p>
+                  </div>
                 </div>
+              </section>
+
+              <section aria-labelledby="vehicle-crew-heading" className="mt-4 border-t border-[#2A3A55] pt-3 admin-light:border-[#E2E8F0]">
+                <h3 id="vehicle-crew-heading" className="flex items-center gap-2 text-sm font-semibold text-white admin-light:text-slate-900">
+                  <Users size={16} aria-hidden="true" className="text-slate-400 admin-light:text-slate-500" />
+                  Today&apos;s assigned crew
+                </h3>
+                <div className="mt-1 divide-y divide-[#2A3A55] admin-light:divide-[#E2E8F0]">
+                  <CrewRow label="Driver" person={vehicle.driver} />
+                  <CrewRow label="Conductor" person={vehicle.conductor} />
+                </div>
+              </section>
+            </div>
+
+            <section aria-labelledby="vehicle-qr-heading" className="min-w-0 self-stretch rounded-2xl border border-[#2A3A55] bg-[#0E1628]/60 p-4 admin-light:border-[#E2E8F0] admin-light:bg-slate-50">
+              <div className="mb-3">
+                <h3 id="vehicle-qr-heading" className="flex items-center gap-2 text-sm font-semibold text-white admin-light:text-slate-900">
+                  <QrCode size={16} aria-hidden="true" className="text-[#99C1F1] admin-light:text-[#1A5FB4]" />
+                  Passenger feedback
+                </h3>
+                <p className="mt-2 text-xs leading-relaxed text-slate-400 admin-light:text-slate-500">
+                  Scan to rate today&apos;s driver and conductor.
+                </p>
               </div>
 
-              {/* Actions */}
-              <div className="grid w-full max-w-xs grid-cols-1 gap-2 sm:grid-cols-2">
-                <button
-                  onClick={handleDownload}
-                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white text-sm font-medium rounded-md hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] transition-colors"
-                >
-                  <Download size={16} />
-                  Download PNG
-                </button>
-                <button
-                  onClick={handlePrint}
-                  className="flex items-center justify-center gap-2 px-4 py-2.5 border border-[#1E2D45] admin-light:border-[#E2E8F0] text-slate-200 admin-light:text-slate-700 text-sm font-medium rounded-md hover:bg-[#131C2E] admin-light:hover:bg-white transition-colors"
-                >
-                  <Printer size={16} />
-                  Print
-                </button>
+              <div className="flex flex-col items-center gap-3">
+                {/* QR (white quiet-zone wrapper so it scans reliably) */}
+                <div className="shrink-0 rounded-xl bg-white p-3">
+                  <div ref={qrWrapperRef}>
+                    <QRCodeCanvas
+                      value={qrPayload}
+                      size={288}
+                      style={{ display: 'block', width: 144, height: 144 }}
+                      level="M"
+                      aria-label={`Permanent feedback QR for unit ${vehicle.unitNumber || vehicle.plateNumber}`}
+                    />
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="w-full max-w-xs space-y-2">
+                  <button
+                    type="button"
+                    onClick={handleDownload}
+                    className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-3 py-2.5 text-sm font-semibold text-[#0B1120] transition-colors hover:bg-[#85B6F0] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#62A0EA] admin-light:bg-[#1A5FB4] admin-light:text-white admin-light:hover:bg-[#164A8F]"
+                  >
+                    <Download size={16} aria-hidden="true" />
+                    Download PNG
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePrint}
+                    className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-[#2A3A55] px-3 py-2.5 text-sm font-medium text-slate-200 transition-colors hover:bg-[#1A2540] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#62A0EA] admin-light:border-slate-300 admin-light:text-slate-700 admin-light:hover:bg-white"
+                  >
+                    <Printer size={16} aria-hidden="true" />
+                    Print QR code
+                  </button>
+                </div>
+                <p className="text-center text-xs leading-relaxed text-slate-400 admin-light:text-slate-500">
+                  This QR stays with the vehicle.<br />
+                  Print once and display inside the unit.
+                </p>
               </div>
-              <p className="text-center text-[10px] text-slate-500">
-                Unit {vehicle.unitNumber || '—'} · {vehicle.plateNumber || '—'}
-              </p>
-            </div>
-          </section>
+            </section>
         </div>
       )}
     </Modal>

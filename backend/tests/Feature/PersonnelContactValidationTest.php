@@ -102,6 +102,41 @@ class PersonnelContactValidationTest extends TestCase
         $response->assertStatus(422)->assertJsonValidationErrors('contact');
     }
 
+    public function test_driver_edit_prefills_and_saves_address_and_emergency_contact(): void
+    {
+        $admin = $this->makeAdmin();
+        $details = [
+            'first_name' => 'Juan', 'middle_name' => 'Reyes', 'last_name' => 'Dela Cruz',
+            'birthday' => '1990-01-01', 'contact' => '09171234567', 'license_number' => 'N01-23-045678',
+            'address' => '123 Rizal St.', 'emergency_contact_name' => 'Ana Dela Cruz',
+            'emergency_contact_number' => '09189998888', 'emergency_contact_relationship' => 'Spouse',
+        ];
+        $driver = Driver::create([...$details, 'hire_date' => now()->toDateString(), 'status' => 'ACTIVE']);
+        $endpoint = "/api/v1/admin/drivers/{$driver->id}";
+
+        $response = $this->actingAs($admin)->getJson($endpoint)->assertOk();
+        foreach ($details as $field => $value) {
+            $response->assertJsonPath('data.'.$field, $value);
+        }
+
+        $updated = array_replace($details, [
+            'address' => '456 Mabini St.', 'emergency_contact_name' => 'Jose Reyes',
+            'emergency_contact_number' => '09181112222', 'emergency_contact_relationship' => 'Sibling',
+        ]);
+        $this->actingAs($admin)->putJson($endpoint, $updated)->assertOk();
+        $this->assertDatabaseHas('drivers', ['id' => $driver->id, ...array_diff_key($updated, ['birthday' => true])]);
+
+        $this->actingAs($admin)->putJson($endpoint, array_replace($updated, [
+            'emergency_contact_number' => '123', 'emergency_contact_relationship' => 'Invalid',
+        ]))->assertUnprocessable()->assertJsonValidationErrors(['emergency_contact_number', 'emergency_contact_relationship']);
+        $this->assertDatabaseHas('drivers', ['id' => $driver->id, ...array_diff_key($updated, ['birthday' => true])]);
+
+        // Older callers omitting the added fields must preserve existing details.
+        unset($updated['address'], $updated['emergency_contact_name'], $updated['emergency_contact_number'], $updated['emergency_contact_relationship']);
+        $this->actingAs($admin)->putJson($endpoint, $updated)->assertOk();
+        $this->assertDatabaseHas('drivers', ['id' => $driver->id, 'address' => '456 Mabini St.', 'emergency_contact_number' => '09181112222']);
+    }
+
     // ─── Conductors ─────────────────────────────────────────────────
 
     /** @dataProvider invalidContactProvider */

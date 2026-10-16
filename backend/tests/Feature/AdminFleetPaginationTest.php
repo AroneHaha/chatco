@@ -112,6 +112,75 @@ class AdminFleetPaginationTest extends TestCase
             ->assertJsonMissingPath('data.data');
     }
 
+    public function test_personnel_status_filter_includes_separation_records_and_excludes_inactive_profiles(): void
+    {
+        $admin = $this->makeAdmin();
+        $this->makeDriver(1);
+        $this->makeDriver(2)->update(['status' => 'SUSPENDED']);
+        $this->makeDriver(3)->delete();
+        $this->makeConductor(1);
+        $this->makeConductor(2)->update(['status' => 'DISABLED']);
+
+        foreach (['TERMINATED', 'RESIGNED'] as $status) {
+            TerminatedPersonnel::create([
+                'personnel_id' => 'former-'.$status,
+                'personnel_type' => 'DRIVER',
+                'name' => 'Former Driver '.$status,
+                'role' => 'Driver',
+                'contact' => '09170000000',
+                'reason' => 'Separated from service',
+                'termination_type' => $status,
+                'terminated_date' => now()->toDateString(),
+            ]);
+        }
+
+        foreach (['ACTIVE' => 2, 'TERMINATED' => 1, 'RESIGNED' => 1, 'all' => 6] as $status => $total) {
+            $response = $this->actingAs($admin)->getJson('/api/v1/admin/personnel?status='.$status);
+            $response->assertOk()->assertJsonPath('data.total', $total);
+            if ($status !== 'all') {
+                $this->assertSame(array_fill(0, $total, $status), array_column($response->json('data.data'), 'status'));
+            }
+            $this->actingAs($admin)->getJson('/api/v1/admin/personnel?status='.$status.'&count_only=1')
+                ->assertOk()->assertJsonPath('data.total', $total);
+        }
+
+        $this->actingAs($admin)->getJson('/api/v1/admin/personnel?status=invalid')->assertUnprocessable();
+    }
+
+    public function test_personnel_status_filter_combines_with_role_search_and_pagination(): void
+    {
+        $admin = $this->makeAdmin();
+        foreach (['Driver', 'Conductor'] as $role) {
+            foreach (['TERMINATED', 'RESIGNED'] as $status) {
+                for ($i = 1; $i <= 3; $i++) {
+                    TerminatedPersonnel::create([
+                        'personnel_id' => $role.$status.$i,
+                        'personnel_type' => strtoupper($role),
+                        'name' => 'Former '.$role.' '.$i,
+                        'role' => $role,
+                        'contact' => '09170000000',
+                        'reason' => 'Separated from service',
+                        'termination_type' => $status,
+                        'terminated_date' => now()->toDateString(),
+                    ]);
+                }
+            }
+        }
+
+        $response = $this->actingAs($admin)->getJson('/api/v1/admin/personnel?status=RESIGNED&role=conductor&search=Former&per_page=2&page=2');
+        $response->assertOk()
+            ->assertJsonPath('data.total', 3)
+            ->assertJsonPath('data.current_page', 2)
+            ->assertJsonCount(1, 'data.data')
+            ->assertJsonPath('data.data.0.role', 'Conductor')
+            ->assertJsonPath('data.data.0.status', 'RESIGNED');
+
+        $this->actingAs($admin)->getJson('/api/v1/admin/personnel?status=RESIGNED&role=conductor&search=Former&count_only=1')
+            ->assertOk()->assertJsonPath('data.total', 3);
+        $this->actingAs($admin)->getJson('/api/v1/admin/personnel?status=TERMINATED&search=missing')
+            ->assertOk()->assertJsonPath('data.total', 0);
+    }
+
     public function test_fleet_count_only_endpoints_return_totals_without_page_rows(): void
     {
         $admin = $this->makeAdmin();

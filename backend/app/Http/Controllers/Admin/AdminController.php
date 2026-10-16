@@ -203,18 +203,20 @@ class AdminController extends Controller
      */
     public function personnel(Request $request): JsonResponse
     {
+        $request->validate(['status' => ['nullable', Rule::in(['all', 'ACTIVE', 'TERMINATED', 'RESIGNED'])]]);
         $perPage = max(1, min((int) $request->integer('per_page', 25), 100));
         $page = max(1, (int) $request->integer('page', 1));
         $search = $request->string('search')->toString() ?: null;
         $role = $request->string('role')->toString() ?: null;
+        $status = $request->string('status')->toString() ?: null;
 
         if ($request->boolean('count_only')) {
             return $this->successResponse([
-                'total' => $this->adminService->countFleetPersonnel($search, $role),
+                'total' => $this->adminService->countFleetPersonnel($search, $role, $status),
             ], 'Personnel count retrieved');
         }
 
-        $personnel = $this->adminService->listFleetPersonnel($perPage, $page, $search, $role);
+        $personnel = $this->adminService->listFleetPersonnel($perPage, $page, $search, $role, $status);
 
         return $this->successResponse($personnel, 'Personnel retrieved');
     }
@@ -317,6 +319,10 @@ class AdminController extends Controller
             'birthday' => 'required|date|before:today',
             'contact' => ['required', 'string', new PhilippineMobileNumber],
             'license_number' => ['required', 'string', 'regex:/^[A-Z][0-9]{2}-[0-9]{2}-[0-9]{6}$/', 'unique:drivers,license_number,'.$id],
+            'address' => ['sometimes', 'required', 'string', 'max:255'],
+            'emergency_contact_name' => ['sometimes', 'required', 'string', 'max:100'],
+            'emergency_contact_number' => ['sometimes', 'required', 'string', new PhilippineMobileNumber],
+            'emergency_contact_relationship' => ['sometimes', 'required', 'string', Rule::in(self::RELATIONSHIP_OPTIONS)],
             'profile_picture_url' => 'nullable|string|max:500',
             'profile_picture' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
         ], [
@@ -341,6 +347,9 @@ class AdminController extends Controller
                     'birthday' => $validated['birthday'],
                     'contact' => $validated['contact'],
                     'license_number' => $validated['license_number'],
+                    ...array_intersect_key($validated, array_flip([
+                        'address', 'emergency_contact_name', 'emergency_contact_number', 'emergency_contact_relationship',
+                    ])),
                     'profile_picture_url' => $newPictureUrl,
                 ]);
             });

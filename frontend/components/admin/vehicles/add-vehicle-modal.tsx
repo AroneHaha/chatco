@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
-import { Info } from 'lucide-react';
+import { Car, Info, Loader2, Plus } from 'lucide-react';
 
 interface AddVehicleModalProps {
   isOpen: boolean;
@@ -89,21 +89,35 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
     }
   };
 
-  const inputClasses = "block w-full px-4 py-2.5 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-white admin-light:text-slate-900 text-sm placeholder-slate-500 admin-light:placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] admin-light:focus:ring-[#1A5FB4] transition-colors";
+  const inputClasses = "block min-h-11 w-full rounded-lg border border-[#2A3A55] bg-[#0E1628]/60 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 transition-colors focus:outline-none focus:ring-2 focus:ring-[#62A0EA]/50 admin-light:border-[#CBD5E1] admin-light:bg-slate-50 admin-light:text-slate-900 admin-light:placeholder:text-slate-400 admin-light:focus:ring-[#1A5FB4]/30";
 
   return (
-    <Modal adminThemed isOpen={isOpen} onClose={onClose}>
-      <h2 className="text-lg sm:text-xl font-bold text-white admin-light:text-slate-900 mb-5">Add New Vehicle</h2>
+    <Modal adminThemed isOpen={isOpen} onClose={onClose} maxWidth="max-w-xl" rounded="rounded-2xl">
+      <header className="mb-5 flex items-center gap-3 border-b border-[#2A3A55] pb-4 pr-8 admin-light:border-[#E2E8F0]">
+        <div aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#62A0EA]/20 bg-[#62A0EA]/10 text-[#99C1F1] admin-light:border-[#1A5FB4]/15 admin-light:bg-[#1A5FB4]/5 admin-light:text-[#1A5FB4]">
+          <Car size={23} strokeWidth={1.5} />
+        </div>
+        <div>
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#99C1F1] admin-light:text-[#1A5FB4]">Fleet Management</p>
+          <h2 className="text-xl font-semibold tracking-tight text-white admin-light:text-slate-900">Add New Vehicle</h2>
+        </div>
+      </header>
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
-          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md">
+          <div role="alert" className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
             <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
           </div>
         )}
 
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-white admin-light:text-slate-900">Vehicle information</h3>
+          <p className="text-xs text-slate-400 admin-light:text-slate-500"><span className="text-red-400 admin-light:text-red-600">*</span> Required fields</p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="unit_number" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">
-            Unit Number / Unit ID <span className="text-red-400 admin-light:text-red-600">*</span>
+            Unit number <span className="text-red-400 admin-light:text-red-600">*</span>
           </label>
           <input type="text" id="unit_number" name="unit_number" value={formData.unit_number} onChange={handleChange} required placeholder="e.g., UNIT-011"
             className={`${inputClasses} ${fieldErrors.unit_number ? 'border-red-500/50' : ''}`} />
@@ -114,7 +128,7 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
 
         <div>
           <label htmlFor="plate_number" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">
-            Plate Number <span className="text-red-400 admin-light:text-red-600">*</span>
+            Plate number <span className="text-red-400 admin-light:text-red-600">*</span>
           </label>
           <input type="text" id="plate_number" name="plate_number" value={formData.plate_number} onChange={handleChange} required placeholder="e.g., NAA 0011"
             className={`${inputClasses} ${fieldErrors.plate_number ? 'border-red-500/50' : ''}`} />
@@ -123,7 +137,6 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
           <div>
             <label htmlFor="brand" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">
               Brand <span className="text-red-400 admin-light:text-red-600">*</span>
@@ -150,26 +163,28 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
         <div>
           <label htmlFor="status" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">Status</label>
           <select id="status" name="status" value={formData.status} onChange={handleChange}
-            className={`${inputClasses} [color-scheme:dark]`}>
+            className={`${inputClasses} [color-scheme:dark] admin-light:[color-scheme:light]`}>
             <option value="ACTIVE" className="bg-gray-800 admin-light:bg-white">Active</option>
             <option value="MAINTENANCE" className="bg-gray-800 admin-light:bg-white">Under Maintenance</option>
             <option value="INACTIVE" className="bg-gray-800 admin-light:bg-white">Out of Service</option>
           </select>
+          {fieldErrors.status && (
+            <p className="mt-1 text-xs text-red-400 admin-light:text-red-600">{fieldErrors.status[0]}</p>
+          )}
         </div>
 
         {/* Information note explaining the new assignment workflow */}
-        <div className="flex items-start gap-2.5 bg-[#62A0EA]/8 admin-light:bg-[#1A5FB4]/8 border border-[#62A0EA]/20 admin-light:border-[#1A5FB4]/20 rounded-md px-3.5 py-3">
-          <Info size={16} className="text-[#62A0EA] admin-light:text-[#1A5FB4] flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-slate-300 admin-light:text-slate-700 leading-relaxed">
-            Driver and conductor are <span className="font-semibold text-white admin-light:text-slate-900">not assigned here</span>.
-            A new vehicle starts unassigned. Personnel are linked to this unit automatically when a
-            conductor logs in and starts a shift.
+        <div className="flex items-start gap-2.5 rounded-xl bg-[#0E1628]/60 px-3.5 py-3 admin-light:bg-slate-50">
+          <Info size={16} aria-hidden="true" className="mt-0.5 shrink-0 text-[#99C1F1] admin-light:text-[#1A5FB4]" />
+          <p className="text-xs leading-relaxed text-slate-400 admin-light:text-slate-500">
+            Driver and conductor assignments are linked automatically when a conductor starts a shift.
           </p>
         </div>
 
-        <div className="flex justify-end gap-2 pt-4 border-t border-[#1E2D45] admin-light:border-[#E2E8F0]">
-          <button type="button" onClick={onClose} className="px-5 py-2.5 border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-slate-300 admin-light:text-slate-700 hover:bg-[#131C2E] admin-light:hover:bg-white transition-colors">Cancel</button>
-          <button type="submit" disabled={isSubmitting} className="px-5 py-2.5 bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white font-medium rounded-md hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+        <div className="flex justify-end gap-3 border-t border-[#2A3A55] pt-4 admin-light:border-[#E2E8F0]">
+          <button type="button" onClick={onClose} className="min-h-11 rounded-lg border border-[#2A3A55] px-4 py-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-[#131C2E] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#62A0EA] admin-light:border-slate-300 admin-light:text-slate-700 admin-light:hover:bg-slate-50">Cancel</button>
+          <button type="submit" disabled={isSubmitting} className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-4 py-2.5 text-sm font-semibold text-[#0B1120] transition-colors hover:bg-[#85B6F0] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#62A0EA] disabled:cursor-not-allowed disabled:opacity-50 admin-light:bg-[#1A5FB4] admin-light:text-white admin-light:hover:bg-[#164A8F]">
+            {isSubmitting ? <Loader2 size={16} aria-hidden="true" className="animate-spin" /> : <Plus size={16} aria-hidden="true" />}
             {isSubmitting ? 'Saving...' : 'Save Vehicle'}
           </button>
         </div>

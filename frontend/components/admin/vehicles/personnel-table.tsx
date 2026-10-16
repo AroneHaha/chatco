@@ -7,7 +7,7 @@ import { TablePagination } from "@/components/admin/ui/table-pagination";
 import { SearchBar } from "@/components/admin/ui/search-bar";
 import { Edit, Eye, Trash, Plus, UserPlus } from "lucide-react";
 import { formatLogDate } from "@/lib/utils/format";
-import type { PageMeta, Personnel, PersonnelRoleFilter } from "@/app/(admin)/vehicles/data/vehicles-data";
+import type { PageMeta, Personnel, PersonnelRoleFilter, PersonnelStatusFilter } from "@/app/(admin)/vehicles/data/vehicles-data";
 import { DriverDetailModal } from "@/components/admin/vehicles/driver-detail-modal";
 import { ConductorDetailModal } from "@/components/admin/vehicles/conductor-detail-modal";
 import { SkeletonTable } from "@/components/admin/ui/skeleton";
@@ -17,10 +17,12 @@ interface PersonnelTableProps {
   personnel: Personnel[];
   searchQuery: string;
   roleFilter: PersonnelRoleFilter;
+  statusFilter: PersonnelStatusFilter;
   page: PageMeta;
   onPageChange: (page: number) => void;
   onSearchChange: (value: string) => void;
   onRoleFilterChange: (role: PersonnelRoleFilter) => void;
+  onStatusFilterChange: (status: PersonnelStatusFilter) => void;
   onAddDriver: () => void;
   onCreateConductor: () => void;
   onEdit: (personnel: Personnel) => void;
@@ -39,10 +41,12 @@ export function PersonnelTable({
   personnel,
   searchQuery,
   roleFilter,
+  statusFilter,
   page,
   onPageChange,
   onSearchChange,
   onRoleFilterChange,
+  onStatusFilterChange,
   onAddDriver,
   onCreateConductor,
   onEdit,
@@ -57,6 +61,7 @@ export function PersonnelTable({
   // Account actions. Row double-click still opens them; the explicit button
   // below makes them reachable without knowing about the double-click.
   const openDetails = (p: Personnel) => {
+    if (p.status === "TERMINATED" || p.status === "RESIGNED") return;
     if (p.role === "Driver") {
       setSelectedDriver(p);
     } else if (p.role === "Conductor") {
@@ -120,11 +125,11 @@ export function PersonnelTable({
             <span
               aria-hidden="true"
               className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${
-                isActive ? "bg-emerald-400" : "bg-slate-600"
+                isActive ? "bg-emerald-400" : row.status === "TERMINATED" ? "bg-red-400" : row.status === "RESIGNED" ? "bg-amber-400" : "bg-slate-600"
               }`}
             />
             <span className={`text-xs font-medium ${isActive ? "text-slate-300 admin-light:text-slate-700" : "text-slate-500"}`}>
-              {isActive ? "Active" : "Deactivated"}
+              {isActive ? "Active" : row.status === "TERMINATED" ? "Terminated" : row.status === "RESIGNED" ? "Resigned" : "Deactivated"}
             </span>
           </span>
         );
@@ -136,7 +141,9 @@ export function PersonnelTable({
       align: "center" as const,
       headerClassName: "w-20",
       cellClassName: "w-20",
-      render: (_: unknown, row: Personnel) => (
+      render: (_: unknown, row: Personnel) => row.status === "TERMINATED" || row.status === "RESIGNED" ? (
+        <span className="text-xs text-slate-500">Archived</span>
+      ) : (
         <RowActionsMenu
           label={`Actions for ${row.name}`}
           actions={[
@@ -153,12 +160,12 @@ export function PersonnelTable({
     <>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#111A2B] admin-light:bg-white p-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
         <div className="flex shrink-0 flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             <SearchBar
               placeholder="Search personnel..."
               value={searchQuery}
               onChange={onSearchChange}
-              className="min-w-0 w-full sm:w-80"
+              className="min-w-0 w-full sm:w-56"
             />
             <select
               value={roleFilter}
@@ -169,6 +176,17 @@ export function PersonnelTable({
               <option value="all">All personnel</option>
               <option value="driver">Drivers</option>
               <option value="conductor">Conductors</option>
+            </select>
+            <select
+              value={statusFilter}
+              onChange={(event) => onStatusFilterChange(event.target.value as PersonnelStatusFilter)}
+              aria-label="Filter personnel by status"
+              className="h-10 rounded-lg border border-[#1E2D45] bg-[#0E1628] px-3 text-sm text-slate-200 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]/50 focus:ring-1 focus:ring-[#62A0EA]/30 admin-light:border-[#E2E8F0] admin-light:bg-white admin-light:text-slate-700 admin-light:[color-scheme:light] admin-light:focus:border-[#1A5FB4]/50 admin-light:focus:ring-[#1A5FB4]/30"
+            >
+              <option value="all">All statuses</option>
+              <option value="ACTIVE">Active</option>
+              <option value="TERMINATED">Terminated</option>
+              <option value="RESIGNED">Resigned</option>
             </select>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
