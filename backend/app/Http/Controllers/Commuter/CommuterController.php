@@ -66,6 +66,19 @@ class CommuterController extends Controller
         return $this->successResponse($payload, 'Profile updated');
     }
 
+    public function uploadProfilePhoto(Request $request): JsonResponse
+    {
+        $request->validate([
+            'photo' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:3072', 'dimensions:max_width=4096,max_height=4096'],
+        ]);
+        $payload = $this->commuterService->uploadProfilePhoto($request->user(), $request->file('photo'));
+        if ($payload === null) {
+            return $this->errorResponse('Commuter profile not found', 404);
+        }
+
+        return $this->successResponse($payload, 'Profile photo updated');
+    }
+
     /**
      * POST /api/v1/commuter/change-password/request-code
      *

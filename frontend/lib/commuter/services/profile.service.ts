@@ -68,6 +68,7 @@ interface ProfilePayload {
     language_preference: string | null;
     account_status: string | null;
     id_image_url: string | null;
+    profile_image_url?: string | null;
     verified_at: string | null;
     rejection_reason: string | null;
     created_at: string | null;
@@ -105,6 +106,7 @@ function mapProfile(raw: ProfilePayload): CommuterProfile {
     accountStatus:
       (p.account_status as AccountStatus) ?? "PENDING_VERIFICATION",
     idImageUrl: p.id_image_url,
+    profileImageUrl: p.profile_image_url ?? null,
     verifiedAt: p.verified_at,
     createdAt: p.created_at ?? "",
   };
@@ -188,6 +190,15 @@ export class PasswordChangeError extends Error {
 export async function getProfile(): Promise<CommuterProfile> {
   const response = await api.get<ApiResponseEnvelope<ProfilePayload>>(
     COMMUTER_API.profile
+  );
+  return mapProfile(response.data);
+}
+
+export async function uploadProfilePhoto(photo: File): Promise<CommuterProfile> {
+  const body = new FormData();
+  body.set("photo", photo);
+  const response = await api.postForm<ApiResponseEnvelope<ProfilePayload>>(
+    `${COMMUTER_API.profile}/photo`, body
   );
   return mapProfile(response.data);
 }

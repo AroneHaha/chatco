@@ -31,6 +31,7 @@ class CommuterProfile extends Model
         'language_preference',
         'account_status',
         'id_image_url',
+        'profile_image_url',
         'verified_at',
         'rejection_reason',
         'terms_version',

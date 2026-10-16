@@ -56,6 +56,7 @@ export interface CommuterProfile {
   languagePreference: string;
   accountStatus: AccountStatus;
   idImageUrl: string | null;
+  profileImageUrl?: string | null;
   verifiedAt: string | null;
   createdAt: string;
   updatedAt?: string;

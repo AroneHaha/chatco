@@ -379,6 +379,10 @@ export function useProfile() {
     void refreshAuth();
   };
 
+  const applyPhotoChange = (updated: CommuterProfile) => {
+    setProfile(previous => previous ? { ...previous, profileImageUrl: updated.profileImageUrl } : updated);
+  };
+
   return {
     // Data
     profile,
@@ -386,6 +390,7 @@ export function useProfile() {
     loadError,
     retryLoad,
     applyEmailChange,
+    applyPhotoChange,
     // Edit
     isEditing,
     editData,

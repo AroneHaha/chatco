@@ -118,6 +118,7 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER', 'mainten
     Route::post('/student-renewal/regular', [StudentRenewalController::class, 'regular'])->middleware('throttle:conductor-write');
     Route::post('/student-renewal/reminder', [StudentRenewalController::class, 'reminder'])->middleware('throttle:conductor-write');
     Route::put('/profile', [CommuterController::class, 'updateProfile'])->middleware('throttle:conductor-write');
+        Route::post('/profile/photo', [CommuterController::class, 'uploadProfilePhoto'])->middleware('throttle:conductor-write');
     Route::get('/change-email', [EmailChangeController::class, 'state'])->middleware('throttle:commuter-read');
     Route::prefix('change-email')->middleware('throttle:commuter-security')->group(function () {
         Route::post('/start', [EmailChangeController::class, 'start']);

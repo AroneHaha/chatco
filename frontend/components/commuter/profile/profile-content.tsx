@@ -3,13 +3,13 @@
 import { DiscountApplicationEntry } from './discount-application-entry';
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import Image from "next/image";
-import { Camera, Check, ChevronRight, KeyRound, Loader2, LogOut, Mail, Pencil, Phone, Save, ShieldCheck, UserRound, X } from "lucide-react";
+import { Check, ChevronRight, KeyRound, Loader2, LogOut, Mail, Pencil, Phone, Save, ShieldCheck, UserRound, X } from "lucide-react";
 import { useProfile } from "@/app/(commuter)/profile/use-profile";
 import { AccountStatus } from "@/app/(commuter)/profile/types";
 import { getCommuterTypeLabel } from "@/types";
 import ChangeEmailDialog from "./change-email-dialog";
 import ProfileThemeToggle from "./profile-theme-toggle";
+import ProfilePhoto from "./profile-photo";
 import AccountMenu, { type SignOutControl } from "./account-menu";
 
 /**
@@ -44,26 +44,6 @@ export default function ProfileContent({ variant = "page", onSignOutControl }: {
   const contactFormId = useId();
   const contactErrorId = useId();
   const photoHelpId = useId();
-  const photoInputRef = useRef<HTMLInputElement>(null);
-  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
-  const [photoError, setPhotoError] = useState<string | null>(null);
-  const [failedPhotoUrl, setFailedPhotoUrl] = useState<string | null>(null);
-  useEffect(() => {
-    return () => { if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl); };
-  }, [photoPreviewUrl]);
-  const selectPhoto = (file: File) => {
-    setPhotoError(null);
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      setPhotoError('Choose a JPG, PNG, or WebP image.');
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setPhotoError('Your photo must be 5 MB or smaller.');
-      return;
-    }
-    // Local preview only. Persistence will be connected by the backend developer.
-    setPhotoPreviewUrl(URL.createObjectURL(file));
-  };
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const closeEmailDialog = useCallback(() => setShowEmailDialog(false), []);
   // Logging out is one tap from a scrollable page and is not undoable without
@@ -77,6 +57,7 @@ export default function ProfileContent({ variant = "page", onSignOutControl }: {
     loadError,
     retryLoad,
     applyEmailChange,
+    applyPhotoChange,
     isEditing,
     editData,
     startEditing,
@@ -238,22 +219,7 @@ export default function ProfileContent({ variant = "page", onSignOutControl }: {
         {/* Header & Avatar */}
         <div className={isPage ? "flex items-center gap-4 rounded-2xl border border-[#62A0EA]/20 bg-gradient-to-br from-[#102E50] to-[#071A2E] light:border-[#1A5FB4]/20 light:from-[#F0F7FF] light:to-white p-5 lg:gap-5 lg:rounded-none lg:border-0 lg:bg-none lg:p-0" : "relative isolate flex items-center gap-5 overflow-hidden rounded-2xl border border-[#62A0EA]/25 bg-gradient-to-br from-[#153C66] via-[#0C2743] to-[#071A2E] p-6 shadow-lg shadow-black/10 light:border-[#1A5FB4]/20 light:from-[#F0F7FF] light:via-[#F7FAFF] light:to-white light:shadow-black/5"}>
           {!isPage && <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-16 -z-10 h-56 w-56 rounded-full border border-[#99C1F1]/10 light:border-[#1A5FB4]/10 bg-[#62A0EA]/5"><div className="absolute inset-6 rounded-full border border-[#99C1F1]/10 light:border-[#1A5FB4]/10" /><div className="absolute inset-12 rounded-full border border-[#99C1F1]/10 light:border-[#1A5FB4]/10" /></div>}
-          <div className="shrink-0 self-start text-center">
-            <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" aria-label="Choose profile photo" onChange={event => {
-              const file = event.target.files?.[0];
-              event.target.value = '';
-              if (file) selectPhoto(file);
-            }} />
-            <button type="button" onClick={() => photoInputRef.current?.click()} aria-label={photoPreviewUrl ? 'Change selected photo' : 'Choose profile photo'} aria-describedby={photoHelpId} className="group relative flex h-20 w-20 items-center justify-center rounded-2xl border border-[#99C1F1]/30 bg-[#1A5FB4] text-2xl font-bold text-white shadow-lg ring-4 ring-white/5 transition-colors hover:border-[#99C1F1] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#99C1F1] sm:h-24 sm:w-24 sm:text-3xl">
-              {photoPreviewUrl && failedPhotoUrl !== photoPreviewUrl
-                ? <Image src={photoPreviewUrl} alt={`${profile.firstName}'s selected photo preview`} width={96} height={96} unoptimized onError={() => { setFailedPhotoUrl(photoPreviewUrl); setPhotoError('This image could not be displayed. Choose another photo.'); }} className="h-full w-full rounded-2xl object-cover" />
-                : <span aria-hidden="true">{profile.firstName[0]}{profile.surname[0]}</span>}
-              <span className="absolute -bottom-1.5 -right-1.5 flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#071A2E] bg-[#99C1F1] text-[#071A2E] light:border-white light:bg-[#1A5FB4] light:text-white">
-                <Camera size={15} aria-hidden="true" />
-              </span>
-            </button>
-            <span className="mt-3 block text-[11px] font-medium text-[#B6D3F6] light:text-[#1A5FB4]">{photoPreviewUrl ? 'Change photo' : 'Choose photo'}</span>
-          </div>
+          <ProfilePhoto profile={profile} onUploaded={applyPhotoChange} helpId={photoHelpId} className="group relative flex h-20 w-20 items-center justify-center rounded-2xl border border-[#99C1F1]/30 bg-[#1A5FB4] text-2xl font-bold text-white shadow-lg ring-4 ring-white/5 transition-colors hover:border-[#99C1F1] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#99C1F1] sm:h-24 sm:w-24 sm:text-3xl" />
           <div className="min-w-0 flex-1">
             {!isPage && <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#99C1F1]/80 light:text-[#1A5FB4]/80">Commuter account</p>}
             <h2 className={isPage ? "break-words text-xl font-bold leading-snug text-white light:text-gray-900 lg:text-2xl" : "break-words text-2xl font-bold leading-snug tracking-tight text-white light:text-gray-900"}>
@@ -276,9 +242,7 @@ export default function ProfileContent({ variant = "page", onSignOutControl }: {
         </div>
 
         <div className="space-y-2">
-          <p id={photoHelpId} className="text-xs text-white/45 light:text-gray-500">Profile photo: JPG, PNG, or WebP. Maximum 5 MB.</p>
-          {photoPreviewUrl && !photoError && <p role="status" className="text-xs text-[#99C1F1] light:text-[#1A5FB4]">Preview only. Your photo has not been saved.</p>}
-          {photoError && <p role="alert" className="text-sm text-red-300 light:text-red-600">{photoError}</p>}
+          <p id={photoHelpId} className="text-xs text-white/45 light:text-gray-500">Profile photo: JPG, PNG, or WebP. Maximum 3 MB and 4096 × 4096 pixels. Choosing a photo uploads it to your account.</p>
           {['ACTIVE', 'APPROVED'].includes(profile.accountStatus) && <DiscountApplicationEntry commuterType={profile.commuterType} onClassificationChanged={retryLoad} />}
         </div>
 

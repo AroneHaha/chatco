@@ -18,6 +18,7 @@ class MediaStorageService
     public function storeProfileImage(UploadedFile $file, string $role, string $ownerId): string
     {
         $prefix = match (strtolower($role)) {
+            'commuter' => 'profiles/commuters',
             'conductor' => 'profiles/conductors',
             'driver' => 'profiles/drivers',
             default => throw new \InvalidArgumentException('Unsupported profile image role.'),
@@ -58,6 +59,10 @@ class MediaStorageService
         $filename = Str::uuid().'.'.$extension;
         $disk ??= config('filesystems.uploads.public_media_disk', 'r2_public');
         $path = $file->storeAs($directory, $filename, $disk);
+
+        if (! $path) {
+            throw new \RuntimeException('The image could not be stored.');
+        }
 
         return Storage::disk($disk)->url($path);
     }

@@ -6,6 +6,8 @@ use App\Models\CommuterProfile;
 use App\Models\User;
 use Laravel\Sanctum\PersonalAccessToken;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\ValidationException;
 use App\Services\EmailVerificationService;
 
@@ -52,6 +54,7 @@ class CommuterService
             'language_preference',
             'account_status',
             'id_image_url',
+            'profile_image_url',
             'verified_at',
             'rejection_reason',
             'created_at',
@@ -104,6 +107,39 @@ class CommuterService
         // Skip the write entirely when nothing actually changed.
         if ($profile->isDirty()) {
             $profile->save();
+        }
+
+        return $this->present($user->setRelation('commuterProfile', $profile), $profile);
+    }
+
+    /** Uploads are separate from profile edits: clients cannot supply another user's URL. */
+    public function uploadProfilePhoto(User $user, UploadedFile $photo): ?array
+    {
+        if (! $user->commuterProfile()->exists()) {
+            return null;
+        }
+
+        $media = app(MediaStorageService::class);
+        try {
+            $url = $media->storeProfileImage($photo, 'commuter', $user->id);
+        } catch (\Throwable $error) {
+            report($error);
+            abort(502, 'The photo could not be stored. Please try again.');
+        }
+
+        try {
+            $profile = DB::transaction(function () use ($user, $url, $media) {
+                $profile = $user->commuterProfile()->lockForUpdate()->firstOrFail();
+                $previous = $profile->profile_image_url;
+                $profile->profile_image_url = $url;
+                $profile->save();
+                DB::afterCommit(fn () => $media->deletePublicUrl($previous));
+
+                return $profile;
+            });
+        } catch (\Throwable $error) {
+            $media->deletePublicUrl($url);
+            throw $error;
         }
 
         return $this->present($user->setRelation('commuterProfile', $profile), $profile);
@@ -242,6 +278,7 @@ class CommuterService
                 'language_preference' => $profile->language_preference,
                 'account_status'      => $profile->account_status,
                 'id_image_url'        => $profile->id_image_url,
+                'profile_image_url'   => $profile->profile_image_url,
                 'verified_at'         => optional($profile->verified_at)->toIso8601String(),
                 'rejection_reason'    => $profile->rejection_reason,
                 'created_at'          => optional($profile->created_at)->toIso8601String(),
